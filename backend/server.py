@@ -1371,7 +1371,8 @@ async def get_tournament_results(tournament_id: str):
             "papers.id": 1,
             "papers.title": 1,
             "papers.arxiv_id": 1,
-            "papers.link": 1
+            "papers.link": 1,
+            "papers.citation_count": 1
             # Note: matches excluded for performance, fetched separately if needed
         }
     )
