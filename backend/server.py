@@ -885,11 +885,11 @@ async def get_tournament_results(tournament_id: str):
             "completed_at": 1,
             "rankings": 1,
             "scores": 1,
-            "matches": 1,
             "papers.id": 1,
             "papers.title": 1,
             "papers.arxiv_id": 1,
             "papers.link": 1
+            # Note: matches excluded for performance, fetched separately if needed
         }
     )
     if not tournament:
@@ -897,6 +897,37 @@ async def get_tournament_results(tournament_id: str):
     if tournament.get('status') != 'completed':
         raise HTTPException(status_code=400, detail="Tournament not completed yet")
     return {"tournament": tournament}
+
+@api_router.get("/tournaments/{tournament_id}/matches")
+async def get_tournament_matches(tournament_id: str, limit: int = 50, offset: int = 0):
+    """Get tournament matches with pagination - for logs view"""
+    tournament = await db.tournaments.find_one(
+        {"id": tournament_id}, 
+        {
+            "_id": 0,
+            "matches": 1,
+            "papers.id": 1,
+            "papers.title": 1,
+            "papers.link": 1
+        }
+    )
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    
+    matches = tournament.get('matches', [])
+    completed_matches = [m for m in matches if m.get('completed')]
+    total = len(completed_matches)
+    
+    # Paginate
+    paginated = completed_matches[offset:offset + limit]
+    
+    return {
+        "matches": paginated,
+        "papers": tournament.get('papers', []),
+        "total": total,
+        "offset": offset,
+        "limit": limit
+    }
 
 @api_router.get("/tournaments/{tournament_id}/status")
 async def tournament_status_sse(tournament_id: str):
