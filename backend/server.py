@@ -628,14 +628,6 @@ def check_ucb_convergence(paper_stats: Dict[str, Dict], min_comparisons: int,
         return True, current_rankings
     
     return False, current_rankings
-        for j in range(i + 1, len(papers)):
-            match = Match(
-                paper1_id=papers[i]['id'],
-                paper2_id=papers[j]['id'],
-                round_num=1
-            )
-            matches.append(match)
-    return matches
 
 async def run_tournament(tournament_id: str):
     """Run the tournament with parallel LLM comparisons"""
