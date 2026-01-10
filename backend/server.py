@@ -328,12 +328,15 @@ async def search_arxiv_papers(
     fetch_count = max_results * 5 if exact_phrase else max_results
     fetch_count = min(fetch_count, 200)  # Hard cap
     
+    # Use date-based sorting when date filters are applied, otherwise relevance
+    sort_by = "submittedDate" if (date_from or date_to) else "relevance"
+    
     # Single request to arXiv - parallel batching doesn't help due to rate limiting
     params = {
         "search_query": query,
         "start": 0,
         "max_results": fetch_count,
-        "sortBy": "relevance",
+        "sortBy": sort_by,
         "sortOrder": "descending"
     }
     
