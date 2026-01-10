@@ -306,22 +306,51 @@ async def search_arxiv_papers(
     
     # Fetch more results if exact phrase filtering needed
     fetch_count = max_results * 5 if exact_phrase else max_results
+    fetch_count = min(fetch_count, 200)  # Hard cap
     
-    params = {
-        "search_query": query,
-        "start": 0,
-        "max_results": min(fetch_count, 100),  # Cap at 100
-        "sortBy": "relevance",
-        "sortOrder": "descending"
-    }
+    # For large requests, fetch in parallel batches of 25 (arXiv is faster with smaller requests)
+    BATCH_SIZE = 25
     
-    async with httpx.AsyncClient() as http_client:
-        logger.info(f"ArXiv API call starting... (time so far: {time.time() - start_time:.2f}s)")
-        response = await http_client.get(base_url, params=params, timeout=30.0)
-        response.raise_for_status()
+    async def fetch_batch(start: int, count: int) -> List[Paper]:
+        params = {
+            "search_query": query,
+            "start": start,
+            "max_results": count,
+            "sortBy": "relevance",
+            "sortOrder": "descending"
+        }
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.get(base_url, params=params, timeout=30.0)
+            response.raise_for_status()
+        return parse_arxiv_response(response.text)
+    
+    if fetch_count <= BATCH_SIZE:
+        # Small request - single fetch
+        logger.info(f"ArXiv API call starting (single batch)... (time so far: {time.time() - start_time:.2f}s)")
+        papers = await fetch_batch(0, fetch_count)
         logger.info(f"ArXiv API response received (time so far: {time.time() - start_time:.2f}s)")
+    else:
+        # Large request - parallel batches
+        num_batches = (fetch_count + BATCH_SIZE - 1) // BATCH_SIZE
+        logger.info(f"ArXiv API call starting ({num_batches} parallel batches)... (time so far: {time.time() - start_time:.2f}s)")
+        
+        tasks = []
+        for i in range(num_batches):
+            start_idx = i * BATCH_SIZE
+            batch_count = min(BATCH_SIZE, fetch_count - start_idx)
+            tasks.append(fetch_batch(start_idx, batch_count))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        papers = []
+        for result in results:
+            if isinstance(result, list):
+                papers.extend(result)
+            elif isinstance(result, Exception):
+                logger.warning(f"Batch fetch failed: {result}")
+        
+        logger.info(f"ArXiv API response received ({len(papers)} papers from {num_batches} batches, time so far: {time.time() - start_time:.2f}s)")
     
-    papers = parse_arxiv_response(response.text)
     logger.info(f"Parsed {len(papers)} papers (time so far: {time.time() - start_time:.2f}s)")
     
     # Filter for exact phrase if specified
