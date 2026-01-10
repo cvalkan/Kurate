@@ -921,6 +921,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_db_client():
+    """Create indexes on startup for faster queries"""
+    try:
+        await db.tournaments.create_index("id", unique=True)
+        await db.tournaments.create_index("status")
+        await db.tournaments.create_index("created_at")
+        logger.info("MongoDB indexes created successfully")
+    except Exception as e:
+        logger.warning(f"Index creation warning: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
