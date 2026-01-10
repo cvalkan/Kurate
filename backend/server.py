@@ -1155,11 +1155,22 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
         progress = int((completed / total) * 100) if total > 0 else 100
         mode_label = "Deep Analysis: " if deep_analysis else ""
         
-        # Update in-memory progress cache (instant, no DB)
+        # Update in-memory progress cache with recent matches (instant, no DB)
+        existing_recent = tournament_progress_cache.get(tournament_id, {}).get("recent_matches", [])
+        recent_matches = (existing_recent + [
+            {
+                "paper1_title": paper_lookup[m['paper1_id']]['title'][:60],
+                "paper2_title": paper_lookup[m['paper2_id']]['title'][:60],
+                "winner_title": paper_lookup[m['winner_id']]['title'][:60],
+                "reasoning": m.get('reasoning', '')[:300]
+            } for m in match_updates
+        ])[-20:]  # Keep only last 20
+        
         tournament_progress_cache[tournament_id] = {
             "progress": progress,
             "current_log": f"{mode_label}Completed {completed}/{total} comparisons...",
             "completed_matches": completed,
+            "recent_matches": recent_matches,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
