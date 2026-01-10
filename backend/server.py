@@ -738,8 +738,12 @@ def can_reach_top_k(paper_id: str, paper_stats: Dict[str, Dict], paper_ids: List
     return paper_upper >= kth_lower
 
 def check_ucb_convergence(paper_stats: Dict[str, Dict], min_comparisons: int, 
-                          convergence_threshold: float, previous_rankings: List[str]) -> tuple:
-    """Check if UCB rankings have converged"""
+                          convergence_threshold: float, previous_rankings: List[str],
+                          target_top_k: Optional[int] = None) -> tuple:
+    """
+    Check if UCB rankings have converged.
+    If target_top_k is set, only checks convergence of top-k papers.
+    """
     # Check if all papers have minimum comparisons
     for stats in paper_stats.values():
         if stats.get('comparisons', 0) < min_comparisons:
@@ -755,9 +759,15 @@ def check_ucb_convergence(paper_stats: Dict[str, Dict], min_comparisons: int,
     if not previous_rankings:
         return False, current_rankings
     
-    # Check if top papers are stable
-    top_n = min(5, len(current_rankings))  # Check top 5 stability
-    if current_rankings[:top_n] == previous_rankings[:top_n]:
+    # Check stability of top papers
+    if target_top_k:
+        # For top-k mode, only check if top-k is stable
+        check_n = target_top_k
+    else:
+        # Default: check top 5 or all if fewer
+        check_n = min(5, len(current_rankings))
+    
+    if current_rankings[:check_n] == previous_rankings[:check_n]:
         return True, current_rankings
     
     return False, current_rankings
