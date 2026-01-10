@@ -624,30 +624,118 @@ def calculate_ucb_scores(paper_stats: Dict[str, Dict], total_comparisons: int, e
     return ucb_scores
 
 def select_ucb_pair(paper_ids: List[str], paper_stats: Dict[str, Dict], compared_pairs: set, 
-                    total_comparisons: int, exploration_constant: float) -> Optional[tuple]:
-    """Select the best pair to compare using UCB"""
+                    total_comparisons: int, exploration_constant: float,
+                    target_top_k: Optional[int] = None, eliminated_papers: Optional[set] = None) -> Optional[tuple]:
+    """
+    Select the best pair to compare using UCB.
+    If target_top_k is set, prioritizes comparisons near the top-k boundary.
+    """
     import math
+    
+    # Filter out eliminated papers
+    active_papers = [p for p in paper_ids if not eliminated_papers or p not in eliminated_papers]
+    
+    if len(active_papers) < 2:
+        return None
     
     ucb_scores = calculate_ucb_scores(paper_stats, total_comparisons, exploration_constant)
     
-    # Sort papers by UCB score (highest first)
-    sorted_papers = sorted(paper_ids, key=lambda x: ucb_scores.get(x, 0), reverse=True)
+    # Sort papers by current win rate (for top-k boundary detection)
+    sorted_by_winrate = sorted(
+        active_papers,
+        key=lambda x: paper_stats[x].get('wins', 0) / max(paper_stats[x].get('comparisons', 1), 1),
+        reverse=True
+    )
     
-    # Find best pair that hasn't been compared
+    # If targeting top-k, prioritize papers near the boundary
+    if target_top_k and target_top_k < len(active_papers):
+        # Focus zone: papers ranked k-2 to k+2 (around the boundary)
+        boundary_start = max(0, target_top_k - 2)
+        boundary_end = min(len(sorted_by_winrate), target_top_k + 3)
+        boundary_papers = set(sorted_by_winrate[boundary_start:boundary_end])
+        
+        # Also include top-k papers that need more comparisons
+        top_k_papers = set(sorted_by_winrate[:target_top_k])
+        
+        # Priority papers: those in boundary zone or top-k with low comparisons
+        priority_papers = boundary_papers | {
+            p for p in top_k_papers 
+            if paper_stats[p].get('comparisons', 0) < 5
+        }
+    else:
+        priority_papers = set(active_papers)
+    
+    # Find best pair
     best_pair = None
     best_score = -1
     
-    for i, p1 in enumerate(sorted_papers):
-        for p2 in sorted_papers[i+1:]:
+    # First, try to find pairs involving priority papers
+    for p1 in priority_papers:
+        for p2 in active_papers:
+            if p1 == p2:
+                continue
             pair_key = tuple(sorted([p1, p2]))
             if pair_key not in compared_pairs:
-                # Score for this pair is sum of UCB scores (prioritize uncertain papers)
+                # Score: sum of UCB scores, with bonus for priority papers
                 pair_score = ucb_scores.get(p1, 0) + ucb_scores.get(p2, 0)
+                if p2 in priority_papers:
+                    pair_score *= 1.5  # Bonus for comparing two priority papers
                 if pair_score > best_score:
                     best_score = pair_score
                     best_pair = (p1, p2)
     
+    # Fallback to any pair if no priority pairs available
+    if not best_pair:
+        for i, p1 in enumerate(active_papers):
+            for p2 in active_papers[i+1:]:
+                pair_key = tuple(sorted([p1, p2]))
+                if pair_key not in compared_pairs:
+                    pair_score = ucb_scores.get(p1, 0) + ucb_scores.get(p2, 0)
+                    if pair_score > best_score:
+                        best_score = pair_score
+                        best_pair = (p1, p2)
+    
     return best_pair
+
+def can_reach_top_k(paper_id: str, paper_stats: Dict[str, Dict], paper_ids: List[str], 
+                    target_k: int, confidence_level: float = 0.95) -> bool:
+    """
+    Check if a paper can statistically still reach top-k position.
+    Uses confidence intervals to determine if elimination is justified.
+    """
+    stats = paper_stats.get(paper_id, {})
+    wins = stats.get('wins', 0)
+    comparisons = stats.get('comparisons', 0)
+    
+    if comparisons < 3:
+        return True  # Not enough data to eliminate
+    
+    # Calculate confidence interval for this paper
+    ci = calculate_wilson_confidence_interval(wins, comparisons, confidence_level)
+    paper_upper = ci['upper_bound']
+    
+    # Get win rates of papers currently in top-k
+    sorted_papers = sorted(
+        paper_ids,
+        key=lambda x: paper_stats[x].get('wins', 0) / max(paper_stats[x].get('comparisons', 1), 1),
+        reverse=True
+    )
+    
+    if len(sorted_papers) <= target_k:
+        return True
+    
+    # Get the k-th paper's lower confidence bound
+    kth_paper = sorted_papers[target_k - 1]
+    kth_stats = paper_stats.get(kth_paper, {})
+    kth_ci = calculate_wilson_confidence_interval(
+        kth_stats.get('wins', 0), 
+        kth_stats.get('comparisons', 0), 
+        confidence_level
+    )
+    kth_lower = kth_ci['lower_bound']
+    
+    # Paper can reach top-k if its upper bound exceeds k-th paper's lower bound
+    return paper_upper >= kth_lower
 
 def check_ucb_convergence(paper_stats: Dict[str, Dict], min_comparisons: int, 
                           convergence_threshold: float, previous_rankings: List[str]) -> tuple:
