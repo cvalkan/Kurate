@@ -23,7 +23,9 @@ import {
   FileSearch,
   MessageSquare,
   ChevronDown,
-  ScrollText
+  ScrollText,
+  Target,
+  TrendingUp
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -189,6 +191,12 @@ export default function ResultsPage() {
             <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">
               <FileSearch className="h-3 w-3 mr-1" />
               Deep Analysis
+            </Badge>
+          )}
+          {tournament.ranking_mode === 'ucb' && (
+            <Badge variant="outline" className="border-purple-300 text-purple-700 bg-purple-50">
+              <Target className="h-3 w-3 mr-1" />
+              UCB Mode
             </Badge>
           )}
         </div>
