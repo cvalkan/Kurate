@@ -265,6 +265,44 @@ export default function TournamentPage() {
               </p>
             )}
 
+            {/* Live Comparison Logs - shown only while running */}
+            {tournament.status === 'running' && tournament.recent_matches?.length > 0 && (
+              <div className="mt-4 border-t pt-4" data-testid="live-logs">
+                <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-accent" />
+                  Live Comparison Logs
+                </p>
+                <ScrollArea className="h-64 rounded-md border bg-muted/30 p-3">
+                  <div className="space-y-3">
+                    {[...tournament.recent_matches].reverse().map((match, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`text-xs p-3 rounded-lg border bg-card ${idx === 0 ? 'ring-2 ring-accent/30' : ''}`}
+                      >
+                        <div className="flex items-start gap-2 mb-2">
+                          <Trophy className="h-3 w-3 text-yellow-500 mt-0.5 flex-shrink-0" />
+                          <span className="font-medium text-green-600 dark:text-green-400">
+                            {match.winner_title}...
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground mb-2 pl-5">
+                          <span className="text-xs">vs</span>{' '}
+                          <span className={match.winner_title === match.paper1_title ? 'line-through opacity-60' : 'line-through opacity-60'}>
+                            {match.winner_title === match.paper1_title ? match.paper2_title : match.paper1_title}...
+                          </span>
+                        </div>
+                        {match.reasoning && (
+                          <div className="text-muted-foreground italic pl-5 border-l-2 border-accent/30 ml-2">
+                            "{match.reasoning}"
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+
             {/* Start/Retry button for pending or failed tournaments */}
             {(tournament.status === 'pending' || tournament.status === 'failed') && (
               <Button 
