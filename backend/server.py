@@ -557,6 +557,86 @@ def generate_round_robin_matches(papers: List[Dict]) -> List[Match]:
             matches.append(match)
     return matches
 
+# UCB Algorithm Implementation
+def calculate_ucb_scores(paper_stats: Dict[str, Dict], total_comparisons: int, exploration_constant: float = 1.414) -> Dict[str, float]:
+    """Calculate UCB scores for all papers"""
+    import math
+    ucb_scores = {}
+    
+    for paper_id, stats in paper_stats.items():
+        wins = stats.get('wins', 0)
+        comparisons = stats.get('comparisons', 0)
+        
+        if comparisons == 0:
+            # Papers with no comparisons get infinite UCB (must be explored)
+            ucb_scores[paper_id] = float('inf')
+        else:
+            win_rate = wins / comparisons
+            # UCB1 formula: win_rate + c * sqrt(ln(total) / comparisons)
+            exploration_bonus = exploration_constant * math.sqrt(math.log(total_comparisons + 1) / comparisons)
+            ucb_scores[paper_id] = win_rate + exploration_bonus
+    
+    return ucb_scores
+
+def select_ucb_pair(paper_ids: List[str], paper_stats: Dict[str, Dict], compared_pairs: set, 
+                    total_comparisons: int, exploration_constant: float) -> Optional[tuple]:
+    """Select the best pair to compare using UCB"""
+    import math
+    
+    ucb_scores = calculate_ucb_scores(paper_stats, total_comparisons, exploration_constant)
+    
+    # Sort papers by UCB score (highest first)
+    sorted_papers = sorted(paper_ids, key=lambda x: ucb_scores.get(x, 0), reverse=True)
+    
+    # Find best pair that hasn't been compared
+    best_pair = None
+    best_score = -1
+    
+    for i, p1 in enumerate(sorted_papers):
+        for p2 in sorted_papers[i+1:]:
+            pair_key = tuple(sorted([p1, p2]))
+            if pair_key not in compared_pairs:
+                # Score for this pair is sum of UCB scores (prioritize uncertain papers)
+                pair_score = ucb_scores.get(p1, 0) + ucb_scores.get(p2, 0)
+                if pair_score > best_score:
+                    best_score = pair_score
+                    best_pair = (p1, p2)
+    
+    return best_pair
+
+def check_ucb_convergence(paper_stats: Dict[str, Dict], min_comparisons: int, 
+                          convergence_threshold: float, previous_rankings: List[str]) -> tuple:
+    """Check if UCB rankings have converged"""
+    # Check if all papers have minimum comparisons
+    for stats in paper_stats.values():
+        if stats.get('comparisons', 0) < min_comparisons:
+            return False, []
+    
+    # Calculate current rankings by win rate
+    current_rankings = sorted(
+        paper_stats.keys(),
+        key=lambda x: paper_stats[x].get('wins', 0) / max(paper_stats[x].get('comparisons', 1), 1),
+        reverse=True
+    )
+    
+    if not previous_rankings:
+        return False, current_rankings
+    
+    # Check if top papers are stable
+    top_n = min(5, len(current_rankings))  # Check top 5 stability
+    if current_rankings[:top_n] == previous_rankings[:top_n]:
+        return True, current_rankings
+    
+    return False, current_rankings
+        for j in range(i + 1, len(papers)):
+            match = Match(
+                paper1_id=papers[i]['id'],
+                paper2_id=papers[j]['id'],
+                round_num=1
+            )
+            matches.append(match)
+    return matches
+
 async def run_tournament(tournament_id: str):
     """Run the tournament with parallel LLM comparisons"""
     try:
