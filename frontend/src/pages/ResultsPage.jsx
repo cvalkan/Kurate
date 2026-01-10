@@ -167,10 +167,8 @@ export default function ResultsPage() {
           </h1>
         </div>
         <p className="text-muted-foreground">
-          {tournament.category_name} ({tournament.category})
-          {tournament.search_query && (
-            <span className="block text-sm mt-1">Search: {tournament.search_query}</span>
-          )}
+          {tournament.category_name}
+          {tournament.category !== 'custom' && ` (${tournament.category})`}
         </p>
         
         {/* Stats */}
