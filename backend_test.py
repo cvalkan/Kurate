@@ -493,7 +493,7 @@ class ArxivTournamentAPITester:
 
     def run_all_tests(self):
         """Run all API tests"""
-        print("🚀 Starting ArXiv Tournament API Tests")
+        print("🚀 Starting ArXiv Tournament API Tests (Including Search Feature)")
         print(f"Base URL: {self.base_url}")
         print("=" * 60)
         
@@ -502,18 +502,33 @@ class ArxivTournamentAPITester:
         
         # Core functionality
         self.test_get_categories()
+        
+        # NEW: Search functionality tests
+        print("\n📋 Testing Search Feature...")
+        self.test_search_papers_keywords()
+        self.test_search_papers_author()
+        self.test_search_papers_category()
+        self.test_search_papers_combined()
+        self.test_search_papers_date_filter()
+        self.test_create_tournament_from_search()
+        self.test_search_empty_criteria()
+        
+        # Original tournament functionality
+        print("\n🏆 Testing Tournament Creation...")
         self.test_create_tournament()
         self.test_start_tournament()
         self.test_get_tournament_details()
         self.test_list_tournaments()
         
         # Progress monitoring (this takes time)
+        print("\n⏱️ Testing Tournament Progress...")
         self.test_tournament_progress()
         
         # Cleanup
         self.test_delete_tournament()
         
         # Error handling
+        print("\n🚨 Testing Error Handling...")
         self.test_invalid_endpoints()
         
         # Print summary
