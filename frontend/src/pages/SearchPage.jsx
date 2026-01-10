@@ -157,7 +157,7 @@ export default function SearchPage() {
       const selectedPaperObjects = papers.filter(p => selectedPapers.has(p.id));
       
       const response = await axios.post(`${API}/tournaments`, {
-        category: category || "custom",
+        category: (category && category !== "any") ? category : "custom",
         papers: selectedPaperObjects,
         parallel_agents: parallelAgents,
         deep_analysis: deepAnalysis,
