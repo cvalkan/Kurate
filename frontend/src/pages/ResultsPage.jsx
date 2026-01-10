@@ -341,9 +341,18 @@ export default function ResultsPage() {
                         >
                           {item.title}
                         </a>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {item.authors?.slice(0, 3).join(", ")}
-                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-muted-foreground truncate">
+                            {item.authors?.slice(0, 3).join(", ")}
+                          </p>
+                          {paperLookup[item.paper_id]?.citation_count !== null && 
+                           paperLookup[item.paper_id]?.citation_count !== undefined && (
+                            <Badge variant="outline" className="text-[10px] py-0 border-amber-300 text-amber-700 bg-amber-50">
+                              <Quote className="h-2 w-2 mr-0.5" />
+                              {paperLookup[item.paper_id].citation_count}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="flex-shrink-0 text-right min-w-[120px]">
