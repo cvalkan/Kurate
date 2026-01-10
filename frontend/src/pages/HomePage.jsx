@@ -78,8 +78,14 @@ export default function HomePage() {
       const modeMsg = deepAnalysis ? "Deep Analysis tournament created!" : "Tournament created!";
       toast.success(`${modeMsg} Starting...`);
       
-      // Start the tournament
-      await axios.post(`${API}/tournaments/${tournamentId}/start`);
+      // Start the tournament with retry
+      try {
+        await axios.post(`${API}/tournaments/${tournamentId}/start`);
+      } catch (startError) {
+        console.error("First start attempt failed, retrying...", startError);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await axios.post(`${API}/tournaments/${tournamentId}/start`);
+      }
       
       // Navigate to tournament page
       navigate(`/tournament/${tournamentId}`);
