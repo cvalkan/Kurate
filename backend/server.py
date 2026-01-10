@@ -958,7 +958,6 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
             
             # Update stats
             winner_id = match['winner_id']
-            loser_id = p2_id if winner_id == p1_id else p1_id
             paper_stats[winner_id]['wins'] += 1
             paper_stats[p1_id]['comparisons'] += 1
             paper_stats[p2_id]['comparisons'] += 1
