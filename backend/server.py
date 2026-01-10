@@ -630,6 +630,22 @@ def check_ucb_convergence(paper_stats: Dict[str, Dict], min_comparisons: int,
     
     return False, current_rankings
 
+def create_rankings(scores: Dict[str, float], paper_lookup: Dict) -> List[Dict]:
+    """Create rankings list from scores"""
+    rankings = []
+    for pid, score in sorted(scores.items(), key=lambda x: x[1], reverse=True):
+        paper = paper_lookup[pid]
+        rankings.append({
+            "rank": len(rankings) + 1,
+            "paper_id": pid,
+            "title": paper['title'],
+            "authors": paper.get('authors', []),
+            "arxiv_id": paper.get('arxiv_id', ''),
+            "link": paper.get('link', ''),
+            "score": round(score, 4)
+        })
+    return rankings
+
 async def run_tournament(tournament_id: str):
     """Run the tournament with parallel LLM comparisons - supports Round Robin and UCB modes"""
     try:
