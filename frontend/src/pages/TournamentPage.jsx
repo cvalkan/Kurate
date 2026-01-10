@@ -15,7 +15,8 @@ import {
   ArrowRight,
   FileText,
   Zap,
-  Clock
+  Clock,
+  FileSearch
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -128,8 +129,21 @@ export default function TournamentPage() {
             {tournament.status}
           </Badge>
         </div>
-        <p className="text-muted-foreground font-mono text-sm">
-          {tournament.category} • {tournament.num_papers} papers • {tournament.parallel_agents} parallel agents
+        <p className="text-muted-foreground font-mono text-sm flex items-center gap-2 flex-wrap">
+          <span>{tournament.category}</span>
+          <span>•</span>
+          <span>{tournament.num_papers} papers</span>
+          <span>•</span>
+          <span>{tournament.parallel_agents} parallel agents</span>
+          {tournament.deep_analysis && (
+            <>
+              <span>•</span>
+              <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">
+                <FileSearch className="h-3 w-3 mr-1" />
+                Deep Analysis
+              </Badge>
+            </>
+          )}
         </p>
       </div>
 
