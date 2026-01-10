@@ -841,93 +841,68 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
     completed = 0
     
     for i in range(0, len(pending_matches), parallel_agents):
-            batch = pending_matches[i:i + effective_parallel]
-            
-            # Run comparisons in parallel
-            tasks = []
-            for match in batch:
-                p1 = paper_lookup[match['paper1_id']]
-                p2 = paper_lookup[match['paper2_id']]
-                tasks.append(compare_papers_llm(p1, p2, deep_analysis))
-            
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Update matches with results
-            for match, result in zip(batch, results):
-                if isinstance(result, Exception):
-                    logger.error(f"Match comparison failed: {result}")
-                    match['completed'] = True
-                    match['winner_id'] = match['paper1_id']  # Default
-                    match['reasoning'] = "Comparison failed"
-                else:
-                    winner_key = result.get('winner', 'paper1')
-                    match['winner_id'] = match['paper1_id'] if winner_key == 'paper1' else match['paper2_id']
-                    match['reasoning'] = result.get('reasoning', '')
-                    match['completed'] = True
-                
-                completed += 1
-            
-            # Update progress in DB
-            progress = int((completed / total) * 100) if total > 0 else 100
-            mode_label = "Deep Analysis: " if deep_analysis else ""
-            log_msg = f"{mode_label}Completed {completed}/{total} comparisons..."
-            
-            # Update matches in DB
-            await db.tournaments.update_one(
-                {"id": tournament_id},
-                {"$set": {
-                    "matches": matches,
-                    "progress": progress,
-                    "current_log": log_msg
-                }}
-            )
-            
-            # Delay between batches (longer for deep analysis to avoid rate limits)
-            await asyncio.sleep(1.0 if deep_analysis else 0.5)
+        batch = pending_matches[i:i + parallel_agents]
         
-        # Calculate final rankings using Bradley-Terry
-        paper_ids = [p['id'] for p in papers]
-        scores = calculate_bradley_terry(matches, paper_ids)
+        # Run comparisons in parallel
+        tasks = []
+        for match in batch:
+            p1 = paper_lookup[match['paper1_id']]
+            p2 = paper_lookup[match['paper2_id']]
+            tasks.append(compare_papers_llm(p1, p2, deep_analysis))
         
-        # Create rankings
-        rankings = []
-        for pid, score in sorted(scores.items(), key=lambda x: x[1], reverse=True):
-            paper = paper_lookup[pid]
-            rankings.append({
-                "rank": len(rankings) + 1,
-                "paper_id": pid,
-                "title": paper['title'],
-                "authors": paper['authors'],
-                "arxiv_id": paper['arxiv_id'],
-                "link": paper['link'],
-                "score": round(score, 4)
-            })
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Update final state (remove full_text from papers to save space)
-        papers_clean = [{k: v for k, v in p.items() if k != 'full_text'} for p in papers]
+        # Update matches with results
+        for match, result in zip(batch, results):
+            if isinstance(result, Exception):
+                logger.error(f"Match comparison failed: {result}")
+                match['completed'] = True
+                match['winner_id'] = match['paper1_id']
+                match['reasoning'] = "Comparison failed"
+            else:
+                winner_key = result.get('winner', 'paper1')
+                match['winner_id'] = match['paper1_id'] if winner_key == 'paper1' else match['paper2_id']
+                match['reasoning'] = result.get('reasoning', '')
+                match['completed'] = True
+            
+            completed += 1
+        
+        # Update progress
+        progress = int((completed / total) * 100) if total > 0 else 100
+        mode_label = "Deep Analysis: " if deep_analysis else ""
         
         await db.tournaments.update_one(
             {"id": tournament_id},
             {"$set": {
-                "status": "completed",
-                "papers": papers_clean,
                 "matches": matches,
-                "rankings": rankings,
-                "scores": {k: round(v, 4) for k, v in scores.items()},
-                "progress": 100,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-                "current_log": f"Tournament completed! {'(Deep Analysis)' if deep_analysis else ''}"
+                "progress": progress,
+                "current_log": f"{mode_label}Completed {completed}/{total} comparisons..."
             }}
         )
         
-        logger.info(f"Tournament {tournament_id} completed successfully")
-        
-    except Exception as e:
-        logger.error(f"Tournament {tournament_id} failed: {e}")
-        await db.tournaments.update_one(
-            {"id": tournament_id},
-            {"$set": {
-                "status": "failed",
+        await asyncio.sleep(1.0 if deep_analysis else 0.5)
+    
+    # Calculate final rankings
+    scores = calculate_bradley_terry(matches, paper_ids)
+    rankings = create_rankings(scores, paper_lookup)
+    
+    # Clean papers (remove full_text)
+    papers_clean = [{k: v for k, v in p.items() if k != 'full_text'} for p in papers]
+    
+    await db.tournaments.update_one(
+        {"id": tournament_id},
+        {"$set": {
+            "status": "completed",
+            "papers": papers_clean,
+            "matches": matches,
+            "rankings": rankings,
+            "scores": {k: round(v, 4) for k, v in scores.items()},
+            "progress": 100,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "current_log": f"Round Robin completed! {len(matches)} comparisons"
+        }}
+    )
+    logger.info(f"Tournament {tournament_id} completed successfully")
                 "current_log": f"Error: {str(e)}"
             }}
         )
