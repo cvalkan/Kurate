@@ -260,10 +260,18 @@ export default function TournamentPage() {
                           >
                             {paper.title}
                           </a>
-                          <p className="text-xs text-muted-foreground mt-1 truncate">
-                            {paper.authors?.slice(0, 3).join(", ")}
-                            {paper.authors?.length > 3 && " et al."}
-                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-xs text-muted-foreground truncate">
+                              {paper.authors?.slice(0, 3).join(", ")}
+                              {paper.authors?.length > 3 && " et al."}
+                            </p>
+                            {paper.citation_count !== null && paper.citation_count !== undefined && (
+                              <Badge variant="outline" className="text-[10px] py-0 border-amber-300 text-amber-700 bg-amber-50">
+                                <Quote className="h-2 w-2 mr-0.5" />
+                                {paper.citation_count}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs font-mono text-muted-foreground mt-1">
                             {paper.arxiv_id}
                           </p>
