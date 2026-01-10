@@ -63,17 +63,26 @@ export default function TournamentPage() {
       const status = response.data;
       
       // Only update the status-related fields, keep the rest
-      setTournament(prev => prev ? {
-        ...prev,
-        status: status.status,
-        progress: status.progress,
-        current_log: status.current_log,
-        total_matches: status.total_matches,
-        // Update matches array length estimate for display
-        matches: prev.matches?.length !== status.completed_matches 
-          ? Array(status.completed_matches).fill({ completed: true })
-          : prev.matches
-      } : prev);
+      setTournament(prev => {
+        if (!prev) return prev;
+        
+        // Only update progress if it's actually higher (prevents reset to 0)
+        const newProgress = (status.progress !== undefined && status.progress !== null) 
+          ? Math.max(status.progress, prev.progress || 0)
+          : prev.progress || 0;
+        
+        return {
+          ...prev,
+          status: status.status,
+          progress: newProgress,
+          current_log: status.current_log || prev.current_log,
+          total_matches: status.total_matches || prev.total_matches,
+          // Update matches array length estimate for display
+          matches: prev.matches?.length !== status.completed_matches 
+            ? Array(status.completed_matches || 0).fill({ completed: true })
+            : prev.matches
+        };
+      });
       
       // If completed, fetch full data once
       if (status.status === 'completed' || status.status === 'failed') {
