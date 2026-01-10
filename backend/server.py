@@ -535,7 +535,12 @@ Which paper has higher estimated scientific impact? Respond with JSON only."""
     ).with_model("openai", "gpt-5.2")
     
     try:
-        response = await chat.send_message(UserMessage(text=prompt))
+        # Run LLM call in thread pool to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,  # Use default executor
+            lambda: asyncio.run(chat.send_message(UserMessage(text=prompt)))
+        )
         # Parse JSON response
         response_text = response.strip()
         if response_text.startswith("```"):
