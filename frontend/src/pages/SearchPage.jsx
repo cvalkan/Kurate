@@ -66,7 +66,7 @@ export default function SearchPage() {
   const [category, setCategory] = useState("");
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
-  const [maxResults, setMaxResults] = useState(20);
+  const [maxResults, setMaxResults] = useState(30);
   
   // Results state
   const [papers, setPapers] = useState([]);
