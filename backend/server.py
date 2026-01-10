@@ -749,16 +749,19 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
         category_name = ARXIV_CATEGORIES[config.category]
     else:
         raise HTTPException(status_code=400, detail="Either category or papers must be provided")
+    
+    # Generate matches
     matches = generate_round_robin_matches(paper_dicts)
     match_dicts = [m.model_dump() for m in matches]
     
     # Create tournament
     tournament = Tournament(
-        category=config.category,
-        category_name=ARXIV_CATEGORIES[config.category],
-        num_papers=len(papers),
+        category=category,
+        category_name=category_name,
+        num_papers=len(paper_dicts),
         parallel_agents=config.parallel_agents,
         deep_analysis=config.deep_analysis,
+        search_query=config.search_query,
         papers=paper_dicts,
         matches=match_dicts,
         total_matches=len(matches)
