@@ -316,10 +316,13 @@ async def search_arxiv_papers(
     }
     
     async with httpx.AsyncClient() as http_client:
+        logger.info(f"ArXiv API call starting... (time so far: {time.time() - start_time:.2f}s)")
         response = await http_client.get(base_url, params=params, timeout=30.0)
         response.raise_for_status()
+        logger.info(f"ArXiv API response received (time so far: {time.time() - start_time:.2f}s)")
     
     papers = parse_arxiv_response(response.text)
+    logger.info(f"Parsed {len(papers)} papers (time so far: {time.time() - start_time:.2f}s)")
     
     # Filter for exact phrase if specified
     if exact_phrase:
