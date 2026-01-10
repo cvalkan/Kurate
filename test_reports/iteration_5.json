@@ -1,0 +1,71 @@
+{
+  "summary": "Completed comprehensive testing of new PaperSumo features: 1) Keywords as tournament title - search_query is now used as category_name instead of 'Custom Selection', 2) Citation counts from Semantic Scholar API displayed in search results, tournament page, and results page, 3) Confidence level affects estimated comparison count with formula: 1 + (confidence_level - 0.80) * 3. All features working correctly. Fixed minor bug: results API endpoint was missing papers.citation_count field.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/tournaments/{id}/results",
+        "issue": "Missing papers.citation_count in MongoDB projection",
+        "priority": "LOW",
+        "status": "FIXED",
+        "fix_applied": "Added 'papers.citation_count': 1 to results endpoint projection (server.py line 1375)"
+      }
+    ]
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "API health check",
+    "Search returns citation_count field for papers",
+    "Citation counts fetched from Semantic Scholar API",
+    "Tournament papers include citation_count",
+    "search_query becomes category_name for custom tournaments",
+    "Tournament list shows keywords as title",
+    "No 'Search:' prefix in history page titles",
+    "Confidence multiplier formula: 1 + (confidence_level - 0.80) * 3",
+    "Higher confidence (99%) results in more estimated comparisons than lower (80%)",
+    "ucb_config stores confidence_level correctly",
+    "Results API returns papers with citation_count",
+    "Search results display citation badges (amber with quote icon)",
+    "Tournament page paper list shows citation badges",
+    "Results page top 3 podium shows citation badges",
+    "Results page complete rankings show citation badges",
+    "Tournament title uses keywords instead of 'Custom Selection'",
+    "Results page shows keywords as category name"
+  ],
+
+  "test_report_links": [
+    "/app/tests/test_citation_keywords_confidence.py",
+    "/app/test_reports/pytest/citation_keywords_confidence_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/backend/server.py",
+    "/app/tests/test_citation_keywords_confidence.py"
+  ],
+
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+
+  "test_credentials": "None required - no authentication",
+
+  "seed_data_creation": "Created and deleted multiple test tournaments during testing. One tournament 'keywords: quantum computing' left for visual verification.",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": true,
+
+  "context_for_next_testing_agent": "New features fully implemented and tested: 1) Keywords as title - when creating tournament from search, search_query is used as category_name (visible in History, Tournament, and Results pages). 2) Citation counts - fetched from Semantic Scholar batch API (/graph/v1/paper/batch) and displayed as amber badges with quote icon. Citation counts may be null for papers not in Semantic Scholar. 3) Confidence affects estimates - formula is 1 + (confidence_level - 0.80) * 3, so 80% = 1.0x, 95% = 1.45x, 99% = 1.57x multiplier on estimated comparisons. Key test file: /app/tests/test_citation_keywords_confidence.py"
+}
