@@ -255,7 +255,7 @@ async def search_arxiv_papers(
     date_to: Optional[str] = None,
     max_results: int = 20
 ) -> List[Paper]:
-    """Search papers from arXiv API with multiple filters"""
+    """Search papers from arXiv API with multiple filters - uses parallel fetching for speed"""
     import time
     start_time = time.time()
     
