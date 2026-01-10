@@ -1102,8 +1102,8 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         }}
     )
     
-    # Clean up progress collection
-    await progress_collection.delete_one({"tournament_id": tournament_id})
+    # Clean up in-memory cache
+    tournament_progress_cache.pop(tournament_id, None)
 
 async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], paper_lookup: Dict,
                                      paper_ids: List[str], matches: List[Dict], deep_analysis: bool,
