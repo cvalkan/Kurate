@@ -772,10 +772,15 @@ export default function SearchPage() {
                                 <span className="text-xs text-muted-foreground">
                                   {paper.published?.slice(0, 10)}
                                 </span>
-                                {paper.citation_count !== null && paper.citation_count !== undefined && (
+                                {paper.citation_count !== null && paper.citation_count !== undefined ? (
                                   <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
                                     <Quote className="h-2.5 w-2.5 mr-1" />
                                     {paper.citation_count} citations
+                                  </Badge>
+                                ) : loadingCitations && (
+                                  <Badge variant="outline" className="text-xs border-muted text-muted-foreground animate-pulse">
+                                    <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />
+                                    citations...
                                   </Badge>
                                 )}
                                 {paper.categories?.slice(0, 2).map(cat => (
