@@ -128,7 +128,7 @@ active_tournaments: Dict[str, Dict[str, Any]] = {}
 # Helper Functions
 async def fetch_arxiv_papers(category: str, max_results: int = 10) -> List[Paper]:
     """Fetch papers from arXiv API"""
-    base_url = "http://export.arxiv.org/api/query"
+    base_url = "https://export.arxiv.org/api/query"
     query = f"cat:{category}"
     params = {
         "search_query": query,
