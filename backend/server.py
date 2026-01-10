@@ -798,7 +798,7 @@ async def start_tournament(tournament_id: str, background_tasks: BackgroundTasks
 
 @api_router.get("/tournaments")
 async def list_tournaments(limit: int = 20):
-    """List all tournaments"""
+    """List all tournaments - lightweight"""
     tournaments = await db.tournaments.find(
         {},
         {"_id": 0, "id": 1, "category": 1, "category_name": 1, "status": 1, 
@@ -808,11 +808,69 @@ async def list_tournaments(limit: int = 20):
     return {"tournaments": tournaments}
 
 @api_router.get("/tournaments/{tournament_id}")
-async def get_tournament(tournament_id: str):
-    """Get tournament details"""
-    tournament = await db.tournaments.find_one({"id": tournament_id}, {"_id": 0})
+async def get_tournament(tournament_id: str, full: bool = False):
+    """Get tournament details - lightweight by default, full with ?full=true"""
+    if full:
+        # Full data including all papers and matches
+        tournament = await db.tournaments.find_one({"id": tournament_id}, {"_id": 0})
+    else:
+        # Lightweight - exclude heavy fields, include only essentials
+        tournament = await db.tournaments.find_one(
+            {"id": tournament_id}, 
+            {
+                "_id": 0,
+                "id": 1,
+                "category": 1,
+                "category_name": 1,
+                "status": 1,
+                "num_papers": 1,
+                "total_matches": 1,
+                "progress": 1,
+                "created_at": 1,
+                "completed_at": 1,
+                "deep_analysis": 1,
+                "search_query": 1,
+                "current_log": 1,
+                "rankings": 1,
+                # Include paper titles and IDs only for display
+                "papers.id": 1,
+                "papers.title": 1,
+                "papers.authors": 1,
+                "papers.arxiv_id": 1,
+                "papers.link": 1,
+                # Include recent completed matches only
+                "matches": {"$slice": -20}
+            }
+        )
+    
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    return {"tournament": tournament}
+
+@api_router.get("/tournaments/{tournament_id}/results")
+async def get_tournament_results(tournament_id: str):
+    """Get tournament results only - optimized for results page"""
+    tournament = await db.tournaments.find_one(
+        {"id": tournament_id}, 
+        {
+            "_id": 0,
+            "id": 1,
+            "category": 1,
+            "category_name": 1,
+            "status": 1,
+            "num_papers": 1,
+            "total_matches": 1,
+            "deep_analysis": 1,
+            "search_query": 1,
+            "completed_at": 1,
+            "rankings": 1,
+            "scores": 1
+        }
+    )
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    if tournament.get('status') != 'completed':
+        raise HTTPException(status_code=400, detail="Tournament not completed yet")
     return {"tournament": tournament}
 
 @api_router.get("/tournaments/{tournament_id}/status")
