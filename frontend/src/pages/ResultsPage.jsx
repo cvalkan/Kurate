@@ -17,7 +17,8 @@ import {
   BarChart3,
   Users,
   Calendar,
-  FileText
+  FileText,
+  FileSearch
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -146,6 +147,12 @@ export default function ResultsPage() {
             <Calendar className="h-4 w-4" />
             <span>{new Date(tournament.completed_at).toLocaleDateString()}</span>
           </div>
+          {tournament.deep_analysis && (
+            <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">
+              <FileSearch className="h-3 w-3 mr-1" />
+              Deep Analysis
+            </Badge>
+          )}
         </div>
       </div>
 
