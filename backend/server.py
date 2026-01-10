@@ -1065,7 +1065,7 @@ async def list_tournaments(limit: int = 20):
         {},
         {"_id": 0, "id": 1, "category": 1, "category_name": 1, "status": 1, 
          "num_papers": 1, "total_matches": 1, "progress": 1, "created_at": 1, 
-         "completed_at": 1, "deep_analysis": 1, "search_query": 1}
+         "completed_at": 1, "deep_analysis": 1, "search_query": 1, "ranking_mode": 1}
     ).sort("created_at", -1).to_list(limit)
     return {"tournaments": tournaments}
 
