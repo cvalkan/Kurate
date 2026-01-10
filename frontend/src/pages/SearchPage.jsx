@@ -624,12 +624,15 @@ export default function SearchPage() {
                   </>
                 )}
 
-                {/* Warning for many papers (only if not using UCB) */}
-                {!useUCB && !deepAnalysis && selectedPapers.size > 15 && (
-                  <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                {/* Time Estimate & Warning */}
+                {selectedPapers.size > 2 && (
+                  <div className={`flex items-center gap-2 text-xs p-2 rounded ${
+                    effectiveMatches > 100 ? 'text-amber-600 bg-amber-50' : 'text-muted-foreground bg-secondary/30'
+                  }`}>
+                    <Clock className="h-3.5 w-3.5 flex-shrink-0" />
                     <span>
-                      {totalMatches} comparisons will take ~{Math.ceil(totalMatches * 3 / parallelAgents / 60)} min
+                      Est. time: ~{Math.ceil(effectiveMatches * 2.5 / parallelAgents / 60)} min
+                      {effectiveMatches > 200 && ' (large tournament)'}
                     </span>
                   </div>
                 )}
@@ -644,7 +647,7 @@ export default function SearchPage() {
                     <span>{useUCB ? 'Est. comparisons:' : 'Total comparisons:'}</span>
                     <span className="font-mono">
                       {useUCB ? `~${ucbEstimatedMatches}` : totalMatches}
-                      {useUCB && <span className="text-green-600 ml-1">({Math.round((1 - ucbEstimatedMatches/totalMatches) * 100)}% less)</span>}
+                      {useUCB && totalMatches > 0 && <span className="text-green-600 ml-1">({Math.round((1 - ucbEstimatedMatches/totalMatches) * 100)}% less)</span>}
                     </span>
                   </div>
                 </div>
