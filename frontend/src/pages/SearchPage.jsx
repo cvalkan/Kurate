@@ -222,11 +222,14 @@ export default function SearchPage() {
 
   const totalMatches = (selectedPapers.size * (selectedPapers.size - 1)) / 2;
   
-  // UCB estimated matches - depends on mode (top-k vs full ranking)
+  // UCB estimated matches - depends on mode (top-k vs full ranking) and confidence level
+  // Higher confidence requires more comparisons: 0.80 -> 1.0x, 0.95 -> 1.3x, 0.99 -> 1.6x
+  const confidenceMultiplier = 1 + (ucbConfidenceLevel - 0.80) * 3;
+  
   const ucbEstimatedMatches = useUCB && selectedPapers.size > 0
-    ? ucbMaxComparisons || (ucbTargetTopK 
-        ? Math.ceil(ucbTargetTopK * Math.log(selectedPapers.size) * 4 + selectedPapers.size * 2)
-        : Math.ceil(selectedPapers.size * Math.log(selectedPapers.size) * 3))
+    ? ucbMaxComparisons || Math.ceil((ucbTargetTopK 
+        ? ucbTargetTopK * Math.log(selectedPapers.size) * 4 + selectedPapers.size * 2
+        : selectedPapers.size * Math.log(selectedPapers.size) * 3) * confidenceMultiplier)
     : totalMatches;
   
   const effectiveMatches = useUCB ? ucbEstimatedMatches : totalMatches;
