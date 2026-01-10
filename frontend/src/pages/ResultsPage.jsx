@@ -25,7 +25,8 @@ import {
   ChevronDown,
   ScrollText,
   Target,
-  TrendingUp
+  TrendingUp,
+  Quote
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
