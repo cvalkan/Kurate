@@ -870,29 +870,52 @@ async def run_tournament(tournament_id: str):
 async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_lookup: Dict,
                              paper_ids: List[str], ucb_config: Dict, deep_analysis: bool,
                              parallel_agents: int):
-    """Run tournament using UCB algorithm for efficient pair selection"""
+    """Run tournament using UCB algorithm for efficient pair selection with top-k focus"""
     
     exploration_constant = ucb_config.get('exploration_constant', 1.414)
     min_comparisons = ucb_config.get('min_comparisons_per_paper', 3)
     convergence_threshold = ucb_config.get('convergence_threshold', 0.05)
+    target_top_k = ucb_config.get('target_top_k')  # None means rank all
+    confidence_level = ucb_config.get('confidence_level', 0.95)
     
     n = len(paper_ids)
-    max_total = ucb_config.get('max_total_comparisons') or int(n * math.log(n) * 3)  # Default: ~3x theoretical minimum
+    
+    # Calculate max comparisons based on mode
+    if target_top_k:
+        # Top-k mode: need fewer comparisons, roughly k * log(n) * 4
+        default_max = int(target_top_k * math.log(n) * 4 + n * 2)
+    else:
+        # Full ranking mode: n * log(n) * 3
+        default_max = int(n * math.log(n) * 3)
+    
+    max_total = ucb_config.get('max_total_comparisons') or default_max
     
     # Initialize paper stats
-    paper_stats = {pid: {'wins': 0, 'comparisons': 0, 'ucb_score': float('inf')} for pid in paper_ids}
+    paper_stats = {pid: {'wins': 0, 'comparisons': 0, 'ucb_score': float('inf'), 'eliminated': False} for pid in paper_ids}
     compared_pairs = set()
+    eliminated_papers = set()
     matches = []
     total_comparisons = 0
     previous_rankings = []
     
-    logger.info(f"UCB Tournament: {n} papers, max {max_total} comparisons, c={exploration_constant}")
+    mode_desc = f"Top-{target_top_k}" if target_top_k else "Full Ranking"
+    logger.info(f"UCB Tournament ({mode_desc}): {n} papers, max {max_total} comparisons, c={exploration_constant}")
     
     while total_comparisons < max_total:
+        # Check for papers that can be eliminated (only in top-k mode)
+        if target_top_k and total_comparisons > n * 2:
+            for pid in paper_ids:
+                if pid not in eliminated_papers:
+                    if not can_reach_top_k(pid, paper_stats, paper_ids, target_top_k, confidence_level):
+                        eliminated_papers.add(pid)
+                        paper_stats[pid]['eliminated'] = True
+                        logger.info(f"UCB: Eliminated paper {pid[:8]}... (cannot reach top-{target_top_k})")
+        
         # Select next pair(s) to compare
         batch_pairs = []
         for _ in range(parallel_agents):
-            pair = select_ucb_pair(paper_ids, paper_stats, compared_pairs, total_comparisons, exploration_constant)
+            pair = select_ucb_pair(paper_ids, paper_stats, compared_pairs, total_comparisons, 
+                                   exploration_constant, target_top_k, eliminated_papers)
             if pair:
                 batch_pairs.append(pair)
                 compared_pairs.add(tuple(sorted(pair)))
@@ -900,7 +923,7 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
                 break  # No more pairs to compare
         
         if not batch_pairs:
-            logger.info("UCB: All pairs compared or no valid pairs found")
+            logger.info("UCB: All relevant pairs compared or no valid pairs found")
             break
         
         # Run comparisons in parallel
@@ -941,22 +964,36 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
             paper_stats[p2_id]['comparisons'] += 1
             total_comparisons += 1
         
-        # Update UCB scores
+        # Update UCB scores and confidence intervals
         for pid in paper_ids:
-            paper_stats[pid]['ucb_score'] = calculate_ucb_scores(paper_stats, total_comparisons, exploration_constant).get(pid, 0)
+            stats = paper_stats[pid]
+            stats['ucb_score'] = calculate_ucb_scores(paper_stats, total_comparisons, exploration_constant).get(pid, 0)
+            # Update confidence interval
+            ci = calculate_wilson_confidence_interval(stats['wins'], stats['comparisons'], confidence_level)
+            stats['confidence'] = ci
         
         # Check convergence
-        converged, previous_rankings = check_ucb_convergence(paper_stats, min_comparisons, convergence_threshold, previous_rankings)
+        converged, previous_rankings = check_ucb_convergence(
+            paper_stats, min_comparisons, convergence_threshold, previous_rankings, target_top_k
+        )
         
         # Update progress
         progress = min(int((total_comparisons / max_total) * 100), 99)
+        
+        # Build status message
+        if target_top_k:
+            active_count = n - len(eliminated_papers)
+            status_msg = f"UCB Top-{target_top_k}: {total_comparisons} comparisons, {active_count} active papers"
+        else:
+            status_msg = f"UCB: {total_comparisons} comparisons (exploring {'high uncertainty' if total_comparisons < n*2 else 'refinement'})"
+        
         await db.tournaments.update_one(
             {"id": tournament_id},
             {"$set": {
                 "matches": matches,
                 "paper_stats": paper_stats,
                 "progress": progress,
-                "current_log": f"UCB: {total_comparisons} comparisons (exploring {'high uncertainty' if total_comparisons < n*2 else 'refinement'})"
+                "current_log": status_msg
             }}
         )
         
@@ -966,9 +1003,16 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         
         await asyncio.sleep(0.5 if deep_analysis else 0.3)
     
-    # Calculate final rankings
+    # Calculate final rankings with confidence intervals
     scores = calculate_bradley_terry(matches, paper_ids)
-    rankings = create_rankings(scores, paper_lookup)
+    rankings = create_rankings(scores, paper_lookup, paper_stats, confidence_level)
+    
+    # Build completion message
+    saved = (n*(n-1)//2) - len(matches)
+    if target_top_k:
+        completion_msg = f"UCB Top-{target_top_k} completed! {len(matches)} comparisons (saved {saved} vs round-robin)"
+    else:
+        completion_msg = f"UCB completed! {len(matches)} comparisons (saved {saved} vs round-robin)"
     
     await db.tournaments.update_one(
         {"id": tournament_id},
@@ -981,7 +1025,7 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
             "progress": 100,
             "total_matches": len(matches),
             "completed_at": datetime.now(timezone.utc).isoformat(),
-            "current_log": f"UCB completed! {len(matches)} comparisons (saved {(n*(n-1)//2) - len(matches)} vs round-robin)"
+            "current_log": completion_msg
         }}
     )
 
