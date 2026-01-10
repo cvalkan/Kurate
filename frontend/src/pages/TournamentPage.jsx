@@ -16,7 +16,8 @@ import {
   FileText,
   Zap,
   Clock,
-  FileSearch
+  FileSearch,
+  Play
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -27,6 +28,7 @@ export default function TournamentPage() {
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [starting, setStarting] = useState(false);
   const eventSourceRef = useRef(null);
   const pollingRef = useRef(null);
 
@@ -48,6 +50,19 @@ export default function TournamentPage() {
       setLoading(false);
     }
   }, [id]);
+
+  const handleStartTournament = async () => {
+    setStarting(true);
+    try {
+      await axios.post(`${API}/tournaments/${id}/start`);
+      toast.success("Tournament started!");
+      fetchTournament();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to start tournament");
+    } finally {
+      setStarting(false);
+    }
+  };
 
   useEffect(() => {
     fetchTournament();
