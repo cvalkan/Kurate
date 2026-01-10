@@ -903,9 +903,6 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
         }}
     )
     logger.info(f"Tournament {tournament_id} completed successfully")
-                "current_log": f"Error: {str(e)}"
-            }}
-        )
 
 # API Routes
 @api_router.get("/")
