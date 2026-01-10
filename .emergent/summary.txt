@@ -1,0 +1,201 @@
+<analysis>**original_problem_statement:**
+Build a website/platform that fetches the latest scientific papers from arxiv (sorted by different topic) and then runs a pairwise tournament on them to output a ranked list (e.g. based on Bradley-Terry scores) of scientific impact.
+
+For that matter, it uses an LLM to determine which of the two selected papers has the higher estimated scientific impact or value. It can run multiple agents in parallel to speed up the process.
+
+**PRODUCT REQUIREMENTS:**
+- Use GPT 5.2 with the Emergent LLM key.
+- Fetch papers from all arXiv categories.
+- Tournament settings should be configurable.
+- Results of tournaments must be preserved.
+- Implement a Deep Analysis mode that reads full papers, not just abstracts.
+- Add a feature to search for papers by keywords, authors, etc., to create custom tournament sets.
+- Show the LLM's reasoning for each comparison in the tournament logs.
+- Implement a UCB (Upper Confidence Bound) bandit mechanism to improve ranking efficiency.
+- Lift the 20-paper limit on tournaments.
+- Ensure exact phrase searches work correctly.
+- Fix performance issues causing slow page loads.
+- Fix tournaments getting stuck in a pending or running state.
+
+**User's preferred language**: en
+
+**what currently exists?**
+A full-stack application (React + FastAPI) called PaperSumo that allows users to rank arXiv scientific papers.
+
+**Key Features Implemented:**
+- Fetches papers from arXiv by category.
+- Advanced search to find papers by keywords, authors, and category, with support for exact phrase matching.
+- Users can select papers to create a custom tournament.
+- Two ranking modes for tournaments:
+    1.  **Abstract-only:** A quick comparison based on paper abstracts.
+    2.  **Deep Analysis:** A slower, more thorough comparison that downloads the full PDFs and analyzes key sections (intro, methodology, results, conclusion).
+- Pairwise comparisons are performed by GPT-5.2 to determine which paper has a higher scientific impact.
+- Live tournament progress tracking, including expandable logs showing the LLM's reasoning for each match.
+- Final results are displayed as a ranked list using Bradley-Terry scores.
+- History page to view past and ongoing tournaments.
+- Performance optimizations are in place, including MongoDB indexing and lazy-loading of data to ensure fast page loads.
+- A critical reliability feature automatically resumes any tournaments that were interrupted by a server restart.
+
+**Last working item**:
+- **Last item agent was working:** The agent was implementing the Upper Confidence Bound (UCB) bandit algorithm as an alternative, more efficient ranking mode to the standard round-robin approach. This involved significant refactoring of the backend to support both modes, and adding UI controls to the frontend for selecting and configuring the UCB algorithm.
+- **Status:** IN PROGRESS
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** both
+- **User Testing Done:** N
+
+**All Pending/In progress Issue list**:
+- **Issue 1:** The implementation of the UCB bandit algorithm is incomplete and not yet tested. (Priority: P0)
+
+**Issues Detail:**
+- **Issue 1:**
+    - **Attempted fixes:** The agent has performed extensive edits on  to refactor the tournament runner into separate  and  functions. It also started adding the necessary UI components and state management to . The work is mid-flight and the code is likely in an inconsistent state.
+    - **Next debug checklist:**
+        1.  Review and complete the refactoring of the  function in  to cleanly support both Round Robin and UCB modes.
+        2.  Ensure the  endpoint correctly receives and stores the UCB configuration.
+        3.  Verify the UCB selection logic () correctly identifies the next best pair to compare.
+        4.  Finalize the frontend changes in  to correctly send the UCB configuration to the backend.
+        5.  Update  and  to display UCB configuration details for relevant tournaments.
+        6.  Perform end-to-end testing of both Round Robin and UCB modes.
+    - **Why fix this issue and what will be achieved with the fix?** Completing this will fulfill a user request for a more efficient ranking method, reducing the number of LLM comparisons (and thus time and cost) needed to get a stable ranking for a large number of papers.
+    - **Status:** IN PROGRESS
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue:** None
+
+**In progress Task List**:
+- **Task 1:** Complete the UCB Bandit Feature Implementation (Priority: P0)
+    - **Where to resume:** The agent just finished a series of edits on the backend () and was about to restart the server. The next logical step is to complete the corresponding frontend changes in  and other related files.
+    - **What will be achieved with this?** A fully functional, user-selectable UCB ranking mode.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on something:** None
+
+**Upcoming and Future Tasks**
+**Upcoming Tasks:**
+-   **Task 1 (P1):** Implement date-based filtering in the search functionality. The user requested filtering by date, but this was missed during the search feature implementation.
+-   **Task 2 (P2):** Add a pause button for long-running tournaments.
+-   **Task 3 (P2):** Add a paper abstract preview modal on hover in the search results.
+
+**Future Tasks:**
+-   Save search queries as presets.
+-   Export tournament results and logs to CSV/PDF.
+-   Add pagination for very large match logs.
+-   Highlight the matched search phrase in the search results.
+
+**Completed work in this session**
+- **Initial MVP:** Created the base platform for fetching papers by category and running abstract-based tournaments. (DONE)
+- **Deep Analysis Feature:** Implemented a mode to download and analyze full PDFs for more thorough comparisons. (DONE)
+- **Search & Filter Feature:** Added a search page to create custom tournaments based on keyword and author searches. (DONE)
+- **Stuck Tournament Bug Fix:** Resolved an issue where tournaments would get stuck in pending by ensuring the start endpoint is called reliably and adding a manual Start button. (DONE)
+- **Performance Optimization:** Drastically improved page load times for History and Results pages by indexing the database and lazy-loading heavy data like match logs. (DONE)
+- **Expandable LLM Reasoning:** Added expandable sections in the UI to show the AI's reasoning for each match decision. (DONE)
+- **Auto-Resume Feature:** Implemented a critical fix to automatically resume any running tournaments that were interrupted by a server restart. (DONE)
+- **View Logs on Results Page:** Added a Comparison Logs tab to the final results page. (DONE)
+- **Exact Phrase Search Fix:** Corrected the search logic to properly handle exact phrase searches (e.g., ). (DONE)
+- **Removed Paper Limit:** Lifted the 20-paper hard limit for tournaments and added a dynamic time estimate. (DONE)
+- **Lazy Loading for Results:** Re-optimized the results page to be fast even with large tournaments by fetching match logs on-demand. (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+-   **Issue 1:** The user requested search filtering by date, but this was never implemented.
+    -   **Debug checklist:**
+        -   Add a date picker component to .
+        -   Update the state to manage the date range.
+        -   Update the backend  function and the arXiv API query builder in  to support date range filters.
+    -   **Why to solve this issue and what will be achieved with this?** It fulfills an explicit user requirement and allows for more refined tournament creation (e.g., papers from the last month).
+    -   **Should Test frontend/backend/both after fix:** both
+    -   **Is recurring issue?** N
+
+**Known issue recurrence from previous fork**
+- None
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+-   **Backend:** FastAPI, Pydantic, Motor (async MongoDB driver), asyncio (for parallel LLM calls and background tasks), PyPDF2 (for PDF parsing).
+-   **Frontend:** React, React Router, Axios, Tailwind CSS, Shadcn UI components.
+-   **Database:** MongoDB.
+-   **Algorithms:** Bradley-Terry model (for ranking), Upper Confidence Bound (UCB) (in progress).
+-   **APIs:** ArXiv API for fetching papers.
+
+**key DB schema**
+-   **tournaments** collection:
+    -   uid=0(root) gid=0(root) groups=0(root): string (UUID)
+    -   : string
+    -   : string ('pending', 'running', 'completed', 'failed')
+    -   : list of dicts (paper metadata)
+    -   : list of dicts (match data: paper1_id, paper2_id, winner_id, reasoning)
+    -   : list of dicts (final ranked papers with scores)
+    -   : boolean
+    -   : string ('round_robin', 'ucb')
+    -   : dict (exploration_factor, max_comparisons)
+
+**changes in tech stack**
+- None
+
+**All files of reference**
+-   : The single source of truth for all backend logic, including API endpoints, database interactions, LLM calls, and tournament execution. Currently being heavily modified for the UCB feature.
+-   : The primary UI for creating new tournaments, including standard and custom searches. Currently being modified to add UCB configuration options.
+-   : The landing page for creating tournaments from pre-defined categories.
+-   : Displays the live progress of a running tournament, including the match logs.
+-   : Displays the final rankings and the full comparison logs for a completed tournament.
+-   : Lists all past and present tournaments.
+-   : Defines the application's routes.
+-   : Contains the product requirements and a log of completed features.
+
+**Areas that need refactoring**:
+-  is becoming very large (>1000 lines). It could be broken down into smaller, more manageable modules (e.g., , , , ).
+
+**key api endpoints**
+-   : Get a list of arXiv categories.
+-   : Search for papers based on keywords, authors, etc.
+-   : Create a new tournament.
+-   : Start a pending tournament.
+-   : Get a list of all tournaments (lightweight).
+-   : Get status and metadata for a single tournament (lightweight).
+-   : Get the final rankings for a completed tournament.
+-   : Get the detailed match logs for a tournament.
+
+**Critical Info for New Agent**
+- The backend has an  hook that automatically resumes any tournament that was in a 'running' state when the server stopped. This is a critical feature to be aware of during development and restarts.
+- The backend  file is monolithic and contains all logic. Be careful when editing it.
+- Performance is a key concern. Heavy data like full paper lists and match logs are loaded via separate, on-demand API calls to keep the main pages fast. Do not break this pattern.
+- The agent is in the middle of a significant refactor to support both Round Robin and UCB ranking modes. The code in  and  is incomplete.
+
+**documents and test reports created in this job**
+- 
+- 
+- 
+- 
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User:** Can you implement a suitable multi-arm bandit mechanism like UCB to increase the ranking efficiency? Put its parameters in an expanded view.
+2.  **Agent:** I'll implement UCB.
+3.  **User:** Loading results and history has become slow again. Also, the selection of agents doesn't influence the estimated time.
+4.  **Agent:** I'll fix both issues.
+5.  **User:** Can you lift the 20 paper limit on tournaments in the Search view?
+6.  **Agent:** Yes, I will remove the limit.
+7.  **User:** Better, but not perfect. The search results don't contain the exact phrase prediction market.
+8.  **Agent:** You're right, I'll add local filtering to fix this.
+9.  **User:** Make exact search phrases work properly.
+10. **Agent:** I'll fix the query building logic.
+
+**Project Health Check:**
+- **Broken:** The UCB feature is currently being implemented and is in a broken, non-functional state.
+- **Mocked:** None.
+
+**3rd Party Integrations**
+-   **OpenAI GPT-5.2** — uses Emergent LLM Key.
+-   **ArXiv API** — Public API, no key required.
+
+**Testing status**
+-   **Testing agent used after significant changes:** YES
+-   **Troubleshoot agent used after agent stuck in loop:** NO
+-   **Test files created:** None. Testing was done by the testing agent and manual  commands.
+-   **Known regressions:** The performance of History/Results pages has regressed and been fixed multiple times. Be cautious of changes that might increase the data payload to these pages.
+
+**Credentials to test flow:**
+- No user-provided credentials are required. The Emergent LLM key is used automatically.
+
+**What agent forgot to execute**
+- The user requested search filtering by date when asking for the search feature. The agent implemented keyword and author search but forgot to add date filtering.</analysis>
