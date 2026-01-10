@@ -243,6 +243,14 @@ export default function ResultsPage() {
                         <p className="text-xl font-mono font-bold text-accent" data-testid={`score-${index + 1}`}>
                           {item.score.toFixed(4)}
                         </p>
+                        {/* Confidence Band for Top 3 */}
+                        {item.confidence && (
+                          <p className="text-xs font-mono text-muted-foreground mt-1" data-testid={`top-confidence-${index + 1}`}>
+                            Win rate: <span className="text-green-600">{(item.confidence.win_rate * 100).toFixed(0)}%</span>
+                            <span className="mx-1">±</span>
+                            <span>{(item.confidence.margin_of_error * 100).toFixed(0)}%</span>
+                          </p>
+                        )}
                       </div>
                       <Button 
                         size="sm" 
