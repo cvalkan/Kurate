@@ -231,6 +231,239 @@ class ArxivTournamentAPITester:
             200
         )
 
+    def test_search_papers_keywords(self):
+        """Test searching papers by keywords"""
+        search_data = {
+            "keywords": "transformer attention",
+            "max_results": 5
+        }
+        
+        success, response = self.run_test(
+            "Search Papers by Keywords", 
+            "POST", 
+            "papers/search", 
+            200, 
+            search_data,
+            timeout=30
+        )
+        
+        if success and 'papers' in response:
+            papers = response['papers']
+            count = response.get('count', 0)
+            search_desc = response.get('search_description', '')
+            
+            if len(papers) > 0 and count == len(papers):
+                self.log_test("Search Results Validation", True, f"Found {count} papers, description: {search_desc}")
+                
+                # Validate paper structure
+                first_paper = papers[0]
+                required_fields = ['id', 'title', 'authors', 'abstract', 'arxiv_id', 'link']
+                missing_fields = [field for field in required_fields if field not in first_paper]
+                
+                if not missing_fields:
+                    self.log_test("Search Paper Structure Validation", True, "All required fields present in papers")
+                else:
+                    self.log_test("Search Paper Structure Validation", False, f"Missing fields: {missing_fields}")
+                
+                return True, response
+            else:
+                self.log_test("Search Results Validation", False, f"Invalid results: papers={len(papers)}, count={count}")
+        
+        return success, response
+
+    def test_search_papers_author(self):
+        """Test searching papers by author"""
+        search_data = {
+            "author": "Hinton",
+            "max_results": 3
+        }
+        
+        success, response = self.run_test(
+            "Search Papers by Author", 
+            "POST", 
+            "papers/search", 
+            200, 
+            search_data,
+            timeout=30
+        )
+        
+        if success and 'papers' in response:
+            papers = response['papers']
+            self.log_test("Author Search Validation", True, f"Found {len(papers)} papers by author")
+        
+        return success, response
+
+    def test_search_papers_category(self):
+        """Test searching papers by category"""
+        search_data = {
+            "category": "cs.AI",
+            "max_results": 5
+        }
+        
+        success, response = self.run_test(
+            "Search Papers by Category", 
+            "POST", 
+            "papers/search", 
+            200, 
+            search_data,
+            timeout=30
+        )
+        
+        if success and 'papers' in response:
+            papers = response['papers']
+            # Verify papers have the correct category
+            if papers and len(papers) > 0:
+                first_paper = papers[0]
+                categories = first_paper.get('categories', [])
+                if 'cs.AI' in categories:
+                    self.log_test("Category Filter Validation", True, f"Papers correctly filtered by cs.AI category")
+                else:
+                    self.log_test("Category Filter Validation", False, f"Papers don't match category filter: {categories}")
+        
+        return success, response
+
+    def test_search_papers_combined(self):
+        """Test searching papers with multiple filters"""
+        search_data = {
+            "keywords": "machine learning",
+            "category": "cs.LG",
+            "max_results": 3
+        }
+        
+        success, response = self.run_test(
+            "Search Papers with Combined Filters", 
+            "POST", 
+            "papers/search", 
+            200, 
+            search_data,
+            timeout=30
+        )
+        
+        if success and 'papers' in response:
+            papers = response['papers']
+            search_desc = response.get('search_description', '')
+            self.log_test("Combined Search Validation", True, f"Found {len(papers)} papers with combined filters: {search_desc}")
+        
+        return success, response
+
+    def test_search_papers_date_filter(self):
+        """Test searching papers with date filters"""
+        search_data = {
+            "keywords": "neural network",
+            "date_from": "2024-01-01",
+            "date_to": "2024-12-31",
+            "max_results": 5
+        }
+        
+        success, response = self.run_test(
+            "Search Papers with Date Filter", 
+            "POST", 
+            "papers/search", 
+            200, 
+            search_data,
+            timeout=30
+        )
+        
+        if success and 'papers' in response:
+            papers = response['papers']
+            # Verify date filtering
+            if papers and len(papers) > 0:
+                first_paper = papers[0]
+                pub_date = first_paper.get('published', '')[:10]  # Get YYYY-MM-DD
+                if pub_date >= "2024-01-01" and pub_date <= "2024-12-31":
+                    self.log_test("Date Filter Validation", True, f"Papers correctly filtered by date: {pub_date}")
+                else:
+                    self.log_test("Date Filter Validation", False, f"Date filter not working: {pub_date}")
+        
+        return success, response
+
+    def test_create_tournament_from_search(self):
+        """Test creating tournament from search results"""
+        # First search for papers
+        search_data = {
+            "keywords": "deep learning",
+            "max_results": 4
+        }
+        
+        success, search_response = self.run_test(
+            "Search for Tournament Creation", 
+            "POST", 
+            "papers/search", 
+            200, 
+            search_data,
+            timeout=30
+        )
+        
+        if not success or 'papers' not in search_response:
+            self.log_test("Tournament from Search - Search Failed", False, "Could not get papers for tournament")
+            return False, {}
+        
+        papers = search_response['papers']
+        if len(papers) < 2:
+            self.log_test("Tournament from Search - Insufficient Papers", False, f"Only {len(papers)} papers found, need at least 2")
+            return False, {}
+        
+        # Create tournament from search results
+        tournament_data = {
+            "category": "custom",
+            "papers": papers[:3],  # Use first 3 papers
+            "parallel_agents": 2,
+            "deep_analysis": False,
+            "search_query": search_response.get('search_description', 'test search')
+        }
+        
+        success, response = self.run_test(
+            "Create Tournament from Search Results", 
+            "POST", 
+            "tournaments", 
+            200, 
+            tournament_data,
+            timeout=60
+        )
+        
+        if success and 'tournament' in response:
+            tournament = response['tournament']
+            if 'id' in tournament:
+                # Store this tournament ID for potential cleanup
+                search_tournament_id = tournament['id']
+                self.log_test("Search Tournament Creation Validation", True, f"Tournament created from search: {search_tournament_id}")
+                
+                # Clean up immediately
+                self.run_test(
+                    "Cleanup Search Tournament", 
+                    "DELETE", 
+                    f"tournaments/{search_tournament_id}", 
+                    200
+                )
+                
+                return True, response
+            else:
+                self.log_test("Search Tournament Creation Validation", False, "No tournament ID in response")
+        
+        return success, response
+
+    def test_search_empty_criteria(self):
+        """Test search with no criteria (should return error)"""
+        search_data = {
+            "max_results": 5
+        }
+        
+        # This should work as it will fetch recent papers with "all:*" query
+        success, response = self.run_test(
+            "Search with No Criteria", 
+            "POST", 
+            "papers/search", 
+            200, 
+            search_data,
+            timeout=30
+        )
+        
+        if success and 'papers' in response:
+            papers = response['papers']
+            self.log_test("Empty Criteria Search Validation", True, f"Default search returned {len(papers)} papers")
+        
+        return success, response
+
     def test_invalid_endpoints(self):
         """Test error handling for invalid requests"""
         # Test invalid category
