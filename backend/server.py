@@ -97,15 +97,22 @@ class TournamentConfig(BaseModel):
     category: str
     num_papers: int = 10
     parallel_agents: int = 3
-    deep_analysis: bool = False  # New field for deep analysis mode
+    deep_analysis: bool = False
 
 class SearchQuery(BaseModel):
     keywords: Optional[str] = None
     author: Optional[str] = None
     category: Optional[str] = None
-    date_from: Optional[str] = None  # YYYY-MM-DD format
-    date_to: Optional[str] = None    # YYYY-MM-DD format
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
     max_results: int = 20
+
+class UCBConfig(BaseModel):
+    enabled: bool = False
+    exploration_constant: float = 1.414  # sqrt(2) is standard
+    min_comparisons_per_paper: int = 3  # Minimum comparisons before stopping
+    max_total_comparisons: Optional[int] = None  # None = auto-calculate
+    convergence_threshold: float = 0.05  # Stop if top rankings stable
 
 class Tournament(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -114,13 +121,16 @@ class Tournament(BaseModel):
     category_name: str
     num_papers: int
     parallel_agents: int
-    deep_analysis: bool = False  # Track if deep analysis is enabled
-    search_query: Optional[str] = None  # Store the search query used
-    status: str = "pending"  # pending, running, completed, failed
+    deep_analysis: bool = False
+    search_query: Optional[str] = None
+    ranking_mode: str = "round_robin"  # "round_robin" or "ucb"
+    ucb_config: Optional[Dict[str, Any]] = None
+    status: str = "pending"
     papers: List[Dict[str, Any]] = []
     matches: List[Dict[str, Any]] = []
     rankings: List[Dict[str, Any]] = []
     scores: Dict[str, float] = {}
+    paper_stats: Dict[str, Dict[str, Any]] = {}  # UCB stats per paper
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     completed_at: Optional[str] = None
     progress: int = 0
@@ -132,9 +142,11 @@ class TournamentCreate(BaseModel):
     num_papers: int = 10
     parallel_agents: int = 3
     deep_analysis: bool = False
-    paper_ids: Optional[List[str]] = None  # Selected paper IDs from search
-    papers: Optional[List[Dict[str, Any]]] = None  # Full paper objects from search
-    search_query: Optional[str] = None  # Description of search used
+    paper_ids: Optional[List[str]] = None
+    papers: Optional[List[Dict[str, Any]]] = None
+    search_query: Optional[str] = None
+    ranking_mode: str = "round_robin"  # "round_robin" or "ucb"
+    ucb_config: Optional[UCBConfig] = None
 
 class CompareRequest(BaseModel):
     paper1: Dict[str, Any]
