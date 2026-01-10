@@ -414,6 +414,16 @@ export default function SearchPage() {
                   </div>
                 )}
 
+                {/* Warning for many papers */}
+                {!deepAnalysis && selectedPapers.size > 15 && (
+                  <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>
+                      {totalMatches} comparisons will take ~{Math.ceil(totalMatches * 3 / 60)} min
+                    </span>
+                  </div>
+                )}
+
                 {/* Stats */}
                 <div className="text-sm text-muted-foreground border-t border-border pt-3 space-y-1">
                   <div className="flex justify-between">
