@@ -1045,20 +1045,20 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         else:
             status_msg = f"UCB: {total_comparisons} comparisons (exploring {'high uncertainty' if total_comparisons < n*2 else 'refinement'})"
         
-        # Use $push to append new matches (more efficient than replacing entire array)
-        # and $set for other fields
-        await db.tournaments.update_one(
-            {"id": tournament_id},
-            {
-                "$push": {"matches": {"$each": new_matches}},
-                "$set": {
-                    "paper_stats": paper_stats,
-                    "total_matches": total_comparisons
+        # Only update main tournament collection every 10 comparisons (reduce write frequency)
+        if total_comparisons % 10 == 0 or len(new_matches) >= 10:
+            await db.tournaments.update_one(
+                {"id": tournament_id},
+                {
+                    "$set": {
+                        "matches": matches,  # Full replace but less frequent
+                        "paper_stats": paper_stats,
+                        "total_matches": total_comparisons
+                    }
                 }
-            }
-        )
+            )
         
-        # Update progress in separate lightweight collection (non-blocking)
+        # Update progress in separate lightweight collection (every time, fast)
         await progress_collection.update_one(
             {"tournament_id": tournament_id},
             {"$set": {
