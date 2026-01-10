@@ -13,9 +13,11 @@ from datetime import datetime, timezone
 import httpx
 import asyncio
 import json
-import math
 import xml.etree.ElementTree as ET
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from PyPDF2 import PdfReader
+import io
+import tempfile
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -79,6 +81,7 @@ class Paper(BaseModel):
     published: str
     link: str
     pdf_link: Optional[str] = None
+    full_text: Optional[str] = None  # For deep analysis
 
 class Match(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -94,6 +97,7 @@ class TournamentConfig(BaseModel):
     category: str
     num_papers: int = 10
     parallel_agents: int = 3
+    deep_analysis: bool = False  # New field for deep analysis mode
 
 class Tournament(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -102,6 +106,7 @@ class Tournament(BaseModel):
     category_name: str
     num_papers: int
     parallel_agents: int
+    deep_analysis: bool = False  # Track if deep analysis is enabled
     status: str = "pending"  # pending, running, completed, failed
     papers: List[Dict[str, Any]] = []
     matches: List[Dict[str, Any]] = []
@@ -117,6 +122,7 @@ class TournamentCreate(BaseModel):
     category: str
     num_papers: int = 10
     parallel_agents: int = 3
+    deep_analysis: bool = False
 
 class CompareRequest(BaseModel):
     paper1: Dict[str, Any]
@@ -126,6 +132,75 @@ class CompareRequest(BaseModel):
 active_tournaments: Dict[str, Dict[str, Any]] = {}
 
 # Helper Functions
+async def download_and_extract_pdf(pdf_url: str) -> Optional[str]:
+    """Download PDF and extract text content"""
+    try:
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.get(pdf_url, timeout=60.0, follow_redirects=True)
+            response.raise_for_status()
+            
+        # Read PDF content
+        pdf_bytes = io.BytesIO(response.content)
+        reader = PdfReader(pdf_bytes)
+        
+        # Extract text from all pages
+        text_parts = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                text_parts.append(text)
+        
+        full_text = "\n".join(text_parts)
+        
+        # Clean up the text
+        full_text = " ".join(full_text.split())  # Normalize whitespace
+        
+        return full_text
+    except Exception as e:
+        logger.error(f"Failed to download/extract PDF from {pdf_url}: {e}")
+        return None
+
+def extract_key_sections(full_text: str) -> Dict[str, str]:
+    """Extract key sections from paper text"""
+    sections = {
+        "introduction": "",
+        "methodology": "",
+        "results": "",
+        "conclusion": ""
+    }
+    
+    text_lower = full_text.lower()
+    
+    # Common section markers
+    intro_markers = ["introduction", "1. introduction", "1 introduction", "i. introduction"]
+    method_markers = ["method", "methodology", "approach", "2. method", "3. method", "ii. method"]
+    results_markers = ["result", "experiment", "evaluation", "4. result", "5. result"]
+    conclusion_markers = ["conclusion", "discussion", "summary", "6. conclusion", "7. conclusion"]
+    
+    def find_section(markers, next_markers=None):
+        for marker in markers:
+            idx = text_lower.find(marker)
+            if idx != -1:
+                # Find end of section (next section or end of text)
+                end_idx = len(full_text)
+                if next_markers:
+                    for nm in next_markers:
+                        nm_idx = text_lower.find(nm, idx + len(marker))
+                        if nm_idx != -1 and nm_idx < end_idx:
+                            end_idx = nm_idx
+                
+                # Extract section (limit to ~2000 chars)
+                section_text = full_text[idx:min(idx + 2500, end_idx)]
+                return section_text[:2000]
+        return ""
+    
+    sections["introduction"] = find_section(intro_markers, method_markers)
+    sections["methodology"] = find_section(method_markers, results_markers)
+    sections["results"] = find_section(results_markers, conclusion_markers)
+    sections["conclusion"] = find_section(conclusion_markers)
+    
+    return sections
+
 async def fetch_arxiv_papers(category: str, max_results: int = 10) -> List[Paper]:
     """Fetch papers from arXiv API"""
     base_url = "https://export.arxiv.org/api/query"
@@ -138,8 +213,8 @@ async def fetch_arxiv_papers(category: str, max_results: int = 10) -> List[Paper
         "sortOrder": "descending"
     }
     
-    async with httpx.AsyncClient() as client:
-        response = await client.get(base_url, params=params, timeout=30.0)
+    async with httpx.AsyncClient() as http_client:
+        response = await http_client.get(base_url, params=params, timeout=30.0)
         response.raise_for_status()
         
     # Parse XML response
@@ -182,12 +257,70 @@ async def fetch_arxiv_papers(category: str, max_results: int = 10) -> List[Paper
     
     return papers
 
-async def compare_papers_llm(paper1: Dict, paper2: Dict) -> Dict:
+async def compare_papers_llm(paper1: Dict, paper2: Dict, deep_analysis: bool = False) -> Dict:
     """Use LLM to compare two papers for scientific impact"""
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=f"compare-{uuid.uuid4()}",
-        system_message="""You are a scientific paper evaluator. Your task is to compare two papers and determine which has higher potential scientific impact.
+    
+    if deep_analysis:
+        # Deep analysis mode - use full paper content
+        system_msg = """You are an expert scientific paper evaluator conducting a DEEP ANALYSIS. 
+You have access to key sections from both papers (introduction, methodology, results, conclusion).
+
+Evaluate based on:
+1. Novelty and innovation of the approach
+2. Methodological rigor and experimental design
+3. Quality and significance of results
+4. Potential real-world impact and applications
+5. Clarity of contribution and reproducibility
+6. Breadth of impact across the field
+
+You MUST respond with valid JSON only, no other text. Format:
+{"winner": "paper1" or "paper2", "reasoning": "Detailed explanation (max 200 words)"}"""
+        
+        # Build detailed content for each paper
+        p1_content = f"**Title:** {paper1['title']}\n\n"
+        p2_content = f"**Title:** {paper2['title']}\n\n"
+        
+        if paper1.get('full_text'):
+            sections1 = extract_key_sections(paper1['full_text'])
+            p1_content += f"**Abstract:** {paper1['abstract'][:500]}\n\n"
+            if sections1['introduction']:
+                p1_content += f"**Introduction:** {sections1['introduction'][:1000]}\n\n"
+            if sections1['methodology']:
+                p1_content += f"**Methodology:** {sections1['methodology'][:1000]}\n\n"
+            if sections1['results']:
+                p1_content += f"**Results:** {sections1['results'][:800]}\n\n"
+            if sections1['conclusion']:
+                p1_content += f"**Conclusion:** {sections1['conclusion'][:500]}\n"
+        else:
+            p1_content += f"**Abstract:** {paper1['abstract'][:1200]}\n"
+        
+        if paper2.get('full_text'):
+            sections2 = extract_key_sections(paper2['full_text'])
+            p2_content += f"**Abstract:** {paper2['abstract'][:500]}\n\n"
+            if sections2['introduction']:
+                p2_content += f"**Introduction:** {sections2['introduction'][:1000]}\n\n"
+            if sections2['methodology']:
+                p2_content += f"**Methodology:** {sections2['methodology'][:1000]}\n\n"
+            if sections2['results']:
+                p2_content += f"**Results:** {sections2['results'][:800]}\n\n"
+            if sections2['conclusion']:
+                p2_content += f"**Conclusion:** {sections2['conclusion'][:500]}\n"
+        else:
+            p2_content += f"**Abstract:** {paper2['abstract'][:1200]}\n"
+        
+        prompt = f"""Perform a DEEP ANALYSIS comparison of these two scientific papers:
+
+=== PAPER 1 ===
+{p1_content}
+
+=== PAPER 2 ===
+{p2_content}
+
+Based on your thorough analysis of both papers' content, methodology, and findings, which paper has higher scientific impact? Respond with JSON only."""
+        
+    else:
+        # Standard mode - abstract only
+        system_msg = """You are a scientific paper evaluator. Your task is to compare two papers and determine which has higher potential scientific impact.
 
 Consider the following factors:
 1. Novelty and innovation of the approach
@@ -198,9 +331,8 @@ Consider the following factors:
 
 You MUST respond with valid JSON only, no other text. Format:
 {"winner": "paper1" or "paper2", "reasoning": "Brief explanation (max 100 words)"}"""
-    ).with_model("openai", "gpt-5.2")
-    
-    prompt = f"""Compare these two papers for scientific impact:
+        
+        prompt = f"""Compare these two papers for scientific impact:
 
 **Paper 1: {paper1['title']}**
 Abstract: {paper1['abstract'][:800]}
@@ -209,6 +341,12 @@ Abstract: {paper1['abstract'][:800]}
 Abstract: {paper2['abstract'][:800]}
 
 Which paper has higher estimated scientific impact? Respond with JSON only."""
+    
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"compare-{uuid.uuid4()}",
+        system_message=system_msg
+    ).with_model("openai", "gpt-5.2")
     
     try:
         response = await chat.send_message(UserMessage(text=prompt))
@@ -302,15 +440,50 @@ async def run_tournament(tournament_id: str):
             logger.error(f"Tournament {tournament_id} not found")
             return
         
+        deep_analysis = tournament_doc.get('deep_analysis', False)
+        
         # Update status
-        await db.tournaments.update_one(
-            {"id": tournament_id},
-            {"$set": {"status": "running", "current_log": "Starting tournament..."}}
-        )
+        if deep_analysis:
+            await db.tournaments.update_one(
+                {"id": tournament_id},
+                {"$set": {"status": "running", "current_log": "Deep Analysis Mode: Downloading papers..."}}
+            )
+        else:
+            await db.tournaments.update_one(
+                {"id": tournament_id},
+                {"$set": {"status": "running", "current_log": "Starting tournament..."}}
+            )
         
         papers = tournament_doc['papers']
         matches = tournament_doc['matches']
         parallel_agents = tournament_doc.get('parallel_agents', 3)
+        
+        # If deep analysis, download PDFs first
+        if deep_analysis:
+            logger.info(f"Deep analysis mode: downloading {len(papers)} PDFs")
+            
+            for i, paper in enumerate(papers):
+                if paper.get('pdf_link'):
+                    await db.tournaments.update_one(
+                        {"id": tournament_id},
+                        {"$set": {"current_log": f"Downloading paper {i+1}/{len(papers)}: {paper['title'][:50]}..."}}
+                    )
+                    
+                    full_text = await download_and_extract_pdf(paper['pdf_link'])
+                    if full_text:
+                        paper['full_text'] = full_text
+                        logger.info(f"Downloaded PDF for {paper['arxiv_id']}: {len(full_text)} chars")
+                    else:
+                        logger.warning(f"Failed to download PDF for {paper['arxiv_id']}")
+                    
+                    # Small delay between downloads
+                    await asyncio.sleep(0.5)
+            
+            # Update papers with full text in DB
+            await db.tournaments.update_one(
+                {"id": tournament_id},
+                {"$set": {"papers": papers, "current_log": "PDFs downloaded. Starting comparisons..."}}
+            )
         
         # Create paper lookup
         paper_lookup = {p['id']: p for p in papers}
@@ -320,15 +493,18 @@ async def run_tournament(tournament_id: str):
         total = len(pending_matches)
         completed = 0
         
-        for i in range(0, len(pending_matches), parallel_agents):
-            batch = pending_matches[i:i + parallel_agents]
+        # Use fewer parallel agents for deep analysis (more tokens per request)
+        effective_parallel = min(parallel_agents, 2) if deep_analysis else parallel_agents
+        
+        for i in range(0, len(pending_matches), effective_parallel):
+            batch = pending_matches[i:i + effective_parallel]
             
             # Run comparisons in parallel
             tasks = []
             for match in batch:
                 p1 = paper_lookup[match['paper1_id']]
                 p2 = paper_lookup[match['paper2_id']]
-                tasks.append(compare_papers_llm(p1, p2))
+                tasks.append(compare_papers_llm(p1, p2, deep_analysis))
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
@@ -349,7 +525,8 @@ async def run_tournament(tournament_id: str):
             
             # Update progress in DB
             progress = int((completed / total) * 100) if total > 0 else 100
-            log_msg = f"Completed {completed}/{total} comparisons..."
+            mode_label = "Deep Analysis: " if deep_analysis else ""
+            log_msg = f"{mode_label}Completed {completed}/{total} comparisons..."
             
             # Update matches in DB
             await db.tournaments.update_one(
@@ -361,8 +538,8 @@ async def run_tournament(tournament_id: str):
                 }}
             )
             
-            # Small delay to avoid rate limits
-            await asyncio.sleep(0.5)
+            # Delay between batches (longer for deep analysis to avoid rate limits)
+            await asyncio.sleep(1.0 if deep_analysis else 0.5)
         
         # Calculate final rankings using Bradley-Terry
         paper_ids = [p['id'] for p in papers]
@@ -382,17 +559,20 @@ async def run_tournament(tournament_id: str):
                 "score": round(score, 4)
             })
         
-        # Update final state
+        # Update final state (remove full_text from papers to save space)
+        papers_clean = [{k: v for k, v in p.items() if k != 'full_text'} for p in papers]
+        
         await db.tournaments.update_one(
             {"id": tournament_id},
             {"$set": {
                 "status": "completed",
+                "papers": papers_clean,
                 "matches": matches,
                 "rankings": rankings,
                 "scores": {k: round(v, 4) for k, v in scores.items()},
                 "progress": 100,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
-                "current_log": "Tournament completed!"
+                "current_log": f"Tournament completed! {'(Deep Analysis)' if deep_analysis else ''}"
             }}
         )
         
@@ -457,6 +637,7 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
         category_name=ARXIV_CATEGORIES[config.category],
         num_papers=len(papers),
         parallel_agents=config.parallel_agents,
+        deep_analysis=config.deep_analysis,
         papers=paper_dicts,
         matches=match_dicts,
         total_matches=len(matches)
@@ -466,7 +647,15 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
     doc = tournament.model_dump()
     await db.tournaments.insert_one(doc)
     
-    return {"tournament": {"id": tournament.id, "status": tournament.status, "total_matches": len(matches), "num_papers": len(papers)}}
+    return {
+        "tournament": {
+            "id": tournament.id, 
+            "status": tournament.status, 
+            "total_matches": len(matches), 
+            "num_papers": len(papers),
+            "deep_analysis": config.deep_analysis
+        }
+    }
 
 @api_router.post("/tournaments/{tournament_id}/start")
 async def start_tournament(tournament_id: str, background_tasks: BackgroundTasks):
@@ -489,7 +678,8 @@ async def list_tournaments(limit: int = 20):
     tournaments = await db.tournaments.find(
         {},
         {"_id": 0, "id": 1, "category": 1, "category_name": 1, "status": 1, 
-         "num_papers": 1, "total_matches": 1, "progress": 1, "created_at": 1, "completed_at": 1}
+         "num_papers": 1, "total_matches": 1, "progress": 1, "created_at": 1, 
+         "completed_at": 1, "deep_analysis": 1}
     ).sort("created_at", -1).to_list(limit)
     return {"tournaments": tournaments}
 
