@@ -142,7 +142,6 @@ export default function ResultsPage() {
   }
 
   const topThree = tournament.rankings?.slice(0, 3) || [];
-  const completedMatches = tournament.matches?.filter(m => m.completed) || [];
 
   return (
     <div className="container-main py-8" data-testid="results-page">
