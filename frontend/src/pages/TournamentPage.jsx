@@ -139,7 +139,12 @@ export default function TournamentPage() {
 
   const StatusIcon = getStatusIcon(tournament.status);
   const completedMatches = tournament.matches?.filter(m => m.completed).length || 0;
-  const totalMatches = tournament.total_matches || 0;
+  
+  // For UCB, use actual completed matches for the "X of Y" display
+  // total_matches is the initial estimate which may differ from actual progress
+  const displayTotal = tournament.ranking_mode === 'ucb' 
+    ? Math.max(completedMatches, Math.round(completedMatches * 100 / Math.max(tournament.progress || 1, 1)))
+    : (tournament.total_matches || 0);
 
   return (
     <div className="container-main py-8" data-testid="tournament-page">
