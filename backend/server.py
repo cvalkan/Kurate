@@ -1136,13 +1136,16 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
         progress = int((completed / total) * 100) if total > 0 else 100
         mode_label = "Deep Analysis: " if deep_analysis else ""
         
-        await db.tournaments.update_one(
-            {"id": tournament_id},
+        # Update progress in separate lightweight collection (non-blocking)
+        await progress_collection.update_one(
+            {"tournament_id": tournament_id},
             {"$set": {
                 "progress": progress,
                 "current_log": f"{mode_label}Completed {completed}/{total} comparisons...",
-                "total_matches": completed
-            }}
+                "completed_matches": completed,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
         )
         
         await asyncio.sleep(1.0 if deep_analysis else 0.5)
