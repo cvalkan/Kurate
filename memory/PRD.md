@@ -44,7 +44,7 @@ Build a website/platform that fetches the latest scientific papers from arXiv (s
 9. **Citation Counts** - From Semantic Scholar API
 
 ### 🟡 Upcoming (P1-P2)
-1. **Date-based filtering for search** (P1)
+1. ~~**Date-based filtering for search** (P1)~~ ✅ DONE (Jan 2026)
 2. **Pause button for tournaments** (P2)
 3. **Paper abstract preview on hover** (P2)
 
