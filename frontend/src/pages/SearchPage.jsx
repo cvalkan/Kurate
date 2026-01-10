@@ -163,16 +163,31 @@ export default function SearchPage() {
       // Get selected paper objects
       const selectedPaperObjects = papers.filter(p => selectedPapers.has(p.id));
       
-      const response = await axios.post(`${API}/tournaments`, {
+      // Build request
+      const requestData = {
         category: (category && category !== "any") ? category : "custom",
         papers: selectedPaperObjects,
         parallel_agents: parallelAgents,
         deep_analysis: deepAnalysis,
-        search_query: searchDescription
-      });
+        search_query: searchDescription,
+        ranking_mode: useUCB ? "ucb" : "round_robin"
+      };
+      
+      // Add UCB config if enabled
+      if (useUCB) {
+        requestData.ucb_config = {
+          exploration_constant: ucbExploration,
+          min_comparisons_per_paper: ucbMinComparisons,
+          max_total_comparisons: ucbMaxComparisons,
+          convergence_threshold: 0.05
+        };
+      }
+      
+      const response = await axios.post(`${API}/tournaments`, requestData);
       
       const tournamentId = response.data.tournament.id;
-      toast.success("Tournament created! Starting...");
+      const modeMsg = useUCB ? "UCB tournament created!" : "Tournament created!";
+      toast.success(`${modeMsg} Starting...`);
       
       // Start the tournament with retry
       try {
