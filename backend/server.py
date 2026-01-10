@@ -23,9 +23,16 @@ import tempfile
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
+# MongoDB connection with optimized settings
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+# Add connection pool settings for better concurrency
+client = AsyncIOMotorClient(
+    mongo_url,
+    maxPoolSize=50,
+    minPoolSize=10,
+    maxIdleTimeMS=30000,
+    waitQueueTimeoutMS=5000
+)
 db = client[os.environ['DB_NAME']]
 
 # Separate collection for live tournament progress (lightweight updates)
