@@ -359,13 +359,23 @@ export default function ResultsPage() {
                 All Comparison Logs
               </CardTitle>
               <CardDescription>
-                {completedMatches.length} pairwise comparisons with AI reasoning
+                {matchesLoaded ? `${matches.length} pairwise comparisons with AI reasoning` : 'Click to load comparison logs'}
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {matchesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-accent" />
+                  <span className="ml-2 text-muted-foreground">Loading logs...</span>
+                </div>
+              ) : !matchesLoaded ? (
+                <div className="flex items-center justify-center py-12">
+                  <span className="text-muted-foreground">Logs will load when this tab is selected</span>
+                </div>
+              ) : (
               <ScrollArea className="h-[500px] pr-4">
                 <div className="space-y-3">
-                  {completedMatches.map((match, index) => {
+                  {matches.map((match, index) => {
                     const winnerTitle = getPaperTitle(match.winner_id);
                     const loserTitle = getPaperTitle(
                       match.winner_id === match.paper1_id ? match.paper2_id : match.paper1_id
