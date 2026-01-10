@@ -1175,6 +1175,9 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
             "current_log": f"Round Robin completed! {len(matches)} comparisons"
         }}
     )
+    
+    # Clean up progress collection
+    await progress_collection.delete_one({"tournament_id": tournament_id})
     logger.info(f"Tournament {tournament_id} completed successfully")
 
 # API Routes
