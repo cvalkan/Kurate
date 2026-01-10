@@ -37,7 +37,7 @@ client = AsyncIOMotorClient(
 db = client[os.environ['DB_NAME']]
 
 # In-memory tournament progress cache (avoids MongoDB contention during running tournaments)
-# Structure: {tournament_id: {"progress": int, "current_log": str, "completed_matches": int}}
+# Structure: {tournament_id: {"progress": int, "current_log": str, "completed_matches": int, "recent_matches": list}}
 tournament_progress_cache = {}
 
 # LLM API Key
