@@ -1493,14 +1493,11 @@ async def get_tournament_matches(tournament_id: str, limit: int = 50, offset: in
 
 @api_router.get("/tournaments/{tournament_id}/status")
 async def get_tournament_status_simple(tournament_id: str):
-    """Get lightweight tournament status for polling (reads from progress collection)"""
-    # First check the progress collection (fast, small documents)
-    progress = await progress_collection.find_one(
-        {"tournament_id": tournament_id},
-        {"_id": 0}
-    )
+    """Get lightweight tournament status for polling (uses in-memory cache)"""
+    # First check in-memory cache (instant)
+    progress = tournament_progress_cache.get(tournament_id)
     
-    # Get basic tournament info
+    # Get basic tournament info from DB
     tournament = await db.tournaments.find_one(
         {"id": tournament_id},
         {
@@ -1508,22 +1505,22 @@ async def get_tournament_status_simple(tournament_id: str):
             "id": 1,
             "status": 1,
             "ranking_mode": 1,
-            "total_matches": 1
+            "total_matches": 1,
+            "progress": 1,
+            "current_log": 1
         }
     )
     
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
-    # Merge progress data
+    # Merge cached progress data (override DB values if available in cache)
     if progress:
-        tournament["progress"] = progress.get("progress", 0)
-        tournament["current_log"] = progress.get("current_log", "")
+        tournament["progress"] = progress.get("progress", tournament.get("progress", 0))
+        tournament["current_log"] = progress.get("current_log", tournament.get("current_log", ""))
         tournament["completed_matches"] = progress.get("completed_matches", 0)
     else:
-        tournament["progress"] = tournament.get("progress", 0)
-        tournament["current_log"] = ""
-        tournament["completed_matches"] = 0
+        tournament["completed_matches"] = tournament.get("total_matches", 0)
     
     return tournament
 
