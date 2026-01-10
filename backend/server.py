@@ -1046,11 +1046,21 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
                 "$push": {"matches": {"$each": new_matches}},
                 "$set": {
                     "paper_stats": paper_stats,
-                    "progress": progress,
-                    "current_log": status_msg,
                     "total_matches": total_comparisons
                 }
             }
+        )
+        
+        # Update progress in separate lightweight collection (non-blocking)
+        await progress_collection.update_one(
+            {"tournament_id": tournament_id},
+            {"$set": {
+                "progress": progress,
+                "current_log": status_msg,
+                "completed_matches": total_comparisons,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
         )
         
         if converged and total_comparisons >= n * min_comparisons:
