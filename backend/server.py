@@ -561,6 +561,48 @@ def generate_round_robin_matches(papers: List[Dict]) -> List[Match]:
     return matches
 
 # UCB Algorithm Implementation
+def calculate_wilson_confidence_interval(wins: int, comparisons: int, confidence_level: float = 0.95) -> Dict:
+    """
+    Calculate Wilson score confidence interval for win rate.
+    More accurate than normal approximation for small sample sizes.
+    Returns: {win_rate, lower_bound, upper_bound, margin_of_error, confidence_level}
+    """
+    import math
+    from scipy import stats as scipy_stats
+    
+    if comparisons == 0:
+        return {
+            'win_rate': 0.5,
+            'lower_bound': 0.0,
+            'upper_bound': 1.0,
+            'margin_of_error': 0.5,
+            'confidence_level': confidence_level,
+            'comparisons': 0
+        }
+    
+    p = wins / comparisons
+    n = comparisons
+    
+    # Z-score for confidence level (e.g., 1.96 for 95%)
+    z = scipy_stats.norm.ppf(1 - (1 - confidence_level) / 2)
+    
+    # Wilson score interval formula
+    denominator = 1 + z**2 / n
+    center = (p + z**2 / (2 * n)) / denominator
+    spread = z * math.sqrt((p * (1 - p) + z**2 / (4 * n)) / n) / denominator
+    
+    lower = max(0, center - spread)
+    upper = min(1, center + spread)
+    
+    return {
+        'win_rate': round(p, 4),
+        'lower_bound': round(lower, 4),
+        'upper_bound': round(upper, 4),
+        'margin_of_error': round((upper - lower) / 2, 4),
+        'confidence_level': confidence_level,
+        'comparisons': comparisons
+    }
+
 def calculate_ucb_scores(paper_stats: Dict[str, Dict], total_comparisons: int, exploration_constant: float = 1.414) -> Dict[str, float]:
     """Calculate UCB scores for all papers"""
     import math
