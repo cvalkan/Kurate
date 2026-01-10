@@ -318,8 +318,8 @@ async def search_arxiv_papers(
     }
     
     logger.info(f"ArXiv API call starting... (time so far: {time.time() - start_time:.2f}s)")
-    async with httpx.AsyncClient() as http_client:
-        response = await http_client.get(base_url, params=params, timeout=60.0)
+    async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as http_client:
+        response = await http_client.get(base_url, params=params)
         response.raise_for_status()
     logger.info(f"ArXiv API response received (time so far: {time.time() - start_time:.2f}s)")
     
