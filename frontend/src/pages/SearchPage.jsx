@@ -488,7 +488,47 @@ export default function SearchPage() {
                         <ChevronDown className={`h-3 w-3 transition-transform ${ucbExpanded ? 'rotate-180' : ''}`} />
                       </CollapsibleTrigger>
                       <CollapsibleContent className="space-y-3 pt-2">
-                        <div className="space-y-2 p-3 bg-secondary/30 rounded-lg text-xs">
+                        <div className="space-y-3 p-3 bg-secondary/30 rounded-lg text-xs">
+                          {/* Target Top-K */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between">
+                              <Label className="text-xs font-medium">Target Top-K</Label>
+                              <span className="font-mono">{ucbTargetTopK || 'all'}</span>
+                            </div>
+                            <Slider
+                              value={[ucbTargetTopK || selectedPapers.size]}
+                              onValueChange={(v) => setUcbTargetTopK(v[0] >= selectedPapers.size ? null : v[0])}
+                              min={3}
+                              max={selectedPapers.size}
+                              step={1}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              Focus on finding accurate top-k papers (saves comparisons)
+                            </p>
+                          </div>
+                          
+                          {/* Confidence Level */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between">
+                              <Label className="text-xs">Confidence Level</Label>
+                              <span className="font-mono">{(ucbConfidenceLevel * 100).toFixed(0)}%</span>
+                            </div>
+                            <Slider
+                              value={[ucbConfidenceLevel]}
+                              onValueChange={(v) => setUcbConfidenceLevel(v[0])}
+                              min={0.80}
+                              max={0.99}
+                              step={0.01}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              Higher = more certain rankings, more comparisons needed
+                            </p>
+                          </div>
+                          
+                          <div className="border-t border-border/50 pt-2 mt-2">
+                            <p className="text-[10px] text-muted-foreground font-medium mb-2">Advanced</p>
+                          </div>
+                          
                           {/* Exploration Constant */}
                           <div className="space-y-1">
                             <div className="flex justify-between">
@@ -536,7 +576,7 @@ export default function SearchPage() {
                               step={5}
                             />
                             <p className="text-[10px] text-muted-foreground">
-                              Auto: ~{ucbEstimatedMatches} (n×log(n)×3)
+                              Auto: ~{ucbEstimatedMatches} {ucbTargetTopK ? '(top-k mode)' : '(full ranking)'}
                             </p>
                           </div>
                         </div>
