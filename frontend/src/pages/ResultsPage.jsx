@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Trophy, 
   Loader2, 
@@ -18,7 +20,10 @@ import {
   Users,
   Calendar,
   FileText,
-  FileSearch
+  FileSearch,
+  MessageSquare,
+  ChevronDown,
+  ScrollText
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -78,6 +83,16 @@ export default function ResultsPage() {
     }
   };
 
+  const getPaperTitle = (paperId) => {
+    const paper = tournament?.papers?.find(p => p.id === paperId);
+    return paper?.title || "Unknown paper";
+  };
+
+  const getPaperLink = (paperId) => {
+    const paper = tournament?.papers?.find(p => p.id === paperId);
+    return paper?.link || "#";
+  };
+
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
@@ -106,7 +121,7 @@ export default function ResultsPage() {
   }
 
   const topThree = tournament.rankings?.slice(0, 3) || [];
-  const remaining = tournament.rankings?.slice(3) || [];
+  const completedMatches = tournament.matches?.filter(m => m.completed) || [];
 
   return (
     <div className="container-main py-8" data-testid="results-page">
@@ -168,7 +183,6 @@ export default function ResultsPage() {
         
         <div className="grid md:grid-cols-3 gap-6">
           {topThree.map((item, index) => {
-            const paper = tournament.papers?.find(p => p.id === item.paper_id);
             return (
               <Card 
                 key={item.paper_id}
@@ -230,72 +244,165 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* Full Rankings Table */}
-      <Card data-testid="full-rankings-card">
-        <CardHeader>
-          <CardTitle className="text-lg">Complete Rankings</CardTitle>
-          <CardDescription>
-            All papers ranked by Bradley-Terry score
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-2">
-              {tournament.rankings?.map((item, index) => (
-                <div 
-                  key={item.paper_id}
-                  className={`flex items-center gap-4 p-3 rounded-lg border ${
-                    index < 3 ? getRankStyle(item.rank) : 'bg-card border-border'
-                  } hover:border-accent/50 transition-colors`}
-                  data-testid={`ranking-row-${index}`}
-                >
-                  <div className="flex-shrink-0">
-                    {getRankBadge(item.rank)}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <a 
-                      href={item.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-sm hover:text-accent transition-colors line-clamp-1"
+      {/* Tabs for Rankings and Logs */}
+      <Tabs defaultValue="rankings" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+          <TabsTrigger value="rankings" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Rankings
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="flex items-center gap-2" data-testid="view-logs-tab">
+            <ScrollText className="h-4 w-4" />
+            Comparison Logs
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Rankings Tab */}
+        <TabsContent value="rankings">
+          <Card data-testid="full-rankings-card">
+            <CardHeader>
+              <CardTitle className="text-lg">Complete Rankings</CardTitle>
+              <CardDescription>
+                All papers ranked by Bradley-Terry score
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-2">
+                  {tournament.rankings?.map((item, index) => (
+                    <div 
+                      key={item.paper_id}
+                      className={`flex items-center gap-4 p-3 rounded-lg border ${
+                        index < 3 ? getRankStyle(item.rank) : 'bg-card border-border'
+                      } hover:border-accent/50 transition-colors`}
+                      data-testid={`ranking-row-${index}`}
                     >
-                      {item.title}
-                    </a>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {item.authors?.slice(0, 3).join(", ")}
-                    </p>
-                  </div>
-                  
-                  <div className="flex-shrink-0 text-right">
-                    <p className="font-mono font-semibold text-accent">
-                      {item.score.toFixed(4)}
-                    </p>
-                    <p className="text-xs font-mono text-muted-foreground">
-                      {item.arxiv_id}
-                    </p>
-                  </div>
-                  
-                  <Button 
-                    size="icon" 
-                    variant="ghost"
-                    asChild
-                    className="flex-shrink-0"
-                  >
-                    <a 
-                      href={item.link} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
+                      <div className="flex-shrink-0">
+                        {getRankBadge(item.rank)}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <a 
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-sm hover:text-accent transition-colors line-clamp-1"
+                        >
+                          {item.title}
+                        </a>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {item.authors?.slice(0, 3).join(", ")}
+                        </p>
+                      </div>
+                      
+                      <div className="flex-shrink-0 text-right">
+                        <p className="font-mono font-semibold text-accent">
+                          {item.score.toFixed(4)}
+                        </p>
+                        <p className="text-xs font-mono text-muted-foreground">
+                          {item.arxiv_id}
+                        </p>
+                      </div>
+                      
+                      <Button 
+                        size="icon" 
+                        variant="ghost"
+                        asChild
+                        className="flex-shrink-0"
+                      >
+                        <a 
+                          href={item.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Logs Tab */}
+        <TabsContent value="logs">
+          <Card data-testid="comparison-logs-card">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ScrollText className="h-5 w-5" />
+                All Comparison Logs
+              </CardTitle>
+              <CardDescription>
+                {completedMatches.length} pairwise comparisons with AI reasoning
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-3">
+                  {completedMatches.map((match, index) => {
+                    const winnerTitle = getPaperTitle(match.winner_id);
+                    const loserTitle = getPaperTitle(
+                      match.winner_id === match.paper1_id ? match.paper2_id : match.paper1_id
+                    );
+                    const winnerLink = getPaperLink(match.winner_id);
+                    
+                    return (
+                      <Collapsible key={match.id}>
+                        <div 
+                          className="rounded-lg bg-secondary/50 text-xs overflow-hidden"
+                          data-testid={`log-entry-${index}`}
+                        >
+                          <CollapsibleTrigger className="w-full p-3 hover:bg-secondary/80 transition-colors">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0 text-left">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground font-mono">#{index + 1}</span>
+                                  <Trophy className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                                  <span className="font-medium text-foreground truncate">
+                                    {winnerTitle.slice(0, 40)}...
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1 text-muted-foreground pl-10">
+                                  <span className="text-[10px]">beat</span>
+                                  <span className="truncate">
+                                    {loserTitle.slice(0, 40)}...
+                                  </span>
+                                </div>
+                              </div>
+                              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            </div>
+                          </CollapsibleTrigger>
+                          
+                          <CollapsibleContent>
+                            <div className="px-3 pb-3 pt-1 border-t border-border/50 space-y-3">
+                              <div className="flex items-start gap-2">
+                                <MessageSquare className="h-3 w-3 text-accent mt-0.5 flex-shrink-0" />
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {match.reasoning || "No reasoning provided"}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button size="sm" variant="outline" asChild className="h-7 text-xs">
+                                  <a href={winnerLink} target="_blank" rel="noopener noreferrer">
+                                    View Winner
+                                    <ExternalLink className="h-3 w-3 ml-1" />
+                                  </a>
+                                </Button>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Actions */}
       <div className="mt-8 flex flex-wrap gap-4 justify-center">
