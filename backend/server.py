@@ -344,9 +344,7 @@ async def search_arxiv_papers(
             filtered_papers.append(paper)
         papers = filtered_papers
     
-    # Fetch citation counts for papers (async batch)
-    papers = await fetch_citation_counts(papers)
-    
+    # Return papers immediately - citations fetched separately for speed
     return papers
 
 async def fetch_citation_counts(papers: List[Paper]) -> List[Paper]:
