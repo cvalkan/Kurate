@@ -419,7 +419,7 @@ export default function SearchPage() {
                   <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
                     <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
                     <span>
-                      {totalMatches} comparisons will take ~{Math.ceil(totalMatches * 3 / 60)} min
+                      {totalMatches} comparisons will take ~{Math.ceil(totalMatches * 3 / parallelAgents / 60)} min
                     </span>
                   </div>
                 )}
