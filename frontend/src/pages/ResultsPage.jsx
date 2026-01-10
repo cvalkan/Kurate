@@ -296,6 +296,7 @@ export default function ResultsPage() {
               <CardTitle className="text-lg">Complete Rankings</CardTitle>
               <CardDescription>
                 All papers ranked by Bradley-Terry score
+                {tournament.ranking_mode === 'ucb' && ' with confidence intervals'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -327,13 +328,26 @@ export default function ResultsPage() {
                         </p>
                       </div>
                       
-                      <div className="flex-shrink-0 text-right">
+                      <div className="flex-shrink-0 text-right min-w-[120px]">
                         <p className="font-mono font-semibold text-accent">
                           {item.score.toFixed(4)}
                         </p>
-                        <p className="text-xs font-mono text-muted-foreground">
-                          {item.arxiv_id}
-                        </p>
+                        {/* Confidence Band */}
+                        {item.confidence && (
+                          <div className="text-[10px] text-muted-foreground font-mono" data-testid={`confidence-${index}`}>
+                            <span className="text-green-600">{(item.confidence.win_rate * 100).toFixed(0)}%</span>
+                            <span className="mx-1">±</span>
+                            <span>{(item.confidence.margin_of_error * 100).toFixed(0)}%</span>
+                            <span className="text-muted-foreground/60 ml-1">
+                              ({item.confidence.comparisons} cmp)
+                            </span>
+                          </div>
+                        )}
+                        {!item.confidence && (
+                          <p className="text-xs font-mono text-muted-foreground">
+                            {item.arxiv_id}
+                          </p>
+                        )}
                       </div>
                       
                       <Button 
