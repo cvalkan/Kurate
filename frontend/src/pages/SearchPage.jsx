@@ -222,9 +222,11 @@ export default function SearchPage() {
 
   const totalMatches = (selectedPapers.size * (selectedPapers.size - 1)) / 2;
   
-  // UCB estimated matches (approximately n * log(n) * 3)
+  // UCB estimated matches - depends on mode (top-k vs full ranking)
   const ucbEstimatedMatches = useUCB && selectedPapers.size > 0
-    ? ucbMaxComparisons || Math.ceil(selectedPapers.size * Math.log(selectedPapers.size) * 3)
+    ? ucbMaxComparisons || (ucbTargetTopK 
+        ? Math.ceil(ucbTargetTopK * Math.log(selectedPapers.size) * 4 + selectedPapers.size * 2)
+        : Math.ceil(selectedPapers.size * Math.log(selectedPapers.size) * 3))
     : totalMatches;
   
   const effectiveMatches = useUCB ? ucbEstimatedMatches : totalMatches;
