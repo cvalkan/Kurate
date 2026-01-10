@@ -363,17 +363,9 @@ async def search_arxiv_papers(
         papers = filtered_papers
         logger.info(f"Exact phrase filter: {len(papers)} papers contain '{exact_phrase}'")
     
-    # Filter by date if specified
-    if date_from or date_to:
-        filtered_papers = []
-        for paper in papers:
-            pub_date = paper.published[:10]
-            if date_from and pub_date < date_from:
-                continue
-            if date_to and pub_date > date_to:
-                continue
-            filtered_papers.append(paper)
-        papers = filtered_papers
+    # Date filtering is now handled by arXiv API directly via submittedDate query
+    # Limit to requested max_results
+    papers = papers[:max_results]
     
     # Return papers immediately - citations fetched separately for speed
     return papers
