@@ -83,6 +83,7 @@ class Paper(BaseModel):
     link: str
     pdf_link: Optional[str] = None
     full_text: Optional[str] = None  # For deep analysis
+    citation_count: Optional[int] = None  # From Semantic Scholar
 
 class Match(BaseModel):
     model_config = ConfigDict(extra="ignore")
