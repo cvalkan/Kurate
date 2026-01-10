@@ -117,6 +117,17 @@ export default function ResultsPage() {
     return paper?.link || "#";
   };
 
+  const getPaperCitations = (paperId) => {
+    const paper = papers?.find(p => p.id === paperId);
+    return paper?.citation_count;
+  };
+
+  // Create paper lookup map for rankings
+  const paperLookup = papers.reduce((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {});
+
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
