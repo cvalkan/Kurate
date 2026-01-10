@@ -125,17 +125,13 @@ export default function SearchPage() {
         toast.error("Maximum 10 papers allowed in Deep Analysis mode");
         return;
       }
-      if (!deepAnalysis && newSelection.size >= 20) {
-        toast.error("Maximum 20 papers allowed");
-        return;
-      }
       newSelection.add(paperId);
     }
     setSelectedPapers(newSelection);
   };
 
   const selectAll = () => {
-    const maxPapers = deepAnalysis ? 10 : 20;
+    const maxPapers = deepAnalysis ? 10 : papers.length;
     const toSelect = papers.slice(0, maxPapers).map(p => p.id);
     setSelectedPapers(new Set(toSelect));
   };
