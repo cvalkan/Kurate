@@ -344,6 +344,44 @@ async def search_arxiv_papers(
             filtered_papers.append(paper)
         papers = filtered_papers
     
+    # Fetch citation counts for papers (async batch)
+    papers = await fetch_citation_counts(papers)
+    
+    return papers
+
+async def fetch_citation_counts(papers: List[Paper]) -> List[Paper]:
+    """Fetch citation counts from Semantic Scholar for a list of papers"""
+    if not papers:
+        return papers
+    
+    # Semantic Scholar API - batch lookup by arXiv IDs
+    arxiv_ids = [f"ARXIV:{p.arxiv_id.split('v')[0]}" for p in papers]  # Remove version number
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Semantic Scholar batch endpoint (up to 500 papers)
+            response = await client.post(
+                "https://api.semanticscholar.org/graph/v1/paper/batch",
+                params={"fields": "citationCount"},
+                json={"ids": arxiv_ids[:100]},  # Limit to 100 for performance
+                timeout=15.0
+            )
+            
+            if response.status_code == 200:
+                results = response.json()
+                # Map results back to papers
+                for i, paper in enumerate(papers[:100]):
+                    if i < len(results) and results[i]:
+                        paper.citation_count = results[i].get('citationCount', 0)
+                    else:
+                        paper.citation_count = None
+            else:
+                logger.warning(f"Semantic Scholar API returned {response.status_code}")
+                
+    except Exception as e:
+        logger.warning(f"Failed to fetch citation counts: {e}")
+        # Continue without citation counts
+    
     return papers
 
 def parse_arxiv_response(xml_text: str) -> List[Paper]:
