@@ -292,9 +292,8 @@ async def search_arxiv_papers(
     return papers
 
 def parse_arxiv_response(xml_text: str) -> List[Paper]:
-        
-    # Parse XML response
-    root = ET.fromstring(response.text)
+    """Parse arXiv API XML response into Paper objects"""
+    root = ET.fromstring(xml_text)
     ns = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
     
     papers = []
