@@ -105,12 +105,12 @@ export default function ResultsPage() {
   };
 
   const getPaperTitle = (paperId) => {
-    const paper = tournament?.papers?.find(p => p.id === paperId);
+    const paper = papers?.find(p => p.id === paperId);
     return paper?.title || "Unknown paper";
   };
 
   const getPaperLink = (paperId) => {
-    const paper = tournament?.papers?.find(p => p.id === paperId);
+    const paper = papers?.find(p => p.id === paperId);
     return paper?.link || "#";
   };
 
