@@ -29,7 +29,8 @@ import {
   FileText,
   Calendar,
   RefreshCw,
-  FileSearch
+  FileSearch,
+  Zap
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -199,6 +200,18 @@ export default function HistoryPage() {
                         >
                           <FileSearch className="h-3 w-3 mr-1" />
                           Deep
+                        </Badge>
+                      )}
+                      
+                      {/* UCB Mode Badge */}
+                      {tournament.ranking_mode === 'ucb' && (
+                        <Badge 
+                          variant="outline" 
+                          className="border-purple-300 text-purple-700 bg-purple-50 flex-shrink-0"
+                          data-testid={`ucb-badge-${index}`}
+                        >
+                          <Zap className="h-3 w-3 mr-1" />
+                          UCB
                         </Badge>
                       )}
                       
