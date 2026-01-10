@@ -194,7 +194,8 @@ export default function TournamentPage() {
               <div className="space-y-1">
                 <p className="text-sm font-medium">Tournament Progress</p>
                 <p className="text-xs text-muted-foreground">
-                  {completedMatches} of {totalMatches} comparisons completed
+                  {completedMatches} of ~{displayTotal} comparisons completed
+                  {tournament.ranking_mode === 'ucb' && ' (UCB adaptive)'}
                 </p>
               </div>
               <span className="text-2xl font-mono font-bold text-accent" data-testid="progress-percentage">
