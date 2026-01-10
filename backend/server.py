@@ -214,7 +214,7 @@ def extract_key_sections(full_text: str) -> Dict[str, str]:
     return sections
 
 async def fetch_arxiv_papers(category: str, max_results: int = 10) -> List[Paper]:
-    """Fetch papers from arXiv API"""
+    """Fetch papers from arXiv API by category"""
     base_url = "https://export.arxiv.org/api/query"
     query = f"cat:{category}"
     params = {
@@ -228,6 +228,70 @@ async def fetch_arxiv_papers(category: str, max_results: int = 10) -> List[Paper
     async with httpx.AsyncClient() as http_client:
         response = await http_client.get(base_url, params=params, timeout=30.0)
         response.raise_for_status()
+    
+    return parse_arxiv_response(response.text)
+
+async def search_arxiv_papers(
+    keywords: Optional[str] = None,
+    author: Optional[str] = None,
+    category: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    max_results: int = 20
+) -> List[Paper]:
+    """Search papers from arXiv API with multiple filters"""
+    base_url = "https://export.arxiv.org/api/query"
+    
+    # Build query parts
+    query_parts = []
+    
+    if keywords:
+        # Search in title and abstract
+        keywords_clean = keywords.strip()
+        query_parts.append(f'(ti:"{keywords_clean}" OR abs:"{keywords_clean}")')
+    
+    if author:
+        author_clean = author.strip()
+        query_parts.append(f'au:"{author_clean}"')
+    
+    if category:
+        query_parts.append(f'cat:{category}')
+    
+    # Combine query parts with AND
+    if query_parts:
+        query = " AND ".join(query_parts)
+    else:
+        query = "all:*"  # Default: fetch recent papers
+    
+    params = {
+        "search_query": query,
+        "start": 0,
+        "max_results": max_results,
+        "sortBy": "submittedDate",
+        "sortOrder": "descending"
+    }
+    
+    async with httpx.AsyncClient() as http_client:
+        response = await http_client.get(base_url, params=params, timeout=30.0)
+        response.raise_for_status()
+    
+    papers = parse_arxiv_response(response.text)
+    
+    # Filter by date if specified (arXiv API doesn't support date filtering directly)
+    if date_from or date_to:
+        filtered_papers = []
+        for paper in papers:
+            pub_date = paper.published[:10]  # Get YYYY-MM-DD
+            if date_from and pub_date < date_from:
+                continue
+            if date_to and pub_date > date_to:
+                continue
+            filtered_papers.append(paper)
+        papers = filtered_papers
+    
+    return papers
+
+def parse_arxiv_response(xml_text: str) -> List[Paper]:
         
     # Parse XML response
     root = ET.fromstring(response.text)
