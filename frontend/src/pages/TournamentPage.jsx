@@ -353,15 +353,64 @@ export default function TournamentPage() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <Zap className="h-5 w-5" />
                 Comparison Log
+                {tournament.status === 'running' && (
+                  <Badge variant="outline" className="ml-2 text-xs border-green-300 text-green-700 bg-green-50 animate-pulse">
+                    Live
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
-                Recent match results
+                {tournament.status === 'running' ? 'Live comparison results' : 'Recent match results'}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[500px] pr-4">
                 <div className="space-y-3">
-                  {tournament.matches?.filter(m => m.completed).slice(-20).reverse().map((match, index) => {
+                  {/* Show live matches from cache while running */}
+                  {tournament.status === 'running' && tournament.recent_matches?.length > 0 && (
+                    [...tournament.recent_matches].reverse().map((match, index) => (
+                      <Collapsible key={`live-${index}`}>
+                        <div 
+                          className={`rounded-lg bg-secondary/50 text-xs overflow-hidden ${index === 0 ? 'ring-2 ring-accent/50' : ''}`}
+                          data-testid={`match-log-live-${index}`}
+                        >
+                          <CollapsibleTrigger className="w-full p-3 hover:bg-secondary/80 transition-colors">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0 text-left">
+                                <div className="flex items-center gap-2">
+                                  <Trophy className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                                  <span className="font-medium text-foreground truncate">
+                                    {match.winner_title}...
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1 text-muted-foreground">
+                                  <span className="text-[10px]">beat</span>
+                                  <span className="truncate">
+                                    {match.winner_title === match.paper1_title ? match.paper2_title : match.paper1_title}...
+                                  </span>
+                                </div>
+                              </div>
+                              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                            </div>
+                          </CollapsibleTrigger>
+                          
+                          <CollapsibleContent>
+                            <div className="px-3 pb-3 pt-1 border-t border-border/50">
+                              <div className="flex items-start gap-2">
+                                <MessageSquare className="h-3 w-3 text-accent mt-0.5 flex-shrink-0" />
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {match.reasoning || "No reasoning provided"}
+                                </p>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    ))
+                  )}
+                  
+                  {/* Show DB matches when completed or not running */}
+                  {tournament.status !== 'running' && tournament.matches?.filter(m => m.completed).slice(-20).reverse().map((match, index) => {
                     const paper1 = tournament.papers?.find(p => p.id === match.paper1_id);
                     const paper2 = tournament.papers?.find(p => p.id === match.paper2_id);
                     const winner = tournament.papers?.find(p => p.id === match.winner_id);
@@ -408,7 +457,11 @@ export default function TournamentPage() {
                     );
                   })}
                   
-                  {(!tournament.matches || tournament.matches.filter(m => m.completed).length === 0) && (
+                  {/* Empty state */}
+                  {(
+                    (tournament.status === 'running' && (!tournament.recent_matches || tournament.recent_matches.length === 0)) ||
+                    (tournament.status !== 'running' && (!tournament.matches || tournament.matches.filter(m => m.completed).length === 0))
+                  ) && (
                     <div className="text-center py-8 text-muted-foreground">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                       <p className="text-sm">Waiting for comparisons...</p>
