@@ -93,6 +93,7 @@ export default function SearchPage() {
   const [ucbMaxComparisons, setUcbMaxComparisons] = useState(null);
   const [ucbTargetTopK, setUcbTargetTopK] = useState(null);
   const [ucbConfidenceLevel, setUcbConfidenceLevel] = useState(0.95);
+  const [loadingCitations, setLoadingCitations] = useState(false);
 
   const handleSearch = async () => {
     if (!keywords && !author && !category) {
@@ -121,12 +122,38 @@ export default function SearchPage() {
         toast.info("No papers found. Try different search criteria.");
       } else {
         toast.success(`Found ${response.data.papers.length} papers`);
+        
+        // Fetch citations in background (non-blocking)
+        fetchCitations(response.data.papers);
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || "Search failed");
       console.error(error);
     } finally {
       setSearching(false);
+    }
+  };
+
+  const fetchCitations = async (paperList) => {
+    if (!paperList || paperList.length === 0) return;
+    
+    setLoadingCitations(true);
+    try {
+      const arxivIds = paperList.map(p => p.arxiv_id);
+      const response = await axios.post(`${API}/papers/citations`, { arxiv_ids: arxivIds });
+      const citations = response.data.citations;
+      
+      // Update papers with citation counts
+      setPapers(prevPapers => 
+        prevPapers.map(p => ({
+          ...p,
+          citation_count: citations[p.arxiv_id] ?? null
+        }))
+      );
+    } catch (error) {
+      console.log("Citations fetch skipped:", error.message);
+    } finally {
+      setLoadingCitations(false);
     }
   };
 
