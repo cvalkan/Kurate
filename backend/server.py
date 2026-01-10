@@ -776,7 +776,7 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
             "id": tournament.id, 
             "status": tournament.status, 
             "total_matches": len(matches), 
-            "num_papers": len(papers),
+            "num_papers": len(paper_dicts),
             "deep_analysis": config.deep_analysis
         }
     }
