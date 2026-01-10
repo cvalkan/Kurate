@@ -27,8 +27,8 @@ class TestTopKAndConfidenceBackendAPI:
         """Test creating UCB tournament with target_top_k parameter"""
         # First search for papers
         search_response = requests.post(f"{BASE_URL}/api/papers/search", json={
-            "keywords": "TEST_deep learning neural",
-            "max_results": 8
+            "keywords": "machine learning",
+            "max_results": 10
         })
         papers = search_response.json().get("papers", [])
         
@@ -79,8 +79,8 @@ class TestTopKAndConfidenceBackendAPI:
     def test_create_ucb_tournament_with_confidence_level_range(self):
         """Test creating UCB tournament with various confidence levels (80-99%)"""
         search_response = requests.post(f"{BASE_URL}/api/papers/search", json={
-            "keywords": "TEST_machine learning",
-            "max_results": 5
+            "keywords": "neural network",
+            "max_results": 10
         })
         papers = search_response.json().get("papers", [])
         
@@ -128,8 +128,8 @@ class TestTopKAndConfidenceBackendAPI:
     def test_ucb_default_confidence_level(self):
         """Test that default confidence_level is 0.95 when not specified"""
         search_response = requests.post(f"{BASE_URL}/api/papers/search", json={
-            "keywords": "TEST_neural network",
-            "max_results": 5
+            "keywords": "deep learning",
+            "max_results": 10
         })
         papers = search_response.json().get("papers", [])
         
@@ -156,8 +156,8 @@ class TestTopKAndConfidenceBackendAPI:
     def test_ucb_default_target_top_k_is_none(self):
         """Test that default target_top_k is None (rank all papers)"""
         search_response = requests.post(f"{BASE_URL}/api/papers/search", json={
-            "keywords": "TEST_optimization",
-            "max_results": 5
+            "keywords": "optimization algorithm",
+            "max_results": 10
         })
         papers = search_response.json().get("papers", [])
         
@@ -189,8 +189,8 @@ class TestConfidenceBandsInResults:
         """Create and run a small UCB tournament to verify confidence bands in results"""
         # Search for papers
         search_response = requests.post(f"{BASE_URL}/api/papers/search", json={
-            "keywords": "TEST_transformer attention",
-            "max_results": 6
+            "keywords": "transformer attention",
+            "max_results": 10
         })
         papers = search_response.json().get("papers", [])
         
@@ -296,8 +296,8 @@ class TestTopKModeEfficiency:
         """Test that target_top_k mode completes with fewer comparisons"""
         # Search for papers
         search_response = requests.post(f"{BASE_URL}/api/papers/search", json={
-            "keywords": "TEST_computer vision image",
-            "max_results": 8
+            "keywords": "computer vision",
+            "max_results": 10
         })
         papers = search_response.json().get("papers", [])
         
