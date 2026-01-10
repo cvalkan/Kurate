@@ -1198,11 +1198,19 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
             "exploration_constant": 1.414,
             "min_comparisons_per_paper": 3,
             "max_total_comparisons": None,
-            "convergence_threshold": 0.05
+            "convergence_threshold": 0.05,
+            "target_top_k": None,
+            "confidence_level": 0.95
         }
-        # Calculate estimated matches for UCB
+        # Calculate estimated matches for UCB based on mode
         n = len(paper_dicts)
-        estimated_matches = ucb_config_dict.get('max_total_comparisons') or int(n * math.log(n) * 3)
+        target_k = ucb_config_dict.get('target_top_k')
+        if target_k:
+            # Top-k mode: fewer comparisons needed
+            estimated_matches = ucb_config_dict.get('max_total_comparisons') or int(target_k * math.log(n) * 4 + n * 2)
+        else:
+            # Full ranking mode
+            estimated_matches = ucb_config_dict.get('max_total_comparisons') or int(n * math.log(n) * 3)
     else:
         matches = generate_round_robin_matches(paper_dicts)
         estimated_matches = len(matches)
