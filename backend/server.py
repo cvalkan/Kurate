@@ -35,10 +35,9 @@ client = AsyncIOMotorClient(
 )
 db = client[os.environ['DB_NAME']]
 
-# Separate collection for live tournament progress (lightweight updates)
-# Use write concern 0 for fire-and-forget writes (non-blocking)
-from pymongo import WriteConcern
-progress_collection = db.get_collection('tournament_progress', write_concern=WriteConcern(w=0))
+# In-memory tournament progress cache (avoids MongoDB contention during running tournaments)
+# Structure: {tournament_id: {"progress": int, "current_log": str, "completed_matches": int}}
+tournament_progress_cache = {}
 
 # LLM API Key
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
