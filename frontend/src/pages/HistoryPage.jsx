@@ -221,9 +221,11 @@ export default function HistoryPage() {
                           {tournament.category_name}
                         </h3>
                         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-1">
-                          <span className="flex items-center gap-1 font-mono">
-                            {tournament.category}
-                          </span>
+                          {tournament.category !== 'custom' && (
+                            <span className="flex items-center gap-1 font-mono">
+                              {tournament.category}
+                            </span>
+                          )}
                           <span className="flex items-center gap-1">
                             <FileText className="h-3 w-3" />
                             {tournament.num_papers} papers
@@ -233,11 +235,6 @@ export default function HistoryPage() {
                             {formatDate(tournament.created_at)}
                           </span>
                         </div>
-                        {tournament.search_query && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate">
-                            Search: {tournament.search_query}
-                          </p>
-                        )}
                       </div>
                       
                       {/* Progress (for running tournaments) */}
