@@ -1069,7 +1069,6 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
             "completed_matches": total_comparisons,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
-        )
         
         if converged and total_comparisons >= n * min_comparisons:
             logger.info(f"UCB: Converged after {total_comparisons} comparisons")
