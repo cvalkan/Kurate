@@ -40,11 +40,23 @@ export default function TournamentPage() {
   const fetchTournament = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/tournaments/${id}`);
-      setTournament(response.data.tournament);
+      const tournamentData = response.data.tournament;
+      
+      // If completed, also fetch matches for the log
+      if (tournamentData.status === 'completed') {
+        try {
+          const matchesResponse = await axios.get(`${API}/tournaments/${id}/matches?limit=20`);
+          tournamentData.matches = matchesResponse.data.matches;
+        } catch (e) {
+          console.log("Could not fetch matches:", e.message);
+        }
+      }
+      
+      setTournament(tournamentData);
       setLoading(false);
       
       // If completed or failed, stop polling
-      if (response.data.tournament.status === 'completed' || response.data.tournament.status === 'failed') {
+      if (tournamentData.status === 'completed' || tournamentData.status === 'failed') {
         if (pollingRef.current) {
           clearInterval(pollingRef.current);
           pollingRef.current = null;
