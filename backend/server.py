@@ -980,7 +980,8 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Process results
+        # Process results and collect new matches
+        new_matches = []
         for (p1_id, p2_id), result in zip(batch_pairs, results):
             match = {
                 'id': str(uuid.uuid4()),
@@ -1000,6 +1001,7 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
                 match['reasoning'] = result.get('reasoning', '')
             
             matches.append(match)
+            new_matches.append(match)
             
             # Update stats
             winner_id = match['winner_id']
@@ -1033,14 +1035,19 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         else:
             status_msg = f"UCB: {total_comparisons} comparisons (exploring {'high uncertainty' if total_comparisons < n*2 else 'refinement'})"
         
+        # Use $push to append new matches (more efficient than replacing entire array)
+        # and $set for other fields
         await db.tournaments.update_one(
             {"id": tournament_id},
-            {"$set": {
-                "matches": matches,
-                "paper_stats": paper_stats,
-                "progress": progress,
-                "current_log": status_msg
-            }}
+            {
+                "$push": {"matches": {"$each": new_matches}},
+                "$set": {
+                    "paper_stats": paper_stats,
+                    "progress": progress,
+                    "current_log": status_msg,
+                    "total_matches": total_comparisons
+                }
+            }
         )
         
         if converged and total_comparisons >= n * min_comparisons:
