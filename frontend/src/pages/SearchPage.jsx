@@ -249,7 +249,7 @@ export default function SearchPage() {
                     <SelectValue placeholder="Any category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any category</SelectItem>
+                    <SelectItem value="any">Any category</SelectItem>
                     {CATEGORIES.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
