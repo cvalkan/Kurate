@@ -904,14 +904,29 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_db_client():
-    """Create indexes on startup for faster queries"""
+    """Create indexes and resume stuck tournaments on startup"""
     try:
+        # Create indexes
         await db.tournaments.create_index("id", unique=True)
         await db.tournaments.create_index("status")
         await db.tournaments.create_index("created_at")
         logger.info("MongoDB indexes created successfully")
+        
+        # Resume any stuck tournaments (status = "running" but no active task)
+        stuck_tournaments = await db.tournaments.find(
+            {"status": "running"},
+            {"_id": 0, "id": 1, "category_name": 1, "progress": 1}
+        ).to_list(100)
+        
+        if stuck_tournaments:
+            logger.info(f"Found {len(stuck_tournaments)} stuck tournament(s), resuming...")
+            for t in stuck_tournaments:
+                logger.info(f"Resuming tournament {t['id'][:8]}... ({t['category_name']}) at {t.get('progress', 0)}%")
+                # Import BackgroundTasks equivalent for startup
+                asyncio.create_task(run_tournament(t['id']))
+            logger.info("All stuck tournaments resumed")
     except Exception as e:
-        logger.warning(f"Index creation warning: {e}")
+        logger.warning(f"Startup warning: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
