@@ -114,6 +114,8 @@ class UCBConfig(BaseModel):
     min_comparisons_per_paper: int = 3  # Minimum comparisons before stopping
     max_total_comparisons: Optional[int] = None  # None = auto-calculate
     convergence_threshold: float = 0.05  # Stop if top rankings stable
+    target_top_k: Optional[int] = None  # Focus on finding accurate top-k (None = rank all)
+    confidence_level: float = 0.95  # Confidence level for intervals (0.95 = 95%)
 
 class Tournament(BaseModel):
     model_config = ConfigDict(extra="ignore")
