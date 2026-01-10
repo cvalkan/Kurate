@@ -293,7 +293,7 @@ export default function TournamentPage() {
                         </div>
                         {match.reasoning && (
                           <div className="text-muted-foreground italic pl-5 border-l-2 border-accent/30 ml-2">
-                            "{match.reasoning}"
+                            &ldquo;{match.reasoning}&rdquo;
                           </div>
                         )}
                       </div>
