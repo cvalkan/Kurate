@@ -1371,21 +1371,19 @@ async def list_tournaments(limit: int = 20):
     return {"tournaments": tournaments}
 
 @api_router.get("/tournaments/{tournament_id}")
-async def get_tournament(tournament_id: str, full: bool = False):
-    """Get tournament details - lightweight by default, full with ?full=true"""
-    if full:
-        # Full data including all papers and matches
-        tournament = await db.tournaments.find_one({"id": tournament_id}, {"_id": 0})
-    else:
-        # Lightweight - exclude heavy fields but keep reasoning for display
-        tournament = await db.tournaments.find_one(
-            {"id": tournament_id}, 
-            {
-                "_id": 0,
-                "papers.abstract": 0,
-                "papers.full_text": 0
-            }
-        )
+async def get_tournament(tournament_id: str, include_matches: bool = False):
+    """Get tournament details - excludes matches by default for performance"""
+    projection = {
+        "_id": 0,
+        "papers.abstract": 0,
+        "papers.full_text": 0
+    }
+    
+    if not include_matches:
+        # Exclude matches for faster loading - use /matches endpoint for match details
+        projection["matches"] = 0
+    
+    tournament = await db.tournaments.find_one({"id": tournament_id}, projection)
     
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
