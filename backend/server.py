@@ -246,13 +246,35 @@ async def search_arxiv_papers(
     query_parts = []
     
     if keywords:
-        # Search in title and abstract
         keywords_clean = keywords.strip()
-        query_parts.append(f'(ti:"{keywords_clean}" OR abs:"{keywords_clean}")')
+        # Check if user wants exact phrase (wrapped in quotes)
+        if keywords_clean.startswith('"') and keywords_clean.endswith('"'):
+            # Exact phrase search - remove outer quotes, arXiv uses quotes internally
+            phrase = keywords_clean[1:-1]
+            # For exact phrase, search with AND between words
+            words = phrase.split()
+            if len(words) > 1:
+                # Multi-word phrase: use all: field with AND
+                word_queries = [f'all:{word}' for word in words]
+                query_parts.append(f'({" AND ".join(word_queries)})')
+            else:
+                query_parts.append(f'all:{phrase}')
+        else:
+            # Regular search - search in title and abstract with OR between words
+            words = keywords_clean.split()
+            if len(words) > 1:
+                # Multiple words: OR them together for broader results
+                word_queries = []
+                for word in words:
+                    word_queries.append(f'(ti:{word} OR abs:{word})')
+                query_parts.append(f'({" AND ".join(word_queries)})')
+            else:
+                query_parts.append(f'(ti:{keywords_clean} OR abs:{keywords_clean})')
     
     if author:
         author_clean = author.strip()
-        query_parts.append(f'au:"{author_clean}"')
+        # Handle author names - arXiv uses lastname_firstname format
+        query_parts.append(f'au:{author_clean}')
     
     if category:
         query_parts.append(f'cat:{category}')
@@ -263,11 +285,13 @@ async def search_arxiv_papers(
     else:
         query = "all:*"  # Default: fetch recent papers
     
+    logger.info(f"ArXiv search query: {query}")
+    
     params = {
         "search_query": query,
         "start": 0,
         "max_results": max_results,
-        "sortBy": "submittedDate",
+        "sortBy": "relevance",  # Use relevance for keyword searches
         "sortOrder": "descending"
     }
     
