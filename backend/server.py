@@ -1048,8 +1048,10 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
             status_msg = f"UCB: {total_comparisons} comparisons (exploring {'high uncertainty' if total_comparisons < n*2 else 'refinement'})"
         
         # Only update main tournament collection every 10 comparisons (reduce write frequency)
+        # Use fire-and-forget write concern during running state (non-blocking)
         if total_comparisons % 10 == 0 or len(new_matches) >= 10:
-            await db.tournaments.update_one(
+            tournaments_fast = db.get_collection('tournaments', write_concern=WriteConcern(w=0))
+            await tournaments_fast.update_one(
                 {"id": tournament_id},
                 {
                     "$set": {
