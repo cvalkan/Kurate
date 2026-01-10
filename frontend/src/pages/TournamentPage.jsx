@@ -285,34 +285,46 @@ export default function TournamentPage() {
                     const paper1 = tournament.papers?.find(p => p.id === match.paper1_id);
                     const paper2 = tournament.papers?.find(p => p.id === match.paper2_id);
                     const winner = tournament.papers?.find(p => p.id === match.winner_id);
+                    const loser = match.winner_id === match.paper1_id ? paper2 : paper1;
                     
                     return (
-                      <div 
-                        key={match.id}
-                        className="p-3 rounded-lg bg-secondary/50 text-xs space-y-2"
-                        data-testid={`match-log-${index}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-3 w-3 text-green-600 flex-shrink-0" />
-                          <span className="text-muted-foreground truncate">
-                            {paper1?.title?.slice(0, 30)}...
-                          </span>
+                      <Collapsible key={match.id}>
+                        <div 
+                          className="rounded-lg bg-secondary/50 text-xs overflow-hidden"
+                          data-testid={`match-log-${index}`}
+                        >
+                          <CollapsibleTrigger className="w-full p-3 hover:bg-secondary/80 transition-colors">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0 text-left">
+                                <div className="flex items-center gap-2">
+                                  <Trophy className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                                  <span className="font-medium text-foreground truncate">
+                                    {winner?.title?.slice(0, 35)}...
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1 text-muted-foreground">
+                                  <span className="text-[10px]">beat</span>
+                                  <span className="truncate">
+                                    {loser?.title?.slice(0, 35)}...
+                                  </span>
+                                </div>
+                              </div>
+                              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                            </div>
+                          </CollapsibleTrigger>
+                          
+                          <CollapsibleContent>
+                            <div className="px-3 pb-3 pt-1 border-t border-border/50">
+                              <div className="flex items-start gap-2">
+                                <MessageSquare className="h-3 w-3 text-accent mt-0.5 flex-shrink-0" />
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {match.reasoning || "No reasoning provided"}
+                                </p>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
                         </div>
-                        <div className="flex items-center gap-2 pl-5">
-                          <span className="text-muted-foreground">vs</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-3 w-3 text-green-600 flex-shrink-0" />
-                          <span className="text-muted-foreground truncate">
-                            {paper2?.title?.slice(0, 30)}...
-                          </span>
-                        </div>
-                        <div className="pt-2 border-t border-border">
-                          <p className="text-accent font-medium truncate">
-                            Winner: {winner?.title?.slice(0, 40)}...
-                          </p>
-                        </div>
-                      </div>
+                      </Collapsible>
                     );
                   })}
                   
