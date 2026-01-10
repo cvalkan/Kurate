@@ -1102,7 +1102,8 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Update matches with results
+        # Collect match updates for batch update
+        match_updates = []
         for match, result in zip(batch, results):
             if isinstance(result, Exception):
                 logger.error(f"Match comparison failed: {result}")
@@ -1115,18 +1116,19 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
                 match['reasoning'] = result.get('reasoning', '')
                 match['completed'] = True
             
+            match_updates.append(match)
             completed += 1
         
-        # Update progress
+        # Update progress - use lightweight update for status only
         progress = int((completed / total) * 100) if total > 0 else 100
         mode_label = "Deep Analysis: " if deep_analysis else ""
         
         await db.tournaments.update_one(
             {"id": tournament_id},
             {"$set": {
-                "matches": matches,
                 "progress": progress,
-                "current_log": f"{mode_label}Completed {completed}/{total} comparisons..."
+                "current_log": f"{mode_label}Completed {completed}/{total} comparisons...",
+                "total_matches": completed
             }}
         )
         
@@ -1139,6 +1141,7 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
     # Clean papers (remove full_text)
     papers_clean = [{k: v for k, v in p.items() if k != 'full_text'} for p in papers]
     
+    # Final update with all data
     await db.tournaments.update_one(
         {"id": tournament_id},
         {"$set": {
@@ -1148,6 +1151,7 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
             "rankings": rankings,
             "scores": {k: round(v, 4) for k, v in scores.items()},
             "progress": 100,
+            "total_matches": len(matches),
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "current_log": f"Round Robin completed! {len(matches)} comparisons"
         }}
