@@ -630,71 +630,200 @@ def check_ucb_convergence(paper_stats: Dict[str, Dict], min_comparisons: int,
     return False, current_rankings
 
 async def run_tournament(tournament_id: str):
-    """Run the tournament with parallel LLM comparisons"""
+    """Run the tournament with parallel LLM comparisons - supports Round Robin and UCB modes"""
     try:
-        # Get tournament from DB
         tournament_doc = await db.tournaments.find_one({"id": tournament_id}, {"_id": 0})
         if not tournament_doc:
             logger.error(f"Tournament {tournament_id} not found")
             return
         
         deep_analysis = tournament_doc.get('deep_analysis', False)
+        ranking_mode = tournament_doc.get('ranking_mode', 'round_robin')
+        ucb_config = tournament_doc.get('ucb_config', {})
         
         # Update status
+        mode_label = "UCB" if ranking_mode == "ucb" else "Round Robin"
         if deep_analysis:
             await db.tournaments.update_one(
                 {"id": tournament_id},
-                {"$set": {"status": "running", "current_log": "Deep Analysis Mode: Downloading papers..."}}
+                {"$set": {"status": "running", "current_log": f"Deep Analysis + {mode_label}: Downloading papers..."}}
             )
         else:
             await db.tournaments.update_one(
                 {"id": tournament_id},
-                {"$set": {"status": "running", "current_log": "Starting tournament..."}}
+                {"$set": {"status": "running", "current_log": f"{mode_label} Mode: Starting tournament..."}}
             )
         
         papers = tournament_doc['papers']
-        matches = tournament_doc['matches']
         parallel_agents = tournament_doc.get('parallel_agents', 3)
         
-        # If deep analysis, download PDFs first
+        # Download PDFs for deep analysis
         if deep_analysis:
             logger.info(f"Deep analysis mode: downloading {len(papers)} PDFs")
-            
             for i, paper in enumerate(papers):
                 if paper.get('pdf_link'):
                     await db.tournaments.update_one(
                         {"id": tournament_id},
                         {"$set": {"current_log": f"Downloading paper {i+1}/{len(papers)}: {paper['title'][:50]}..."}}
                     )
-                    
                     full_text = await download_and_extract_pdf(paper['pdf_link'])
                     if full_text:
                         paper['full_text'] = full_text
-                        logger.info(f"Downloaded PDF for {paper['arxiv_id']}: {len(full_text)} chars")
-                    else:
-                        logger.warning(f"Failed to download PDF for {paper['arxiv_id']}")
-                    
-                    # Small delay between downloads
                     await asyncio.sleep(0.5)
             
-            # Update papers with full text in DB
             await db.tournaments.update_one(
                 {"id": tournament_id},
                 {"$set": {"papers": papers, "current_log": "PDFs downloaded. Starting comparisons..."}}
             )
         
-        # Create paper lookup
         paper_lookup = {p['id']: p for p in papers}
-        
-        # Process matches in batches
-        pending_matches = [m for m in matches if not m.get('completed')]
-        total = len(pending_matches)
-        completed = 0
-        
-        # Use fewer parallel agents for deep analysis (more tokens per request)
+        paper_ids = [p['id'] for p in papers]
         effective_parallel = min(parallel_agents, 2) if deep_analysis else parallel_agents
         
-        for i in range(0, len(pending_matches), effective_parallel):
+        if ranking_mode == "ucb":
+            # UCB Mode - intelligent pair selection
+            await run_ucb_tournament(tournament_id, papers, paper_lookup, paper_ids, 
+                                     ucb_config, deep_analysis, effective_parallel)
+        else:
+            # Round Robin Mode - all pairs
+            matches = tournament_doc['matches']
+            await run_round_robin_tournament(tournament_id, papers, paper_lookup, paper_ids,
+                                            matches, deep_analysis, effective_parallel)
+        
+    except Exception as e:
+        logger.error(f"Tournament {tournament_id} failed: {e}")
+        await db.tournaments.update_one(
+            {"id": tournament_id},
+            {"$set": {"status": "failed", "current_log": f"Error: {str(e)}"}}
+        )
+
+async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_lookup: Dict,
+                             paper_ids: List[str], ucb_config: Dict, deep_analysis: bool,
+                             parallel_agents: int):
+    """Run tournament using UCB algorithm for efficient pair selection"""
+    
+    exploration_constant = ucb_config.get('exploration_constant', 1.414)
+    min_comparisons = ucb_config.get('min_comparisons_per_paper', 3)
+    convergence_threshold = ucb_config.get('convergence_threshold', 0.05)
+    
+    n = len(paper_ids)
+    max_total = ucb_config.get('max_total_comparisons') or int(n * math.log(n) * 3)  # Default: ~3x theoretical minimum
+    
+    # Initialize paper stats
+    paper_stats = {pid: {'wins': 0, 'comparisons': 0, 'ucb_score': float('inf')} for pid in paper_ids}
+    compared_pairs = set()
+    matches = []
+    total_comparisons = 0
+    previous_rankings = []
+    
+    logger.info(f"UCB Tournament: {n} papers, max {max_total} comparisons, c={exploration_constant}")
+    
+    while total_comparisons < max_total:
+        # Select next pair(s) to compare
+        batch_pairs = []
+        for _ in range(parallel_agents):
+            pair = select_ucb_pair(paper_ids, paper_stats, compared_pairs, total_comparisons, exploration_constant)
+            if pair:
+                batch_pairs.append(pair)
+                compared_pairs.add(tuple(sorted(pair)))
+            else:
+                break  # No more pairs to compare
+        
+        if not batch_pairs:
+            logger.info("UCB: All pairs compared or no valid pairs found")
+            break
+        
+        # Run comparisons in parallel
+        tasks = []
+        for p1_id, p2_id in batch_pairs:
+            p1 = paper_lookup[p1_id]
+            p2 = paper_lookup[p2_id]
+            tasks.append(compare_papers_llm(p1, p2, deep_analysis))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results
+        for (p1_id, p2_id), result in zip(batch_pairs, results):
+            match = {
+                'id': str(uuid.uuid4()),
+                'paper1_id': p1_id,
+                'paper2_id': p2_id,
+                'completed': True,
+                'round_num': total_comparisons // parallel_agents + 1
+            }
+            
+            if isinstance(result, Exception):
+                logger.error(f"UCB comparison failed: {result}")
+                match['winner_id'] = p1_id
+                match['reasoning'] = "Comparison failed"
+            else:
+                winner_key = result.get('winner', 'paper1')
+                match['winner_id'] = p1_id if winner_key == 'paper1' else p2_id
+                match['reasoning'] = result.get('reasoning', '')
+            
+            matches.append(match)
+            
+            # Update stats
+            winner_id = match['winner_id']
+            loser_id = p2_id if winner_id == p1_id else p1_id
+            paper_stats[winner_id]['wins'] += 1
+            paper_stats[p1_id]['comparisons'] += 1
+            paper_stats[p2_id]['comparisons'] += 1
+            total_comparisons += 1
+        
+        # Update UCB scores
+        for pid in paper_ids:
+            paper_stats[pid]['ucb_score'] = calculate_ucb_scores(paper_stats, total_comparisons, exploration_constant).get(pid, 0)
+        
+        # Check convergence
+        converged, previous_rankings = check_ucb_convergence(paper_stats, min_comparisons, convergence_threshold, previous_rankings)
+        
+        # Update progress
+        progress = min(int((total_comparisons / max_total) * 100), 99)
+        await db.tournaments.update_one(
+            {"id": tournament_id},
+            {"$set": {
+                "matches": matches,
+                "paper_stats": paper_stats,
+                "progress": progress,
+                "current_log": f"UCB: {total_comparisons} comparisons (exploring {'high uncertainty' if total_comparisons < n*2 else 'refinement'})"
+            }}
+        )
+        
+        if converged and total_comparisons >= n * min_comparisons:
+            logger.info(f"UCB: Converged after {total_comparisons} comparisons")
+            break
+        
+        await asyncio.sleep(0.5 if deep_analysis else 0.3)
+    
+    # Calculate final rankings
+    scores = calculate_bradley_terry(matches, paper_ids)
+    rankings = create_rankings(scores, paper_lookup)
+    
+    await db.tournaments.update_one(
+        {"id": tournament_id},
+        {"$set": {
+            "status": "completed",
+            "matches": matches,
+            "rankings": rankings,
+            "scores": {k: round(v, 4) for k, v in scores.items()},
+            "paper_stats": paper_stats,
+            "progress": 100,
+            "total_matches": len(matches),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "current_log": f"UCB completed! {len(matches)} comparisons (saved {(n*(n-1)//2) - len(matches)} vs round-robin)"
+        }}
+    )
+
+async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], paper_lookup: Dict,
+                                     paper_ids: List[str], matches: List[Dict], deep_analysis: bool,
+                                     parallel_agents: int):
+    """Run traditional round-robin tournament"""
+    pending_matches = [m for m in matches if not m.get('completed')]
+    total = len(pending_matches)
+    completed = 0
+    
+    for i in range(0, len(pending_matches), parallel_agents):
             batch = pending_matches[i:i + effective_parallel]
             
             # Run comparisons in parallel
