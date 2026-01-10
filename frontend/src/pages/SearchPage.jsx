@@ -90,6 +90,8 @@ export default function SearchPage() {
   const [ucbExploration, setUcbExploration] = useState(1.414);
   const [ucbMinComparisons, setUcbMinComparisons] = useState(3);
   const [ucbMaxComparisons, setUcbMaxComparisons] = useState(null);
+  const [ucbTargetTopK, setUcbTargetTopK] = useState(null);
+  const [ucbConfidenceLevel, setUcbConfidenceLevel] = useState(0.95);
 
   const handleSearch = async () => {
     if (!keywords && !author && !category) {
