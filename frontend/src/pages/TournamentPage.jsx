@@ -56,6 +56,38 @@ export default function TournamentPage() {
     }
   }, [id]);
 
+  // Lightweight status polling (doesn't fetch full match data)
+  const fetchStatus = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/tournaments/${id}/status`);
+      const status = response.data;
+      
+      // Only update the status-related fields, keep the rest
+      setTournament(prev => prev ? {
+        ...prev,
+        status: status.status,
+        progress: status.progress,
+        current_log: status.current_log,
+        total_matches: status.total_matches,
+        // Update matches array length estimate for display
+        matches: prev.matches?.length !== status.completed_matches 
+          ? Array(status.completed_matches).fill({ completed: true })
+          : prev.matches
+      } : prev);
+      
+      // If completed, fetch full data once
+      if (status.status === 'completed' || status.status === 'failed') {
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+        fetchTournament(); // Get full data including rankings
+      }
+    } catch (err) {
+      console.log("Status poll error:", err.message);
+    }
+  }, [id, fetchTournament]);
+
   const handleStartTournament = async () => {
     setStarting(true);
     try {
