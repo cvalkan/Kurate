@@ -238,11 +238,20 @@ export default function ResultsPage() {
                       <h3 className="font-heading font-semibold text-base leading-tight line-clamp-3 pr-10">
                         {item.title}
                       </h3>
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {item.authors?.slice(0, 2).join(", ")}
-                        {item.authors?.length > 2 && " et al."}
-                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {item.authors?.slice(0, 2).join(", ")}
+                          {item.authors?.length > 2 && " et al."}
+                        </p>
+                        {paperLookup[item.paper_id]?.citation_count !== null && 
+                         paperLookup[item.paper_id]?.citation_count !== undefined && (
+                          <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
+                            <Quote className="h-2.5 w-2.5 mr-1" />
+                            {paperLookup[item.paper_id].citation_count} citations
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     
                     <Separator />
