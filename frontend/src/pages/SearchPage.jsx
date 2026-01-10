@@ -181,7 +181,9 @@ export default function SearchPage() {
           exploration_constant: ucbExploration,
           min_comparisons_per_paper: ucbMinComparisons,
           max_total_comparisons: ucbMaxComparisons,
-          convergence_threshold: 0.05
+          convergence_threshold: 0.05,
+          target_top_k: ucbTargetTopK,
+          confidence_level: ucbConfidenceLevel
         };
       }
       
