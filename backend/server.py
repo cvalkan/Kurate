@@ -1169,7 +1169,11 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
     if config.papers and len(config.papers) >= 2:
         paper_dicts = config.papers
         category = config.category or "custom"
-        category_name = ARXIV_CATEGORIES.get(category, "Custom Selection")
+        # Use search query as title if available, otherwise "Custom Selection"
+        if config.search_query:
+            category_name = config.search_query
+        else:
+            category_name = ARXIV_CATEGORIES.get(category, "Custom Selection")
     elif config.category:
         # Fetch papers from category
         if config.category not in ARXIV_CATEGORIES:
@@ -1203,15 +1207,23 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
             "target_top_k": None,
             "confidence_level": 0.95
         }
-        # Calculate estimated matches for UCB based on mode
+        # Calculate estimated matches for UCB based on mode and confidence
         n = len(paper_dicts)
         target_k = ucb_config_dict.get('target_top_k')
+        confidence_level = ucb_config_dict.get('confidence_level', 0.95)
+        
+        # Higher confidence requires more comparisons (scale factor)
+        # 0.80 -> 1.0x, 0.95 -> 1.3x, 0.99 -> 1.6x
+        confidence_multiplier = 1 + (confidence_level - 0.80) * 3
+        
         if target_k:
             # Top-k mode: fewer comparisons needed
-            estimated_matches = ucb_config_dict.get('max_total_comparisons') or int(target_k * math.log(n) * 4 + n * 2)
+            base_estimate = target_k * math.log(n) * 4 + n * 2
         else:
             # Full ranking mode
-            estimated_matches = ucb_config_dict.get('max_total_comparisons') or int(n * math.log(n) * 3)
+            base_estimate = n * math.log(n) * 3
+        
+        estimated_matches = ucb_config_dict.get('max_total_comparisons') or int(base_estimate * confidence_multiplier)
     else:
         matches = generate_round_robin_matches(paper_dicts)
         estimated_matches = len(matches)
