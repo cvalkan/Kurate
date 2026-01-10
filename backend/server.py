@@ -256,6 +256,9 @@ async def search_arxiv_papers(
     max_results: int = 20
 ) -> List[Paper]:
     """Search papers from arXiv API with multiple filters"""
+    import time
+    start_time = time.time()
+    
     base_url = "https://export.arxiv.org/api/query"
     
     # Build query parts
