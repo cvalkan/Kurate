@@ -431,7 +431,6 @@ export default function SearchPage() {
                     onCheckedChange={(checked) => {
                       setDeepAnalysis(checked);
                       if (checked && selectedPapers.size > 10) {
-                        // Trim selection to 10
                         const trimmed = Array.from(selectedPapers).slice(0, 10);
                         setSelectedPapers(new Set(trimmed));
                         toast.info("Selection trimmed to 10 papers for Deep Analysis");
@@ -448,8 +447,100 @@ export default function SearchPage() {
                   </div>
                 )}
 
-                {/* Warning for many papers */}
-                {!deepAnalysis && selectedPapers.size > 15 && (
+                {/* UCB Mode */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-green-600" />
+                    <Label htmlFor="ucb-mode" className="cursor-pointer">
+                      UCB Smart Ranking
+                    </Label>
+                  </div>
+                  <Switch
+                    id="ucb-mode"
+                    checked={useUCB}
+                    onCheckedChange={setUseUCB}
+                    data-testid="ucb-toggle"
+                  />
+                </div>
+
+                {useUCB && (
+                  <>
+                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 p-2 rounded">
+                      <Zap className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span>
+                        Saves ~{savedComparisons > 0 ? savedComparisons : 0} comparisons vs round-robin
+                      </span>
+                    </div>
+                    
+                    {/* UCB Parameters (Expandable) */}
+                    <Collapsible open={ucbExpanded} onOpenChange={setUcbExpanded}>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-2 text-xs text-muted-foreground hover:bg-secondary/50 rounded">
+                        <div className="flex items-center gap-2">
+                          <Settings2 className="h-3 w-3" />
+                          <span>UCB Parameters</span>
+                        </div>
+                        <ChevronDown className={`h-3 w-3 transition-transform ${ucbExpanded ? 'rotate-180' : ''}`} />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 pt-2">
+                        <div className="space-y-2 p-3 bg-secondary/30 rounded-lg text-xs">
+                          {/* Exploration Constant */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between">
+                              <Label className="text-xs">Exploration (c)</Label>
+                              <span className="font-mono">{ucbExploration.toFixed(2)}</span>
+                            </div>
+                            <Slider
+                              value={[ucbExploration]}
+                              onValueChange={(v) => setUcbExploration(v[0])}
+                              min={0.5}
+                              max={3}
+                              step={0.1}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              Higher = more exploration of uncertain papers
+                            </p>
+                          </div>
+                          
+                          {/* Min Comparisons */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between">
+                              <Label className="text-xs">Min comparisons/paper</Label>
+                              <span className="font-mono">{ucbMinComparisons}</span>
+                            </div>
+                            <Slider
+                              value={[ucbMinComparisons]}
+                              onValueChange={(v) => setUcbMinComparisons(v[0])}
+                              min={2}
+                              max={10}
+                              step={1}
+                            />
+                          </div>
+                          
+                          {/* Max Total Comparisons */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between">
+                              <Label className="text-xs">Max total comparisons</Label>
+                              <span className="font-mono">{ucbMaxComparisons || 'auto'}</span>
+                            </div>
+                            <Slider
+                              value={[ucbMaxComparisons || ucbEstimatedMatches]}
+                              onValueChange={(v) => setUcbMaxComparisons(v[0])}
+                              min={Math.ceil(selectedPapers.size * 2)}
+                              max={totalMatches}
+                              step={5}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              Auto: ~{ucbEstimatedMatches} (n×log(n)×3)
+                            </p>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </>
+                )}
+
+                {/* Warning for many papers (only if not using UCB) */}
+                {!useUCB && !deepAnalysis && selectedPapers.size > 15 && (
                   <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
                     <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
                     <span>
@@ -465,8 +556,11 @@ export default function SearchPage() {
                     <span className="font-mono">{selectedPapers.size}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Total comparisons:</span>
-                    <span className="font-mono">{totalMatches}</span>
+                    <span>{useUCB ? 'Est. comparisons:' : 'Total comparisons:'}</span>
+                    <span className="font-mono">
+                      {useUCB ? `~${ucbEstimatedMatches}` : totalMatches}
+                      {useUCB && <span className="text-green-600 ml-1">({Math.round((1 - ucbEstimatedMatches/totalMatches) * 100)}% less)</span>}
+                    </span>
                   </div>
                 </div>
 
