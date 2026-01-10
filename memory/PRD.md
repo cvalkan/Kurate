@@ -66,6 +66,18 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 - Limited to 10 papers max in deep mode
 - UI shows estimated time, warnings, and mode badges
 
+**Date: January 10, 2026 - Search & Custom Tournament Feature**
+- Added Search page (/search) with advanced filters:
+  - Keywords search (title & abstract)
+  - Author search
+  - Category filter (optional)
+  - Date range filter (from/to)
+  - Max results slider
+- Paper selection with checkboxes from search results
+- Tournament settings panel appears after selecting 2+ papers
+- Custom tournaments track search query used
+- History page shows search description for custom tournaments
+
 ## Prioritized Backlog
 
 ### P0 (Critical) - Completed
