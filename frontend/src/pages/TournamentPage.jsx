@@ -104,13 +104,12 @@ export default function TournamentPage() {
   useEffect(() => {
     fetchTournament();
     
-    // Poll for updates - only for running tournaments, longer interval
+    // Use lightweight status polling for running tournaments
     pollingRef.current = setInterval(() => {
-      // Only poll if tournament is running
       if (tournament?.status === 'running') {
-        fetchTournament();
+        fetchStatus(); // Use lightweight endpoint
       }
-    }, 4000);
+    }, 3000);
 
     return () => {
       if (pollingRef.current) {
@@ -120,7 +119,7 @@ export default function TournamentPage() {
         eventSourceRef.current.close();
       }
     };
-  }, [fetchTournament, tournament?.status]);
+  }, [fetchTournament, fetchStatus, tournament?.status]);
 
   const getStatusColor = (status) => {
     switch (status) {
