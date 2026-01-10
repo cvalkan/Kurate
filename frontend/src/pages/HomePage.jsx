@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { 
   FlaskConical, 
   Zap, 
@@ -16,7 +17,10 @@ import {
   Sparkles,
   Brain,
   Cpu,
-  Atom
+  Atom,
+  FileSearch,
+  Clock,
+  AlertTriangle
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -35,6 +39,7 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [numPapers, setNumPapers] = useState(8);
   const [parallelAgents, setParallelAgents] = useState(3);
+  const [deepAnalysis, setDeepAnalysis] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(true);
 
@@ -65,11 +70,13 @@ export default function HomePage() {
       const response = await axios.post(`${API}/tournaments`, {
         category: selectedCategory,
         num_papers: numPapers,
-        parallel_agents: parallelAgents
+        parallel_agents: parallelAgents,
+        deep_analysis: deepAnalysis
       });
       
       const tournamentId = response.data.tournament.id;
-      toast.success("Tournament created! Starting...");
+      const modeMsg = deepAnalysis ? "Deep Analysis tournament created!" : "Tournament created!";
+      toast.success(`${modeMsg} Starting...`);
       
       // Start the tournament
       await axios.post(`${API}/tournaments/${tournamentId}/start`);
@@ -90,6 +97,11 @@ export default function HomePage() {
   };
 
   const totalMatches = (numPapers * (numPapers - 1)) / 2;
+  
+  // Estimate time (rough estimate: 3s per comparison for standard, 10s for deep)
+  const estimatedTime = deepAnalysis 
+    ? Math.ceil((totalMatches * 10) / 60) + Math.ceil(numPapers * 0.5) // includes PDF download time
+    : Math.ceil((totalMatches * 3) / parallelAgents / 60);
 
   return (
     <div className="min-h-[calc(100vh-4rem)]">
@@ -117,6 +129,10 @@ export default function HomePage() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Trophy className="h-4 w-4 text-amber-500" />
                   <span>Bradley-Terry rankings</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <FileSearch className="h-4 w-4 text-green-600" />
+                  <span>Deep analysis mode</span>
                 </div>
               </div>
             </div>
@@ -181,7 +197,7 @@ export default function HomePage() {
                       value={[numPapers]}
                       onValueChange={(v) => setNumPapers(v[0])}
                       min={4}
-                      max={20}
+                      max={deepAnalysis ? 10 : 20}
                       step={1}
                       data-testid="num-papers-slider"
                     />
@@ -204,11 +220,68 @@ export default function HomePage() {
                       min={1}
                       max={5}
                       step={1}
+                      disabled={deepAnalysis}
                       data-testid="parallel-agents-slider"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Higher = faster, but may hit rate limits
+                      {deepAnalysis 
+                        ? "Limited to 2 in deep analysis mode" 
+                        : "Higher = faster, but may hit rate limits"}
                     </p>
+                  </div>
+
+                  {/* Deep Analysis Toggle */}
+                  <div className="space-y-3 p-4 rounded-lg bg-secondary/50 border border-border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileSearch className="h-5 w-5 text-accent" />
+                        <Label htmlFor="deep-analysis" className="font-medium cursor-pointer">
+                          Deep Analysis Mode
+                        </Label>
+                      </div>
+                      <Switch
+                        id="deep-analysis"
+                        checked={deepAnalysis}
+                        onCheckedChange={(checked) => {
+                          setDeepAnalysis(checked);
+                          if (checked && numPapers > 10) {
+                            setNumPapers(10);
+                          }
+                        }}
+                        data-testid="deep-analysis-toggle"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {deepAnalysis ? (
+                        <span className="flex items-start gap-1.5">
+                          <span className="text-green-600 font-medium">ON:</span>
+                          Downloads full PDFs and analyzes introduction, methodology, results & conclusion sections. More thorough but slower.
+                        </span>
+                      ) : (
+                        <span className="flex items-start gap-1.5">
+                          <span className="text-muted-foreground font-medium">OFF:</span>
+                          Compares papers based on abstracts only. Fast but less detailed analysis.
+                        </span>
+                      )}
+                    </p>
+                    
+                    {deepAnalysis && (
+                      <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                        <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Deep analysis is slower (~{estimatedTime} min). Limited to 10 papers max.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Estimated Time */}
+                  <div className="flex items-center justify-between text-sm text-muted-foreground border-t border-border pt-4">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      <span>Estimated time</span>
+                    </div>
+                    <span className="font-mono">
+                      ~{estimatedTime < 1 ? "<1" : estimatedTime} min
+                    </span>
                   </div>
 
                   {/* Start Button */}
@@ -221,11 +294,12 @@ export default function HomePage() {
                     {loading ? (
                       <span className="flex items-center gap-2">
                         <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Creating Tournament...
+                        {deepAnalysis ? "Creating Deep Analysis..." : "Creating Tournament..."}
                       </span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        Start Tournament
+                        {deepAnalysis && <FileSearch className="h-4 w-4" />}
+                        {deepAnalysis ? "Start Deep Analysis" : "Start Tournament"}
                         <ArrowRight className="h-4 w-4" />
                       </span>
                     )}
@@ -258,7 +332,7 @@ export default function HomePage() {
               {
                 step: "02", 
                 title: "AI Comparison",
-                description: "GPT-5.2 evaluates pairs of papers based on novelty, impact potential, and methodology.",
+                description: "GPT-5.2 evaluates pairs of papers. Standard mode uses abstracts; Deep Analysis reads full PDFs.",
                 icon: Brain
               },
               {
