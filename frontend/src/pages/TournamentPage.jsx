@@ -77,6 +77,7 @@ export default function TournamentPage() {
           progress: newProgress,
           current_log: status.current_log || prev.current_log,
           total_matches: status.total_matches || prev.total_matches,
+          recent_matches: status.recent_matches || prev.recent_matches || [],
           // Update matches array length estimate for display
           matches: prev.matches?.length !== status.completed_matches 
             ? Array(status.completed_matches || 0).fill({ completed: true })
