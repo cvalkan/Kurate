@@ -244,26 +244,25 @@ async def search_arxiv_papers(
     
     # Build query parts
     query_parts = []
+    exact_phrase = None  # Track if user wants exact phrase matching
     
     if keywords:
         keywords_clean = keywords.strip()
         # Check if user wants exact phrase (wrapped in quotes)
         if keywords_clean.startswith('"') and keywords_clean.endswith('"'):
-            # Exact phrase search - remove outer quotes, arXiv uses quotes internally
-            phrase = keywords_clean[1:-1]
-            # For exact phrase, search with AND between words
-            words = phrase.split()
+            # Exact phrase search
+            exact_phrase = keywords_clean[1:-1].lower()  # Store for local filtering
+            words = exact_phrase.split()
             if len(words) > 1:
-                # Multi-word phrase: use all: field with AND
+                # Multi-word phrase: use all: field with AND, fetch more for filtering
                 word_queries = [f'all:{word}' for word in words]
                 query_parts.append(f'({" AND ".join(word_queries)})')
             else:
-                query_parts.append(f'all:{phrase}')
+                query_parts.append(f'all:{exact_phrase}')
         else:
-            # Regular search - search in title and abstract with OR between words
+            # Regular search - search in title and abstract with AND between words
             words = keywords_clean.split()
             if len(words) > 1:
-                # Multiple words: OR them together for broader results
                 word_queries = []
                 for word in words:
                     word_queries.append(f'(ti:{word} OR abs:{word})')
@@ -273,7 +272,6 @@ async def search_arxiv_papers(
     
     if author:
         author_clean = author.strip()
-        # Handle author names - arXiv uses lastname_firstname format
         query_parts.append(f'au:{author_clean}')
     
     if category:
@@ -283,15 +281,18 @@ async def search_arxiv_papers(
     if query_parts:
         query = " AND ".join(query_parts)
     else:
-        query = "all:*"  # Default: fetch recent papers
+        query = "all:*"
     
     logger.info(f"ArXiv search query: {query}")
+    
+    # Fetch more results if exact phrase filtering needed
+    fetch_count = max_results * 5 if exact_phrase else max_results
     
     params = {
         "search_query": query,
         "start": 0,
-        "max_results": max_results,
-        "sortBy": "relevance",  # Use relevance for keyword searches
+        "max_results": min(fetch_count, 100),  # Cap at 100
+        "sortBy": "relevance",
         "sortOrder": "descending"
     }
     
@@ -301,11 +302,25 @@ async def search_arxiv_papers(
     
     papers = parse_arxiv_response(response.text)
     
-    # Filter by date if specified (arXiv API doesn't support date filtering directly)
+    # Filter for exact phrase if specified
+    if exact_phrase:
+        filtered_papers = []
+        for paper in papers:
+            title_lower = paper.title.lower()
+            abstract_lower = paper.abstract.lower()
+            # Check if exact phrase appears in title or abstract
+            if exact_phrase in title_lower or exact_phrase in abstract_lower:
+                filtered_papers.append(paper)
+            if len(filtered_papers) >= max_results:
+                break
+        papers = filtered_papers
+        logger.info(f"Exact phrase filter: {len(papers)} papers contain '{exact_phrase}'")
+    
+    # Filter by date if specified
     if date_from or date_to:
         filtered_papers = []
         for paper in papers:
-            pub_date = paper.published[:10]  # Get YYYY-MM-DD
+            pub_date = paper.published[:10]
             if date_from and pub_date < date_from:
                 continue
             if date_to and pub_date > date_to:
