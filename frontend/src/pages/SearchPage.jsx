@@ -143,13 +143,15 @@ export default function SearchPage() {
       const response = await axios.post(`${API}/papers/citations`, { arxiv_ids: arxivIds });
       const citations = response.data.citations;
       
-      // Update papers with citation counts
-      setPapers(prevPapers => 
-        prevPapers.map(p => ({
-          ...p,
-          citation_count: citations[p.arxiv_id] ?? null
-        }))
-      );
+      // Only update if we got some citations
+      if (Object.keys(citations).length > 0) {
+        setPapers(prevPapers => 
+          prevPapers.map(p => ({
+            ...p,
+            citation_count: citations[p.arxiv_id] ?? null
+          }))
+        );
+      }
     } catch (error) {
       console.log("Citations fetch skipped:", error.message);
     } finally {
