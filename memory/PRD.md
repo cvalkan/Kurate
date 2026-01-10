@@ -1,7 +1,7 @@
 # PaperSumo - ArXiv Paper Tournament Platform
 
 ## Original Problem Statement
-Build a website/platform that fetches the latest scientific papers from arxiv (sorted by different topic) and then runs a pairwise tournament on them to output a ranked list (e.g. based on Bradley-Terry scores) of scientific impact. Uses an LLM (selected by the user) to determine which of the two selected papers has the higher estimated scientific impact or value. It can run multiple agents in parallel to speed up the process.
+Build a website/platform that fetches the latest scientific papers from arxiv (sorted by different topic) and then runs a pairwise tournament on them to output a ranked list (e.g. based on Bradley-Terry scores) of scientific impact.
 
 ## User Choices
 - **LLM**: GPT 5.2 with Emergent LLM key
@@ -15,88 +15,60 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 ### Backend (FastAPI)
 - `/api/categories` - List all arXiv categories
 - `/api/papers/fetch` - Fetch papers from arXiv API
-- `/api/papers/search` - Search papers by keywords, author, category, date
+- `/api/papers/search` - Search papers by keywords, author, category, date (returns citation counts)
 - `/api/tournaments` - CRUD for tournaments
 - `/api/tournaments/{id}/start` - Start tournament processing
 - `/api/tournaments/{id}/results` - Get tournament results with confidence intervals
 - `/api/tournaments/{id}/matches` - Get detailed match logs (paginated)
-- `/api/tournaments/{id}/status` - SSE endpoint for real-time updates
 
 ### Frontend (React + Shadcn/UI)
 - **Home Page**: Category selection, tournament configuration
-- **Search Page**: Advanced paper search, custom tournament creation, UCB configuration with Top-K and confidence level
-- **Tournament Page**: Real-time progress, paper list, match logs with reasoning
-- **Results Page**: Top 3 podium with confidence bands, complete Bradley-Terry rankings with win rate ± margin of error
-- **History Page**: Past tournaments with delete functionality
+- **Search Page**: Advanced paper search with citations, UCB configuration with Top-K and confidence level
+- **Tournament Page**: Real-time progress, paper list with citations, match logs with reasoning
+- **Results Page**: Top 3 podium with confidence bands and citations, complete rankings
+- **History Page**: Past tournaments (title shows search keywords)
 
 ### Key Technologies
 - ArXiv API for paper fetching
+- Semantic Scholar API for citation counts
 - GPT 5.2 for pairwise comparison
 - Bradley-Terry algorithm for scoring
 - UCB (Upper Confidence Bound) algorithm for efficient ranking
 - Wilson Score Intervals for confidence bands
 - MongoDB for persistence
-- Supports both Round-robin and UCB tournament modes
-
-## Core Requirements (Static)
-- [x] Fetch papers from arXiv by category
-- [x] LLM-based pairwise comparison
-- [x] Bradley-Terry scoring algorithm
-- [x] Parallel processing support
-- [x] Configurable tournament settings
-- [x] Results persistence
-- [x] Real-time progress updates
-- [x] Deep Analysis mode (full PDF reading)
-- [x] Advanced paper search (keywords, author, category, date)
-- [x] UCB ranking mode for efficient comparisons
-- [x] Target Top-K focused ranking
-- [x] Confidence bands for rankings
 
 ## What's Been Implemented
 
-**Date: January 10, 2026 - Initial MVP**
-- Complete MVP with all core features
-- 22 arXiv categories supported
-- GPT 5.2 integration via Emergent LLM key
-- Round-robin tournament with parallel LLM calls
-- Bradley-Terry score calculation
-- Clean "Swiss Lab" themed UI
-- Full CRUD for tournaments
-- Real-time progress polling
+**January 10, 2026 - Keywords as Title, Citation Counts, Confidence Estimates ✅ NEW**
+- **Keywords as Tournament Title**: Search keywords now display as the tournament title instead of "Custom Selection"
+  - History page shows "blockchain prediction markets" instead of "Custom Selection (Search: ...)"
+  - Results page shows clean title without redundant search info
+- **Citation Counts** (Semantic Scholar integration):
+  - Search results show citation counts (amber badge: "55 citations")
+  - Tournament page paper list shows citation badges
+  - Results page rankings show citation counts next to authors
+  - Top 3 podium shows citations
+- **Confidence Level Affects Estimates**:
+  - Formula: multiplier = 1 + (confidence_level - 0.80) * 3
+  - 80% confidence = 1.0x estimated comparisons
+  - 95% confidence = 1.45x estimated comparisons  
+  - 99% confidence = 1.57x estimated comparisons
+  - UI dynamically updates estimates when confidence slider changes
 
-**Date: January 10, 2026 - Deep Analysis Feature**
-- Added "Deep Analysis" toggle mode
-- Downloads full PDFs from arXiv and extracts text
-- Extracts key sections: Introduction, Methodology, Results, Conclusion
-- LLM receives full paper context instead of just abstracts
+**January 10, 2026 - Target Top-K and Confidence Bands ✅**
+- Target Top-K mode for efficient ranking
+- Wilson Score confidence intervals for rankings
 
-**Date: January 10, 2026 - Search & Custom Tournament Feature**
-- Added Search page (/search) with advanced filters
-- Paper selection with checkboxes from search results
-- Exact phrase search support (wrap in quotes)
-
-**Date: January 10, 2026 - Performance Optimizations**
-- MongoDB indexing for fast queries
-- Lazy-loading of match logs on Results page
-- Auto-resume tournaments interrupted by server restart
-
-**Date: January 10, 2026 - UCB Bandit Feature ✅**
-- UCB Smart Ranking toggle in Tournament Settings
-- UCB achieves ~78% savings in comparisons vs round-robin
+**January 10, 2026 - UCB Bandit Feature ✅**
+- UCB Smart Ranking toggle (77% comparison savings)
 - Expandable UCB Parameters section
 
-**Date: January 10, 2026 - Target Top-K and Confidence Bands ✅ NEW**
-- **Target Top-K Mode**: Focus comparisons on finding accurate top-k papers
-  - Papers that statistically cannot reach top-k are eliminated early
-  - Significant reduction in comparisons for "find top 5" type queries
-  - Slider in UCB Parameters (3 to n, or "all" for full ranking)
-  
-- **Confidence Bands (Wilson Score Intervals)**:
-  - Each paper shows win rate ± margin of error
-  - Configurable confidence level (80-99%, default 95%)
-  - Results display format: "75% ± 33% (4 cmp)"
-  - Top 3 podium shows "Win rate: XX% ± YY%"
-  - Higher confidence = tighter intervals but more comparisons needed
+**January 10, 2026 - Earlier Features ✅**
+- Complete MVP with all core features
+- Deep Analysis mode (full PDF reading)
+- Advanced paper search (keywords, author, category, date)
+- Performance optimizations (MongoDB indexing, lazy loading)
+- Auto-resume interrupted tournaments
 
 ## Prioritized Backlog
 
@@ -104,13 +76,14 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 - [x] ArXiv paper fetching
 - [x] Tournament creation and execution
 - [x] LLM comparison engine
-- [x] Results display
+- [x] Results display with confidence bands
 - [x] UCB ranking mode
 - [x] Target Top-K mode
-- [x] Confidence bands
+- [x] Citation counts
+- [x] Keywords as title
 
 ### P1 (High Priority)
-- [ ] Date-based filtering in search (requested but not yet implemented)
+- [ ] Date-based filtering in search (user requested)
 - [ ] Export results to CSV/PDF
 - [ ] Share tournament results via link
 
@@ -120,26 +93,23 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 
 ### P3 (Low Priority)
 - [ ] User accounts for personalized history
-- [ ] Scheduled/recurring tournaments
 - [ ] Save search queries as presets
 - [ ] Highlight matched search phrase in results
 
 ## Technical Notes
 
-### UCB Algorithm
-- Formula: UCB = win_rate + c × √(ln(total_comparisons) / paper_comparisons)
-- Default: c=1.414 (√2), min_comparisons=3 per paper
-- Top-K mode: Eliminates papers that can't statistically reach top-k
+### Citation Counts (Semantic Scholar)
+- Batch API: `POST /graph/v1/paper/batch` with arXiv IDs
+- Returns citationCount for papers in their database
+- Some papers may return null (not indexed)
+- Rate limited - fetches up to 100 papers per request
 
-### Wilson Score Confidence Interval
-- More accurate than normal approximation for small sample sizes
-- Formula: center ± z × √((p(1-p) + z²/4n) / n) / (1 + z²/n)
-- Returns: win_rate, lower_bound, upper_bound, margin_of_error, comparisons
-
-### Auto-Resume Feature
-Server startup hook automatically resumes any tournaments with status='running'.
+### Confidence Level Formula
+Higher confidence requires more comparisons:
+- multiplier = 1 + (confidence_level - 0.80) * 3
+- Applied to base UCB estimate: n × log(n) × 3 × multiplier
 
 ## Next Action Items
-1. Implement date-based filtering in search (user-requested)
+1. Implement date-based filtering in search
 2. Add pause button for tournaments
 3. Add export functionality (CSV/JSON)
