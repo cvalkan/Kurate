@@ -18,15 +18,15 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 - `/api/papers/search` - Search papers by keywords, author, category, date
 - `/api/tournaments` - CRUD for tournaments
 - `/api/tournaments/{id}/start` - Start tournament processing
-- `/api/tournaments/{id}/results` - Get tournament results
+- `/api/tournaments/{id}/results` - Get tournament results with confidence intervals
 - `/api/tournaments/{id}/matches` - Get detailed match logs (paginated)
 - `/api/tournaments/{id}/status` - SSE endpoint for real-time updates
 
 ### Frontend (React + Shadcn/UI)
 - **Home Page**: Category selection, tournament configuration
-- **Search Page**: Advanced paper search, custom tournament creation, UCB configuration
+- **Search Page**: Advanced paper search, custom tournament creation, UCB configuration with Top-K and confidence level
 - **Tournament Page**: Real-time progress, paper list, match logs with reasoning
-- **Results Page**: Top 3 podium, complete Bradley-Terry rankings, comparison logs
+- **Results Page**: Top 3 podium with confidence bands, complete Bradley-Terry rankings with win rate ± margin of error
 - **History Page**: Past tournaments with delete functionality
 
 ### Key Technologies
@@ -34,13 +34,9 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 - GPT 5.2 for pairwise comparison
 - Bradley-Terry algorithm for scoring
 - UCB (Upper Confidence Bound) algorithm for efficient ranking
+- Wilson Score Intervals for confidence bands
 - MongoDB for persistence
 - Supports both Round-robin and UCB tournament modes
-
-## User Personas
-1. **Researchers**: Want to quickly identify high-impact papers in their field
-2. **Academics**: Looking for literature review assistance
-3. **Students**: Discovering influential papers for study
 
 ## Core Requirements (Static)
 - [x] Fetch papers from arXiv by category
@@ -53,6 +49,8 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 - [x] Deep Analysis mode (full PDF reading)
 - [x] Advanced paper search (keywords, author, category, date)
 - [x] UCB ranking mode for efficient comparisons
+- [x] Target Top-K focused ranking
+- [x] Confidence bands for rankings
 
 ## What's Been Implemented
 
@@ -71,43 +69,34 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 - Downloads full PDFs from arXiv and extracts text
 - Extracts key sections: Introduction, Methodology, Results, Conclusion
 - LLM receives full paper context instead of just abstracts
-- More thorough comparison but slower (~10s per comparison vs ~3s)
-- Limited to 10 papers max in deep mode
-- UI shows estimated time, warnings, and mode badges
 
 **Date: January 10, 2026 - Search & Custom Tournament Feature**
-- Added Search page (/search) with advanced filters:
-  - Keywords search (title & abstract)
-  - Author search
-  - Category filter (optional)
-  - Date range filter (from/to)
-  - Max results slider
+- Added Search page (/search) with advanced filters
 - Paper selection with checkboxes from search results
-- Tournament settings panel appears after selecting 2+ papers
-- Custom tournaments track search query used
-- History page shows search description for custom tournaments
 - Exact phrase search support (wrap in quotes)
 
 **Date: January 10, 2026 - Performance Optimizations**
 - MongoDB indexing for fast queries
 - Lazy-loading of match logs on Results page
-- Lightweight API responses for lists (exclude heavy fields)
 - Auto-resume tournaments interrupted by server restart
 
-**Date: January 10, 2026 - UCB Bandit Feature ✅ COMPLETED**
-- Added UCB (Upper Confidence Bound) as alternative ranking mode
+**Date: January 10, 2026 - UCB Bandit Feature ✅**
 - UCB Smart Ranking toggle in Tournament Settings
-- Expandable UCB Parameters section with:
-  - Exploration constant (c) - controls exploration vs exploitation
-  - Min comparisons per paper
-  - Max total comparisons (auto-calculated by default)
-- UCB mode badges displayed on:
-  - History page (purple "UCB" badge)
-  - Tournament progress page (purple "UCB Mode" badge)
-  - Results page (purple "UCB Mode" badge)
-- **Efficiency**: UCB achieved 77.9% savings in comparisons (96 vs 435 for 30 papers)
-- Backend supports both Round Robin and UCB tournament execution
-- UCB convergence detection for early stopping
+- UCB achieves ~78% savings in comparisons vs round-robin
+- Expandable UCB Parameters section
+
+**Date: January 10, 2026 - Target Top-K and Confidence Bands ✅ NEW**
+- **Target Top-K Mode**: Focus comparisons on finding accurate top-k papers
+  - Papers that statistically cannot reach top-k are eliminated early
+  - Significant reduction in comparisons for "find top 5" type queries
+  - Slider in UCB Parameters (3 to n, or "all" for full ranking)
+  
+- **Confidence Bands (Wilson Score Intervals)**:
+  - Each paper shows win rate ± margin of error
+  - Configurable confidence level (80-99%, default 95%)
+  - Results display format: "75% ± 33% (4 cmp)"
+  - Top 3 podium shows "Win rate: XX% ± YY%"
+  - Higher confidence = tighter intervals but more comparisons needed
 
 ## Prioritized Backlog
 
@@ -117,6 +106,8 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 - [x] LLM comparison engine
 - [x] Results display
 - [x] UCB ranking mode
+- [x] Target Top-K mode
+- [x] Confidence bands
 
 ### P1 (High Priority)
 - [ ] Date-based filtering in search (requested but not yet implemented)
@@ -126,35 +117,29 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 ### P2 (Medium Priority)
 - [ ] Pause button for long-running tournaments
 - [ ] Paper abstract preview modal on hover
-- [ ] Custom comparison criteria
-- [ ] Multiple LLM provider support (user-selected)
-- [ ] Tournament templates/presets
 
 ### P3 (Low Priority)
 - [ ] User accounts for personalized history
 - [ ] Scheduled/recurring tournaments
-- [ ] Integration with reference managers
-- [ ] Citation network visualization
 - [ ] Save search queries as presets
-- [ ] Pagination for very large match logs
 - [ ] Highlight matched search phrase in results
+
+## Technical Notes
+
+### UCB Algorithm
+- Formula: UCB = win_rate + c × √(ln(total_comparisons) / paper_comparisons)
+- Default: c=1.414 (√2), min_comparisons=3 per paper
+- Top-K mode: Eliminates papers that can't statistically reach top-k
+
+### Wilson Score Confidence Interval
+- More accurate than normal approximation for small sample sizes
+- Formula: center ± z × √((p(1-p) + z²/4n) / n) / (1 + z²/n)
+- Returns: win_rate, lower_bound, upper_bound, margin_of_error, comparisons
+
+### Auto-Resume Feature
+Server startup hook automatically resumes any tournaments with status='running'.
 
 ## Next Action Items
 1. Implement date-based filtering in search (user-requested)
 2. Add pause button for tournaments
 3. Add export functionality (CSV/JSON)
-4. Implement share link for results
-
-## Technical Notes
-
-### UCB Algorithm Implementation
-The UCB (Upper Confidence Bound) algorithm selects paper pairs intelligently:
-- Papers with fewer comparisons have higher UCB scores (exploration)
-- Papers with higher win rates also have higher UCB scores (exploitation)
-- Formula: UCB = win_rate + c × √(ln(total_comparisons) / paper_comparisons)
-- Convergence: Stops when top rankings stabilize and min comparisons reached
-- Default config: c=1.414 (√2), min_comparisons=3 per paper
-
-### Auto-Resume Feature
-Server startup hook automatically resumes any tournaments with status='running'.
-This prevents tournaments from getting stuck if the server restarts mid-execution.
