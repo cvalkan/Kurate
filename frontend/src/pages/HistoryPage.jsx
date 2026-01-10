@@ -28,7 +28,8 @@ import {
   ArrowRight,
   FileText,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  FileSearch
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -188,6 +189,18 @@ export default function HistoryPage() {
                         <StatusIcon className={`h-3 w-3 mr-1 ${tournament.status === 'running' ? 'animate-spin' : ''}`} />
                         {statusConfig.label}
                       </Badge>
+                      
+                      {/* Deep Analysis Badge */}
+                      {tournament.deep_analysis && (
+                        <Badge 
+                          variant="outline" 
+                          className="border-green-300 text-green-700 bg-green-50 flex-shrink-0"
+                          data-testid={`deep-analysis-badge-${index}`}
+                        >
+                          <FileSearch className="h-3 w-3 mr-1" />
+                          Deep
+                        </Badge>
+                      )}
                       
                       {/* Main Info */}
                       <div className="flex-1 min-w-0">
