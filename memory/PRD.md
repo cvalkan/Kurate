@@ -57,6 +57,15 @@ Build a website/platform that fetches the latest scientific papers from arxiv (s
 - Full CRUD for tournaments
 - Real-time progress polling
 
+**Date: January 10, 2026 - Deep Analysis Feature**
+- Added "Deep Analysis" toggle mode
+- Downloads full PDFs from arXiv and extracts text
+- Extracts key sections: Introduction, Methodology, Results, Conclusion
+- LLM receives full paper context instead of just abstracts
+- More thorough comparison but slower (~10s per comparison vs ~3s)
+- Limited to 10 papers max in deep mode
+- UI shows estimated time, warnings, and mode badges
+
 ## Prioritized Backlog
 
 ### P0 (Critical) - Completed
