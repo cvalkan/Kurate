@@ -1484,28 +1484,37 @@ async def get_tournament_matches(tournament_id: str, limit: int = 50, offset: in
 
 @api_router.get("/tournaments/{tournament_id}/status")
 async def get_tournament_status_simple(tournament_id: str):
-    """Get lightweight tournament status for polling (no matches data)"""
+    """Get lightweight tournament status for polling (reads from progress collection)"""
+    # First check the progress collection (fast, small documents)
+    progress = await progress_collection.find_one(
+        {"tournament_id": tournament_id},
+        {"_id": 0}
+    )
+    
+    # Get basic tournament info
     tournament = await db.tournaments.find_one(
         {"id": tournament_id},
         {
             "_id": 0,
             "id": 1,
             "status": 1,
-            "progress": 1,
-            "current_log": 1,
-            "total_matches": 1,
-            "ranking_mode": 1
+            "ranking_mode": 1,
+            "total_matches": 1
         }
     )
+    
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
-    # Get match count without fetching all match data
-    match_count = await db.tournaments.aggregate([
-        {"$match": {"id": tournament_id}},
-        {"$project": {"matchCount": {"$size": {"$ifNull": ["$matches", []]}}}}
-    ]).to_list(1)
-    tournament["completed_matches"] = match_count[0]["matchCount"] if match_count else 0
+    # Merge progress data
+    if progress:
+        tournament["progress"] = progress.get("progress", 0)
+        tournament["current_log"] = progress.get("current_log", "")
+        tournament["completed_matches"] = progress.get("completed_matches", 0)
+    else:
+        tournament["progress"] = tournament.get("progress", 0)
+        tournament["current_log"] = ""
+        tournament["completed_matches"] = 0
     
     return tournament
 
