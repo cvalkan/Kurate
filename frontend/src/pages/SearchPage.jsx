@@ -167,8 +167,14 @@ export default function SearchPage() {
       const tournamentId = response.data.tournament.id;
       toast.success("Tournament created! Starting...");
       
-      // Start the tournament
-      await axios.post(`${API}/tournaments/${tournamentId}/start`);
+      // Start the tournament with retry
+      try {
+        await axios.post(`${API}/tournaments/${tournamentId}/start`);
+      } catch (startError) {
+        console.error("First start attempt failed, retrying...", startError);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await axios.post(`${API}/tournaments/${tournamentId}/start`);
+      }
       
       // Navigate to tournament page
       navigate(`/tournament/${tournamentId}`);
