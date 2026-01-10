@@ -220,6 +220,11 @@ export default function HistoryPage() {
                             {formatDate(tournament.created_at)}
                           </span>
                         </div>
+                        {tournament.search_query && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate">
+                            Search: {tournament.search_query}
+                          </p>
+                        )}
                       </div>
                       
                       {/* Progress (for running tournaments) */}
