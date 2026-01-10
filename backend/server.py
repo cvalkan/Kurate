@@ -991,8 +991,25 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
     else:
         raise HTTPException(status_code=400, detail="Either category or papers must be provided")
     
-    # Generate matches
-    matches = generate_round_robin_matches(paper_dicts)
+    # Generate matches (only for round_robin, UCB generates dynamically)
+    ranking_mode = config.ranking_mode or "round_robin"
+    ucb_config_dict = None
+    
+    if ranking_mode == "ucb":
+        matches = []  # UCB generates matches dynamically
+        ucb_config_dict = config.ucb_config.model_dump() if config.ucb_config else {
+            "exploration_constant": 1.414,
+            "min_comparisons_per_paper": 3,
+            "max_total_comparisons": None,
+            "convergence_threshold": 0.05
+        }
+        # Calculate estimated matches for UCB
+        n = len(paper_dicts)
+        estimated_matches = ucb_config_dict.get('max_total_comparisons') or int(n * math.log(n) * 3)
+    else:
+        matches = generate_round_robin_matches(paper_dicts)
+        estimated_matches = len(matches)
+    
     match_dicts = [m.model_dump() for m in matches]
     
     # Create tournament
@@ -1003,9 +1020,11 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
         parallel_agents=config.parallel_agents,
         deep_analysis=config.deep_analysis,
         search_query=config.search_query,
+        ranking_mode=ranking_mode,
+        ucb_config=ucb_config_dict,
         papers=paper_dicts,
         matches=match_dicts,
-        total_matches=len(matches)
+        total_matches=estimated_matches
     )
     
     # Save to DB
@@ -1016,9 +1035,11 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
         "tournament": {
             "id": tournament.id, 
             "status": tournament.status, 
-            "total_matches": len(matches), 
+            "total_matches": estimated_matches, 
             "num_papers": len(paper_dicts),
-            "deep_analysis": config.deep_analysis
+            "deep_analysis": config.deep_analysis,
+            "ranking_mode": ranking_mode,
+            "ucb_config": ucb_config_dict
         }
     }
 
