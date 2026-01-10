@@ -83,6 +83,13 @@ export default function SearchPage() {
   const [parallelAgents, setParallelAgents] = useState(3);
   const [deepAnalysis, setDeepAnalysis] = useState(false);
   const [creating, setCreating] = useState(false);
+  
+  // UCB config state
+  const [useUCB, setUseUCB] = useState(false);
+  const [ucbExpanded, setUcbExpanded] = useState(false);
+  const [ucbExploration, setUcbExploration] = useState(1.414);
+  const [ucbMinComparisons, setUcbMinComparisons] = useState(3);
+  const [ucbMaxComparisons, setUcbMaxComparisons] = useState(null);
 
   const handleSearch = async () => {
     if (!keywords && !author && !category) {
