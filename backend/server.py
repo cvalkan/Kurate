@@ -99,6 +99,14 @@ class TournamentConfig(BaseModel):
     parallel_agents: int = 3
     deep_analysis: bool = False  # New field for deep analysis mode
 
+class SearchQuery(BaseModel):
+    keywords: Optional[str] = None
+    author: Optional[str] = None
+    category: Optional[str] = None
+    date_from: Optional[str] = None  # YYYY-MM-DD format
+    date_to: Optional[str] = None    # YYYY-MM-DD format
+    max_results: int = 20
+
 class Tournament(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -107,6 +115,7 @@ class Tournament(BaseModel):
     num_papers: int
     parallel_agents: int
     deep_analysis: bool = False  # Track if deep analysis is enabled
+    search_query: Optional[str] = None  # Store the search query used
     status: str = "pending"  # pending, running, completed, failed
     papers: List[Dict[str, Any]] = []
     matches: List[Dict[str, Any]] = []
@@ -119,10 +128,13 @@ class Tournament(BaseModel):
     current_log: str = ""
 
 class TournamentCreate(BaseModel):
-    category: str
+    category: Optional[str] = None
     num_papers: int = 10
     parallel_agents: int = 3
     deep_analysis: bool = False
+    paper_ids: Optional[List[str]] = None  # Selected paper IDs from search
+    papers: Optional[List[Dict[str, Any]]] = None  # Full paper objects from search
+    search_query: Optional[str] = None  # Description of search used
 
 class CompareRequest(BaseModel):
     paper1: Dict[str, Any]
