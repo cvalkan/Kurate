@@ -1431,6 +1431,15 @@ async def get_tournament(tournament_id: str, include_matches: bool = False):
     
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    
+    # Merge in-memory progress for running tournaments (prevents progress resetting to 0)
+    if tournament.get("status") == "running":
+        cached = tournament_progress_cache.get(tournament_id)
+        if cached:
+            tournament["progress"] = cached.get("progress", tournament.get("progress", 0))
+            tournament["current_log"] = cached.get("current_log", tournament.get("current_log", ""))
+            tournament["completed_matches"] = cached.get("completed_matches", 0)
+    
     return {"tournament": tournament}
 
 @api_router.get("/tournaments/{tournament_id}/results")
