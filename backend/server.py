@@ -845,7 +845,12 @@ async def get_tournament_results(tournament_id: str):
             "search_query": 1,
             "completed_at": 1,
             "rankings": 1,
-            "scores": 1
+            "scores": 1,
+            "matches": 1,
+            "papers.id": 1,
+            "papers.title": 1,
+            "papers.arxiv_id": 1,
+            "papers.link": 1
         }
     )
     if not tournament:
