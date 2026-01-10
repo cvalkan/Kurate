@@ -772,12 +772,13 @@ def check_ucb_convergence(paper_stats: Dict[str, Dict], min_comparisons: int,
     
     return False, current_rankings
 
-def create_rankings(scores: Dict[str, float], paper_lookup: Dict) -> List[Dict]:
-    """Create rankings list from scores"""
+def create_rankings(scores: Dict[str, float], paper_lookup: Dict, 
+                    paper_stats: Optional[Dict] = None, confidence_level: float = 0.95) -> List[Dict]:
+    """Create rankings list from scores with optional confidence intervals"""
     rankings = []
     for pid, score in sorted(scores.items(), key=lambda x: x[1], reverse=True):
         paper = paper_lookup[pid]
-        rankings.append({
+        ranking_entry = {
             "rank": len(rankings) + 1,
             "paper_id": pid,
             "title": paper['title'],
@@ -785,7 +786,17 @@ def create_rankings(scores: Dict[str, float], paper_lookup: Dict) -> List[Dict]:
             "arxiv_id": paper.get('arxiv_id', ''),
             "link": paper.get('link', ''),
             "score": round(score, 4)
-        })
+        }
+        
+        # Add confidence interval if paper_stats available
+        if paper_stats and pid in paper_stats:
+            stats = paper_stats[pid]
+            wins = stats.get('wins', 0)
+            comparisons = stats.get('comparisons', 0)
+            ci = calculate_wilson_confidence_interval(wins, comparisons, confidence_level)
+            ranking_entry['confidence'] = ci
+        
+        rankings.append(ranking_entry)
     return rankings
 
 async def run_tournament(tournament_id: str):
