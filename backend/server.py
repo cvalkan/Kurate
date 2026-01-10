@@ -1198,6 +1198,44 @@ async def search_papers(query: SearchQuery):
         logger.error(f"Error searching papers: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+class CitationRequest(BaseModel):
+    arxiv_ids: List[str]
+
+@api_router.post("/papers/citations")
+async def get_citations(request: CitationRequest):
+    """Fetch citation counts from Semantic Scholar for a list of arXiv IDs"""
+    if not request.arxiv_ids:
+        return {"citations": {}}
+    
+    # Semantic Scholar API - batch lookup by arXiv IDs
+    arxiv_ids = [f"ARXIV:{aid.split('v')[0]}" for aid in request.arxiv_ids[:100]]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.semanticscholar.org/graph/v1/paper/batch",
+                params={"fields": "citationCount"},
+                json={"ids": arxiv_ids},
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                results = response.json()
+                citations = {}
+                for i, aid in enumerate(request.arxiv_ids[:100]):
+                    if i < len(results) and results[i]:
+                        citations[aid] = results[i].get('citationCount', 0)
+                    else:
+                        citations[aid] = None
+                return {"citations": citations}
+            else:
+                logger.warning(f"Semantic Scholar API returned {response.status_code}")
+                return {"citations": {}}
+                
+    except Exception as e:
+        logger.warning(f"Failed to fetch citation counts: {e}")
+        return {"citations": {}}
+
 @api_router.post("/tournaments", response_model=Dict)
 async def create_tournament(config: TournamentCreate, background_tasks: BackgroundTasks):
     """Create a new tournament - either from category or custom paper selection"""
