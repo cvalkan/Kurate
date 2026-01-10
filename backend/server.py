@@ -966,7 +966,9 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         # Update UCB scores and confidence intervals
         for pid in paper_ids:
             stats = paper_stats[pid]
-            stats['ucb_score'] = calculate_ucb_scores(paper_stats, total_comparisons, exploration_constant).get(pid, 0)
+            ucb_score = calculate_ucb_scores(paper_stats, total_comparisons, exploration_constant).get(pid, 0)
+            # Replace inf with large number for JSON serialization
+            stats['ucb_score'] = 999999.0 if ucb_score == float('inf') else ucb_score
             # Update confidence interval
             ci = calculate_wilson_confidence_interval(stats['wins'], stats['comparisons'], confidence_level)
             stats['confidence'] = ci
