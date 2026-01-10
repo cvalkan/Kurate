@@ -1458,6 +1458,33 @@ async def get_tournament_matches(tournament_id: str, limit: int = 50, offset: in
     }
 
 @api_router.get("/tournaments/{tournament_id}/status")
+async def get_tournament_status_simple(tournament_id: str):
+    """Get lightweight tournament status for polling (no matches data)"""
+    tournament = await db.tournaments.find_one(
+        {"id": tournament_id},
+        {
+            "_id": 0,
+            "id": 1,
+            "status": 1,
+            "progress": 1,
+            "current_log": 1,
+            "total_matches": 1,
+            "ranking_mode": 1
+        }
+    )
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    
+    # Get match count without fetching all match data
+    match_count = await db.tournaments.aggregate([
+        {"$match": {"id": tournament_id}},
+        {"$project": {"matchCount": {"$size": {"$ifNull": ["$matches", []]}}}}
+    ]).to_list(1)
+    tournament["completed_matches"] = match_count[0]["matchCount"] if match_count else 0
+    
+    return tournament
+
+@api_router.get("/tournaments/{tournament_id}/status/stream")
 async def tournament_status_sse(tournament_id: str):
     """Get tournament status as SSE stream"""
     async def event_generator():
