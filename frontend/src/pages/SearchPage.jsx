@@ -323,7 +323,7 @@ export default function SearchPage() {
                   value={[maxResults]}
                   onValueChange={(v) => setMaxResults(v[0])}
                   min={5}
-                  max={50}
+                  max={100}
                   step={5}
                   data-testid="max-results-slider"
                 />
