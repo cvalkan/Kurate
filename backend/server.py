@@ -814,32 +814,14 @@ async def get_tournament(tournament_id: str, full: bool = False):
         # Full data including all papers and matches
         tournament = await db.tournaments.find_one({"id": tournament_id}, {"_id": 0})
     else:
-        # Lightweight - exclude heavy fields, include only essentials
+        # Lightweight - exclude heavy match data
         tournament = await db.tournaments.find_one(
             {"id": tournament_id}, 
             {
                 "_id": 0,
-                "id": 1,
-                "category": 1,
-                "category_name": 1,
-                "status": 1,
-                "num_papers": 1,
-                "total_matches": 1,
-                "progress": 1,
-                "created_at": 1,
-                "completed_at": 1,
-                "deep_analysis": 1,
-                "search_query": 1,
-                "current_log": 1,
-                "rankings": 1,
-                # Include paper titles and IDs only for display
-                "papers.id": 1,
-                "papers.title": 1,
-                "papers.authors": 1,
-                "papers.arxiv_id": 1,
-                "papers.link": 1,
-                # Include recent completed matches only
-                "matches": {"$slice": -20}
+                "papers.abstract": 0,
+                "papers.full_text": 0,
+                "matches.reasoning": 0
             }
         )
     
