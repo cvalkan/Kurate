@@ -184,6 +184,23 @@ export default function TournamentPage() {
                 {tournament.current_log}
               </p>
             )}
+
+            {/* Start/Retry button for pending or failed tournaments */}
+            {(tournament.status === 'pending' || tournament.status === 'failed') && (
+              <Button 
+                onClick={handleStartTournament}
+                disabled={starting}
+                className="mt-4"
+                data-testid="start-tournament-btn"
+              >
+                {starting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                {tournament.status === 'failed' ? 'Retry Tournament' : 'Start Tournament'}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
