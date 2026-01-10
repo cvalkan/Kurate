@@ -308,6 +308,14 @@ async def search_arxiv_papers(
     if category:
         query_parts.append(f'cat:{category}')
     
+    # Add date range filter directly to arXiv query for better results
+    if date_from or date_to:
+        # Convert YYYY-MM-DD to YYYYMMDD0000 format for arXiv API
+        from_str = date_from.replace("-", "") + "0000" if date_from else "190001010000"
+        to_str = date_to.replace("-", "") + "2359" if date_to else "209912312359"
+        query_parts.append(f'submittedDate:[{from_str} TO {to_str}]')
+        logger.info(f"Date filter added: {from_str} TO {to_str}")
+    
     # Combine query parts with AND
     if query_parts:
         query = " AND ".join(query_parts)
