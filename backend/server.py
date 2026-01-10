@@ -1535,7 +1535,7 @@ async def get_tournament_matches(tournament_id: str, limit: int = 50, offset: in
 async def get_tournament_status_simple(tournament_id: str):
     """Get lightweight tournament status for polling (uses in-memory cache)"""
     # First check in-memory cache (instant)
-    progress = tournament_progress_cache.get(tournament_id)
+    cached = tournament_progress_cache.get(tournament_id)
     
     # Get basic tournament info from DB
     tournament = await db.tournaments.find_one(
@@ -1555,12 +1555,14 @@ async def get_tournament_status_simple(tournament_id: str):
         raise HTTPException(status_code=404, detail="Tournament not found")
     
     # Merge cached progress data (override DB values if available in cache)
-    if progress:
-        tournament["progress"] = progress.get("progress", tournament.get("progress", 0))
-        tournament["current_log"] = progress.get("current_log", tournament.get("current_log", ""))
-        tournament["completed_matches"] = progress.get("completed_matches", 0)
+    if cached:
+        tournament["progress"] = cached.get("progress", tournament.get("progress", 0))
+        tournament["current_log"] = cached.get("current_log", tournament.get("current_log", ""))
+        tournament["completed_matches"] = cached.get("completed_matches", 0)
+        tournament["recent_matches"] = cached.get("recent_matches", [])
     else:
         tournament["completed_matches"] = tournament.get("total_matches", 0)
+        tournament["recent_matches"] = []
     
     return tournament
 
