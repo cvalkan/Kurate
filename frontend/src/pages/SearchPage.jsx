@@ -93,7 +93,7 @@ export default function SearchPage() {
       const response = await axios.post(`${API}/papers/search`, {
         keywords: keywords || null,
         author: author || null,
-        category: category || null,
+        category: (category && category !== "any") ? category : null,
         date_from: dateFrom ? format(dateFrom, "yyyy-MM-dd") : null,
         date_to: dateTo ? format(dateTo, "yyyy-MM-dd") : null,
         max_results: maxResults
