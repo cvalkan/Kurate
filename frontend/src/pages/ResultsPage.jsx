@@ -433,6 +433,7 @@ export default function ResultsPage() {
                   })}
                 </div>
               </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
