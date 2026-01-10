@@ -259,7 +259,7 @@ async def search_arxiv_papers(
     import time
     start_time = time.time()
     
-    base_url = "https://export.arxiv.org/api/query"
+    base_url = "http://export.arxiv.org/api/query"  # HTTP is faster than HTTPS for arXiv
     
     # Build query parts
     query_parts = []
