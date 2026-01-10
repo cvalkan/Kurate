@@ -686,23 +686,69 @@ async def fetch_papers(config: TournamentConfig):
         logger.error(f"Error fetching papers: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.post("/papers/search")
+async def search_papers(query: SearchQuery):
+    """Search papers from arXiv with keywords, author, category, and date filters"""
+    try:
+        papers = await search_arxiv_papers(
+            keywords=query.keywords,
+            author=query.author,
+            category=query.category,
+            date_from=query.date_from,
+            date_to=query.date_to,
+            max_results=query.max_results
+        )
+        
+        # Build search description
+        search_parts = []
+        if query.keywords:
+            search_parts.append(f'keywords: "{query.keywords}"')
+        if query.author:
+            search_parts.append(f'author: "{query.author}"')
+        if query.category:
+            search_parts.append(f'category: {query.category}')
+        if query.date_from:
+            search_parts.append(f'from: {query.date_from}')
+        if query.date_to:
+            search_parts.append(f'to: {query.date_to}')
+        search_description = ", ".join(search_parts) if search_parts else "all recent papers"
+        
+        return {
+            "papers": [p.model_dump() for p in papers],
+            "count": len(papers),
+            "search_description": search_description
+        }
+    except Exception as e:
+        logger.error(f"Error searching papers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.post("/tournaments", response_model=Dict)
 async def create_tournament(config: TournamentCreate, background_tasks: BackgroundTasks):
-    """Create a new tournament"""
-    if config.category not in ARXIV_CATEGORIES:
-        raise HTTPException(status_code=400, detail="Invalid category")
+    """Create a new tournament - either from category or custom paper selection"""
     
-    # Fetch papers
-    try:
-        papers = await fetch_arxiv_papers(config.category, config.num_papers)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch papers: {e}")
-    
-    if len(papers) < 2:
-        raise HTTPException(status_code=400, detail="Not enough papers found for tournament")
-    
-    # Generate matches
-    paper_dicts = [p.model_dump() for p in papers]
+    # If papers are provided directly (from search selection)
+    if config.papers and len(config.papers) >= 2:
+        paper_dicts = config.papers
+        category = config.category or "custom"
+        category_name = ARXIV_CATEGORIES.get(category, "Custom Selection")
+    elif config.category:
+        # Fetch papers from category
+        if config.category not in ARXIV_CATEGORIES:
+            raise HTTPException(status_code=400, detail="Invalid category")
+        
+        try:
+            papers = await fetch_arxiv_papers(config.category, config.num_papers)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to fetch papers: {e}")
+        
+        if len(papers) < 2:
+            raise HTTPException(status_code=400, detail="Not enough papers found for tournament")
+        
+        paper_dicts = [p.model_dump() for p in papers]
+        category = config.category
+        category_name = ARXIV_CATEGORIES[config.category]
+    else:
+        raise HTTPException(status_code=400, detail="Either category or papers must be provided")
     matches = generate_round_robin_matches(paper_dicts)
     match_dicts = [m.model_dump() for m in matches]
     
