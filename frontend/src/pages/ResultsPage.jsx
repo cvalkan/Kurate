@@ -266,7 +266,11 @@ export default function ResultsPage() {
       </div>
 
       {/* Tabs for Rankings and Logs */}
-      <Tabs defaultValue="rankings" className="w-full">
+      <Tabs defaultValue="rankings" className="w-full" onValueChange={(value) => {
+        if (value === 'logs') {
+          fetchMatches();
+        }
+      }}>
         <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
           <TabsTrigger value="rankings" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
