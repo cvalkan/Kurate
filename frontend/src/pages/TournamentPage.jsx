@@ -1,0 +1,294 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { 
+  Trophy, 
+  Loader2, 
+  CheckCircle2, 
+  XCircle, 
+  ArrowRight,
+  FileText,
+  Zap,
+  Clock
+} from "lucide-react";
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+export default function TournamentPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [tournament, setTournament] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const eventSourceRef = useRef(null);
+  const pollingRef = useRef(null);
+
+  const fetchTournament = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/tournaments/${id}`);
+      setTournament(response.data.tournament);
+      setLoading(false);
+      
+      // If completed or failed, stop polling
+      if (response.data.tournament.status === 'completed' || response.data.tournament.status === 'failed') {
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to load tournament");
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchTournament();
+    
+    // Poll for updates
+    pollingRef.current = setInterval(fetchTournament, 3000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
+  }, [fetchTournament]);
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'running': return 'bg-blue-100 text-blue-800';
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'failed': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'pending': return Clock;
+      case 'running': return Loader2;
+      case 'completed': return CheckCircle2;
+      case 'failed': return XCircle;
+      default: return Clock;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-accent mx-auto" />
+          <p className="text-muted-foreground">Loading tournament...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <XCircle className="h-12 w-12 text-destructive mx-auto" />
+            <p className="text-destructive">{error}</p>
+            <Button onClick={() => navigate("/")} variant="outline">
+              Go Home
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const StatusIcon = getStatusIcon(tournament.status);
+  const completedMatches = tournament.matches?.filter(m => m.completed).length || 0;
+  const totalMatches = tournament.total_matches || 0;
+
+  return (
+    <div className="container-main py-8" data-testid="tournament-page">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex flex-wrap items-center gap-3 mb-2">
+          <h1 className="text-heading-3" data-testid="tournament-title">
+            {tournament.category_name}
+          </h1>
+          <Badge className={getStatusColor(tournament.status)} data-testid="tournament-status">
+            <StatusIcon className={`h-3 w-3 mr-1 ${tournament.status === 'running' ? 'animate-spin' : ''}`} />
+            {tournament.status}
+          </Badge>
+        </div>
+        <p className="text-muted-foreground font-mono text-sm">
+          {tournament.category} • {tournament.num_papers} papers • {tournament.parallel_agents} parallel agents
+        </p>
+      </div>
+
+      {/* Progress Section */}
+      <Card className="mb-8" data-testid="progress-card">
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Tournament Progress</p>
+                <p className="text-xs text-muted-foreground">
+                  {completedMatches} of {totalMatches} comparisons completed
+                </p>
+              </div>
+              <span className="text-2xl font-mono font-bold text-accent" data-testid="progress-percentage">
+                {tournament.progress || 0}%
+              </span>
+            </div>
+            <Progress value={tournament.progress || 0} className="h-3" data-testid="progress-bar" />
+            
+            {tournament.current_log && (
+              <p className="text-sm text-muted-foreground animate-pulse-subtle" data-testid="current-log">
+                {tournament.current_log}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Main Content Grid */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Papers List */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Papers in Tournament
+              </CardTitle>
+              <CardDescription>
+                {tournament.papers?.length || 0} papers being compared
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-3">
+                  {tournament.papers?.map((paper, index) => (
+                    <div 
+                      key={paper.id}
+                      className="p-4 rounded-lg border border-border hover:border-accent/50 transition-colors"
+                      data-testid={`paper-card-${index}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded bg-secondary flex items-center justify-center text-xs font-mono">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <a 
+                            href={paper.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="font-medium text-sm hover:text-accent transition-colors line-clamp-2"
+                          >
+                            {paper.title}
+                          </a>
+                          <p className="text-xs text-muted-foreground mt-1 truncate">
+                            {paper.authors?.slice(0, 3).join(", ")}
+                            {paper.authors?.length > 3 && " et al."}
+                          </p>
+                          <p className="text-xs font-mono text-muted-foreground mt-1">
+                            {paper.arxiv_id}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Matches Log */}
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Comparison Log
+              </CardTitle>
+              <CardDescription>
+                Recent match results
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-3">
+                  {tournament.matches?.filter(m => m.completed).slice(-20).reverse().map((match, index) => {
+                    const paper1 = tournament.papers?.find(p => p.id === match.paper1_id);
+                    const paper2 = tournament.papers?.find(p => p.id === match.paper2_id);
+                    const winner = tournament.papers?.find(p => p.id === match.winner_id);
+                    
+                    return (
+                      <div 
+                        key={match.id}
+                        className="p-3 rounded-lg bg-secondary/50 text-xs space-y-2"
+                        data-testid={`match-log-${index}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-3 w-3 text-green-600 flex-shrink-0" />
+                          <span className="text-muted-foreground truncate">
+                            {paper1?.title?.slice(0, 30)}...
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 pl-5">
+                          <span className="text-muted-foreground">vs</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-3 w-3 text-green-600 flex-shrink-0" />
+                          <span className="text-muted-foreground truncate">
+                            {paper2?.title?.slice(0, 30)}...
+                          </span>
+                        </div>
+                        <div className="pt-2 border-t border-border">
+                          <p className="text-accent font-medium truncate">
+                            Winner: {winner?.title?.slice(0, 40)}...
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {(!tournament.matches || tournament.matches.filter(m => m.completed).length === 0) && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                      <p className="text-sm">Waiting for comparisons...</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Completed Actions */}
+      {tournament.status === 'completed' && (
+        <div className="mt-8 flex justify-center">
+          <Button 
+            size="lg" 
+            onClick={() => navigate(`/results/${id}`)}
+            data-testid="view-results-btn"
+          >
+            <Trophy className="h-5 w-5 mr-2" />
+            View Final Rankings
+            <ArrowRight className="h-5 w-5 ml-2" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
