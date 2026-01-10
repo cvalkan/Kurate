@@ -217,6 +217,14 @@ export default function SearchPage() {
   };
 
   const totalMatches = (selectedPapers.size * (selectedPapers.size - 1)) / 2;
+  
+  // UCB estimated matches (approximately n * log(n) * 3)
+  const ucbEstimatedMatches = useUCB && selectedPapers.size > 0
+    ? ucbMaxComparisons || Math.ceil(selectedPapers.size * Math.log(selectedPapers.size) * 3)
+    : totalMatches;
+  
+  const effectiveMatches = useUCB ? ucbEstimatedMatches : totalMatches;
+  const savedComparisons = totalMatches - ucbEstimatedMatches;
 
   return (
     <div className="container-main py-8" data-testid="search-page">
