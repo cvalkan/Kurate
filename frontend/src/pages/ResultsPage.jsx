@@ -36,16 +36,16 @@ export default function ResultsPage() {
 
   const fetchTournament = async () => {
     try {
-      const response = await axios.get(`${API}/tournaments/${id}`);
+      const response = await axios.get(`${API}/tournaments/${id}/results`);
       const data = response.data.tournament;
-      
-      if (data.status !== 'completed') {
-        navigate(`/tournament/${id}`);
-        return;
-      }
       
       setTournament(data);
     } catch (err) {
+      if (err.response?.status === 400) {
+        // Tournament not completed, redirect to tournament page
+        navigate(`/tournament/${id}`);
+        return;
+      }
       setError(err.response?.data?.detail || "Failed to load results");
     } finally {
       setLoading(false);
