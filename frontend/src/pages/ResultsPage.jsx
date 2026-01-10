@@ -34,6 +34,10 @@ export default function ResultsPage() {
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [matches, setMatches] = useState([]);
+  const [papers, setPapers] = useState([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [matchesLoaded, setMatchesLoaded] = useState(false);
 
   useEffect(() => {
     fetchTournament();
@@ -45,6 +49,7 @@ export default function ResultsPage() {
       const data = response.data.tournament;
       
       setTournament(data);
+      setPapers(data.papers || []);
     } catch (err) {
       if (err.response?.status === 400) {
         // Tournament not completed, redirect to tournament page
@@ -54,6 +59,22 @@ export default function ResultsPage() {
       setError(err.response?.data?.detail || "Failed to load results");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMatches = async () => {
+    if (matchesLoaded || matchesLoading) return;
+    
+    setMatchesLoading(true);
+    try {
+      const response = await axios.get(`${API}/tournaments/${id}/matches?limit=500`);
+      setMatches(response.data.matches || []);
+      setPapers(response.data.papers || papers);
+      setMatchesLoaded(true);
+    } catch (err) {
+      toast.error("Failed to load comparison logs");
+    } finally {
+      setMatchesLoading(false);
     }
   };
 
