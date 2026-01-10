@@ -101,15 +101,24 @@ export default function TournamentPage() {
     }
   };
 
+  // Track status for polling decisions without causing re-renders
+  const statusRef = useRef(null);
+
   useEffect(() => {
     fetchTournament();
-    
-    // Use lightweight status polling for running tournaments
-    pollingRef.current = setInterval(() => {
-      if (tournament?.status === 'running') {
-        fetchStatus(); // Use lightweight endpoint
+  }, [fetchTournament]);
+  
+  // Separate effect for polling - doesn't depend on tournament state
+  useEffect(() => {
+    // Start polling immediately and let it check status internally
+    const pollInterval = setInterval(() => {
+      // Use ref to check status without closure issues
+      if (statusRef.current === 'running' || statusRef.current === 'pending') {
+        fetchStatus();
       }
-    }, 3000);
+    }, 2000);
+    
+    pollingRef.current = pollInterval;
 
     return () => {
       if (pollingRef.current) {
@@ -119,7 +128,12 @@ export default function TournamentPage() {
         eventSourceRef.current.close();
       }
     };
-  }, [fetchTournament, fetchStatus, tournament?.status]);
+  }, [fetchStatus]);
+  
+  // Keep statusRef in sync
+  useEffect(() => {
+    statusRef.current = tournament?.status;
+  }, [tournament?.status]);
 
   const getStatusColor = (status) => {
     switch (status) {
