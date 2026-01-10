@@ -388,18 +388,24 @@ export default function SearchPage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label>Max Results</Label>
-                  <span className="text-sm font-mono text-muted-foreground">
+                  <span className={`text-sm font-mono ${maxResults > 50 ? 'text-amber-600' : 'text-muted-foreground'}`}>
                     {maxResults}
+                    {maxResults > 50 && ' (slower)'}
                   </span>
                 </div>
                 <Slider
                   value={[maxResults]}
                   onValueChange={(v) => setMaxResults(v[0])}
-                  min={5}
+                  min={10}
                   max={100}
-                  step={5}
+                  step={10}
                   data-testid="max-results-slider"
                 />
+                {maxResults > 50 && (
+                  <p className="text-xs text-amber-600">
+                    ⚠️ Large searches may take 15-30 seconds due to arXiv rate limits
+                  </p>
+                )}
               </div>
 
               {/* Actions */}
@@ -415,7 +421,7 @@ export default function SearchPage() {
                   ) : (
                     <Search className="h-4 w-4 mr-2" />
                   )}
-                  Search
+                  {searching && maxResults > 50 ? 'Searching (this may take a while)...' : 'Search'}
                 </Button>
                 <Button 
                   variant="outline" 
