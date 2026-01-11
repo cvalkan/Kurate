@@ -311,7 +311,7 @@ export default function HistoryPage() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Tournament?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This will permanently delete the tournament "{tournament.category_name}" and all its results.
+                                This will permanently delete the tournament &ldquo;{tournament.category_name}&rdquo; and all its results.
                                 This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
