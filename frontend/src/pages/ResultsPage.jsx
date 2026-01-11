@@ -219,12 +219,13 @@ export default function ResultsPage() {
           Top Ranked Papers
         </h2>
         
-        <div className="grid md:grid-cols-3 gap-6">
+        {/* Horizontal scroll on mobile */}
+        <div className="flex md:grid md:grid-cols-3 gap-4 md:gap-6 overflow-x-auto pb-4 md:pb-0 snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0">
           {topThree.map((item, index) => {
             return (
               <Card 
                 key={item.paper_id}
-                className={`relative overflow-hidden border-2 ${getRankStyle(item.rank)} animate-slide-up`}
+                className={`relative overflow-hidden border-2 ${getRankStyle(item.rank)} animate-slide-up flex-shrink-0 w-[85vw] md:w-auto snap-center`}
                 style={{ animationDelay: `${index * 0.1}s` }}
                 data-testid={`top-paper-${index + 1}`}
               >
