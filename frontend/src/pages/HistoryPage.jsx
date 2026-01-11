@@ -178,49 +178,59 @@ export default function HistoryPage() {
                   return (
                     <div 
                       key={tournament.id}
-                      className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-accent/50 transition-all duration-200 animate-fade-in"
+                      className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-lg border border-border hover:border-accent/50 transition-all duration-200 animate-fade-in"
                       style={{ animationDelay: `${index * 0.05}s` }}
                       data-testid={`tournament-row-${index}`}
                     >
-                      {/* Status Badge */}
-                      <Badge 
-                        className={`${statusConfig.color} border flex-shrink-0`}
-                        data-testid={`status-badge-${index}`}
-                      >
-                        <StatusIcon className={`h-3 w-3 mr-1 ${tournament.status === 'running' ? 'animate-spin' : ''}`} />
-                        {statusConfig.label}
-                      </Badge>
-                      
-                      {/* Deep Analysis Badge */}
-                      {tournament.deep_analysis && (
+                      {/* Badges row on mobile */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Status Badge */}
                         <Badge 
-                          variant="outline" 
-                          className="border-green-300 text-green-700 bg-green-50 flex-shrink-0"
-                          data-testid={`deep-analysis-badge-${index}`}
+                          className={`${statusConfig.color} border flex-shrink-0`}
+                          data-testid={`status-badge-${index}`}
                         >
-                          <FileSearch className="h-3 w-3 mr-1" />
-                          Deep
+                          <StatusIcon className={`h-3 w-3 mr-1 ${tournament.status === 'running' ? 'animate-spin' : ''}`} />
+                          {statusConfig.label}
                         </Badge>
-                      )}
-                      
-                      {/* UCB Mode Badge */}
-                      {tournament.ranking_mode === 'ucb' && (
-                        <Badge 
-                          variant="outline" 
-                          className="border-purple-300 text-purple-700 bg-purple-50 flex-shrink-0"
-                          data-testid={`ucb-badge-${index}`}
-                        >
-                          <Zap className="h-3 w-3 mr-1" />
-                          UCB
-                        </Badge>
-                      )}
+                        
+                        {/* Deep Analysis Badge */}
+                        {tournament.deep_analysis && (
+                          <Badge 
+                            variant="outline" 
+                            className="border-green-300 text-green-700 bg-green-50 flex-shrink-0"
+                            data-testid={`deep-analysis-badge-${index}`}
+                          >
+                            <FileSearch className="h-3 w-3 mr-1" />
+                            Deep
+                          </Badge>
+                        )}
+                        
+                        {/* UCB Mode Badge */}
+                        {tournament.ranking_mode === 'ucb' && (
+                          <Badge 
+                            variant="outline" 
+                            className="border-purple-300 text-purple-700 bg-purple-50 flex-shrink-0"
+                            data-testid={`ucb-badge-${index}`}
+                          >
+                            <Zap className="h-3 w-3 mr-1" />
+                            UCB
+                          </Badge>
+                        )}
+                        
+                        {/* Progress (for running tournaments) - shown in badge row on mobile */}
+                        {tournament.status === 'running' && (
+                          <span className="text-sm font-mono font-bold text-accent sm:hidden">
+                            {tournament.progress || 0}%
+                          </span>
+                        )}
+                      </div>
                       
                       {/* Main Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-heading font-medium text-base">
+                        <h3 className="font-heading font-medium text-base truncate">
                           {tournament.category_name}
                         </h3>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-1">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
                           {tournament.category !== 'custom' && (
                             <span className="flex items-center gap-1 font-mono">
                               {tournament.category}
@@ -237,9 +247,9 @@ export default function HistoryPage() {
                         </div>
                       </div>
                       
-                      {/* Progress (for running tournaments) */}
+                      {/* Progress (for running tournaments) - desktop only */}
                       {tournament.status === 'running' && (
-                        <div className="flex-shrink-0 text-right">
+                        <div className="hidden sm:block flex-shrink-0 text-right">
                           <span className="text-lg font-mono font-bold text-accent">
                             {tournament.progress || 0}%
                           </span>
