@@ -359,7 +359,7 @@ export default function TournamentPage() {
         </div>
 
         {/* Matches Log */}
-        <div>
+        <div className="order-1 lg:order-2">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
