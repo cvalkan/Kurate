@@ -312,7 +312,7 @@ export default function TournamentPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[500px] pr-4">
+              <ScrollArea className="h-[300px] sm:h-[500px] pr-4">
                 <div className="space-y-3">
                   {tournament.papers?.map((paper, index) => (
                     <div 
@@ -376,7 +376,7 @@ export default function TournamentPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[500px] pr-4">
+              <ScrollArea className="h-[300px] sm:h-[500px] pr-4">
                 <div className="space-y-3">
                   {/* Show live matches from cache while running */}
                   {tournament.status === 'running' && tournament.recent_matches?.length > 0 && (
