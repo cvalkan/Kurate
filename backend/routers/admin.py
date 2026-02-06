@@ -19,6 +19,7 @@ class SettingsUpdate(BaseModel):
     top_k_focus: Optional[int] = None
     exploration_constant: Optional[float] = None
     anchor_comparisons: Optional[int] = None
+    min_matches_per_paper: Optional[int] = None
     auto_process: Optional[bool] = None
     admin_password: Optional[str] = None
 
