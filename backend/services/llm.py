@@ -105,6 +105,10 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None)
         paper2_content=p2_content,
     )
 
+    # Estimate input tokens (~4 chars per token)
+    input_chars = len(system_msg) + len(prompt)
+    input_tokens_est = input_chars // 4
+
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=f"compare-{uuid.uuid4()}",
@@ -124,6 +128,8 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None)
 
             if not response or not response.strip():
                 raise ValueError("Empty response from LLM")
+
+            output_tokens_est = len(response) // 4
 
             response_text = response.strip()
             if response_text.startswith("```"):
@@ -146,6 +152,10 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None)
                 raise ValueError(f"Invalid response format: {result}")
 
             result["model_used"] = model_info
+            result["tokens"] = {
+                "input_est": input_tokens_est,
+                "output_est": output_tokens_est,
+            }
             return result
 
         except Exception as e:
