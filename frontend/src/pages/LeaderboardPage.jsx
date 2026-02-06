@@ -156,8 +156,8 @@ export default function LeaderboardPage() {
             <div>#</div>
             <div>Paper</div>
             <div className="text-right">Score</div>
-            <div className="text-right">95% CI</div>
             <div className="text-right">Win %</div>
+            <div className="text-right">95% CI</div>
             <div className="text-right">Matches</div>
             <div className="text-right hidden md:block">Published</div>
           </div>
@@ -183,10 +183,10 @@ export default function LeaderboardPage() {
                 </p>
               </div>
               <div className="text-right font-mono text-sm font-medium">{paper.score}</div>
+              <div className="text-right font-mono text-xs text-muted-foreground">{paper.win_rate}%</div>
               <div className="text-right font-mono text-xs text-muted-foreground">
                 {paper.wilson_margin > 0 ? `\u00B1${paper.wilson_margin}%` : "--"}
               </div>
-              <div className="text-right font-mono text-xs text-muted-foreground">{paper.win_rate}%</div>
               <div className="text-right font-mono text-xs text-muted-foreground">{paper.comparisons}</div>
               <div className="text-right text-xs text-muted-foreground hidden md:block">
                 {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
