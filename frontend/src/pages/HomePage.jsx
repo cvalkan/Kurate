@@ -293,6 +293,37 @@ export default function HomePage() {
                     </Select>
                   </div>
 
+                  {/* Evaluation Prompt Selection */}
+                  <div className="space-y-2">
+                    <Label>Evaluation Criteria</Label>
+                    <Select
+                      value={selectedPromptKey}
+                      onValueChange={setSelectedPromptKey}
+                      data-testid="prompt-selector"
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select evaluation criteria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePrompts.map((p) => (
+                          <SelectItem key={p.key} value={p.key}>
+                            <div className="flex items-center gap-2">
+                              <span>{p.name}</span>
+                              {p.is_default && (
+                                <Badge variant="outline" className="text-[10px] py-0">Default</Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedPromptKey && availablePrompts.find(p => p.key === selectedPromptKey) && (
+                      <p className="text-xs text-muted-foreground">
+                        {availablePrompts.find(p => p.key === selectedPromptKey)?.description}
+                      </p>
+                    )}
+                  </div>
+
                   {/* Deep Analysis Toggle */}
                   <div className="space-y-3 p-4 rounded-lg bg-secondary/50 border border-border">
                     <div className="flex items-center justify-between">
