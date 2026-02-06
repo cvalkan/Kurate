@@ -618,7 +618,8 @@ def calculate_bradley_terry(matches: List[Dict], paper_ids: List[str]) -> Dict[s
     comparisons = {pid: 0 for pid in paper_ids}
     
     for match in matches:
-        if match.get('completed') and match.get('winner_id'):
+        # Only count successful comparisons (completed and not failed)
+        if match.get('completed') and match.get('winner_id') and not match.get('failed'):
             p1, p2 = match['paper1_id'], match['paper2_id']
             winner = match['winner_id']
             wins[winner] = wins.get(winner, 0) + 1
@@ -632,7 +633,8 @@ def calculate_bradley_terry(matches: List[Dict], paper_ids: List[str]) -> Dict[s
             if comparisons[pid] > 0:
                 denominator = 0
                 for match in matches:
-                    if match.get('completed') and match.get('winner_id'):
+                    # Only use successful comparisons
+                    if match.get('completed') and match.get('winner_id') and not match.get('failed'):
                         p1, p2 = match['paper1_id'], match['paper2_id']
                         if pid == p1:
                             denominator += 1.0 / (scores[p1] + scores[p2])
