@@ -58,6 +58,12 @@ AVAILABLE_MODELS = {
     "gemini": {
         "gemini-3-flash-preview": "Gemini 3 Flash (Fast)",
         "gemini-3-pro-preview": "Gemini 3 Pro",
+        "gemini-2.5-pro": "Gemini 2.5 Pro (Recommended)",
+        "gemini-2.5-flash": "Gemini 2.5 Flash"
+    }
+}
+
+DEFAULT_MODEL = {"provider": "openai", "model": "gpt-5.2"}
 
 # Default comparison prompts
 DEFAULT_PROMPTS = {
