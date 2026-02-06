@@ -11,15 +11,23 @@ router = APIRouter(prefix="/api")
 async def get_leaderboard(
     period: Optional[str] = Query("all", description="Filter: today, week, month, all"),
 ):
-    # Get all papers
-    papers = await db.papers.find(
+    # Always compute global rankings from ALL papers and ALL matches
+    all_papers = await db.papers.find(
         {}, {"_id": 0, "full_text": 0}
     ).to_list(5000)
 
-    if not papers:
+    if not all_papers:
         return {"leaderboard": [], "total_papers": 0, "total_matches": 0, "period": period}
 
-    # Apply date filter on paper publication date
+    all_matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0},
+    ).to_list(100000)
+
+    # Compute global leaderboard (scores are always from ALL data)
+    global_leaderboard = compute_leaderboard(all_papers, all_matches)
+
+    # Filter display by period (but keep global scores)
     if period and period != "all":
         now = datetime.now(timezone.utc)
         if period == "today":
@@ -32,49 +40,28 @@ async def get_leaderboard(
             cutoff = None
 
         if cutoff:
-            filtered_papers = []
-            for p in papers:
+            paper_dates = {}
+            for p in all_papers:
                 try:
-                    pub_date = datetime.fromisoformat(p["published"].replace("Z", "+00:00"))
-                    if pub_date >= cutoff:
-                        filtered_papers.append(p)
+                    paper_dates[p["id"]] = datetime.fromisoformat(p["published"].replace("Z", "+00:00"))
                 except (ValueError, KeyError):
                     pass
-            papers = filtered_papers
 
-    if not papers:
-        return {"leaderboard": [], "total_papers": 0, "total_matches": 0, "period": period}
+            filtered = [
+                entry for entry in global_leaderboard
+                if entry["id"] in paper_dates and paper_dates[entry["id"]] >= cutoff
+            ]
+            # Re-rank within the filtered set (1, 2, 3...) but keep global scores
+            for i, entry in enumerate(filtered):
+                entry["rank"] = i + 1
+            global_leaderboard = filtered
 
-    paper_ids = {p["id"] for p in papers}
-
-    # Get all matches involving these papers
-    matches = await db.matches.find(
-        {
-            "completed": True,
-            "failed": {"$ne": True},
-            "$or": [
-                {"paper1_id": {"$in": list(paper_ids)}},
-                {"paper2_id": {"$in": list(paper_ids)}},
-            ],
-        },
-        {"_id": 0},
-    ).to_list(100000)
-
-    # Only use matches where BOTH papers are in our filtered set
-    filtered_matches = [
-        m for m in matches
-        if m["paper1_id"] in paper_ids and m["paper2_id"] in paper_ids
-    ]
-
-    leaderboard = compute_leaderboard(papers, filtered_matches)
-
-    total_matches = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
+    total_matches = len(all_matches)
 
     return {
-        "leaderboard": leaderboard,
-        "total_papers": len(papers),
+        "leaderboard": global_leaderboard,
+        "total_papers": len(all_papers),
         "total_matches": total_matches,
-        "filtered_matches": len(filtered_matches),
         "period": period,
     }
 
