@@ -326,7 +326,7 @@ async def run_comparison_round():
             pairs = _select_adaptive_pairs(
                 all_papers, paper_stats, compared_pairs,
                 max_pairs, top_k_focus, exploration_constant, anchor_comparisons,
-                min_matches_per_paper,
+                min_matches_per_paper, max_matches_per_paper,
             )
 
             if not pairs:
