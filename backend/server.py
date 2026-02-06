@@ -1182,7 +1182,7 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         for p1_id, p2_id in batch_pairs:
             p1 = paper_lookup[p1_id]
             p2 = paper_lookup[p2_id]
-            tasks.append(compare_papers_llm(p1, p2, deep_analysis, llm_model))
+            tasks.append(compare_papers_llm(p1, p2, deep_analysis, llm_model, prompt_config))
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
