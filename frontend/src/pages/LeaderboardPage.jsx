@@ -11,7 +11,7 @@ import {
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const PERIODS = [
-  { key: "today", label: "Today", icon: Clock },
+  { key: "recent", label: "Most Recent", icon: Clock },
   { key: "week", label: "This Week", icon: Calendar },
   { key: "month", label: "This Month", icon: CalendarDays },
   { key: "all", label: "All Time", icon: Infinity },
