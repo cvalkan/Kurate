@@ -86,6 +86,10 @@ export default function SearchPage() {
   const [deepAnalysis, setDeepAnalysis] = useState(false);
   const [creating, setCreating] = useState(false);
   
+  // Model selection state
+  const [availableModels, setAvailableModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState(null);
+  
   // UCB config state
   const [useUCB, setUseUCB] = useState(false);
   const [ucbExpanded, setUcbExpanded] = useState(false);
@@ -95,6 +99,20 @@ export default function SearchPage() {
   const [ucbTargetTopK, setUcbTargetTopK] = useState(null);
   const [ucbConfidenceLevel, setUcbConfidenceLevel] = useState(0.95);
   const [loadingCitations, setLoadingCitations] = useState(false);
+
+  // Fetch models on mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await axios.get(`${API}/models`);
+        setAvailableModels(response.data.models);
+        setSelectedModel(response.data.default);
+      } catch (error) {
+        console.error("Failed to load models:", error);
+      }
+    };
+    fetchModels();
+  }, []);
 
   const handleSearch = async () => {
     if (!keywords && !author && !category) {
