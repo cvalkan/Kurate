@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Trophy, Clock, Calendar, CalendarDays, Infinity,
-  ChevronUp, ChevronDown, Minus, ExternalLink, Activity, Users, Swords,
+  ExternalLink, Activity, Users, Swords,
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
