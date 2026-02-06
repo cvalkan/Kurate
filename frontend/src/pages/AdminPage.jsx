@@ -61,6 +61,7 @@ export default function AdminPage() {
   const [expandedLogs, setExpandedLogs] = useState(new Set());
   const [progress, setProgress] = useState(null);
   const [usageStats, setUsageStats] = useState(null);
+  const [manualMatches, setManualMatches] = useState(50);
 
   const fetchAll = useCallback(async () => {
     const headers = getAdminHeaders();
