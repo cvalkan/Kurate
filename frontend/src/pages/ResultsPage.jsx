@@ -38,15 +38,18 @@ const getModelDisplayName = (llmModel) => {
   const model = llmModel.model || llmModel;
   const modelNames = {
     "gpt-5.2": "GPT-5.2",
+    "gpt-5.1": "GPT-5.1",
     "gpt-4o": "GPT-4o",
-    "gpt-4o-mini": "GPT-4o Mini",
-    "claude-opus-4-6-20250501": "Opus 4.6",
+    "gpt-4.1-mini": "GPT-4.1 Mini",
+    "claude-4-sonnet-20250514": "Claude 4 Sonnet",
+    "claude-4-opus-20250514": "Claude 4 Opus",
     "claude-opus-4-5-20251101": "Opus 4.5",
-    "claude-sonnet-4-5-20250514": "Sonnet 4.5",
-    "claude-haiku-4-5-20250514": "Haiku 4.5",
-    "gemini-3-flash-preview": "Gemini 3",
-    "gemini-2.0-flash": "Gemini 2.0",
-    "gemini-1.5-pro": "Gemini 1.5"
+    "claude-sonnet-4-5-20250929": "Sonnet 4.5",
+    "claude-haiku-4-5-20251001": "Haiku 4.5",
+    "gemini-3-flash-preview": "Gemini 3 Flash",
+    "gemini-3-pro-preview": "Gemini 3 Pro",
+    "gemini-2.5-pro": "Gemini 2.5 Pro",
+    "gemini-2.5-flash": "Gemini 2.5 Flash"
   };
   return modelNames[model] || model;
 };
