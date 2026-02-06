@@ -67,6 +67,14 @@ async def trigger_fetch():
     return result
 
 
+@router.post("/toggle-pause", dependencies=[Depends(verify_admin)])
+async def toggle_pause():
+    settings = await get_settings()
+    new_state = not settings.get("paused", False)
+    await db.settings.update_one({"key": "global"}, {"$set": {"paused": new_state}}, upsert=True)
+    return {"paused": new_state}
+
+
 @router.post("/compare", dependencies=[Depends(verify_admin)])
 async def trigger_comparison():
     import asyncio
