@@ -40,6 +40,25 @@ db = client[os.environ['DB_NAME']]
 # Structure: {tournament_id: {"progress": int, "current_log": str, "completed_matches": int, "recent_matches": list}}
 tournament_progress_cache = {}
 
+# Available LLM models for tournaments
+AVAILABLE_MODELS = {
+    "openai": {
+        "gpt-5.2": "GPT-5.2 (Latest)",
+        "gpt-4o": "GPT-4o",
+        "gpt-4o-mini": "GPT-4o Mini (Fast & Cheap)"
+    },
+    "anthropic": {
+        "claude-sonnet-4-5-20250514": "Claude Sonnet 4.5",
+        "claude-haiku-4-5-20250514": "Claude Haiku 4.5 (Fast)"
+    },
+    "google": {
+        "gemini-2.0-flash": "Gemini 2.0 Flash",
+        "gemini-1.5-pro": "Gemini 1.5 Pro"
+    }
+}
+
+DEFAULT_MODEL = {"provider": "openai", "model": "gpt-5.2"}
+
 # LLM API Key
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 
