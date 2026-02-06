@@ -166,12 +166,6 @@ Which paper demonstrates better research rigor? Respond with JSON only."""
 }
 
 DEFAULT_PROMPT_KEY = "scientific_impact"
-        "gemini-2.5-pro": "Gemini 2.5 Pro (Recommended)",
-        "gemini-2.5-flash": "Gemini 2.5 Flash"
-    }
-}
-
-DEFAULT_MODEL = {"provider": "openai", "model": "gpt-5.2"}
 
 # LLM API Key
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
