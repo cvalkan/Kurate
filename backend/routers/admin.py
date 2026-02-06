@@ -160,48 +160,39 @@ async def get_progress_estimate():
         if w and w in paper_wins:
             paper_wins[w] += 1
 
-    # Papers below min matches
-    below_min = {pid: max(0, min_matches - c) for pid, c in paper_match_count.items() if c < min_matches}
-    matches_for_min = sum(below_min.values())
+    # Papers at or above min matches
+    papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
+    below_min_count = total_papers - papers_at_min
 
-    # Estimate matches needed for CI target (±15 Elo is reasonable convergence)
-    ci_target_elo = 15
-    matches_for_ci = 0
+    # Matches needed to bring all papers to min_matches
+    # Each match covers 2 papers, so rough estimate:
+    deficit = sum(max(0, min_matches - c) for c in paper_match_count.values())
+    matches_for_min = max(0, (deficit + 1) // 2)
+
+    # Papers converged: CI ≤ ±100 Elo (reasonable for this scale)
+    papers_converged = 0
     for pid in all_paper_ids:
         n = paper_match_count[pid]
-        if n < 2:
-            matches_for_ci += max(0, 8 - n)
-            continue
-        w = paper_wins.get(pid, 0)
-        p = max(0.01, min(0.99, w / n))
-        se_logit = 1.0 / math.sqrt(n * p * (1 - p))
-        se_elo = (400 / math.log(10)) * se_logit
-        current_ci = 1.96 * se_elo
-        if current_ci > ci_target_elo:
-            # Estimate n needed: n_needed = (1.96 * 400/(ln10 * target))^2 / (p*(1-p))
-            n_needed = ((1.96 * 400 / (math.log(10) * ci_target_elo)) ** 2) * (1.0 / (p * (1 - p)))
-            matches_for_ci += max(0, int(n_needed) - n)
+        if n >= min_matches:
+            ci = _elo_ci(paper_wins.get(pid, 0), n)
+            if ci <= 100:
+                papers_converged += 1
 
     total_matches_done = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
-    total_needed = max(matches_for_min, matches_for_ci // 2)  # Each match covers 2 papers
-    papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
-    papers_converged = sum(
-        1 for pid in all_paper_ids
-        if paper_match_count[pid] >= 2
-        and _elo_ci(paper_wins.get(pid, 0), paper_match_count[pid]) <= ci_target_elo
-    )
+    papers_with_pdf = await db.papers.count_documents({"full_text": {"$ne": None}})
 
+    # Overall progress: weighted by papers at min matches
     progress_pct = min(100, round(100 * papers_at_min / total_papers)) if total_papers > 0 else 100
 
     return {
         "total_papers": total_papers,
         "total_matches": total_matches_done,
+        "papers_with_pdf": papers_with_pdf,
         "papers_at_min_matches": papers_at_min,
-        "papers_below_min_matches": total_papers - papers_at_min,
+        "papers_below_min_matches": below_min_count,
         "matches_needed_for_min": matches_for_min,
         "papers_converged": papers_converged,
-        "matches_needed_for_ci": matches_for_ci // 2,
-        "estimated_remaining": total_needed,
+        "estimated_rounds": max(0, matches_for_min // 20 + (1 if matches_for_min % 20 else 0)),
         "min_matches_setting": min_matches,
         "progress_pct": progress_pct,
     }
