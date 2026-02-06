@@ -58,6 +58,108 @@ AVAILABLE_MODELS = {
     "gemini": {
         "gemini-3-flash-preview": "Gemini 3 Flash (Fast)",
         "gemini-3-pro-preview": "Gemini 3 Pro",
+
+# Default comparison prompts
+DEFAULT_PROMPTS = {
+    "scientific_impact": {
+        "name": "Scientific Impact (Default)",
+        "description": "Evaluates papers based on novelty, methodology, real-world applications, and field impact.",
+        "system_prompt": """You are a scientific paper evaluator. Your task is to compare two papers and determine which has higher potential scientific impact.
+
+Consider the following factors:
+1. Novelty and innovation of the approach
+2. Potential real-world applications
+3. Methodological rigor (based on abstract)
+4. Breadth of impact across fields
+5. Timeliness and relevance
+
+You MUST respond with valid JSON only, no other text. Format:
+{"winner": "paper1" or "paper2", "reasoning": "Brief explanation (max 100 words)"}""",
+        "user_prompt": """Compare these two papers for scientific impact:
+
+**Paper 1: {paper1_title}**
+Abstract: {paper1_abstract}
+
+**Paper 2: {paper2_title}**
+Abstract: {paper2_abstract}
+
+Which paper has higher estimated scientific impact? Respond with JSON only."""
+    },
+    "practical_applications": {
+        "name": "Practical Applications",
+        "description": "Focuses on real-world applicability, industry relevance, and immediate usefulness.",
+        "system_prompt": """You are evaluating scientific papers for their practical applications and real-world impact.
+
+Focus on:
+1. Immediate applicability to industry or society
+2. Ease of implementation
+3. Potential for commercialization
+4. Solving real-world problems
+5. Scalability of the solution
+
+You MUST respond with valid JSON only, no other text. Format:
+{"winner": "paper1" or "paper2", "reasoning": "Brief explanation (max 100 words)"}""",
+        "user_prompt": """Compare these two papers for practical real-world applications:
+
+**Paper 1: {paper1_title}**
+Abstract: {paper1_abstract}
+
+**Paper 2: {paper2_title}**
+Abstract: {paper2_abstract}
+
+Which paper has more practical applicability? Respond with JSON only."""
+    },
+    "technical_novelty": {
+        "name": "Technical Novelty",
+        "description": "Emphasizes innovation, originality, and technical breakthroughs.",
+        "system_prompt": """You are evaluating scientific papers purely based on technical novelty and innovation.
+
+Focus on:
+1. Originality of the idea
+2. Technical innovation and breakthroughs
+3. Advancement over existing methods
+4. Creative problem-solving approach
+5. Potential to inspire future research
+
+You MUST respond with valid JSON only, no other text. Format:
+{"winner": "paper1" or "paper2", "reasoning": "Brief explanation (max 100 words)"}""",
+        "user_prompt": """Compare these two papers for technical novelty and innovation:
+
+**Paper 1: {paper1_title}**
+Abstract: {paper1_abstract}
+
+**Paper 2: {paper2_title}**
+Abstract: {paper2_abstract}
+
+Which paper is more technically novel? Respond with JSON only."""
+    },
+    "research_rigor": {
+        "name": "Research Rigor",
+        "description": "Focuses on methodology quality, experimental design, and scientific validity.",
+        "system_prompt": """You are evaluating scientific papers based on research rigor and methodology quality.
+
+Focus on:
+1. Quality of experimental design
+2. Statistical validity
+3. Reproducibility
+4. Thoroughness of evaluation
+5. Proper baselines and comparisons
+
+You MUST respond with valid JSON only, no other text. Format:
+{"winner": "paper1" or "paper2", "reasoning": "Brief explanation (max 100 words)"}""",
+        "user_prompt": """Compare these two papers for research rigor and methodology:
+
+**Paper 1: {paper1_title}**
+Abstract: {paper1_abstract}
+
+**Paper 2: {paper2_title}**
+Abstract: {paper2_abstract}
+
+Which paper demonstrates better research rigor? Respond with JSON only."""
+    }
+}
+
+DEFAULT_PROMPT_KEY = "scientific_impact"
         "gemini-2.5-pro": "Gemini 2.5 Pro (Recommended)",
         "gemini-2.5-flash": "Gemini 2.5 Flash"
     }
