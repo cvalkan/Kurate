@@ -1743,6 +1743,10 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
         
         try:
             papers = await fetch_arxiv_papers(config.category, config.num_papers)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                raise HTTPException(status_code=429, detail="ArXiv API rate limit reached. Please wait a moment and try again.")
+            raise HTTPException(status_code=500, detail=f"Failed to fetch papers from ArXiv: {e}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to fetch papers: {e}")
         
