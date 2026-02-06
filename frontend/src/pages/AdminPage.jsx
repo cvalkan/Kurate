@@ -87,6 +87,8 @@ export default function AdminPage() {
       setUsageStats(statsRes.data);
       setSummaryPrompt(summaryPromptRes.data);
       setEditSummaryPrompt(summaryPromptRes.data);
+      // Correlation loaded separately (not blocking)
+      axios.get(`${API}/api/model-correlation`).then(r => setCorrelation(r.data)).catch(() => {});
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         sessionStorage.removeItem("admin_token");
