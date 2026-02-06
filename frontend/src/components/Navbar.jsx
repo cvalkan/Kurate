@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Trophy, Shield } from "lucide-react";
+import { Trophy, Shield, BarChart3 } from "lucide-react";
 
 export default function Navbar() {
   const location = useLocation();
@@ -33,6 +33,18 @@ export default function Navbar() {
               <Link to="/" className="flex items-center gap-2">
                 <Trophy className="h-4 w-4" />
                 <span className="hidden sm:inline">Leaderboard</span>
+              </Link>
+            </Button>
+
+            <Button
+              variant={location.pathname === "/correlation" ? "secondary" : "ghost"}
+              size="sm"
+              asChild
+              data-testid="nav-correlation"
+            >
+              <Link to="/correlation" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                <span className="hidden sm:inline">Model Analysis</span>
               </Link>
             </Button>
 
