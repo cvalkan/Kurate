@@ -321,8 +321,11 @@ async def run_comparison_round(max_pairs_override=None):
             for m in all_matches:
                 compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
 
-            # Generate as many useful pairs as the matchmaker finds (cap at 100)
-            max_pairs = min(100, len(all_papers) * 2)
+            # Generate as many useful pairs as the matchmaker finds
+            if max_pairs_override:
+                max_pairs = min(max_pairs_override, 500)
+            else:
+                max_pairs = min(100, len(all_papers) * 2)
             pairs = _select_adaptive_pairs(
                 all_papers, paper_stats, compared_pairs,
                 max_pairs, top_k_focus, exploration_constant, anchor_comparisons,
