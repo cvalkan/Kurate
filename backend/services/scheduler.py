@@ -404,7 +404,10 @@ async def _generate_pending_summaries():
     settings = await get_settings()
     ci_target = settings.get("ci_target", 12)
     max_matches = settings.get("max_matches_per_paper", 150)
-    top_k = settings.get("top_k_focus", 10)
+
+    # Load summary prompt from DB
+    summary_prompt_doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
+    summary_prompt = summary_prompt_doc if summary_prompt_doc and summary_prompt_doc.get("system_prompt") else None
 
     # Find papers that are converged but have no summary
     # A paper is converged if Wilson margin ≤ target OR matches ≥ max cap
