@@ -15,7 +15,6 @@ class AdminLogin(BaseModel):
 class SettingsUpdate(BaseModel):
     fetch_interval_hours: Optional[int] = None
     max_papers_per_fetch: Optional[int] = None
-    comparisons_per_round: Optional[int] = None
     parallel_agents: Optional[int] = None
     top_k_focus: Optional[int] = None
     exploration_constant: Optional[float] = None
