@@ -141,15 +141,12 @@ async def get_admin_status():
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate():
     """Dual-goal progress with estimated remaining matches and time."""
-    import math
-    from scipy import stats as scipy_stats
-
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
+    max_matches = settings.get("max_matches_per_paper", 150)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 8)  # Wilson CI margin in percentage points
+    ci_target = settings.get("ci_target", 12)
     is_paused = settings.get("paused", False)
-    comparisons_per_round = settings.get("comparisons_per_round", 50)
     parallel_agents = settings.get("parallel_agents", 5)
 
     all_paper_ids = []
