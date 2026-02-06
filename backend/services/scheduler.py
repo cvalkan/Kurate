@@ -173,6 +173,7 @@ async def run_comparison_round():
         try:
             settings = await get_settings()
             comparisons_per_round = settings.get("comparisons_per_round", 20)
+            parallel_agents = min(max(settings.get("parallel_agents", 5), 1), 20)
             top_k_focus = settings.get("top_k_focus", 10)
             exploration_constant = settings.get("exploration_constant", 1.414)
             anchor_comparisons = settings.get("anchor_comparisons", 4)
