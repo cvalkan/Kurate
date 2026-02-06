@@ -43,12 +43,11 @@ async def _scheduler_loop():
         try:
             settings = await get_settings()
             interval_hours = settings.get("fetch_interval_hours", 24)
-            auto_process = settings.get("auto_process", True)
+            is_paused = settings.get("paused", False)
 
             # Check if we need to fetch
             last_fetch = settings.get("last_fetch_at")
             should_fetch = False
-
             if not last_fetch:
                 should_fetch = True
             else:
@@ -58,9 +57,6 @@ async def _scheduler_loop():
 
             if should_fetch:
                 await run_fetch_cycle()
-
-            if auto_process:
-                await run_comparison_round()
 
             # Update next fetch time
             settings = await get_settings()
@@ -73,11 +69,91 @@ async def _scheduler_loop():
             scheduler_status["papers_in_db"] = await db.papers.count_documents({})
             scheduler_status["matches_in_db"] = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
 
+            # Continuous comparison loop: keep running until goals are met or paused
+            if not is_paused:
+                goals_met = await _check_goals_met()
+                if not goals_met:
+                    result = await run_comparison_round()
+                    # If round produced comparisons, loop again quickly
+                    if result.get("status") == "ok" and result.get("completed", 0) > 0:
+                        await asyncio.sleep(5)
+                        continue
+                    # No pairs or error — wait before retry
+                    await asyncio.sleep(60)
+                    continue
+                else:
+                    scheduler_status["current_activity"] = "Goals met — idle"
+            else:
+                scheduler_status["current_activity"] = "Paused"
+
         except Exception as e:
             logger.error(f"Scheduler loop error: {e}")
             scheduler_status["current_activity"] = f"Error: {str(e)[:100]}"
 
-        await asyncio.sleep(300)  # Check every 5 minutes
+        await asyncio.sleep(300)  # Idle check every 5 minutes
+
+
+async def _check_goals_met() -> bool:
+    """Check if both ranking goals are satisfied."""
+    settings = await get_settings()
+    min_matches = settings.get("min_matches_per_paper", 3)
+    top_k = settings.get("top_k_focus", 10)
+    ci_target = settings.get("ci_target", 200)
+
+    total_papers = await db.papers.count_documents({})
+    if total_papers < 2:
+        return True
+
+    # Build paper stats
+    paper_match_count = {}
+    paper_wins = {}
+    async for p in db.papers.find({}, {"_id": 0, "id": 1}):
+        paper_match_count[p["id"]] = 0
+        paper_wins[p["id"]] = 0
+
+    async for m in db.matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ):
+        if m["paper1_id"] in paper_match_count:
+            paper_match_count[m["paper1_id"]] += 1
+        if m["paper2_id"] in paper_match_count:
+            paper_match_count[m["paper2_id"]] += 1
+        w = m.get("winner_id")
+        if w and w in paper_wins:
+            paper_wins[w] += 1
+
+    # Goal 1: all papers at min matches
+    for c in paper_match_count.values():
+        if c < min_matches:
+            return False
+
+    # Goal 2: top-K papers have CI ≤ ci_target
+    sorted_papers = sorted(
+        paper_match_count.keys(),
+        key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
+        reverse=True,
+    )
+    top_k_ids = sorted_papers[:min(top_k, len(sorted_papers))]
+    for pid in top_k_ids:
+        n = paper_match_count[pid]
+        if n < 2:
+            return False
+        ci = _compute_elo_ci(paper_wins.get(pid, 0), n)
+        if ci > ci_target:
+            return False
+
+    return True
+
+
+def _compute_elo_ci(wins, comparisons):
+    import math
+    if comparisons < 2:
+        return 999
+    p = max(0.02, min(0.98, (wins + 0.5) / (comparisons + 1.0)))
+    se_logit = 1.0 / math.sqrt((comparisons + 1.0) * p * (1.0 - p))
+    se_elo = (400.0 / math.log(10)) * se_logit
+    return 1.96 * se_elo
 
 
 async def run_fetch_cycle():
