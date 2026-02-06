@@ -98,13 +98,12 @@ async def _check_goals_met() -> bool:
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 200)
+    ci_target = settings.get("ci_target", 8)  # Wilson margin %
 
     total_papers = await db.papers.count_documents({})
     if total_papers < 2:
         return True
 
-    # Build paper stats
     paper_match_count = {}
     paper_wins = {}
     async for p in db.papers.find({}, {"_id": 0, "id": 1}):
@@ -128,7 +127,7 @@ async def _check_goals_met() -> bool:
         if c < min_matches:
             return False
 
-    # Goal 2: top-K papers have CI ≤ ci_target
+    # Goal 2: top-K papers have Wilson CI margin ≤ ci_target %
     sorted_papers = sorted(
         paper_match_count.keys(),
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
@@ -137,10 +136,10 @@ async def _check_goals_met() -> bool:
     top_k_ids = sorted_papers[:min(top_k, len(sorted_papers))]
     for pid in top_k_ids:
         n = paper_match_count[pid]
-        if n < 2:
-            return False
-        ci = _compute_elo_ci(paper_wins.get(pid, 0), n)
-        if ci > ci_target:
+        w = paper_wins.get(pid, 0)
+        from routers.admin import _wilson_margin
+        margin_pct = _wilson_margin(w, n) * 100
+        if margin_pct > ci_target:
             return False
 
     return True
