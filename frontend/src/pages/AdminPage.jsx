@@ -499,6 +499,14 @@ export default function AdminPage() {
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Max Matches Per Paper</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Stop trying to narrow CI for a paper once it reaches this many matches. Prevents infinite loops for papers with extreme win rates.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.max_matches_per_paper || ""} onChange={(e) => setEditSettings({ ...editSettings, max_matches_per_paper: e.target.value })} data-testid="setting-max-matches" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
                 <Label className="text-xs">CI Target (% margin)</Label>
                 <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
                 <TooltipContent side="right"><p className="max-w-52 text-xs">Target win-rate confidence margin for top-K papers (in percentage points). E.g., 8 means ±8%. The system runs until all top-K papers reach this confidence level.</p></TooltipContent></Tooltip>
