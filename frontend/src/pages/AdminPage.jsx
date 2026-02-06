@@ -230,40 +230,46 @@ export default function AdminPage() {
             <StatCard label="Unranked" value={status.unranked_papers} icon={Activity} />
           </div>
 
-          {/* Progress Indicator */}
+          {/* Progress Indicator — Dual Goal */}
           {progress && (
             <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="progress-indicator">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium">Ranking Progress</h3>
-                <span className="font-mono text-sm font-bold text-accent">{progress.progress_pct}%</span>
+                <span className="font-mono text-sm font-bold text-accent">{progress.overall_pct}%</span>
               </div>
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
-                <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${progress.progress_pct}%` }} />
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
-                <div>
-                  <span className="block text-foreground font-mono font-medium">{progress.papers_at_min_matches}/{progress.total_papers}</span>
-                  at min matches ({progress.min_matches_setting})
-                </div>
-                <div>
-                  <span className="block text-foreground font-mono font-medium">{progress.papers_below_min_matches}</span>
-                  below minimum
-                </div>
-                <div>
-                  <span className="block text-foreground font-mono font-medium">{progress.papers_converged}</span>
-                  converged (CI &le; ±100)
-                </div>
-                <div>
-                  <span className="block text-foreground font-mono font-medium">~{progress.matches_needed_for_min}</span>
-                  matches remaining
-                </div>
-              </div>
-              {progress.papers_with_pdf !== undefined && (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  PDFs downloaded: <span className="font-mono text-foreground">{progress.papers_with_pdf}/{progress.total_papers}</span>
-                  {progress.estimated_rounds > 0 && (
-                    <span className="ml-3">Est. rounds remaining: <span className="font-mono text-foreground">~{progress.estimated_rounds}</span></span>
+
+              {/* Goal 1: Min matches */}
+              {progress.goal1 && (
+                <div className="mb-3">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">{progress.goal1.label}</span>
+                    <span className="font-mono text-foreground">{progress.goal1.papers_done}/{progress.goal1.papers_total}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${progress.goal1.pct}%` }} />
+                  </div>
+                  {progress.goal1.matches_needed > 0 && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5">~{progress.goal1.matches_needed} matches needed</div>
                   )}
+                </div>
+              )}
+
+              {/* Goal 2: CI convergence for top-K */}
+              {progress.goal2 && (
+                <div className="mb-2">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">{progress.goal2.label}</span>
+                    <span className="font-mono text-foreground">{progress.goal2.papers_done}/{progress.goal2.papers_total}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-500 ${progress.goal2.pct >= 100 ? "bg-green-500" : "bg-amber-500"}`} style={{ width: `${progress.goal2.pct}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {progress.papers_with_pdf !== undefined && (
+                <div className="text-[10px] text-muted-foreground mt-1">
+                  PDFs: {progress.papers_with_pdf}/{progress.total_papers} &middot; Matches: {progress.total_matches}
                 </div>
               )}
             </div>
