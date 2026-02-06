@@ -84,7 +84,8 @@ export default function HomePage() {
         category: selectedCategory,
         num_papers: numPapers,
         parallel_agents: parallelAgents,
-        deep_analysis: deepAnalysis
+        deep_analysis: deepAnalysis,
+        llm_model: selectedModel
       });
       
       const tournamentId = response.data.tournament.id;
