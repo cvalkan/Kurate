@@ -456,14 +456,6 @@ export default function AdminPage() {
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
-                <Label className="text-xs">Comparisons Per Round</Label>
-                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-                <TooltipContent side="right"><p className="max-w-52 text-xs">Number of pairwise LLM comparisons to run each round. Higher = more API calls but faster ranking convergence.</p></TooltipContent></Tooltip>
-              </div>
-              <Input type="number" value={editSettings.comparisons_per_round || ""} onChange={(e) => setEditSettings({ ...editSettings, comparisons_per_round: e.target.value })} data-testid="setting-comparisons" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
                 <Label className="text-xs">Parallel Agents</Label>
                 <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
                 <TooltipContent side="right"><p className="max-w-52 text-xs">Number of concurrent LLM comparisons per batch. Higher = faster but uses more API quota. Range: 1-20.</p></TooltipContent></Tooltip>
