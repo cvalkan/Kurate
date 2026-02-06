@@ -62,16 +62,19 @@ export default function AdminPage() {
   const [progress, setProgress] = useState(null);
   const [usageStats, setUsageStats] = useState(null);
   const [manualMatches, setManualMatches] = useState(50);
+  const [summaryPrompt, setSummaryPrompt] = useState(null);
+  const [editSummaryPrompt, setEditSummaryPrompt] = useState({});
 
   const fetchAll = useCallback(async () => {
     const headers = getAdminHeaders();
     try {
-      const [statusRes, settingsRes, promptRes, progressRes, statsRes] = await Promise.all([
+      const [statusRes, settingsRes, promptRes, progressRes, statsRes, summaryPromptRes] = await Promise.all([
         axios.get(`${API}/api/admin/status`, { headers }),
         axios.get(`${API}/api/admin/settings`, { headers }),
         axios.get(`${API}/api/admin/prompt`, { headers }),
         axios.get(`${API}/api/admin/progress`, { headers }),
         axios.get(`${API}/api/admin/stats`, { headers }),
+        axios.get(`${API}/api/admin/summary-prompt`, { headers }),
       ]);
       setStatus(statusRes.data);
       setSettings(settingsRes.data.settings);
