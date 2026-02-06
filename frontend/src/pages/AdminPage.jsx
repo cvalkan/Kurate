@@ -258,18 +258,38 @@ export default function AdminPage() {
             <div data-testid="recent-matches">
               <h3 className="text-sm font-medium mb-3">Recent Comparisons</h3>
               <div className="space-y-2">
-                {status.recent_matches.map((m, i) => (
-                  <div key={i} className="p-3 border border-border rounded-lg text-sm">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                      <span className="font-medium truncate">{m.winner_title}</span>
-                      <span className="text-muted-foreground text-xs">beat</span>
-                      <span className="truncate text-muted-foreground">{m.paper1_title === m.winner_title ? m.paper2_title : m.paper1_title}</span>
-                      <ModelBadge model={m.model_used} />
+                {status.recent_matches.map((m, i) => {
+                  const isExpanded = expandedLogs.has(i);
+                  const toggle = () => setExpandedLogs(prev => {
+                    const next = new Set(prev);
+                    next.has(i) ? next.delete(i) : next.add(i);
+                    return next;
+                  });
+                  return (
+                    <div key={i} className="border border-border rounded-lg overflow-hidden" data-testid={`log-entry-${i}`}>
+                      <button
+                        onClick={toggle}
+                        className="w-full flex items-center gap-2 p-3 text-left text-sm hover:bg-secondary/20 transition-colors"
+                        data-testid={`log-toggle-${i}`}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                        <span className="font-medium truncate flex-1">{m.winner_title}</span>
+                        <span className="text-muted-foreground text-xs shrink-0">beat</span>
+                        <span className="truncate text-muted-foreground flex-1">{m.paper1_title === m.winner_title ? m.paper2_title : m.paper1_title}</span>
+                        <ModelBadge model={m.model_used} />
+                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                      </button>
+                      {isExpanded && m.reasoning && (
+                        <div className="px-3 pb-3 pt-0 border-t border-border/50 bg-secondary/10">
+                          <p className="text-xs text-muted-foreground leading-relaxed pt-2">{m.reasoning}</p>
+                          {m.created_at && (
+                            <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">{new Date(m.created_at).toLocaleString()}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {m.reasoning && <p className="text-xs text-muted-foreground pl-5 truncate">{m.reasoning}</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
