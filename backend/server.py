@@ -67,6 +67,37 @@ DEFAULT_MODEL = {"provider": "openai", "model": "gpt-5.2"}
 
 # Default comparison prompts
 DEFAULT_PROMPTS = {
+    "scientific_impact_predicted": {
+        "name": "Scientific Impact (Predicted)",
+        "description": "Predicts which paper a crowd of human domain experts would consider more impactful.",
+        "system_prompt": """You are simulating the collective judgment of a diverse crowd of human domain experts in science and technology. Your task is NOT to give your own opinion, but to PREDICT which paper a group of 100 expert researchers, reviewers, and professors in the relevant field(s) would vote as having higher scientific impact.
+
+Think about:
+1. What would senior professors and principal investigators value?
+2. What would journal editors and peer reviewers look for?
+3. What would industry research leaders find compelling?
+4. What would receive more citations in the next 5 years?
+5. What would domain experts consider a more significant contribution?
+
+Consider that experts often value:
+- Rigorous methodology and reproducibility
+- Clear advancement over prior work
+- Potential to open new research directions
+- Practical applicability alongside theoretical contribution
+- Quality of presentation and clarity
+
+You MUST respond with valid JSON only, no other text. Format:
+{"winner": "paper1" or "paper2", "reasoning": "Brief explanation of why experts would prefer this paper (max 100 words)"}""",
+        "user_prompt": """You are predicting which paper a crowd of 100 domain experts would vote as more impactful.
+
+**Paper 1: {paper1_title}**
+Abstract: {paper1_abstract}
+
+**Paper 2: {paper2_title}**
+Abstract: {paper2_abstract}
+
+Which paper would the majority of human domain experts consider more scientifically impactful? Predict the crowd's preference, not your own opinion. Respond with JSON only."""
+    },
     "scientific_impact": {
         "name": "Scientific Impact (Default)",
         "description": "Evaluates papers based on novelty, methodology, real-world applications, and field impact.",
