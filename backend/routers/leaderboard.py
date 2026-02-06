@@ -10,19 +10,22 @@ router = APIRouter(prefix="/api")
 @router.get("/leaderboard")
 async def get_leaderboard(
     period: Optional[str] = Query("all", description="Filter: today, week, month, all"),
+    limit: int = Query(100, description="Max papers to return"),
+    offset: int = Query(0, description="Offset for pagination"),
 ):
-    # Always compute global rankings from ALL papers and ALL matches
+    # Load papers without heavy fields
     all_papers = await db.papers.find(
-        {}, {"_id": 0, "full_text": 0}
+        {}, {"_id": 0, "full_text": 0, "abstract": 0}
     ).to_list(5000)
 
     if not all_papers:
         return {"leaderboard": [], "total_papers": 0, "total_matches": 0, "period": period}
 
+    # Only load fields needed for BT computation
     all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
-        {"_id": 0},
-    ).to_list(100000)
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
+    ).to_list(200000)
 
     # Compute global leaderboard (scores are always from ALL data)
     global_leaderboard = compute_leaderboard(all_papers, all_matches)
