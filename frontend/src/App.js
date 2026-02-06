@@ -16,6 +16,7 @@ function App() {
         <main className="pb-12">
           <Routes>
             <Route path="/" element={<LeaderboardPage />} />
+            <Route path="/correlation" element={<CorrelationPage />} />
             <Route path="/paper/:id" element={<PaperPage />} />
             <Route path="/admin" element={<AdminLoginPage />} />
             <Route path="/admin/dashboard" element={<AdminPage />} />
