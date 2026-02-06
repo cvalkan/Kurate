@@ -393,26 +393,25 @@ async def run_comparison_round():
 def _select_adaptive_pairs(
     papers: list, stats: dict, compared_pairs: set,
     max_pairs: int, top_k: int, exploration_c: float, anchor_n: int,
-    min_matches: int = 3,
+    min_matches: int = 3, max_matches: int = 150,
 ) -> List[tuple]:
     """
-    Adaptive matchmaking with CI-aware top-K targeting:
-    1. Bootstrap: random pairs when all papers are new
-    2. New papers: calibrate against anchors
-    3. Under-min papers: bring up to minimum
-    4. CI narrowing: give extra matches to top-K papers with wide CIs
-    5. UCB exploration for remaining budget
+    Adaptive matchmaking with CI-aware top-K targeting.
+    Skips papers that have reached max_matches cap.
     """
     pairs = []
     paper_ids = [p["id"] for p in papers]
+    # Filter out papers at the cap — they don't need more matches
+    capped = {pid for pid in paper_ids if stats.get(pid, {}).get("comparisons", 0) >= max_matches}
+    active_ids = [pid for pid in paper_ids if pid not in capped]
 
-    new_papers = [pid for pid in paper_ids if stats.get(pid, {}).get("comparisons", 0) == 0]
+    new_papers = [pid for pid in active_ids if stats.get(pid, {}).get("comparisons", 0) == 0]
     under_min = [
-        pid for pid in paper_ids
+        pid for pid in active_ids
         if 0 < stats.get(pid, {}).get("comparisons", 0) < min_matches
     ]
     ranked_papers = sorted(
-        [pid for pid in paper_ids if stats.get(pid, {}).get("comparisons", 0) > 0],
+        [pid for pid in active_ids if stats.get(pid, {}).get("comparisons", 0) > 0],
         key=lambda pid: stats[pid]["wins"] / max(stats[pid]["comparisons"], 1),
         reverse=True,
     )
