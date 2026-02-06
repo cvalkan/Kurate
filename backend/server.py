@@ -583,12 +583,33 @@ Which paper has higher estimated scientific impact? Respond with JSON only."""
                 None,  # Use default executor
                 lambda: asyncio.run(chat.send_message(UserMessage(text=prompt)))
             )
+            
+            # Handle empty response
+            if not response or not response.strip():
+                raise ValueError("Empty response from LLM")
+            
             # Parse JSON response
             response_text = response.strip()
+            
+            # Handle markdown code blocks
             if response_text.startswith("```"):
-                response_text = response_text.split("```")[1]
-                if response_text.startswith("json"):
-                    response_text = response_text[4:]
+                parts = response_text.split("```")
+                if len(parts) >= 2:
+                    response_text = parts[1]
+                    if response_text.startswith("json"):
+                        response_text = response_text[4:]
+                    response_text = response_text.strip()
+            
+            # Try to extract JSON from response if not pure JSON
+            if not response_text.startswith("{"):
+                # Look for JSON object in the response
+                import re
+                json_match = re.search(r'\{[^{}]*"winner"[^{}]*\}', response_text, re.DOTALL)
+                if json_match:
+                    response_text = json_match.group()
+                else:
+                    raise ValueError(f"No JSON object found in response: {response_text[:200]}")
+            
             result = json.loads(response_text)
             
             # Validate response has required fields
