@@ -1046,6 +1046,16 @@ async def run_tournament(tournament_id: str):
         ucb_config = tournament_doc.get('ucb_config', {})
         llm_model = tournament_doc.get('llm_model', DEFAULT_MODEL)
         
+        # Get prompt configuration
+        prompt_key = tournament_doc.get('prompt_key', DEFAULT_PROMPT_KEY)
+        custom_prompt = tournament_doc.get('custom_prompt')
+        if custom_prompt:
+            prompt_config = custom_prompt
+        elif prompt_key in DEFAULT_PROMPTS:
+            prompt_config = DEFAULT_PROMPTS[prompt_key]
+        else:
+            prompt_config = DEFAULT_PROMPTS[DEFAULT_PROMPT_KEY]
+        
         # Update status
         mode_label = "UCB" if ranking_mode == "ucb" else "Round Robin"
         if deep_analysis:
