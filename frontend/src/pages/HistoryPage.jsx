@@ -30,10 +30,30 @@ import {
   Calendar,
   RefreshCw,
   FileSearch,
-  Zap
+  Zap,
+  Bot
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Helper to get short model display name
+const getModelDisplayName = (llmModel) => {
+  if (!llmModel) return null;
+  const model = llmModel.model || llmModel;
+  const modelNames = {
+    "gpt-5.2": "GPT-5.2",
+    "gpt-4o": "GPT-4o",
+    "gpt-4o-mini": "GPT-4o Mini",
+    "claude-opus-4-6-20250501": "Opus 4.6",
+    "claude-opus-4-5-20251101": "Opus 4.5",
+    "claude-sonnet-4-5-20250514": "Sonnet 4.5",
+    "claude-haiku-4-5-20250514": "Haiku 4.5",
+    "gemini-3-flash-preview": "Gemini 3",
+    "gemini-2.0-flash": "Gemini 2.0",
+    "gemini-1.5-pro": "Gemini 1.5"
+  };
+  return modelNames[model] || model;
+};
 
 export default function HistoryPage() {
   const navigate = useNavigate();
