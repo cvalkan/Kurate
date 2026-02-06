@@ -1195,20 +1195,27 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
         
         # Collect match updates for batch update
         match_updates = []
+        failed_count = 0
         for match, result in zip(batch, results):
             if isinstance(result, Exception):
                 logger.error(f"Match comparison failed: {result}")
-                match['completed'] = True
-                match['winner_id'] = match['paper1_id']
-                match['reasoning'] = "Comparison failed"
+                match['completed'] = False
+                match['failed'] = True
+                match['error'] = str(result)[:200]
+                match['reasoning'] = f"Comparison failed: {str(result)[:100]}"
+                failed_count += 1
             else:
                 winner_key = result.get('winner', 'paper1')
                 match['winner_id'] = match['paper1_id'] if winner_key == 'paper1' else match['paper2_id']
                 match['reasoning'] = result.get('reasoning', '')
                 match['completed'] = True
+                match['failed'] = False
             
             match_updates.append(match)
             completed += 1
+        
+        if failed_count > 0:
+            logger.warning(f"Round robin batch had {failed_count} failed comparisons out of {len(batch)}")
         
         # Update progress - use lightweight update for status only
         progress = int((completed / total) * 100) if total > 0 else 100
@@ -1216,18 +1223,24 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
         
         # Update in-memory progress cache with recent matches (instant, no DB)
         existing_recent = tournament_progress_cache.get(tournament_id, {}).get("recent_matches", [])
+        # Only add successful matches to recent matches display
+        successful_updates = [m for m in match_updates if m.get('completed') and not m.get('failed')]
         recent_matches = (existing_recent + [
             {
                 "paper1_title": paper_lookup[m['paper1_id']]['title'][:60],
                 "paper2_title": paper_lookup[m['paper2_id']]['title'][:60],
                 "winner_title": paper_lookup[m['winner_id']]['title'][:60],
                 "reasoning": m.get('reasoning', '')[:300]
-            } for m in match_updates
+            } for m in successful_updates
         ])[-20:]  # Keep only last 20
+        
+        # Track failed matches count
+        failed_total = sum(1 for m in matches if m.get('failed', False))
+        status_suffix = f" ({failed_total} failed)" if failed_total > 0 else ""
         
         tournament_progress_cache[tournament_id] = {
             "progress": progress,
-            "current_log": f"{mode_label}Completed {completed}/{total} comparisons...",
+            "current_log": f"{mode_label}Completed {completed}/{total} comparisons{status_suffix}...",
             "completed_matches": completed,
             "recent_matches": recent_matches,
             "updated_at": datetime.now(timezone.utc).isoformat()
