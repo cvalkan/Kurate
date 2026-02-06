@@ -185,13 +185,16 @@ export default function AdminPage() {
     }
   };
 
-  const resetPrompt = async () => {
+  const saveSummaryPrompt = async () => {
     try {
-      await axios.delete(`${API}/api/admin/prompt`, { headers: getAdminHeaders() });
-      toast.success("Prompt reset to default");
+      await axios.put(`${API}/api/admin/summary-prompt`, {
+        system_prompt: editSummaryPrompt.system_prompt,
+        user_prompt: editSummaryPrompt.user_prompt,
+      }, { headers: getAdminHeaders() });
+      toast.success("Summary prompt saved");
       fetchAll();
     } catch (err) {
-      toast.error("Reset failed");
+      toast.error("Save failed");
     }
   };
 
