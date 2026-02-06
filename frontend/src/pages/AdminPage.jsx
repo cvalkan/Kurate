@@ -248,13 +248,21 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <span className="block text-foreground font-mono font-medium">{progress.papers_converged}</span>
-                  converged (CI &le; ±15)
+                  converged (CI &le; ±100)
                 </div>
                 <div>
-                  <span className="block text-foreground font-mono font-medium">~{progress.estimated_remaining}</span>
+                  <span className="block text-foreground font-mono font-medium">~{progress.matches_needed_for_min}</span>
                   matches remaining
                 </div>
               </div>
+              {progress.papers_with_pdf !== undefined && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  PDFs downloaded: <span className="font-mono text-foreground">{progress.papers_with_pdf}/{progress.total_papers}</span>
+                  {progress.estimated_rounds > 0 && (
+                    <span className="ml-3">Est. rounds remaining: <span className="font-mono text-foreground">~{progress.estimated_rounds}</span></span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
