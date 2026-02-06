@@ -114,8 +114,8 @@ export default function AdminPage() {
   const triggerCompare = async () => {
     setLoading((l) => ({ ...l, compare: true }));
     try {
-      await axios.post(`${API}/api/admin/compare`, {}, { headers: getAdminHeaders() });
-      toast.success("Comparison round started");
+      const res = await axios.post(`${API}/api/admin/compare`, { num_matches: manualMatches }, { headers: getAdminHeaders() });
+      toast.success(`Started ${res.data.num_matches} comparisons`);
     } catch (err) {
       toast.error("Failed: " + (err.response?.data?.detail || err.message));
     } finally {
