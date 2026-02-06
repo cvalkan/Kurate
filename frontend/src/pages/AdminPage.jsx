@@ -58,20 +58,23 @@ export default function AdminPage() {
   const [loading, setLoading] = useState({ fetch: false, compare: false, settings: false, prompt: false });
   const [activeTab, setActiveTab] = useState("overview");
   const [expandedLogs, setExpandedLogs] = useState(new Set());
+  const [progress, setProgress] = useState(null);
 
   const fetchAll = useCallback(async () => {
     const headers = getAdminHeaders();
     try {
-      const [statusRes, settingsRes, promptRes] = await Promise.all([
+      const [statusRes, settingsRes, promptRes, progressRes] = await Promise.all([
         axios.get(`${API}/api/admin/status`, { headers }),
         axios.get(`${API}/api/admin/settings`, { headers }),
         axios.get(`${API}/api/admin/prompt`, { headers }),
+        axios.get(`${API}/api/admin/progress`, { headers }),
       ]);
       setStatus(statusRes.data);
       setSettings(settingsRes.data.settings);
       setEditSettings(settingsRes.data.settings);
       setPrompt(promptRes.data);
       setEditPrompt(promptRes.data);
+      setProgress(progressRes.data);
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         sessionStorage.removeItem("admin_token");
