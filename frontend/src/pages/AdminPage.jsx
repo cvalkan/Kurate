@@ -298,79 +298,78 @@ export default function AdminPage() {
 
       {/* Settings Tab */}
       {activeTab === "settings" && settings && (
+        <TooltipProvider delayDuration={200}>
         <div className="space-y-6 max-w-lg" data-testid="admin-settings">
           <div className="space-y-4">
             <div>
-              <Label className="text-xs">Fetch Interval (hours)</Label>
-              <Input
-                type="number"
-                value={editSettings.fetch_interval_hours || ""}
-                onChange={(e) => setEditSettings({ ...editSettings, fetch_interval_hours: e.target.value })}
-                data-testid="setting-fetch-interval"
-              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Fetch Interval (hours)</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">How often to check arXiv for new Robotics papers. Default: 24h.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.fetch_interval_hours || ""} onChange={(e) => setEditSettings({ ...editSettings, fetch_interval_hours: e.target.value })} data-testid="setting-fetch-interval" />
             </div>
             <div>
-              <Label className="text-xs">Max Papers Per Fetch</Label>
-              <Input
-                type="number"
-                value={editSettings.max_papers_per_fetch || ""}
-                onChange={(e) => setEditSettings({ ...editSettings, max_papers_per_fetch: e.target.value })}
-                data-testid="setting-max-papers"
-              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Max Papers Per Fetch</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Maximum number of papers to retrieve from arXiv per fetch cycle.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.max_papers_per_fetch || ""} onChange={(e) => setEditSettings({ ...editSettings, max_papers_per_fetch: e.target.value })} data-testid="setting-max-papers" />
             </div>
             <div>
-              <Label className="text-xs">Comparisons Per Round</Label>
-              <Input
-                type="number"
-                value={editSettings.comparisons_per_round || ""}
-                onChange={(e) => setEditSettings({ ...editSettings, comparisons_per_round: e.target.value })}
-                data-testid="setting-comparisons"
-              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Comparisons Per Round</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Number of pairwise LLM comparisons to run each round. Higher = more API calls but faster ranking convergence.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.comparisons_per_round || ""} onChange={(e) => setEditSettings({ ...editSettings, comparisons_per_round: e.target.value })} data-testid="setting-comparisons" />
             </div>
             <div>
-              <Label className="text-xs">Top-K Focus</Label>
-              <Input
-                type="number"
-                value={editSettings.top_k_focus || ""}
-                onChange={(e) => setEditSettings({ ...editSettings, top_k_focus: e.target.value })}
-                data-testid="setting-topk"
-              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Top-K Focus</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">The matchmaker focuses comparisons on papers near this rank boundary to keep the top-K rankings accurate.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.top_k_focus || ""} onChange={(e) => setEditSettings({ ...editSettings, top_k_focus: e.target.value })} data-testid="setting-topk" />
             </div>
             <div>
-              <Label className="text-xs">Exploration Constant (UCB)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={editSettings.exploration_constant || ""}
-                onChange={(e) => setEditSettings({ ...editSettings, exploration_constant: e.target.value })}
-                data-testid="setting-exploration"
-              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Exploration Constant (UCB)</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Controls explore vs exploit tradeoff. Higher values = more exploration of uncertain papers. Standard: 1.414.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" step="0.1" value={editSettings.exploration_constant || ""} onChange={(e) => setEditSettings({ ...editSettings, exploration_constant: e.target.value })} data-testid="setting-exploration" />
             </div>
             <div>
-              <Label className="text-xs">Anchor Comparisons (for new papers)</Label>
-              <Input
-                type="number"
-                value={editSettings.anchor_comparisons || ""}
-                onChange={(e) => setEditSettings({ ...editSettings, anchor_comparisons: e.target.value })}
-                data-testid="setting-anchors"
-              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Anchor Comparisons</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Number of existing ranked papers each new paper is compared against for initial calibration.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.anchor_comparisons || ""} onChange={(e) => setEditSettings({ ...editSettings, anchor_comparisons: e.target.value })} data-testid="setting-anchors" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Min Matches Per Paper</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Minimum number of comparisons each paper must have. Papers below this threshold are prioritized by the matchmaker.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.min_matches_per_paper || ""} onChange={(e) => setEditSettings({ ...editSettings, min_matches_per_paper: e.target.value })} data-testid="setting-min-matches" />
             </div>
             <div className="flex items-center gap-2">
-              <Switch
-                checked={editSettings.auto_process || false}
-                onCheckedChange={(v) => setEditSettings({ ...editSettings, auto_process: v })}
-                data-testid="setting-auto-process"
-              />
-              <Label className="text-xs">Auto Process (run comparisons automatically)</Label>
+              <Switch checked={editSettings.auto_process || false} onCheckedChange={(v) => setEditSettings({ ...editSettings, auto_process: v })} data-testid="setting-auto-process" />
+              <Label className="text-xs">Auto Process</Label>
+              <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+              <TooltipContent side="right"><p className="max-w-52 text-xs">When enabled, automatically runs comparison rounds after each fetch cycle and on schedule.</p></TooltipContent></Tooltip>
             </div>
             <div>
-              <Label className="text-xs">Admin Password</Label>
-              <Input
-                type="password"
-                value={editSettings.admin_password || ""}
-                onChange={(e) => setEditSettings({ ...editSettings, admin_password: e.target.value })}
-                data-testid="setting-password"
-              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Admin Password</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Change the admin panel password. You will need to re-login after changing.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="password" value={editSettings.admin_password || ""} onChange={(e) => setEditSettings({ ...editSettings, admin_password: e.target.value })} data-testid="setting-password" />
             </div>
           </div>
           <Button onClick={saveSettings} disabled={loading.settings} className="gap-2" data-testid="save-settings">
@@ -378,6 +377,7 @@ export default function AdminPage() {
             {loading.settings ? "Saving..." : "Save Settings"}
           </Button>
         </div>
+        </TooltipProvider>
       )}
 
       {/* Prompt Tab */}
