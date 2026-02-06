@@ -237,6 +237,18 @@ export default function HistoryPage() {
                           </Badge>
                         )}
                         
+                        {/* Model Badge */}
+                        {tournament.llm_model && getModelDisplayName(tournament.llm_model) && (
+                          <Badge 
+                            variant="outline" 
+                            className="border-blue-300 text-blue-700 bg-blue-50 flex-shrink-0"
+                            data-testid={`model-badge-${index}`}
+                          >
+                            <Bot className="h-3 w-3 mr-1" />
+                            {getModelDisplayName(tournament.llm_model)}
+                          </Badge>
+                        )}
+                        
                         {/* Progress (for running tournaments) - shown in badge row on mobile */}
                         {tournament.status === 'running' && (
                           <span className="text-sm font-mono font-bold text-accent sm:hidden">
