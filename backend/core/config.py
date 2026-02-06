@@ -77,6 +77,6 @@ DEFAULT_SETTINGS = {
     "exploration_constant": 1.414,
     "anchor_comparisons": 4,
     "min_matches_per_paper": 3,
-    "ci_target": 8,
+    "ci_target": 12,
     "paused": False,
 }
