@@ -125,7 +125,7 @@ async def run_fetch_cycle():
         scheduler_status["current_activity"] = f"Fetched {new_count} new papers"
         logger.info(f"Added {new_count} new papers to DB")
 
-        # Download PDFs for new papers
+        # Download PDFs for new papers (only if not already downloaded in this run)
         if new_count > 0:
             await _download_pending_pdfs()
 
