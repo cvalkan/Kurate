@@ -133,11 +133,13 @@ async def get_admin_status():
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate():
-    """Dual-goal progress: min matches per paper AND CI<100 for top-K."""
+    """Dual-goal progress: min matches per paper AND CI<target for top-K."""
     import math
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     top_k = settings.get("top_k_focus", 10)
+    ci_target = settings.get("ci_target", 200)
+    is_paused = settings.get("paused", False)
 
     all_paper_ids = []
     async for p in db.papers.find({}, {"_id": 0, "id": 1}):
