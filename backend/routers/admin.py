@@ -209,6 +209,63 @@ def _elo_ci(wins, comparisons):
     return 1.96 * se_elo
 
 
+@router.get("/stats", dependencies=[Depends(verify_admin)])
+async def get_usage_stats():
+    """Token usage by model and storage stats."""
+    # Aggregate token usage by model from matches
+    model_stats = {}
+    async for m in db.matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "model_used": 1, "tokens": 1},
+    ):
+        mu = m.get("model_used", {})
+        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        if key not in model_stats:
+            model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+        model_stats[key]["matches"] += 1
+        tokens = m.get("tokens", {})
+        model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
+        model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
+
+    # Calculate total tokens
+    total_input = sum(s["input_tokens"] for s in model_stats.values())
+    total_output = sum(s["output_tokens"] for s in model_stats.values())
+
+    # Storage: estimate full_text sizes via aggregation
+    pipeline = [
+        {"$match": {"full_text": {"$ne": None}}},
+        {"$project": {"text_len": {"$strLenCP": "$full_text"}}},
+        {"$group": {"_id": None, "total_chars": {"$sum": "$text_len"}, "count": {"$sum": 1}}},
+    ]
+    storage_result = await db.papers.aggregate(pipeline).to_list(1)
+    if storage_result:
+        total_chars = storage_result[0]["total_chars"]
+        papers_with_text = storage_result[0]["count"]
+        storage_bytes = total_chars  # ~1 byte per char in UTF-8 for mostly ASCII
+    else:
+        total_chars = 0
+        papers_with_text = 0
+        storage_bytes = 0
+
+    total_papers = await db.papers.count_documents({})
+
+    return {
+        "models": model_stats,
+        "totals": {
+            "input_tokens": total_input,
+            "output_tokens": total_output,
+            "total_tokens": total_input + total_output,
+            "total_matches": sum(s["matches"] for s in model_stats.values()),
+        },
+        "storage": {
+            "papers_with_text": papers_with_text,
+            "total_papers": total_papers,
+            "total_chars": total_chars,
+            "size_mb": round(storage_bytes / (1024 * 1024), 2),
+        },
+    }
+
+
 @router.get("/prompt", dependencies=[Depends(verify_admin)])
 async def get_evaluation_prompt():
     from core.config import DEFAULT_EVALUATION_PROMPT
