@@ -265,19 +265,22 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <div className="space-y-2 mb-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5">
-                      {progress.goal1?.met ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Clock className="h-3 w-3 text-amber-500" />}
-                      <span className={progress.goal1?.met ? "text-green-600" : "text-muted-foreground"}>{progress.goal1?.label}</span>
-                    </div>
-                    <span className="font-mono">{progress.goal1?.papers_done}/{progress.goal1?.papers_total}</span>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    {progress.goal1?.met
+                      ? <><CheckCircle2 className="h-3 w-3 text-green-600" /><span className="text-green-600">{progress.goal1?.label}</span></>
+                      : <><Clock className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">{progress.goal1?.label}</span></>
+                    }
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1.5">
-                      {progress.goal2?.met ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Clock className="h-3 w-3 text-amber-500" />}
-                      <span className={progress.goal2?.met ? "text-green-600" : "text-muted-foreground"}>{progress.goal2?.label}</span>
+                      {progress.goal2?.met
+                        ? <><CheckCircle2 className="h-3 w-3 text-green-600" /><span className="text-green-600">{progress.goal2?.label}</span></>
+                        : <><Clock className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">{progress.goal2?.label}</span></>
+                      }
                     </div>
-                    <span className="font-mono">{progress.goal2?.papers_done}/{progress.goal2?.papers_total}</span>
+                    {!progress.goal2?.met && (
+                      <span className="font-mono text-muted-foreground">{progress.goal2?.done}/{progress.goal2?.total}</span>
+                    )}
                   </div>
                 </div>
               )}
