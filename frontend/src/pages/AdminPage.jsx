@@ -57,6 +57,7 @@ export default function AdminPage() {
   const [editPrompt, setEditPrompt] = useState({});
   const [loading, setLoading] = useState({ fetch: false, compare: false, settings: false, prompt: false });
   const [activeTab, setActiveTab] = useState("overview");
+  const [expandedLogs, setExpandedLogs] = useState(new Set());
 
   const fetchAll = useCallback(async () => {
     const headers = getAdminHeaders();
