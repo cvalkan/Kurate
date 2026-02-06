@@ -85,6 +85,9 @@ def calculate_confidence_interval(wins: int, comparisons: int, confidence_level:
 
 def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     paper_ids = [p["id"] for p in papers]
+    ELO_BASE = 1200
+    ELO_SCALE = 400
+
     if not paper_ids or not matches:
         return [
             {
@@ -95,7 +98,8 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
                 "arxiv_id": p.get("arxiv_id", ""),
                 "link": p.get("link", ""),
                 "published": p.get("published", ""),
-                "bt_score": 1.0,
+                "score": ELO_BASE,
+                "ci": 0,
                 "wins": 0,
                 "losses": 0,
                 "comparisons": 0,
@@ -119,8 +123,32 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
                 stats[loser]["losses"] += 1
                 stats[loser]["comparisons"] += 1
 
+    # Convert BT scores to Elo-like scale (LMArena style)
+    bt_values = [scores.get(pid, 1.0) for pid in paper_ids]
+    geo_mean = math.exp(sum(math.log(max(v, 1e-10)) for v in bt_values) / len(bt_values))
+
+    elo_scores = {}
+    elo_ci = {}
+    for pid in paper_ids:
+        bt = scores.get(pid, 1.0)
+        ratio = bt / max(geo_mean, 1e-10)
+        elo = ELO_SCALE * math.log10(max(ratio, 1e-10)) + ELO_BASE
+        elo_scores[pid] = round(elo)
+
+        # 95% CI in Elo points from win rate variance
+        s = stats.get(pid, {"wins": 0, "comparisons": 0})
+        w, n = s["wins"], s["comparisons"]
+        if n >= 2:
+            p = w / n
+            p = max(0.01, min(0.99, p))  # clamp
+            se_logit = 1.0 / math.sqrt(n * p * (1 - p))
+            se_elo = (ELO_SCALE / math.log(10)) * se_logit
+            elo_ci[pid] = round(1.96 * se_elo)
+        else:
+            elo_ci[pid] = 0
+
     paper_lookup = {p["id"]: p for p in papers}
-    ranked = sorted(paper_ids, key=lambda pid: scores.get(pid, 0), reverse=True)
+    ranked = sorted(paper_ids, key=lambda pid: elo_scores.get(pid, ELO_BASE), reverse=True)
 
     leaderboard = []
     for rank, pid in enumerate(ranked, 1):
@@ -137,7 +165,8 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
             "arxiv_id": p.get("arxiv_id", ""),
             "link": p.get("link", ""),
             "published": p.get("published", ""),
-            "bt_score": round(scores.get(pid, 1.0), 4),
+            "score": elo_scores.get(pid, ELO_BASE),
+            "ci": elo_ci.get(pid, 0),
             "wins": s["wins"],
             "losses": s["losses"],
             "comparisons": s["comparisons"],
