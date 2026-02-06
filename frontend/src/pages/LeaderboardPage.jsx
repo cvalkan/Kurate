@@ -25,6 +25,7 @@ function RankBadge({ rank }) {
 }
 
 export default function LeaderboardPage() {
+  const [allData, setAllData] = useState([]);  // Full leaderboard (all periods)
   const [leaderboard, setLeaderboard] = useState([]);
   const [status, setStatus] = useState(null);
   const [period, setPeriod] = useState("all");
@@ -32,10 +33,27 @@ export default function LeaderboardPage() {
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
 
+  const filterByPeriod = useCallback((data, p) => {
+    if (p === "all" || !data.length) return data;
+    const now = new Date();
+    let cutoff;
+    if (p === "today") cutoff = new Date(now - 24 * 60 * 60 * 1000);
+    else if (p === "week") cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    else if (p === "month") cutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    else return data;
+    const filtered = data.filter(paper => {
+      if (!paper.published) return false;
+      return new Date(paper.published) >= cutoff;
+    });
+    return filtered.map((paper, i) => ({ ...paper, rank: i + 1 }));
+  }, []);
+
   const fetchLeaderboard = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/leaderboard`, { params: { period } });
-      setLeaderboard(res.data.leaderboard || []);
+      const res = await axios.get(`${API}/api/leaderboard`, { params: { period: "all" } });
+      const data = res.data.leaderboard || [];
+      setAllData(data);
+      setLeaderboard(filterByPeriod(data, period));
       setTotalPapers(res.data.total_papers || 0);
       setTotalMatches(res.data.total_matches || 0);
     } catch (err) {
@@ -43,7 +61,14 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, filterByPeriod]);
+
+  // When period changes, filter client-side instantly (no API call)
+  useEffect(() => {
+    if (allData.length) {
+      setLeaderboard(filterByPeriod(allData, period));
+    }
+  }, [period, allData, filterByPeriod]);
 
   const fetchStatus = useCallback(async () => {
     try {
