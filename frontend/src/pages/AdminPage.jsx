@@ -234,7 +234,12 @@ export default function AdminPage() {
           {progress && (
             <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="progress-indicator">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium">Ranking Progress</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium">Ranking Progress</h3>
+                  {progress.paused && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">PAUSED</span>
+                  )}
+                </div>
                 <span className="font-mono text-sm font-bold text-accent">{progress.overall_pct}%</span>
               </div>
 
@@ -246,11 +251,8 @@ export default function AdminPage() {
                     <span className="font-mono text-foreground">{progress.goal1.papers_done}/{progress.goal1.papers_total}</span>
                   </div>
                   <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${progress.goal1.pct}%` }} />
+                    <div className={`h-full rounded-full transition-all duration-500 ${progress.goal1.pct >= 100 ? "bg-green-500" : "bg-accent"}`} style={{ width: `${progress.goal1.pct}%` }} />
                   </div>
-                  {progress.goal1.matches_needed > 0 && (
-                    <div className="text-[10px] text-muted-foreground mt-0.5">~{progress.goal1.matches_needed} matches needed</div>
-                  )}
                 </div>
               )}
 
@@ -270,6 +272,9 @@ export default function AdminPage() {
               {progress.papers_with_pdf !== undefined && (
                 <div className="text-[10px] text-muted-foreground mt-1">
                   PDFs: {progress.papers_with_pdf}/{progress.total_papers} &middot; Matches: {progress.total_matches}
+                  {!progress.paused && progress.overall_pct < 100 && (
+                    <span className="ml-2 text-accent">Running continuously until goals met</span>
+                  )}
                 </div>
               )}
             </div>
