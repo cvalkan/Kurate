@@ -98,7 +98,8 @@ export default function HomePage() {
         num_papers: numPapers,
         parallel_agents: parallelAgents,
         deep_analysis: deepAnalysis,
-        llm_model: selectedModel
+        llm_model: selectedModel,
+        prompt_key: selectedPromptKey
       });
       
       const tournamentId = response.data.tournament.id;
