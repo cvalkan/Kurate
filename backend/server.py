@@ -1114,11 +1114,14 @@ async def run_tournament(tournament_id: str):
 
 async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_lookup: Dict,
                              paper_ids: List[str], ucb_config: Dict, deep_analysis: bool,
-                             parallel_agents: int, llm_model: Dict[str, str] = None):
+                             parallel_agents: int, llm_model: Dict[str, str] = None, prompt_config: Dict = None):
     """Run tournament using UCB algorithm for efficient pair selection with top-k focus"""
     
     if llm_model is None:
         llm_model = DEFAULT_MODEL
+    
+    if prompt_config is None:
+        prompt_config = DEFAULT_PROMPTS[DEFAULT_PROMPT_KEY]
     
     exploration_constant = ucb_config.get('exploration_constant', 1.414)
     min_comparisons = ucb_config.get('min_comparisons_per_paper', 3)
