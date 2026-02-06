@@ -399,16 +399,16 @@ def _select_adaptive_pairs(
     min_matches: int = 3,
 ) -> List[tuple]:
     """
-    Adaptive matchmaking:
-    1. Papers below min_matches get priority
-    2. New papers (0 comparisons) get matched against anchor papers for calibration
-    3. UCB-based selection focuses on top-K boundary
-    4. Periodically re-compare top papers for calibration
+    Adaptive matchmaking with CI-aware top-K targeting:
+    1. Bootstrap: random pairs when all papers are new
+    2. New papers: calibrate against anchors
+    3. Under-min papers: bring up to minimum
+    4. CI narrowing: give extra matches to top-K papers with wide CIs
+    5. UCB exploration for remaining budget
     """
     pairs = []
     paper_ids = [p["id"] for p in papers]
 
-    # Separate new vs existing papers
     new_papers = [pid for pid in paper_ids if stats.get(pid, {}).get("comparisons", 0) == 0]
     under_min = [
         pid for pid in paper_ids
@@ -420,18 +420,10 @@ def _select_adaptive_pairs(
         reverse=True,
     )
 
-    # Bootstrap: if ALL papers are new, do random pairwise comparisons
+    # Bootstrap
     if not ranked_papers and new_papers:
         shuffled = list(new_papers)
         random.shuffle(shuffled)
-        for i in range(0, len(shuffled) - 1, 2):
-            if len(pairs) >= max_pairs:
-                break
-            pair_key = tuple(sorted([shuffled[i], shuffled[i + 1]]))
-            if pair_key not in compared_pairs:
-                pairs.append((shuffled[i], shuffled[i + 1]))
-                compared_pairs.add(pair_key)
-        # Also add some cross-pairs for broader coverage
         for i in range(len(shuffled)):
             for j in range(i + 1, len(shuffled)):
                 if len(pairs) >= max_pairs:
@@ -444,19 +436,11 @@ def _select_adaptive_pairs(
                 break
         return pairs[:max_pairs]
 
-    # Phase 1: Calibrate new papers against anchors
+    # Phase 1: New papers against anchors
     if new_papers and ranked_papers:
-        # Pick anchor papers spread across the ranking
         n_ranked = len(ranked_papers)
-        anchor_indices = []
-        if n_ranked >= anchor_n:
-            step = max(1, n_ranked // anchor_n)
-            anchor_indices = list(range(0, n_ranked, step))[:anchor_n]
-        else:
-            anchor_indices = list(range(n_ranked))
-
-        anchors = [ranked_papers[i] for i in anchor_indices]
-
+        step = max(1, n_ranked // anchor_n) if n_ranked >= anchor_n else 1
+        anchors = [ranked_papers[i] for i in range(0, n_ranked, step)][:anchor_n]
         for new_pid in new_papers:
             for anchor_pid in anchors:
                 pair_key = tuple(sorted([new_pid, anchor_pid]))
@@ -464,7 +448,7 @@ def _select_adaptive_pairs(
                     pairs.append((new_pid, anchor_pid))
                     compared_pairs.add(pair_key)
 
-    # Phase 1b: Bring under-min papers up to minimum matches
+    # Phase 2: Under-min papers
     if under_min and ranked_papers and len(pairs) < max_pairs:
         for pid in under_min:
             needed = min_matches - stats.get(pid, {}).get("comparisons", 0)
@@ -476,63 +460,65 @@ def _select_adaptive_pairs(
                     pairs.append((pid, opp))
                     compared_pairs.add(pair_key)
 
-    # Phase 2: UCB-based selection focusing on top-K boundary
+    # Phase 3: CI narrowing — give top-K papers with widest CIs extra matches
+    if len(pairs) < max_pairs and len(ranked_papers) >= 2:
+        top_k_papers = ranked_papers[:min(top_k, len(ranked_papers))]
+
+        # Sort top-K by CI width (widest first = most needy)
+        top_k_by_ci = sorted(top_k_papers, key=lambda pid: _compute_elo_ci(
+            stats.get(pid, {}).get("wins", 0),
+            stats.get(pid, {}).get("comparisons", 0),
+        ), reverse=True)
+
+        # Give widest-CI papers new opponents (any paper they haven't faced)
+        all_other = [pid for pid in paper_ids if pid not in set(top_k_papers)]
+        random.shuffle(all_other)
+
+        for focus_pid in top_k_by_ci:
+            if len(pairs) >= max_pairs:
+                break
+            # Find opponents this paper hasn't faced yet
+            for opp in all_other + ranked_papers:
+                if opp == focus_pid:
+                    continue
+                pair_key = tuple(sorted([focus_pid, opp]))
+                if pair_key not in compared_pairs and len(pairs) < max_pairs:
+                    pairs.append((focus_pid, opp))
+                    compared_pairs.add(pair_key)
+                    break  # One new opponent per top-K paper per cycle
+
+        # If still budget, also have top-K papers face each other (re-matches allowed)
+        if len(pairs) < max_pairs:
+            random.shuffle(top_k_by_ci)
+            for i in range(len(top_k_by_ci)):
+                for j in range(i + 1, len(top_k_by_ci)):
+                    if len(pairs) >= max_pairs:
+                        break
+                    pairs.append((top_k_by_ci[i], top_k_by_ci[j]))
+                if len(pairs) >= max_pairs:
+                    break
+
+    # Phase 4: UCB exploration for remaining budget
     if len(pairs) < max_pairs and len(ranked_papers) >= 2:
         total_comparisons = sum(s.get("comparisons", 0) for s in stats.values())
-
-        # Papers near top-K boundary get priority
-        boundary_start = max(0, top_k - 3)
-        boundary_end = min(len(ranked_papers), top_k + 5)
-        boundary_papers = set(ranked_papers[boundary_start:boundary_end])
-
-        # Top papers that need more comparisons
-        top_papers = set(ranked_papers[:top_k])
-        priority_papers = boundary_papers | {
-            p for p in top_papers
-            if stats.get(p, {}).get("comparisons", 0) < 6
-        }
-
-        # UCB scores
         ucb_scores = {}
         for pid in paper_ids:
             s = stats.get(pid, {})
-            wins = s.get("wins", 0)
             comps = s.get("comparisons", 0)
             if comps == 0:
                 ucb_scores[pid] = float("inf")
             else:
-                win_rate = wins / comps
-                exploration = exploration_c * math.sqrt(math.log(total_comparisons + 1) / comps)
-                ucb_scores[pid] = win_rate + exploration
+                ucb_scores[pid] = s.get("wins", 0) / comps + exploration_c * math.sqrt(math.log(total_comparisons + 1) / comps)
 
-        # Generate pairs prioritizing boundary papers
-        all_candidates = sorted(paper_ids, key=lambda pid: ucb_scores.get(pid, 0), reverse=True)
-
-        for p1 in priority_papers:
-            for p2 in all_candidates:
-                if p1 == p2:
+        candidates = sorted(paper_ids, key=lambda pid: ucb_scores.get(pid, 0), reverse=True)
+        for p1 in candidates:
+            for p2 in candidates:
+                if p1 >= p2:
                     continue
                 pair_key = tuple(sorted([p1, p2]))
                 if pair_key not in compared_pairs and len(pairs) < max_pairs:
                     pairs.append((p1, p2))
                     compared_pairs.add(pair_key)
-                if len(pairs) >= max_pairs:
-                    break
-            if len(pairs) >= max_pairs:
-                break
-
-    # Phase 3: Re-calibration of top papers (if we still have budget)
-    if len(pairs) < max_pairs and len(ranked_papers) >= 4:
-        top_for_recal = ranked_papers[:min(top_k, len(ranked_papers))]
-        random.shuffle(top_for_recal)
-        for i in range(len(top_for_recal)):
-            for j in range(i + 1, len(top_for_recal)):
-                pair_key = tuple(sorted([top_for_recal[i], top_for_recal[j]]))
-                # Allow re-comparison for calibration (don't check compared_pairs)
-                if len(pairs) < max_pairs:
-                    pairs.append((top_for_recal[i], top_for_recal[j]))
-                if len(pairs) >= max_pairs:
-                    break
             if len(pairs) >= max_pairs:
                 break
 
