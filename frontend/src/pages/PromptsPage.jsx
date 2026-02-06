@@ -11,7 +11,8 @@ import {
   Sparkles,
   Beaker,
   Target,
-  Lightbulb
+  Lightbulb,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
