@@ -1,76 +1,50 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { FlaskConical, History, Home, Search, Settings2 } from "lucide-react";
+import { Trophy, Shield } from "lucide-react";
 
 export default function Navbar() {
   const location = useLocation();
-  
-  const isActive = (path) => {
-    if (path === "/") return location.pathname === "/";
-    return location.pathname.startsWith(path);
-  };
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container-main">
-        <div className="flex h-16 items-center justify-between">
-          <Link 
-            to="/" 
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+      <div className="container mx-auto px-4 md:px-6 max-w-7xl">
+        <div className="flex h-14 items-center justify-between">
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
             data-testid="navbar-logo"
           >
-            <FlaskConical className="h-6 w-6 text-accent" />
-            <span className="font-heading font-semibold text-lg">
+            <Trophy className="h-5 w-5 text-accent" />
+            <span className="font-heading font-semibold text-lg tracking-tight">
               Paper<span className="text-accent">Sumo</span>
+            </span>
+            <span className="hidden sm:inline text-xs text-muted-foreground font-mono border border-border rounded px-1.5 py-0.5">
+              ROBOTICS
             </span>
           </Link>
 
           <div className="flex items-center gap-1">
             <Button
-              variant={isActive("/") ? "secondary" : "ghost"}
+              variant={location.pathname === "/" ? "secondary" : "ghost"}
               size="sm"
               asChild
-              data-testid="nav-home"
+              data-testid="nav-leaderboard"
             >
               <Link to="/" className="flex items-center gap-2">
-                <Home className="h-4 w-4" />
-                <span className="hidden sm:inline">Home</span>
+                <Trophy className="h-4 w-4" />
+                <span className="hidden sm:inline">Leaderboard</span>
               </Link>
             </Button>
 
             <Button
-              variant={isActive("/search") ? "secondary" : "ghost"}
+              variant={location.pathname.startsWith("/admin") ? "secondary" : "ghost"}
               size="sm"
               asChild
-              data-testid="nav-search"
+              data-testid="nav-admin"
             >
-              <Link to="/search" className="flex items-center gap-2">
-                <Search className="h-4 w-4" />
-                <span className="hidden sm:inline">Search</span>
-              </Link>
-            </Button>
-            
-            <Button
-              variant={isActive("/history") ? "secondary" : "ghost"}
-              size="sm"
-              asChild
-              data-testid="nav-history"
-            >
-              <Link to="/history" className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">History</span>
-              </Link>
-            </Button>
-
-            <Button
-              variant={isActive("/prompts") ? "secondary" : "ghost"}
-              size="sm"
-              asChild
-              data-testid="nav-prompts"
-            >
-              <Link to="/prompts" className="flex items-center gap-2">
-                <Settings2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Prompts</span>
+              <Link to="/admin" className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                <span className="hidden sm:inline">Admin</span>
               </Link>
             </Button>
           </div>

@@ -1,12 +1,10 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
-import HomePage from "@/pages/HomePage";
-import SearchPage from "@/pages/SearchPage";
-import TournamentPage from "@/pages/TournamentPage";
-import ResultsPage from "@/pages/ResultsPage";
-import HistoryPage from "@/pages/HistoryPage";
-import PromptsPage from "@/pages/PromptsPage";
+import LeaderboardPage from "@/pages/LeaderboardPage";
+import PaperPage from "@/pages/PaperPage";
+import AdminLoginPage from "@/pages/AdminLoginPage";
+import AdminPage from "@/pages/AdminPage";
 import Navbar from "@/components/Navbar";
 
 function App() {
@@ -16,12 +14,10 @@ function App() {
         <Navbar />
         <main className="pb-12">
           <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/tournament/:id" element={<TournamentPage />} />
-            <Route path="/results/:id" element={<ResultsPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/prompts" element={<PromptsPage />} />
+            <Route path="/" element={<LeaderboardPage />} />
+            <Route path="/paper/:id" element={<PaperPage />} />
+            <Route path="/admin" element={<AdminLoginPage />} />
+            <Route path="/admin/dashboard" element={<AdminPage />} />
           </Routes>
         </main>
         <Toaster position="bottom-right" />
