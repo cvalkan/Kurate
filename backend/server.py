@@ -183,6 +183,7 @@ class TournamentCreate(BaseModel):
     search_query: Optional[str] = None
     ranking_mode: str = "round_robin"  # "round_robin" or "ucb"
     ucb_config: Optional[UCBConfig] = None
+    llm_model: Optional[Dict[str, str]] = None  # {"provider": "openai", "model": "gpt-5.2"}
 
 class CompareRequest(BaseModel):
     paper1: Dict[str, Any]
