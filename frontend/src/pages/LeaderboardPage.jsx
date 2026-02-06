@@ -102,8 +102,8 @@ export default function LeaderboardPage() {
           Robotics Paper Rankings
         </h1>
         <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
-          AI-powered ranking of the latest arXiv Robotics papers, updated daily.
-          Papers are compared using GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.
+          AI-estimated scientific impact ranking of the latest arXiv Robotics papers.
+          Papers are evaluated using full-text analysis by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.
         </p>
       </div>
 
