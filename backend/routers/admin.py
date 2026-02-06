@@ -194,13 +194,12 @@ async def get_progress_estimate():
     for pid in top_k_ids:
         n = paper_match_count[pid]
         w = paper_wins.get(pid, 0)
-        margin = _wilson_margin(w, n)
+        margin = float(_wilson_margin(w, n))
         margin_pct = round(margin * 100, 1)
-        converged = margin_pct <= ci_target
+        converged = bool(margin_pct <= ci_target)
         if converged:
             top_k_converged += 1
         else:
-            # Estimate matches needed: margin ∝ 1/√n, so n_needed ≈ n * (margin_pct/target)²
             if margin_pct > 0 and n > 0:
                 n_needed = max(0, int(n * (margin_pct / ci_target) ** 2) - n)
                 matches_for_goal2 += n_needed // 2 + 1
@@ -208,10 +207,10 @@ async def get_progress_estimate():
                 matches_for_goal2 += 10
         elo_ci = _elo_ci(w, n)
         top_k_details.append({
-            "id": pid, "matches": n, "margin_pct": margin_pct,
-            "elo_ci": round(elo_ci) if elo_ci < 999 else None, "converged": converged,
+            "id": pid, "matches": int(n), "margin_pct": float(margin_pct),
+            "elo_ci": int(round(elo_ci)) if elo_ci < 999 else None, "converged": converged,
         })
-    goal2_met = top_k_converged == len(top_k_ids)
+    goal2_met = bool(top_k_converged == len(top_k_ids))
 
     total_est = matches_for_goal1 + matches_for_goal2
     # Time estimate: ~10s per batch of parallel_agents comparisons
