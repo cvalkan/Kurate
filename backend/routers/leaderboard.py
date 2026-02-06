@@ -78,15 +78,14 @@ async def get_leaderboard(
                 entry["rank"] = i + 1
             global_leaderboard = filtered
 
-    total_matches = len(all_matches)
+    total_matches = cache["total_matches"]
     total_in_period = len(global_leaderboard)
 
-    # Apply pagination
     paginated = global_leaderboard[offset:offset + limit]
 
     return {
         "leaderboard": paginated,
-        "total_papers": len(all_papers),
+        "total_papers": cache["total_papers"],
         "total_in_period": total_in_period,
         "total_matches": total_matches,
         "period": period,
