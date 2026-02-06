@@ -1336,6 +1336,23 @@ async def get_citations(request: CitationRequest):
         logger.warning(f"Failed to fetch citation counts: {e}")
         return {"citations": {}}
 
+@api_router.get("/models")
+async def get_available_models():
+    """Get list of available LLM models for tournaments"""
+    models_list = []
+    for provider, provider_models in AVAILABLE_MODELS.items():
+        for model_id, model_name in provider_models.items():
+            models_list.append({
+                "provider": provider,
+                "model": model_id,
+                "name": model_name,
+                "is_default": provider == DEFAULT_MODEL["provider"] and model_id == DEFAULT_MODEL["model"]
+            })
+    return {
+        "models": models_list,
+        "default": DEFAULT_MODEL
+    }
+
 @api_router.post("/tournaments", response_model=Dict)
 async def create_tournament(config: TournamentCreate, background_tasks: BackgroundTasks):
     """Create a new tournament - either from category or custom paper selection"""
