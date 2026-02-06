@@ -183,7 +183,7 @@ async def get_progress_estimate():
         n = paper_match_count[pid]
         ci = _elo_ci(paper_wins.get(pid, 0), n)
         ci_rounded = round(ci) if ci < 999 else None
-        converged = ci <= 100
+        converged = ci <= ci_target
         if converged:
             top_k_converged += 1
         top_k_details.append({"id": pid, "matches": n, "ci": ci_rounded, "converged": converged})
@@ -198,6 +198,7 @@ async def get_progress_estimate():
         "total_papers": total_papers,
         "total_matches": total_matches_done,
         "papers_with_pdf": papers_with_pdf,
+        "paused": is_paused,
         "goal1": {
             "label": f"Min {min_matches} matches per paper",
             "papers_done": papers_at_min,
@@ -206,7 +207,7 @@ async def get_progress_estimate():
             "matches_needed": matches_for_min,
         },
         "goal2": {
-            "label": f"CI \u2264 \u00b1100 for top-{len(top_k_ids)}",
+            "label": f"CI \u2264 \u00b1{ci_target} for top-{len(top_k_ids)}",
             "papers_done": top_k_converged,
             "papers_total": len(top_k_ids),
             "pct": goal2_pct,
