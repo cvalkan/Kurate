@@ -153,21 +153,30 @@ async def get_paper_detail(paper_id: str):
     }
 
 
+_status_cache = {"data": None, "ts": 0}
+
+
 @router.get("/status")
 async def get_system_status():
     from services.scheduler import scheduler_status
 
-    total_papers = await db.papers.count_documents({})
-    total_matches = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
-    failed_matches = await db.matches.count_documents({"failed": True})
+    now = time.time()
+    if _status_cache["data"] is None or now - _status_cache["ts"] > 10:
+        total_papers = await db.papers.count_documents({})
+        total_matches = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
+        failed_matches = await db.matches.count_documents({"failed": True})
+        _status_cache["data"] = {
+            "total_papers": total_papers,
+            "total_matches": total_matches,
+            "failed_matches": failed_matches,
+        }
+        _status_cache["ts"] = now
 
-    settings = await db.settings.find_one({"key": "global"}, {"_id": 0, "admin_password": 0})
-
+    cached = _status_cache["data"]
     return {
-        "total_papers": total_papers,
-        "total_matches": total_matches,
-        "failed_matches": failed_matches,
+        **cached,
         "scheduler": scheduler_status,
+    }
         "settings": settings,
     }
 
