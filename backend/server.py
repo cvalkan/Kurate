@@ -1049,33 +1049,41 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         
         # Process results and collect new matches
         new_matches = []
+        failed_count = 0
         for (p1_id, p2_id), result in zip(batch_pairs, results):
             match = {
                 'id': str(uuid.uuid4()),
                 'paper1_id': p1_id,
                 'paper2_id': p2_id,
-                'completed': True,
                 'round_num': total_comparisons // parallel_agents + 1
             }
             
             if isinstance(result, Exception):
                 logger.error(f"UCB comparison failed: {result}")
-                match['winner_id'] = p1_id
-                match['reasoning'] = "Comparison failed"
+                match['completed'] = False
+                match['failed'] = True
+                match['error'] = str(result)[:200]
+                match['reasoning'] = f"Comparison failed: {str(result)[:100]}"
+                failed_count += 1
             else:
+                match['completed'] = True
+                match['failed'] = False
                 winner_key = result.get('winner', 'paper1')
                 match['winner_id'] = p1_id if winner_key == 'paper1' else p2_id
                 match['reasoning'] = result.get('reasoning', '')
+                
+                # Only update stats for successful comparisons
+                winner_id = match['winner_id']
+                paper_stats[winner_id]['wins'] += 1
+                paper_stats[p1_id]['comparisons'] += 1
+                paper_stats[p2_id]['comparisons'] += 1
             
             matches.append(match)
             new_matches.append(match)
-            
-            # Update stats
-            winner_id = match['winner_id']
-            paper_stats[winner_id]['wins'] += 1
-            paper_stats[p1_id]['comparisons'] += 1
-            paper_stats[p2_id]['comparisons'] += 1
             total_comparisons += 1
+        
+        if failed_count > 0:
+            logger.warning(f"UCB round had {failed_count} failed comparisons out of {len(batch_pairs)}")
         
         # Update UCB scores and confidence intervals
         for pid in paper_ids:
