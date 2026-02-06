@@ -196,7 +196,7 @@ export default function LeaderboardPage() {
 
       {/* Footer Info */}
       <div className="mt-6 text-center text-xs text-muted-foreground">
-        Rankings computed using Bradley-Terry model with Wilson confidence intervals.
+        Elo-style ratings from Bradley-Terry model with 95% confidence intervals.
         Papers compared using full-text deep analysis.
       </div>
     </div>
