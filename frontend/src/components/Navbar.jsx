@@ -49,6 +49,18 @@ export default function Navbar() {
             </Button>
 
             <Button
+              variant={location.pathname === "/methodology" ? "secondary" : "ghost"}
+              size="sm"
+              asChild
+              data-testid="nav-methodology"
+            >
+              <Link to="/methodology" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                <span className="hidden sm:inline">Methodology</span>
+              </Link>
+            </Button>
+
+            <Button
               variant={location.pathname.startsWith("/admin") ? "secondary" : "ghost"}
               size="sm"
               asChild
