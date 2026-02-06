@@ -89,7 +89,7 @@ export default function MethodologyPage() {
 
       <div className="mt-4 p-4 bg-secondary/30 rounded-lg border border-border text-xs text-muted-foreground">
         <p className="font-medium text-foreground mb-1">Limitations</p>
-        <p>AI-based evaluation is an approximation of expert judgment, not a replacement. Rankings may differ from human expert consensus. The system evaluates papers based on available text content, which may miss contributions that require domain-specific expertise to fully appreciate. Using multiple models mitigates individual model biases but cannot eliminate them entirely.</p>
+        <p>AI-based evaluation is an approximation of scientific impact, not a replacement for human peer review. Rankings reflect the consensus of three large language models evaluating papers across five impact dimensions. The system evaluates papers based on available text content, which may miss contributions that require deep domain-specific expertise to fully appreciate. Using multiple models mitigates individual model biases but cannot eliminate them entirely.</p>
       </div>
     </div>
   );
