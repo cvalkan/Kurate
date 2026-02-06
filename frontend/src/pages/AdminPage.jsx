@@ -227,6 +227,37 @@ export default function AdminPage() {
             <StatCard label="Unranked" value={status.unranked_papers} icon={Activity} />
           </div>
 
+          {/* Progress Indicator */}
+          {progress && (
+            <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="progress-indicator">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium">Ranking Progress</h3>
+                <span className="font-mono text-sm font-bold text-accent">{progress.progress_pct}%</span>
+              </div>
+              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+                <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${progress.progress_pct}%` }} />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
+                <div>
+                  <span className="block text-foreground font-mono font-medium">{progress.papers_at_min_matches}/{progress.total_papers}</span>
+                  at min matches ({progress.min_matches_setting})
+                </div>
+                <div>
+                  <span className="block text-foreground font-mono font-medium">{progress.papers_below_min_matches}</span>
+                  below minimum
+                </div>
+                <div>
+                  <span className="block text-foreground font-mono font-medium">{progress.papers_converged}</span>
+                  converged (CI &le; ±15)
+                </div>
+                <div>
+                  <span className="block text-foreground font-mono font-medium">~{progress.estimated_remaining}</span>
+                  matches remaining
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex flex-wrap gap-3">
             <Button onClick={triggerFetch} disabled={loading.fetch || isProcessing} className="gap-2" data-testid="trigger-fetch">
