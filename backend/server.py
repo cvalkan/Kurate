@@ -1261,8 +1261,17 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
     scores = calculate_bradley_terry(matches, paper_ids)
     rankings = create_rankings(scores, paper_lookup)
     
+    # Count successful vs failed matches
+    successful_matches = [m for m in matches if m.get('completed') and not m.get('failed')]
+    failed_matches = [m for m in matches if m.get('failed')]
+    
     # Clean papers (remove full_text)
     papers_clean = [{k: v for k, v in p.items() if k != 'full_text'} for p in papers]
+    
+    # Build completion message
+    completion_msg = f"Round Robin completed! {len(successful_matches)} successful comparisons"
+    if failed_matches:
+        completion_msg += f" ({len(failed_matches)} failed)"
     
     # Final update with all data
     await db.tournaments.update_one(
@@ -1275,14 +1284,16 @@ async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], pap
             "scores": {k: round(v, 4) for k, v in scores.items()},
             "progress": 100,
             "total_matches": len(matches),
+            "successful_matches": len(successful_matches),
+            "failed_matches": len(failed_matches),
             "completed_at": datetime.now(timezone.utc).isoformat(),
-            "current_log": f"Round Robin completed! {len(matches)} comparisons"
+            "current_log": completion_msg
         }}
     )
     
     # Clean up in-memory cache
     tournament_progress_cache.pop(tournament_id, None)
-    logger.info(f"Tournament {tournament_id} completed successfully")
+    logger.info(f"Tournament {tournament_id} completed: {len(successful_matches)} successful, {len(failed_matches)} failed")
 
 # API Routes
 @api_router.get("/")
