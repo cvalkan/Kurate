@@ -363,6 +363,18 @@ def _select_adaptive_pairs(
                     pairs.append((new_pid, anchor_pid))
                     compared_pairs.add(pair_key)
 
+    # Phase 1b: Bring under-min papers up to minimum matches
+    if under_min and ranked_papers and len(pairs) < max_pairs:
+        for pid in under_min:
+            needed = min_matches - stats.get(pid, {}).get("comparisons", 0)
+            opponents = [r for r in ranked_papers if r != pid]
+            random.shuffle(opponents)
+            for opp in opponents[:needed]:
+                pair_key = tuple(sorted([pid, opp]))
+                if pair_key not in compared_pairs and len(pairs) < max_pairs:
+                    pairs.append((pid, opp))
+                    compared_pairs.add(pair_key)
+
     # Phase 2: UCB-based selection focusing on top-K boundary
     if len(pairs) < max_pairs and len(ranked_papers) >= 2:
         total_comparisons = sum(s.get("comparisons", 0) for s in stats.values())
