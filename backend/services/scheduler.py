@@ -396,6 +396,107 @@ async def run_comparison_round(max_pairs_override=None):
             scheduler_status["is_processing"] = False
 
 
+async def _generate_pending_summaries():
+    """Generate impact summaries for converged papers that don't have one yet."""
+    from services.llm import generate_impact_summary
+    from routers.admin import _wilson_margin
+
+    settings = await get_settings()
+    ci_target = settings.get("ci_target", 12)
+    max_matches = settings.get("max_matches_per_paper", 150)
+    top_k = settings.get("top_k_focus", 10)
+
+    # Find papers that are converged but have no summary
+    # A paper is converged if Wilson margin ≤ target OR matches ≥ max cap
+    all_papers = await db.papers.find(
+        {"impact_summary": {"$exists": False}},
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1},
+    ).to_list(100)
+
+    if not all_papers:
+        # Also check papers with null summary
+        all_papers = await db.papers.find(
+            {"impact_summary": None},
+            {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1},
+        ).to_list(100)
+
+    if not all_papers:
+        return
+
+    # Get match counts
+    paper_ids = [p["id"] for p in all_papers]
+    paper_match_count = {pid: 0 for pid in paper_ids}
+    paper_wins = {pid: 0 for pid in paper_ids}
+    async for m in db.matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ):
+        for pid in [m["paper1_id"], m["paper2_id"]]:
+            if pid in paper_match_count:
+                paper_match_count[pid] += 1
+        w = m.get("winner_id")
+        if w and w in paper_wins:
+            paper_wins[w] += 1
+
+    for paper in all_papers:
+        pid = paper["id"]
+        n = paper_match_count.get(pid, 0)
+        w = paper_wins.get(pid, 0)
+
+        if n < 3:
+            continue  # Not enough data
+
+        margin = float(_wilson_margin(w, n)) * 100
+        is_converged = margin <= ci_target or n >= max_matches
+
+        if not is_converged:
+            continue
+
+        # Get match logs for this paper
+        matches = await db.matches.find(
+            {"completed": True, "failed": {"$ne": True},
+             "$or": [{"paper1_id": pid}, {"paper2_id": pid}]},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "reasoning": 1},
+        ).to_list(500)
+
+        # Get opponent titles
+        opp_ids = set()
+        for m in matches:
+            opp_ids.add(m["paper2_id"] if m["paper1_id"] == pid else m["paper1_id"])
+        opp_titles = {}
+        async for o in db.papers.find({"id": {"$in": list(opp_ids)}}, {"_id": 0, "id": 1, "title": 1}):
+            opp_titles[o["id"]] = o["title"]
+
+        logs = []
+        for m in matches:
+            opp_id = m["paper2_id"] if m["paper1_id"] == pid else m["paper1_id"]
+            logs.append({
+                "won": m.get("winner_id") == pid,
+                "opponent_title": opp_titles.get(opp_id, "Unknown"),
+                "reasoning": m.get("reasoning", ""),
+            })
+
+        scheduler_status["current_activity"] = f"Generating summary: {paper['title'][:40]}..."
+        logger.info(f"Generating impact summary for: {paper['title'][:50]}")
+
+        summary = await generate_impact_summary(paper, logs)
+        if summary:
+            await db.papers.update_one(
+                {"id": pid},
+                {"$set": {"impact_summary": summary, "summary_generated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+            logger.info(f"Summary generated for {pid}")
+        else:
+            # Mark as attempted so we don't retry every round
+            await db.papers.update_one(
+                {"id": pid},
+                {"$set": {"impact_summary": None, "summary_generated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+
+        await asyncio.sleep(1)  # Rate limit
+
+
+
 def _select_adaptive_pairs(
     papers: list, stats: dict, compared_pairs: set,
     max_pairs: int, top_k: int, exploration_c: float, anchor_n: int,
