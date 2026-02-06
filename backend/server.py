@@ -467,8 +467,15 @@ def parse_arxiv_response(xml_text: str) -> List[Paper]:
     
     return papers
 
-async def compare_papers_llm(paper1: Dict, paper2: Dict, deep_analysis: bool = False) -> Dict:
+async def compare_papers_llm(paper1: Dict, paper2: Dict, deep_analysis: bool = False, llm_model: Dict[str, str] = None) -> Dict:
     """Use LLM to compare two papers for scientific impact"""
+    
+    # Use provided model or default
+    if llm_model is None:
+        llm_model = DEFAULT_MODEL
+    
+    provider = llm_model.get("provider", "openai")
+    model = llm_model.get("model", "gpt-5.2")
     
     if deep_analysis:
         # Deep analysis mode - use full paper content
