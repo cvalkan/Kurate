@@ -28,30 +28,25 @@ Build a platform that automatically downloads new Robotics papers from arXiv dai
 - Full paper PDF deep analysis (consolidated download pipeline)
 - Adaptive UCB matchmaking with min-matches, top-K focus, anchor calibration
 - Configurable parallel agents (1-20, default 5)
-- Token usage tracking by model + storage stats
+- Token usage tracking by model (input/output) with cost estimation
+- Dual-goal progress: min matches per paper + CI convergence for top-K
 - Date filtering (Today/Week/Month/All) with global scores
 - Admin panel: settings with tooltips, expandable logs, progress indicator, usage stats
 
-## Settings (configurable via Admin)
-- `fetch_interval_hours` (24) - How often to check arXiv
-- `max_papers_per_fetch` (50) - Papers per fetch
-- `comparisons_per_round` (20) - Comparisons per round
-- `parallel_agents` (5) - Concurrent LLM calls (1-20)
-- `top_k_focus` (10) - UCB top-K boundary
-- `exploration_constant` (1.414) - UCB explore/exploit
-- `anchor_comparisons` (4) - Anchors for new papers
-- `min_matches_per_paper` (3) - Minimum matches threshold
-- `auto_process` (true) - Auto-run comparisons
+## API Pricing (per 1M tokens)
+- GPT-5.2: $1.75 input / $14.00 output
+- Claude Opus 4.5: $5.00 input / $25.00 output
+- Gemini 3 Pro: $2.00 input / $12.00 output
 
 ## What's Been Implemented
 - [Feb 2026] Complete rebuild from PaperSumo → automated leaderboard
 - [Feb 2026] Modular backend, background scheduler, adaptive matchmaking
-- [Feb 2026] Multi-model random selection (GPT 5.2, Claude Opus 4.5, Gemini 3 Pro)
+- [Feb 2026] Multi-model random selection with token tracking
 - [Feb 2026] LMArena-style Elo scores with 95% CI (±N format)
 - [Feb 2026] Full PDF deep analysis (consolidated download pipeline)
-- [Feb 2026] Token usage tracking by model + storage stats in admin
+- [Feb 2026] Token usage stats: input/output by model + estimated cost
+- [Feb 2026] Dual-goal progress bar: min matches + CI convergence for top-K
 - [Feb 2026] Configurable parallel agents (1-20)
-- [Feb 2026] Efficiency: no redundant PDF downloads, deduped DB queries
 
 ## Backlog
 - P1: Historical ranking trends (paper rank over time)
