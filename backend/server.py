@@ -269,6 +269,8 @@ class Tournament(BaseModel):
     ranking_mode: str = "round_robin"  # "round_robin" or "ucb"
     ucb_config: Optional[Dict[str, Any]] = None
     llm_model: Dict[str, str] = Field(default_factory=lambda: {"provider": "openai", "model": "gpt-5.2"})
+    prompt_key: str = "scientific_impact"  # Key from DEFAULT_PROMPTS
+    custom_prompt: Optional[Dict[str, str]] = None  # Custom system_prompt and user_prompt
     status: str = "pending"
     papers: List[Dict[str, Any]] = []
     matches: List[Dict[str, Any]] = []
@@ -292,6 +294,8 @@ class TournamentCreate(BaseModel):
     ranking_mode: str = "round_robin"  # "round_robin" or "ucb"
     ucb_config: Optional[UCBConfig] = None
     llm_model: Optional[Dict[str, str]] = None  # {"provider": "openai", "model": "gpt-5.2"}
+    prompt_key: Optional[str] = None  # Key from DEFAULT_PROMPTS
+    custom_prompt: Optional[Dict[str, str]] = None  # Custom system_prompt and user_prompt
 
 class CompareRequest(BaseModel):
     paper1: Dict[str, Any]
