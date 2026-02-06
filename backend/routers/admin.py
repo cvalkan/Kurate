@@ -75,11 +75,16 @@ async def toggle_pause():
     return {"paused": new_state}
 
 
+class ManualCompareRequest(BaseModel):
+    num_matches: int = 50
+
+
 @router.post("/compare", dependencies=[Depends(verify_admin)])
-async def trigger_comparison():
+async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()):
     import asyncio
-    asyncio.create_task(run_comparison_round())
-    return {"status": "started", "message": "Comparison round started in background"}
+    num = min(max(body.num_matches, 1), 500)
+    asyncio.create_task(run_comparison_round(max_pairs_override=num))
+    return {"status": "started", "num_matches": num}
 
 
 @router.get("/status", dependencies=[Depends(verify_admin)])
