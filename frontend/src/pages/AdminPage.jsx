@@ -483,11 +483,19 @@ export default function AdminPage() {
               </div>
               <Input type="number" value={editSettings.min_matches_per_paper || ""} onChange={(e) => setEditSettings({ ...editSettings, min_matches_per_paper: e.target.value })} data-testid="setting-min-matches" />
             </div>
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">CI Target (±Elo)</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Target confidence interval for top-K papers. The system runs comparisons until all top-K papers reach this CI. Lower = more matches needed.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.ci_target || ""} onChange={(e) => setEditSettings({ ...editSettings, ci_target: e.target.value })} data-testid="setting-ci-target" />
+            </div>
             <div className="flex items-center gap-2">
-              <Switch checked={editSettings.auto_process || false} onCheckedChange={(v) => setEditSettings({ ...editSettings, auto_process: v })} data-testid="setting-auto-process" />
-              <Label className="text-xs">Auto Process</Label>
+              <Switch checked={editSettings.paused || false} onCheckedChange={(v) => setEditSettings({ ...editSettings, paused: v })} data-testid="setting-paused" />
+              <Label className="text-xs">Paused</Label>
               <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-              <TooltipContent side="right"><p className="max-w-52 text-xs">When enabled, automatically runs comparison rounds after each fetch cycle and on schedule.</p></TooltipContent></Tooltip>
+              <TooltipContent side="right"><p className="max-w-52 text-xs">When enabled, stops all automatic comparison rounds. The system normally runs continuously until both goals (min matches + CI target) are met.</p></TooltipContent></Tooltip>
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
