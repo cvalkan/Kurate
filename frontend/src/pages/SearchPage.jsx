@@ -556,6 +556,37 @@ export default function SearchPage() {
                   </Select>
                 </div>
 
+                {/* Evaluation Prompt Selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Evaluation Criteria</Label>
+                  <Select
+                    value={selectedPromptKey}
+                    onValueChange={setSelectedPromptKey}
+                    data-testid="prompt-selector"
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Select evaluation criteria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availablePrompts.map((p) => (
+                        <SelectItem key={p.key} value={p.key}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{p.name}</span>
+                            {p.is_default && (
+                              <Badge variant="outline" className="text-[10px] py-0 h-4">Default</Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedPromptKey && availablePrompts.find(p => p.key === selectedPromptKey) && (
+                    <p className="text-xs text-muted-foreground">
+                      {availablePrompts.find(p => p.key === selectedPromptKey)?.description}
+                    </p>
+                  )}
+                </div>
+
                 {/* UCB Mode */}
                 <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
                   <div className="flex items-center gap-2">
