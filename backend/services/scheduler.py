@@ -260,14 +260,12 @@ async def run_comparison_round():
 
         try:
             settings = await get_settings()
-            comparisons_per_round = settings.get("comparisons_per_round", 20)
             parallel_agents = min(max(settings.get("parallel_agents", 5), 1), 20)
             top_k_focus = settings.get("top_k_focus", 10)
             exploration_constant = settings.get("exploration_constant", 1.414)
             anchor_comparisons = settings.get("anchor_comparisons", 4)
             min_matches_per_paper = settings.get("min_matches_per_paper", 3)
 
-            # Load evaluation prompt (custom from DB if exists, else default)
             from core.config import DEFAULT_EVALUATION_PROMPT
             custom_prompt_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
             if custom_prompt_doc:
@@ -284,27 +282,24 @@ async def run_comparison_round():
             ).to_list(5000)
 
             if len(all_papers) < 2:
-                scheduler_status["current_activity"] = "Not enough papers for comparisons"
+                scheduler_status["current_activity"] = "Not enough papers"
                 return {"status": "not_enough_papers"}
 
-            # Download any missing PDFs before comparing (uses shared function)
+            # Download any missing PDFs
             papers_missing_text = sum(1 for p in all_papers if not p.get("full_text"))
             if papers_missing_text > 0:
                 dl_count = await _download_pending_pdfs()
                 if dl_count > 0:
-                    # Reload papers with fresh full_text
                     all_papers = await db.papers.find(
                         {}, {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
                              "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1}
                     ).to_list(5000)
 
-            # Get all completed matches
             all_matches = await db.matches.find(
                 {"completed": True, "failed": {"$ne": True}},
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
             ).to_list(100000)
 
-            # Build stats
             paper_stats = {}
             for p in all_papers:
                 paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0}
@@ -324,22 +319,23 @@ async def run_comparison_round():
             for m in all_matches:
                 compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
 
-            # Generate match pairs using adaptive matchmaking
+            # Generate as many useful pairs as the matchmaker finds (cap at 100)
+            max_pairs = min(100, len(all_papers) * 2)
             pairs = _select_adaptive_pairs(
                 all_papers, paper_stats, compared_pairs,
-                comparisons_per_round, top_k_focus, exploration_constant, anchor_comparisons,
+                max_pairs, top_k_focus, exploration_constant, anchor_comparisons,
                 min_matches_per_paper,
             )
 
             if not pairs:
-                scheduler_status["current_activity"] = "No new pairs to compare"
+                scheduler_status["current_activity"] = "No new pairs needed"
                 return {"status": "no_pairs"}
 
             paper_lookup = {p["id"]: p for p in all_papers}
             completed = 0
             failed = 0
+            total_matches = len(all_matches)
 
-            # Run comparisons in parallel batches (configurable)
             for i in range(0, len(pairs), parallel_agents):
                 batch = pairs[i:i + parallel_agents]
                 tasks = []
@@ -374,12 +370,12 @@ async def run_comparison_round():
 
                     await db.matches.insert_one(match_doc)
 
-                scheduler_status["current_activity"] = f"Comparing: {completed + failed}/{len(pairs)} done"
+                scheduler_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
                 await asyncio.sleep(0.5)
 
             now_iso = datetime.now(timezone.utc).isoformat()
             scheduler_status["last_process_at"] = now_iso
-            scheduler_status["current_activity"] = f"Round complete: {completed} comparisons ({failed} failed)"
+            scheduler_status["current_activity"] = f"{total_matches + completed} total matches"
             logger.info(f"Comparison round: {completed} ok, {failed} failed")
 
             return {"status": "ok", "completed": completed, "failed": failed}
