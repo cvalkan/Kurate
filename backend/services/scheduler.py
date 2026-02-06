@@ -482,7 +482,7 @@ async def _generate_pending_summaries():
         scheduler_status["current_activity"] = f"Generating summary: {paper['title'][:40]}..."
         logger.info(f"Generating impact summary for: {paper['title'][:50]}")
 
-        summary = await generate_impact_summary(paper, logs)
+        summary = await generate_impact_summary(paper, logs, summary_prompt)
         if summary:
             await db.papers.update_one(
                 {"id": pid},
