@@ -21,7 +21,8 @@ class SettingsUpdate(BaseModel):
     exploration_constant: Optional[float] = None
     anchor_comparisons: Optional[int] = None
     min_matches_per_paper: Optional[int] = None
-    auto_process: Optional[bool] = None
+    ci_target: Optional[int] = None
+    paused: Optional[bool] = None
     admin_password: Optional[str] = None
 
 
