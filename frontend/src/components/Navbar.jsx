@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Trophy, Shield, BarChart3 } from "lucide-react";
+import { Trophy, Shield, BarChart3, BookOpen } from "lucide-react";
 
 export default function Navbar() {
   const location = useLocation();
