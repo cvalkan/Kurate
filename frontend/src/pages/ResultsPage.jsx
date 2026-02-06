@@ -229,6 +229,10 @@ export default function ResultsPage() {
               UCB Mode
             </Badge>
           )}
+          <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50" data-testid="model-badge">
+            <Bot className="h-3 w-3 mr-1" />
+            {getModelDisplayName(tournament.llm_model)}
+          </Badge>
         </div>
       </div>
 
