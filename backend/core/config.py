@@ -76,5 +76,6 @@ DEFAULT_SETTINGS = {
     "top_k_focus": 10,
     "exploration_constant": 1.414,
     "anchor_comparisons": 4,
+    "min_matches_per_paper": 3,
     "auto_process": True,
 }
