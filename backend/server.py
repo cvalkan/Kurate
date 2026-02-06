@@ -947,12 +947,12 @@ async def run_tournament(tournament_id: str):
         if ranking_mode == "ucb":
             # UCB Mode - intelligent pair selection
             await run_ucb_tournament(tournament_id, papers, paper_lookup, paper_ids, 
-                                     ucb_config, deep_analysis, effective_parallel)
+                                     ucb_config, deep_analysis, effective_parallel, llm_model)
         else:
             # Round Robin Mode - all pairs
             matches = tournament_doc['matches']
             await run_round_robin_tournament(tournament_id, papers, paper_lookup, paper_ids,
-                                            matches, deep_analysis, effective_parallel)
+                                            matches, deep_analysis, effective_parallel, llm_model)
         
     except Exception as e:
         logger.error(f"Tournament {tournament_id} failed: {e}")
