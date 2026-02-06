@@ -304,15 +304,26 @@ export default function AdminPage() {
           )}
 
           {/* Actions */}
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={triggerFetch} disabled={loading.fetch || isProcessing} className="gap-2" data-testid="trigger-fetch">
               <RefreshCw className={`h-4 w-4 ${loading.fetch ? "animate-spin" : ""}`} />
               {loading.fetch ? "Fetching..." : "Fetch Papers"}
             </Button>
-            <Button onClick={triggerCompare} disabled={loading.compare || isProcessing} variant="outline" className="gap-2" data-testid="trigger-compare">
-              <Swords className={`h-4 w-4 ${loading.compare ? "animate-spin" : ""}`} />
-              {loading.compare ? "Starting..." : "Run Comparison Round"}
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                min="1"
+                max="500"
+                value={manualMatches}
+                onChange={(e) => setManualMatches(Math.min(500, Math.max(1, Number(e.target.value) || 50)))}
+                className="w-20 h-10 text-center font-mono text-sm"
+                data-testid="manual-matches-input"
+              />
+              <Button onClick={triggerCompare} disabled={loading.compare || isProcessing} variant="outline" className="gap-2" data-testid="trigger-compare">
+                <Swords className={`h-4 w-4 ${loading.compare ? "animate-spin" : ""}`} />
+                {loading.compare ? "Starting..." : "Run Matches"}
+              </Button>
+            </div>
           </div>
 
           {/* Scheduler Status */}
@@ -325,9 +336,10 @@ export default function AdminPage() {
                   <div>Last Fetch: <span className="font-mono text-foreground">{new Date(status.scheduler.last_fetch_at).toLocaleString()}</span></div>
                 )}
                 {status.scheduler.next_fetch_at && (
-                  <div>Next Fetch: <span className="font-mono text-foreground">{new Date(status.scheduler.next_fetch_at).toLocaleString()}</span></div>
+                  <div>Next arXiv Fetch: <span className="font-mono text-foreground">{new Date(status.scheduler.next_fetch_at).toLocaleString()}</span></div>
                 )}
                 <div>Processing: <span className="font-mono text-foreground">{isProcessing ? "Yes" : "No"}</span></div>
+                <div className="md:col-span-2 text-[10px] text-muted-foreground/60">Scheduler checks every 5 min whether the fetch interval has elapsed</div>
               </div>
             </div>
           )}
