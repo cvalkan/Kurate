@@ -293,7 +293,6 @@ async def get_usage_stats():
             "size_mb": round(total_chars / (1024 * 1024), 2),
         },
     }
-    }
 
 
 @router.get("/prompt", dependencies=[Depends(verify_admin)])
