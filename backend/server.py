@@ -1439,6 +1439,24 @@ async def get_categories():
     """Get all available arXiv categories"""
     return {"categories": [{"id": k, "name": v} for k, v in ARXIV_CATEGORIES.items()]}
 
+@api_router.get("/prompts")
+async def get_available_prompts():
+    """Get list of available comparison prompts"""
+    prompts_list = []
+    for key, prompt in DEFAULT_PROMPTS.items():
+        prompts_list.append({
+            "key": key,
+            "name": prompt["name"],
+            "description": prompt["description"],
+            "system_prompt": prompt["system_prompt"],
+            "user_prompt": prompt["user_prompt"],
+            "is_default": key == DEFAULT_PROMPT_KEY
+        })
+    return {
+        "prompts": prompts_list,
+        "default": DEFAULT_PROMPT_KEY
+    }
+
 @api_router.post("/papers/fetch")
 async def fetch_papers(config: TournamentConfig):
     """Fetch papers from arXiv for a specific category"""
