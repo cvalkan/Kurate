@@ -53,7 +53,7 @@ async def get_leaderboard(
     if period and period != "all":
         now = datetime.now(timezone.utc)
         if period == "today":
-            cutoff = now - timedelta(days=1)
+            cutoff = now - timedelta(days=2)
         elif period == "week":
             cutoff = now - timedelta(weeks=1)
         elif period == "month":
