@@ -1112,26 +1112,33 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
         else:
             status_msg = f"UCB: {total_comparisons} comparisons (exploring {'high uncertainty' if total_comparisons < n*2 else 'refinement'})"
         
+        # Track failed matches count
+        failed_total = sum(1 for m in matches if m.get('failed', False))
+        if failed_total > 0:
+            status_msg += f" ({failed_total} failed)"
+        
         # DON'T write to main tournament collection during execution
         # This avoids MongoDB contention that blocks other queries
         # All data will be saved at completion
         
         # Update in-memory progress cache with recent matches (instant, no DB)
-        # Keep last 20 matches for live log display
+        # Keep last 20 matches for live log display - only successful ones
         existing_recent = tournament_progress_cache.get(tournament_id, {}).get("recent_matches", [])
+        successful_matches = [m for m in new_matches if m.get('completed') and not m.get('failed') and m.get('winner_id')]
         recent_matches = (existing_recent + [
             {
                 "paper1_title": paper_lookup[m['paper1_id']]['title'][:60],
                 "paper2_title": paper_lookup[m['paper2_id']]['title'][:60],
                 "winner_title": paper_lookup[m['winner_id']]['title'][:60],
                 "reasoning": m.get('reasoning', '')[:300]
-            } for m in new_matches
+            } for m in successful_matches
         ])[-20:]  # Keep only last 20
         
         tournament_progress_cache[tournament_id] = {
             "progress": progress,
             "current_log": status_msg,
             "completed_matches": total_comparisons,
+            "failed_matches": failed_total,
             "recent_matches": recent_matches,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
