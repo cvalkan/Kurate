@@ -86,7 +86,6 @@ def calculate_confidence_interval(wins: int, comparisons: int, confidence_level:
 def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     paper_ids = [p["id"] for p in papers]
     ELO_BASE = 1200
-    ELO_SCALE = 400
 
     if not paper_ids or not matches:
         return [
@@ -123,29 +122,38 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
                 stats[loser]["losses"] += 1
                 stats[loser]["comparisons"] += 1
 
-    # Convert BT scores to Elo-like scale (LMArena style)
-    bt_values = [scores.get(pid, 1.0) for pid in paper_ids]
-    geo_mean = math.exp(sum(math.log(max(v, 1e-10)) for v in bt_values) / len(bt_values))
+    # Convert BT scores to Elo (LMArena style)
+    # Use log-scale centered on geometric mean, mapped to Elo base
+    bt_values = [max(scores.get(pid, 1.0), 1e-10) for pid in paper_ids if stats.get(pid, {}).get("comparisons", 0) > 0]
+    if bt_values:
+        geo_mean = math.exp(sum(math.log(v) for v in bt_values) / len(bt_values))
+    else:
+        geo_mean = 1.0
 
     elo_scores = {}
     elo_ci = {}
     for pid in paper_ids:
-        bt = scores.get(pid, 1.0)
-        ratio = bt / max(geo_mean, 1e-10)
-        elo = ELO_SCALE * math.log10(max(ratio, 1e-10)) + ELO_BASE
-        elo_scores[pid] = round(elo)
-
-        # 95% CI in Elo points from win rate variance
         s = stats.get(pid, {"wins": 0, "comparisons": 0})
         w, n = s["wins"], s["comparisons"]
-        if n >= 2:
-            p = w / n
-            p = max(0.01, min(0.99, p))  # clamp
-            se_logit = 1.0 / math.sqrt(n * p * (1 - p))
-            se_elo = (ELO_SCALE / math.log(10)) * se_logit
-            elo_ci[pid] = round(1.96 * se_elo)
-        else:
+
+        if n == 0:
+            elo_scores[pid] = ELO_BASE
             elo_ci[pid] = 0
+            continue
+
+        # Regularized win rate (Jeffreys prior: add 0.5 wins and 0.5 losses)
+        p_reg = (w + 0.5) / (n + 1.0)
+        p_reg = max(0.02, min(0.98, p_reg))
+
+        # Elo from logistic: Elo = 400 * log10(p/(1-p)) + base
+        elo = 400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE
+        elo_scores[pid] = round(elo)
+
+        # 95% CI in Elo points
+        se_logit = 1.0 / math.sqrt((n + 1.0) * p_reg * (1.0 - p_reg))
+        se_elo = (400.0 / math.log(10)) * se_logit
+        ci = round(1.96 * se_elo)
+        elo_ci[pid] = min(ci, 400)  # Cap at 400
 
     paper_lookup = {p["id"]: p for p in papers}
     ranked = sorted(paper_ids, key=lambda pid: elo_scores.get(pid, ELO_BASE), reverse=True)
