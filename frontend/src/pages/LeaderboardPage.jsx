@@ -28,7 +28,7 @@ export default function LeaderboardPage() {
   const [allData, setAllData] = useState([]);  // Full leaderboard (all periods)
   const [leaderboard, setLeaderboard] = useState([]);
   const [status, setStatus] = useState(null);
-  const [period, setPeriod] = useState("all");
+  const [period, setPeriod] = useState("today");
   const [loading, setLoading] = useState(true);
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
