@@ -89,3 +89,4 @@ Build a website/platform that fetches the latest scientific papers from arXiv (s
 - **Jan 10, 2026:** Fixed date filtering - now uses arXiv `submittedDate` query parameter
 - **Jan 10, 2026:** Fixed progress bar reset issue - added in-memory cache merge and protected progress updates
 - **Jan 10, 2026:** Added live comparison logs during tournaments - shows last 20 matches with LLM reasoning in real-time
+- **Feb 6, 2026:** Added AI model selection - users can choose from GPT-5.2, GPT-4o, Claude Sonnet/Haiku, Gemini models
