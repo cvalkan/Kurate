@@ -83,6 +83,8 @@ export default function AdminPage() {
       setEditPrompt(promptRes.data);
       setProgress(progressRes.data);
       setUsageStats(statsRes.data);
+      setSummaryPrompt(summaryPromptRes.data);
+      setEditSummaryPrompt(summaryPromptRes.data);
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         sessionStorage.removeItem("admin_token");
