@@ -129,6 +129,94 @@ async def get_admin_status():
     }
 
 
+@router.get("/progress", dependencies=[Depends(verify_admin)])
+async def get_progress_estimate():
+    """Estimate remaining matches needed to reach confidence targets."""
+    import math
+    settings = await get_settings()
+    min_matches = settings.get("min_matches_per_paper", 3)
+    top_k = settings.get("top_k_focus", 10)
+
+    all_paper_ids = []
+    async for p in db.papers.find({}, {"_id": 0, "id": 1}):
+        all_paper_ids.append(p["id"])
+
+    total_papers = len(all_paper_ids)
+    if total_papers == 0:
+        return {"total_papers": 0, "matches_needed": 0, "progress_pct": 100}
+
+    # Count matches per paper
+    paper_match_count = {pid: 0 for pid in all_paper_ids}
+    paper_wins = {pid: 0 for pid in all_paper_ids}
+    async for m in db.matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ):
+        if m["paper1_id"] in paper_match_count:
+            paper_match_count[m["paper1_id"]] += 1
+        if m["paper2_id"] in paper_match_count:
+            paper_match_count[m["paper2_id"]] += 1
+        w = m.get("winner_id")
+        if w and w in paper_wins:
+            paper_wins[w] += 1
+
+    # Papers below min matches
+    below_min = {pid: max(0, min_matches - c) for pid, c in paper_match_count.items() if c < min_matches}
+    matches_for_min = sum(below_min.values())
+
+    # Estimate matches needed for CI target (±15 Elo is reasonable convergence)
+    ci_target_elo = 15
+    matches_for_ci = 0
+    for pid in all_paper_ids:
+        n = paper_match_count[pid]
+        if n < 2:
+            matches_for_ci += max(0, 8 - n)
+            continue
+        w = paper_wins.get(pid, 0)
+        p = max(0.01, min(0.99, w / n))
+        se_logit = 1.0 / math.sqrt(n * p * (1 - p))
+        se_elo = (400 / math.log(10)) * se_logit
+        current_ci = 1.96 * se_elo
+        if current_ci > ci_target_elo:
+            # Estimate n needed: n_needed = (1.96 * 400/(ln10 * target))^2 / (p*(1-p))
+            n_needed = ((1.96 * 400 / (math.log(10) * ci_target_elo)) ** 2) * (1.0 / (p * (1 - p)))
+            matches_for_ci += max(0, int(n_needed) - n)
+
+    total_matches_done = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
+    total_needed = max(matches_for_min, matches_for_ci // 2)  # Each match covers 2 papers
+    papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
+    papers_converged = sum(
+        1 for pid in all_paper_ids
+        if paper_match_count[pid] >= 2
+        and _elo_ci(paper_wins.get(pid, 0), paper_match_count[pid]) <= ci_target_elo
+    )
+
+    progress_pct = min(100, round(100 * papers_at_min / total_papers)) if total_papers > 0 else 100
+
+    return {
+        "total_papers": total_papers,
+        "total_matches": total_matches_done,
+        "papers_at_min_matches": papers_at_min,
+        "papers_below_min_matches": total_papers - papers_at_min,
+        "matches_needed_for_min": matches_for_min,
+        "papers_converged": papers_converged,
+        "matches_needed_for_ci": matches_for_ci // 2,
+        "estimated_remaining": total_needed,
+        "min_matches_setting": min_matches,
+        "progress_pct": progress_pct,
+    }
+
+
+def _elo_ci(wins, comparisons):
+    import math
+    if comparisons < 2:
+        return 999
+    p = max(0.01, min(0.99, wins / comparisons))
+    se_logit = 1.0 / math.sqrt(comparisons * p * (1 - p))
+    se_elo = (400 / math.log(10)) * se_logit
+    return 1.96 * se_elo
+
+
 @router.get("/prompt", dependencies=[Depends(verify_admin)])
 async def get_evaluation_prompt():
     from core.config import DEFAULT_EVALUATION_PROMPT
