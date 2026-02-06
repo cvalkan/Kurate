@@ -1327,11 +1327,14 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
 
 async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], paper_lookup: Dict,
                                      paper_ids: List[str], matches: List[Dict], deep_analysis: bool,
-                                     parallel_agents: int, llm_model: Dict[str, str] = None):
+                                     parallel_agents: int, llm_model: Dict[str, str] = None, prompt_config: Dict = None):
     """Run traditional round-robin tournament"""
     
     if llm_model is None:
         llm_model = DEFAULT_MODEL
+    
+    if prompt_config is None:
+        prompt_config = DEFAULT_PROMPTS[DEFAULT_PROMPT_KEY]
     
     pending_matches = [m for m in matches if not m.get('completed')]
     total = len(pending_matches)
