@@ -24,28 +24,6 @@ function RankBadge({ rank }) {
   return <span className="inline-flex items-center justify-center w-7 h-7 font-mono text-sm text-muted-foreground" data-testid={`rank-${rank}`}>{rank}</span>;
 }
 
-function ConfidenceBar({ confidence }) {
-  if (!confidence || confidence.comparisons === 0) return <span className="text-xs text-muted-foreground font-mono">--</span>;
-  const pct = Math.round(confidence.win_rate * 100);
-  const lo = Math.round(confidence.lower_bound * 100);
-  const hi = Math.round(confidence.upper_bound * 100);
-  return (
-    <div className="flex items-center gap-2" data-testid="confidence-bar">
-      <div className="w-16 h-1.5 bg-slate-100 rounded-full relative overflow-hidden">
-        <div
-          className="absolute h-full bg-accent/30 rounded-full"
-          style={{ left: `${lo}%`, width: `${hi - lo}%` }}
-        />
-        <div
-          className="absolute h-full w-1 bg-accent rounded-full"
-          style={{ left: `${pct}%`, transform: "translateX(-50%)" }}
-        />
-      </div>
-      <span className="font-mono text-xs text-muted-foreground">{pct}%</span>
-    </div>
-  );
-}
-
 export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [status, setStatus] = useState(null);
