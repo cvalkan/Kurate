@@ -428,6 +428,14 @@ export default function AdminPage() {
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Parallel Agents</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Number of concurrent LLM comparisons per batch. Higher = faster but uses more API quota. Range: 1-20.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" min="1" max="20" value={editSettings.parallel_agents || ""} onChange={(e) => setEditSettings({ ...editSettings, parallel_agents: Math.min(20, Math.max(1, Number(e.target.value) || 1)) })} data-testid="setting-parallel-agents" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
                 <Label className="text-xs">Top-K Focus</Label>
                 <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
                 <TooltipContent side="right"><p className="max-w-52 text-xs">The matchmaker focuses comparisons on papers near this rank boundary to keep the top-K rankings accurate.</p></TooltipContent></Tooltip>
