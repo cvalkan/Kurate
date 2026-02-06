@@ -228,6 +228,7 @@ async def run_comparison_round():
             pairs = _select_adaptive_pairs(
                 all_papers, paper_stats, compared_pairs,
                 comparisons_per_round, top_k_focus, exploration_constant, anchor_comparisons,
+                min_matches_per_paper,
             )
 
             if not pairs:
@@ -244,7 +245,7 @@ async def run_comparison_round():
                 batch = pairs[i:i + batch_size]
                 tasks = []
                 for p1_id, p2_id in batch:
-                    tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id]))
+                    tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config))
 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
