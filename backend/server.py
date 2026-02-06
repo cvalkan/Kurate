@@ -652,28 +652,18 @@ You MUST respond with valid JSON only, no other text. Format:
 Based on your thorough analysis of both papers' content, methodology, and findings, which paper has higher scientific impact? Respond with JSON only."""
         
     else:
-        # Standard mode - abstract only
-        system_msg = """You are a scientific paper evaluator. Your task is to compare two papers and determine which has higher potential scientific impact.
-
-Consider the following factors:
-1. Novelty and innovation of the approach
-2. Potential real-world applications
-3. Methodological rigor (based on abstract)
-4. Breadth of impact across fields
-5. Timeliness and relevance
-
-You MUST respond with valid JSON only, no other text. Format:
-{"winner": "paper1" or "paper2", "reasoning": "Brief explanation (max 100 words)"}"""
+        # Standard mode - use custom or default prompt
+        system_msg = prompt_config.get("system_prompt", DEFAULT_PROMPTS[DEFAULT_PROMPT_KEY]["system_prompt"])
         
-        prompt = f"""Compare these two papers for scientific impact:
-
-**Paper 1: {paper1['title']}**
-Abstract: {paper1['abstract'][:800]}
-
-**Paper 2: {paper2['title']}**
-Abstract: {paper2['abstract'][:800]}
-
-Which paper has higher estimated scientific impact? Respond with JSON only."""
+        user_prompt_template = prompt_config.get("user_prompt", DEFAULT_PROMPTS[DEFAULT_PROMPT_KEY]["user_prompt"])
+        
+        # Format the user prompt with paper details
+        prompt = user_prompt_template.format(
+            paper1_title=paper1['title'],
+            paper1_abstract=paper1['abstract'][:800],
+            paper2_title=paper2['title'],
+            paper2_abstract=paper2['abstract'][:800]
+        )
     
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
