@@ -190,8 +190,7 @@ async def get_progress_estimate():
     top_k_converged = 0
     matches_for_goal2 = 0
     top_k_details = []
-    z = 1.96  # 95% CI
-    target_frac = ci_target / 100.0  # e.g., 0.08
+    target_frac = ci_target / 100.0
 
     for pid in top_k_ids:
         n = paper_match_count[pid]
@@ -202,15 +201,14 @@ async def get_progress_estimate():
         if converged:
             top_k_converged += 1
         else:
-            # Direct estimate: for Wilson CI, margin ≈ z/(2√n), so n_needed ≈ (z/(2*target))²
-            # This is the worst-case (p=0.5). For extreme p, it converges faster.
-            p = w / n if n > 0 else 0.5
-            p = max(0.05, min(0.95, p))
-            # Wilson margin ≈ z * sqrt(p(1-p)/n) / (1 + z²/n) ≈ z*sqrt(p(1-p)/n) for large n
-            # Solve for n: n_needed = (z / (2*target))² * 4*p*(1-p)
-            n_needed = int((z ** 2) * p * (1 - p) / (target_frac ** 2))
-            extra = max(0, n_needed - n)
-            matches_for_goal2 += (extra + 1) // 2  # each match covers 2 papers
+            # Empirical: margin ∝ 1/√n, so to go from current margin to target:
+            # n_needed/n_current = (current_margin/target)²
+            if n > 0 and margin > 0:
+                ratio = (margin / target_frac) ** 2
+                extra = max(1, int(n * ratio) - n)
+            else:
+                extra = 20
+            matches_for_goal2 += extra
         elo_ci = _elo_ci(w, n)
         top_k_details.append({
             "id": pid, "matches": int(n), "margin_pct": float(margin_pct),
@@ -218,11 +216,10 @@ async def get_progress_estimate():
         })
     goal2_met = bool(top_k_converged == len(top_k_ids))
 
-    total_est = matches_for_goal1 + matches_for_goal2
-    # Time estimate: ~10s per batch of parallel_agents comparisons
+    # Each match helps 2 papers, but top-K matches overlap, so ~60% efficiency
+    total_est = matches_for_goal1 + max(0, matches_for_goal2 * 3 // 5)
     seconds_per_match = 10.0 / max(parallel_agents, 1)
-    est_seconds = total_est * seconds_per_match
-    est_minutes = round(est_seconds / 60)
+    est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
     total_matches_done = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
     papers_with_pdf = await db.papers.count_documents({"full_text": {"$ne": None}})
@@ -232,24 +229,19 @@ async def get_progress_estimate():
         "total_matches": total_matches_done,
         "papers_with_pdf": papers_with_pdf,
         "paused": is_paused,
-        "goals_met": goal1_met and goal2_met,
+        "goals_met": bool(goal1_met and goal2_met),
         "goal1": {
+            "met": bool(goal1_met),
             "label": f"Min {min_matches} matches/paper",
-            "met": goal1_met,
-            "papers_done": papers_at_min,
-            "papers_total": total_papers,
-            "matches_needed": matches_for_goal1,
         },
         "goal2": {
+            "met": bool(goal2_met),
             "label": f"CI \u2264 {ci_target}% for top-{len(top_k_ids)}",
-            "met": goal2_met,
-            "papers_done": top_k_converged,
-            "papers_total": len(top_k_ids),
-            "matches_needed": matches_for_goal2,
-            "top_k_details": top_k_details,
+            "done": int(top_k_converged),
+            "total": int(len(top_k_ids)),
         },
-        "estimated_matches_remaining": total_est,
-        "estimated_minutes": est_minutes,
+        "estimated_matches_remaining": int(total_est),
+        "estimated_minutes": int(est_minutes),
     }
 
 
