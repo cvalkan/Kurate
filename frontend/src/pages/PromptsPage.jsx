@@ -34,6 +34,7 @@ import {
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const promptIcons = {
+  scientific_impact_predicted: Users,
   scientific_impact: Sparkles,
   practical_applications: Target,
   technical_novelty: Lightbulb,
