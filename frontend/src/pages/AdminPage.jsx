@@ -122,6 +122,16 @@ export default function AdminPage() {
     }
   };
 
+  const togglePause = async () => {
+    try {
+      const res = await axios.post(`${API}/api/admin/toggle-pause`, {}, { headers: getAdminHeaders() });
+      toast.success(res.data.paused ? "System paused" : "System resumed");
+      fetchAll();
+    } catch (err) {
+      toast.error("Failed: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
   const saveSettings = async () => {
     setLoading((l) => ({ ...l, settings: true }));
     try {
