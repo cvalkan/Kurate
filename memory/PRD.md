@@ -27,7 +27,7 @@ Build a platform that automatically downloads new Robotics papers from arXiv dai
 ├── server.py          # FastAPI entry point, startup, middleware
 ├── core/
 │   ├── config.py      # DB, settings, models, prompts
-│   └── auth.py        # Admin password auth
+│   └── auth.py        # Admin password auth (with defaults merge)
 ├── services/
 │   ├── arxiv.py       # ArXiv API client with retry
 │   ├── llm.py         # LLM comparison (multi-model random)
@@ -50,7 +50,7 @@ Build a platform that automatically downloads new Robotics papers from arXiv dai
 ```
 
 ## Key API Endpoints
-- `GET /api/leaderboard?period=all|today|week|month` - Public leaderboard
+- `GET /api/leaderboard?period=all|today|week|month` - Public leaderboard (global BT scores, filtered display)
 - `GET /api/papers/{id}` - Paper detail + comparison logs
 - `GET /api/status` - System status
 - `POST /api/admin/login` - Admin auth
@@ -62,24 +62,24 @@ Build a platform that automatically downloads new Robotics papers from arXiv dai
 ## Database Schema
 - **papers:** id, arxiv_id, title, authors, abstract, categories, published, link, pdf_link, full_text, added_at, needs_pdf
 - **matches:** id, paper1_id, paper2_id, winner_id, reasoning, model_used, completed, failed, created_at
-- **settings:** key, admin_password, fetch_interval_hours, max_papers_per_fetch, comparisons_per_round, top_k_focus, exploration_constant, anchor_comparisons, auto_process, last_fetch_at
-
-## Adaptive Matchmaking Algorithm
-1. **Bootstrap:** When all papers are new, random pairwise comparisons
-2. **Calibration:** New papers compared against anchor papers spread across the ranking
-3. **UCB Refinement:** Focuses comparisons on papers near the top-K boundary
-4. **Re-calibration:** Periodically re-compares top papers for stability
+- **settings:** key, admin_password, fetch_interval_hours, max_papers_per_fetch, comparisons_per_round, top_k_focus, exploration_constant, anchor_comparisons, min_matches_per_paper, auto_process, last_fetch_at
 
 ## What's Been Implemented
 - [Feb 2026] Complete rebuild from PaperSumo tournament app to automated leaderboard
 - [Feb 2026] Modular backend (routers, services, core)
 - [Feb 2026] Background scheduler with configurable daily fetch
-- [Feb 2026] Adaptive matchmaking with UCB, top-K focus, anchor calibration
+- [Feb 2026] Adaptive matchmaking with UCB, top-K focus, anchor calibration, min matches
 - [Feb 2026] Multi-model random selection (GPT 5.2, Claude Opus 4.5, Gemini 3 Pro)
 - [Feb 2026] Public leaderboard with date filtering, confidence intervals
 - [Feb 2026] Paper detail page with full comparison history
-- [Feb 2026] Admin panel with settings, manual triggers, prompt editor
+- [Feb 2026] Admin panel with settings (tooltips), manual triggers, prompt editor
 - [Feb 2026] Full PDF deep analysis for paper comparisons
+- [Feb 2026] Fixed: BT scores now global (consistent across date filter views)
+- [Feb 2026] Fixed: Removed W/L column, show full date with year
+- [Feb 2026] Fixed: Admin logs are expandable/collapsible
+- [Feb 2026] Fixed: Tooltips on all admin settings
+- [Feb 2026] Fixed: Custom saved prompt is used as default for comparisons
+- [Feb 2026] Added: Min matches per paper setting
 
 ## Backlog
 - P1: Pause/resume comparison rounds
