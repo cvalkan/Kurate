@@ -1,97 +1,91 @@
-# PaperSumo - Product Requirements Document
+# PaperSumo - Robotics Paper Leaderboard
 
 ## Original Problem Statement
-Build a website/platform that fetches the latest scientific papers from arXiv (sorted by different topics) and runs a pairwise tournament on them to output a ranked list (based on Bradley-Terry scores) of scientific impact. Uses an LLM to determine which of two selected papers has higher estimated scientific impact or value. Can run multiple agents in parallel to speed up the process.
+Build a platform that automatically downloads new Robotics papers from arXiv daily, runs pairwise tournaments using full paper analysis via LLMs, and outputs a dynamically updated ranked leaderboard using Bradley-Terry scores.
 
 ## Core Requirements
-- Use GPT 5.2 with Emergent LLM Key
-- Fetch papers from all arXiv categories
-- Tournament settings configurable
-- Results of tournaments preserved
-- "Deep Analysis" mode that reads full papers (not just abstracts)
-- Search for papers by keywords, authors, etc. for custom tournament sets
-- Show LLM reasoning for each comparison in tournament logs
-- UCB (Upper Confidence Bound) bandit mechanism for ranking efficiency
-- Top-K focused ranking and confidence intervals
-- Paper citation counts
-- No 20-paper limit on tournaments
-- Exact phrase searches work correctly
+- Automated daily arXiv fetch (cs.RO category)
+- Full paper (PDF) deep analysis for comparisons
+- Multi-model random selection (GPT 5.2, Claude Opus 4.5, Gemini 3 Pro)
+- Bradley-Terry scoring with Wilson confidence intervals
+- Adaptive matchmaking: UCB-based, top-K focused, sample efficient
+- New papers calibrated against existing ranked papers
+- Public leaderboard with date filtering (Today, Week, Month, All Time)
+- Comparison logs accessible per paper
+- Admin panel (simple password auth) for settings
 
 ## Tech Stack
-- **Frontend:** React, React Router, Axios, Tailwind CSS, Shadcn UI
-- **Backend:** FastAPI, Pydantic, Motor, asyncio, PyPDF2, ThreadPoolExecutor
-- **Database:** MongoDB
-- **APIs:** ArXiv API, Semantic Scholar API, OpenAI GPT-5.2 (via Emergent LLM Key)
-- **Algorithms:** Bradley-Terry, Upper Confidence Bound (UCB)
+- **Frontend:** React, React Router, Axios, Tailwind CSS, Shadcn UI, lucide-react
+- **Backend:** FastAPI (modular), Motor (async MongoDB), httpx, PyPDF2
+- **Database:** MongoDB (papers, matches, settings collections)
+- **LLMs:** OpenAI GPT-5.2, Anthropic Claude Opus 4.5, Google Gemini 3 Pro (via Emergent LLM Key)
+- **Background:** asyncio scheduler with configurable intervals
 
-## Key Features Implemented
+## Architecture
+```
+/app/backend/
+├── server.py          # FastAPI entry point, startup, middleware
+├── core/
+│   ├── config.py      # DB, settings, models, prompts
+│   └── auth.py        # Admin password auth
+├── services/
+│   ├── arxiv.py       # ArXiv API client with retry
+│   ├── llm.py         # LLM comparison (multi-model random)
+│   ├── ranking.py     # Bradley-Terry, Wilson CI, leaderboard
+│   └── scheduler.py   # Background scheduler, adaptive matchmaking
+├── routers/
+│   ├── leaderboard.py # Public API (leaderboard, papers, status)
+│   └── admin.py       # Admin API (settings, triggers, prompts)
+└── .env
 
-### ✅ Complete
-1. **Paper Fetching** - From arXiv by category or advanced search
-2. **Asynchronous Search** - Results display instantly, citations load in background
-3. **Multiple Ranking Modes:**
-   - Round Robin (standard all-pairs)
-   - UCB Smart Ranking (bandit-based)
-4. **Advanced UCB Configuration:**
-   - Target Top-K focusing
-   - Confidence Bands with intervals
-5. **Deep Analysis Mode** - Downloads and analyzes full PDFs
-6. **Live Tournament Tracking** - Real-time progress display
-7. **Performance Optimizations:**
-   - ThreadPoolExecutor for LLM calls (non-blocking)
-   - In-memory cache for progress tracking
-8. **Auto-resume** - Restarts interrupted tournaments
-9. **Citation Counts** - From Semantic Scholar API
-
-### 🟡 Upcoming (P1-P2)
-1. ~~**Date-based filtering for search** (P1)~~ ✅ DONE (Jan 2026)
-2. **Pause button for tournaments** (P2)
-3. **Paper abstract preview on hover** (P2)
-
-### 🔵 Future/Backlog
-- Save search queries as presets
-- Export results to CSV/PDF
-- Share tournament results via public link
-- Pagination for large match logs
-- Highlight matched search phrases
-
-## Database Schema
-
-### tournaments collection
-- `id`, `name`, `status`, `papers`, `matches`, `rankings`
-- `deep_analysis`, `ranking_mode`, `ucb_config`
-
-### In-Memory Cache
-- `TOURNAMENT_PROGRESS_CACHE` - Tracks live progress without DB writes
+/app/frontend/src/
+├── App.js             # Routes: /, /paper/:id, /admin, /admin/dashboard
+├── pages/
+│   ├── LeaderboardPage.jsx
+│   ├── PaperPage.jsx
+│   ├── AdminLoginPage.jsx
+│   └── AdminPage.jsx
+└── components/
+    └── Navbar.jsx
+```
 
 ## Key API Endpoints
-- `POST /api/search/papers` - Search papers (non-blocking)
-- `POST /api/papers/citations` - Fetch citation counts async
-- `POST /api/tournaments` - Create tournament
-- `GET /api/tournaments` - List all tournaments
-- `GET /api/tournaments/{id}/status` - SSE for live progress
-- `GET /api/tournaments/{id}/status-light` - Lightweight polling
+- `GET /api/leaderboard?period=all|today|week|month` - Public leaderboard
+- `GET /api/papers/{id}` - Paper detail + comparison logs
+- `GET /api/status` - System status
+- `POST /api/admin/login` - Admin auth
+- `GET/PUT /api/admin/settings` - Admin settings
+- `POST /api/admin/fetch` - Trigger arXiv fetch
+- `POST /api/admin/compare` - Trigger comparison round
+- `GET/PUT/DELETE /api/admin/prompt` - Evaluation prompt management
 
-## Architecture Notes
-- `backend/server.py` is monolithic (1500+ lines) - needs refactoring
-- Progress tracked in-memory to eliminate DB contention
-- LLM calls run in ThreadPoolExecutor to prevent event loop blocking
+## Database Schema
+- **papers:** id, arxiv_id, title, authors, abstract, categories, published, link, pdf_link, full_text, added_at, needs_pdf
+- **matches:** id, paper1_id, paper2_id, winner_id, reasoning, model_used, completed, failed, created_at
+- **settings:** key, admin_password, fetch_interval_hours, max_papers_per_fetch, comparisons_per_round, top_k_focus, exploration_constant, anchor_comparisons, auto_process, last_fetch_at
 
-## Deployment Status
-- **Status:** READY
-- **.gitignore fixed:** Removed env file exclusions
-- All services operational
+## Adaptive Matchmaking Algorithm
+1. **Bootstrap:** When all papers are new, random pairwise comparisons
+2. **Calibration:** New papers compared against anchor papers spread across the ranking
+3. **UCB Refinement:** Focuses comparisons on papers near the top-K boundary
+4. **Re-calibration:** Periodically re-compares top papers for stability
 
----
-*Last Updated: January 2026*
+## What's Been Implemented
+- [Feb 2026] Complete rebuild from PaperSumo tournament app to automated leaderboard
+- [Feb 2026] Modular backend (routers, services, core)
+- [Feb 2026] Background scheduler with configurable daily fetch
+- [Feb 2026] Adaptive matchmaking with UCB, top-K focus, anchor calibration
+- [Feb 2026] Multi-model random selection (GPT 5.2, Claude Opus 4.5, Gemini 3 Pro)
+- [Feb 2026] Public leaderboard with date filtering, confidence intervals
+- [Feb 2026] Paper detail page with full comparison history
+- [Feb 2026] Admin panel with settings, manual triggers, prompt editor
+- [Feb 2026] Full PDF deep analysis for paper comparisons
 
-## Changelog
-- **Jan 10, 2026:** Fixed date filtering - now uses arXiv `submittedDate` query parameter
-- **Jan 10, 2026:** Fixed progress bar reset issue - added in-memory cache merge and protected progress updates
-- **Jan 10, 2026:** Added live comparison logs during tournaments - shows last 20 matches with LLM reasoning in real-time
-- **Feb 6, 2026:** Added AI model selection - users can choose from GPT-5.2, GPT-4o, Claude Sonnet/Haiku, Gemini models
-- **Feb 6, 2026:** Added Opus 4.6, Opus 4.5, Gemini 3 Flash models; model badge now shows on Results and History pages
-- **Feb 6, 2026:** Fixed model names for Emergent integrations library compatibility
-- **Feb 6, 2026:** Improved error handling with 3 retries and better JSON parsing for LLM responses
-- **Feb 6, 2026:** Added evaluation prompt selection - 4 preset criteria (Scientific Impact, Practical Applications, Technical Novelty, Research Rigor)
-- **Feb 6, 2026:** Added Prompts Editor page at `/prompts` - view and edit all evaluation prompts with save/reset functionality
+## Backlog
+- P1: Pause/resume comparison rounds
+- P2: Paper abstract preview on hover in leaderboard
+- P2: Export leaderboard to CSV/PDF
+- P2: RSS feed for leaderboard updates
+- P3: Share individual paper ranking via public link
+- P3: Compare papers across multiple arXiv categories
+- P3: Historical ranking trends (paper rank over time)
