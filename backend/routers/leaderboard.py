@@ -1,10 +1,43 @@
 from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import datetime, timezone, timedelta
+import time
 from core.config import db, logger
 from services.ranking import compute_leaderboard, calculate_confidence_interval
 
 router = APIRouter(prefix="/api")
+
+# In-memory leaderboard cache (avoids recomputing BT on every request)
+_leaderboard_cache = {"data": None, "total_papers": 0, "total_matches": 0, "ts": 0}
+_CACHE_TTL = 30  # seconds
+
+
+async def _get_cached_leaderboard():
+    now = time.time()
+    if _leaderboard_cache["data"] is not None and now - _leaderboard_cache["ts"] < _CACHE_TTL:
+        return _leaderboard_cache
+
+    all_papers = await db.papers.find(
+        {}, {"_id": 0, "full_text": 0, "abstract": 0}
+    ).to_list(5000)
+
+    if not all_papers:
+        _leaderboard_cache.update({"data": [], "total_papers": 0, "total_matches": 0, "ts": now})
+        return _leaderboard_cache
+
+    all_matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
+    ).to_list(200000)
+
+    leaderboard = compute_leaderboard(all_papers, all_matches)
+    _leaderboard_cache.update({
+        "data": leaderboard,
+        "total_papers": len(all_papers),
+        "total_matches": len(all_matches),
+        "ts": now,
+    })
+    return _leaderboard_cache
 
 
 @router.get("/leaderboard")
@@ -13,22 +46,8 @@ async def get_leaderboard(
     limit: int = Query(100, description="Max papers to return"),
     offset: int = Query(0, description="Offset for pagination"),
 ):
-    # Load papers without heavy fields
-    all_papers = await db.papers.find(
-        {}, {"_id": 0, "full_text": 0, "abstract": 0}
-    ).to_list(5000)
-
-    if not all_papers:
-        return {"leaderboard": [], "total_papers": 0, "total_matches": 0, "period": period}
-
-    # Only load fields needed for BT computation
-    all_matches = await db.matches.find(
-        {"completed": True, "failed": {"$ne": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
-    ).to_list(200000)
-
-    # Compute global leaderboard (scores are always from ALL data)
-    global_leaderboard = compute_leaderboard(all_papers, all_matches)
+    cache = await _get_cached_leaderboard()
+    global_leaderboard = list(cache["data"])  # shallow copy
 
     # Filter display by period (but keep global scores)
     if period and period != "all":
