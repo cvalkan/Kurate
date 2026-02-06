@@ -1601,6 +1601,8 @@ async def get_tournament_results(tournament_id: str):
             "status": 1,
             "num_papers": 1,
             "total_matches": 1,
+            "successful_matches": 1,
+            "failed_matches": 1,
             "deep_analysis": 1,
             "search_query": 1,
             "completed_at": 1,
