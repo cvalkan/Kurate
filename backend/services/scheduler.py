@@ -251,7 +251,7 @@ async def _download_pending_pdfs():
     return downloaded
 
 
-async def run_comparison_round():
+async def run_comparison_round(max_pairs_override=None):
     if _processing_lock.locked():
         return {"status": "already_processing"}
 
