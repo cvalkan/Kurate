@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, RefreshCw, Swords, Activity, LogOut,
-  FileText, Bot, CheckCircle2, XCircle, Save, RotateCcw,
+  FileText, Bot, CheckCircle2, XCircle, Save, RotateCcw, ChevronDown, ChevronUp, HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
