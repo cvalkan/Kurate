@@ -416,6 +416,50 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* Model Correlation */}
+          <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="admin-correlation">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium">Model Correlation</h3>
+              <Button variant="outline" size="sm" onClick={refreshCorrelation} disabled={loadingCorr} className="gap-1.5 h-7 text-xs" data-testid="refresh-correlation">
+                <RefreshCw className={`h-3 w-3 ${loadingCorr ? "animate-spin" : ""}`} />
+                {loadingCorr ? "Updating..." : "Refresh"}
+              </Button>
+            </div>
+            {correlation ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {Object.entries(correlation.correlations || {}).map(([pair, stats]) => {
+                    const short = pair.replace(/anthropic\/|openai\/|gemini\//g, "").replace(" vs ", " ↔ ");
+                    return (
+                      <div key={pair} className="flex items-center justify-between text-xs p-2 bg-background rounded border border-border/50">
+                        <span className="text-muted-foreground truncate mr-2">{short}</span>
+                        <span className={`font-mono font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
+                          r={stats.spearman_r}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {Object.entries(correlation.agreement || {}).map(([pair, stats]) => {
+                    const short = pair.replace(/anthropic\/|openai\/|gemini\//g, "").replace(" vs ", " ↔ ");
+                    return (
+                      <div key={pair} className="flex items-center justify-between text-xs p-2 bg-background rounded border border-border/50">
+                        <span className="text-muted-foreground truncate mr-2">{short}</span>
+                        <span className="font-mono font-bold text-foreground">{stats.rate}% agree</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {correlation.n_common_papers} papers analyzed &middot; <a href="/correlation" className="text-accent hover:underline">Full analysis →</a>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Click Refresh to load correlation data.</p>
+            )}
+          </div>
+
           {/* Recent Matches */}
           {status.recent_matches?.length > 0 && (
             <div data-testid="recent-matches">
