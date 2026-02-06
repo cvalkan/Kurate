@@ -211,8 +211,8 @@ def _elo_ci(wins, comparisons):
     import math
     if comparisons < 2:
         return 999
-    p = max(0.01, min(0.99, wins / comparisons))
-    se_logit = 1.0 / math.sqrt(comparisons * p * (1 - p))
+    p = max(0.02, min(0.98, (wins + 0.5) / (comparisons + 1.0)))
+    se_logit = 1.0 / math.sqrt((comparisons + 1.0) * p * (1 - p))
     se_elo = (400 / math.log(10)) * se_logit
     return 1.96 * se_elo
 
