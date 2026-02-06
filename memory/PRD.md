@@ -94,3 +94,4 @@ Build a website/platform that fetches the latest scientific papers from arXiv (s
 - **Feb 6, 2026:** Fixed model names for Emergent integrations library compatibility
 - **Feb 6, 2026:** Improved error handling with 3 retries and better JSON parsing for LLM responses
 - **Feb 6, 2026:** Added evaluation prompt selection - 4 preset criteria (Scientific Impact, Practical Applications, Technical Novelty, Research Rigor)
+- **Feb 6, 2026:** Added Prompts Editor page at `/prompts` - view and edit all evaluation prompts with save/reset functionality
