@@ -456,6 +456,32 @@ def _select_adaptive_pairs(
                     pairs.append((pid, opp))
                     compared_pairs.add(pair_key)
 
+    # Phase 2b: Recent paper fairness — papers added in last 48h get matched
+    # against current top-K to ensure they have a fair shot at top ranks
+    if len(pairs) < max_pairs and ranked_papers:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+        top_k_papers = ranked_papers[:min(top_k, len(ranked_papers))]
+        recent_papers = []
+        for p in papers:
+            added = p.get("added_at")
+            if added and p["id"] not in capped:
+                try:
+                    if datetime.fromisoformat(added) >= cutoff:
+                        comps = stats.get(p["id"], {}).get("comparisons", 0)
+                        if comps >= min_matches:  # Already past bootstrap
+                            recent_papers.append(p["id"])
+                except (ValueError, TypeError):
+                    pass
+
+        for recent_pid in recent_papers:
+            for top_pid in top_k_papers:
+                if recent_pid == top_pid:
+                    continue
+                pair_key = tuple(sorted([recent_pid, top_pid]))
+                if pair_key not in compared_pairs and len(pairs) < max_pairs:
+                    pairs.append((recent_pid, top_pid))
+                    compared_pairs.add(pair_key)
+
     # Phase 3: CI narrowing — give top-K papers with widest CIs extra matches
     if len(pairs) < max_pairs and len(ranked_papers) >= 2:
         top_k_papers = ranked_papers[:min(top_k, len(ranked_papers))]
