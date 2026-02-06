@@ -300,6 +300,30 @@ def _select_adaptive_pairs(
         reverse=True,
     )
 
+    # Bootstrap: if ALL papers are new, do random pairwise comparisons
+    if not ranked_papers and new_papers:
+        shuffled = list(new_papers)
+        random.shuffle(shuffled)
+        for i in range(0, len(shuffled) - 1, 2):
+            if len(pairs) >= max_pairs:
+                break
+            pair_key = tuple(sorted([shuffled[i], shuffled[i + 1]]))
+            if pair_key not in compared_pairs:
+                pairs.append((shuffled[i], shuffled[i + 1]))
+                compared_pairs.add(pair_key)
+        # Also add some cross-pairs for broader coverage
+        for i in range(len(shuffled)):
+            for j in range(i + 1, len(shuffled)):
+                if len(pairs) >= max_pairs:
+                    break
+                pair_key = tuple(sorted([shuffled[i], shuffled[j]]))
+                if pair_key not in compared_pairs:
+                    pairs.append((shuffled[i], shuffled[j]))
+                    compared_pairs.add(pair_key)
+            if len(pairs) >= max_pairs:
+                break
+        return pairs[:max_pairs]
+
     # Phase 1: Calibrate new papers against anchors
     if new_papers and ranked_papers:
         # Pick anchor papers spread across the ranking
