@@ -211,7 +211,12 @@ export default function ResultsPage() {
           </div>
           <div className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
-            <span>{tournament.total_matches} comparisons</span>
+            <span>
+              {tournament.successful_matches || tournament.total_matches} comparisons
+              {tournament.failed_matches > 0 && (
+                <span className="text-amber-600 ml-1">({tournament.failed_matches} failed)</span>
+              )}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
