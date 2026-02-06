@@ -241,53 +241,61 @@ export default function AdminPage() {
             <StatCard label="Unranked" value={status.unranked_papers} icon={Activity} />
           </div>
 
-          {/* Progress Indicator — Dual Goal */}
+          {/* Progress + Controls */}
           {progress && (
             <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="progress-indicator">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-medium">Ranking Progress</h3>
-                  {progress.paused && (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">PAUSED</span>
-                  )}
-                </div>
-                <span className="font-mono text-sm font-bold text-accent">{progress.overall_pct}%</span>
+                <h3 className="text-sm font-medium">Ranking Progress</h3>
+                <Button
+                  onClick={togglePause}
+                  variant={progress.paused ? "default" : "outline"}
+                  size="sm"
+                  className="gap-1.5 h-8"
+                  data-testid="pause-resume-button"
+                >
+                  {progress.paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+                  {progress.paused ? "Resume" : "Pause"}
+                </Button>
               </div>
 
-              {/* Goal 1: Min matches */}
-              {progress.goal1 && (
-                <div className="mb-3">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">{progress.goal1.label}</span>
-                    <span className="font-mono text-foreground">{progress.goal1.papers_done}/{progress.goal1.papers_total}</span>
+              {progress.goals_met ? (
+                <div className="flex items-center gap-2 text-sm text-green-600 mb-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Both goals met — system idle
+                </div>
+              ) : (
+                <div className="space-y-2 mb-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      {progress.goal1?.met ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Clock className="h-3 w-3 text-amber-500" />}
+                      <span className={progress.goal1?.met ? "text-green-600" : "text-muted-foreground"}>{progress.goal1?.label}</span>
+                    </div>
+                    <span className="font-mono">{progress.goal1?.papers_done}/{progress.goal1?.papers_total}</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${progress.goal1.pct >= 100 ? "bg-green-500" : "bg-accent"}`} style={{ width: `${progress.goal1.pct}%` }} />
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      {progress.goal2?.met ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Clock className="h-3 w-3 text-amber-500" />}
+                      <span className={progress.goal2?.met ? "text-green-600" : "text-muted-foreground"}>{progress.goal2?.label}</span>
+                    </div>
+                    <span className="font-mono">{progress.goal2?.papers_done}/{progress.goal2?.papers_total}</span>
                   </div>
                 </div>
               )}
 
-              {/* Goal 2: CI convergence for top-K */}
-              {progress.goal2 && (
-                <div className="mb-2">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">{progress.goal2.label}</span>
-                    <span className="font-mono text-foreground">{progress.goal2.papers_done}/{progress.goal2.papers_total}</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${progress.goal2.pct >= 100 ? "bg-green-500" : "bg-amber-500"}`} style={{ width: `${progress.goal2.pct}%` }} />
-                  </div>
-                </div>
-              )}
-
-              {progress.papers_with_pdf !== undefined && (
-                <div className="text-[10px] text-muted-foreground mt-1">
-                  PDFs: {progress.papers_with_pdf}/{progress.total_papers} &middot; Matches: {progress.total_matches}
-                  {!progress.paused && progress.overall_pct < 100 && (
-                    <span className="ml-2 text-accent">Running continuously until goals met</span>
+              {!progress.goals_met && progress.estimated_matches_remaining > 0 && (
+                <div className="text-xs text-muted-foreground border-t border-border/50 pt-2 mt-2">
+                  Est. <span className="font-mono text-foreground font-medium">~{progress.estimated_matches_remaining}</span> matches remaining
+                  {progress.estimated_minutes > 0 && (
+                    <span> &middot; ~<span className="font-mono text-foreground font-medium">{progress.estimated_minutes} min</span></span>
                   )}
+                  {progress.paused && <span className="ml-2 text-amber-600 font-medium">PAUSED</span>}
+                  {!progress.paused && <span className="ml-2 text-accent">Running</span>}
                 </div>
               )}
+
+              <div className="text-[10px] text-muted-foreground mt-1.5">
+                {progress.total_matches} matches &middot; {progress.papers_with_pdf}/{progress.total_papers} PDFs
+              </div>
             </div>
           )}
 
