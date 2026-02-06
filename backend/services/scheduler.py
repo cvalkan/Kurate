@@ -140,26 +140,39 @@ async def run_fetch_cycle():
 
 
 async def _download_pending_pdfs():
+    """Download PDFs for papers missing full_text. Shared by fetch and comparison cycles."""
     papers_needing_pdf = await db.papers.find(
-        {"needs_pdf": True, "pdf_link": {"$ne": None}},
+        {"$or": [{"needs_pdf": True}, {"full_text": None}], "pdf_link": {"$ne": None}},
         {"_id": 0, "id": 1, "pdf_link": 1, "title": 1},
-    ).to_list(100)
+    ).to_list(200)
 
+    if not papers_needing_pdf:
+        return 0
+
+    downloaded = 0
     for i, paper in enumerate(papers_needing_pdf):
         scheduler_status["current_activity"] = f"Downloading PDF {i+1}/{len(papers_needing_pdf)}: {paper['title'][:40]}..."
         try:
             full_text = await download_and_extract_pdf(paper["pdf_link"])
-            await db.papers.update_one(
-                {"id": paper["id"]},
-                {"$set": {"full_text": full_text, "needs_pdf": False}},
-            )
+            if full_text:
+                await db.papers.update_one(
+                    {"id": paper["id"]},
+                    {"$set": {"full_text": full_text, "needs_pdf": False}},
+                )
+                downloaded += 1
+            else:
+                await db.papers.update_one(
+                    {"id": paper["id"]},
+                    {"$set": {"needs_pdf": False}},
+                )
         except Exception as e:
             logger.warning(f"PDF download failed for {paper['id']}: {e}")
             await db.papers.update_one(
                 {"id": paper["id"]},
                 {"$set": {"needs_pdf": False}},
             )
-        await asyncio.sleep(1)  # Rate limit PDF downloads
+        await asyncio.sleep(1)
+    return downloaded
 
 
 async def run_comparison_round():
