@@ -258,10 +258,9 @@ async def run_comparison_round():
             completed = 0
             failed = 0
 
-            # Run comparisons in small parallel batches
-            batch_size = 3
-            for i in range(0, len(pairs), batch_size):
-                batch = pairs[i:i + batch_size]
+            # Run comparisons in parallel batches (configurable)
+            for i in range(0, len(pairs), parallel_agents):
+                batch = pairs[i:i + parallel_agents]
                 tasks = []
                 for p1_id, p2_id in batch:
                     tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config))
@@ -287,6 +286,7 @@ async def run_comparison_round():
                         match_doc["winner_id"] = p1_id if winner_key == "paper1" else p2_id
                         match_doc["reasoning"] = result.get("reasoning", "")
                         match_doc["model_used"] = result.get("model_used", {})
+                        match_doc["tokens"] = result.get("tokens", {})
                         match_doc["completed"] = True
                         match_doc["failed"] = False
                         completed += 1
