@@ -113,11 +113,23 @@ export default function PaperPage() {
       {/* Impact Summary */}
       {paper.impact_summary && (
         <div className="mb-8 p-4 bg-accent/[0.03] rounded-lg border border-accent/20" data-testid="impact-summary">
-          <div className="flex items-center gap-1.5 mb-2">
+          <div className="flex items-center gap-1.5 mb-3">
             <Sparkles className="h-3.5 w-3.5 text-accent" />
             <h3 className="text-xs font-medium text-accent uppercase tracking-wide">AI Impact Assessment</h3>
           </div>
-          <p className="text-sm leading-relaxed">{paper.impact_summary}</p>
+          <div className="text-sm leading-relaxed space-y-3">
+            {paper.impact_summary.split('\n').filter(l => l.trim()).map((line, i) => {
+              const boldMatch = line.match(/^\*\*(.+?)\*\*$/);
+              if (boldMatch) {
+                return <h4 key={i} className="font-heading font-medium text-sm mt-4 first:mt-0">{boldMatch[1]}</h4>;
+              }
+              const inlineBold = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+              if (inlineBold !== line) {
+                return <p key={i} dangerouslySetInnerHTML={{ __html: inlineBold }} />;
+              }
+              return <p key={i}>{line}</p>;
+            })}
+          </div>
           {paper.summary_generated_at && (
             <p className="text-[10px] text-muted-foreground mt-3">
               Generated {new Date(paper.summary_generated_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
