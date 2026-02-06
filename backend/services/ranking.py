@@ -164,7 +164,14 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
         if not p:
             continue
         s = stats.get(pid, {"wins": 0, "losses": 0, "comparisons": 0})
-        ci = calculate_confidence_interval(s["wins"], s["comparisons"])
+        w, n = s["wins"], s["comparisons"]
+
+        # Wilson CI margin (same metric used for goal convergence)
+        wilson_m = _wilson_margin_pct(w, n)
+
+        # Win rate
+        win_rate = round(100 * w / n, 1) if n > 0 else 0
+
         leaderboard.append({
             "id": pid,
             "rank": rank,
@@ -175,10 +182,27 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
             "published": p.get("published", ""),
             "score": elo_scores.get(pid, ELO_BASE),
             "ci": elo_ci.get(pid, 0),
+            "wilson_margin": wilson_m,
+            "win_rate": win_rate,
             "wins": s["wins"],
             "losses": s["losses"],
             "comparisons": s["comparisons"],
-            "confidence": ci,
         })
 
     return leaderboard
+
+
+def _wilson_margin_pct(wins, comparisons):
+    """Wilson CI half-width as percentage points (e.g. 5.2 means ±5.2%)."""
+    from scipy import stats as scipy_stats
+    if comparisons == 0:
+        return 0
+    p = wins / comparisons
+    n = comparisons
+    z = scipy_stats.norm.ppf(0.975)
+    denom = 1 + z**2 / n
+    center = (p + z**2 / (2 * n)) / denom
+    spread = z * ((p * (1 - p) + z**2 / (4 * n)) / n) ** 0.5 / denom
+    lower = max(0, center - spread)
+    upper = min(1, center + spread)
+    return round((upper - lower) / 2 * 100, 1)
