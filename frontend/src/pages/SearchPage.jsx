@@ -512,6 +512,35 @@ export default function SearchPage() {
                   </div>
                 )}
 
+                {/* AI Model Selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm">AI Model</Label>
+                  <Select
+                    value={selectedModel ? `${selectedModel.provider}:${selectedModel.model}` : ""}
+                    onValueChange={(value) => {
+                      const [provider, model] = value.split(":");
+                      setSelectedModel({ provider, model });
+                    }}
+                    data-testid="model-selector"
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Select AI model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableModels.map((m) => (
+                        <SelectItem key={`${m.provider}:${m.model}`} value={`${m.provider}:${m.model}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{m.name}</span>
+                            {m.is_default && (
+                              <Badge variant="outline" className="text-[10px] py-0 h-4">Default</Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* UCB Mode */}
                 <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
                   <div className="flex items-center gap-2">
