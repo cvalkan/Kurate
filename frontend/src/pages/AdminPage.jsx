@@ -559,41 +559,70 @@ export default function AdminPage() {
 
       {/* Prompt Tab */}
       {activeTab === "prompt" && prompt && (
-        <div className="space-y-4 max-w-2xl" data-testid="admin-prompt">
-          {prompt.is_custom && (
-            <Badge variant="outline" className="text-xs">Custom prompt active</Badge>
-          )}
-          <div>
-            <Label className="text-xs">System Prompt</Label>
-            <Textarea
-              rows={10}
-              value={editPrompt.system_prompt || ""}
-              onChange={(e) => setEditPrompt({ ...editPrompt, system_prompt: e.target.value })}
-              className="font-mono text-xs"
-              data-testid="prompt-system"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">User Prompt Template</Label>
-            <Textarea
-              rows={8}
-              value={editPrompt.user_prompt || ""}
-              onChange={(e) => setEditPrompt({ ...editPrompt, user_prompt: e.target.value })}
-              className="font-mono text-xs"
-              data-testid="prompt-user"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Variables: {"{paper1_title}"}, {"{paper1_content}"}, {"{paper2_title}"}, {"{paper2_content}"}
-            </p>
-          </div>
-          <div className="flex gap-2">
+        <div className="space-y-8 max-w-2xl" data-testid="admin-prompt">
+          {/* Comparison Prompt */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">Comparison Prompt</h3>
+            <p className="text-xs text-muted-foreground">Used when comparing two papers head-to-head.</p>
+            <div>
+              <Label className="text-xs">System Prompt</Label>
+              <Textarea
+                rows={10}
+                value={editPrompt.system_prompt || ""}
+                onChange={(e) => setEditPrompt({ ...editPrompt, system_prompt: e.target.value })}
+                className="font-mono text-xs"
+                data-testid="prompt-system"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">User Prompt Template</Label>
+              <Textarea
+                rows={8}
+                value={editPrompt.user_prompt || ""}
+                onChange={(e) => setEditPrompt({ ...editPrompt, user_prompt: e.target.value })}
+                className="font-mono text-xs"
+                data-testid="prompt-user"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Variables: {"{paper1_title}"}, {"{paper1_content}"}, {"{paper2_title}"}, {"{paper2_content}"}
+              </p>
+            </div>
             <Button onClick={savePrompt} disabled={loading.prompt} className="gap-2" data-testid="save-prompt">
               <Save className="h-4 w-4" />
-              {loading.prompt ? "Saving..." : "Save Prompt"}
+              {loading.prompt ? "Saving..." : "Save Comparison Prompt"}
             </Button>
-            <Button variant="outline" onClick={resetPrompt} className="gap-2" data-testid="reset-prompt">
-              <RotateCcw className="h-4 w-4" />
-              Reset to Default
+          </div>
+
+          {/* Summary Prompt */}
+          <div className="space-y-4 border-t border-border pt-6">
+            <h3 className="text-sm font-medium">Impact Summary Prompt</h3>
+            <p className="text-xs text-muted-foreground">Used to generate the AI Impact Assessment shown on paper detail pages.</p>
+            <div>
+              <Label className="text-xs">System Prompt</Label>
+              <Textarea
+                rows={8}
+                value={editSummaryPrompt.system_prompt || ""}
+                onChange={(e) => setEditSummaryPrompt({ ...editSummaryPrompt, system_prompt: e.target.value })}
+                className="font-mono text-xs"
+                data-testid="summary-prompt-system"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">User Prompt Template</Label>
+              <Textarea
+                rows={6}
+                value={editSummaryPrompt.user_prompt || ""}
+                onChange={(e) => setEditSummaryPrompt({ ...editSummaryPrompt, user_prompt: e.target.value })}
+                className="font-mono text-xs"
+                data-testid="summary-prompt-user"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Variables: {"{title}"}, {"{authors}"}, {"{paper_content}"}, {"{win_rate}"}, {"{num_matches}"}, {"{match_context}"}
+              </p>
+            </div>
+            <Button onClick={saveSummaryPrompt} className="gap-2" data-testid="save-summary-prompt">
+              <Save className="h-4 w-4" />
+              Save Summary Prompt
             </Button>
           </div>
         </div>
