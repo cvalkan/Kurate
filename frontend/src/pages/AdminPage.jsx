@@ -504,9 +504,9 @@ export default function AdminPage() {
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
-                <Label className="text-xs">CI Target (±Elo)</Label>
+                <Label className="text-xs">CI Target (% margin)</Label>
                 <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-                <TooltipContent side="right"><p className="max-w-52 text-xs">Target confidence interval for top-K papers. The system runs comparisons until all top-K papers reach this CI. Lower = more matches needed.</p></TooltipContent></Tooltip>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Target win-rate confidence margin for top-K papers (in percentage points). E.g., 8 means ±8%. The system runs until all top-K papers reach this confidence level.</p></TooltipContent></Tooltip>
               </div>
               <Input type="number" value={editSettings.ci_target || ""} onChange={(e) => setEditSettings({ ...editSettings, ci_target: e.target.value })} data-testid="setting-ci-target" />
             </div>
