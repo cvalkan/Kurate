@@ -136,7 +136,7 @@ export default function AdminPage() {
     setLoading((l) => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "comparisons_per_round", "parallel_agents", "top_k_focus", "anchor_comparisons", "min_matches_per_paper", "ci_target"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "anchor_comparisons", "min_matches_per_paper", "ci_target"]) {
         if (editSettings[key] !== settings[key]) updates[key] = Number(editSettings[key]);
       }
       if (editSettings.exploration_constant !== settings.exploration_constant)
