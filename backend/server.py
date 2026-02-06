@@ -526,9 +526,38 @@ async def search_arxiv_papers(
     }
     
     logger.info(f"ArXiv API call starting... (time so far: {time.time() - start_time:.2f}s)")
-    async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as http_client:
-        response = await http_client.get(base_url, params=params)
-        response.raise_for_status()
+    
+    # Retry logic for rate limiting
+    max_retries = 3
+    last_error = None
+    response = None
+    
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as http_client:
+                response = await http_client.get(base_url, params=params)
+                response.raise_for_status()
+            break  # Success, exit retry loop
+        except httpx.HTTPStatusError as e:
+            last_error = e
+            if e.response.status_code == 429:
+                # Rate limited - wait and retry
+                wait_time = (attempt + 1) * 5  # 5s, 10s, 15s
+                logger.warning(f"ArXiv rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                await asyncio.sleep(wait_time)
+            else:
+                raise
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                logger.warning(f"ArXiv request failed, retrying... ({attempt + 1}/{max_retries}): {e}")
+                await asyncio.sleep(2)
+            else:
+                raise
+    
+    if response is None:
+        raise last_error or Exception("Failed to fetch from ArXiv after retries")
+    
     logger.info(f"ArXiv API response received (time so far: {time.time() - start_time:.2f}s)")
     
     papers = parse_arxiv_response(response.text)
