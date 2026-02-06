@@ -211,8 +211,14 @@ def _elo_ci(wins, comparisons):
 
 @router.get("/stats", dependencies=[Depends(verify_admin)])
 async def get_usage_stats():
-    """Token usage by model and storage stats."""
-    # Aggregate token usage by model from matches
+    """Token usage by model with cost estimation."""
+    # Pricing per 1M tokens (input, output)
+    MODEL_PRICING = {
+        "openai/gpt-5.2": {"input": 1.75, "output": 14.00},
+        "anthropic/claude-opus-4-5-20251101": {"input": 5.00, "output": 25.00},
+        "gemini/gemini-3-pro-preview": {"input": 2.00, "output": 12.00},
+    }
+
     model_stats = {}
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
@@ -227,11 +233,21 @@ async def get_usage_stats():
         model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
         model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
 
-    # Calculate total tokens
+    # Calculate cost per model
+    total_cost = 0.0
+    for key, stats in model_stats.items():
+        pricing = MODEL_PRICING.get(key, {"input": 2.0, "output": 10.0})
+        cost_in = (stats["input_tokens"] / 1_000_000) * pricing["input"]
+        cost_out = (stats["output_tokens"] / 1_000_000) * pricing["output"]
+        stats["cost_input"] = round(cost_in, 4)
+        stats["cost_output"] = round(cost_out, 4)
+        stats["cost_total"] = round(cost_in + cost_out, 4)
+        total_cost += cost_in + cost_out
+
     total_input = sum(s["input_tokens"] for s in model_stats.values())
     total_output = sum(s["output_tokens"] for s in model_stats.values())
 
-    # Storage: estimate full_text sizes via aggregation
+    # Storage
     pipeline = [
         {"$match": {"full_text": {"$ne": None}}},
         {"$project": {"text_len": {"$strLenCP": "$full_text"}}},
@@ -241,11 +257,9 @@ async def get_usage_stats():
     if storage_result:
         total_chars = storage_result[0]["total_chars"]
         papers_with_text = storage_result[0]["count"]
-        storage_bytes = total_chars  # ~1 byte per char in UTF-8 for mostly ASCII
     else:
         total_chars = 0
         papers_with_text = 0
-        storage_bytes = 0
 
     total_papers = await db.papers.count_documents({})
 
@@ -256,13 +270,15 @@ async def get_usage_stats():
             "output_tokens": total_output,
             "total_tokens": total_input + total_output,
             "total_matches": sum(s["matches"] for s in model_stats.values()),
+            "total_cost": round(total_cost, 4),
         },
         "storage": {
             "papers_with_text": papers_with_text,
             "total_papers": total_papers,
             "total_chars": total_chars,
-            "size_mb": round(storage_bytes / (1024 * 1024), 2),
+            "size_mb": round(total_chars / (1024 * 1024), 2),
         },
+    }
     }
 
 
