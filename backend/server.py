@@ -1546,6 +1546,7 @@ async def get_tournament_results(tournament_id: str):
             "ranking_mode": 1,
             "ucb_config": 1,
             "paper_stats": 1,
+            "llm_model": 1,
             "papers.id": 1,
             "papers.title": 1,
             "papers.arxiv_id": 1,
