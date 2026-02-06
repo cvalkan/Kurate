@@ -1405,6 +1405,9 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
     
     match_dicts = [m.model_dump() for m in matches]
     
+    # Get LLM model config
+    llm_model = config.llm_model or DEFAULT_MODEL
+    
     # Create tournament
     tournament = Tournament(
         category=category,
@@ -1415,6 +1418,7 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
         search_query=config.search_query,
         ranking_mode=ranking_mode,
         ucb_config=ucb_config_dict,
+        llm_model=llm_model,
         papers=paper_dicts,
         matches=match_dicts,
         total_matches=estimated_matches
