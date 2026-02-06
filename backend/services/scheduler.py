@@ -176,6 +176,18 @@ async def run_comparison_round():
             top_k_focus = settings.get("top_k_focus", 10)
             exploration_constant = settings.get("exploration_constant", 1.414)
             anchor_comparisons = settings.get("anchor_comparisons", 4)
+            min_matches_per_paper = settings.get("min_matches_per_paper", 3)
+
+            # Load evaluation prompt (custom from DB if exists, else default)
+            from core.config import DEFAULT_EVALUATION_PROMPT
+            custom_prompt_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
+            if custom_prompt_doc:
+                prompt_config = {
+                    "system_prompt": custom_prompt_doc.get("system_prompt", DEFAULT_EVALUATION_PROMPT["system_prompt"]),
+                    "user_prompt": custom_prompt_doc.get("user_prompt", DEFAULT_EVALUATION_PROMPT["user_prompt"]),
+                }
+            else:
+                prompt_config = DEFAULT_EVALUATION_PROMPT
 
             all_papers = await db.papers.find(
                 {}, {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
