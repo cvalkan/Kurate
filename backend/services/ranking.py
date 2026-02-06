@@ -1,0 +1,147 @@
+import math
+from typing import Dict, List, Optional
+from scipy import stats as scipy_stats
+
+
+def calculate_bradley_terry(matches: List[dict], paper_ids: List[str]) -> Dict[str, float]:
+    n = len(paper_ids)
+    if n == 0:
+        return {}
+
+    scores = {pid: 1.0 for pid in paper_ids}
+    wins = {pid: 0 for pid in paper_ids}
+    comparisons = {pid: 0 for pid in paper_ids}
+
+    for match in matches:
+        if match.get("completed") and match.get("winner_id") and not match.get("failed"):
+            p1, p2 = match["paper1_id"], match["paper2_id"]
+            winner = match["winner_id"]
+            if winner in wins:
+                wins[winner] += 1
+            if p1 in comparisons:
+                comparisons[p1] += 1
+            if p2 in comparisons:
+                comparisons[p2] += 1
+
+    for _ in range(50):
+        new_scores = {}
+        for pid in paper_ids:
+            if comparisons.get(pid, 0) > 0:
+                denominator = 0
+                for match in matches:
+                    if match.get("completed") and match.get("winner_id") and not match.get("failed"):
+                        p1, p2 = match["paper1_id"], match["paper2_id"]
+                        if pid in (p1, p2):
+                            s1 = scores.get(p1, 1.0)
+                            s2 = scores.get(p2, 1.0)
+                            denominator += 1.0 / (s1 + s2)
+                if denominator > 0:
+                    new_scores[pid] = wins.get(pid, 0) / denominator
+                else:
+                    new_scores[pid] = scores[pid]
+            else:
+                new_scores[pid] = scores[pid]
+
+        total = sum(new_scores.values())
+        if total > 0:
+            scores = {k: v / total * n for k, v in new_scores.items()}
+        else:
+            scores = new_scores
+
+    return scores
+
+
+def calculate_confidence_interval(wins: int, comparisons: int, confidence_level: float = 0.95) -> Dict:
+    if comparisons == 0:
+        return {
+            "win_rate": 0.5,
+            "lower_bound": 0.0,
+            "upper_bound": 1.0,
+            "margin_of_error": 0.5,
+            "confidence_level": confidence_level,
+            "comparisons": 0,
+        }
+
+    p = wins / comparisons
+    n = comparisons
+    z = scipy_stats.norm.ppf(1 - (1 - confidence_level) / 2)
+
+    denominator = 1 + z**2 / n
+    center = (p + z**2 / (2 * n)) / denominator
+    spread = z * math.sqrt((p * (1 - p) + z**2 / (4 * n)) / n) / denominator
+
+    lower = max(0, center - spread)
+    upper = min(1, center + spread)
+
+    return {
+        "win_rate": round(p, 4),
+        "lower_bound": round(lower, 4),
+        "upper_bound": round(upper, 4),
+        "margin_of_error": round((upper - lower) / 2, 4),
+        "confidence_level": confidence_level,
+        "comparisons": comparisons,
+    }
+
+
+def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
+    paper_ids = [p["id"] for p in papers]
+    if not paper_ids or not matches:
+        return [
+            {
+                "id": p["id"],
+                "rank": i + 1,
+                "title": p["title"],
+                "authors": p.get("authors", []),
+                "arxiv_id": p.get("arxiv_id", ""),
+                "link": p.get("link", ""),
+                "published": p.get("published", ""),
+                "bt_score": 1.0,
+                "wins": 0,
+                "losses": 0,
+                "comparisons": 0,
+                "confidence": calculate_confidence_interval(0, 0),
+            }
+            for i, p in enumerate(papers)
+        ]
+
+    scores = calculate_bradley_terry(matches, paper_ids)
+
+    stats = {pid: {"wins": 0, "losses": 0, "comparisons": 0} for pid in paper_ids}
+    for match in matches:
+        if match.get("completed") and match.get("winner_id") and not match.get("failed"):
+            p1, p2 = match["paper1_id"], match["paper2_id"]
+            winner = match["winner_id"]
+            loser = p2 if winner == p1 else p1
+            if winner in stats:
+                stats[winner]["wins"] += 1
+                stats[winner]["comparisons"] += 1
+            if loser in stats:
+                stats[loser]["losses"] += 1
+                stats[loser]["comparisons"] += 1
+
+    paper_lookup = {p["id"]: p for p in papers}
+    ranked = sorted(paper_ids, key=lambda pid: scores.get(pid, 0), reverse=True)
+
+    leaderboard = []
+    for rank, pid in enumerate(ranked, 1):
+        p = paper_lookup.get(pid)
+        if not p:
+            continue
+        s = stats.get(pid, {"wins": 0, "losses": 0, "comparisons": 0})
+        ci = calculate_confidence_interval(s["wins"], s["comparisons"])
+        leaderboard.append({
+            "id": pid,
+            "rank": rank,
+            "title": p["title"],
+            "authors": p.get("authors", []),
+            "arxiv_id": p.get("arxiv_id", ""),
+            "link": p.get("link", ""),
+            "published": p.get("published", ""),
+            "bt_score": round(scores.get(pid, 1.0), 4),
+            "wins": s["wins"],
+            "losses": s["losses"],
+            "comparisons": s["comparisons"],
+            "confidence": ci,
+        })
+
+    return leaderboard
