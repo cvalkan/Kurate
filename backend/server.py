@@ -1457,21 +1457,76 @@ async def get_categories():
 
 @api_router.get("/prompts")
 async def get_available_prompts():
-    """Get list of available comparison prompts"""
+    """Get list of available comparison prompts (including custom overrides)"""
+    # Check for custom prompts in database
+    custom_prompts = await db.custom_prompts.find({}, {"_id": 0}).to_list(100)
+    custom_dict = {p['key']: p for p in custom_prompts}
+    
     prompts_list = []
     for key, prompt in DEFAULT_PROMPTS.items():
-        prompts_list.append({
-            "key": key,
-            "name": prompt["name"],
-            "description": prompt["description"],
-            "system_prompt": prompt["system_prompt"],
-            "user_prompt": prompt["user_prompt"],
-            "is_default": key == DEFAULT_PROMPT_KEY
-        })
+        # Use custom prompt if exists, otherwise default
+        if key in custom_dict:
+            custom = custom_dict[key]
+            prompts_list.append({
+                "key": key,
+                "name": prompt["name"],
+                "description": prompt["description"],
+                "system_prompt": custom.get("system_prompt", prompt["system_prompt"]),
+                "user_prompt": custom.get("user_prompt", prompt["user_prompt"]),
+                "is_default": key == DEFAULT_PROMPT_KEY,
+                "is_custom": True
+            })
+        else:
+            prompts_list.append({
+                "key": key,
+                "name": prompt["name"],
+                "description": prompt["description"],
+                "system_prompt": prompt["system_prompt"],
+                "user_prompt": prompt["user_prompt"],
+                "is_default": key == DEFAULT_PROMPT_KEY,
+                "is_custom": False
+            })
     return {
         "prompts": prompts_list,
         "default": DEFAULT_PROMPT_KEY
     }
+
+class PromptUpdate(BaseModel):
+    system_prompt: str
+    user_prompt: str
+
+@api_router.put("/prompts/{prompt_key}")
+async def update_prompt(prompt_key: str, update: PromptUpdate):
+    """Update a prompt with custom values"""
+    if prompt_key not in DEFAULT_PROMPTS:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    
+    # Upsert custom prompt
+    await db.custom_prompts.update_one(
+        {"key": prompt_key},
+        {"$set": {
+            "key": prompt_key,
+            "system_prompt": update.system_prompt,
+            "user_prompt": update.user_prompt,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    
+    logger.info(f"Updated custom prompt: {prompt_key}")
+    return {"success": True, "key": prompt_key}
+
+@api_router.delete("/prompts/{prompt_key}")
+async def reset_prompt(prompt_key: str):
+    """Reset a prompt to its default values"""
+    if prompt_key not in DEFAULT_PROMPTS:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    
+    # Delete custom prompt (will fall back to default)
+    result = await db.custom_prompts.delete_one({"key": prompt_key})
+    
+    logger.info(f"Reset prompt to default: {prompt_key}")
+    return {"success": True, "key": prompt_key, "deleted": result.deleted_count > 0}
 
 @api_router.post("/papers/fetch")
 async def fetch_papers(config: TournamentConfig):
