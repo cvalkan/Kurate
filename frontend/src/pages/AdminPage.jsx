@@ -138,19 +138,6 @@ export default function AdminPage() {
     }
   };
 
-  const refreshCorrelation = async () => {
-    setLoadingCorr(true);
-    try {
-      const res = await axios.get(`${API}/api/model-correlation`);
-      setCorrelation(res.data);
-      toast.success("Correlation stats updated");
-    } catch (err) {
-      toast.error("Failed to load correlation data");
-    } finally {
-      setLoadingCorr(false);
-    }
-  };
-
   const saveSettings = async () => {
     setLoading((l) => ({ ...l, settings: true }));
     try {
