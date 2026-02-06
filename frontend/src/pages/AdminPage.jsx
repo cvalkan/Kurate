@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   Settings, RefreshCw, Swords, Activity, LogOut,
   FileText, Bot, CheckCircle2, XCircle, Save, RotateCcw, ChevronDown, ChevronUp, HelpCircle,
+  Pause, Play, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 
