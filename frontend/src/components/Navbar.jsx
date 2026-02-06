@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { FlaskConical, History, Home, Search } from "lucide-react";
+import { FlaskConical, History, Home, Search, Settings2 } from "lucide-react";
 
 export default function Navbar() {
   const location = useLocation();
@@ -59,6 +59,18 @@ export default function Navbar() {
               <Link to="/history" className="flex items-center gap-2">
                 <History className="h-4 w-4" />
                 <span className="hidden sm:inline">History</span>
+              </Link>
+            </Button>
+
+            <Button
+              variant={isActive("/prompts") ? "secondary" : "ghost"}
+              size="sm"
+              asChild
+              data-testid="nav-prompts"
+            >
+              <Link to="/prompts" className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Prompts</span>
               </Link>
             </Button>
           </div>
