@@ -28,7 +28,7 @@ export default function LeaderboardPage() {
   const [allData, setAllData] = useState([]);  // Full leaderboard (all periods)
   const [leaderboard, setLeaderboard] = useState([]);
   const [status, setStatus] = useState(null);
-  const [period, setPeriod] = useState("all");
+  const [period, setPeriod] = useState("week");
   const [loading, setLoading] = useState(true);
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
@@ -37,10 +37,15 @@ export default function LeaderboardPage() {
     if (p === "all" || !data.length) return data;
     const now = new Date();
     let cutoff;
-    if (p === "today") cutoff = new Date(now - 48 * 60 * 60 * 1000);
-    else if (p === "week") cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
-    else if (p === "month") cutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
-    else return data;
+    if (p === "today") {
+      cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (p === "week") {
+      cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    } else if (p === "month") {
+      cutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    } else {
+      return data;
+    }
     const filtered = data.filter(paper => {
       if (!paper.published) return false;
       return new Date(paper.published) >= cutoff;
