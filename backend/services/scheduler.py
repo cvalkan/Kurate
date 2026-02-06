@@ -383,6 +383,9 @@ async def run_comparison_round(max_pairs_override=None):
             scheduler_status["current_activity"] = f"{total_matches + completed} total matches"
             logger.info(f"Comparison round: {completed} ok, {failed} failed")
 
+            # Generate impact summaries for newly converged papers
+            await _generate_pending_summaries()
+
             return {"status": "ok", "completed": completed, "failed": failed}
 
         except Exception as e:
