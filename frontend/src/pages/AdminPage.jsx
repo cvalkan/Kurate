@@ -125,13 +125,13 @@ export default function AdminPage() {
     setLoading((l) => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "comparisons_per_round", "parallel_agents", "top_k_focus", "anchor_comparisons", "min_matches_per_paper"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "comparisons_per_round", "parallel_agents", "top_k_focus", "anchor_comparisons", "min_matches_per_paper", "ci_target"]) {
         if (editSettings[key] !== settings[key]) updates[key] = Number(editSettings[key]);
       }
       if (editSettings.exploration_constant !== settings.exploration_constant)
         updates.exploration_constant = parseFloat(editSettings.exploration_constant);
-      if (editSettings.auto_process !== settings.auto_process)
-        updates.auto_process = editSettings.auto_process;
+      if (editSettings.paused !== settings.paused)
+        updates.paused = editSettings.paused;
       if (editSettings.admin_password && editSettings.admin_password !== settings.admin_password)
         updates.admin_password = editSettings.admin_password;
 
