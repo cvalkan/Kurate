@@ -236,7 +236,8 @@ export default function SearchPage() {
         deep_analysis: deepAnalysis,
         search_query: searchDescription,
         ranking_mode: useUCB ? "ucb" : "round_robin",
-        llm_model: selectedModel
+        llm_model: selectedModel,
+        prompt_key: selectedPromptKey
       };
       
       // Add UCB config if enabled
