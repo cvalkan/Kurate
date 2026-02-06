@@ -6,6 +6,7 @@ import SearchPage from "@/pages/SearchPage";
 import TournamentPage from "@/pages/TournamentPage";
 import ResultsPage from "@/pages/ResultsPage";
 import HistoryPage from "@/pages/HistoryPage";
+import PromptsPage from "@/pages/PromptsPage";
 import Navbar from "@/components/Navbar";
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
             <Route path="/tournament/:id" element={<TournamentPage />} />
             <Route path="/results/:id" element={<ResultsPage />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/prompts" element={<PromptsPage />} />
           </Routes>
         </main>
         <Toaster position="bottom-right" />
