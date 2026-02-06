@@ -308,17 +308,32 @@ export default function AdminPage() {
                       >
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
                         <span className="font-medium truncate flex-1">{m.winner_title}</span>
-                        <span className="text-muted-foreground text-xs shrink-0">beat</span>
+                        <span className="text-muted-foreground text-xs shrink-0 mx-1">beat</span>
                         <span className="truncate text-muted-foreground flex-1">{m.paper1_title === m.winner_title ? m.paper2_title : m.paper1_title}</span>
                         <ModelBadge model={m.model_used} />
                         {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
                       </button>
-                      {isExpanded && m.reasoning && (
+                      {isExpanded && (
                         <div className="px-3 pb-3 pt-0 border-t border-border/50 bg-secondary/10">
-                          <p className="text-xs text-muted-foreground leading-relaxed pt-2">{m.reasoning}</p>
-                          {m.created_at && (
-                            <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">{new Date(m.created_at).toLocaleString()}</p>
-                          )}
+                          <div className="pt-2 space-y-2">
+                            <div className="text-xs">
+                              <span className="text-muted-foreground">Winner: </span>
+                              <span className="font-medium">{m.winner_title}</span>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-muted-foreground">Loser: </span>
+                              <span>{m.paper1_title === m.winner_title ? m.paper2_title : m.paper1_title}</span>
+                            </div>
+                            {m.reasoning && (
+                              <div className="text-xs mt-2">
+                                <span className="text-muted-foreground block mb-1">Reasoning:</span>
+                                <p className="text-foreground leading-relaxed whitespace-pre-wrap">{m.reasoning}</p>
+                              </div>
+                            )}
+                            {m.created_at && (
+                              <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">{new Date(m.created_at).toLocaleString()}</p>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
