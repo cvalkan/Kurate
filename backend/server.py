@@ -1056,6 +1056,16 @@ async def run_tournament(tournament_id: str):
         else:
             prompt_config = DEFAULT_PROMPTS[DEFAULT_PROMPT_KEY]
         
+        # Check for custom prompt override in database
+        if not custom_prompt:
+            custom_prompt_doc = await db.custom_prompts.find_one({"key": prompt_key}, {"_id": 0})
+            if custom_prompt_doc:
+                prompt_config = {
+                    **prompt_config,
+                    "system_prompt": custom_prompt_doc.get("system_prompt", prompt_config["system_prompt"]),
+                    "user_prompt": custom_prompt_doc.get("user_prompt", prompt_config["user_prompt"])
+                }
+        
         # Update status
         mode_label = "UCB" if ranking_mode == "ucb" else "Round Robin"
         if deep_analysis:
