@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,12 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Check if already logged in
-  const existingToken = sessionStorage.getItem("admin_token");
-  if (existingToken) {
-    navigate("/admin/dashboard", { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    const token = sessionStorage.getItem("admin_token");
+    if (token) {
+      navigate("/admin/dashboard", { replace: true });
+    }
+  }, [navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
