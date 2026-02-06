@@ -97,8 +97,9 @@ async def _check_goals_met() -> bool:
     """Check if both ranking goals are satisfied."""
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
+    max_matches = settings.get("max_matches_per_paper", 150)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 8)  # Wilson margin %
+    ci_target = settings.get("ci_target", 12)
 
     total_papers = await db.papers.count_documents({})
     if total_papers < 2:
@@ -122,12 +123,10 @@ async def _check_goals_met() -> bool:
         if w and w in paper_wins:
             paper_wins[w] += 1
 
-    # Goal 1: all papers at min matches
     for c in paper_match_count.values():
         if c < min_matches:
             return False
 
-    # Goal 2: top-K papers have Wilson CI margin ≤ ci_target %
     sorted_papers = sorted(
         paper_match_count.keys(),
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
@@ -136,6 +135,8 @@ async def _check_goals_met() -> bool:
     top_k_ids = sorted_papers[:min(top_k, len(sorted_papers))]
     for pid in top_k_ids:
         n = paper_match_count[pid]
+        if n >= max_matches:
+            continue  # Hit cap → considered converged
         w = paper_wins.get(pid, 0)
         from routers.admin import _wilson_margin
         margin_pct = _wilson_margin(w, n) * 100
