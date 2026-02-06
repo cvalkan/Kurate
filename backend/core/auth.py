@@ -7,6 +7,11 @@ async def get_settings():
     if not settings:
         await db.settings.insert_one(DEFAULT_SETTINGS.copy())
         settings = DEFAULT_SETTINGS.copy()
+    else:
+        # Merge in any new default keys not yet in DB
+        for k, v in DEFAULT_SETTINGS.items():
+            if k not in settings:
+                settings[k] = v
     return settings
 
 
