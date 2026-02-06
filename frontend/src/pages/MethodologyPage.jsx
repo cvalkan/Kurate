@@ -54,7 +54,8 @@ export default function MethodologyPage() {
             <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-50 text-orange-700 border-orange-200">Claude Opus 4.5</span>
             <span className="text-xs font-mono px-2 py-1 rounded border bg-blue-50 text-blue-700 border-blue-200">Gemini 3 Pro</span>
           </div>
-          <p>Each model is prompted to simulate the collective judgment of 100 expert robotics researchers — professors, conference reviewers (ICRA, IROS, RSS, CoRL), and industry leaders — predicting which paper the experts would consider more impactful. The model returns a winner and a brief reasoning.</p>
+          <p>Each model acts as a scientific paper evaluator, assessing which of the two papers has higher potential scientific impact. It considers five dimensions: novelty and innovation, real-world applications, methodological rigor, breadth of impact across fields, and timeliness. The model returns a winner and a brief reasoning.</p>
+          <p>The evaluation prompt is fully customizable via the Admin panel.</p>
         </Step>
 
         <Step number={4} icon={RefreshCw} title="Adaptive Matchmaking">
