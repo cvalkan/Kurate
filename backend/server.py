@@ -1153,12 +1153,19 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
     scores = calculate_bradley_terry(matches, paper_ids)
     rankings = create_rankings(scores, paper_lookup, paper_stats, confidence_level)
     
+    # Count successful vs failed matches
+    successful_matches = [m for m in matches if m.get('completed') and not m.get('failed')]
+    failed_match_list = [m for m in matches if m.get('failed')]
+    
     # Build completion message
     saved = (n*(n-1)//2) - len(matches)
     if target_top_k:
-        completion_msg = f"UCB Top-{target_top_k} completed! {len(matches)} comparisons (saved {saved} vs round-robin)"
+        completion_msg = f"UCB Top-{target_top_k} completed! {len(successful_matches)} comparisons (saved {saved} vs round-robin)"
     else:
-        completion_msg = f"UCB completed! {len(matches)} comparisons (saved {saved} vs round-robin)"
+        completion_msg = f"UCB completed! {len(successful_matches)} comparisons (saved {saved} vs round-robin)"
+    
+    if failed_match_list:
+        completion_msg += f" ({len(failed_match_list)} failed)"
     
     await db.tournaments.update_one(
         {"id": tournament_id},
@@ -1170,6 +1177,8 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
             "paper_stats": paper_stats,
             "progress": 100,
             "total_matches": len(matches),
+            "successful_matches": len(successful_matches),
+            "failed_matches": len(failed_match_list),
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "current_log": completion_msg
         }}
@@ -1177,6 +1186,7 @@ async def run_ucb_tournament(tournament_id: str, papers: List[Dict], paper_looku
     
     # Clean up in-memory cache
     tournament_progress_cache.pop(tournament_id, None)
+    logger.info(f"UCB Tournament {tournament_id} completed: {len(successful_matches)} successful, {len(failed_match_list)} failed")
 
 async def run_round_robin_tournament(tournament_id: str, papers: List[Dict], paper_lookup: Dict,
                                      paper_ids: List[str], matches: List[Dict], deep_analysis: bool,
