@@ -348,18 +348,19 @@ async def get_usage_stats():
 @router.get("/prompt", dependencies=[Depends(verify_admin)])
 async def get_evaluation_prompt():
     from core.config import DEFAULT_EVALUATION_PROMPT
-    custom = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
-    if custom:
+    doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
+    if doc:
         return {
-            "system_prompt": custom.get("system_prompt", DEFAULT_EVALUATION_PROMPT["system_prompt"]),
-            "user_prompt": custom.get("user_prompt", DEFAULT_EVALUATION_PROMPT["user_prompt"]),
-            "is_custom": True,
+            "system_prompt": doc.get("system_prompt", ""),
+            "user_prompt": doc.get("user_prompt", ""),
         }
-    return {
-        "system_prompt": DEFAULT_EVALUATION_PROMPT["system_prompt"],
-        "user_prompt": DEFAULT_EVALUATION_PROMPT["user_prompt"],
-        "is_custom": False,
-    }
+    # No prompt saved yet — save the default and return it
+    await db.settings.update_one(
+        {"key": "custom_prompt"},
+        {"$set": {"key": "custom_prompt", **DEFAULT_EVALUATION_PROMPT}},
+        upsert=True,
+    )
+    return DEFAULT_EVALUATION_PROMPT
 
 
 @router.put("/prompt", dependencies=[Depends(verify_admin)])
@@ -376,7 +377,56 @@ async def update_evaluation_prompt(update: PromptUpdate):
     return {"success": True}
 
 
-@router.delete("/prompt", dependencies=[Depends(verify_admin)])
-async def reset_evaluation_prompt():
-    await db.settings.delete_one({"key": "custom_prompt"})
+DEFAULT_SUMMARY_PROMPT = {
+    "system_prompt": """You are a scientific impact analyst. Write a concise, informative summary of a paper's scientific impact based on:
+1. The paper's content (abstract, methodology, results)
+2. How it performed in head-to-head comparisons against other recent papers, as judged by AI models simulating expert panels
+
+Write in third person, factual tone. Structure the summary as:
+- Opening sentence: What the paper does and its main contribution
+- Key strengths identified through comparisons (2-3 points)
+- Limitations or areas where other papers were preferred (1-2 points, if any losses exist)
+- Closing assessment of overall impact and significance
+
+Keep it to 150-200 words. Do not use bullet points — write flowing paragraphs.""",
+    "user_prompt": """Paper: "{title}"
+Authors: {authors}
+
+{paper_content}
+
+Tournament performance: {win_rate}% win rate across {num_matches} comparisons.
+
+{match_context}
+
+Write the scientific impact summary.""",
+}
+
+
+@router.get("/summary-prompt", dependencies=[Depends(verify_admin)])
+async def get_summary_prompt():
+    doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
+    if doc:
+        return {
+            "system_prompt": doc.get("system_prompt", ""),
+            "user_prompt": doc.get("user_prompt", ""),
+        }
+    await db.settings.update_one(
+        {"key": "summary_prompt"},
+        {"$set": {"key": "summary_prompt", **DEFAULT_SUMMARY_PROMPT}},
+        upsert=True,
+    )
+    return DEFAULT_SUMMARY_PROMPT
+
+
+@router.put("/summary-prompt", dependencies=[Depends(verify_admin)])
+async def update_summary_prompt(update: PromptUpdate):
+    await db.settings.update_one(
+        {"key": "summary_prompt"},
+        {"$set": {
+            "key": "summary_prompt",
+            "system_prompt": update.system_prompt,
+            "user_prompt": update.user_prompt,
+        }},
+        upsert=True,
+    )
     return {"success": True}
