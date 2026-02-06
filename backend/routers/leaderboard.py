@@ -177,8 +177,6 @@ async def get_system_status():
         **cached,
         "scheduler": scheduler_status,
     }
-        "settings": settings,
-    }
 
 
 @router.get("/model-correlation")
