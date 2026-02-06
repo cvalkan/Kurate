@@ -1633,6 +1633,10 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
     # Get LLM model config
     llm_model = config.llm_model or DEFAULT_MODEL
     
+    # Get prompt config
+    prompt_key = config.prompt_key or DEFAULT_PROMPT_KEY
+    custom_prompt = config.custom_prompt
+    
     # Create tournament
     tournament = Tournament(
         category=category,
@@ -1644,6 +1648,8 @@ async def create_tournament(config: TournamentCreate, background_tasks: Backgrou
         ranking_mode=ranking_mode,
         ucb_config=ucb_config_dict,
         llm_model=llm_model,
+        prompt_key=prompt_key,
+        custom_prompt=custom_prompt,
         papers=paper_dicts,
         matches=match_dicts,
         total_matches=estimated_matches
