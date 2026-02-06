@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import CorrelationPage from "@/pages/CorrelationPage";
+import MethodologyPage from "@/pages/MethodologyPage";
 import PaperPage from "@/pages/PaperPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import AdminPage from "@/pages/AdminPage";
