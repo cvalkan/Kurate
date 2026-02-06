@@ -152,11 +152,12 @@ export default function LeaderboardPage() {
       ) : (
         <div className="border border-border rounded-lg overflow-hidden" data-testid="leaderboard-table">
           {/* Table Header */}
-          <div className="grid grid-cols-[3rem_1fr_5rem_4.5rem_5rem] md:grid-cols-[3rem_1fr_5rem_5rem_5rem_7rem] gap-2 px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
+          <div className="grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
             <div>#</div>
             <div>Paper</div>
             <div className="text-right">Score</div>
             <div className="text-right">95% CI</div>
+            <div className="text-right">Win %</div>
             <div className="text-right">Matches</div>
             <div className="text-right hidden md:block">Published</div>
           </div>
@@ -166,7 +167,7 @@ export default function LeaderboardPage() {
             <Link
               key={paper.id}
               to={`/paper/${paper.id}`}
-              className={`grid grid-cols-[3rem_1fr_5rem_4.5rem_5rem] md:grid-cols-[3rem_1fr_5rem_5rem_5rem_7rem] gap-2 px-3 md:px-4 py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${
+              className={`grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${
                 idx < 3 ? "bg-accent/[0.02]" : ""
               }`}
               data-testid={`leaderboard-row-${idx}`}
@@ -183,8 +184,9 @@ export default function LeaderboardPage() {
               </div>
               <div className="text-right font-mono text-sm font-medium">{paper.score}</div>
               <div className="text-right font-mono text-xs text-muted-foreground">
-                {paper.ci > 0 ? `\u00B1${paper.ci}` : "--"}
+                {paper.wilson_margin > 0 ? `\u00B1${paper.wilson_margin}%` : "--"}
               </div>
+              <div className="text-right font-mono text-xs text-muted-foreground">{paper.win_rate}%</div>
               <div className="text-right font-mono text-xs text-muted-foreground">{paper.comparisons}</div>
               <div className="text-right text-xs text-muted-foreground hidden md:block">
                 {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
