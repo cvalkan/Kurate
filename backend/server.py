@@ -406,7 +406,7 @@ def extract_key_sections(full_text: str) -> Dict[str, str]:
     return sections
 
 async def fetch_arxiv_papers(category: str, max_results: int = 10) -> List[Paper]:
-    """Fetch papers from arXiv API by category"""
+    """Fetch papers from arXiv API by category with retry logic"""
     base_url = "https://export.arxiv.org/api/query"
     query = f"cat:{category}"
     params = {
@@ -417,11 +417,32 @@ async def fetch_arxiv_papers(category: str, max_results: int = 10) -> List[Paper
         "sortOrder": "descending"
     }
     
-    async with httpx.AsyncClient() as http_client:
-        response = await http_client.get(base_url, params=params, timeout=30.0)
-        response.raise_for_status()
+    max_retries = 3
+    last_error = None
     
-    return parse_arxiv_response(response.text)
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient() as http_client:
+                response = await http_client.get(base_url, params=params, timeout=30.0)
+                response.raise_for_status()
+            return parse_arxiv_response(response.text)
+        except httpx.HTTPStatusError as e:
+            last_error = e
+            if e.response.status_code == 429:
+                # Rate limited - wait and retry
+                wait_time = (attempt + 1) * 5  # 5s, 10s, 15s
+                logger.warning(f"ArXiv rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                await asyncio.sleep(wait_time)
+            else:
+                raise
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2)
+            else:
+                raise
+    
+    raise last_error
 
 async def search_arxiv_papers(
     keywords: Optional[str] = None,
