@@ -72,7 +72,6 @@ DEFAULT_SETTINGS = {
     "admin_password": "papersumo2025",
     "fetch_interval_hours": 24,
     "max_papers_per_fetch": 50,
-    "comparisons_per_round": 50,
     "parallel_agents": 5,
     "top_k_focus": 10,
     "exploration_constant": 1.414,
