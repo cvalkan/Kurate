@@ -308,34 +308,40 @@ export default function AdminPage() {
           {usageStats && (
             <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="usage-stats">
               <h3 className="text-sm font-medium mb-3">Usage Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
                 <div className="text-xs text-muted-foreground">
-                  <span className="block text-foreground font-mono font-medium">{(usageStats.totals?.total_tokens || 0).toLocaleString()}</span>
-                  total tokens (est.)
+                  <span className="block text-foreground font-mono font-medium">{(usageStats.totals?.input_tokens || 0).toLocaleString()}</span>
+                  input tokens (est.)
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  <span className="block text-foreground font-mono font-medium">{usageStats.totals?.total_matches || 0}</span>
-                  API calls
+                  <span className="block text-foreground font-mono font-medium">{(usageStats.totals?.output_tokens || 0).toLocaleString()}</span>
+                  output tokens (est.)
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <span className="block text-foreground font-mono font-medium">${usageStats.totals?.total_cost?.toFixed(2) || "0.00"}</span>
+                  estimated cost
                 </div>
                 <div className="text-xs text-muted-foreground">
                   <span className="block text-foreground font-mono font-medium">{usageStats.storage?.size_mb || 0} MB</span>
                   PDF text storage
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  <span className="block text-foreground font-mono font-medium">{usageStats.storage?.papers_with_text || 0}/{usageStats.storage?.total_papers || 0}</span>
-                  papers with full text
+                  <span className="block text-foreground font-mono font-medium">{usageStats.totals?.total_matches || 0}</span>
+                  API calls
                 </div>
               </div>
               {usageStats.models && Object.keys(usageStats.models).length > 0 && (
                 <div className="border-t border-border/50 pt-2">
-                  <div className="text-xs text-muted-foreground mb-1.5">By model:</div>
-                  <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wide">By model</div>
+                  <div className="space-y-1.5">
                     {Object.entries(usageStats.models).sort((a, b) => b[1].matches - a[1].matches).map(([model, stats]) => (
-                      <div key={model} className="flex items-center justify-between text-xs">
-                        <span className="font-mono text-foreground">{model.split("/").pop()}</span>
-                        <div className="flex items-center gap-4 text-muted-foreground">
+                      <div key={model} className="flex items-center justify-between text-xs gap-2">
+                        <span className="font-mono text-foreground shrink-0">{model.split("/").pop()}</span>
+                        <div className="flex items-center gap-3 text-muted-foreground text-[11px]">
                           <span>{stats.matches} calls</span>
-                          <span>{((stats.input_tokens + stats.output_tokens) || 0).toLocaleString()} tokens</span>
+                          <span className="font-mono">{stats.input_tokens.toLocaleString()} in</span>
+                          <span className="font-mono">{stats.output_tokens.toLocaleString()} out</span>
+                          <span className="font-mono text-foreground font-medium">${stats.cost_total?.toFixed(2) || "0.00"}</span>
                         </div>
                       </div>
                     ))}
