@@ -64,6 +64,8 @@ export default function AdminPage() {
   const [manualMatches, setManualMatches] = useState(50);
   const [summaryPrompt, setSummaryPrompt] = useState(null);
   const [editSummaryPrompt, setEditSummaryPrompt] = useState({});
+  const [correlation, setCorrelation] = useState(null);
+  const [loadingCorr, setLoadingCorr] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const headers = getAdminHeaders();
