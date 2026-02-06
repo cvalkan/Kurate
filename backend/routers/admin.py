@@ -191,6 +191,9 @@ async def get_progress_estimate():
     top_k_converged = 0
     matches_for_goal2 = 0
     top_k_details = []
+    z = 1.96  # 95% CI
+    target_frac = ci_target / 100.0  # e.g., 0.08
+
     for pid in top_k_ids:
         n = paper_match_count[pid]
         w = paper_wins.get(pid, 0)
@@ -200,11 +203,15 @@ async def get_progress_estimate():
         if converged:
             top_k_converged += 1
         else:
-            if margin_pct > 0 and n > 0:
-                n_needed = max(0, int(n * (margin_pct / ci_target) ** 2) - n)
-                matches_for_goal2 += n_needed // 2 + 1
-            else:
-                matches_for_goal2 += 10
+            # Direct estimate: for Wilson CI, margin ≈ z/(2√n), so n_needed ≈ (z/(2*target))²
+            # This is the worst-case (p=0.5). For extreme p, it converges faster.
+            p = w / n if n > 0 else 0.5
+            p = max(0.05, min(0.95, p))
+            # Wilson margin ≈ z * sqrt(p(1-p)/n) / (1 + z²/n) ≈ z*sqrt(p(1-p)/n) for large n
+            # Solve for n: n_needed = (z / (2*target))² * 4*p*(1-p)
+            n_needed = int((z ** 2) * p * (1 - p) / (target_frac ** 2))
+            extra = max(0, n_needed - n)
+            matches_for_goal2 += (extra + 1) // 2  # each match covers 2 papers
         elo_ci = _elo_ci(w, n)
         top_k_details.append({
             "id": pid, "matches": int(n), "margin_pct": float(margin_pct),
