@@ -133,13 +133,17 @@ async def get_admin_status():
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate():
-    """Dual-goal progress: min matches per paper AND CI<target for top-K."""
+    """Dual-goal progress with estimated remaining matches and time."""
     import math
+    from scipy import stats as scipy_stats
+
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 200)
+    ci_target = settings.get("ci_target", 8)  # Wilson CI margin in percentage points
     is_paused = settings.get("paused", False)
+    comparisons_per_round = settings.get("comparisons_per_round", 50)
+    parallel_agents = settings.get("parallel_agents", 5)
 
     all_paper_ids = []
     async for p in db.papers.find({}, {"_id": 0, "id": 1}):
@@ -147,7 +151,7 @@ async def get_progress_estimate():
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
-        return {"total_papers": 0, "goal1_pct": 100, "goal2_pct": 100, "overall_pct": 100}
+        return {"total_papers": 0, "goals_met": True, "paused": is_paused}
 
     paper_match_count = {pid: 0 for pid in all_paper_ids}
     paper_wins = {pid: 0 for pid in all_paper_ids}
@@ -165,12 +169,11 @@ async def get_progress_estimate():
 
     # Goal 1: All papers at min matches
     papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
-    goal1_pct = min(100, round(100 * papers_at_min / total_papers))
     deficit = sum(max(0, min_matches - c) for c in paper_match_count.values())
-    matches_for_min = max(0, (deficit + 1) // 2)
+    matches_for_goal1 = max(0, (deficit + 1) // 2)
+    goal1_met = papers_at_min == total_papers
 
-    # Goal 2: Top-K papers have CI ≤ ±100 Elo
-    # Find current top-K by win rate
+    # Goal 2: Top-K papers have Wilson CI margin ≤ ci_target %
     sorted_papers = sorted(
         all_paper_ids,
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
@@ -178,18 +181,35 @@ async def get_progress_estimate():
     )
     top_k_ids = sorted_papers[:min(top_k, total_papers)]
     top_k_converged = 0
+    matches_for_goal2 = 0
     top_k_details = []
     for pid in top_k_ids:
         n = paper_match_count[pid]
-        ci = _elo_ci(paper_wins.get(pid, 0), n)
-        ci_rounded = round(ci) if ci < 999 else None
-        converged = ci <= ci_target
+        w = paper_wins.get(pid, 0)
+        margin = _wilson_margin(w, n)
+        margin_pct = round(margin * 100, 1)
+        converged = margin_pct <= ci_target
         if converged:
             top_k_converged += 1
-        top_k_details.append({"id": pid, "matches": n, "ci": ci_rounded, "converged": converged})
-    goal2_pct = min(100, round(100 * top_k_converged / len(top_k_ids))) if top_k_ids else 100
+        else:
+            # Estimate matches needed: margin ∝ 1/√n, so n_needed ≈ n * (margin_pct/target)²
+            if margin_pct > 0 and n > 0:
+                n_needed = max(0, int(n * (margin_pct / ci_target) ** 2) - n)
+                matches_for_goal2 += n_needed // 2 + 1
+            else:
+                matches_for_goal2 += 10
+        elo_ci = _elo_ci(w, n)
+        top_k_details.append({
+            "id": pid, "matches": n, "margin_pct": margin_pct,
+            "elo_ci": round(elo_ci) if elo_ci < 999 else None, "converged": converged,
+        })
+    goal2_met = top_k_converged == len(top_k_ids)
 
-    overall_pct = min(100, round((goal1_pct + goal2_pct) / 2))
+    total_est = matches_for_goal1 + matches_for_goal2
+    # Time estimate: ~10s per batch of parallel_agents comparisons
+    seconds_per_match = 10.0 / max(parallel_agents, 1)
+    est_seconds = total_est * seconds_per_match
+    est_minutes = round(est_seconds / 60)
 
     total_matches_done = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
     papers_with_pdf = await db.papers.count_documents({"full_text": {"$ne": None}})
@@ -199,22 +219,41 @@ async def get_progress_estimate():
         "total_matches": total_matches_done,
         "papers_with_pdf": papers_with_pdf,
         "paused": is_paused,
+        "goals_met": goal1_met and goal2_met,
         "goal1": {
-            "label": f"Min {min_matches} matches per paper",
+            "label": f"Min {min_matches} matches/paper",
+            "met": goal1_met,
             "papers_done": papers_at_min,
             "papers_total": total_papers,
-            "pct": goal1_pct,
-            "matches_needed": matches_for_min,
+            "matches_needed": matches_for_goal1,
         },
         "goal2": {
-            "label": f"CI \u2264 \u00b1{ci_target} for top-{len(top_k_ids)}",
+            "label": f"CI \u2264 {ci_target}% for top-{len(top_k_ids)}",
+            "met": goal2_met,
             "papers_done": top_k_converged,
             "papers_total": len(top_k_ids),
-            "pct": goal2_pct,
+            "matches_needed": matches_for_goal2,
             "top_k_details": top_k_details,
         },
-        "overall_pct": overall_pct,
+        "estimated_matches_remaining": total_est,
+        "estimated_minutes": est_minutes,
     }
+
+
+def _wilson_margin(wins, comparisons):
+    """Wilson score CI half-width (0 to 0.5 range)."""
+    from scipy import stats as scipy_stats
+    if comparisons == 0:
+        return 0.5
+    p = wins / comparisons
+    n = comparisons
+    z = scipy_stats.norm.ppf(0.975)
+    denom = 1 + z**2 / n
+    center = (p + z**2 / (2*n)) / denom
+    spread = z * ((p*(1-p) + z**2/(4*n)) / n) ** 0.5 / denom
+    lower = max(0, center - spread)
+    upper = min(1, center + spread)
+    return (upper - lower) / 2
 
 
 def _elo_ci(wins, comparisons):
