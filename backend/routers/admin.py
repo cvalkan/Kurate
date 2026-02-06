@@ -132,7 +132,7 @@ async def get_admin_status():
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate():
-    """Estimate remaining matches needed to reach confidence targets."""
+    """Dual-goal progress: min matches per paper AND CI<100 for top-K."""
     import math
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
@@ -144,9 +144,8 @@ async def get_progress_estimate():
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
-        return {"total_papers": 0, "matches_needed": 0, "progress_pct": 100}
+        return {"total_papers": 0, "goal1_pct": 100, "goal2_pct": 100, "overall_pct": 100}
 
-    # Count matches per paper
     paper_match_count = {pid: 0 for pid in all_paper_ids}
     paper_wins = {pid: 0 for pid in all_paper_ids}
     async for m in db.matches.find(
@@ -161,41 +160,56 @@ async def get_progress_estimate():
         if w and w in paper_wins:
             paper_wins[w] += 1
 
-    # Papers at or above min matches
+    # Goal 1: All papers at min matches
     papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
-    below_min_count = total_papers - papers_at_min
-
-    # Matches needed to bring all papers to min_matches
-    # Each match covers 2 papers, so rough estimate:
+    goal1_pct = min(100, round(100 * papers_at_min / total_papers))
     deficit = sum(max(0, min_matches - c) for c in paper_match_count.values())
     matches_for_min = max(0, (deficit + 1) // 2)
 
-    # Papers converged: CI ≤ ±100 Elo (reasonable for this scale)
-    papers_converged = 0
-    for pid in all_paper_ids:
+    # Goal 2: Top-K papers have CI ≤ ±100 Elo
+    # Find current top-K by win rate
+    sorted_papers = sorted(
+        all_paper_ids,
+        key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
+        reverse=True,
+    )
+    top_k_ids = sorted_papers[:min(top_k, total_papers)]
+    top_k_converged = 0
+    top_k_details = []
+    for pid in top_k_ids:
         n = paper_match_count[pid]
-        if n >= min_matches:
-            ci = _elo_ci(paper_wins.get(pid, 0), n)
-            if ci <= 100:
-                papers_converged += 1
+        ci = _elo_ci(paper_wins.get(pid, 0), n)
+        ci_rounded = round(ci) if ci < 999 else None
+        converged = ci <= 100
+        if converged:
+            top_k_converged += 1
+        top_k_details.append({"id": pid, "matches": n, "ci": ci_rounded, "converged": converged})
+    goal2_pct = min(100, round(100 * top_k_converged / len(top_k_ids))) if top_k_ids else 100
+
+    overall_pct = min(100, round((goal1_pct + goal2_pct) / 2))
 
     total_matches_done = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
     papers_with_pdf = await db.papers.count_documents({"full_text": {"$ne": None}})
-
-    # Overall progress: weighted by papers at min matches
-    progress_pct = min(100, round(100 * papers_at_min / total_papers)) if total_papers > 0 else 100
 
     return {
         "total_papers": total_papers,
         "total_matches": total_matches_done,
         "papers_with_pdf": papers_with_pdf,
-        "papers_at_min_matches": papers_at_min,
-        "papers_below_min_matches": below_min_count,
-        "matches_needed_for_min": matches_for_min,
-        "papers_converged": papers_converged,
-        "estimated_rounds": max(0, matches_for_min // 20 + (1 if matches_for_min % 20 else 0)),
-        "min_matches_setting": min_matches,
-        "progress_pct": progress_pct,
+        "goal1": {
+            "label": f"Min {min_matches} matches per paper",
+            "papers_done": papers_at_min,
+            "papers_total": total_papers,
+            "pct": goal1_pct,
+            "matches_needed": matches_for_min,
+        },
+        "goal2": {
+            "label": f"CI \u2264 \u00b1100 for top-{len(top_k_ids)}",
+            "papers_done": top_k_converged,
+            "papers_total": len(top_k_ids),
+            "pct": goal2_pct,
+            "top_k_details": top_k_details,
+        },
+        "overall_pct": overall_pct,
     }
 
 
