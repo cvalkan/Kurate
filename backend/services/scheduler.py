@@ -212,23 +212,16 @@ async def run_comparison_round():
                 scheduler_status["current_activity"] = "Not enough papers for comparisons"
                 return {"status": "not_enough_papers"}
 
-            # Download PDFs for any papers still missing full text
-            papers_needing_pdf = [p for p in all_papers if not p.get("full_text") and p.get("pdf_link")]
-            if papers_needing_pdf:
-                scheduler_status["current_activity"] = f"Downloading {len(papers_needing_pdf)} PDFs..."
-                for i, paper in enumerate(papers_needing_pdf):
-                    scheduler_status["current_activity"] = f"Downloading PDF {i+1}/{len(papers_needing_pdf)}..."
-                    try:
-                        full_text = await download_and_extract_pdf(paper["pdf_link"])
-                        if full_text:
-                            paper["full_text"] = full_text
-                            await db.papers.update_one(
-                                {"id": paper["id"]},
-                                {"$set": {"full_text": full_text, "needs_pdf": False}},
-                            )
-                    except Exception as e:
-                        logger.warning(f"PDF download failed for {paper['id']}: {e}")
-                    await asyncio.sleep(1)
+            # Download any missing PDFs before comparing (uses shared function)
+            papers_missing_text = sum(1 for p in all_papers if not p.get("full_text"))
+            if papers_missing_text > 0:
+                dl_count = await _download_pending_pdfs()
+                if dl_count > 0:
+                    # Reload papers with fresh full_text
+                    all_papers = await db.papers.find(
+                        {}, {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
+                             "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1}
+                    ).to_list(5000)
 
             # Get all completed matches
             all_matches = await db.matches.find(
