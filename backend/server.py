@@ -563,7 +563,7 @@ Which paper has higher estimated scientific impact? Respond with JSON only."""
         api_key=EMERGENT_LLM_KEY,
         session_id=f"compare-{uuid.uuid4()}",
         system_message=system_msg
-    ).with_model("openai", "gpt-5.2")
+    ).with_model(provider, model)
     
     try:
         # Run LLM call in thread pool to avoid blocking the event loop
