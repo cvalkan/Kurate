@@ -250,6 +250,35 @@ export default function HomePage() {
                     </p>
                   </div>
 
+                  {/* AI Model Selection */}
+                  <div className="space-y-2">
+                    <Label>AI Model</Label>
+                    <Select
+                      value={selectedModel ? `${selectedModel.provider}:${selectedModel.model}` : ""}
+                      onValueChange={(value) => {
+                        const [provider, model] = value.split(":");
+                        setSelectedModel({ provider, model });
+                      }}
+                      data-testid="model-selector"
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select AI model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableModels.map((m) => (
+                          <SelectItem key={`${m.provider}:${m.model}`} value={`${m.provider}:${m.model}`}>
+                            <div className="flex items-center gap-2">
+                              <span>{m.name}</span>
+                              {m.is_default && (
+                                <Badge variant="outline" className="text-[10px] py-0">Default</Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Deep Analysis Toggle */}
                   <div className="space-y-3 p-4 rounded-lg bg-secondary/50 border border-border">
                     <div className="flex items-center justify-between">
