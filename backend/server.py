@@ -160,6 +160,7 @@ class Tournament(BaseModel):
     search_query: Optional[str] = None
     ranking_mode: str = "round_robin"  # "round_robin" or "ucb"
     ucb_config: Optional[Dict[str, Any]] = None
+    llm_model: Dict[str, str] = Field(default_factory=lambda: {"provider": "openai", "model": "gpt-5.2"})
     status: str = "pending"
     papers: List[Dict[str, Any]] = []
     matches: List[Dict[str, Any]] = []
