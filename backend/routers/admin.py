@@ -194,17 +194,16 @@ async def get_progress_estimate():
         w = paper_wins.get(pid, 0)
         margin = float(_wilson_margin(w, n))
         margin_pct = round(margin * 100, 1)
-        converged = bool(margin_pct <= ci_target)
+        # Converged if CI below target OR matches hit the cap
+        converged = bool(margin_pct <= ci_target or n >= max_matches)
         if converged:
             top_k_converged += 1
         else:
-            # Empirical: margin ∝ 1/√n, so to go from current margin to target:
-            # n_needed/n_current = (current_margin/target)²
-            if n > 0 and margin > 0:
-                ratio = (margin / target_frac) ** 2
-                extra = max(1, int(n * ratio) - n)
-            else:
-                extra = 20
+            # Estimate: how many more matches to either hit target or cap
+            ratio = (margin / target_frac) ** 2
+            n_for_ci = max(1, int(n * ratio) - n)
+            n_for_cap = max(0, max_matches - n)
+            extra = min(n_for_ci, n_for_cap)  # Whichever comes first
             matches_for_goal2 += extra
         elo_ci = _elo_ci(w, n)
         top_k_details.append({
