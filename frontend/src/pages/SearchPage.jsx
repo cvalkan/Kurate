@@ -221,7 +221,8 @@ export default function SearchPage() {
         parallel_agents: parallelAgents,
         deep_analysis: deepAnalysis,
         search_query: searchDescription,
-        ranking_mode: useUCB ? "ucb" : "round_robin"
+        ranking_mode: useUCB ? "ucb" : "round_robin",
+        llm_model: selectedModel
       };
       
       // Add UCB config if enabled
