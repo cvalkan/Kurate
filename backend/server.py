@@ -568,29 +568,41 @@ Which paper has higher estimated scientific impact? Respond with JSON only."""
         system_message=system_msg
     ).with_model(provider, model)
     
-    try:
-        # Run LLM call in thread pool to avoid blocking the event loop
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,  # Use default executor
-            lambda: asyncio.run(chat.send_message(UserMessage(text=prompt)))
-        )
-        # Parse JSON response
-        response_text = response.strip()
-        if response_text.startswith("```"):
-            response_text = response_text.split("```")[1]
-            if response_text.startswith("json"):
-                response_text = response_text[4:]
-        result = json.loads(response_text)
-        return result
-    except Exception as e:
-        logger.error(f"LLM comparison error: {e}")
-        # Fallback: random selection
-        import random
-        return {
-            "winner": random.choice(["paper1", "paper2"]),
-            "reasoning": "Comparison failed, random selection applied."
-        }
+    # Retry logic with exponential backoff
+    max_retries = 3
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            # Run LLM call in thread pool to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,  # Use default executor
+                lambda: asyncio.run(chat.send_message(UserMessage(text=prompt)))
+            )
+            # Parse JSON response
+            response_text = response.strip()
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+            result = json.loads(response_text)
+            
+            # Validate response has required fields
+            if "winner" not in result or result["winner"] not in ["paper1", "paper2"]:
+                raise ValueError(f"Invalid response format: {result}")
+            
+            return result
+        except Exception as e:
+            last_error = e
+            logger.warning(f"LLM comparison attempt {attempt + 1}/{max_retries} failed: {e}")
+            if attempt < max_retries - 1:
+                # Exponential backoff: 1s, 2s, 4s
+                await asyncio.sleep(2 ** attempt)
+    
+    # All retries failed - raise exception instead of random selection
+    logger.error(f"LLM comparison failed after {max_retries} attempts: {last_error}")
+    raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
 
 def calculate_bradley_terry(matches: List[Dict], paper_ids: List[str]) -> Dict[str, float]:
     """Calculate Bradley-Terry scores from pairwise comparisons"""
