@@ -110,10 +110,10 @@ async def get_admin_status():
     for m in recent_matches:
         enriched_recent.append({
             "id": m["id"],
-            "paper1_title": paper_titles.get(m["paper1_id"], "Unknown")[:60],
-            "paper2_title": paper_titles.get(m["paper2_id"], "Unknown")[:60],
-            "winner_title": paper_titles.get(m.get("winner_id", ""), "Unknown")[:60],
-            "reasoning": m.get("reasoning", "")[:200],
+            "paper1_title": paper_titles.get(m["paper1_id"], "Unknown"),
+            "paper2_title": paper_titles.get(m["paper2_id"], "Unknown"),
+            "winner_title": paper_titles.get(m.get("winner_id", ""), "Unknown"),
+            "reasoning": m.get("reasoning", ""),
             "model_used": m.get("model_used", {}),
             "created_at": m.get("created_at", ""),
         })
