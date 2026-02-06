@@ -45,13 +45,16 @@ AVAILABLE_MODELS = {
     "openai": {
         "gpt-5.2": "GPT-5.2 (Latest)",
         "gpt-4o": "GPT-4o",
-        "gpt-4o-mini": "GPT-4o Mini (Fast & Cheap)"
+        "gpt-4o-mini": "GPT-4o Mini (Fast)"
     },
     "anthropic": {
+        "claude-opus-4-6-20250501": "Claude Opus 4.6 (Most Capable)",
+        "claude-opus-4-5-20251101": "Claude Opus 4.5",
         "claude-sonnet-4-5-20250514": "Claude Sonnet 4.5",
         "claude-haiku-4-5-20250514": "Claude Haiku 4.5 (Fast)"
     },
     "google": {
+        "gemini-3-flash-preview": "Gemini 3 Flash (Fast)",
         "gemini-2.0-flash": "Gemini 2.0 Flash",
         "gemini-1.5-pro": "Gemini 1.5 Pro"
     }
