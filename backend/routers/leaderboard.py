@@ -62,18 +62,14 @@ async def get_leaderboard(
             cutoff = None
 
         if cutoff:
-            paper_dates = {}
-            for p in all_papers:
+            filtered = []
+            for entry in global_leaderboard:
                 try:
-                    paper_dates[p["id"]] = datetime.fromisoformat(p["published"].replace("Z", "+00:00"))
+                    pub = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
+                    if pub >= cutoff:
+                        filtered.append({**entry})
                 except (ValueError, KeyError):
                     pass
-
-            filtered = [
-                entry for entry in global_leaderboard
-                if entry["id"] in paper_dates and paper_dates[entry["id"]] >= cutoff
-            ]
-            # Re-rank within the filtered set (1, 2, 3...) but keep global scores
             for i, entry in enumerate(filtered):
                 entry["rank"] = i + 1
             global_leaderboard = filtered
