@@ -44,10 +44,13 @@ export default function HomePage() {
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState(null);
+  const [availablePrompts, setAvailablePrompts] = useState([]);
+  const [selectedPromptKey, setSelectedPromptKey] = useState("scientific_impact");
 
   useEffect(() => {
     fetchCategories();
     fetchModels();
+    fetchPrompts();
   }, []);
 
   const fetchCategories = async () => {
@@ -69,6 +72,16 @@ export default function HomePage() {
       setSelectedModel(response.data.default);
     } catch (error) {
       console.error("Failed to load models:", error);
+    }
+  };
+
+  const fetchPrompts = async () => {
+    try {
+      const response = await axios.get(`${API}/prompts`);
+      setAvailablePrompts(response.data.prompts);
+      setSelectedPromptKey(response.data.default);
+    } catch (error) {
+      console.error("Failed to load prompts:", error);
     }
   };
 
