@@ -903,6 +903,7 @@ async def run_tournament(tournament_id: str):
         deep_analysis = tournament_doc.get('deep_analysis', False)
         ranking_mode = tournament_doc.get('ranking_mode', 'round_robin')
         ucb_config = tournament_doc.get('ucb_config', {})
+        llm_model = tournament_doc.get('llm_model', DEFAULT_MODEL)
         
         # Update status
         mode_label = "UCB" if ranking_mode == "ucb" else "Round Robin"
