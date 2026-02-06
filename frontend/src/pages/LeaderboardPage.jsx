@@ -37,8 +37,17 @@ export default function LeaderboardPage() {
     if (p === "all" || !data.length) return data;
     const now = new Date();
     let cutoff;
-    if (p === "today") {
-      cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (p === "recent") {
+      // Find the most recent publication date and show only papers from that date
+      let maxDate = null;
+      for (const paper of data) {
+        if (!paper.published) continue;
+        const d = new Date(paper.published);
+        if (!maxDate || d > maxDate) maxDate = d;
+      }
+      if (!maxDate) return data;
+      // Start of that day (UTC)
+      cutoff = new Date(Date.UTC(maxDate.getUTCFullYear(), maxDate.getUTCMonth(), maxDate.getUTCDate()));
     } else if (p === "week") {
       cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
     } else if (p === "month") {
