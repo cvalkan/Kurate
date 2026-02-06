@@ -168,7 +168,7 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None)
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
 
 
-async def generate_impact_summary(paper: dict, match_logs: list) -> Optional[str]:
+async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None) -> Optional[str]:
     """Generate a scientific impact summary for a converged paper using its content and match logs."""
     model_info = _pick_random_model()
     provider = model_info["provider"]
@@ -195,28 +195,21 @@ async def generate_impact_summary(paper: dict, match_logs: list) -> Optional[str
 
     win_rate = len(wins) / max(len(wins) + len(losses), 1) * 100
 
-    system_msg = """You are a scientific impact analyst. Write a concise, informative summary of a paper's scientific impact based on:
-1. The paper's content (abstract, methodology, results)
-2. How it performed in head-to-head comparisons against other recent papers, as judged by AI models simulating expert panels
+    if prompt_config:
+        system_msg = prompt_config.get("system_prompt", "")
+        user_template = prompt_config.get("user_prompt", "")
+    else:
+        system_msg = "You are a scientific impact analyst. Write a 150-200 word summary of the paper's impact."
+        user_template = "Paper: \"{title}\"\n{paper_content}\n\nTournament: {win_rate}% win rate across {num_matches} comparisons.\n{match_context}\n\nWrite the summary."
 
-Write in third person, factual tone. Structure the summary as:
-- Opening sentence: What the paper does and its main contribution
-- Key strengths identified through comparisons (2-3 points)
-- Limitations or areas where other papers were preferred (1-2 points, if any losses exist)
-- Closing assessment of overall impact and significance
-
-Keep it to 150-200 words. Do not use bullet points — write flowing paragraphs."""
-
-    prompt = f"""Paper: "{paper['title']}"
-Authors: {', '.join(paper.get('authors', [])[:5])}
-
-{paper_content}
-
-Tournament performance: {win_rate:.0f}% win rate across {len(wins) + len(losses)} comparisons.
-
-{match_context}
-
-Write the scientific impact summary."""
+    prompt = user_template.format(
+        title=paper["title"],
+        authors=", ".join(paper.get("authors", [])[:5]),
+        paper_content=paper_content,
+        win_rate=f"{win_rate:.0f}",
+        num_matches=str(len(wins) + len(losses)),
+        match_context=match_context,
+    )
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
