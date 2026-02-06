@@ -37,7 +37,7 @@ export default function LeaderboardPage() {
     if (p === "all" || !data.length) return data;
     const now = new Date();
     let cutoff;
-    if (p === "today") cutoff = new Date(now - 24 * 60 * 60 * 1000);
+    if (p === "today") cutoff = new Date(now - 48 * 60 * 60 * 1000);
     else if (p === "week") cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
     else if (p === "month") cutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
     else return data;
