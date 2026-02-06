@@ -90,3 +90,4 @@ Build a website/platform that fetches the latest scientific papers from arXiv (s
 - **Jan 10, 2026:** Fixed progress bar reset issue - added in-memory cache merge and protected progress updates
 - **Jan 10, 2026:** Added live comparison logs during tournaments - shows last 20 matches with LLM reasoning in real-time
 - **Feb 6, 2026:** Added AI model selection - users can choose from GPT-5.2, GPT-4o, Claude Sonnet/Haiku, Gemini models
+- **Feb 6, 2026:** Added Opus 4.6, Opus 4.5, Gemini 3 Flash models; model badge now shows on Results and History pages
