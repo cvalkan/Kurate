@@ -148,3 +148,151 @@ async def get_system_status():
         "scheduler": scheduler_status,
         "settings": settings,
     }
+
+
+@router.get("/model-correlation")
+async def get_model_correlation():
+    """Correlation analysis between the 3 LLMs used for rankings."""
+    import numpy as np
+    from scipy import stats as scipy_stats
+
+    # Load all successful matches with model info
+    matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+    ).to_list(100000)
+
+    if not matches:
+        return {"models": [], "papers": [], "correlations": {}, "agreement": {}}
+
+    # Get all paper titles
+    paper_titles = {}
+    async for p in db.papers.find({}, {"_id": 0, "id": 1, "title": 1}):
+        paper_titles[p["id"]] = p["title"]
+
+    # Group matches by model
+    model_keys = set()
+    for m in matches:
+        mu = m.get("model_used", {})
+        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        model_keys.add(key)
+
+    model_keys = sorted(model_keys)
+
+    # Per-paper, per-model: wins and total
+    paper_ids = set()
+    for m in matches:
+        paper_ids.add(m["paper1_id"])
+        paper_ids.add(m["paper2_id"])
+    paper_ids = sorted(paper_ids)
+
+    # Build stats: {model: {paper_id: {wins, total}}}
+    model_paper_stats = {mk: {} for mk in model_keys}
+    for m in matches:
+        mu = m.get("model_used", {})
+        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        p1, p2, w = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+        for pid in [p1, p2]:
+            if pid not in model_paper_stats[key]:
+                model_paper_stats[key][pid] = {"wins": 0, "total": 0}
+            model_paper_stats[key][pid]["total"] += 1
+        if w and w in model_paper_stats[key]:
+            model_paper_stats[key][w]["wins"] += 1
+
+    # Compute win rates per model per paper (only papers with ≥3 matches from that model)
+    model_win_rates = {}
+    common_papers = set(paper_ids)
+    for mk in model_keys:
+        model_win_rates[mk] = {}
+        papers_with_data = set()
+        for pid in paper_ids:
+            s = model_paper_stats[mk].get(pid)
+            if s and s["total"] >= 3:
+                model_win_rates[mk][pid] = s["wins"] / s["total"]
+                papers_with_data.add(pid)
+        common_papers &= papers_with_data
+
+    common_papers = sorted(common_papers)
+
+    # Pairwise correlations (Spearman rank correlation on common papers)
+    correlations = {}
+    for i, m1 in enumerate(model_keys):
+        for j, m2 in enumerate(model_keys):
+            if i >= j:
+                continue
+            rates1 = [model_win_rates[m1].get(pid, 0.5) for pid in common_papers]
+            rates2 = [model_win_rates[m2].get(pid, 0.5) for pid in common_papers]
+            if len(rates1) >= 5:
+                spearman_r, spearman_p = scipy_stats.spearmanr(rates1, rates2)
+                pearson_r, pearson_p = scipy_stats.pearsonr(rates1, rates2)
+                correlations[f"{m1} vs {m2}"] = {
+                    "spearman_r": round(float(spearman_r), 3),
+                    "spearman_p": round(float(spearman_p), 4),
+                    "pearson_r": round(float(pearson_r), 3),
+                    "pearson_p": round(float(pearson_p), 4),
+                    "n_papers": len(common_papers),
+                }
+
+    # Agreement rate: for matches where multiple models judged the same pair,
+    # what % of the time do they agree?
+    pair_judgments = {}  # {(p1,p2): {model: winner}}
+    for m in matches:
+        mu = m.get("model_used", {})
+        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        if pair not in pair_judgments:
+            pair_judgments[pair] = {}
+        pair_judgments[pair][key] = m.get("winner_id")
+
+    agreement_counts = {}
+    total_pairs_compared = 0
+    for pair, judgments in pair_judgments.items():
+        models_involved = list(judgments.keys())
+        for i in range(len(models_involved)):
+            for j in range(i + 1, len(models_involved)):
+                m1, m2 = models_involved[i], models_involved[j]
+                pair_key = f"{m1} vs {m2}" if m1 < m2 else f"{m2} vs {m1}"
+                if pair_key not in agreement_counts:
+                    agreement_counts[pair_key] = {"agree": 0, "disagree": 0}
+                if judgments[m1] == judgments[m2]:
+                    agreement_counts[pair_key]["agree"] += 1
+                else:
+                    agreement_counts[pair_key]["disagree"] += 1
+                total_pairs_compared += 1
+
+    agreement = {}
+    for pair_key, counts in agreement_counts.items():
+        total = counts["agree"] + counts["disagree"]
+        if total > 0:
+            agreement[pair_key] = {
+                "agree": counts["agree"],
+                "disagree": counts["disagree"],
+                "total": total,
+                "rate": round(counts["agree"] / total * 100, 1),
+            }
+
+    # Per-model summary stats
+    model_summaries = {}
+    for mk in model_keys:
+        total_by_model = sum(1 for m in matches if f"{m.get('model_used',{}).get('provider','')}/{m.get('model_used',{}).get('model','')}" == mk)
+        model_summaries[mk] = {
+            "total_matches": total_by_model,
+            "papers_judged": len(model_paper_stats[mk]),
+        }
+
+    # Build scatter data for frontend (win rates per model for common papers)
+    scatter_data = []
+    for pid in common_papers:
+        entry = {"id": pid, "title": paper_titles.get(pid, "Unknown")[:50]}
+        for mk in model_keys:
+            short_name = mk.split("/")[-1]
+            entry[short_name] = round(model_win_rates[mk].get(pid, 0.5) * 100, 1)
+        scatter_data.append(entry)
+
+    return {
+        "models": [{"key": mk, "short": mk.split("/")[-1], **model_summaries.get(mk, {})} for mk in model_keys],
+        "correlations": correlations,
+        "agreement": agreement,
+        "scatter_data": scatter_data,
+        "n_common_papers": len(common_papers),
+    }
