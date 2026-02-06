@@ -90,6 +90,10 @@ export default function SearchPage() {
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState(null);
   
+  // Prompt selection state
+  const [availablePrompts, setAvailablePrompts] = useState([]);
+  const [selectedPromptKey, setSelectedPromptKey] = useState("scientific_impact");
+  
   // UCB config state
   const [useUCB, setUseUCB] = useState(false);
   const [ucbExpanded, setUcbExpanded] = useState(false);
@@ -100,7 +104,7 @@ export default function SearchPage() {
   const [ucbConfidenceLevel, setUcbConfidenceLevel] = useState(0.95);
   const [loadingCitations, setLoadingCitations] = useState(false);
 
-  // Fetch models on mount
+  // Fetch models and prompts on mount
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -111,7 +115,17 @@ export default function SearchPage() {
         console.error("Failed to load models:", error);
       }
     };
+    const fetchPrompts = async () => {
+      try {
+        const response = await axios.get(`${API}/prompts`);
+        setAvailablePrompts(response.data.prompts);
+        setSelectedPromptKey(response.data.default);
+      } catch (error) {
+        console.error("Failed to load prompts:", error);
+      }
+    };
     fetchModels();
+    fetchPrompts();
   }, []);
 
   const handleSearch = async () => {
