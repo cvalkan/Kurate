@@ -42,9 +42,12 @@ export default function HomePage() {
   const [deepAnalysis, setDeepAnalysis] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [availableModels, setAvailableModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState(null);
 
   useEffect(() => {
     fetchCategories();
+    fetchModels();
   }, []);
 
   const fetchCategories = async () => {
@@ -56,6 +59,16 @@ export default function HomePage() {
       console.error(error);
     } finally {
       setLoadingCategories(false);
+    }
+  };
+
+  const fetchModels = async () => {
+    try {
+      const response = await axios.get(`${API}/models`);
+      setAvailableModels(response.data.models);
+      setSelectedModel(response.data.default);
+    } catch (error) {
+      console.error("Failed to load models:", error);
     }
   };
 
