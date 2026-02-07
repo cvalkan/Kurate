@@ -407,11 +407,11 @@ export default function LeaderboardPage() {
                 </p>
               </div>
               <div className="text-right font-mono text-xs sm:text-sm font-medium">{paper.score}</div>
-              <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{paper.win_rate}%</div>
+              <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:block">{paper.win_rate}%</div>
               <div className="text-right font-mono text-xs text-muted-foreground hidden sm:block">
                 {paper.wilson_margin > 0 ? `\u00B1${paper.wilson_margin}%` : "--"}
               </div>
-              <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{paper.comparisons}</div>
+              <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:block">{paper.comparisons}</div>
               <div className="text-right text-xs text-muted-foreground hidden md:block">
                 {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
               </div>
