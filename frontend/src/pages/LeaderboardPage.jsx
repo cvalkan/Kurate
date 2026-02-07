@@ -356,13 +356,21 @@ export default function LeaderboardPage() {
             <div key={i} className="h-14 bg-secondary/30 rounded-lg animate-pulse" />
           ))}
         </div>
-      ) : leaderboard.length === 0 ? (
+      ) : displayList.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground" data-testid="empty-state">
           <Trophy className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No papers found for this {isTagMode ? "tag combination" : "period"}.</p>
-          <p className="text-xs mt-1">{isTagMode ? "Try different tags, switch to OR mode, or clear the filter." : "Try a broader time range or wait for the next daily fetch."}</p>
+          <p className="text-sm">
+            {kw ? `No papers matching "${keyword}".` : `No papers found for this ${isTagMode ? "tag combination" : "period"}.`}
+          </p>
+          <p className="text-xs mt-1">{kw ? "Try different keywords." : isTagMode ? "Try different tags, switch to OR mode, or clear the filter." : "Try a broader time range."}</p>
         </div>
       ) : (
+        <>
+        {isFiltered && (
+          <div className="text-xs text-muted-foreground mb-2">
+            Showing {displayList.length} of {leaderboard.length} papers matching "{keyword}"
+          </div>
+        )}
         <div className="border border-border rounded-lg overflow-hidden" data-testid="leaderboard-table">
           <div className="grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
             <div>#</div>
@@ -373,11 +381,11 @@ export default function LeaderboardPage() {
             <div className="text-right">Matches</div>
             <div className="text-right hidden md:block">Published</div>
           </div>
-          {leaderboard.map((paper, idx) => (
+          {displayList.map((paper, idx) => (
             <Link
               key={paper.id}
               to={`/paper/${paper.id}`}
-              className={`grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 ? "bg-accent/[0.02]" : ""}`}
+              className={`grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 && !kw ? "bg-accent/[0.02]" : ""}`}
               data-testid={`leaderboard-row-${idx}`}
             >
               <div><RankBadge rank={paper.rank} /></div>
@@ -400,7 +408,9 @@ export default function LeaderboardPage() {
             </Link>
           ))}
         </div>
-      )}
+        </>
+      );
+      })()}
 
       <div className="mt-6 text-center text-xs text-muted-foreground">
         {isTagMode
