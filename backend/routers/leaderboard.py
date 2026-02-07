@@ -2,84 +2,114 @@ from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 import time
-from core.config import db, logger
+from core.config import db, logger, CATEGORIES
 from services.ranking import compute_leaderboard, calculate_confidence_interval
 
 router = APIRouter(prefix="/api")
 
-# Pre-computed cache: stores leaderboard for each period
-_cache = {"ts": 0, "periods": {}, "total_papers": 0, "total_matches": 0}
+_cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0}
 _CACHE_TTL = 30
 
 
 async def _get_cached_leaderboard():
     now = time.time()
-    if _cache["periods"] and now - _cache["ts"] < _CACHE_TTL:
+    if _cache["categories"] and now - _cache["ts"] < _CACHE_TTL:
         return _cache
 
     all_papers = await db.papers.find(
         {}, {"_id": 0, "full_text": 0, "abstract": 0}
     ).to_list(5000)
 
-    if not all_papers:
-        _cache.update({"ts": now, "periods": {"all": [], "recent": [], "week": [], "month": []}, "total_papers": 0, "total_matches": 0})
-        return _cache
-
     all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
     ).to_list(200000)
 
-    full = compute_leaderboard(all_papers, all_matches)
     utc_now = datetime.now(timezone.utc)
+    categories_data = {}
 
-    # Parse dates once
-    paper_dates = {}
-    for entry in full:
-        try:
-            paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
-        except (ValueError, KeyError):
-            pass
+    # Group papers by primary category
+    papers_by_cat = {}
+    for p in all_papers:
+        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
+        papers_by_cat.setdefault(cat, []).append(p)
 
-    # "recent" = papers sharing the most recent publication date
-    max_date = max(paper_dates.values()) if paper_dates else utc_now
-    recent_cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
+    # Build paper→category lookup for match filtering
+    paper_cat = {}
+    for p in all_papers:
+        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
+        paper_cat[p["id"]] = cat
 
-    def filter_and_rerank(cutoff):
-        filtered = [
-            {**e} for e in full
-            if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff
-        ]
-        for i, e in enumerate(filtered):
-            e["rank"] = i + 1
-        return filtered
+    for cat_id in CATEGORIES:
+        cat_papers = papers_by_cat.get(cat_id, [])
+        if not cat_papers:
+            categories_data[cat_id] = {"all": [], "recent": [], "week": [], "month": []}
+            continue
 
-    periods = {
-        "all": full,
-        "recent": filter_and_rerank(recent_cutoff),
-        "week": filter_and_rerank(utc_now - timedelta(weeks=1)),
-        "month": filter_and_rerank(utc_now - timedelta(days=30)),
-    }
+        cat_paper_ids = {p["id"] for p in cat_papers}
+        cat_matches = [m for m in all_matches if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids]
 
-    _cache.update({"ts": now, "periods": periods, "total_papers": len(all_papers), "total_matches": len(all_matches)})
+        full = compute_leaderboard(cat_papers, cat_matches)
+
+        paper_dates = {}
+        for entry in full:
+            try:
+                paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
+            except (ValueError, KeyError):
+                pass
+
+        max_date = max(paper_dates.values()) if paper_dates else utc_now
+        recent_cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
+
+        def filter_and_rerank(cutoff, entries=full):
+            filtered = [{**e} for e in entries if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff]
+            for i, e in enumerate(filtered):
+                e["rank"] = i + 1
+            return filtered
+
+        categories_data[cat_id] = {
+            "all": full,
+            "recent": filter_and_rerank(recent_cutoff),
+            "week": filter_and_rerank(utc_now - timedelta(weeks=1)),
+            "month": filter_and_rerank(utc_now - timedelta(days=30)),
+        }
+
+    _cache.update({"ts": now, "categories": categories_data, "total_papers": len(all_papers), "total_matches": len(all_matches)})
     return _cache
+
+
+@router.get("/categories")
+async def get_categories():
+    from core.auth import get_settings
+    settings = await get_settings()
+    active = settings.get("active_categories", list(CATEGORIES.keys()))
+    return {
+        "categories": [{"id": k, "name": v} for k, v in CATEGORIES.items() if k in active],
+        "default": active[0] if active else "cs.RO",
+    }
 
 
 @router.get("/leaderboard")
 async def get_leaderboard(
+    category: Optional[str] = Query("cs.RO", description="arXiv category"),
     period: Optional[str] = Query("all", description="Filter: recent, week, month, all"),
     limit: int = Query(100, description="Max papers to return"),
     offset: int = Query(0, description="Offset for pagination"),
 ):
     cache = await _get_cached_leaderboard()
-    data = cache["periods"].get(period, cache["periods"].get("all", []))
+    cat_data = cache["categories"].get(category, {})
+    data = cat_data.get(period, cat_data.get("all", []))
 
+    # Count matches for this category
+    cat_matches = sum(len(cat_data.get("all", [])) for _ in [1])  # paper count as proxy
+    
     return {
         "leaderboard": data[offset:offset + limit],
-        "total_papers": cache["total_papers"],
+        "total_papers": len(cat_data.get("all", [])),
         "total_in_period": len(data),
         "total_matches": cache["total_matches"],
         "period": period,
+        "category": category,
     }
 
 
