@@ -41,6 +41,15 @@ async def startup():
         logger.warning(f"Index creation warning: {e}")
 
     await start_scheduler()
+
+    # Pre-warm leaderboard cache so first visitor gets instant response
+    try:
+        from routers.leaderboard import _get_cached_leaderboard
+        await _get_cached_leaderboard()
+        logger.info("Leaderboard cache warmed")
+    except Exception as e:
+        logger.warning(f"Cache warm failed: {e}")
+
     logger.info("PaperSumo Leaderboard started")
 
 
