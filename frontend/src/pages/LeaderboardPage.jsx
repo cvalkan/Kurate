@@ -305,28 +305,52 @@ export default function LeaderboardPage() {
         )}
       </div>
 
-      {/* Period Filter */}
-      <div className="flex items-center gap-1 mb-6 p-1 bg-secondary/50 rounded-lg w-fit" data-testid="period-filter">
-        {PERIODS.map((p) => {
-          const Icon = p.icon;
-          return (
-            <Button
-              key={p.key}
-              variant={period === p.key ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setPeriod(p.key)}
-              className="gap-1.5 text-xs h-8"
-              data-testid={`filter-${p.key}`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {p.label}
-            </Button>
-          );
-        })}
+      {/* Period Filter + Keyword Search */}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-lg" data-testid="period-filter">
+          {PERIODS.map((p) => {
+            const Icon = p.icon;
+            return (
+              <Button
+                key={p.key}
+                variant={period === p.key ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setPeriod(p.key)}
+                className="gap-1.5 text-xs h-8"
+                data-testid={`filter-${p.key}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {p.label}
+              </Button>
+            );
+          })}
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search titles..."
+            value={keyword}
+            onChange={e => setKeyword(e.target.value)}
+            className="h-8 text-xs pl-8 w-48"
+            data-testid="keyword-search"
+          />
+          {keyword && (
+            <button onClick={() => setKeyword("")} className="absolute right-2 top-1/2 -translate-y-1/2">
+              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Leaderboard Table */}
-      {loading ? (
+      {(() => {
+        const kw = keyword.toLowerCase().trim();
+        const displayList = kw
+          ? leaderboard.filter(p => p.title.toLowerCase().includes(kw))
+          : leaderboard;
+        const isFiltered = kw && displayList.length !== leaderboard.length;
+
+        return loading ? (
         <div className="space-y-3" data-testid="loading-skeleton">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="h-14 bg-secondary/30 rounded-lg animate-pulse" />
