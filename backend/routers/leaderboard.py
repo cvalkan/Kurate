@@ -371,7 +371,19 @@ async def get_model_correlation(
     # Agreement rate: for pairs judged by multiple models,
     # use majority vote per model (handles re-matches correctly)
     from collections import Counter
-    pair_model_votes = {}  # {(p1,p2): {model: [winner_id, winner_id, ...]}}
+
+    # Compute overall win rate per paper for difficulty classification
+    paper_wins_all = Counter()
+    paper_total_all = Counter()
+    for m in matches:
+        paper_total_all[m["paper1_id"]] += 1
+        paper_total_all[m["paper2_id"]] += 1
+        w = m.get("winner_id")
+        if w:
+            paper_wins_all[w] += 1
+    paper_wr = {pid: paper_wins_all[pid] / max(paper_total_all[pid], 1) for pid in paper_ids}
+
+    pair_model_votes = {}  # {(p1,p2): {model: [winner_id, ...]}}
     for m in matches:
         mu = m.get("model_used", {})
         key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
@@ -383,36 +395,67 @@ async def get_model_correlation(
         pair_model_votes[pair][key].append(m.get("winner_id"))
 
     # Resolve each model's verdict per pair via majority vote
-    pair_verdicts = {}  # {pair: {model: majority_winner}}
+    pair_verdicts = {}
     for pair, model_votes in pair_model_votes.items():
         pair_verdicts[pair] = {}
         for model_key, votes in model_votes.items():
             most_common = Counter(votes).most_common(1)[0][0]
             pair_verdicts[pair][model_key] = most_common
 
+    CLEAR_CUT_THRESHOLD = 0.25  # 25pp win rate difference
+
     agreement_counts = {}
+    agreement_by_difficulty = {}  # {pair_key: {clear: {agree, disagree}, contested: {agree, disagree}}}
     for pair, verdicts in pair_verdicts.items():
         models_involved = sorted(verdicts.keys())
+        p1, p2 = pair
+        wr_diff = abs(paper_wr.get(p1, 0.5) - paper_wr.get(p2, 0.5))
+        is_clear = wr_diff >= CLEAR_CUT_THRESHOLD
+
         for i in range(len(models_involved)):
             for j in range(i + 1, len(models_involved)):
                 m1, m2 = models_involved[i], models_involved[j]
                 pair_key = f"{m1} vs {m2}"
                 if pair_key not in agreement_counts:
                     agreement_counts[pair_key] = {"agree": 0, "disagree": 0}
-                if verdicts[m1] == verdicts[m2]:
+                if pair_key not in agreement_by_difficulty:
+                    agreement_by_difficulty[pair_key] = {
+                        "clear": {"agree": 0, "disagree": 0},
+                        "contested": {"agree": 0, "disagree": 0},
+                    }
+                agreed = verdicts[m1] == verdicts[m2]
+                bucket = "clear" if is_clear else "contested"
+                if agreed:
                     agreement_counts[pair_key]["agree"] += 1
+                    agreement_by_difficulty[pair_key][bucket]["agree"] += 1
                 else:
                     agreement_counts[pair_key]["disagree"] += 1
+                    agreement_by_difficulty[pair_key][bucket]["disagree"] += 1
 
     agreement = {}
     for pair_key, counts in agreement_counts.items():
         total = counts["agree"] + counts["disagree"]
         if total > 0:
+            diff = agreement_by_difficulty.get(pair_key, {})
+            clear = diff.get("clear", {"agree": 0, "disagree": 0})
+            contested = diff.get("contested", {"agree": 0, "disagree": 0})
+            clear_total = clear["agree"] + clear["disagree"]
+            contested_total = contested["agree"] + contested["disagree"]
             agreement[pair_key] = {
                 "agree": counts["agree"],
                 "disagree": counts["disagree"],
                 "total": total,
                 "rate": round(counts["agree"] / total * 100, 1),
+                "clear_cut": {
+                    "agree": clear["agree"],
+                    "total": clear_total,
+                    "rate": round(clear["agree"] / max(clear_total, 1) * 100, 1) if clear_total > 0 else None,
+                },
+                "contested": {
+                    "agree": contested["agree"],
+                    "total": contested_total,
+                    "rate": round(contested["agree"] / max(contested_total, 1) * 100, 1) if contested_total > 0 else None,
+                },
             }
 
     model_summaries = {}
