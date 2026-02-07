@@ -342,7 +342,7 @@ export default function AdminPage() {
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={triggerFetch} disabled={loading.fetch || isProcessing} className="gap-2" data-testid="trigger-fetch">
+            <Button onClick={triggerFetch} disabled={loading.fetch} className="gap-2" data-testid="trigger-fetch">
               <RefreshCw className={`h-4 w-4 ${loading.fetch ? "animate-spin" : ""}`} />
               {loading.fetch ? "Fetching..." : "Fetch Papers"}
             </Button>
