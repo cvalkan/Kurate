@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Bot, BarChart3, CheckCircle2, XCircle } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
