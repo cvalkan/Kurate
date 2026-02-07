@@ -68,17 +68,48 @@ async def _get_cached_leaderboard():
             return filtered
 
         # Check if ranking is in progress for this category
+        # Ranking is in progress if: any paper below min_matches OR top-K CI goals unmet
         from core.auth import get_settings as _gs
         _settings = await _gs()
         _min = _settings.get("min_matches_per_paper", 3)
+        _ci_target = _settings.get("ci_target", 12)
+        _top_k = _settings.get("top_k_focus", 10)
+        _max_matches = _settings.get("max_matches_per_paper", 150)
         cat_paper_ids_set = {p["id"] for p in cat_papers}
         cat_match_counts = {pid: 0 for pid in cat_paper_ids_set}
+        cat_win_counts = {pid: 0 for pid in cat_paper_ids_set}
         for m in cat_matches:
             if m["paper1_id"] in cat_match_counts:
                 cat_match_counts[m["paper1_id"]] += 1
             if m["paper2_id"] in cat_match_counts:
                 cat_match_counts[m["paper2_id"]] += 1
-        is_ranking = any(c < _min for c in cat_match_counts.values()) if cat_match_counts else False
+            w = m.get("winner_id")
+            if w and w in cat_win_counts:
+                cat_win_counts[w] += 1
+
+        goal1_unmet = any(c < _min for c in cat_match_counts.values()) if cat_match_counts else False
+
+        # Check CI goal for top-K papers
+        goal2_unmet = False
+        if cat_match_counts and len(cat_match_counts) >= 2:
+            from services.ranking import _wilson_margin_pct
+            sorted_by_wr = sorted(
+                cat_paper_ids_set,
+                key=lambda pid: cat_win_counts.get(pid, 0) / max(cat_match_counts.get(pid, 0), 1),
+                reverse=True,
+            )
+            top_k_ids = sorted_by_wr[:min(_top_k, len(sorted_by_wr))]
+            for pid in top_k_ids:
+                n = cat_match_counts.get(pid, 0)
+                if n >= _max_matches:
+                    continue
+                w = cat_win_counts.get(pid, 0)
+                margin = _wilson_margin_pct(w, n)
+                if margin > _ci_target:
+                    goal2_unmet = True
+                    break
+
+        is_ranking = goal1_unmet or goal2_unmet
 
         categories_data[cat_id] = {
             "all": full,
