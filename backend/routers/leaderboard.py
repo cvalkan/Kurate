@@ -7,83 +7,78 @@ from services.ranking import compute_leaderboard, calculate_confidence_interval
 
 router = APIRouter(prefix="/api")
 
-# In-memory leaderboard cache (avoids recomputing BT on every request)
-_leaderboard_cache = {"data": None, "total_papers": 0, "total_matches": 0, "ts": 0}
-_CACHE_TTL = 30  # seconds
+# Pre-computed cache: stores leaderboard for each period
+_cache = {"ts": 0, "periods": {}, "total_papers": 0, "total_matches": 0}
+_CACHE_TTL = 30
 
 
 async def _get_cached_leaderboard():
     now = time.time()
-    if _leaderboard_cache["data"] is not None and now - _leaderboard_cache["ts"] < _CACHE_TTL:
-        return _leaderboard_cache
+    if _cache["periods"] and now - _cache["ts"] < _CACHE_TTL:
+        return _cache
 
     all_papers = await db.papers.find(
         {}, {"_id": 0, "full_text": 0, "abstract": 0}
     ).to_list(5000)
 
     if not all_papers:
-        _leaderboard_cache.update({"data": [], "total_papers": 0, "total_matches": 0, "ts": now})
-        return _leaderboard_cache
+        _cache.update({"ts": now, "periods": {"all": [], "recent": [], "week": [], "month": []}, "total_papers": 0, "total_matches": 0})
+        return _cache
 
     all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
     ).to_list(200000)
 
-    leaderboard = compute_leaderboard(all_papers, all_matches)
-    _leaderboard_cache.update({
-        "data": leaderboard,
-        "total_papers": len(all_papers),
-        "total_matches": len(all_matches),
-        "ts": now,
-    })
-    return _leaderboard_cache
+    full = compute_leaderboard(all_papers, all_matches)
+    utc_now = datetime.now(timezone.utc)
+
+    # Parse dates once
+    paper_dates = {}
+    for entry in full:
+        try:
+            paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
+        except (ValueError, KeyError):
+            pass
+
+    # "recent" = papers sharing the most recent publication date
+    max_date = max(paper_dates.values()) if paper_dates else utc_now
+    recent_cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
+
+    def filter_and_rerank(cutoff):
+        filtered = [
+            {**e} for e in full
+            if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff
+        ]
+        for i, e in enumerate(filtered):
+            e["rank"] = i + 1
+        return filtered
+
+    periods = {
+        "all": full,
+        "recent": filter_and_rerank(recent_cutoff),
+        "week": filter_and_rerank(utc_now - timedelta(weeks=1)),
+        "month": filter_and_rerank(utc_now - timedelta(days=30)),
+    }
+
+    _cache.update({"ts": now, "periods": periods, "total_papers": len(all_papers), "total_matches": len(all_matches)})
+    return _cache
 
 
 @router.get("/leaderboard")
 async def get_leaderboard(
-    period: Optional[str] = Query("all", description="Filter: today, week, month, all"),
+    period: Optional[str] = Query("all", description="Filter: recent, week, month, all"),
     limit: int = Query(100, description="Max papers to return"),
     offset: int = Query(0, description="Offset for pagination"),
 ):
     cache = await _get_cached_leaderboard()
-    global_leaderboard = list(cache["data"])  # shallow copy
-
-    # Filter display by period (but keep global scores)
-    if period and period != "all":
-        now = datetime.now(timezone.utc)
-        if period == "today":
-            cutoff = now - timedelta(days=2)
-        elif period == "week":
-            cutoff = now - timedelta(weeks=1)
-        elif period == "month":
-            cutoff = now - timedelta(days=30)
-        else:
-            cutoff = None
-
-        if cutoff:
-            filtered = []
-            for entry in global_leaderboard:
-                try:
-                    pub = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
-                    if pub >= cutoff:
-                        filtered.append({**entry})
-                except (ValueError, KeyError):
-                    pass
-            for i, entry in enumerate(filtered):
-                entry["rank"] = i + 1
-            global_leaderboard = filtered
-
-    total_matches = cache["total_matches"]
-    total_in_period = len(global_leaderboard)
-
-    paginated = global_leaderboard[offset:offset + limit]
+    data = cache["periods"].get(period, cache["periods"].get("all", []))
 
     return {
-        "leaderboard": paginated,
+        "leaderboard": data[offset:offset + limit],
         "total_papers": cache["total_papers"],
-        "total_in_period": total_in_period,
-        "total_matches": total_matches,
+        "total_in_period": len(data),
+        "total_matches": cache["total_matches"],
         "period": period,
     }
 
