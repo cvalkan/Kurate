@@ -216,15 +216,24 @@ async def get_leaderboard(
 
 
 async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offset: int, tag_mode: str = "or"):
-    """Compute leaderboard for an arbitrary set of category tags."""
-    if tag_mode == "and" and len(tag_list) > 1:
-        query = {"categories": {"$all": tag_list}}
-    else:
-        query = {"categories": {"$in": tag_list}}
+    """Compute leaderboard from in-memory cached data — no DB queries."""
+    cache = await _get_cached_leaderboard()
+    raw_papers = cache.get("_raw_papers", [])
+    raw_matches = cache.get("_raw_matches", [])
 
-    all_papers = await db.papers.find(
-        query, {"_id": 0, "full_text": 0, "abstract": 0},
-    ).to_list(5000)
+    if not raw_papers:
+        return {
+            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+            "total_matches": 0, "is_ranking": False, "period": period,
+            "category": None, "tags": tag_list, "tag_mode": tag_mode,
+        }
+
+    # Filter papers by tags from cached data
+    tag_set = set(tag_list)
+    if tag_mode == "and" and len(tag_list) > 1:
+        all_papers = [p for p in raw_papers if tag_set.issubset(set(p.get("categories", [])))]
+    else:
+        all_papers = [p for p in raw_papers if tag_set.intersection(set(p.get("categories", [])))]
 
     if not all_papers:
         return {
@@ -234,12 +243,7 @@ async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offs
         }
 
     paper_ids = {p["id"] for p in all_papers}
-
-    all_matches = await db.matches.find(
-        {"completed": True, "failed": {"$ne": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
-    ).to_list(200000)
-    tag_matches = [m for m in all_matches if m["paper1_id"] in paper_ids and m["paper2_id"] in paper_ids]
+    tag_matches = [m for m in raw_matches if m["paper1_id"] in paper_ids and m["paper2_id"] in paper_ids]
 
     full = compute_leaderboard(all_papers, tag_matches)
 
