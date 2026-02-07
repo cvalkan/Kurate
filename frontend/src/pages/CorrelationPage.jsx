@@ -74,15 +74,16 @@ export default function CorrelationPage() {
 
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
-      setCategories(res.data.categories || []);
-      setCategory(res.data.default || "cs.RO");
-    }).catch(() => setCategory("cs.RO"));
+      const cats = res.data.categories || [];
+      setCategories([{ id: "", name: "All Categories" }, ...cats]);
+      setCategory("");  // Default to all
+    }).catch(() => setCategory(""));
   }, []);
 
   const fetchData = useCallback(async () => {
-    if (!category) return;
     try {
-      const res = await axios.get(`${API}/api/model-correlation`, { params: { category } });
+      const params = category ? { category } : {};
+      const res = await axios.get(`${API}/api/model-correlation`, { params });
       setData(res.data);
     } catch (err) {
       console.error("Failed to fetch correlation data:", err);
