@@ -102,7 +102,7 @@ export default function AdminPage() {
         navigate("/admin");
       }
     }
-  }, [navigate]);
+  }, [navigate, adminCat]);
 
   useEffect(() => {
     if (!sessionStorage.getItem("admin_token")) {
