@@ -12,6 +12,7 @@ from services.ranking import calculate_confidence_interval
 
 _scheduler_running = False
 _processing_locks = {}  # Per-category locks
+_fetching_cats = set()  # Categories currently being fetched
 
 def _get_lock(category: str) -> asyncio.Lock:
     if category not in _processing_locks:
