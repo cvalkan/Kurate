@@ -114,13 +114,12 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ):
-        if m["paper1_id"] in paper_match_count:
+        if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
             paper_match_count[m["paper1_id"]] += 1
-        if m["paper2_id"] in paper_match_count:
             paper_match_count[m["paper2_id"]] += 1
-        w = m.get("winner_id")
-        if w and w in paper_wins:
-            paper_wins[w] += 1
+            w = m.get("winner_id")
+            if w and w in paper_wins:
+                paper_wins[w] += 1
 
     for c in paper_match_count.values():
         if c < min_matches:
