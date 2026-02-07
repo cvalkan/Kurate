@@ -57,6 +57,24 @@ async def startup():
     except Exception as e:
         logger.warning(f"Migration warning: {e}")
 
+    # Migration: fix prompt variables if needed
+    try:
+        from core.config import DEFAULT_EVALUATION_PROMPT
+        prompt_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
+        if prompt_doc and "{paper1_abstract}" in prompt_doc.get("user_prompt", ""):
+            new_user = prompt_doc["user_prompt"].replace("{paper1_abstract}", "{paper1_content}").replace("{paper2_abstract}", "{paper2_content}")
+            await db.settings.update_one({"key": "custom_prompt"}, {"$set": {"user_prompt": new_user}})
+            logger.info("Fixed prompt variables")
+        elif not prompt_doc:
+            await db.settings.update_one(
+                {"key": "custom_prompt"},
+                {"$set": {"key": "custom_prompt", **DEFAULT_EVALUATION_PROMPT}},
+                upsert=True,
+            )
+            logger.info("Saved default prompt to DB")
+    except Exception as e:
+        logger.warning(f"Prompt migration warning: {e}")
+
     await start_scheduler()
 
     # Pre-warm leaderboard cache so first visitor gets instant response
