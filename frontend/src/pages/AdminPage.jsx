@@ -356,7 +356,7 @@ export default function AdminPage() {
                 className="w-20 h-10 text-center font-mono text-sm"
                 data-testid="manual-matches-input"
               />
-              <Button onClick={triggerCompare} disabled={loading.compare || isProcessing} variant="outline" className="gap-2" data-testid="trigger-compare">
+              <Button onClick={triggerCompare} disabled={loading.compare} variant="outline" className="gap-2" data-testid="trigger-compare">
                 <Swords className={`h-4 w-4 ${loading.compare ? "animate-spin" : ""}`} />
                 {loading.compare ? "Starting..." : "Run Matches"}
               </Button>
