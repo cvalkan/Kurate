@@ -37,16 +37,14 @@ async def start_scheduler():
 
 async def _scheduler_loop():
     global _scheduler_running
-    await asyncio.sleep(5)  # Wait for app startup
+    await asyncio.sleep(5)
 
     while _scheduler_running:
         try:
             settings = await get_settings()
             interval_hours = settings.get("fetch_interval_hours", 24)
             is_paused = settings.get("paused", False)
-            active_categories = settings.get("active_categories", ["cs.RO"])
 
-            # Check if we need to fetch
             last_fetch = settings.get("last_fetch_at")
             should_fetch = False
             if not last_fetch:
@@ -57,16 +55,8 @@ async def _scheduler_loop():
                     should_fetch = True
 
             if should_fetch:
-                for cat in active_categories:
-                    await run_fetch_cycle(category=cat)
-                # Mark fetch time once after all categories
-                now_iso = datetime.now(timezone.utc).isoformat()
-                await db.settings.update_one(
-                    {"key": "global"}, {"$set": {"last_fetch_at": now_iso}}, upsert=True,
-                )
-                scheduler_status["last_fetch_at"] = now_iso
+                await run_fetch_cycle()
 
-            # Update next fetch time
             settings = await get_settings()
             last_fetch = settings.get("last_fetch_at")
             if last_fetch:
@@ -76,18 +66,14 @@ async def _scheduler_loop():
             scheduler_status["papers_in_db"] = await db.papers.count_documents({})
             scheduler_status["matches_in_db"] = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
 
-            # Run comparisons per category until all goals met
             if not is_paused:
-                any_unmet = False
-                for cat in active_categories:
-                    cat_met = await _check_goals_met(category=cat)
-                    if not cat_met:
-                        any_unmet = True
-                        result = await run_comparison_round(category=cat)
-                        if result.get("status") == "ok" and result.get("completed", 0) > 0:
-                            break  # Process one category per loop iteration
-                if any_unmet:
-                    await asyncio.sleep(5)
+                goals_met = await _check_goals_met()
+                if not goals_met:
+                    result = await run_comparison_round()
+                    if result.get("status") == "ok" and result.get("completed", 0) > 0:
+                        await asyncio.sleep(5)
+                        continue
+                    await asyncio.sleep(60)
                     continue
                 else:
                     scheduler_status["current_activity"] = "Goals met — idle"
