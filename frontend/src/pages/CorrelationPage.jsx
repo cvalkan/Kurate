@@ -144,6 +144,23 @@ export default function CorrelationPage() {
         </p>
       </div>
 
+      {/* Category Tabs */}
+      {categories.length > 1 && (
+        <div className="flex items-center gap-1 mb-6 p-1 bg-primary/5 rounded-lg w-fit" data-testid="corr-cat-tabs">
+          {categories.map((c) => (
+            <Button
+              key={c.id}
+              variant={category === c.id ? "default" : "ghost"}
+              size="sm"
+              onClick={() => { setCategory(c.id); setLoading(true); }}
+              className="text-xs h-8"
+            >
+              {c.name}
+            </Button>
+          ))}
+        </div>
+      )}
+
       {/* Model Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8" data-testid="model-cards">
         {models.map(m => {
