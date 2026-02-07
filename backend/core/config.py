@@ -35,13 +35,7 @@ TOURNAMENT_MODELS = [
     {"provider": "gemini", "model": "gemini-3-pro-preview"},
 ]
 
-# Available categories (id → display info)
-CATEGORIES = {
-    "cs.RO": {"name": "Robotics", "short": "Robotics"},
-    "cs.DC": {"name": "Distributed, Parallel, and Cluster Computing", "short": "Distributed Computing"},
-}
-
-# Default evaluation prompt (generic — works for any category)
+# Default evaluation prompt
 DEFAULT_EVALUATION_PROMPT = {
     "system_prompt": """You are a scientific paper evaluator. Your task is to compare two papers and determine which has higher potential scientific impact.
 
@@ -69,7 +63,6 @@ Which paper has higher estimated scientific impact? Respond with JSON only."""
 DEFAULT_SETTINGS = {
     "key": "global",
     "admin_password": "papersumo2025",
-    "active_categories": ["cs.RO", "cs.DC"],
     "fetch_interval_hours": 24,
     "max_papers_per_fetch": 50,
     "parallel_agents": 5,
