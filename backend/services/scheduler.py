@@ -189,17 +189,9 @@ async def run_fetch_cycle(category: str = "cs.RO"):
                 await db.papers.insert_one(paper_doc)
                 new_count += 1
 
-        now_iso = datetime.now(timezone.utc).isoformat()
-        await db.settings.update_one(
-            {"key": "global"},
-            {"$set": {"last_fetch_at": now_iso}},
-            upsert=True,
-        )
-        scheduler_status["last_fetch_at"] = now_iso
-        scheduler_status["current_activity"] = f"Fetched {new_count} new papers"
-        logger.info(f"Added {new_count} new papers to DB")
+        scheduler_status["current_activity"] = f"Fetched {new_count} new {category} papers"
+        logger.info(f"Added {new_count} new {category} papers to DB")
 
-        # Download PDFs for new papers (only if not already downloaded in this run)
         if new_count > 0:
             await _download_pending_pdfs()
 
