@@ -44,6 +44,7 @@ async def _scheduler_loop():
             settings = await get_settings()
             interval_hours = settings.get("fetch_interval_hours", 24)
             is_paused = settings.get("paused", False)
+            active_categories = settings.get("active_categories", ["cs.RO"])
 
             # Check if we need to fetch
             last_fetch = settings.get("last_fetch_at")
@@ -56,7 +57,14 @@ async def _scheduler_loop():
                     should_fetch = True
 
             if should_fetch:
-                await run_fetch_cycle()
+                for cat in active_categories:
+                    await run_fetch_cycle(category=cat)
+                # Mark fetch time once after all categories
+                now_iso = datetime.now(timezone.utc).isoformat()
+                await db.settings.update_one(
+                    {"key": "global"}, {"$set": {"last_fetch_at": now_iso}}, upsert=True,
+                )
+                scheduler_status["last_fetch_at"] = now_iso
 
             # Update next fetch time
             settings = await get_settings()
@@ -65,21 +73,21 @@ async def _scheduler_loop():
                 last_dt = datetime.fromisoformat(last_fetch)
                 scheduler_status["next_fetch_at"] = (last_dt + timedelta(hours=interval_hours)).isoformat()
 
-            # Update counts
             scheduler_status["papers_in_db"] = await db.papers.count_documents({})
             scheduler_status["matches_in_db"] = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
 
-            # Continuous comparison loop: keep running until goals are met or paused
+            # Run comparisons per category until all goals met
             if not is_paused:
-                goals_met = await _check_goals_met()
-                if not goals_met:
-                    result = await run_comparison_round()
-                    # If round produced comparisons, loop again quickly
-                    if result.get("status") == "ok" and result.get("completed", 0) > 0:
-                        await asyncio.sleep(5)
-                        continue
-                    # No pairs or error — wait before retry
-                    await asyncio.sleep(60)
+                any_unmet = False
+                for cat in active_categories:
+                    cat_met = await _check_goals_met(category=cat)
+                    if not cat_met:
+                        any_unmet = True
+                        result = await run_comparison_round(category=cat)
+                        if result.get("status") == "ok" and result.get("completed", 0) > 0:
+                            break  # Process one category per loop iteration
+                if any_unmet:
+                    await asyncio.sleep(5)
                     continue
                 else:
                     scheduler_status["current_activity"] = "Goals met — idle"
@@ -90,7 +98,7 @@ async def _scheduler_loop():
             logger.error(f"Scheduler loop error: {e}")
             scheduler_status["current_activity"] = f"Error: {str(e)[:100]}"
 
-        await asyncio.sleep(300)  # Idle check every 5 minutes
+        await asyncio.sleep(300)
 
 
 async def _check_goals_met() -> bool:
