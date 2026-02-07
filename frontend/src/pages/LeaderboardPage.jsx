@@ -26,15 +26,29 @@ function RankBadge({ rank }) {
 
 export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [category, setCategory] = useState("");
   const [status, setStatus] = useState(null);
   const [period, setPeriod] = useState("week");
   const [loading, setLoading] = useState(true);
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
 
+  // Load categories once
+  useEffect(() => {
+    axios.get(`${API}/api/categories`).then(res => {
+      setCategories(res.data.categories || []);
+      setCategory(res.data.default || "cs.RO");
+    }).catch(() => {
+      setCategories([{ id: "cs.RO", name: "Robotics" }]);
+      setCategory("cs.RO");
+    });
+  }, []);
+
   const fetchLeaderboard = useCallback(async () => {
+    if (!category) return;
     try {
-      const res = await axios.get(`${API}/api/leaderboard`, { params: { period } });
+      const res = await axios.get(`${API}/api/leaderboard`, { params: { category, period } });
       setLeaderboard(res.data.leaderboard || []);
       setTotalPapers(res.data.total_papers || 0);
       setTotalMatches(res.data.total_matches || 0);
@@ -43,7 +57,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [category, period]);
 
   const fetchStatus = useCallback(async () => {
     try {
