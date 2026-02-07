@@ -241,13 +241,13 @@ async def _download_pending_pdfs():
     return downloaded
 
 
-async def run_comparison_round(max_pairs_override=None):
+async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO"):
     if _processing_lock.locked():
         return {"status": "already_processing"}
 
     async with _processing_lock:
         scheduler_status["is_processing"] = True
-        scheduler_status["current_activity"] = "Running comparison round..."
+        scheduler_status["current_activity"] = f"Comparing {category} papers..."
 
         try:
             settings = await get_settings()
