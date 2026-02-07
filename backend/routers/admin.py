@@ -200,17 +200,18 @@ async def get_progress_estimate():
         w = paper_wins.get(pid, 0)
         margin = float(_wilson_margin(w, n))
         margin_pct = round(margin * 100, 1)
-        # Converged if CI below target OR matches hit the cap
         converged = bool(margin_pct <= ci_target or n >= max_matches)
         if converged:
             top_k_converged += 1
         else:
-            # Estimate: how many more matches to either hit target or cap
-            ratio = (margin / target_frac) ** 2
-            n_for_ci = max(1, int(n * ratio) - n)
+            # Direct solve: Wilson margin ≈ z*sqrt(p(1-p)/n) for large n
+            # So n_needed ≈ z² * p*(1-p) / target²
+            p = w / n if n > 0 else 0.5
+            p = max(0.05, min(0.95, p))
+            z = 1.96
+            n_for_ci = max(0, int(z * z * p * (1 - p) / (target_frac * target_frac)) - n)
             n_for_cap = max(0, max_matches - n)
-            extra = min(n_for_ci, n_for_cap)  # Whichever comes first
-            matches_for_goal2 += extra
+            matches_for_goal2 += min(n_for_ci, n_for_cap)
         elo_ci = _elo_ci(w, n)
         top_k_details.append({
             "id": pid, "matches": int(n), "margin_pct": float(margin_pct),
@@ -218,8 +219,7 @@ async def get_progress_estimate():
         })
     goal2_met = bool(top_k_converged == len(top_k_ids))
 
-    # Each match helps 2 papers, but top-K matches overlap, so ~60% efficiency
-    total_est = matches_for_goal1 + max(0, matches_for_goal2 * 3 // 5)
+    total_est = matches_for_goal1 + matches_for_goal2
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
