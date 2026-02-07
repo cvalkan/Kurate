@@ -227,7 +227,7 @@ async def run_fetch_cycle(category: str = "cs.RO"):
     _fetching_cats.add(category)
     cat_status = _get_cat_status(category)
     cat_status["is_fetching"] = True
-    cat_status["current_activity"] = f"Fetching papers..."
+    cat_status["current_activity"] = "Fetching papers..."
 
     try:
         settings = await get_settings()
