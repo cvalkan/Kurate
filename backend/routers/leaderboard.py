@@ -72,6 +72,8 @@ async def _get_cached_leaderboard():
             "recent": filter_and_rerank(recent_cutoff),
             "week": filter_and_rerank(utc_now - timedelta(weeks=1)),
             "month": filter_and_rerank(utc_now - timedelta(days=30)),
+            "_matches": len(cat_matches),
+            "_papers": len(cat_papers),
         }
 
     _cache.update({"ts": now, "categories": categories_data, "total_papers": len(all_papers), "total_matches": len(all_matches)})
