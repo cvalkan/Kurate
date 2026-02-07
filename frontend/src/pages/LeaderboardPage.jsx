@@ -112,17 +112,6 @@ export default function LeaderboardPage() {
           <span>comparisons</span>
         </div>
       </div>
-          </>
-        )}
-        {isProcessing && (
-          <>
-            <div className="w-px h-3 bg-border" />
-            <Badge variant="outline" className="text-xs gap-1 animate-pulse border-accent text-accent">
-              <Activity className="h-3 w-3" />
-              Ranking in progress
-            </Badge>
-          </>
-        )}
       </div>
 
       {/* Period Filter */}
