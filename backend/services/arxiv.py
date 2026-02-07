@@ -39,7 +39,10 @@ async def fetch_arxiv_papers(
             async with httpx.AsyncClient() as http_client:
                 response = await http_client.get(base_url, params=params, timeout=30.0)
                 response.raise_for_status()
-            return _parse_arxiv_response(response.text)
+            papers = _parse_arxiv_response(response.text)
+            if primary_only:
+                papers = [p for p in papers if p["categories"] and p["categories"][0] == category]
+            return papers[:max_results]
         except httpx.HTTPStatusError as e:
             last_error = e
             if e.response.status_code == 429:
