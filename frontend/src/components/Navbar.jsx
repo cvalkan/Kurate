@@ -43,7 +43,7 @@ export default function Navbar() {
               Paper<span className="text-accent">Sumo</span>
             </span>
             {activeLabel && (
-              <span className="hidden sm:inline text-xs text-muted-foreground font-mono border border-border rounded px-1.5 py-0.5 truncate max-w-[160px]">
+              <span className="hidden sm:inline text-xs text-muted-foreground font-mono border border-border rounded px-1.5 py-0.5">
                 {activeLabel.toUpperCase()}
               </span>
             )}
