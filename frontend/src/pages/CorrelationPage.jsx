@@ -267,7 +267,7 @@ export default function CorrelationPage() {
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
             <span className="font-medium">Note:</span> The matchmaker preferentially pairs papers with similar win rates to produce more informative comparisons.
             This means most pairs judged by multiple models are contested (close calls), which biases the overall agreement rate downward.
-            Clear-cut pairs (≥25pp win rate difference) typically show much higher agreement.
+            Clear-cut pairs (≥10pp win rate difference) typically show much higher agreement.
           </div>
         </div>
       )}
