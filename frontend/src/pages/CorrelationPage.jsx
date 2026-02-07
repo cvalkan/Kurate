@@ -69,20 +69,34 @@ function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
 export default function CorrelationPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState([]);
+  const [category, setCategory] = useState("");
 
   useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await axios.get(`${API}/api/model-correlation`);
-        setData(res.data);
-      } catch (err) {
-        console.error("Failed to fetch correlation data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
+    axios.get(`${API}/api/categories`).then(res => {
+      setCategories(res.data.categories || []);
+      setCategory(res.data.default || "cs.RO");
+    }).catch(() => setCategory("cs.RO"));
   }, []);
+
+  const fetchData = useCallback(async () => {
+    if (!category) return;
+    try {
+      const res = await axios.get(`${API}/api/model-correlation`, { params: { category } });
+      setData(res.data);
+    } catch (err) {
+      console.error("Failed to fetch correlation data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [category]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   if (loading) {
     return (
