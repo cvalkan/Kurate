@@ -64,6 +64,16 @@ export default function AdminPage() {
   const [manualMatches, setManualMatches] = useState(50);
   const [summaryPrompt, setSummaryPrompt] = useState(null);
   const [editSummaryPrompt, setEditSummaryPrompt] = useState({});
+  const [categories, setCategories] = useState([]);
+  const [adminCat, setAdminCat] = useState("");
+
+  // Load categories once
+  useEffect(() => {
+    axios.get(`${API}/api/categories`).then(res => {
+      setCategories(res.data.categories || []);
+      setAdminCat(res.data.default || "cs.RO");
+    }).catch(() => setAdminCat("cs.RO"));
+  }, []);
 
   const fetchAll = useCallback(async () => {
     const headers = getAdminHeaders();
