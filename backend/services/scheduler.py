@@ -44,6 +44,7 @@ async def _scheduler_loop():
             settings = await get_settings()
             interval_hours = settings.get("fetch_interval_hours", 24)
             is_paused = settings.get("paused", False)
+            active_cats = settings.get("active_categories", ["cs.RO"])
 
             last_fetch = settings.get("last_fetch_at")
             should_fetch = False
@@ -55,7 +56,11 @@ async def _scheduler_loop():
                     should_fetch = True
 
             if should_fetch:
-                await run_fetch_cycle()
+                for cat in active_cats:
+                    await run_fetch_cycle(category=cat)
+                now_iso = datetime.now(timezone.utc).isoformat()
+                await db.settings.update_one({"key": "global"}, {"$set": {"last_fetch_at": now_iso}}, upsert=True)
+                scheduler_status["last_fetch_at"] = now_iso
 
             settings = await get_settings()
             last_fetch = settings.get("last_fetch_at")
@@ -67,13 +72,15 @@ async def _scheduler_loop():
             scheduler_status["matches_in_db"] = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
 
             if not is_paused:
-                goals_met = await _check_goals_met()
-                if not goals_met:
-                    result = await run_comparison_round()
-                    if result.get("status") == "ok" and result.get("completed", 0) > 0:
-                        await asyncio.sleep(5)
-                        continue
-                    await asyncio.sleep(60)
+                any_unmet = False
+                for cat in active_cats:
+                    if not await _check_goals_met(category=cat):
+                        any_unmet = True
+                        result = await run_comparison_round(category=cat)
+                        if result.get("status") == "ok" and result.get("completed", 0) > 0:
+                            break
+                if any_unmet:
+                    await asyncio.sleep(5)
                     continue
                 else:
                     scheduler_status["current_activity"] = "Goals met — idle"
