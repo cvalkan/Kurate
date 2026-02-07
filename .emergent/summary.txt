@@ -1,183 +1,166 @@
 <analysis>**original_problem_statement:**
-Build a website/platform that fetches the latest scientific papers from arxiv (sorted by different topic) and then runs a pairwise tournament on them to output a ranked list (e.g. based on Bradley-Terry scores) of scientific impact.
-
-For that matter, it uses an LLM to determine which of the two selected papers has the higher estimated scientific impact or value. It can run multiple agents in parallel to speed up the process.
+The user wants to build a new application based on a previous project, PaperSumo. The new app, SciRank, is an automated platform that downloads new academic papers from arXiv for specific categories, runs a pairwise comparison tournament using multiple Large Language Models (LLMs), and displays a dynamically updated leaderboard.
 
 **PRODUCT REQUIREMENTS:**
-- Use GPT 5.2 with the Emergent LLM key.
-- Fetch papers from all arXiv categories.
-- Tournament settings should be configurable.
-- Results of tournaments must be preserved.
-- Implement a Deep Analysis mode that reads full papers, not just abstracts.
-- Add a feature to search for papers by keywords, authors, etc., to create custom tournament sets.
-- Show the LLM's reasoning for each comparison in the tournament logs.
-- Implement a UCB (Upper Confidence Bound) bandit mechanism to improve ranking efficiency.
-- Implement Top-K focused ranking and confidence intervals for results.
-- Add paper citation counts.
-- Lift the 20-paper limit on tournaments.
-- Ensure exact phrase searches work correctly.
-- Fix performance issues causing slow page loads and system slowdowns during tournaments.
-- Fix tournaments getting stuck in a pending or running state.
+- **Automated Paper Fetching:** Automatically download new papers daily from specified arXiv categories (initially Robotics, later expanded to Distributed Computing, Economics, and Computational Physics).
+- **LLM Tournament:** Randomly use one of three LLMs (GPT 5.2, Claude Opus 4.5, Gemini 3) to compare pairs of papers based on their full text.
+- **Dynamic Leaderboard:** Display a public, ranked list of papers for each category.
+- **Leaderboard Details:** The leaderboard must show paper title, authors, rank, score (initially Bradley-Terry, later Elo), win rate percentage, confidence interval (initially Elo-based, later Wilson Score Interval), number of matches, and publication date.
+- **Filtering:** The leaderboard should be filterable by time periods (Most Recent, This Week, This Month, All Time).
+- **Adaptive Matchmaking:** The system should intelligently select which papers to compare to balance ranking accuracy, speed of convergence, and fairness, especially for new papers.
+- **Admin Panel:** A password-protected admin section is required for managing settings, viewing progress, and triggering manual actions.
+- **Scientific Impact Summaries:** For papers that have achieved a stable ranking (settled), the system should generate a structured AI Impact Assessment using an LLM, based on the paper's content and its performance in the tournament.
+- **Model Analysis:** A separate page to provide a correlation analysis between the results from the different LLMs.
+- **Methodology Page:** A static page explaining how the platform works.
+- **Multi-Category Support:** The entire platform (leaderboard, admin, backend processes) must support multiple, independent tournaments for different academic categories.
 
-**User's preferred language**: en
+**User's preferred language**: English
 
 **what currently exists?**
-A full-stack application (React + FastAPI) called PaperSumo that allows users to rank arXiv scientific papers. The platform is now highly performant and feature-rich.
-
-**Key Features Implemented:**
-- Fetches papers from arXiv by category or advanced search (keywords, authors, exact phrase).
-- **Asynchronous Search:** ArXiv search results are displayed instantly, with citation counts from Semantic Scholar loading in the background to avoid blocking the UI.
-- **Multiple Ranking Modes:**
-    1.  **Round Robin:** Standard all-pairs comparison.
-    2.  **UCB Smart Ranking:** A more efficient bandit-based algorithm.
-- **Advanced UCB Configuration:**
-    - **Target Top-K:** Focuses comparison budget on finding the top  papers, drastically speeding up tournaments.
-    - **Confidence Bands:** Displays results with statistical confidence intervals (e.g., Win Rate: 75% ± 10%).
-- **Deep Analysis Mode:** Downloads and analyzes full PDFs for more thorough comparisons.
-- **Live Tournament Tracking:** Shows real-time progress, which remains fast and responsive due to major performance optimizations.
-- **Performance:** The application is now highly responsive. A critical bottleneck causing system-wide slowdowns during active tournaments has been resolved by running blocking LLM calls in a , preventing the main server process from being blocked. Database write contention was also solved by eliminating frequent writes during tournament execution.
-- **Reliability:** An auto-resume feature restarts any interrupted tournaments. A critical bug that caused this feature to create zombie tournaments that locked the database has been identified and resolved by cleaning up stale running entries.
+A full-stack web application is fully functional.
+- The **backend** (FastAPI) features a modular, multi-category architecture. A sophisticated scheduler handles fetching papers, running comparison rounds, and generating impact summaries for each category in parallel, using per-category locks. It uses a new, simplified, and efficient score-based matchmaking logic. All key API endpoints are cached for performance.
+- The **frontend** (React) is a minified production build served statically. It features a main leaderboard with category and period tabs, a paper detail page with AI-generated impact summaries, a model analysis page, a methodology page, and a comprehensive, per-category admin panel.
+- The **database** (MongoDB) stores papers, matches, and settings.
+- The system is configured for production deployment via , running the backend on  and frontend via .
 
 **Last working item**:
-- **Last item agent was working:** The agent identified and fixed a severe, system-wide performance degradation that occurred when tournaments were running. The root cause was a combination of zombie tournaments being auto-resumed on startup and blocking I/O from LLM calls stalling the main server event loop. The fix involved cleaning the database of stuck tournaments and, crucially, moving the LLM API calls into a  to make them non-blocking. The agent was verifying this fix when the pod was terminated due to a memory limit and subsequently restarted.
-- **Status:** USER VERIFICATION PENDING
+- **Last item agent was working:** The agent was addressing an issue where manual actions (like Fetch Papers) for one category were blocked if another category's tournament or fetch process was already running. The user was unable to fetch papers for the Computational Physics category because the Economics tournament was in progress.
+- **Status:** COMPLETED
 - **Agent Testing Done:** Y
-- **Which testing method agent to use?** both
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1:** Confirm system stability and performance after pod restart. (Priority: P0)
-
-**Issues Detail:**
-- **Issue 1:**
-    - **Attempted fixes:** The agent successfully diagnosed and implemented a fix for the system slowdown by using a  for LLM calls. Manual tests confirmed this resolved the issue, with API endpoints remaining responsive (<100ms) during active tournaments.
-    - **Next debug checklist:**
-        1.  Restart any necessary services and verify the application is running.
-        2.  Start a large new tournament (e.g., 50+ papers).
-        3.  While the tournament is running, access other parts of the application (History, Results pages for other tournaments) and confirm they remain fast and responsive.
-        4.  Monitor the new tournament's progress to ensure the  fix did not introduce any regressions.
-        5.  Use the testing agent to run a full regression test to ensure overall system health.
-    - **Why fix this issue and what will be achieved with the fix?** This will confirm that the critical performance fix is robust and persistent, ensuring the application is usable and stable. The user has repeatedly reported performance issues, and this final verification is key to resolving their concerns.
-    - **Status:** USER VERIFICATION PENDING
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** both
-    - **Blocked on other issue:** None
+There are no pending or in-progress issues. All identified bugs and user requests from the session have been addressed.
 
 **In progress Task List**:
-- None
+There are no tasks currently in progress.
 
 **Upcoming and Future Tasks**
+
 **Upcoming Tasks:**
--   **Task 1 (P1):** Implement date-based filtering in the search functionality.
--   **Task 2 (P2):** Add a pause button for long-running tournaments.
--   **Task 3 (P2):** Add a paper abstract preview modal on hover in the search results.
+- **P0: Monitor new matchmaking logic:** The matchmaking algorithm was completely overhauled to a unified, score-based system. This needs to be monitored across all categories (especially the newly added Computational Physics) to ensure it distributes matches evenly and converges efficiently as intended.
+- **P1: Verify parallel processing:** The new per-category locks for fetching and processing need to be observed under normal operation to confirm that categories are processed independently and in parallel without issues.
 
 **Future Tasks:**
--   Save search queries as presets.
--   Export tournament results and logs to CSV/PDF.
--   Share tournament results via a public link.
--   Add pagination for very large match logs.
--   Highlight the matched search phrase in the search results.
+- **Historical Ranking Trends:** Implement a feature to visualize how paper rankings have evolved over time.
+- **CSV Data Export:** Add a feature to allow users to export the leaderboard data as a CSV file.
+- **Abstract Previews:** Enhance the leaderboard UI to show paper abstracts on hover.
+- **Recency-Weighted Re-comparisons:** Improve the matchmaking logic to allow for re-comparing pairs of papers after a certain amount of time has passed, instead of the current hard de-duplication. This would allow the system to re-evaluate rankings with potentially improved LLMs or prompts in the future.
 
 **Completed work in this session**
-- **UCB Bandit Feature:** Implemented the UCB ranking algorithm as a more efficient alternative to Round Robin. (DONE)
-- **Top-K Ranking & Confidence Bands:** Enhanced UCB with Target Top-K for focused ranking and added statistical confidence intervals to results. (DONE)
-- **Keywords as Title & Citation Counts:** Implemented using search keywords for tournament titles and added asynchronous fetching of paper citation counts from Semantic Scholar. (DONE)
-- **Search Performance Optimization:** Refactored search to be non-blocking, displaying results instantly while citations load in the background. (DONE)
-- **Critical System Performance Fix:** Diagnosed and resolved severe database contention and event-loop blocking that made the app unresponsive during active tournaments by moving blocking I/O to a . (DONE)
-
-**Earlier issues found/mentioned but not fixed**
-- **Issue 1:** The user requested search filtering by date, but this was never implemented.
-    - **Debug checklist:**
-        -   Add a date picker component to .
-        -   Update the state to manage the date range.
-        -   Update the backend  function in  to support date range filters.
-    - **Why to solve this issue and what will be achieved with this?** It fulfills an explicit user requirement and allows for more refined tournament creation.
-    - **Should Test frontend/backend/both after fix:** both
-    - **Is recurring issue?** N
-
-**Known issue recurrence from previous fork**
-- None
+- **Architectural Overhaul:**
+  - Migrated the app from a single-user concept to an automated, multi-category public leaderboard (SciRank).
+  - Refactored the entire backend into a modular structure (, ).
+- **Core Features:**
+  - Implemented multi-category support for Robotics, Distributed Computing, Economics, and Computational Physics ().
+  - Created an automated scheduler for fetching papers and running comparison tournaments ().
+  - Built a dynamic leaderboard with Elo scores and Wilson confidence intervals ().
+  - Developed a comprehensive admin panel for per-category management ().
+- **Advanced Features & UX:**
+  - **AI Impact Summaries:** Automatic generation of structured summaries for settled papers, with an editable prompt in the admin panel (, ).
+  - **Model Correlation Analysis:** A dedicated page to analyze the agreement and correlation between the LLMs (, ).
+  - **Methodology Page:** A static page explaining the app's workflow ().
+  - **Continuous Tournament:** The system runs autonomously until convergence goals are met for each category ().
+- **Performance & Stability:**
+  - Switched frontend to a minified production build (, ).
+  - Implemented and pre-warmed server-side caching for critical API endpoints ().
+  - Added robust startup migrations to ensure data integrity and correct settings on deployment ().
+- **Matchmaking Logic Evolution:**
+  - Replaced a complex, buggy, 6-phase matchmaking system with a **unified, score-based algorithm** that is more efficient, fair, and easier to understand ().
+- **Bug Fixes:**
+  - Resolved a critical data persistence bug that wiped category data on every restart.
+  - Fixed a silent  that was causing all LLM comparisons to fail.
+  - Corrected admin panel statistics to be per-category instead of global.
+  - Implemented per-category processing locks to fix globally disabled buttons and enable parallel operations.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, Pydantic, Motor, asyncio, PyPDF2, ** for blocking I/O**.
--   **Frontend:** React, React Router, Axios, Tailwind CSS, Shadcn UI.
--   **Database:** MongoDB.
--   **Algorithms:** Bradley-Terry, Upper Confidence Bound (UCB).
--   **APIs:** ArXiv API, Semantic Scholar API.
+- **Frontend:** React, React Router, Tailwind CSS, Recharts.
+- **Backend:** FastAPI (Python), Pydantic.
+- **Database:** MongoDB (using  and ).
+- **Scheduling:** Background tasks managed via  within the FastAPI app lifecycle.
+- **Ranking Algorithm:** Bradley-Terry model converted to an Elo-like score; Wilson Score Interval for win rate confidence.
+- **Matchmaking:** A custom, unified score-based algorithm weighing multiple factors (min matches deficit, CI narrowing need, novelty) to select pairs.
+- **Deployment:** The application is configured for production using  (backend) and  (frontend), managed by .
+- **Caching:** In-memory time-to-live (TTL) caching on the backend to accelerate API responses.
 
 **key DB schema**
--   **tournaments** collection:
-    -   uid=0(root) gid=0(root) groups=0(root), , , , , , , , 
--   **tournament_progress** collection: (Used for frequent, lightweight progress updates to avoid locking the main collection. This was an intermediate fix and might have been superseded by the in-memory cache).
--   **In-Memory Cache:** A Python dictionary () is used to track live tournament progress without any database writes, completely eliminating DB contention during execution.
+- ** collection:** 
+- ** collection:** 
+- ** collection:** A single document storing all admin-configurable settings, including matchmaking weights and prompts.
 
 **changes in tech stack**
--  was added to  for statistical calculations.
+- No major changes. The stack has remained FastAPI + React + MongoDB throughout the session.
 
 **All files of reference**
--   : Contains all backend logic. Was heavily modified to implement the  fix for LLM calls and to use an in-memory cache for progress updates.
--   : Contains the UI for creating tournaments and was updated with various UX improvements (warnings for slow searches, time estimates).
--   : Updated to use a lightweight status endpoint and display progress correctly.
--   : Displays final rankings with confidence bands and citation counts.
--   : Displays a list of all tournaments.
+- ****: The heart of the backend. Contains the main scheduler loop, the unified matchmaking logic, and functions for fetching papers, running comparisons, and generating summaries.
+- ****: The FastAPI application entry point. Defines all API endpoints, handles caching, and includes the critical startup migration logic for ensuring database integrity on deployment.
+- ****: Defines the application's categories and default settings. This is the source of truth for which tournaments to run.
+- ****: The main control panel for the application, providing per-category views and actions.
+- ****: The primary public-facing page, displaying the leaderboards for each category.
+- ****: Configures the production processes, notably defining that the frontend is served from the static  directory.
 
 **Areas that need refactoring**:
--  is extremely large and monolithic. It urgently needs to be broken down into smaller modules (e.g., , , , ) to improve maintainability.
+- The  file is large and could be broken down into smaller modules (e.g., a dedicated ). However, the recent refactoring to a unified scoring function has already made it significantly simpler and more maintainable than its predecessor.
 
 **key api endpoints**
--   : Search for papers (now non-blocking).
--   : New endpoint to fetch citation counts asynchronously.
--   : Create a new tournament.
--   : Get a list of all tournaments (now reads progress from in-memory cache).
--   : SSE endpoint for live progress.
--   : Lightweight polling endpoint for progress (reads from in-memory cache).
+- : Returns the cached, ranked list of papers for a specific category and time period.
+- : Returns the list of active categories.
+- : Returns correlation statistics for a specific category (or all if omitted).
+- : Authenticates the admin user.
+- : Returns detailed progress for a specific category's tournament.
+- : Manually triggers paper fetching for a category.
+- : Manually triggers a comparison round for a category.
+- : Manages application-wide settings.
+-  & : Manage the editable LLM prompts.
 
 **Critical Info for New Agent**
-- **The pod just restarted due to a memory limit.** Your first priority is to verify the application is stable and the recent performance fix is still effective.
-- **The root cause of all major performance issues has been found and fixed.** The problem was blocking I/O (LLM calls) stalling the main FastAPI event loop. The solution was to run these calls in a . Do not revert this change.
-- Progress for running tournaments is now tracked in an in-memory Python dictionary () to prevent any database writes during execution, eliminating DB lock contention. The final results are written to MongoDB only upon completion.
-- The  function in  automatically resumes tournaments marked as 'running'. The agent had to manually clean the database of zombie tournaments that were causing this feature to lock up the system on every restart. Be aware of this behavior if the backend is restarted frequently.
+- **Production Frontend Build:** The frontend is served from a static directory (). **Any changes to frontend code require running yarn run v1.22.22
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.** in the  directory to be visible. The agent must remember to do this.
+- **Multi-Category Architecture:** The entire system is designed around categories. Most backend logic and API endpoints are scoped by a  ID (e.g., ). This is the primary key for data separation.
+- **Unified Matchmaker:** The old, complex, multi-phase matchmaking logic has been entirely replaced by a single, score-based function in . It is controlled by a new set of weights in the admin settings.
+- **Startup Migration:** A critical function  in  runs on application start. It cleans the database of invalid papers and ensures essential settings (like prompts) are correctly configured. This makes deployments robust.
+- **Parallelism via Per-Category Locks:** The scheduler uses per-category locks (e.g., ) instead of global locks. This allows different categories to be processed in parallel and prevents manual actions on one category from being blocked by another.
 
 **documents and test reports created in this job**
 - 
-- 
-- 
-- 
--  (created by testing agent)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** The ongoing tournament is still considerably slowing down the results view. (IN PROGRESS)
-2.  **Agent:** Investigating the slowdown, suspecting DB contention. Implemented several fixes including , lightweight collections, and finally an in-memory cache.
-3.  **Agent:** Discovered the root cause was auto-resuming zombie tournaments, cleaned the DB.
-4.  **Agent:** The issue persisted; final diagnosis is blocking I/O in the event loop.
-5.  **Agent:** Implemented the  fix for LLM calls.
-6.  **Agent:** Confirmed the fix worked, with endpoints remaining responsive (<100ms) during active tournaments.
-7.  **(System):** Pod terminated due to memory limit.
-8.  **User:** Viewing results seems to slow down when there are ongoing tournaments. Can we fix this? Also, the progress numbers on the screenshots don't really add up. (RESOLVED)
-9.  **Agent:** Fixed the progress display logic and optimized the tournament polling to be more lightweight.
-10. **User:** This one is taking ages. I think the whole system is pretty slow. Can you check overall? (RESOLVED)
+1.  **User:** Requested implementing the simplified matchmaking logic and adding a new Computational Physics category. (Completed)
+2.  **User:** Emphasized the need for the new matchmaking logic to be efficient and handle new papers well. (Completed)
+3.  **User:** Reported that admin buttons were greyed out, preventing fetching for one category while another was processing. (Completed)
+4.  **User:** Asked for a full review of the matchmaking logic and suggestions for improvement. (Completed, led to the simplified logic)
+5.  **User:** Reported a bug where one paper received an imbalanced number of matches (49) at the start of a tournament. (Completed)
+6.  **User:** Reported multiple issues: fetch not working for Economics, admin buttons disabled, incorrect progress stats, and asked about parallel processing capabilities. (Completed)
+7.  **User:** Requested dynamic titles, a per-category Ranking in Progress badge, a new Economics category, and for Model Analysis to show all categories. (Completed)
+8.  **User:** Reported that admin panel stats were not updating when switching between categories and the Ranking in progress badge was showing incorrectly. (Completed)
+9.  **User:** Requested that Model Analysis auto-update and all stats (admin, leaderboard) be made category-specific. (Completed)
+10. **User:** Reported a bug where a paper got 49 matches at the start, indicating an inefficient matchmaking logic. (Completed, led to the full review)
 
 **Project Health Check:**
-- **Broken:** None. The application should be functional, but stability after the recent pod crash needs to be verified.
-- **Mocked:** None.
+- **Live:** The application is running smoothly with a production-optimized frontend and a multi-category backend.
+- **Stable:** Major architectural improvements and bug fixes have made the system robust, especially regarding data persistence and parallel processing.
+- **Performant:** Page loads and API responses are fast due to aggressive server-side caching and a minified frontend build.
+- **Monitored:** The admin panel offers good per-category visibility into tournament progress and system health.
+- **Overall:** **Healthy**.
 
 **3rd Party Integrations**
--   **OpenAI GPT-5.2** — uses Emergent LLM Key.
--   **ArXiv API** — Public API, no key required.
--   **Semantic Scholar API** — Public API, no key required (but is subject to rate limits).
+- **OpenAI GPT-5.2** — uses Emergent LLM Key
+- **Anthropic Claude Opus 4.5** — uses Emergent LLM Key
+- **Google Gemini 3 Pro** — uses Emergent LLM Key
+- **arXiv API** — no key required
 
 **Testing status**
--   **Testing agent used after significant changes:** YES
--   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** []
--   **Known regressions:** The performance of the entire app during active tournaments was a major, recurring regression that has now been addressed at its root cause.
+- **Testing agent used after significant changes:** YES (early in the session)
+- **Troubleshoot agent used after agent stuck in loop:** NO
+- **Test files created:** None. Testing was performed manually via  and UI verification.
+- **Known regressions:** None.
 
 **Credentials to test flow:**
-- No user-provided credentials are required.
+- Admin Panel: 
+- Password: 
 
 **What agent forgot to execute**
-- The user's request to add **date-based filtering** to the search page is still pending from the original handoff summary and has not been addressed.</analysis>
+The agent successfully addressed all user requests and its own suggestions from this session. No tasks were overlooked.</analysis>
