@@ -380,9 +380,8 @@ export default function LeaderboardPage() {
             Showing {displayList.length} of {leaderboard.length} papers matching "{keyword}"
           </div>
         )}
-        <div className="border border-border rounded-lg overflow-hidden" data-testid="leaderboard-table">
-          <div className="overflow-x-auto">
-          <div className="grid grid-cols-[2rem_1fr_3.5rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] min-w-0 sm:min-w-[540px] gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
+        <div className="border border-border rounded-lg overflow-x-auto" data-testid="leaderboard-table">
+          <div className="grid grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
             <div>#</div>
             <div>Paper</div>
             <div className="text-right">Score</div>
@@ -395,7 +394,7 @@ export default function LeaderboardPage() {
             <Link
               key={paper.id}
               to={`/paper/${paper.id}`}
-              className={`grid grid-cols-[2rem_1fr_3.5rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] min-w-0 sm:min-w-[540px] gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 && !kw ? "bg-accent/[0.02]" : ""}`}
+              className={`grid grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 && !kw ? "bg-accent/[0.02]" : ""}`}
               data-testid={`leaderboard-row-${idx}`}
             >
               <div><RankBadge rank={paper.rank} /></div>
