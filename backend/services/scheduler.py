@@ -582,14 +582,14 @@ def _select_pairs(
     max_matches: int, max_per_round: int, ci_target: float = 12.0,
 ) -> List[tuple]:
     """
-    Smart pair selection that allocates comparisons where they matter most.
+    Smart pair selection with adaptive per-paper round caps.
 
     Key principles:
-    1. Papers below min_matches get highest priority (deficit phase)
-    2. After min_matches, CI-width drives priority — wide CIs need more matches
-    3. Pairs with similar win rates are preferred (most informative comparisons)
-    4. Papers with narrow CIs or extreme win rates get deprioritized
-    5. Top-K papers get a boost proportional to how much CI narrowing is still needed
+    1. Papers below min_matches get highest priority AND higher per-round cap
+    2. After min_matches, CI-width drives both priority and round cap
+    3. Papers with narrow CIs or extreme win rates get lower caps
+    4. Pairs with similar win rates are preferred (most informative)
+    5. Top-K papers get boosted priority and caps when CI needs narrowing
     """
     paper_ids = [p["id"] for p in papers]
     n = len(paper_ids)
@@ -600,7 +600,7 @@ def _select_pairs(
     capped = set()
     comparisons = {}
     win_rates = {}
-    ci_widths = {}  # Wilson CI margin in percentage points
+    ci_widths = {}
 
     for pid in paper_ids:
         s = stats.get(pid, {})
@@ -620,83 +620,103 @@ def _select_pairs(
     ranked = sorted(active, key=lambda pid: win_rates[pid], reverse=True)
     top_k_set = set(ranked[:min(top_k, len(ranked))])
 
-    # Per-paper priority score
+    # Per-paper priority score AND adaptive round cap
     paper_priority = {}
+    paper_round_cap = {}  # Adaptive per-paper cap
+
     for pid in active:
         c = comparisons[pid]
         ci = ci_widths[pid]
+        wr = win_rates[pid]
 
-        # Phase 1: Deficit — papers below min_matches get massive priority
+        # Phase 1: Deficit — papers below min_matches
         deficit = max(0, min_matches - c) / max(min_matches, 1)
+        in_deficit = c < min_matches
 
-        # Phase 2: CI-driven — wider CI = more urgently needs matches
-        # Normalized: ci_target is the goal, so ci/ci_target > 1 means unmet
+        # Phase 2: CI-driven
         ci_urgency = max(0, (ci - ci_target)) / max(ci_target, 1)
 
-        # Exploration bonus for very new papers (< 2x min_matches)
+        # Exploration bonus for very new papers
         exploration = max(0, 1.0 - c / max(min_matches * 2, 1))
 
-        # Top-K bonus scaled by how much CI narrowing is still needed
+        # Top-K boost
         topk_bonus = 0
         if pid in top_k_set and ci > ci_target:
-            topk_bonus = ci_urgency * 2.0  # Scales with how far from target
+            topk_bonus = ci_urgency * 2.0
 
-        # Papers with extreme win rates (>90% or <10%) and sufficient matches
-        # are less informative to compare — reduce their priority
+        # Extreme penalty
         extreme_penalty = 0
-        if c >= min_matches:
-            wr = win_rates[pid]
-            if wr > 0.9 or wr < 0.1:
-                extreme_penalty = 0.5 * (1 - ci_urgency)  # Less penalty if CI still wide
+        is_extreme = False
+        if c >= min_matches and (wr > 0.9 or wr < 0.1):
+            is_extreme = True
+            extreme_penalty = 0.5 * (1 - min(ci_urgency, 1.0))
 
-        priority = (deficit * 10.0      # Deficit dominates when active
-                    + ci_urgency * 5.0   # CI width is the main driver after deficit
-                    + exploration * 1.0  # Small bonus for newer papers
-                    + topk_bonus         # Scaled top-K boost
-                    - extreme_penalty)   # Deprioritize extreme outliers
-
+        priority = (deficit * 10.0
+                    + ci_urgency * 5.0
+                    + exploration * 1.0
+                    + topk_bonus
+                    - extreme_penalty)
         paper_priority[pid] = max(priority, 0.01)
+
+        # Adaptive round cap based on urgency
+        if in_deficit:
+            # Deficit papers: allow up to 2x the base cap to quickly fill minimum
+            paper_round_cap[pid] = max_per_round * 2
+        elif pid in top_k_set and ci > ci_target:
+            # Top-K papers still needing CI narrowing: boosted cap
+            paper_round_cap[pid] = max(max_per_round, int(max_per_round * (1 + ci_urgency)))
+        elif is_extreme and ci <= ci_target:
+            # Extreme papers with narrow CI: minimal cap
+            paper_round_cap[pid] = max(1, max_per_round // 2)
+        elif ci <= ci_target and c >= min_matches:
+            # Converged papers: reduced cap
+            paper_round_cap[pid] = max(1, max_per_round // 2)
+        else:
+            # Normal: base cap scaled by CI urgency
+            paper_round_cap[pid] = max(max_per_round, int(max_per_round * min(1 + ci_urgency * 0.5, 2)))
 
     # Sort papers by priority (highest first)
     priority_sorted = sorted(active, key=lambda pid: paper_priority[pid], reverse=True)
 
-    # Generate candidate pairs with CI-aware scoring
+    # Generate candidate pairs with adaptive caps
     round_count = {pid: 0 for pid in active}
     pairs = []
 
     for p1 in priority_sorted:
-        if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
+        cap1 = paper_round_cap.get(p1, max_per_round)
+        if round_count[p1] >= cap1 or len(pairs) >= max_pairs:
             continue
 
         best_opponents = []
         for p2 in priority_sorted:
-            if p2 == p1 or round_count[p2] >= max_per_round:
+            cap2 = paper_round_cap.get(p2, max_per_round)
+            if p2 == p1 or round_count[p2] >= cap2:
                 continue
             pair_key = tuple(sorted([p1, p2]))
             is_novel = pair_key not in compared_pairs
 
-            # Base pair score from individual priorities
             pair_score = paper_priority[p1] + paper_priority[p2]
 
-            # Win-rate similarity bonus: comparing papers with similar win rates
-            # is more informative for ranking separation
+            # Win-rate similarity bonus
             wr_diff = abs(win_rates[p1] - win_rates[p2])
-            similarity_bonus = max(0, 1.0 - wr_diff * 3.0)  # Peaks when win rates are close
+            similarity_bonus = max(0, 1.0 - wr_diff * 3.0)
             pair_score += similarity_bonus * 2.0
 
             if is_novel:
-                pair_score += 3.0  # Preference for novel pairs
+                pair_score += 3.0
             else:
-                pair_score *= 0.1  # Heavily penalize re-matches
+                pair_score *= 0.1
 
             best_opponents.append((p2, pair_score, is_novel, pair_key))
 
         best_opponents.sort(key=lambda x: x[1], reverse=True)
 
         for p2, score, is_novel, pair_key in best_opponents:
-            if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
+            cap1 = paper_round_cap.get(p1, max_per_round)
+            cap2 = paper_round_cap.get(p2, max_per_round)
+            if round_count[p1] >= cap1 or len(pairs) >= max_pairs:
                 break
-            if round_count[p2] >= max_per_round:
+            if round_count[p2] >= cap2:
                 continue
             if not is_novel and any(x[2] for x in best_opponents):
                 continue
