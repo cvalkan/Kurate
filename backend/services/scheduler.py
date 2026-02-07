@@ -132,12 +132,16 @@ async def _scheduler_loop():
                     cat_status["matches_count"] = cat_match_count
 
             if not is_paused:
-                any_unmet = False
+                # Check which categories need work
+                unmet_cats = []
                 for cat in active_cats:
                     if not await _check_goals_met(category=cat):
-                        any_unmet = True
-                        await run_comparison_round(category=cat)
-                if any_unmet:
+                        unmet_cats.append(cat)
+
+                if unmet_cats:
+                    # Run all unmet categories in parallel
+                    tasks = [run_comparison_round(category=cat) for cat in unmet_cats]
+                    await asyncio.gather(*tasks, return_exceptions=True)
                     await asyncio.sleep(5)
                     continue
                 else:
