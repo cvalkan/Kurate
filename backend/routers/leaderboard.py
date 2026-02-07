@@ -152,9 +152,21 @@ async def _get_cached_leaderboard():
     """Returns pre-computed cache instantly. Falls back to sync refresh if cache is empty."""
     if _cache["categories"]:
         return _cache
-    # First call before bg task has run — do a one-time sync refresh
     await _refresh_cache()
     return _cache
+
+
+@router.get("/tags")
+async def get_all_tags():
+    """Returns all unique category tags across all papers with counts."""
+    from collections import Counter
+    tag_counts = Counter()
+    async for p in db.papers.find({}, {"_id": 0, "categories": 1}):
+        for cat in p.get("categories", []):
+            tag_counts[cat] += 1
+
+    tags = [{"id": tag, "count": count} for tag, count in tag_counts.most_common()]
+    return {"tags": tags}
 
 
 @router.get("/categories")
