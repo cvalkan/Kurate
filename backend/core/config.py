@@ -39,7 +39,7 @@ TOURNAMENT_MODELS = [
 CATEGORIES = {
     "cs.RO": "Robotics",
     "cs.DC": "Distributed Computing",
-    "q-fin.EC": "Economics",
+    "econ.GN": "Economics",
 }
 
 # Default evaluation prompt
