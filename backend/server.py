@@ -40,6 +40,23 @@ async def startup():
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
 
+    # Migration: remove papers where cs.RO is not the primary category
+    try:
+        non_ro_papers = []
+        async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
+            cats = p.get("categories", [])
+            if not cats or cats[0] != "cs.RO":
+                non_ro_papers.append(p["id"])
+        if non_ro_papers:
+            await db.matches.delete_many({"$or": [
+                {"paper1_id": {"$in": non_ro_papers}},
+                {"paper2_id": {"$in": non_ro_papers}},
+            ]})
+            await db.papers.delete_many({"id": {"$in": non_ro_papers}})
+            logger.info(f"Cleaned {len(non_ro_papers)} non-primary cs.RO papers")
+    except Exception as e:
+        logger.warning(f"Migration warning: {e}")
+
     await start_scheduler()
 
     # Pre-warm leaderboard cache so first visitor gets instant response
