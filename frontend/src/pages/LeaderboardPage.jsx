@@ -31,6 +31,9 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
+  const [isRanking, setIsRanking] = useState(false);
+
+  const categoryName = categories.find(c => c.id === category)?.name || "Papers";
 
   // Load categories once
   useEffect(() => {
