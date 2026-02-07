@@ -76,13 +76,14 @@ export default function AdminPage() {
   }, []);
 
   const fetchAll = useCallback(async () => {
+    if (!adminCat) return;
     const headers = getAdminHeaders();
     try {
       const [statusRes, settingsRes, promptRes, progressRes, statsRes, summaryPromptRes] = await Promise.all([
         axios.get(`${API}/api/admin/status`, { headers }),
         axios.get(`${API}/api/admin/settings`, { headers }),
         axios.get(`${API}/api/admin/prompt`, { headers }),
-        axios.get(`${API}/api/admin/progress`, { headers }),
+        axios.get(`${API}/api/admin/progress`, { headers, params: { category: adminCat } }),
         axios.get(`${API}/api/admin/stats`, { headers }),
         axios.get(`${API}/api/admin/summary-prompt`, { headers }),
       ]);
