@@ -8,6 +8,7 @@ from core.config import logger
 async def fetch_arxiv_papers(
     category: str = "cs.RO",
     max_results: int = 50,
+    primary_only: bool = True,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
 ) -> List[dict]:
@@ -20,10 +21,12 @@ async def fetch_arxiv_papers(
         query_parts.append(f"submittedDate:[{from_str} TO {to_str}]")
 
     query = " AND ".join(query_parts)
+    # Fetch extra if filtering by primary category (roughly 60% will be primary)
+    fetch_count = max_results * 2 if primary_only else max_results
     params = {
         "search_query": query,
         "start": 0,
-        "max_results": max_results,
+        "max_results": fetch_count,
         "sortBy": "submittedDate",
         "sortOrder": "descending",
     }
