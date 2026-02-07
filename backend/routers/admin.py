@@ -235,14 +235,18 @@ async def get_progress_estimate(category: str = "cs.RO"):
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
-    total_matches_done = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
-    papers_with_pdf = await db.papers.count_documents({"full_text": {"$ne": None}})
+    # Per-category counts
+    cat_matches_done = sum(paper_match_count.values()) // 2  # each match counted twice
+    cat_papers_with_pdf = 0
+    async for p in db.papers.find({"categories.0": category, "full_text": {"$ne": None}}, {"_id": 0}):
+        cat_papers_with_pdf += 1
 
     return {
         "total_papers": total_papers,
-        "total_matches": total_matches_done,
-        "papers_with_pdf": papers_with_pdf,
+        "total_matches": cat_matches_done,
+        "papers_with_pdf": cat_papers_with_pdf,
         "paused": is_paused,
+        "category": category,
         "goals_met": bool(goal1_met and goal2_met),
         "goal1": {
             "met": bool(goal1_met),
