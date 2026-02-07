@@ -219,7 +219,9 @@ async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offs
         query = {"categories": {"$all": tag_list}}
     else:
         query = {"categories": {"$in": tag_list}}
-        {"_id": 0, "full_text": 0, "abstract": 0},
+
+    all_papers = await db.papers.find(
+        query, {"_id": 0, "full_text": 0, "abstract": 0},
     ).to_list(5000)
 
     if not all_papers:
