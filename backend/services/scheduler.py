@@ -94,23 +94,21 @@ async def _scheduler_loop():
         await asyncio.sleep(300)
 
 
-async def _check_goals_met() -> bool:
-    """Check if both ranking goals are satisfied."""
+async def _check_goals_met(category: str = "cs.RO") -> bool:
+    """Check if both ranking goals are satisfied for a category."""
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     max_matches = settings.get("max_matches_per_paper", 150)
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 12)
 
-    total_papers = await db.papers.count_documents({})
-    if total_papers < 2:
+    paper_ids = [p["id"] async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1})]
+    if len(paper_ids) < 2:
         return True
 
-    paper_match_count = {}
-    paper_wins = {}
-    async for p in db.papers.find({}, {"_id": 0, "id": 1}):
-        paper_match_count[p["id"]] = 0
-        paper_wins[p["id"]] = 0
+    pid_set = set(paper_ids)
+    paper_match_count = {pid: 0 for pid in paper_ids}
+    paper_wins = {pid: 0 for pid in paper_ids}
 
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
