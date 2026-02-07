@@ -17,10 +17,9 @@ class SettingsUpdate(BaseModel):
     max_papers_per_fetch: Optional[int] = None
     parallel_agents: Optional[int] = None
     top_k_focus: Optional[int] = None
-    exploration_constant: Optional[float] = None
-    anchor_comparisons: Optional[int] = None
     min_matches_per_paper: Optional[int] = None
     max_matches_per_paper: Optional[int] = None
+    max_new_matches_per_round: Optional[int] = None
     ci_target: Optional[int] = None
     paused: Optional[bool] = None
     admin_password: Optional[str] = None
