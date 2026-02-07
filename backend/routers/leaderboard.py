@@ -182,11 +182,19 @@ async def get_categories():
 
 @router.get("/leaderboard")
 async def get_leaderboard(
-    category: Optional[str] = Query("cs.RO", description="arXiv category"),
+    category: Optional[str] = Query("cs.RO", description="arXiv primary category"),
     period: Optional[str] = Query("all", description="Filter: recent, week, month, all"),
+    tags: Optional[str] = Query(None, description="Comma-separated category tags to filter by (overrides category)"),
     limit: int = Query(100, description="Max papers to return"),
     offset: int = Query(0, description="Offset for pagination"),
 ):
+    # Tag-based filtering: compute on-demand (not cached, since tag combos are arbitrary)
+    if tags:
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            return await _compute_tag_leaderboard(tag_list, period, limit, offset)
+
+    # Default: use pre-computed primary category cache
     cache = await _get_cached_leaderboard()
     cat_data = cache["categories"].get(category, {})
     data = cat_data.get(period, cat_data.get("all", []))
@@ -199,6 +207,69 @@ async def get_leaderboard(
         "is_ranking": cat_data.get("_is_ranking", False),
         "period": period,
         "category": category,
+        "tags": None,
+    }
+
+
+async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offset: int):
+    """Compute leaderboard for an arbitrary set of category tags."""
+    # Find papers matching ANY of the tags
+    all_papers = await db.papers.find(
+        {"categories": {"$in": tag_list}},
+        {"_id": 0, "full_text": 0, "abstract": 0},
+    ).to_list(5000)
+
+    if not all_papers:
+        return {
+            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+            "total_matches": 0, "is_ranking": False, "period": period,
+            "category": None, "tags": tag_list,
+        }
+
+    paper_ids = {p["id"] for p in all_papers}
+
+    all_matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
+    ).to_list(200000)
+    tag_matches = [m for m in all_matches if m["paper1_id"] in paper_ids and m["paper2_id"] in paper_ids]
+
+    full = compute_leaderboard(all_papers, tag_matches)
+
+    utc_now = datetime.now(timezone.utc)
+    paper_dates = {}
+    for entry in full:
+        try:
+            paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
+        except (ValueError, KeyError):
+            pass
+
+    max_date = max(paper_dates.values()) if paper_dates else utc_now
+    recent_cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
+
+    period_map = {
+        "recent": recent_cutoff,
+        "week": utc_now - timedelta(weeks=1),
+        "month": utc_now - timedelta(days=30),
+    }
+
+    if period in period_map:
+        cutoff = period_map[period]
+        data = [{**e} for e in full if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff]
+        for i, e in enumerate(data):
+            e["rank"] = i + 1
+    else:
+        data = full
+
+    return {
+        "leaderboard": data[offset:offset + limit],
+        "total_papers": len(all_papers),
+        "total_in_period": len(data),
+        "total_matches": len(tag_matches),
+        "is_ranking": False,
+        "period": period,
+        "category": None,
+        "tags": tag_list,
     }
 
 
