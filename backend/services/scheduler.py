@@ -161,9 +161,10 @@ def _compute_elo_ci(wins, comparisons):
 
 
 async def run_fetch_cycle(category: str = "cs.RO"):
-    if scheduler_status["is_fetching"]:
+    if category in _fetching_cats:
         return {"status": "already_fetching"}
 
+    _fetching_cats.add(category)
     scheduler_status["is_fetching"] = True
     scheduler_status["current_activity"] = f"Fetching {category} papers..."
 
