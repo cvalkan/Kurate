@@ -48,6 +48,9 @@ export default function LeaderboardPage() {
   const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
 
+  // Keyword search
+  const [keyword, setKeyword] = useState("");
+
   // Abort controller to cancel stale requests
   const abortRef = useRef(null);
 
