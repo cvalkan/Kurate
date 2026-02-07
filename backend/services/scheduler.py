@@ -209,7 +209,8 @@ async def run_fetch_cycle(category: str = "cs.RO"):
         scheduler_status["current_activity"] = f"Fetch failed: {str(e)[:100]}"
         return {"status": "error", "error": str(e)}
     finally:
-        scheduler_status["is_fetching"] = False
+        _fetching_cats.discard(category)
+        scheduler_status["is_fetching"] = bool(_fetching_cats)
 
 
 async def _download_pending_pdfs():
