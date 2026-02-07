@@ -416,7 +416,6 @@ export default function LeaderboardPage() {
               </div>
             </Link>
           ))}
-          </div>
         </div>
         </>
       );
