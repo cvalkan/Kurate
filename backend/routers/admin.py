@@ -93,42 +93,47 @@ async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()
 
 
 @router.get("/status", dependencies=[Depends(verify_admin)])
-async def get_admin_status():
-    total_papers = await db.papers.count_documents({})
-    total_matches = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
-    failed_matches = await db.matches.count_documents({"failed": True})
-    papers_without_text = await db.papers.count_documents({"full_text": None})
-    papers_no_comparisons = await db.papers.count_documents({})
+async def get_admin_status(category: str = "cs.RO"):
+    # Get paper IDs for this category
+    cat_paper_ids = set()
+    async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+        cat_paper_ids.add(p["id"])
 
-    # Count papers with 0 comparisons
-    all_paper_ids = [p["id"] async for p in db.papers.find({}, {"_id": 0, "id": 1})]
+    total_papers = len(cat_paper_ids)
+
+    # Count matches within this category
+    total_matches = 0
+    failed_matches = 0
     match_paper_ids = set()
-    async for m in db.matches.find({"completed": True}, {"_id": 0, "paper1_id": 1, "paper2_id": 1}):
-        match_paper_ids.add(m["paper1_id"])
-        match_paper_ids.add(m["paper2_id"])
-    unranked = len([pid for pid in all_paper_ids if pid not in match_paper_ids])
+    async for m in db.matches.find({}, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "completed": 1, "failed": 1}):
+        if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids:
+            if m.get("completed") and not m.get("failed"):
+                total_matches += 1
+                match_paper_ids.add(m["paper1_id"])
+                match_paper_ids.add(m["paper2_id"])
+            if m.get("failed"):
+                failed_matches += 1
 
-    # Recent matches
-    recent_matches = await db.matches.find(
+    unranked = len(cat_paper_ids - match_paper_ids)
+
+    # Recent matches for this category
+    recent_all = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0},
-    ).sort("created_at", -1).to_list(10)
+    ).sort("created_at", -1).to_list(50)
 
-    # Enrich with paper titles
+    recent_matches = [m for m in recent_all if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids][:10]
+
     paper_ids_needed = set()
     for m in recent_matches:
-        paper_ids_needed.add(m["paper1_id"])
-        paper_ids_needed.add(m["paper2_id"])
-        if m.get("winner_id"):
-            paper_ids_needed.add(m["winner_id"])
+        paper_ids_needed.update([m["paper1_id"], m["paper2_id"], m.get("winner_id", "")])
 
     paper_titles = {}
     async for p in db.papers.find({"id": {"$in": list(paper_ids_needed)}}, {"_id": 0, "id": 1, "title": 1}):
         paper_titles[p["id"]] = p["title"]
 
-    enriched_recent = []
-    for m in recent_matches:
-        enriched_recent.append({
+    enriched_recent = [
+        {
             "id": m["id"],
             "paper1_title": paper_titles.get(m["paper1_id"], "Unknown"),
             "paper2_title": paper_titles.get(m["paper2_id"], "Unknown"),
@@ -136,7 +141,9 @@ async def get_admin_status():
             "reasoning": m.get("reasoning", ""),
             "model_used": m.get("model_used", {}),
             "created_at": m.get("created_at", ""),
-        })
+        }
+        for m in recent_matches
+    ]
 
     return {
         "total_papers": total_papers,
