@@ -269,12 +269,13 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 prompt_config = DEFAULT_EVALUATION_PROMPT
 
             all_papers = await db.papers.find(
-                {}, {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
-                     "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1}
+                {"categories.0": category},
+                {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
+                 "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1, "added_at": 1}
             ).to_list(5000)
 
             if len(all_papers) < 2:
-                scheduler_status["current_activity"] = "Not enough papers"
+                scheduler_status["current_activity"] = f"Not enough {category} papers"
                 return {"status": "not_enough_papers"}
 
             # Download any missing PDFs
