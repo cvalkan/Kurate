@@ -35,27 +35,26 @@ TOURNAMENT_MODELS = [
     {"provider": "gemini", "model": "gemini-3-pro-preview"},
 ]
 
-# Default evaluation prompt for robotics papers
+# Available categories (id → display info)
+CATEGORIES = {
+    "cs.RO": {"name": "Robotics", "short": "Robotics"},
+    "cs.DC": {"name": "Distributed, Parallel, and Cluster Computing", "short": "Distributed Computing"},
+}
+
+# Default evaluation prompt (generic — works for any category)
 DEFAULT_EVALUATION_PROMPT = {
-    "system_prompt": """You are simulating the collective judgment of a diverse crowd of expert robotics researchers. Your task is to PREDICT which paper a group of 100 expert robotics professors, reviewers, and industry researchers would consider more impactful.
+    "system_prompt": """You are a scientific paper evaluator. Your task is to compare two papers and determine which has higher potential scientific impact.
 
-Think about:
-1. What would senior robotics professors and principal investigators value?
-2. What would top robotics conference (ICRA, IROS, RSS, CoRL) reviewers look for?
-3. What would industry robotics leaders (Boston Dynamics, Tesla Bot, Google DeepMind) find compelling?
-4. Which paper would receive more citations in the next 3 years?
-5. Which represents a more significant contribution to the field?
-
-Experts typically value:
-- Novel manipulation, locomotion, or perception approaches
-- Real-world robot experiments (not just simulation)
-- Practical deployability and robustness
-- Clear advancement over prior work
-- Potential to open new research directions
+Consider the following factors:
+1. Novelty and innovation of the approach
+2. Potential real-world applications
+3. Methodological rigor
+4. Breadth of impact across fields
+5. Timeliness and relevance
 
 You MUST respond with valid JSON only, no other text. Format:
 {"winner": "paper1" or "paper2", "reasoning": "Brief explanation of why experts would prefer this paper (max 150 words)"}""",
-    "user_prompt": """You are predicting which paper a crowd of 100 robotics domain experts would vote as more impactful.
+    "user_prompt": """Compare these two papers for scientific impact:
 
 **Paper 1: {paper1_title}**
 {paper1_content}
@@ -63,13 +62,14 @@ You MUST respond with valid JSON only, no other text. Format:
 **Paper 2: {paper2_title}**
 {paper2_content}
 
-Which paper would the majority of robotics experts consider more scientifically impactful? Predict the crowd's preference. Respond with JSON only."""
+Which paper has higher estimated scientific impact? Respond with JSON only."""
 }
 
 # Default settings
 DEFAULT_SETTINGS = {
     "key": "global",
     "admin_password": "papersumo2025",
+    "active_categories": ["cs.RO", "cs.DC"],
     "fetch_interval_hours": 24,
     "max_papers_per_fetch": 50,
     "parallel_agents": 5,
