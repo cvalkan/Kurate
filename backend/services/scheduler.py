@@ -495,7 +495,6 @@ async def _generate_pending_summaries(category: str = None):
 
     # Get match counts for these papers (only within their category)
     paper_ids = [p["id"] for p in all_papers]
-    paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in all_papers}
     paper_match_count = {pid: 0 for pid in paper_ids}
     paper_wins = {pid: 0 for pid in paper_ids}
 
