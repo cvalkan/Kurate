@@ -8,33 +8,40 @@ def calculate_bradley_terry(matches: List[dict], paper_ids: List[str]) -> Dict[s
     if n == 0:
         return {}
 
+    pid_set = set(paper_ids)
     scores = {pid: 1.0 for pid in paper_ids}
     wins = {pid: 0 for pid in paper_ids}
     comparisons = {pid: 0 for pid in paper_ids}
 
+    # Pre-filter valid matches and index by paper
+    valid_matches = []
+    paper_matches = {pid: [] for pid in paper_ids}  # pid -> list of (opponent_pid, match_idx)
+
     for match in matches:
         if match.get("completed") and match.get("winner_id") and not match.get("failed"):
             p1, p2 = match["paper1_id"], match["paper2_id"]
+            if p1 not in pid_set or p2 not in pid_set:
+                continue
             winner = match["winner_id"]
+            idx = len(valid_matches)
+            valid_matches.append((p1, p2))
             if winner in wins:
                 wins[winner] += 1
             if p1 in comparisons:
                 comparisons[p1] += 1
+                paper_matches[p1].append(idx)
             if p2 in comparisons:
                 comparisons[p2] += 1
+                paper_matches[p2].append(idx)
 
     for _ in range(50):
         new_scores = {}
         for pid in paper_ids:
             if comparisons.get(pid, 0) > 0:
-                denominator = 0
-                for match in matches:
-                    if match.get("completed") and match.get("winner_id") and not match.get("failed"):
-                        p1, p2 = match["paper1_id"], match["paper2_id"]
-                        if pid in (p1, p2):
-                            s1 = scores.get(p1, 1.0)
-                            s2 = scores.get(p2, 1.0)
-                            denominator += 1.0 / (s1 + s2)
+                denominator = 0.0
+                for midx in paper_matches[pid]:
+                    p1, p2 = valid_matches[midx]
+                    denominator += 1.0 / (scores.get(p1, 1.0) + scores.get(p2, 1.0))
                 if denominator > 0:
                     new_scores[pid] = wins.get(pid, 0) / denominator
                 else:
