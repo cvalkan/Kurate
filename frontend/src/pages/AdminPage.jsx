@@ -84,7 +84,7 @@ export default function AdminPage() {
         axios.get(`${API}/api/admin/settings`, { headers }),
         axios.get(`${API}/api/admin/prompt`, { headers }),
         axios.get(`${API}/api/admin/progress`, { headers, params: { category: adminCat } }),
-        axios.get(`${API}/api/admin/stats`, { headers }),
+        axios.get(`${API}/api/admin/stats`, { headers, params: { category: adminCat } }),
         axios.get(`${API}/api/admin/summary-prompt`, { headers }),
       ]);
       setStatus(statusRes.data);
