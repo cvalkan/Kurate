@@ -75,10 +75,10 @@ export default function LeaderboardPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-heading text-3xl md:text-4xl font-semibold tracking-tight mb-2" data-testid="page-title">
-          Robotics Paper Rankings
+          {categoryName} Paper Rankings
         </h1>
         <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
-          AI-estimated scientific impact ranking of the latest arXiv Robotics papers.
+          AI-estimated scientific impact ranking of the latest arXiv {categoryName} papers.
           Papers are evaluated using full-text analysis by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.
         </p>
       </div>
