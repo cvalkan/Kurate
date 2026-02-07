@@ -79,13 +79,9 @@ async def startup():
 
     await start_scheduler()
 
-    # Pre-warm leaderboard cache so first visitor gets instant response
-    try:
-        from routers.leaderboard import _get_cached_leaderboard
-        await _get_cached_leaderboard()
-        logger.info("Leaderboard cache warmed")
-    except Exception as e:
-        logger.warning(f"Cache warm failed: {e}")
+    # Start background cache refresh loop — pre-computes all leaderboard data
+    from routers.leaderboard import start_cache_bg
+    start_cache_bg()
 
     logger.info("PaperSumo Leaderboard started")
 
