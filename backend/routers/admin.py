@@ -292,8 +292,8 @@ def _elo_ci(wins, comparisons):
 
 
 @router.get("/stats", dependencies=[Depends(verify_admin)])
-async def get_usage_stats():
-    """Token usage by model with cost estimation."""
+async def get_usage_stats(category: str = None):
+    """Token usage by model with cost estimation, optionally filtered by category."""
     # Pricing per 1M tokens (input, output)
     MODEL_PRICING = {
         "openai/gpt-5.2": {"input": 1.75, "output": 14.00},
@@ -301,11 +301,23 @@ async def get_usage_stats():
         "gemini/gemini-3-pro-preview": {"input": 2.00, "output": 12.00},
     }
 
+    # Get category paper IDs if filtering
+    cat_paper_ids = None
+    if category:
+        cat_paper_ids = set()
+        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+            cat_paper_ids.add(p["id"])
+
     model_stats = {}
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
-        {"_id": 0, "model_used": 1, "tokens": 1},
+        {"_id": 0, "model_used": 1, "tokens": 1, "paper1_id": 1, "paper2_id": 1},
     ):
+        # Filter by category if specified
+        if cat_paper_ids is not None:
+            if m.get("paper1_id") not in cat_paper_ids or m.get("paper2_id") not in cat_paper_ids:
+                continue
+
         mu = m.get("model_used", {})
         key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
         if key not in model_stats:
