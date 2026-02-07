@@ -75,6 +75,27 @@ export default function AdminPage() {
     }).catch(() => setAdminCat("cs.RO"));
   }, []);
 
+  // Separate: fetch live data (status, progress, stats) vs one-time data (prompts, settings)
+  const fetchLiveData = useCallback(async () => {
+    if (!adminCat) return;
+    const headers = getAdminHeaders();
+    try {
+      const [statusRes, progressRes, statsRes] = await Promise.all([
+        axios.get(`${API}/api/admin/status`, { headers, params: { category: adminCat } }),
+        axios.get(`${API}/api/admin/progress`, { headers, params: { category: adminCat } }),
+        axios.get(`${API}/api/admin/stats`, { headers, params: { category: adminCat } }),
+      ]);
+      setStatus(statusRes.data);
+      setProgress(progressRes.data);
+      setUsageStats(statsRes.data);
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        sessionStorage.removeItem("admin_token");
+        navigate("/admin");
+      }
+    }
+  }, [navigate, adminCat]);
+
   const fetchAll = useCallback(async () => {
     if (!adminCat) return;
     const headers = getAdminHeaders();
