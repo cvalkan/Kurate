@@ -121,6 +121,7 @@ async def get_leaderboard(
         "total_papers": cat_data.get("_papers", 0),
         "total_in_period": len(data),
         "total_matches": cat_data.get("_matches", 0),
+        "is_ranking": cat_data.get("_is_ranking", False),
         "period": period,
         "category": category,
     }
