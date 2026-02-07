@@ -21,44 +21,81 @@ async def fetch_arxiv_papers(
         query_parts.append(f"submittedDate:[{from_str} TO {to_str}]")
 
     query = " AND ".join(query_parts)
-    # Fetch extra if filtering by primary category (roughly 60% will be primary)
-    fetch_count = max_results * 2 if primary_only else max_results
-    params = {
-        "search_query": query,
-        "start": 0,
-        "max_results": fetch_count,
-        "sortBy": "submittedDate",
-        "sortOrder": "descending",
-    }
+    collected = []
+    start = 0
+    # For niche categories, primary papers may be sparse — paginate to find enough
+    batch_size = max(max_results * 3, 150)
+    max_pages = 5  # Safety limit: don't fetch more than 5 pages
 
-    max_retries = 3
-    last_error = None
+    for page in range(max_pages):
+        if len(collected) >= max_results:
+            break
 
-    for attempt in range(max_retries):
-        try:
-            async with httpx.AsyncClient() as http_client:
-                response = await http_client.get(base_url, params=params, timeout=30.0)
-                response.raise_for_status()
-            papers = _parse_arxiv_response(response.text)
-            if primary_only:
-                papers = [p for p in papers if p["categories"] and p["categories"][0] == category]
-            return papers[:max_results]
-        except httpx.HTTPStatusError as e:
-            last_error = e
-            if e.response.status_code == 429:
-                wait_time = (attempt + 1) * 5
-                logger.warning(f"ArXiv rate limited, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
-                await asyncio.sleep(wait_time)
-            else:
-                raise
-        except Exception as e:
-            last_error = e
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2)
-            else:
-                raise
+        params = {
+            "search_query": query,
+            "start": start,
+            "max_results": batch_size,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+        }
 
-    raise last_error
+        max_retries = 3
+        last_error = None
+        papers_batch = None
+
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient() as http_client:
+                    response = await http_client.get(base_url, params=params, timeout=30.0)
+                    response.raise_for_status()
+                papers_batch = _parse_arxiv_response(response.text)
+                break
+            except httpx.HTTPStatusError as e:
+                last_error = e
+                if e.response.status_code == 429:
+                    wait_time = (attempt + 1) * 5
+                    logger.warning(f"ArXiv rate limited, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2)
+                else:
+                    raise
+
+        if papers_batch is None:
+            if last_error:
+                raise last_error
+            break
+
+        if not papers_batch:
+            break  # No more results from arXiv
+
+        if primary_only:
+            primary_papers = [p for p in papers_batch if p["categories"] and p["categories"][0] == category]
+            collected.extend(primary_papers)
+        else:
+            collected.extend(papers_batch)
+
+        # If this batch returned fewer than requested, arXiv has no more
+        if len(papers_batch) < batch_size:
+            break
+
+        start += batch_size
+        logger.info(f"ArXiv pagination: page {page+1}, collected {len(collected)} primary {category} papers so far")
+        await asyncio.sleep(3)  # Rate limit between pages
+
+    # Deduplicate by arxiv_id (in case of overlap)
+    seen = set()
+    unique = []
+    for p in collected:
+        if p["arxiv_id"] not in seen:
+            seen.add(p["arxiv_id"])
+            unique.append(p)
+
+    return unique[:max_results]
 
 
 def _parse_arxiv_response(xml_text: str) -> List[dict]:
