@@ -4,7 +4,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
   Trophy, Clock, Calendar, CalendarDays, Infinity,
-  Users, Swords,
+  Users, Swords, Activity,
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
