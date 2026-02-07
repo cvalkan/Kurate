@@ -117,8 +117,8 @@ export default function AdminPage() {
   const triggerFetch = async () => {
     setLoading((l) => ({ ...l, fetch: true }));
     try {
-      const res = await axios.post(`${API}/api/admin/fetch`, {}, { headers: getAdminHeaders() });
-      toast.success(`Fetch complete: ${res.data.new_papers || 0} new papers`);
+      const res = await axios.post(`${API}/api/admin/fetch`, { category: adminCat }, { headers: getAdminHeaders() });
+      toast.success(`Fetch complete: ${res.data.new_papers || 0} new ${adminCat} papers`);
       fetchAll();
     } catch (err) {
       toast.error("Fetch failed: " + (err.response?.data?.detail || err.message));
@@ -130,8 +130,8 @@ export default function AdminPage() {
   const triggerCompare = async () => {
     setLoading((l) => ({ ...l, compare: true }));
     try {
-      const res = await axios.post(`${API}/api/admin/compare`, { num_matches: manualMatches }, { headers: getAdminHeaders() });
-      toast.success(`Started ${res.data.num_matches} comparisons`);
+      const res = await axios.post(`${API}/api/admin/compare`, { num_matches: manualMatches, category: adminCat }, { headers: getAdminHeaders() });
+      toast.success(`Started ${res.data.num_matches} comparisons for ${adminCat}`);
     } catch (err) {
       toast.error("Failed: " + (err.response?.data?.detail || err.message));
     } finally {
