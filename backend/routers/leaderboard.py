@@ -185,14 +185,15 @@ async def get_leaderboard(
     category: Optional[str] = Query("cs.RO", description="arXiv primary category"),
     period: Optional[str] = Query("all", description="Filter: recent, week, month, all"),
     tags: Optional[str] = Query(None, description="Comma-separated category tags to filter by (overrides category)"),
+    tag_mode: Optional[str] = Query("or", description="How to combine tags: 'or' (any) or 'and' (all)"),
     limit: int = Query(100, description="Max papers to return"),
     offset: int = Query(0, description="Offset for pagination"),
 ):
-    # Tag-based filtering: compute on-demand (not cached, since tag combos are arbitrary)
+    # Tag-based filtering: compute on-demand
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         if tag_list:
-            return await _compute_tag_leaderboard(tag_list, period, limit, offset)
+            return await _compute_tag_leaderboard(tag_list, period, limit, offset, tag_mode)
 
     # Default: use pre-computed primary category cache
     cache = await _get_cached_leaderboard()
@@ -208,14 +209,16 @@ async def get_leaderboard(
         "period": period,
         "category": category,
         "tags": None,
+        "tag_mode": None,
     }
 
 
-async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offset: int):
+async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offset: int, tag_mode: str = "or"):
     """Compute leaderboard for an arbitrary set of category tags."""
-    # Find papers matching ANY of the tags
-    all_papers = await db.papers.find(
-        {"categories": {"$in": tag_list}},
+    if tag_mode == "and" and len(tag_list) > 1:
+        query = {"categories": {"$all": tag_list}}
+    else:
+        query = {"categories": {"$in": tag_list}}
         {"_id": 0, "full_text": 0, "abstract": 0},
     ).to_list(5000)
 
