@@ -216,29 +216,58 @@ export default function CorrelationPage() {
       {/* Agreement Rates */}
       {agreeEntries.length > 0 && (
         <div className="mb-8" data-testid="agreement">
-          <h2 className="font-heading text-lg font-medium mb-3">Pairwise Agreement</h2>
+          <h2 className="font-heading text-lg font-medium mb-1">Pairwise Agreement</h2>
           <p className="text-xs text-muted-foreground mb-4">
-            When two models judge the same paper pair, how often do they pick the same winner?
+            When two models judge the same paper pair, how often do they pick the same winner? Broken down by pair difficulty.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {agreeEntries.map(([pair, stats]) => (
-              <div key={pair} className="p-4 rounded-lg border border-border bg-secondary/20">
-                <div className="text-xs text-muted-foreground mb-2">{pair.replace(" vs ", " ↔ ")}</div>
-                <div className="flex items-center gap-3">
-                  <div className="font-mono text-2xl font-bold text-foreground">{stats.rate}%</div>
-                  <div className="flex-1 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-green-600" />
-                      {stats.agree} agree
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <XCircle className="h-3 w-3 text-red-500" />
-                      {stats.disagree} disagree
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            {agreeEntries.map(([pair, stats]) => {
+              const clear = stats.clear_cut || {};
+              const contested = stats.contested || {};
+              const contestedPct = contested.total ? Math.round(contested.total / stats.total * 100) : 0;
+              return (
+                <div key={pair} className="p-4 rounded-lg border border-border bg-secondary/20">
+                  <div className="text-xs text-muted-foreground mb-3">{pair.replace(" vs ", " ↔ ")}</div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="font-mono text-2xl font-bold text-foreground">{stats.rate}%</div>
+                    <div className="flex-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                        {stats.agree} agree
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <XCircle className="h-3 w-3 text-red-500" />
+                        {stats.disagree} disagree
+                      </div>
                     </div>
                   </div>
+                  <div className="border-t border-border/50 pt-2 space-y-1">
+                    {clear.total > 0 && (
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground">Clear-cut pairs</span>
+                        <span className="font-mono text-green-600 font-medium">{clear.rate}% <span className="text-muted-foreground font-normal">({clear.agree}/{clear.total})</span></span>
+                      </div>
+                    )}
+                    {contested.total > 0 && (
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground">Contested pairs</span>
+                        <span className={`font-mono font-medium ${contested.rate >= 50 ? "text-amber-600" : "text-red-500"}`}>{contested.rate}% <span className="text-muted-foreground font-normal">({contested.agree}/{contested.total})</span></span>
+                      </div>
+                    )}
+                    {contestedPct > 70 && (
+                      <div className="text-[10px] text-muted-foreground/70 mt-1">
+                        {contestedPct}% of sampled pairs are contested
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+          </div>
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+            <span className="font-medium">Note:</span> The matchmaker preferentially pairs papers with similar win rates to produce more informative comparisons.
+            This means most pairs judged by multiple models are contested (close calls), which biases the overall agreement rate downward.
+            Clear-cut pairs (≥25pp win rate difference) typically show much higher agreement.
           </div>
         </div>
       )}
