@@ -363,4 +363,5 @@ async def get_model_correlation(
         "agreement": agreement,
         "scatter_data": scatter_data,
         "n_common_papers": len(common_papers),
+        "category": category,
     }
