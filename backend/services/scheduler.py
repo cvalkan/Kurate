@@ -136,9 +136,7 @@ async def _scheduler_loop():
                 for cat in active_cats:
                     if not await _check_goals_met(category=cat):
                         any_unmet = True
-                        result = await run_comparison_round(category=cat)
-                        if result.get("status") == "ok" and result.get("completed", 0) > 0:
-                            break
+                        await run_comparison_round(category=cat)
                 if any_unmet:
                     await asyncio.sleep(5)
                     continue
