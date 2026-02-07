@@ -160,13 +160,14 @@ async def _get_cached_leaderboard():
 
 @router.get("/tags")
 async def get_all_tags():
-    """Returns all unique category tags across all papers with counts."""
+    """Returns all unique category tags across all papers with counts (from cache)."""
     from collections import Counter
+    cache = await _get_cached_leaderboard()
+    raw_papers = cache.get("_raw_papers", [])
     tag_counts = Counter()
-    async for p in db.papers.find({}, {"_id": 0, "categories": 1}):
+    for p in raw_papers:
         for cat in p.get("categories", []):
             tag_counts[cat] += 1
-
     tags = [{"id": tag, "count": count} for tag, count in tag_counts.most_common()]
     return {"tags": tags}
 
