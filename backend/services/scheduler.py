@@ -393,7 +393,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             scheduler_status["current_activity"] = f"Processing error: {str(e)[:100]}"
             return {"status": "error", "error": str(e)}
         finally:
-            scheduler_status["is_processing"] = False
+            # Check if any lock is still held
+            scheduler_status["is_processing"] = any(l.locked() for l in _processing_locks.values())
 
 
 async def _generate_pending_summaries():
