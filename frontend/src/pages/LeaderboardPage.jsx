@@ -73,15 +73,9 @@ export default function LeaderboardPage() {
   }, [fetchLeaderboard]);
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(() => {
-      fetchLeaderboard();
-      fetchStatus();
-    }, 30000);
+    const interval = setInterval(fetchLeaderboard, 30000);
     return () => clearInterval(interval);
-  }, [fetchLeaderboard, fetchStatus]);
-
-  const isProcessing = status?.scheduler?.is_processing || status?.scheduler?.is_fetching;
+  }, [fetchLeaderboard]);
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-7xl py-6 md:py-10">
