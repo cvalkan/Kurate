@@ -144,13 +144,16 @@ async def get_admin_status(category: str = "cs.RO"):
         for m in recent_matches
     ]
 
+    # Per-category scheduler status
+    cat_scheduler = _get_cat_status(category)
+
     return {
         "total_papers": total_papers,
         "total_matches": total_matches,
         "failed_matches": failed_matches,
         "unranked_papers": unranked,
         "category": category,
-        "scheduler": scheduler_status,
+        "scheduler": cat_scheduler,
         "recent_matches": enriched_recent,
     }
 
