@@ -431,10 +431,17 @@ async def get_model_correlation(
             entry[short_name] = round(model_win_rates[mk].get(pid, 0.5) * 100, 1)
         scatter_data.append(entry)
 
+    # Sort correlations and agreement by the same key order
+    sorted_corr_keys = sorted(correlations.keys())
+    sorted_correlations = {k: correlations[k] for k in sorted_corr_keys}
+
+    sorted_agree_keys = sorted(agreement.keys())
+    sorted_agreement = {k: agreement[k] for k in sorted_agree_keys}
+
     return {
         "models": [{"key": mk, "short": mk.split("/")[-1], **model_summaries.get(mk, {})} for mk in model_keys],
-        "correlations": correlations,
-        "agreement": agreement,
+        "correlations": sorted_correlations,
+        "agreement": sorted_agreement,
         "scatter_data": scatter_data,
         "n_common_papers": len(common_papers),
         "category": category,
