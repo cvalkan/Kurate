@@ -112,7 +112,6 @@ export default function LeaderboardPage() {
           <span>comparisons</span>
         </div>
       </div>
-      </div>
 
       {/* Period Filter */}
       <div className="flex items-center gap-1 mb-6 p-1 bg-secondary/50 rounded-lg w-fit" data-testid="period-filter">
