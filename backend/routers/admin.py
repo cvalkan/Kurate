@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from core.config import db, logger, DEFAULT_SETTINGS
 from core.auth import verify_admin, get_settings
-from services.scheduler import run_fetch_cycle, run_comparison_round, scheduler_status
+from services.scheduler import run_fetch_cycle, run_comparison_round, get_scheduler_status, _get_cat_status
 
 router = APIRouter(prefix="/api/admin")
 
