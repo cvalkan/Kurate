@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Trophy, Clock, Calendar, CalendarDays, Infinity,
-  Users, Swords, Activity, Tag, X, ChevronDown, ChevronUp, HelpCircle,
+  Users, Swords, Activity, Tag, X, ChevronDown, ChevronUp, HelpCircle, Search,
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
