@@ -315,8 +315,8 @@ export default function LeaderboardPage() {
       </div>
 
       {/* Period Filter + Keyword Search */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-lg" data-testid="period-filter">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-6">
+        <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-lg overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" data-testid="period-filter">
           {PERIODS.map((p) => {
             const Icon = p.icon;
             return (
@@ -325,7 +325,7 @@ export default function LeaderboardPage() {
                 variant={period === p.key ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setPeriod(p.key)}
-                className="gap-1.5 text-xs h-8"
+                className="gap-1.5 text-xs h-8 shrink-0"
                 data-testid={`filter-${p.key}`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -340,7 +340,7 @@ export default function LeaderboardPage() {
             placeholder="Search titles..."
             value={keyword}
             onChange={e => setKeyword(e.target.value)}
-            className="h-8 text-xs pl-8 w-48"
+            className="h-8 text-xs pl-8 w-full sm:w-48"
             data-testid="keyword-search"
           />
           {keyword && (
