@@ -61,9 +61,13 @@ async def update_settings(update: SettingsUpdate):
     return {"success": True, "updated": list(update_dict.keys())}
 
 
+class FetchRequest(BaseModel):
+    category: str = "cs.RO"
+
+
 @router.post("/fetch", dependencies=[Depends(verify_admin)])
-async def trigger_fetch():
-    result = await run_fetch_cycle()
+async def trigger_fetch(body: FetchRequest = FetchRequest()):
+    result = await run_fetch_cycle(category=body.category)
     return result
 
 
@@ -77,14 +81,15 @@ async def toggle_pause():
 
 class ManualCompareRequest(BaseModel):
     num_matches: int = 50
+    category: str = "cs.RO"
 
 
 @router.post("/compare", dependencies=[Depends(verify_admin)])
 async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()):
     import asyncio
     num = min(max(body.num_matches, 1), 500)
-    asyncio.create_task(run_comparison_round(max_pairs_override=num))
-    return {"status": "started", "num_matches": num}
+    asyncio.create_task(run_comparison_round(max_pairs_override=num, category=body.category))
+    return {"status": "started", "num_matches": num, "category": body.category}
 
 
 @router.get("/status", dependencies=[Depends(verify_admin)])
