@@ -44,16 +44,6 @@ export default function LeaderboardPage() {
       setLoading(false);
     }
   }, [period]);
-      setLoading(false);
-    }
-  }, [period, filterByPeriod]);
-
-  // When period changes, filter client-side instantly (no API call)
-  useEffect(() => {
-    if (allData.length) {
-      setLeaderboard(filterByPeriod(allData, period));
-    }
-  }, [period, allData, filterByPeriod]);
 
   const fetchStatus = useCallback(async () => {
     try {
