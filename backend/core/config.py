@@ -76,10 +76,9 @@ DEFAULT_SETTINGS = {
     "max_papers_per_fetch": 50,
     "parallel_agents": 5,
     "top_k_focus": 10,
-    "exploration_constant": 1.414,
-    "anchor_comparisons": 4,
-    "min_matches_per_paper": 3,
+    "min_matches_per_paper": 5,
     "max_matches_per_paper": 150,
+    "max_new_matches_per_round": 3,
     "ci_target": 12,
     "paused": False,
 }
