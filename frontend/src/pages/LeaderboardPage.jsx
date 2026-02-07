@@ -57,6 +57,15 @@ export default function LeaderboardPage() {
   const categoryName = categories.find(c => c.id === category)?.name || "Papers";
   const isTagMode = selectedTags.length > 0;
 
+  // Notify navbar of category/tag changes
+  useEffect(() => {
+    if (isTagMode) {
+      window.dispatchEvent(new CustomEvent("category-change", { detail: { tags: selectedTags } }));
+    } else if (categoryName && categoryName !== "Papers") {
+      window.dispatchEvent(new CustomEvent("category-change", { detail: { name: categoryName } }));
+    }
+  }, [categoryName, isTagMode, selectedTags]);
+
   // Load categories and tags once
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
