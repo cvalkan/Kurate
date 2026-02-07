@@ -2,9 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Trophy, Clock, Calendar, CalendarDays, Infinity,
-  Users, Swords, Activity,
+  Users, Swords, Activity, Tag, X, ChevronDown, ChevronUp, HelpCircle,
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -33,7 +41,14 @@ export default function LeaderboardPage() {
   const [totalMatches, setTotalMatches] = useState(0);
   const [isRanking, setIsRanking] = useState(false);
 
+  // Tag filter state
+  const [allTags, setAllTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
+
   const categoryName = categories.find(c => c.id === category)?.name || "Papers";
+  const isTagMode = selectedTags.length > 0;
 
   // Load categories once
   useEffect(() => {
@@ -44,12 +59,22 @@ export default function LeaderboardPage() {
       setCategories([{ id: "cs.RO", name: "Robotics" }]);
       setCategory("cs.RO");
     });
+    // Load all tags
+    axios.get(`${API}/api/tags`).then(res => {
+      setAllTags(res.data.tags || []);
+    }).catch(() => {});
   }, []);
 
   const fetchLeaderboard = useCallback(async () => {
-    if (!category) return;
+    if (!category && !isTagMode) return;
     try {
-      const res = await axios.get(`${API}/api/leaderboard`, { params: { category, period } });
+      const params = { period };
+      if (isTagMode) {
+        params.tags = selectedTags.join(",");
+      } else {
+        params.category = category;
+      }
+      const res = await axios.get(`${API}/api/leaderboard`, { params });
       setLeaderboard(res.data.leaderboard || []);
       setTotalPapers(res.data.total_papers || 0);
       setTotalMatches(res.data.total_matches || 0);
@@ -59,9 +84,10 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [category, period]);
+  }, [category, period, selectedTags, isTagMode]);
 
   useEffect(() => {
+    setLoading(true);
     fetchLeaderboard();
   }, [fetchLeaderboard]);
 
@@ -70,36 +96,146 @@ export default function LeaderboardPage() {
     return () => clearInterval(interval);
   }, [fetchLeaderboard]);
 
+  const toggleTag = (tagId) => {
+    setSelectedTags(prev =>
+      prev.includes(tagId) ? prev.filter(t => t !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const clearTags = () => {
+    setSelectedTags([]);
+    setTagFilterOpen(false);
+    setTagSearch("");
+  };
+
+  // Filter tags by search and exclude already-selected
+  const mainCatIds = new Set(categories.map(c => c.id));
+  const filteredTags = allTags.filter(t => {
+    if (tagSearch && !t.id.toLowerCase().includes(tagSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  const title = isTagMode
+    ? `${selectedTags.join(" + ")} Papers`
+    : `${categoryName} Paper Rankings`;
+
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="container mx-auto px-4 md:px-6 max-w-7xl py-6 md:py-10">
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-heading text-3xl md:text-4xl font-semibold tracking-tight mb-2" data-testid="page-title">
-          {categoryName} Paper Rankings
+          {title}
         </h1>
         <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
-          AI-estimated scientific impact ranking of the latest arXiv {categoryName} papers.
-          Papers are evaluated using full-text analysis by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.
+          {isTagMode
+            ? `Cross-category view: showing all papers tagged with ${selectedTags.join(", ")}. Rankings based on available tournament matches.`
+            : `AI-estimated scientific impact ranking of the latest arXiv ${categoryName} papers. Papers are evaluated using full-text analysis by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.`
+          }
         </p>
       </div>
 
       {/* Category Tabs */}
       {categories.length > 1 && (
-        <div className="flex items-center gap-1 mb-4 p-1 bg-primary/5 rounded-lg w-fit" data-testid="category-tabs">
-          {categories.map((c) => (
-            <Button
-              key={c.id}
-              variant={category === c.id ? "default" : "ghost"}
-              size="sm"
-              onClick={() => { setCategory(c.id); setLoading(true); }}
-              className="text-xs h-8"
-              data-testid={`cat-${c.id}`}
-            >
-              {c.name}
-            </Button>
-          ))}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg" data-testid="category-tabs">
+            {categories.map((c) => (
+              <Button
+                key={c.id}
+                variant={!isTagMode && category === c.id ? "default" : "ghost"}
+                size="sm"
+                onClick={() => { setCategory(c.id); setSelectedTags([]); setLoading(true); }}
+                className="text-xs h-8"
+                data-testid={`cat-${c.id}`}
+              >
+                {c.name}
+              </Button>
+            ))}
+          </div>
         </div>
       )}
+
+      {/* Tag Filter Toggle */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant={tagFilterOpen ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTagFilterOpen(!tagFilterOpen)}
+            className="gap-1.5 text-xs h-7"
+            data-testid="tag-filter-toggle"
+          >
+            <Tag className="h-3 w-3" />
+            Filter by tags
+            {tagFilterOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="right" className="max-w-xs">
+              <p className="text-xs">Papers often have multiple arXiv category tags. Use this filter to view papers across categories — e.g., find all papers tagged "cs.AI" regardless of their primary category. Select multiple tags to combine.</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Selected tag chips */}
+          {selectedTags.map(tag => (
+            <Badge
+              key={tag}
+              variant="secondary"
+              className="gap-1 text-xs cursor-pointer hover:bg-destructive/10"
+              onClick={() => toggleTag(tag)}
+            >
+              {tag}
+              <X className="h-3 w-3" />
+            </Badge>
+          ))}
+          {selectedTags.length > 0 && (
+            <button onClick={clearTags} className="text-xs text-muted-foreground hover:text-foreground underline">
+              Clear all
+            </button>
+          )}
+        </div>
+
+        {/* Expanded tag panel */}
+        {tagFilterOpen && (
+          <div className="mt-2 p-3 bg-secondary/30 border border-border rounded-lg" data-testid="tag-panel">
+            <Input
+              placeholder="Search tags (e.g. cs.AI, physics)..."
+              value={tagSearch}
+              onChange={e => setTagSearch(e.target.value)}
+              className="h-8 text-xs mb-2 max-w-xs"
+            />
+            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+              {filteredTags.map(tag => {
+                const isSelected = selectedTags.includes(tag.id);
+                const isMain = mainCatIds.has(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    onClick={() => toggleTag(tag.id)}
+                    className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                      isSelected
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : isMain
+                          ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
+                          : "bg-background text-muted-foreground border-border hover:bg-secondary"
+                    }`}
+                  >
+                    {tag.id}
+                    <span className={`font-mono text-[10px] ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60"}`}>
+                      {tag.count}
+                    </span>
+                  </button>
+                );
+              })}
+              {filteredTags.length === 0 && (
+                <span className="text-xs text-muted-foreground">No matching tags</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Status Bar */}
       <div className="flex items-center gap-3 mb-6 text-xs flex-nowrap" data-testid="status-bar">
@@ -120,6 +256,15 @@ export default function LeaderboardPage() {
             <span className="inline-flex items-center gap-1 text-xs text-accent animate-pulse shrink-0">
               <Activity className="h-3 w-3" />
               Ranking in progress
+            </span>
+          </>
+        )}
+        {isTagMode && (
+          <>
+            <div className="w-px h-3 bg-border shrink-0" />
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+              <Tag className="h-3 w-3" />
+              Cross-category view
             </span>
           </>
         )}
@@ -155,8 +300,8 @@ export default function LeaderboardPage() {
       ) : leaderboard.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground" data-testid="empty-state">
           <Trophy className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No papers found for this period.</p>
-          <p className="text-xs mt-1">Try a broader time range or wait for the next daily fetch.</p>
+          <p className="text-sm">No papers found for this {isTagMode ? "tag combination" : "period"}.</p>
+          <p className="text-xs mt-1">{isTagMode ? "Try different tags or clear the filter." : "Try a broader time range or wait for the next daily fetch."}</p>
         </div>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden" data-testid="leaderboard-table">
@@ -207,9 +352,12 @@ export default function LeaderboardPage() {
 
       {/* Footer Info */}
       <div className="mt-6 text-center text-xs text-muted-foreground">
-        Elo-style ratings from Bradley-Terry model with 95% confidence intervals.
-        Papers compared using full-text deep analysis.
+        {isTagMode
+          ? "Cross-category rankings based on available tournament matches between tagged papers."
+          : "Elo-style ratings from Bradley-Terry model with 95% confidence intervals. Papers compared using full-text deep analysis."
+        }
       </div>
     </div>
+    </TooltipProvider>
   );
 }
