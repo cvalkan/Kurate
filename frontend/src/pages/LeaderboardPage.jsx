@@ -381,36 +381,36 @@ export default function LeaderboardPage() {
           </div>
         )}
         <div className="border border-border rounded-lg overflow-hidden" data-testid="leaderboard-table">
-          <div className="grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
+          <div className="grid grid-cols-[2rem_1fr_3.5rem_3.5rem_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
             <div>#</div>
             <div>Paper</div>
             <div className="text-right">Score</div>
             <div className="text-right">Win %</div>
-            <div className="text-right">95% CI</div>
-            <div className="text-right">Matches</div>
+            <div className="text-right hidden sm:block">95% CI</div>
+            <div className="text-right">Mtch</div>
             <div className="text-right hidden md:block">Published</div>
           </div>
           {displayList.map((paper, idx) => (
             <Link
               key={paper.id}
               to={`/paper/${paper.id}`}
-              className={`grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 && !kw ? "bg-accent/[0.02]" : ""}`}
+              className={`grid grid-cols-[2rem_1fr_3.5rem_3.5rem_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 && !kw ? "bg-accent/[0.02]" : ""}`}
               data-testid={`leaderboard-row-${idx}`}
             >
               <div><RankBadge rank={paper.rank} /></div>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">
-                  {paper.authors?.slice(0, 3).join(", ")}
-                  {paper.authors?.length > 3 && ` +${paper.authors.length - 3}`}
+                <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
+                  {paper.authors?.slice(0, 2).join(", ")}
+                  {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
                 </p>
               </div>
-              <div className="text-right font-mono text-sm font-medium">{paper.score}</div>
-              <div className="text-right font-mono text-xs text-muted-foreground">{paper.win_rate}%</div>
-              <div className="text-right font-mono text-xs text-muted-foreground">
+              <div className="text-right font-mono text-xs sm:text-sm font-medium">{paper.score}</div>
+              <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{paper.win_rate}%</div>
+              <div className="text-right font-mono text-xs text-muted-foreground hidden sm:block">
                 {paper.wilson_margin > 0 ? `\u00B1${paper.wilson_margin}%` : "--"}
               </div>
-              <div className="text-right font-mono text-xs text-muted-foreground">{paper.comparisons}</div>
+              <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{paper.comparisons}</div>
               <div className="text-right text-xs text-muted-foreground hidden md:block">
                 {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
               </div>
