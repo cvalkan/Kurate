@@ -25,7 +25,6 @@ function RankBadge({ rank }) {
 }
 
 export default function LeaderboardPage() {
-  const [allData, setAllData] = useState([]);  // Full leaderboard (all periods)
   const [leaderboard, setLeaderboard] = useState([]);
   const [status, setStatus] = useState(null);
   const [period, setPeriod] = useState("week");
@@ -33,46 +32,18 @@ export default function LeaderboardPage() {
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
 
-  const filterByPeriod = useCallback((data, p) => {
-    if (p === "all" || !data.length) return data;
-    const now = new Date();
-    let cutoff;
-    if (p === "recent") {
-      // Find the most recent publication date and show only papers from that date
-      let maxDate = null;
-      for (const paper of data) {
-        if (!paper.published) continue;
-        const d = new Date(paper.published);
-        if (!maxDate || d > maxDate) maxDate = d;
-      }
-      if (!maxDate) return data;
-      // Start of that day (UTC)
-      cutoff = new Date(Date.UTC(maxDate.getUTCFullYear(), maxDate.getUTCMonth(), maxDate.getUTCDate()));
-    } else if (p === "week") {
-      cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
-    } else if (p === "month") {
-      cutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
-    } else {
-      return data;
-    }
-    const filtered = data.filter(paper => {
-      if (!paper.published) return false;
-      return new Date(paper.published) >= cutoff;
-    });
-    return filtered.map((paper, i) => ({ ...paper, rank: i + 1 }));
-  }, []);
-
   const fetchLeaderboard = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/leaderboard`, { params: { period: "all" } });
-      const data = res.data.leaderboard || [];
-      setAllData(data);
-      setLeaderboard(filterByPeriod(data, period));
+      const res = await axios.get(`${API}/api/leaderboard`, { params: { period } });
+      setLeaderboard(res.data.leaderboard || []);
       setTotalPapers(res.data.total_papers || 0);
       setTotalMatches(res.data.total_matches || 0);
     } catch (err) {
       console.error("Failed to fetch leaderboard:", err);
     } finally {
+      setLoading(false);
+    }
+  }, [period]);
       setLoading(false);
     }
   }, [period, filterByPeriod]);
