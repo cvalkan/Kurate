@@ -87,36 +87,35 @@ async def _scheduler_loop():
         await asyncio.sleep(300)
 
 
-async def _check_goals_met(category: str = "cs.RO") -> bool:
-    """Check if both ranking goals are satisfied for a specific category."""
+async def _check_goals_met() -> bool:
+    """Check if both ranking goals are satisfied."""
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     max_matches = settings.get("max_matches_per_paper", 150)
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 12)
 
-    # Only papers in this category
-    paper_ids = []
-    async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-        paper_ids.append(p["id"])
-
-    if len(paper_ids) < 2:
+    total_papers = await db.papers.count_documents({})
+    if total_papers < 2:
         return True
 
-    paper_id_set = set(paper_ids)
-    paper_match_count = {pid: 0 for pid in paper_ids}
-    paper_wins = {pid: 0 for pid in paper_ids}
+    paper_match_count = {}
+    paper_wins = {}
+    async for p in db.papers.find({}, {"_id": 0, "id": 1}):
+        paper_match_count[p["id"]] = 0
+        paper_wins[p["id"]] = 0
 
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ):
-        if m["paper1_id"] in paper_id_set and m["paper2_id"] in paper_id_set:
+        if m["paper1_id"] in paper_match_count:
             paper_match_count[m["paper1_id"]] += 1
+        if m["paper2_id"] in paper_match_count:
             paper_match_count[m["paper2_id"]] += 1
-            w = m.get("winner_id")
-            if w and w in paper_wins:
-                paper_wins[w] += 1
+        w = m.get("winner_id")
+        if w and w in paper_wins:
+            paper_wins[w] += 1
 
     for c in paper_match_count.values():
         if c < min_matches:
