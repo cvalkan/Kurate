@@ -1,21 +1,22 @@
 from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import datetime, timezone, timedelta
+import asyncio
 import time
 from core.config import db, logger, CATEGORIES
-from services.ranking import compute_leaderboard, calculate_confidence_interval
+from services.ranking import compute_leaderboard, calculate_confidence_interval, _wilson_margin_pct
 
 router = APIRouter(prefix="/api")
 
+# Pre-computed cache — refreshed in the background, never blocks requests
 _cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0}
-_CACHE_TTL = 30
+_CACHE_TTL = 20
+_cache_lock = asyncio.Lock()
+_bg_task_started = False
 
 
-async def _get_cached_leaderboard():
-    now = time.time()
-    if _cache["categories"] and now - _cache["ts"] < _CACHE_TTL:
-        return _cache
-
+async def _refresh_cache():
+    """Heavy computation — runs in background, never on the request path."""
     all_papers = await db.papers.find(
         {}, {"_id": 0, "full_text": 0, "abstract": 0}
     ).to_list(5000)
@@ -34,16 +35,21 @@ async def _get_cached_leaderboard():
         cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
         papers_by_cat.setdefault(cat, []).append(p)
 
-    # Build paper→category lookup for match filtering
-    paper_cat = {}
-    for p in all_papers:
-        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
-        paper_cat[p["id"]] = cat
+    # Load settings once
+    from core.auth import get_settings
+    settings = await get_settings()
+    _min = settings.get("min_matches_per_paper", 3)
+    _ci_target = settings.get("ci_target", 12)
+    _top_k = settings.get("top_k_focus", 10)
+    _max_matches = settings.get("max_matches_per_paper", 150)
 
     for cat_id in CATEGORIES:
         cat_papers = papers_by_cat.get(cat_id, [])
         if not cat_papers:
-            categories_data[cat_id] = {"all": [], "recent": [], "week": [], "month": []}
+            categories_data[cat_id] = {
+                "all": [], "recent": [], "week": [], "month": [],
+                "_matches": 0, "_papers": 0, "_is_ranking": False,
+            }
             continue
 
         cat_paper_ids = {p["id"] for p in cat_papers}
@@ -67,17 +73,9 @@ async def _get_cached_leaderboard():
                 e["rank"] = i + 1
             return filtered
 
-        # Check if ranking is in progress for this category
-        # Ranking is in progress if: any paper below min_matches OR top-K CI goals unmet
-        from core.auth import get_settings as _gs
-        _settings = await _gs()
-        _min = _settings.get("min_matches_per_paper", 3)
-        _ci_target = _settings.get("ci_target", 12)
-        _top_k = _settings.get("top_k_focus", 10)
-        _max_matches = _settings.get("max_matches_per_paper", 150)
-        cat_paper_ids_set = {p["id"] for p in cat_papers}
-        cat_match_counts = {pid: 0 for pid in cat_paper_ids_set}
-        cat_win_counts = {pid: 0 for pid in cat_paper_ids_set}
+        # Compute is_ranking from match data already in memory
+        cat_match_counts = {pid: 0 for pid in cat_paper_ids}
+        cat_win_counts = {pid: 0 for pid in cat_paper_ids}
         for m in cat_matches:
             if m["paper1_id"] in cat_match_counts:
                 cat_match_counts[m["paper1_id"]] += 1
@@ -88,13 +86,10 @@ async def _get_cached_leaderboard():
                 cat_win_counts[w] += 1
 
         goal1_unmet = any(c < _min for c in cat_match_counts.values()) if cat_match_counts else False
-
-        # Check CI goal for top-K papers
         goal2_unmet = False
         if cat_match_counts and len(cat_match_counts) >= 2:
-            from services.ranking import _wilson_margin_pct
             sorted_by_wr = sorted(
-                cat_paper_ids_set,
+                cat_paper_ids,
                 key=lambda pid: cat_win_counts.get(pid, 0) / max(cat_match_counts.get(pid, 0), 1),
                 reverse=True,
             )
@@ -109,8 +104,6 @@ async def _get_cached_leaderboard():
                     goal2_unmet = True
                     break
 
-        is_ranking = goal1_unmet or goal2_unmet
-
         categories_data[cat_id] = {
             "all": full,
             "recent": filter_and_rerank(recent_cutoff),
@@ -118,10 +111,49 @@ async def _get_cached_leaderboard():
             "month": filter_and_rerank(utc_now - timedelta(days=30)),
             "_matches": len(cat_matches),
             "_papers": len(cat_papers),
-            "_is_ranking": is_ranking,
+            "_is_ranking": goal1_unmet or goal2_unmet,
         }
 
-    _cache.update({"ts": now, "categories": categories_data, "total_papers": len(all_papers), "total_matches": len(all_matches)})
+    _cache.update({
+        "ts": time.time(),
+        "categories": categories_data,
+        "total_papers": len(all_papers),
+        "total_matches": len(all_matches),
+    })
+
+
+async def _bg_cache_loop():
+    """Background loop that keeps the cache fresh."""
+    global _bg_task_started
+    _bg_task_started = True
+    # Initial warm
+    try:
+        await _refresh_cache()
+        logger.info("Leaderboard cache warmed (background)")
+    except Exception as e:
+        logger.warning(f"Initial cache warm failed: {e}")
+
+    while True:
+        await asyncio.sleep(_CACHE_TTL)
+        try:
+            await _refresh_cache()
+        except Exception as e:
+            logger.warning(f"Background cache refresh failed: {e}")
+
+
+def start_cache_bg():
+    """Start the background cache refresh task. Called from startup."""
+    global _bg_task_started
+    if not _bg_task_started:
+        asyncio.create_task(_bg_cache_loop())
+
+
+async def _get_cached_leaderboard():
+    """Returns pre-computed cache instantly. Falls back to sync refresh if cache is empty."""
+    if _cache["categories"]:
+        return _cache
+    # First call before bg task has run — do a one-time sync refresh
+    await _refresh_cache()
     return _cache
 
 
@@ -257,20 +289,17 @@ async def get_model_correlation(
     import numpy as np
     from scipy import stats as scipy_stats
 
-    # Get paper IDs for the category (if filtered)
     cat_paper_ids = None
     if category:
         cat_paper_ids = set()
         async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
             cat_paper_ids.add(p["id"])
 
-    # Load all successful matches with model info
     matches_raw = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
     ).to_list(100000)
 
-    # Filter by category if specified
     if cat_paper_ids is not None:
         matches = [m for m in matches_raw if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids]
     else:
@@ -279,28 +308,23 @@ async def get_model_correlation(
     if not matches:
         return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category}
 
-    # Get all paper titles
     paper_titles = {}
     async for p in db.papers.find({}, {"_id": 0, "id": 1, "title": 1}):
         paper_titles[p["id"]] = p["title"]
 
-    # Group matches by model
     model_keys = set()
     for m in matches:
         mu = m.get("model_used", {})
         key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
         model_keys.add(key)
-
     model_keys = sorted(model_keys)
 
-    # Per-paper, per-model: wins and total
     paper_ids = set()
     for m in matches:
         paper_ids.add(m["paper1_id"])
         paper_ids.add(m["paper2_id"])
     paper_ids = sorted(paper_ids)
 
-    # Build stats: {model: {paper_id: {wins, total}}}
     model_paper_stats = {mk: {} for mk in model_keys}
     for m in matches:
         mu = m.get("model_used", {})
@@ -313,7 +337,6 @@ async def get_model_correlation(
         if w and w in model_paper_stats[key]:
             model_paper_stats[key][w]["wins"] += 1
 
-    # Compute win rates per model per paper (only papers with ≥3 matches from that model)
     model_win_rates = {}
     common_papers = set(paper_ids)
     for mk in model_keys:
@@ -325,10 +348,8 @@ async def get_model_correlation(
                 model_win_rates[mk][pid] = s["wins"] / s["total"]
                 papers_with_data.add(pid)
         common_papers &= papers_with_data
-
     common_papers = sorted(common_papers)
 
-    # Pairwise correlations (Spearman rank correlation on common papers)
     correlations = {}
     for i, m1 in enumerate(model_keys):
         for j, m2 in enumerate(model_keys):
@@ -347,9 +368,7 @@ async def get_model_correlation(
                     "n_papers": len(common_papers),
                 }
 
-    # Agreement rate: for matches where multiple models judged the same pair,
-    # what % of the time do they agree?
-    pair_judgments = {}  # {(p1,p2): {model: winner}}
+    pair_judgments = {}
     for m in matches:
         mu = m.get("model_used", {})
         key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
@@ -359,7 +378,6 @@ async def get_model_correlation(
         pair_judgments[pair][key] = m.get("winner_id")
 
     agreement_counts = {}
-    total_pairs_compared = 0
     for pair, judgments in pair_judgments.items():
         models_involved = list(judgments.keys())
         for i in range(len(models_involved)):
@@ -372,7 +390,6 @@ async def get_model_correlation(
                     agreement_counts[pair_key]["agree"] += 1
                 else:
                     agreement_counts[pair_key]["disagree"] += 1
-                total_pairs_compared += 1
 
     agreement = {}
     for pair_key, counts in agreement_counts.items():
@@ -385,7 +402,6 @@ async def get_model_correlation(
                 "rate": round(counts["agree"] / total * 100, 1),
             }
 
-    # Per-model summary stats
     model_summaries = {}
     for mk in model_keys:
         total_by_model = sum(1 for m in matches if f"{m.get('model_used',{}).get('provider','')}/{m.get('model_used',{}).get('model','')}" == mk)
@@ -394,7 +410,6 @@ async def get_model_correlation(
             "papers_judged": len(model_paper_stats[mk]),
         }
 
-    # Build scatter data for frontend (win rates per model for common papers)
     scatter_data = []
     for pid in common_papers:
         entry = {"id": pid, "title": paper_titles.get(pid, "Unknown")[:50]}
