@@ -114,6 +114,15 @@ export default function LeaderboardPage() {
           <span className="font-mono">{totalMatches}</span>
           <span>comparisons</span>
         </div>
+        {isRanking && (
+          <>
+            <div className="w-px h-3 bg-border" />
+            <span className="inline-flex items-center gap-1 text-xs text-accent animate-pulse">
+              <Activity className="h-3 w-3" />
+              Ranking in progress
+            </span>
+          </>
+        )}
       </div>
 
       {/* Period Filter */}
