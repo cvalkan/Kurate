@@ -371,10 +371,10 @@ export default function AdminPage() {
                   <div>Last Fetch: <span className="font-mono text-foreground">{new Date(status.scheduler.last_fetch_at).toLocaleString()}</span></div>
                 )}
                 {status.scheduler.next_fetch_at && (
-                  <div>Next arXiv Fetch: <span className="font-mono text-foreground">{new Date(status.scheduler.next_fetch_at).toLocaleString()}</span></div>
+                  <div>Next Fetch: <span className="font-mono text-foreground">{new Date(status.scheduler.next_fetch_at).toLocaleString()}</span></div>
                 )}
-                <div>Processing: <span className="font-mono text-foreground">{isProcessing ? "Yes" : "No"}</span></div>
-                <div className="md:col-span-2 text-[10px] text-muted-foreground/60">Scheduler checks every 5 min whether the fetch interval has elapsed</div>
+                <div>Processing: <span className="font-mono text-foreground">{status.scheduler.is_processing ? "Yes" : "No"}</span></div>
+                <div>Fetching: <span className="font-mono text-foreground">{status.scheduler.is_fetching ? "Yes" : "No"}</span></div>
               </div>
             </div>
           )}
