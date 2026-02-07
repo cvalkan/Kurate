@@ -273,6 +273,7 @@ async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offs
         "period": period,
         "category": None,
         "tags": tag_list,
+        "tag_mode": tag_mode,
     }
 
 
