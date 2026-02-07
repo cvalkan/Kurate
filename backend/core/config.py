@@ -35,6 +35,12 @@ TOURNAMENT_MODELS = [
     {"provider": "gemini", "model": "gemini-3-pro-preview"},
 ]
 
+# Available categories
+CATEGORIES = {
+    "cs.RO": "Robotics",
+    "cs.DC": "Distributed Computing",
+}
+
 # Default evaluation prompt
 DEFAULT_EVALUATION_PROMPT = {
     "system_prompt": """You are a scientific paper evaluator. Your task is to compare two papers and determine which has higher potential scientific impact.
