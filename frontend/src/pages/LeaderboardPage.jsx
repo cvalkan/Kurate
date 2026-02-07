@@ -96,6 +96,24 @@ export default function LeaderboardPage() {
         </p>
       </div>
 
+      {/* Category Tabs */}
+      {categories.length > 1 && (
+        <div className="flex items-center gap-1 mb-4 p-1 bg-primary/5 rounded-lg w-fit" data-testid="category-tabs">
+          {categories.map((c) => (
+            <Button
+              key={c.id}
+              variant={category === c.id ? "default" : "ghost"}
+              size="sm"
+              onClick={() => { setCategory(c.id); setLoading(true); }}
+              className="text-xs h-8"
+              data-testid={`cat-${c.id}`}
+            >
+              {c.name}
+            </Button>
+          ))}
+        </div>
+      )}
+
       {/* Status Bar */}
       <div className="flex flex-wrap items-center gap-3 mb-6 text-xs" data-testid="status-bar">
         <div className="flex items-center gap-1.5 text-muted-foreground">
