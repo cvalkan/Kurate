@@ -58,15 +58,6 @@ export default function LeaderboardPage() {
     }
   }, [category, period]);
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const res = await axios.get(`${API}/api/status`);
-      setStatus(res.data);
-    } catch (err) {
-      console.error("Failed to fetch status:", err);
-    }
-  }, []);
-
   useEffect(() => {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
