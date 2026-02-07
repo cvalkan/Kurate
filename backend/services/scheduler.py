@@ -323,10 +323,10 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 max_pairs = min(max_pairs_override, 500)
             else:
                 max_pairs = min(100, len(all_papers) * 2)
-            pairs = _select_adaptive_pairs(
+            pairs = _select_pairs(
                 all_papers, paper_stats, compared_pairs,
-                max_pairs, top_k_focus, exploration_constant, anchor_comparisons,
-                min_matches_per_paper, max_matches_per_paper,
+                max_pairs, top_k_focus, min_matches_per_paper,
+                max_matches_per_paper, max_new_per_round,
             )
 
             if not pairs:
