@@ -254,6 +254,24 @@ export default function AdminPage() {
       {/* Overview Tab */}
       {activeTab === "overview" && status && (
         <div className="space-y-6" data-testid="admin-overview">
+          {/* Category selector for admin actions */}
+          {categories.length > 1 && (
+            <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg w-fit" data-testid="admin-cat-tabs">
+              {categories.map((c) => (
+                <Button
+                  key={c.id}
+                  variant={adminCat === c.id ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setAdminCat(c.id)}
+                  className="text-xs h-8"
+                  data-testid={`admin-cat-${c.id}`}
+                >
+                  {c.name}
+                </Button>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Papers" value={status.total_papers} icon={FileText} />
             <StatCard label="Matches" value={status.total_matches} icon={Swords} />
