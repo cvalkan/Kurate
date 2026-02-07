@@ -40,20 +40,22 @@ async def startup():
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
 
-    # Migration: remove papers where cs.RO is not the primary category
+    # Migration: remove papers whose primary category is not in CATEGORIES
     try:
-        non_ro_papers = []
+        from core.config import CATEGORIES
+        valid_cats = set(CATEGORIES.keys())
+        invalid_papers = []
         async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
             cats = p.get("categories", [])
-            if not cats or cats[0] != "cs.RO":
-                non_ro_papers.append(p["id"])
-        if non_ro_papers:
+            if not cats or cats[0] not in valid_cats:
+                invalid_papers.append(p["id"])
+        if invalid_papers:
             await db.matches.delete_many({"$or": [
-                {"paper1_id": {"$in": non_ro_papers}},
-                {"paper2_id": {"$in": non_ro_papers}},
+                {"paper1_id": {"$in": invalid_papers}},
+                {"paper2_id": {"$in": invalid_papers}},
             ]})
-            await db.papers.delete_many({"id": {"$in": non_ro_papers}})
-            logger.info(f"Cleaned {len(non_ro_papers)} non-primary cs.RO papers")
+            await db.papers.delete_many({"id": {"$in": invalid_papers}})
+            logger.info(f"Cleaned {len(invalid_papers)} papers with unsupported primary categories")
     except Exception as e:
         logger.warning(f"Migration warning: {e}")
 
