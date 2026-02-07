@@ -419,12 +419,19 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             for i in range(0, len(pairs), parallel_agents):
                 batch = pairs[i:i + parallel_agents]
                 tasks = []
+                # Randomly flip pair order to eliminate positional bias
+                presented_batch = []
                 for p1_id, p2_id in batch:
+                    if random.random() < 0.5:
+                        presented_batch.append((p2_id, p1_id))
+                    else:
+                        presented_batch.append((p1_id, p2_id))
+                for p1_id, p2_id in presented_batch:
                     tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config))
 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                for (p1_id, p2_id), result in zip(batch, results):
+                for (p1_id, p2_id), result in zip(presented_batch, results):
                     match_doc = {
                         "id": str(uuid.uuid4()),
                         "paper1_id": p1_id,
