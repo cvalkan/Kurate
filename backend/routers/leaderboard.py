@@ -402,7 +402,7 @@ async def get_model_correlation(
             most_common = Counter(votes).most_common(1)[0][0]
             pair_verdicts[pair][model_key] = most_common
 
-    CLEAR_CUT_THRESHOLD = 0.25  # 25pp win rate difference
+    CLEAR_CUT_THRESHOLD = 0.10  # 10pp win rate difference
 
     agreement_counts = {}
     agreement_by_difficulty = {}  # {pair_key: {clear: {agree, disagree}, contested: {agree, disagree}}}
