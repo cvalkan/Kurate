@@ -41,6 +41,7 @@ CATEGORIES = {
     "cs.DC": "Distributed Computing",
     "econ.GN": "Economics",
     "physics.comp-ph": "Computational Physics",
+    "q-bio.BM": "Biomolecules",
 }
 
 # Default evaluation prompt
