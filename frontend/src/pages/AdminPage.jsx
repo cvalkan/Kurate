@@ -523,25 +523,9 @@ export default function AdminPage() {
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
-                <Label className="text-xs">Exploration Constant (UCB)</Label>
-                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-                <TooltipContent side="right"><p className="max-w-52 text-xs">Controls explore vs exploit tradeoff. Higher values = more exploration of uncertain papers. Standard: 1.414.</p></TooltipContent></Tooltip>
-              </div>
-              <Input type="number" step="0.1" value={editSettings.exploration_constant || ""} onChange={(e) => setEditSettings({ ...editSettings, exploration_constant: e.target.value })} data-testid="setting-exploration" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Label className="text-xs">Anchor Comparisons</Label>
-                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-                <TooltipContent side="right"><p className="max-w-52 text-xs">Number of existing ranked papers each new paper is compared against for initial calibration.</p></TooltipContent></Tooltip>
-              </div>
-              <Input type="number" value={editSettings.anchor_comparisons || ""} onChange={(e) => setEditSettings({ ...editSettings, anchor_comparisons: e.target.value })} data-testid="setting-anchors" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
                 <Label className="text-xs">Min Matches Per Paper</Label>
                 <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-                <TooltipContent side="right"><p className="max-w-52 text-xs">Minimum number of comparisons each paper must have. Papers below this threshold are prioritized by the matchmaker.</p></TooltipContent></Tooltip>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Minimum comparisons per paper. Papers below this are the highest priority for the matchmaker.</p></TooltipContent></Tooltip>
               </div>
               <Input type="number" value={editSettings.min_matches_per_paper || ""} onChange={(e) => setEditSettings({ ...editSettings, min_matches_per_paper: e.target.value })} data-testid="setting-min-matches" />
             </div>
@@ -549,9 +533,17 @@ export default function AdminPage() {
               <div className="flex items-center gap-1.5 mb-1">
                 <Label className="text-xs">Max Matches Per Paper</Label>
                 <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-                <TooltipContent side="right"><p className="max-w-52 text-xs">Stop trying to narrow CI for a paper once it reaches this many matches. Prevents infinite loops for papers with extreme win rates.</p></TooltipContent></Tooltip>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Stop comparing a paper after this many matches. Prevents runaway comparisons for extreme win-rate papers.</p></TooltipContent></Tooltip>
               </div>
               <Input type="number" value={editSettings.max_matches_per_paper || ""} onChange={(e) => setEditSettings({ ...editSettings, max_matches_per_paper: e.target.value })} data-testid="setting-max-matches" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Max New Matches Per Round</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Maximum new matches any single paper can get per comparison round. Controls how evenly matches are distributed.</p></TooltipContent></Tooltip>
+              </div>
+              <Input type="number" value={editSettings.max_new_matches_per_round || ""} onChange={(e) => setEditSettings({ ...editSettings, max_new_matches_per_round: e.target.value })} data-testid="setting-max-per-round" />
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
