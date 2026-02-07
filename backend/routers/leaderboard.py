@@ -368,25 +368,38 @@ async def get_model_correlation(
                     "n_papers": len(common_papers),
                 }
 
-    pair_judgments = {}
+    # Agreement rate: for pairs judged by multiple models,
+    # use majority vote per model (handles re-matches correctly)
+    from collections import Counter
+    pair_model_votes = {}  # {(p1,p2): {model: [winner_id, winner_id, ...]}}
     for m in matches:
         mu = m.get("model_used", {})
         key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
         pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
-        if pair not in pair_judgments:
-            pair_judgments[pair] = {}
-        pair_judgments[pair][key] = m.get("winner_id")
+        if pair not in pair_model_votes:
+            pair_model_votes[pair] = {}
+        if key not in pair_model_votes[pair]:
+            pair_model_votes[pair][key] = []
+        pair_model_votes[pair][key].append(m.get("winner_id"))
+
+    # Resolve each model's verdict per pair via majority vote
+    pair_verdicts = {}  # {pair: {model: majority_winner}}
+    for pair, model_votes in pair_model_votes.items():
+        pair_verdicts[pair] = {}
+        for model_key, votes in model_votes.items():
+            most_common = Counter(votes).most_common(1)[0][0]
+            pair_verdicts[pair][model_key] = most_common
 
     agreement_counts = {}
-    for pair, judgments in pair_judgments.items():
-        models_involved = list(judgments.keys())
+    for pair, verdicts in pair_verdicts.items():
+        models_involved = sorted(verdicts.keys())
         for i in range(len(models_involved)):
             for j in range(i + 1, len(models_involved)):
                 m1, m2 = models_involved[i], models_involved[j]
-                pair_key = f"{m1} vs {m2}" if m1 < m2 else f"{m2} vs {m1}"
+                pair_key = f"{m1} vs {m2}"
                 if pair_key not in agreement_counts:
                     agreement_counts[pair_key] = {"agree": 0, "disagree": 0}
-                if judgments[m1] == judgments[m2]:
+                if verdicts[m1] == verdicts[m2]:
                     agreement_counts[pair_key]["agree"] += 1
                 else:
                     agreement_counts[pair_key]["disagree"] += 1
