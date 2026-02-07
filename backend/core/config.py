@@ -40,6 +40,7 @@ CATEGORIES = {
     "cs.RO": "Robotics",
     "cs.DC": "Distributed Computing",
     "econ.GN": "Economics",
+    "physics.comp-ph": "Computational Physics",
 }
 
 # Default evaluation prompt
