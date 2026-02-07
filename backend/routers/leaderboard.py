@@ -197,7 +197,7 @@ _status_cache = {"data": None, "ts": 0}
 
 @router.get("/status")
 async def get_system_status():
-    from services.scheduler import scheduler_status
+    from services.scheduler import get_scheduler_status
 
     now = time.time()
     if _status_cache["data"] is None or now - _status_cache["ts"] > 10:
@@ -214,7 +214,7 @@ async def get_system_status():
     cached = _status_cache["data"]
     return {
         **cached,
-        "scheduler": scheduler_status,
+        "scheduler": get_scheduler_status(),
     }
 
 
