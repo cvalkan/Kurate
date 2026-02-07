@@ -226,7 +226,7 @@ async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offs
         return {
             "leaderboard": [], "total_papers": 0, "total_in_period": 0,
             "total_matches": 0, "is_ranking": False, "period": period,
-            "category": None, "tags": tag_list,
+            "category": None, "tags": tag_list, "tag_mode": tag_mode,
         }
 
     paper_ids = {p["id"] for p in all_papers}
