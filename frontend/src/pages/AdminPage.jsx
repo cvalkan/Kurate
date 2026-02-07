@@ -130,10 +130,14 @@ export default function AdminPage() {
       navigate("/admin");
       return;
     }
-    fetchAll();
-    const interval = setInterval(fetchAll, 15000);
-    return () => clearInterval(interval);
+    fetchAll();  // Full load on mount and category change
   }, [fetchAll, navigate]);
+
+  // Auto-refresh only live data (status, progress, stats) — never overwrites unsaved prompt/settings edits
+  useEffect(() => {
+    const interval = setInterval(fetchLiveData, 15000);
+    return () => clearInterval(interval);
+  }, [fetchLiveData]);
 
   const triggerFetch = async () => {
     setLoading((l) => ({ ...l, fetch: true }));
