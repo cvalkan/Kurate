@@ -204,19 +204,34 @@ async def get_system_status():
 
 
 @router.get("/model-correlation")
-async def get_model_correlation():
+async def get_model_correlation(
+    category: Optional[str] = Query(None, description="Filter by category (None = all)"),
+):
     """Correlation analysis between the 3 LLMs used for rankings."""
     import numpy as np
     from scipy import stats as scipy_stats
 
+    # Get paper IDs for the category (if filtered)
+    cat_paper_ids = None
+    if category:
+        cat_paper_ids = set()
+        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+            cat_paper_ids.add(p["id"])
+
     # Load all successful matches with model info
-    matches = await db.matches.find(
+    matches_raw = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
     ).to_list(100000)
 
+    # Filter by category if specified
+    if cat_paper_ids is not None:
+        matches = [m for m in matches_raw if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids]
+    else:
+        matches = matches_raw
+
     if not matches:
-        return {"models": [], "papers": [], "correlations": {}, "agreement": {}}
+        return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category}
 
     # Get all paper titles
     paper_titles = {}
