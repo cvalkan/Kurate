@@ -121,13 +121,7 @@ export default function LeaderboardPage() {
           <span className="font-mono">{totalMatches}</span>
           <span>comparisons</span>
         </div>
-        {status?.scheduler?.last_fetch_at && (
-          <>
-            <div className="w-px h-3 bg-border" />
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              <span>Last fetch: {new Date(status.scheduler.last_fetch_at).toLocaleDateString()}</span>
-            </div>
+      </div>
           </>
         )}
         {isProcessing && (
