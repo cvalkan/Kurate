@@ -342,12 +342,22 @@ async def get_usage_stats(category: str = None):
     total_output = sum(s["output_tokens"] for s in model_stats.values())
 
     # Storage
-    pipeline = [
-        {"$match": {"full_text": {"$ne": None}}},
-        {"$project": {"text_len": {"$strLenCP": "$full_text"}}},
-        {"$group": {"_id": None, "total_chars": {"$sum": "$text_len"}, "count": {"$sum": 1}}},
-    ]
-    storage_result = await db.papers.aggregate(pipeline).to_list(1)
+    if category:
+        storage_pipeline = [
+            {"$match": {"full_text": {"$ne": None}, "categories.0": category}},
+            {"$project": {"text_len": {"$strLenCP": "$full_text"}}},
+            {"$group": {"_id": None, "total_chars": {"$sum": "$text_len"}, "count": {"$sum": 1}}},
+        ]
+        total_papers = await db.papers.count_documents({"categories.0": category})
+    else:
+        storage_pipeline = [
+            {"$match": {"full_text": {"$ne": None}}},
+            {"$project": {"text_len": {"$strLenCP": "$full_text"}}},
+            {"$group": {"_id": None, "total_chars": {"$sum": "$text_len"}, "count": {"$sum": 1}}},
+        ]
+        total_papers = await db.papers.count_documents({})
+
+    storage_result = await db.papers.aggregate(storage_pipeline).to_list(1)
     if storage_result:
         total_chars = storage_result[0]["total_chars"]
         papers_with_text = storage_result[0]["count"]
