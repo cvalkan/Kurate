@@ -11,7 +11,12 @@ from services.llm import download_and_extract_pdf, compare_papers
 from services.ranking import calculate_confidence_interval
 
 _scheduler_running = False
-_processing_lock = asyncio.Lock()
+_processing_locks = {}  # Per-category locks
+
+def _get_lock(category: str) -> asyncio.Lock:
+    if category not in _processing_locks:
+        _processing_locks[category] = asyncio.Lock()
+    return _processing_locks[category]
 
 # In-memory status for live UI updates
 scheduler_status = {
