@@ -149,8 +149,8 @@ async def get_admin_status(category: str = "cs.RO"):
         "total_papers": total_papers,
         "total_matches": total_matches,
         "failed_matches": failed_matches,
-        "papers_without_text": papers_without_text,
         "unranked_papers": unranked,
+        "category": category,
         "scheduler": scheduler_status,
         "recent_matches": enriched_recent,
     }
