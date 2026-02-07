@@ -259,10 +259,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             settings = await get_settings()
             parallel_agents = min(max(settings.get("parallel_agents", 5), 1), 20)
             top_k_focus = settings.get("top_k_focus", 10)
-            exploration_constant = settings.get("exploration_constant", 1.414)
-            anchor_comparisons = settings.get("anchor_comparisons", 4)
-            min_matches_per_paper = settings.get("min_matches_per_paper", 3)
+            min_matches_per_paper = settings.get("min_matches_per_paper", 5)
             max_matches_per_paper = settings.get("max_matches_per_paper", 150)
+            max_new_per_round = settings.get("max_new_matches_per_round", 3)
 
             from core.config import DEFAULT_EVALUATION_PROMPT
             custom_prompt_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
