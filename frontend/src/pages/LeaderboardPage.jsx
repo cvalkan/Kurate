@@ -166,15 +166,15 @@ export default function LeaderboardPage() {
 
       {/* Category Tabs */}
       {categories.length > 1 && (
-        <div className="flex items-center gap-2 mb-3">
-          <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg" data-testid="category-tabs">
+        <div className="mb-3 -mx-4 px-4 overflow-x-auto">
+          <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg w-max" data-testid="category-tabs">
             {categories.map((c) => (
               <Button
                 key={c.id}
                 variant={!isTagMode && category === c.id ? "default" : "ghost"}
                 size="sm"
                 onClick={() => { setCategory(c.id); setSelectedTags([]); }}
-                className="text-xs h-8"
+                className="text-xs h-8 shrink-0"
                 data-testid={`cat-${c.id}`}
               >
                 {c.name}
