@@ -365,8 +365,6 @@ async def get_usage_stats(category: str = None):
         total_chars = 0
         papers_with_text = 0
 
-    total_papers = await db.papers.count_documents({})
-
     return {
         "models": model_stats,
         "totals": {
