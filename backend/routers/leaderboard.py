@@ -102,14 +102,11 @@ async def get_leaderboard(
     cat_data = cache["categories"].get(category, {})
     data = cat_data.get(period, cat_data.get("all", []))
 
-    # Count matches for this category
-    cat_matches = sum(len(cat_data.get("all", [])) for _ in [1])  # paper count as proxy
-    
     return {
         "leaderboard": data[offset:offset + limit],
-        "total_papers": len(cat_data.get("all", [])),
+        "total_papers": cat_data.get("_papers", 0),
         "total_in_period": len(data),
-        "total_matches": cache["total_matches"],
+        "total_matches": cat_data.get("_matches", 0),
         "period": period,
         "category": category,
     }
