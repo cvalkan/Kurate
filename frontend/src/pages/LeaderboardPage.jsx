@@ -53,6 +53,7 @@ export default function LeaderboardPage() {
       setLeaderboard(res.data.leaderboard || []);
       setTotalPapers(res.data.total_papers || 0);
       setTotalMatches(res.data.total_matches || 0);
+      setIsRanking(res.data.is_ranking || false);
     } catch (err) {
       console.error("Failed to fetch leaderboard:", err);
     } finally {
