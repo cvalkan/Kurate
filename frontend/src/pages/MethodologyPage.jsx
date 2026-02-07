@@ -1,8 +1,12 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import axios from "axios";
 import {
   Search, Download, FileText, Swords, Bot, Trophy, BarChart3,
-  ArrowRight, RefreshCw, Sparkles,
+  RefreshCw, Sparkles, Tag, Shuffle,
 } from "lucide-react";
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 function Step({ number, icon: Icon, title, children }) {
   return (
@@ -13,7 +17,7 @@ function Step({ number, icon: Icon, title, children }) {
         </div>
         <div className="w-px flex-1 bg-border mt-2" />
       </div>
-      <div className="pb-10">
+      <div className="pb-8 md:pb-10">
         <div className="flex items-center gap-2 mb-1.5">
           <Icon className="h-4 w-4 text-accent" />
           <h3 className="font-heading font-medium text-sm">{title}</h3>
@@ -27,6 +31,16 @@ function Step({ number, icon: Icon, title, children }) {
 }
 
 export default function MethodologyPage() {
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    axios.get(`${API}/api/categories`).then(res => {
+      setCategories(res.data.categories || []);
+    }).catch(() => {});
+  }, []);
+
+  const catList = categories.map(c => c.name).join(", ");
+
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-3xl py-6 md:py-10">
       <div className="mb-10">
@@ -34,13 +48,14 @@ export default function MethodologyPage() {
           Methodology
         </h1>
         <p className="text-muted-foreground text-sm max-w-2xl">
-          How PaperSumo ranks the latest Robotics papers using AI-powered pairwise comparison.
+          How PaperSumo ranks academic papers across {categories.length || "multiple"} categories using AI-powered pairwise comparison.
         </p>
       </div>
 
       <div>
         <Step number={1} icon={Search} title="Paper Discovery">
-          <p>Every 24 hours, the system queries the arXiv API for the latest papers in the <span className="font-mono text-foreground text-xs bg-secondary px-1 py-0.5 rounded">cs.RO</span> (Robotics) category. New papers not already in the database are stored with their metadata — title, authors, abstract, publication date, and PDF link.</p>
+          <p>The system queries the arXiv API for the latest papers across multiple categories: {catList || "Robotics, Distributed Computing, Economics, Computational Physics, Biomolecules"}. Each category is fetched independently with pagination to ensure sufficient coverage, even for niche fields. New papers are stored with their metadata — title, authors, abstract, publication date, and PDF link.</p>
+          <p>Papers are primarily categorized by their main arXiv tag, but secondary category tags are preserved for cross-category filtering.</p>
         </Step>
 
         <Step number={2} icon={Download} title="Full-Text Extraction">
@@ -54,42 +69,50 @@ export default function MethodologyPage() {
             <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-50 text-orange-700 border-orange-200">Claude Opus 4.5</span>
             <span className="text-xs font-mono px-2 py-1 rounded border bg-blue-50 text-blue-700 border-blue-200">Gemini 3 Pro</span>
           </div>
-          <p>Each model acts as a scientific paper evaluator, assessing which of the two papers has higher potential scientific impact. It considers five dimensions: novelty and innovation, real-world applications, methodological rigor, breadth of impact across fields, and timeliness. The model returns a winner and a brief reasoning.</p>
-          <p>The evaluation prompt is fully customizable via the Admin panel.</p>
+          <p>Each model evaluates which paper has higher potential scientific impact across five dimensions: novelty, real-world applications, methodological rigor, breadth of impact, and timeliness. Tournaments run independently per category in parallel.</p>
         </Step>
 
-        <Step number={4} icon={RefreshCw} title="Adaptive Matchmaking">
-          <p>The system uses an intelligent matchmaking algorithm to decide which papers to compare next. It balances several priorities:</p>
+        <Step number={4} icon={Shuffle} title="Positional Bias Correction">
+          <p>The presentation order of each pair is <span className="text-foreground font-medium">randomly flipped with 50% probability</span> before sending to the LLM. This eliminates positional bias — a known issue where models tend to prefer the paper presented first. Over many comparisons, each paper appears equally often as "Paper 1" and "Paper 2."</p>
+        </Step>
+
+        <Step number={5} icon={RefreshCw} title="Adaptive Matchmaking">
+          <p>An intelligent matchmaking algorithm selects which papers to compare next, using <span className="text-foreground font-medium">adaptive per-paper round caps</span> based on urgency:</p>
           <ul className="list-disc list-inside space-y-1 text-xs mt-1">
-            <li><span className="text-foreground">New paper calibration</span> — Recent papers are matched against established top-ranked papers to ensure a fair entry into the leaderboard</li>
-            <li><span className="text-foreground">Minimum coverage</span> — Every paper gets at least a configurable minimum number of matches</li>
-            <li><span className="text-foreground">Top-K confidence</span> — Extra comparisons focus on papers near the top of the ranking to narrow their confidence intervals</li>
-            <li><span className="text-foreground">UCB exploration</span> — An Upper Confidence Bound strategy ensures under-compared papers get their turn</li>
+            <li><span className="text-foreground">Deficit phase</span> — New papers get a boosted match cap to quickly reach the minimum</li>
+            <li><span className="text-foreground">CI-driven priority</span> — Papers with wide confidence intervals get more matches</li>
+            <li><span className="text-foreground">Win-rate similarity</span> — Pairs with similar strength are preferred (more informative for ranking separation)</li>
+            <li><span className="text-foreground">Top-K focus</span> — Extra comparisons target papers near the top to narrow their confidence intervals</li>
+            <li><span className="text-foreground">Extreme deprioritization</span> — Papers with very high or low win rates and narrow CIs get fewer matches</li>
           </ul>
-          <p className="mt-2">The system runs comparisons continuously until convergence goals are met, then idles until new papers arrive.</p>
+          <p className="mt-2">The system runs continuously until convergence goals are met for each category, then idles until new papers arrive.</p>
         </Step>
 
-        <Step number={5} icon={BarChart3} title="Bradley-Terry Scoring">
-          <p>Rankings are computed using the <span className="text-foreground font-medium">Bradley-Terry model</span>, a well-established statistical method for deriving global rankings from pairwise comparisons. Raw Bradley-Terry parameters are converted to an Elo-like score centered at 1200, similar to <a href="https://lmarena.ai" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">LMArena</a>.</p>
+        <Step number={6} icon={BarChart3} title="Bradley-Terry Scoring">
+          <p>Rankings are computed using the <span className="text-foreground font-medium">Bradley-Terry model</span>, a well-established statistical method for deriving global rankings from pairwise comparisons. An optimized implementation pre-indexes matches by paper for fast computation. Raw Bradley-Terry parameters are converted to an Elo-like score centered at 1200.</p>
           <p>Win rates are reported with <span className="text-foreground font-medium">95% Wilson confidence intervals</span>, providing a statistically rigorous measure of ranking certainty.</p>
         </Step>
 
-        <Step number={6} icon={Bot} title="Multi-Model Consensus">
-          <p>By randomly assigning GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro to each comparison, the system avoids single-model bias. The <Link to="/correlation" className="text-accent hover:underline">Model Analysis</Link> page shows how well the three models agree — typically 72–83% pairwise agreement with Spearman rank correlations of 0.62–0.68.</p>
+        <Step number={7} icon={Bot} title="Multi-Model Consensus">
+          <p>By randomly assigning three different AI models to each comparison, the system avoids single-model bias. The <Link to="/correlation" className="text-accent hover:underline">Model Analysis</Link> page shows pairwise agreement rates broken down by pair difficulty — clear-cut pairs typically show much higher agreement than contested pairs, which constitute the majority of the sample due to the matchmaker's preference for informative comparisons.</p>
         </Step>
 
-        <Step number={7} icon={Sparkles} title="Impact Assessment">
-          <p>Once a paper's ranking has converged (confidence interval below threshold or maximum matches reached), the system generates a structured <span className="text-foreground font-medium">AI Impact Assessment</span>. This summary evaluates the paper across five dimensions — novelty, real-world applications, methodological rigor, breadth of impact, and timeliness — drawing on both the paper's content and the reasoning from its tournament comparisons.</p>
+        <Step number={8} icon={Tag} title="Cross-Category Filtering">
+          <p>Papers on arXiv often have multiple category tags. The leaderboard supports <span className="text-foreground font-medium">tag-based filtering</span> — users can select one or more arXiv tags to view papers across primary categories. Tags can be combined with AND (intersection) or OR (union) logic. A keyword search further filters by paper title.</p>
         </Step>
 
-        <Step number={8} icon={Trophy} title="Dynamic Leaderboard">
-          <p>The final leaderboard displays all ranked papers with their Elo score, win rate, confidence interval, match count, and publication date. The rankings update dynamically as new papers are fetched and compared. Users can filter by time period — Today, This Week, This Month, or All Time — while scores remain globally consistent.</p>
+        <Step number={9} icon={Sparkles} title="Impact Assessment">
+          <p>Once a paper's ranking has converged, the system generates a structured <span className="text-foreground font-medium">AI Impact Assessment</span>. This summary evaluates the paper's novelty, applications, methodology, breadth of impact, and timeliness — drawing on both the paper's content and the reasoning from its tournament comparisons.</p>
+        </Step>
+
+        <Step number={10} icon={Trophy} title="Dynamic Leaderboard">
+          <p>The leaderboard displays ranked papers with Elo score, win rate, confidence interval, match count, and publication date. All data is pre-computed in the background and served from cache for instant loading. Rankings update dynamically as new papers are fetched and compared. Users can filter by time period and search by keyword.</p>
         </Step>
       </div>
 
       <div className="mt-4 p-4 bg-secondary/30 rounded-lg border border-border text-xs text-muted-foreground">
         <p className="font-medium text-foreground mb-1">Limitations</p>
-        <p>AI-based evaluation is an approximation of scientific impact, not a replacement for human peer review. Rankings reflect the consensus of three large language models evaluating papers across five impact dimensions. The system evaluates papers based on available text content, which may miss contributions that require deep domain-specific expertise to fully appreciate. Using multiple models mitigates individual model biases but cannot eliminate them entirely.</p>
+        <p>AI-based evaluation is an approximation of scientific impact, not a replacement for human peer review. Rankings reflect the consensus of three large language models. The matchmaker's preference for pairing similar-strength papers means pairwise agreement statistics are biased toward difficult comparisons. Using multiple models and random order assignment mitigates individual biases but cannot eliminate them entirely.</p>
       </div>
     </div>
   );
