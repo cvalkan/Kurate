@@ -154,19 +154,19 @@ def _compute_elo_ci(wins, comparisons):
     return 1.96 * se_elo
 
 
-async def run_fetch_cycle():
+async def run_fetch_cycle(category: str = "cs.RO"):
     if scheduler_status["is_fetching"]:
         return {"status": "already_fetching"}
 
     scheduler_status["is_fetching"] = True
-    scheduler_status["current_activity"] = "Fetching new papers from arXiv..."
+    scheduler_status["current_activity"] = f"Fetching {category} papers..."
 
     try:
         settings = await get_settings()
         max_papers = settings.get("max_papers_per_fetch", 50)
 
-        raw_papers = await fetch_arxiv_papers(category="cs.RO", max_results=max_papers)
-        logger.info(f"Fetched {len(raw_papers)} papers from arXiv")
+        raw_papers = await fetch_arxiv_papers(category=category, max_results=max_papers)
+        logger.info(f"Fetched {len(raw_papers)} {category} papers from arXiv")
 
         new_count = 0
         for rp in raw_papers:
