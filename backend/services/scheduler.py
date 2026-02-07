@@ -3,8 +3,8 @@ import uuid
 import random
 import math
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional
-from core.config import db, logger, DEFAULT_SETTINGS
+from typing import List, Optional, Dict
+from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
 from core.auth import get_settings
 from services.arxiv import fetch_arxiv_papers
 from services.llm import download_and_extract_pdf, compare_papers
@@ -14,22 +14,49 @@ _scheduler_running = False
 _processing_locks = {}  # Per-category locks
 _fetching_cats = set()  # Categories currently being fetched
 
+
 def _get_lock(category: str) -> asyncio.Lock:
     if category not in _processing_locks:
         _processing_locks[category] = asyncio.Lock()
     return _processing_locks[category]
 
-# In-memory status for live UI updates
-scheduler_status = {
-    "last_fetch_at": None,
-    "last_process_at": None,
-    "is_fetching": False,
-    "is_processing": False,
-    "papers_in_db": 0,
-    "matches_in_db": 0,
-    "current_activity": "Idle",
-    "next_fetch_at": None,
-}
+
+# Per-category status for live UI updates
+_category_status: Dict[str, dict] = {}
+
+
+def _get_cat_status(category: str) -> dict:
+    if category not in _category_status:
+        _category_status[category] = {
+            "last_fetch_at": None,
+            "last_process_at": None,
+            "is_fetching": False,
+            "is_processing": False,
+            "papers_count": 0,
+            "matches_count": 0,
+            "current_activity": "Idle",
+            "next_fetch_at": None,
+        }
+    return _category_status[category]
+
+
+def get_scheduler_status(category: str = None) -> dict:
+    """Get scheduler status for a specific category or global summary."""
+    if category and category in _category_status:
+        return _category_status[category]
+    # Global summary
+    return {
+        "is_fetching": any(s.get("is_fetching") for s in _category_status.values()),
+        "is_processing": any(s.get("is_processing") for s in _category_status.values()),
+        "current_activity": _get_global_activity(),
+        "categories": {k: v.get("current_activity", "Idle") for k, v in _category_status.items()},
+    }
+
+
+def _get_global_activity() -> str:
+    active = [f"{k}: {v['current_activity']}" for k, v in _category_status.items()
+              if v.get("current_activity") not in ("Idle", "Goals met — idle")]
+    return "; ".join(active) if active else "Idle"
 
 
 async def start_scheduler():
@@ -37,6 +64,9 @@ async def start_scheduler():
     if _scheduler_running:
         return
     _scheduler_running = True
+    # Initialize status for all categories
+    for cat_id in CATEGORIES:
+        _get_cat_status(cat_id)
     logger.info("Background scheduler started")
     asyncio.create_task(_scheduler_loop())
 
@@ -52,30 +82,54 @@ async def _scheduler_loop():
             is_paused = settings.get("paused", False)
             active_cats = settings.get("active_categories", ["cs.RO"])
 
-            last_fetch = settings.get("last_fetch_at")
-            should_fetch = False
-            if not last_fetch:
-                should_fetch = True
-            else:
-                last_dt = datetime.fromisoformat(last_fetch)
-                if datetime.now(timezone.utc) - last_dt > timedelta(hours=interval_hours):
+            # Per-category fetch check
+            for cat in active_cats:
+                cat_status = _get_cat_status(cat)
+                last_fetch_key = f"last_fetch_at_{cat}"
+                last_fetch = settings.get(last_fetch_key)
+
+                should_fetch = False
+                if not last_fetch:
                     should_fetch = True
+                else:
+                    last_dt = datetime.fromisoformat(last_fetch)
+                    if datetime.now(timezone.utc) - last_dt > timedelta(hours=interval_hours):
+                        should_fetch = True
 
-            if should_fetch:
-                for cat in active_cats:
+                if should_fetch:
                     await run_fetch_cycle(category=cat)
-                now_iso = datetime.now(timezone.utc).isoformat()
-                await db.settings.update_one({"key": "global"}, {"$set": {"last_fetch_at": now_iso}}, upsert=True)
-                scheduler_status["last_fetch_at"] = now_iso
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    await db.settings.update_one(
+                        {"key": "global"},
+                        {"$set": {last_fetch_key: now_iso}},
+                        upsert=True,
+                    )
+                    cat_status["last_fetch_at"] = now_iso
 
-            settings = await get_settings()
-            last_fetch = settings.get("last_fetch_at")
-            if last_fetch:
-                last_dt = datetime.fromisoformat(last_fetch)
-                scheduler_status["next_fetch_at"] = (last_dt + timedelta(hours=interval_hours)).isoformat()
+                # Compute next fetch time for this category
+                settings_refreshed = await get_settings()
+                cat_last = settings_refreshed.get(last_fetch_key)
+                if cat_last:
+                    last_dt = datetime.fromisoformat(cat_last)
+                    cat_status["next_fetch_at"] = (last_dt + timedelta(hours=interval_hours)).isoformat()
 
-            scheduler_status["papers_in_db"] = await db.papers.count_documents({})
-            scheduler_status["matches_in_db"] = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}})
+            # Update per-category paper/match counts
+            for cat in active_cats:
+                cat_status = _get_cat_status(cat)
+                cat_paper_ids = set()
+                async for p in db.papers.find({"categories.0": cat}, {"_id": 0, "id": 1}):
+                    cat_paper_ids.add(p["id"])
+                cat_status["papers_count"] = len(cat_paper_ids)
+
+                if cat_paper_ids:
+                    cat_match_count = 0
+                    async for m in db.matches.find(
+                        {"completed": True, "failed": {"$ne": True}},
+                        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+                    ):
+                        if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids:
+                            cat_match_count += 1
+                    cat_status["matches_count"] = cat_match_count
 
             if not is_paused:
                 any_unmet = False
@@ -89,13 +143,14 @@ async def _scheduler_loop():
                     await asyncio.sleep(5)
                     continue
                 else:
-                    scheduler_status["current_activity"] = "Goals met — idle"
+                    for cat in active_cats:
+                        _get_cat_status(cat)["current_activity"] = "Goals met — idle"
             else:
-                scheduler_status["current_activity"] = "Paused"
+                for cat in active_cats:
+                    _get_cat_status(cat)["current_activity"] = "Paused"
 
         except Exception as e:
             logger.error(f"Scheduler loop error: {e}")
-            scheduler_status["current_activity"] = f"Error: {str(e)[:100]}"
 
         await asyncio.sleep(300)
 
@@ -140,24 +195,29 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     for pid in top_k_ids:
         n = paper_match_count[pid]
         if n >= max_matches:
-            continue  # Hit cap → considered converged
+            continue
         w = paper_wins.get(pid, 0)
-        from routers.admin import _wilson_margin
-        margin_pct = _wilson_margin(w, n) * 100
+        margin_pct = _wilson_margin_pct(w, n)
         if margin_pct > ci_target:
             return False
 
     return True
 
 
-def _compute_elo_ci(wins, comparisons):
-    import math
-    if comparisons < 2:
-        return 999
-    p = max(0.02, min(0.98, (wins + 0.5) / (comparisons + 1.0)))
-    se_logit = 1.0 / math.sqrt((comparisons + 1.0) * p * (1.0 - p))
-    se_elo = (400.0 / math.log(10)) * se_logit
-    return 1.96 * se_elo
+def _wilson_margin_pct(wins, comparisons):
+    """Wilson CI half-width as percentage points."""
+    from scipy import stats as scipy_stats
+    if comparisons == 0:
+        return 50.0
+    p = wins / comparisons
+    n = comparisons
+    z = scipy_stats.norm.ppf(0.975)
+    denom = 1 + z**2 / n
+    center = (p + z**2 / (2 * n)) / denom
+    spread = z * ((p * (1 - p) + z**2 / (4 * n)) / n) ** 0.5 / denom
+    lower = max(0, center - spread)
+    upper = min(1, center + spread)
+    return (upper - lower) / 2 * 100
 
 
 async def run_fetch_cycle(category: str = "cs.RO"):
@@ -165,8 +225,9 @@ async def run_fetch_cycle(category: str = "cs.RO"):
         return {"status": "already_fetching"}
 
     _fetching_cats.add(category)
-    scheduler_status["is_fetching"] = True
-    scheduler_status["current_activity"] = f"Fetching {category} papers..."
+    cat_status = _get_cat_status(category)
+    cat_status["is_fetching"] = True
+    cat_status["current_activity"] = f"Fetching papers..."
 
     try:
         settings = await get_settings()
@@ -196,36 +257,42 @@ async def run_fetch_cycle(category: str = "cs.RO"):
                 await db.papers.insert_one(paper_doc)
                 new_count += 1
 
-        scheduler_status["current_activity"] = f"Fetched {new_count} new {category} papers"
+        cat_status["current_activity"] = f"Fetched {new_count} new papers"
         logger.info(f"Added {new_count} new {category} papers to DB")
 
         if new_count > 0:
-            await _download_pending_pdfs()
+            await _download_pending_pdfs(category=category)
 
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
 
     except Exception as e:
-        logger.error(f"Fetch cycle failed: {e}")
-        scheduler_status["current_activity"] = f"Fetch failed: {str(e)[:100]}"
+        logger.error(f"Fetch cycle failed for {category}: {e}")
+        cat_status["current_activity"] = f"Fetch failed: {str(e)[:100]}"
         return {"status": "error", "error": str(e)}
     finally:
         _fetching_cats.discard(category)
-        scheduler_status["is_fetching"] = bool(_fetching_cats)
+        cat_status["is_fetching"] = False
 
 
-async def _download_pending_pdfs():
-    """Download PDFs for papers missing full_text. Shared by fetch and comparison cycles."""
+async def _download_pending_pdfs(category: str = None):
+    """Download PDFs for papers missing full_text, scoped to a category."""
+    query = {"$or": [{"needs_pdf": True}, {"full_text": None}], "pdf_link": {"$ne": None}}
+    if category:
+        query["categories.0"] = category
+
     papers_needing_pdf = await db.papers.find(
-        {"$or": [{"needs_pdf": True}, {"full_text": None}], "pdf_link": {"$ne": None}},
-        {"_id": 0, "id": 1, "pdf_link": 1, "title": 1},
+        query, {"_id": 0, "id": 1, "pdf_link": 1, "title": 1},
     ).to_list(200)
 
     if not papers_needing_pdf:
         return 0
 
+    cat_status = _get_cat_status(category) if category else None
+
     downloaded = 0
     for i, paper in enumerate(papers_needing_pdf):
-        scheduler_status["current_activity"] = f"Downloading PDF {i+1}/{len(papers_needing_pdf)}: {paper['title'][:40]}..."
+        if cat_status:
+            cat_status["current_activity"] = f"Downloading PDF {i+1}/{len(papers_needing_pdf)}: {paper['title'][:40]}..."
         try:
             full_text = await download_and_extract_pdf(paper["pdf_link"])
             if full_text:
@@ -255,8 +322,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
         return {"status": "already_processing"}
 
     async with lock:
-        scheduler_status["is_processing"] = True
-        scheduler_status["current_activity"] = f"Comparing {category} papers..."
+        cat_status = _get_cat_status(category)
+        cat_status["is_processing"] = True
+        cat_status["current_activity"] = "Comparing papers..."
 
         try:
             settings = await get_settings()
@@ -265,6 +333,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             min_matches_per_paper = settings.get("min_matches_per_paper", 5)
             max_matches_per_paper = settings.get("max_matches_per_paper", 150)
             max_new_per_round = settings.get("max_new_matches_per_round", 3)
+            ci_target = settings.get("ci_target", 12)
 
             from core.config import DEFAULT_EVALUATION_PROMPT
             custom_prompt_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
@@ -283,13 +352,13 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             ).to_list(5000)
 
             if len(all_papers) < 2:
-                scheduler_status["current_activity"] = f"Not enough {category} papers"
+                cat_status["current_activity"] = "Not enough papers"
                 return {"status": "not_enough_papers"}
 
-            # Download any missing PDFs
+            # Download any missing PDFs for this category
             papers_missing_text = sum(1 for p in all_papers if not p.get("full_text"))
             if papers_missing_text > 0:
-                dl_count = await _download_pending_pdfs()
+                dl_count = await _download_pending_pdfs(category=category)
                 if dl_count > 0:
                     all_papers = await db.papers.find(
                         {"categories.0": category},
@@ -297,10 +366,15 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                          "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1, "added_at": 1}
                     ).to_list(5000)
 
-            all_matches = await db.matches.find(
+            # Only load matches involving this category's papers
+            cat_paper_ids = {p["id"] for p in all_papers}
+            all_matches_raw = await db.matches.find(
                 {"completed": True, "failed": {"$ne": True}},
-                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
             ).to_list(100000)
+            # Filter to only matches within this category
+            all_matches = [m for m in all_matches_raw
+                           if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids]
 
             paper_stats = {}
             for p in all_papers:
@@ -321,7 +395,6 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             for m in all_matches:
                 compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
 
-            # Generate as many useful pairs as the matchmaker finds
             if max_pairs_override:
                 max_pairs = min(max_pairs_override, 500)
             else:
@@ -329,11 +402,11 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             pairs = _select_pairs(
                 all_papers, paper_stats, compared_pairs,
                 max_pairs, top_k_focus, min_matches_per_paper,
-                max_matches_per_paper, max_new_per_round,
+                max_matches_per_paper, max_new_per_round, ci_target,
             )
 
             if not pairs:
-                scheduler_status["current_activity"] = "No new pairs needed"
+                cat_status["current_activity"] = "No new pairs needed"
                 return {"status": "no_pairs"}
 
             paper_lookup = {p["id"]: p for p in all_papers}
@@ -375,66 +448,70 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
 
                     await db.matches.insert_one(match_doc)
 
-                scheduler_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
+                cat_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
                 await asyncio.sleep(0.5)
 
             now_iso = datetime.now(timezone.utc).isoformat()
-            scheduler_status["last_process_at"] = now_iso
-            scheduler_status["current_activity"] = f"{total_matches + completed} total matches"
-            logger.info(f"Comparison round: {completed} ok, {failed} failed")
+            cat_status["last_process_at"] = now_iso
+            cat_status["current_activity"] = f"{total_matches + completed} total matches"
+            logger.info(f"[{category}] Comparison round: {completed} ok, {failed} failed")
 
-            # Generate impact summaries for newly converged papers
-            await _generate_pending_summaries()
+            # Generate impact summaries only for this category
+            await _generate_pending_summaries(category=category)
 
             return {"status": "ok", "completed": completed, "failed": failed}
 
         except Exception as e:
-            logger.error(f"Comparison round failed: {e}")
-            scheduler_status["current_activity"] = f"Processing error: {str(e)[:100]}"
+            logger.error(f"[{category}] Comparison round failed: {e}")
+            cat_status["current_activity"] = f"Processing error: {str(e)[:100]}"
             return {"status": "error", "error": str(e)}
         finally:
-            # Check if any lock is still held
-            scheduler_status["is_processing"] = any(l.locked() for l in _processing_locks.values())
+            cat_status["is_processing"] = False
 
 
-async def _generate_pending_summaries():
+async def _generate_pending_summaries(category: str = None):
     """Generate impact summaries for converged papers that don't have one yet."""
     from services.llm import generate_impact_summary
-    from routers.admin import _wilson_margin
 
     settings = await get_settings()
     ci_target = settings.get("ci_target", 12)
     max_matches = settings.get("max_matches_per_paper", 150)
 
-    # Load summary prompt from DB
     summary_prompt_doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
     summary_prompt = summary_prompt_doc if summary_prompt_doc and summary_prompt_doc.get("system_prompt") else None
 
-    # Find papers that are converged but have no summary
-    # A paper is converged if Wilson margin ≤ target OR matches ≥ max cap
-    all_papers = await db.papers.find(
-        {"impact_summary": {"$exists": False}},
-        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1},
-    ).to_list(100)
+    # Find papers without summaries, scoped to category
+    query = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}]}
+    if category:
+        query["categories.0"] = category
 
-    if not all_papers:
-        # Also check papers with null summary
-        all_papers = await db.papers.find(
-            {"impact_summary": None},
-            {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1},
-        ).to_list(100)
+    all_papers = await db.papers.find(
+        query,
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1, "categories": 1},
+    ).to_list(100)
 
     if not all_papers:
         return
 
-    # Get match counts
+    # Get match counts for these papers (only within their category)
     paper_ids = [p["id"] for p in all_papers]
+    paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in all_papers}
     paper_match_count = {pid: 0 for pid in paper_ids}
     paper_wins = {pid: 0 for pid in paper_ids}
+
+    # Get all category paper IDs for filtering matches
+    cat_paper_ids = set()
+    if category:
+        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+            cat_paper_ids.add(p["id"])
+
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ):
+        # Only count matches within the same category
+        if category and (m["paper1_id"] not in cat_paper_ids or m["paper2_id"] not in cat_paper_ids):
+            continue
         for pid in [m["paper1_id"], m["paper2_id"]]:
             if pid in paper_match_count:
                 paper_match_count[pid] += 1
@@ -442,28 +519,28 @@ async def _generate_pending_summaries():
         if w and w in paper_wins:
             paper_wins[w] += 1
 
+    cat_status = _get_cat_status(category) if category else None
+
     for paper in all_papers:
         pid = paper["id"]
         n = paper_match_count.get(pid, 0)
         w = paper_wins.get(pid, 0)
 
         if n < 3:
-            continue  # Not enough data
+            continue
 
-        margin = float(_wilson_margin(w, n)) * 100
+        margin = _wilson_margin_pct(w, n)
         is_converged = margin <= ci_target or n >= max_matches
 
         if not is_converged:
             continue
 
-        # Get match logs for this paper
         matches = await db.matches.find(
             {"completed": True, "failed": {"$ne": True},
              "$or": [{"paper1_id": pid}, {"paper2_id": pid}]},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "reasoning": 1},
         ).to_list(500)
 
-        # Get opponent titles
         opp_ids = set()
         for m in matches:
             opp_ids.add(m["paper2_id"] if m["paper1_id"] == pid else m["paper1_id"])
@@ -480,7 +557,8 @@ async def _generate_pending_summaries():
                 "reasoning": m.get("reasoning", ""),
             })
 
-        scheduler_status["current_activity"] = f"Generating summary: {paper['title'][:40]}..."
+        if cat_status:
+            cat_status["current_activity"] = f"Generating summary: {paper['title'][:40]}..."
         logger.info(f"Generating impact summary for: {paper['title'][:50]}")
 
         summary = await generate_impact_summary(paper, logs, summary_prompt)
@@ -491,32 +569,28 @@ async def _generate_pending_summaries():
             )
             logger.info(f"Summary generated for {pid}")
         else:
-            # Mark as attempted so we don't retry every round
             await db.papers.update_one(
                 {"id": pid},
                 {"$set": {"impact_summary": None, "summary_generated_at": datetime.now(timezone.utc).isoformat()}},
             )
 
-        await asyncio.sleep(1)  # Rate limit
-
+        await asyncio.sleep(1)
 
 
 def _select_pairs(
     papers: list, stats: dict, compared_pairs: set,
     max_pairs: int, top_k: int, min_matches: int,
-    max_matches: int, max_per_round: int,
+    max_matches: int, max_per_round: int, ci_target: float = 12.0,
 ) -> List[tuple]:
     """
-    Unified pair selection using a single scoring function.
+    Smart pair selection that allocates comparisons where they matter most.
 
-    For each candidate pair (p1, p2), compute:
-      score = deficit_score + novelty_score + topk_score
-
-    Then sort all candidates by score, apply per-paper-per-round cap,
-    and take the top max_pairs.
-
-    Efficient for large N: instead of O(N²) over all pairs, we sample
-    candidates from the highest-priority papers first.
+    Key principles:
+    1. Papers below min_matches get highest priority (deficit phase)
+    2. After min_matches, CI-width drives priority — wide CIs need more matches
+    3. Pairs with similar win rates are preferred (most informative comparisons)
+    4. Papers with narrow CIs or extreme win rates get deprioritized
+    5. Top-K papers get a boost proportional to how much CI narrowing is still needed
     """
     paper_ids = [p["id"] for p in papers]
     n = len(paper_ids)
@@ -527,13 +601,17 @@ def _select_pairs(
     capped = set()
     comparisons = {}
     win_rates = {}
+    ci_widths = {}  # Wilson CI margin in percentage points
+
     for pid in paper_ids:
         s = stats.get(pid, {})
         c = s.get("comparisons", 0)
+        w = s.get("wins", 0)
         comparisons[pid] = c
         if c >= max_matches:
             capped.add(pid)
-        win_rates[pid] = s.get("wins", 0) / max(c, 1)
+        win_rates[pid] = w / max(c, 1)
+        ci_widths[pid] = _wilson_margin_pct(w, c)
 
     active = [pid for pid in paper_ids if pid not in capped]
     if len(active) < 2:
@@ -543,24 +621,47 @@ def _select_pairs(
     ranked = sorted(active, key=lambda pid: win_rates[pid], reverse=True)
     top_k_set = set(ranked[:min(top_k, len(ranked))])
 
-    # Per-paper priority score (higher = more urgently needs matches)
+    # Per-paper priority score
     paper_priority = {}
     for pid in active:
         c = comparisons[pid]
-        # Deficit: how far below min_matches (0 if met)
+        ci = ci_widths[pid]
+
+        # Phase 1: Deficit — papers below min_matches get massive priority
         deficit = max(0, min_matches - c) / max(min_matches, 1)
-        # Exploration: papers with fewer matches get priority (log scale)
-        exploration = 1.0 / (1.0 + c)
-        # Top-K bonus: top-K papers get a boost for CI narrowing
-        topk_bonus = 0.3 if pid in top_k_set else 0
-        paper_priority[pid] = deficit * 10 + exploration + topk_bonus
+
+        # Phase 2: CI-driven — wider CI = more urgently needs matches
+        # Normalized: ci_target is the goal, so ci/ci_target > 1 means unmet
+        ci_urgency = max(0, (ci - ci_target)) / max(ci_target, 1)
+
+        # Exploration bonus for very new papers (< 2x min_matches)
+        exploration = max(0, 1.0 - c / max(min_matches * 2, 1))
+
+        # Top-K bonus scaled by how much CI narrowing is still needed
+        topk_bonus = 0
+        if pid in top_k_set and ci > ci_target:
+            topk_bonus = ci_urgency * 2.0  # Scales with how far from target
+
+        # Papers with extreme win rates (>90% or <10%) and sufficient matches
+        # are less informative to compare — reduce their priority
+        extreme_penalty = 0
+        if c >= min_matches:
+            wr = win_rates[pid]
+            if wr > 0.9 or wr < 0.1:
+                extreme_penalty = 0.5 * (1 - ci_urgency)  # Less penalty if CI still wide
+
+        priority = (deficit * 10.0      # Deficit dominates when active
+                    + ci_urgency * 5.0   # CI width is the main driver after deficit
+                    + exploration * 1.0  # Small bonus for newer papers
+                    + topk_bonus         # Scaled top-K boost
+                    - extreme_penalty)   # Deprioritize extreme outliers
+
+        paper_priority[pid] = max(priority, 0.01)
 
     # Sort papers by priority (highest first)
     priority_sorted = sorted(active, key=lambda pid: paper_priority[pid], reverse=True)
 
-    # Generate candidate pairs efficiently:
-    # For each high-priority paper, find the best opponents
-    # (novel pairs with the highest combined priority)
+    # Generate candidate pairs with CI-aware scoring
     round_count = {pid: 0 for pid in active}
     pairs = []
 
@@ -568,22 +669,29 @@ def _select_pairs(
         if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
             continue
 
-        # Find best opponents: prioritize novel pairs, then by opponent priority
         best_opponents = []
         for p2 in priority_sorted:
             if p2 == p1 or round_count[p2] >= max_per_round:
                 continue
             pair_key = tuple(sorted([p1, p2]))
             is_novel = pair_key not in compared_pairs
-            # Score this pair
+
+            # Base pair score from individual priorities
             pair_score = paper_priority[p1] + paper_priority[p2]
+
+            # Win-rate similarity bonus: comparing papers with similar win rates
+            # is more informative for ranking separation
+            wr_diff = abs(win_rates[p1] - win_rates[p2])
+            similarity_bonus = max(0, 1.0 - wr_diff * 3.0)  # Peaks when win rates are close
+            pair_score += similarity_bonus * 2.0
+
             if is_novel:
-                pair_score += 5.0  # Strong preference for novel pairs
+                pair_score += 3.0  # Preference for novel pairs
             else:
                 pair_score *= 0.1  # Heavily penalize re-matches
+
             best_opponents.append((p2, pair_score, is_novel, pair_key))
 
-        # Sort by score, take the best
         best_opponents.sort(key=lambda x: x[1], reverse=True)
 
         for p2, score, is_novel, pair_key in best_opponents:
@@ -591,7 +699,6 @@ def _select_pairs(
                 break
             if round_count[p2] >= max_per_round:
                 continue
-            # Skip re-matches unless no novel pairs exist
             if not is_novel and any(x[2] for x in best_opponents):
                 continue
             pairs.append((p1, p2))
