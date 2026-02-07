@@ -150,7 +150,7 @@ async def get_admin_status():
 
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
-async def get_progress_estimate():
+async def get_progress_estimate(category: str = "cs.RO"):
     """Dual-goal progress with estimated remaining matches and time."""
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
@@ -161,26 +161,26 @@ async def get_progress_estimate():
     parallel_agents = settings.get("parallel_agents", 5)
 
     all_paper_ids = []
-    async for p in db.papers.find({}, {"_id": 0, "id": 1}):
+    async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
         all_paper_ids.append(p["id"])
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
-        return {"total_papers": 0, "goals_met": True, "paused": is_paused}
+        return {"total_papers": 0, "goals_met": True, "paused": is_paused, "category": category}
 
+    pid_set = set(all_paper_ids)
     paper_match_count = {pid: 0 for pid in all_paper_ids}
     paper_wins = {pid: 0 for pid in all_paper_ids}
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ):
-        if m["paper1_id"] in paper_match_count:
+        if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
             paper_match_count[m["paper1_id"]] += 1
-        if m["paper2_id"] in paper_match_count:
             paper_match_count[m["paper2_id"]] += 1
-        w = m.get("winner_id")
-        if w and w in paper_wins:
-            paper_wins[w] += 1
+            w = m.get("winner_id")
+            if w and w in paper_wins:
+                paper_wins[w] += 1
 
     # Goal 1: All papers at min matches
     papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
