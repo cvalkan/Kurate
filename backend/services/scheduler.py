@@ -247,10 +247,11 @@ async def _download_pending_pdfs():
 
 
 async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO"):
-    if _processing_lock.locked():
+    lock = _get_lock(category)
+    if lock.locked():
         return {"status": "already_processing"}
 
-    async with _processing_lock:
+    async with lock:
         scheduler_status["is_processing"] = True
         scheduler_status["current_activity"] = f"Comparing {category} papers..."
 
