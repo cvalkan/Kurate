@@ -617,7 +617,7 @@ def _select_adaptive_pairs(
                     compared_pairs.add(pair_key)
                     break
 
-    # --- Phase 6: UCB exploration ---
+    # --- Phase 6: UCB exploration (max 2 new matches per paper per round) ---
     if len(pairs) < max_pairs and len(ranked_papers) >= 2:
         total_comparisons = sum(s.get("comparisons", 0) for s in stats.values())
         ucb_scores = {}
@@ -630,14 +630,22 @@ def _select_adaptive_pairs(
                 ucb_scores[pid] = s.get("wins", 0) / comps + exploration_c * math.sqrt(math.log(total_comparisons + 1) / comps)
 
         candidates = sorted(active_ids, key=lambda pid: ucb_scores.get(pid, 0), reverse=True)
+        round_count = {pid: 0 for pid in active_ids}
+        max_per_paper = 2
+
         for p1 in candidates:
+            if round_count[p1] >= max_per_paper:
+                continue
             for p2 in candidates:
-                if p1 >= p2:
+                if p1 >= p2 or round_count[p2] >= max_per_paper:
                     continue
                 pair_key = tuple(sorted([p1, p2]))
                 if pair_key not in compared_pairs and len(pairs) < max_pairs:
                     pairs.append((p1, p2))
                     compared_pairs.add(pair_key)
+                    round_count[p1] += 1
+                    round_count[p2] += 1
+                    break  # Move to next p1
             if len(pairs) >= max_pairs:
                 break
 
