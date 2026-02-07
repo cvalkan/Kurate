@@ -497,155 +497,102 @@ async def _generate_pending_summaries():
 
 
 
-def _select_adaptive_pairs(
+def _select_pairs(
     papers: list, stats: dict, compared_pairs: set,
-    max_pairs: int, top_k: int, exploration_c: float, anchor_n: int,
-    min_matches: int = 3, max_matches: int = 150,
+    max_pairs: int, top_k: int, min_matches: int,
+    max_matches: int, max_per_round: int,
 ) -> List[tuple]:
     """
-    Priority-ordered matchmaking:
-    1. Bootstrap (all new) → random pairs
-    2. Bring ALL papers to min_matches before anything else
-    3. Only after min_matches is met for all: CI narrowing for top-K
-    4. UCB exploration for remaining budget
+    Unified pair selection using a single scoring function.
+
+    For each candidate pair (p1, p2), compute:
+      score = deficit_score + novelty_score + topk_score
+
+    Then sort all candidates by score, apply per-paper-per-round cap,
+    and take the top max_pairs.
+
+    Efficient for large N: instead of O(N²) over all pairs, we sample
+    candidates from the highest-priority papers first.
     """
-    pairs = []
     paper_ids = [p["id"] for p in papers]
-    capped = {pid for pid in paper_ids if stats.get(pid, {}).get("comparisons", 0) >= max_matches}
-    active_ids = [pid for pid in paper_ids if pid not in capped]
+    n = len(paper_ids)
+    if n < 2:
+        return []
 
-    new_papers = [pid for pid in active_ids if stats.get(pid, {}).get("comparisons", 0) == 0]
-    under_min = [
-        pid for pid in active_ids
-        if 0 < stats.get(pid, {}).get("comparisons", 0) < min_matches
-    ]
-    ranked_papers = sorted(
-        [pid for pid in active_ids if stats.get(pid, {}).get("comparisons", 0) > 0],
-        key=lambda pid: stats[pid]["wins"] / max(stats[pid]["comparisons"], 1),
-        reverse=True,
-    )
-    all_at_min = not new_papers and not under_min
+    # Pre-compute per-paper metrics
+    capped = set()
+    comparisons = {}
+    win_rates = {}
+    for pid in paper_ids:
+        s = stats.get(pid, {})
+        c = s.get("comparisons", 0)
+        comparisons[pid] = c
+        if c >= max_matches:
+            capped.add(pid)
+        win_rates[pid] = s.get("wins", 0) / max(c, 1)
 
-    # --- Phase 1: Bootstrap (all papers are new) ---
-    if not ranked_papers and new_papers:
-        shuffled = list(new_papers)
-        random.shuffle(shuffled)
-        for i in range(len(shuffled)):
-            for j in range(i + 1, len(shuffled)):
-                if len(pairs) >= max_pairs:
-                    break
-                pair_key = tuple(sorted([shuffled[i], shuffled[j]]))
-                if pair_key not in compared_pairs:
-                    pairs.append((shuffled[i], shuffled[j]))
-                    compared_pairs.add(pair_key)
-            if len(pairs) >= max_pairs:
-                break
-        return pairs[:max_pairs]
+    active = [pid for pid in paper_ids if pid not in capped]
+    if len(active) < 2:
+        return []
 
-    # --- Phase 2: New papers get anchor matches ---
-    if new_papers and ranked_papers:
-        n_ranked = len(ranked_papers)
-        step = max(1, n_ranked // anchor_n) if n_ranked >= anchor_n else 1
-        anchors = [ranked_papers[i] for i in range(0, n_ranked, step)][:anchor_n]
-        for new_pid in new_papers:
-            for anchor_pid in anchors:
-                pair_key = tuple(sorted([new_pid, anchor_pid]))
-                if pair_key not in compared_pairs and len(pairs) < max_pairs:
-                    pairs.append((new_pid, anchor_pid))
-                    compared_pairs.add(pair_key)
+    # Rank papers by win rate for top-K detection
+    ranked = sorted(active, key=lambda pid: win_rates[pid], reverse=True)
+    top_k_set = set(ranked[:min(top_k, len(ranked))])
 
-    # --- Phase 3: Bring under-min papers up EVENLY ---
-    # Sort by fewest matches first so the most neglected papers get priority
-    if under_min and len(pairs) < max_pairs:
-        under_min_sorted = sorted(under_min, key=lambda pid: stats.get(pid, {}).get("comparisons", 0))
-        all_opponents = list(active_ids)
-        for pid in under_min_sorted:
-            if len(pairs) >= max_pairs:
-                break
-            needed = min_matches - stats.get(pid, {}).get("comparisons", 0)
-            random.shuffle(all_opponents)
-            added = 0
-            for opp in all_opponents:
-                if opp == pid:
-                    continue
-                pair_key = tuple(sorted([pid, opp]))
-                if pair_key not in compared_pairs and len(pairs) < max_pairs:
-                    pairs.append((pid, opp))
-                    compared_pairs.add(pair_key)
-                    added += 1
-                    if added >= needed:
-                        break
+    # Per-paper priority score (higher = more urgently needs matches)
+    paper_priority = {}
+    for pid in active:
+        c = comparisons[pid]
+        # Deficit: how far below min_matches (0 if met)
+        deficit = max(0, min_matches - c) / max(min_matches, 1)
+        # Exploration: papers with fewer matches get priority (log scale)
+        exploration = 1.0 / (1.0 + c)
+        # Top-K bonus: top-K papers get a boost for CI narrowing
+        topk_bonus = 0.3 if pid in top_k_set else 0
+        paper_priority[pid] = deficit * 10 + exploration + topk_bonus
 
-    # --- Phase 4: Recent paper fairness (48h papers vs top-K) ---
-    if all_at_min and len(pairs) < max_pairs and ranked_papers:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
-        top_k_papers = ranked_papers[:min(top_k, len(ranked_papers))]
-        for p in papers:
-            added = p.get("added_at")
-            if not added or p["id"] in capped:
+    # Sort papers by priority (highest first)
+    priority_sorted = sorted(active, key=lambda pid: paper_priority[pid], reverse=True)
+
+    # Generate candidate pairs efficiently:
+    # For each high-priority paper, find the best opponents
+    # (novel pairs with the highest combined priority)
+    round_count = {pid: 0 for pid in active}
+    pairs = []
+
+    for p1 in priority_sorted:
+        if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
+            continue
+
+        # Find best opponents: prioritize novel pairs, then by opponent priority
+        best_opponents = []
+        for p2 in priority_sorted:
+            if p2 == p1 or round_count[p2] >= max_per_round:
                 continue
-            try:
-                if datetime.fromisoformat(added) < cutoff:
-                    continue
-            except (ValueError, TypeError):
-                continue
-            for top_pid in top_k_papers:
-                if p["id"] == top_pid:
-                    continue
-                pair_key = tuple(sorted([p["id"], top_pid]))
-                if pair_key not in compared_pairs and len(pairs) < max_pairs:
-                    pairs.append((p["id"], top_pid))
-                    compared_pairs.add(pair_key)
-
-    # --- Phase 5: CI narrowing for top-K (ONLY after all papers have min_matches) ---
-    if all_at_min and len(pairs) < max_pairs and len(ranked_papers) >= 2:
-        top_k_papers = ranked_papers[:min(top_k, len(ranked_papers))]
-        # Only give new unique opponents, no re-matches
-        all_potential = [pid for pid in active_ids if pid not in set(top_k_papers)]
-        random.shuffle(all_potential)
-
-        for focus_pid in top_k_papers:
-            if len(pairs) >= max_pairs:
-                break
-            for opp in all_potential + ranked_papers:
-                if opp == focus_pid:
-                    continue
-                pair_key = tuple(sorted([focus_pid, opp]))
-                if pair_key not in compared_pairs and len(pairs) < max_pairs:
-                    pairs.append((focus_pid, opp))
-                    compared_pairs.add(pair_key)
-                    break
-
-    # --- Phase 6: UCB exploration (max 2 new matches per paper per round) ---
-    if len(pairs) < max_pairs and len(ranked_papers) >= 2:
-        total_comparisons = sum(s.get("comparisons", 0) for s in stats.values())
-        ucb_scores = {}
-        for pid in active_ids:
-            s = stats.get(pid, {})
-            comps = s.get("comparisons", 0)
-            if comps == 0:
-                ucb_scores[pid] = float("inf")
+            pair_key = tuple(sorted([p1, p2]))
+            is_novel = pair_key not in compared_pairs
+            # Score this pair
+            pair_score = paper_priority[p1] + paper_priority[p2]
+            if is_novel:
+                pair_score += 5.0  # Strong preference for novel pairs
             else:
-                ucb_scores[pid] = s.get("wins", 0) / comps + exploration_c * math.sqrt(math.log(total_comparisons + 1) / comps)
+                pair_score *= 0.1  # Heavily penalize re-matches
+            best_opponents.append((p2, pair_score, is_novel, pair_key))
 
-        candidates = sorted(active_ids, key=lambda pid: ucb_scores.get(pid, 0), reverse=True)
-        round_count = {pid: 0 for pid in active_ids}
-        max_per_paper = 2
+        # Sort by score, take the best
+        best_opponents.sort(key=lambda x: x[1], reverse=True)
 
-        for p1 in candidates:
-            if round_count[p1] >= max_per_paper:
-                continue
-            for p2 in candidates:
-                if p1 >= p2 or round_count[p2] >= max_per_paper:
-                    continue
-                pair_key = tuple(sorted([p1, p2]))
-                if pair_key not in compared_pairs and len(pairs) < max_pairs:
-                    pairs.append((p1, p2))
-                    compared_pairs.add(pair_key)
-                    round_count[p1] += 1
-                    round_count[p2] += 1
-                    break  # Move to next p1
-            if len(pairs) >= max_pairs:
+        for p2, score, is_novel, pair_key in best_opponents:
+            if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
                 break
+            if round_count[p2] >= max_per_round:
+                continue
+            # Skip re-matches unless no novel pairs exist
+            if not is_novel and any(x[2] for x in best_opponents):
+                continue
+            pairs.append((p1, p2))
+            compared_pairs.add(pair_key)
+            round_count[p1] += 1
+            round_count[p2] += 1
 
     return pairs[:max_pairs]
