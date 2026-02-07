@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
@@ -44,13 +44,17 @@ export default function LeaderboardPage() {
   // Tag filter state
   const [allTags, setAllTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [tagMode, setTagMode] = useState("or"); // "or" or "and"
   const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
+
+  // Abort controller to cancel stale requests
+  const abortRef = useRef(null);
 
   const categoryName = categories.find(c => c.id === category)?.name || "Papers";
   const isTagMode = selectedTags.length > 0;
 
-  // Load categories once
+  // Load categories and tags once
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
       setCategories(res.data.categories || []);
@@ -59,7 +63,6 @@ export default function LeaderboardPage() {
       setCategories([{ id: "cs.RO", name: "Robotics" }]);
       setCategory("cs.RO");
     });
-    // Load all tags
     axios.get(`${API}/api/tags`).then(res => {
       setAllTags(res.data.tags || []);
     }).catch(() => {});
@@ -67,34 +70,50 @@ export default function LeaderboardPage() {
 
   const fetchLeaderboard = useCallback(async () => {
     if (!category && !isTagMode) return;
+
+    // Cancel any in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const params = { period };
       if (isTagMode) {
         params.tags = selectedTags.join(",");
+        params.tag_mode = tagMode;
       } else {
         params.category = category;
       }
-      const res = await axios.get(`${API}/api/leaderboard`, { params });
-      setLeaderboard(res.data.leaderboard || []);
-      setTotalPapers(res.data.total_papers || 0);
-      setTotalMatches(res.data.total_matches || 0);
-      setIsRanking(res.data.is_ranking || false);
+      const res = await axios.get(`${API}/api/leaderboard`, { params, signal: controller.signal });
+      // Only update if this request wasn't cancelled
+      if (!controller.signal.aborted) {
+        setLeaderboard(res.data.leaderboard || []);
+        setTotalPapers(res.data.total_papers || 0);
+        setTotalMatches(res.data.total_matches || 0);
+        setIsRanking(res.data.is_ranking || false);
+        setLoading(false);
+      }
     } catch (err) {
-      console.error("Failed to fetch leaderboard:", err);
-    } finally {
-      setLoading(false);
+      if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
+        console.error("Failed to fetch leaderboard:", err);
+        setLoading(false);
+      }
     }
-  }, [category, period, selectedTags, isTagMode]);
+  }, [category, period, selectedTags, tagMode, isTagMode]);
 
+  // Fetch on param change
   useEffect(() => {
     setLoading(true);
     fetchLeaderboard();
+    return () => { if (abortRef.current) abortRef.current.abort(); };
   }, [fetchLeaderboard]);
 
+  // Auto-refresh only for primary category view (cached, fast). Skip for tag queries.
   useEffect(() => {
+    if (isTagMode) return;
     const interval = setInterval(fetchLeaderboard, 30000);
     return () => clearInterval(interval);
-  }, [fetchLeaderboard]);
+  }, [fetchLeaderboard, isTagMode]);
 
   const toggleTag = (tagId) => {
     setSelectedTags(prev =>
@@ -108,15 +127,13 @@ export default function LeaderboardPage() {
     setTagSearch("");
   };
 
-  // Filter tags by search and exclude already-selected
-  const mainCatIds = new Set(categories.map(c => c.id));
   const filteredTags = allTags.filter(t => {
     if (tagSearch && !t.id.toLowerCase().includes(tagSearch.toLowerCase())) return false;
     return true;
   });
 
   const title = isTagMode
-    ? `${selectedTags.join(" + ")} Papers`
+    ? `${selectedTags.join(tagMode === "and" ? " ∩ " : " ∪ ")} Papers`
     : `${categoryName} Paper Rankings`;
 
   return (
@@ -129,7 +146,7 @@ export default function LeaderboardPage() {
         </h1>
         <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
           {isTagMode
-            ? `Cross-category view: showing all papers tagged with ${selectedTags.join(", ")}. Rankings based on available tournament matches.`
+            ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}. Rankings based on available tournament matches.`
             : `AI-estimated scientific impact ranking of the latest arXiv ${categoryName} papers. Papers are evaluated using full-text analysis by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.`
           }
         </p>
@@ -144,7 +161,7 @@ export default function LeaderboardPage() {
                 key={c.id}
                 variant={!isTagMode && category === c.id ? "default" : "ghost"}
                 size="sm"
-                onClick={() => { setCategory(c.id); setSelectedTags([]); setLoading(true); }}
+                onClick={() => { setCategory(c.id); setSelectedTags([]); }}
                 className="text-xs h-8"
                 data-testid={`cat-${c.id}`}
               >
@@ -155,7 +172,7 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* Tag Filter Toggle */}
+      {/* Tag Filter */}
       <div className="mb-4">
         <div className="flex items-center gap-2 flex-wrap">
           <Button
@@ -174,9 +191,27 @@ export default function LeaderboardPage() {
               <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-xs">
-              <p className="text-xs">Papers often have multiple arXiv category tags. Use this filter to view papers across categories — e.g., find all papers tagged "cs.AI" regardless of their primary category. Select multiple tags to combine.</p>
+              <p className="text-xs">Papers have multiple arXiv category tags (primary + secondary). Use this to view papers across categories. Select multiple tags and choose AND (intersection) or OR (union).</p>
             </TooltipContent>
           </Tooltip>
+
+          {/* AND/OR toggle — show when 2+ tags selected */}
+          {selectedTags.length >= 2 && (
+            <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
+              <button
+                onClick={() => setTagMode("or")}
+                className={`px-2 py-0.5 text-[11px] rounded font-medium transition-colors ${tagMode === "or" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                OR
+              </button>
+              <button
+                onClick={() => setTagMode("and")}
+                className={`px-2 py-0.5 text-[11px] rounded font-medium transition-colors ${tagMode === "and" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                AND
+              </button>
+            </div>
+          )}
 
           {/* Selected tag chips */}
           {selectedTags.map(tag => (
@@ -209,7 +244,6 @@ export default function LeaderboardPage() {
             <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
               {filteredTags.map(tag => {
                 const isSelected = selectedTags.includes(tag.id);
-                const isMain = mainCatIds.has(tag.id);
                 return (
                   <button
                     key={tag.id}
@@ -217,9 +251,7 @@ export default function LeaderboardPage() {
                     className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${
                       isSelected
                         ? "bg-primary text-primary-foreground border-primary"
-                        : isMain
-                          ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
-                          : "bg-background text-muted-foreground border-border hover:bg-secondary"
+                        : "bg-background text-muted-foreground border-border hover:bg-secondary"
                     }`}
                   >
                     {tag.id}
@@ -264,7 +296,7 @@ export default function LeaderboardPage() {
             <div className="w-px h-3 bg-border shrink-0" />
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0">
               <Tag className="h-3 w-3" />
-              Cross-category view
+              Cross-category {tagMode === "and" && selectedTags.length >= 2 ? "(AND)" : "(OR)"}
             </span>
           </>
         )}
@@ -301,11 +333,10 @@ export default function LeaderboardPage() {
         <div className="text-center py-20 text-muted-foreground" data-testid="empty-state">
           <Trophy className="h-10 w-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">No papers found for this {isTagMode ? "tag combination" : "period"}.</p>
-          <p className="text-xs mt-1">{isTagMode ? "Try different tags or clear the filter." : "Try a broader time range or wait for the next daily fetch."}</p>
+          <p className="text-xs mt-1">{isTagMode ? "Try different tags, switch to OR mode, or clear the filter." : "Try a broader time range or wait for the next daily fetch."}</p>
         </div>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden" data-testid="leaderboard-table">
-          {/* Table Header */}
           <div className="grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
             <div>#</div>
             <div>Paper</div>
@@ -315,22 +346,16 @@ export default function LeaderboardPage() {
             <div className="text-right">Matches</div>
             <div className="text-right hidden md:block">Published</div>
           </div>
-
-          {/* Table Body */}
           {leaderboard.map((paper, idx) => (
             <Link
               key={paper.id}
               to={`/paper/${paper.id}`}
-              className={`grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${
-                idx < 3 ? "bg-accent/[0.02]" : ""
-              }`}
+              className={`grid grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem] gap-2 px-3 md:px-4 py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 ? "bg-accent/[0.02]" : ""}`}
               data-testid={`leaderboard-row-${idx}`}
             >
               <div><RankBadge rank={paper.rank} /></div>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate leading-tight" title={paper.title}>
-                  {paper.title}
-                </p>
+                <p className="text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
                   {paper.authors?.slice(0, 3).join(", ")}
                   {paper.authors?.length > 3 && ` +${paper.authors.length - 3}`}
@@ -350,7 +375,6 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* Footer Info */}
       <div className="mt-6 text-center text-xs text-muted-foreground">
         {isTagMode
           ? "Cross-category rankings based on available tournament matches between tagged papers."
