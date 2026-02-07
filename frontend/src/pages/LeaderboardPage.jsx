@@ -28,7 +28,6 @@ export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [categories, setCategories] = useState([]);
   const [category, setCategory] = useState("");
-  const [status, setStatus] = useState(null);
   const [period, setPeriod] = useState("week");
   const [loading, setLoading] = useState(true);
   const [totalPapers, setTotalPapers] = useState(0);
