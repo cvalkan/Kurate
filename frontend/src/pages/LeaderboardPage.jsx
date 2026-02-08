@@ -62,6 +62,15 @@ export default function LeaderboardPage() {
   const [displayCount, setDisplayCount] = useState(50);
   const sentinelRef = useRef(null);
 
+  // Auth + suggestions
+  const { user } = useAuth();
+  const [showSuggestion, setShowSuggestion] = useState(false);
+  const isLoggedIn = !!user;
+
+  const requireAuth = () => {
+    window.dispatchEvent(new Event("open-auth-modal"));
+  };
+
   // Abort controller to cancel stale requests
   const abortRef = useRef(null);
 
