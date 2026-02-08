@@ -518,6 +518,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                         "paper2_id": p2_id,
                         "primary_category": category,
                         "shared_categories": shared_cats,
+                        "prompt_hash": current_prompt_hash,
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }
 
