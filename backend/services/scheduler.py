@@ -441,6 +441,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                         "id": str(uuid.uuid4()),
                         "paper1_id": p1_id,
                         "paper2_id": p2_id,
+                        "primary_category": category,
                         "shared_categories": shared_cats,
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }
