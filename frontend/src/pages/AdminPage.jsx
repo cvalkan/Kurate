@@ -332,6 +332,79 @@ export default function AdminPage() {
       )}
 
       {activeTab === "experiment" && <AdminExperiment />}
+
+      {activeTab === "suggestions" && <AdminSuggestions />}
+    </div>
+  );
+}
+
+function AdminSuggestions() {
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchSuggestions = async () => {
+    try {
+      const res = await axios.get(`${API}/api/admin/suggestions`, { headers: getAdminHeaders() });
+      setSuggestions(res.data.suggestions || []);
+    } catch (err) {
+      console.error("Failed to load suggestions:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchSuggestions(); }, []);
+
+  const updateStatus = async (id, status) => {
+    try {
+      await axios.post(`${API}/api/admin/suggestions/${id}/status`, { status }, { headers: getAdminHeaders() });
+      toast.success(`Marked as ${status}`);
+      fetchSuggestions();
+    } catch { toast.error("Failed"); }
+  };
+
+  if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-secondary/30 rounded-lg animate-pulse" />)}</div>;
+
+  return (
+    <div className="space-y-4" data-testid="admin-suggestions">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-lg font-medium">User Suggestions & Feedback</h2>
+        <span className="text-xs text-muted-foreground">{suggestions.length} total</span>
+      </div>
+
+      {suggestions.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground border border-border rounded-lg">
+          <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No suggestions yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {suggestions.map(s => (
+            <div key={s.suggestion_id} className={`p-4 border rounded-lg ${s.status === "reviewed" ? "border-border/50 bg-secondary/10" : "border-border bg-background"}`} data-testid={`suggestion-${s.suggestion_id}`}>
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${s.type === "field" ? "bg-accent/10 text-accent" : "bg-secondary text-muted-foreground"}`}>
+                    {s.type === "field" ? "Field Suggestion" : "Feedback"}
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.status === "pending" ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+                    {s.status}
+                  </span>
+                </div>
+                {s.status === "pending" && (
+                  <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={() => updateStatus(s.suggestion_id, "reviewed")}>
+                    Mark reviewed
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm mb-2">{s.text}</p>
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                <span>{s.user_name || s.user_email}</span>
+                <span>{new Date(s.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
