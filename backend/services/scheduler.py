@@ -362,7 +362,6 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     ).to_list(5000)
 
             # Only load matches for this category (indexed query)
-            cat_paper_ids = {p["id"] for p in all_papers}
             all_matches = await db.matches.find(
                 {"completed": True, "failed": {"$ne": True}, "primary_category": category},
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
