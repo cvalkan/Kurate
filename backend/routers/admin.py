@@ -528,12 +528,7 @@ async def update_prediction_prompt(update: PromptUpdate):
 class PredictionRunRequest(BaseModel):
     num_matches: int = 50
     category: str = "cs.RO"
-
-
-class PredictionRunRequest(BaseModel):
-    num_matches: int = 50
-    category: str = "cs.RO"
-    use_full_text: bool = False  # False = abstract only, True = full text
+    use_full_text: bool = False
 
 
 @router.post("/run-prediction", dependencies=[Depends(verify_admin)])
