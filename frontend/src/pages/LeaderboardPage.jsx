@@ -97,12 +97,12 @@ export default function LeaderboardPage() {
 
     try {
       const params = { period };
-      if (isTagMode && hasSelectedTags) {
+      if (hasSelectedTags) {
         // Tag filter active: fetch matching papers
         params.tags = selectedTags.join(",");
         params.tag_mode = tagMode;
         params.global_stats = globalStats;
-      } else if (isTagMode && !hasSelectedTags) {
+      } else if (isTagMode) {
         // Tag panel open, no tags selected: show all papers
         params.show_all = true;
       } else {
