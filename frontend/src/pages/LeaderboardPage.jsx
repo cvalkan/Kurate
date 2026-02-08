@@ -522,6 +522,10 @@ export default function LeaderboardPage() {
         const isFiltered = kw && displayList.length !== leaderboard.length;
 
         // Helper: pick the right stat based on Global/Local toggle
+        const getScore = (paper) => {
+          if (hasSelectedTags && globalStats && paper.global_score !== undefined) return paper.global_score;
+          return paper.score;
+        };
         const getWinRate = (paper) => {
           if (hasSelectedTags && globalStats && paper.global_win_rate !== undefined) return paper.global_win_rate;
           return paper.win_rate;
