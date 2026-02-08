@@ -369,15 +369,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                          "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1, "added_at": 1}
                     ).to_list(5000)
 
-            # Only load matches involving this category's papers
+            # Only load matches for this category (indexed query)
             cat_paper_ids = {p["id"] for p in all_papers}
-            all_matches_raw = await db.matches.find(
-                {"completed": True, "failed": {"$ne": True}},
+            all_matches = await db.matches.find(
+                {"completed": True, "failed": {"$ne": True}, "primary_category": category},
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
             ).to_list(100000)
-            # Filter to only matches within this category
-            all_matches = [m for m in all_matches_raw
-                           if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids]
 
             paper_stats = {}
             for p in all_papers:
