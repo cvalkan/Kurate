@@ -44,12 +44,8 @@ async def create_suggestion(req: SuggestionCreate, request: Request):
     return {"status": "ok", "suggestion_id": suggestion["suggestion_id"]}
 
 
-@router.get("/admin/suggestions")
-async def get_suggestions(request: Request, admin=None):
-    # Verify admin
-    from core.auth import verify_admin
-    await verify_admin(request)
-
+@router.get("/admin/suggestions", dependencies=[Depends(verify_admin)])
+async def get_suggestions(request: Request):
     suggestions = await db.suggestions.find(
         {}, {"_id": 0}
     ).sort("created_at", -1).to_list(200)
@@ -57,9 +53,8 @@ async def get_suggestions(request: Request, admin=None):
     return {"suggestions": suggestions}
 
 
-@router.post("/admin/suggestions/{suggestion_id}/status")
+@router.post("/admin/suggestions/{suggestion_id}/status", dependencies=[Depends(verify_admin)])
 async def update_suggestion_status(suggestion_id: str, request: Request):
-    await verify_admin(request)
     body = await request.json()
     new_status = body.get("status", "reviewed")
 
