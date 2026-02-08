@@ -98,12 +98,16 @@ export default function LeaderboardPage() {
 
     try {
       const params = { period };
-      if (isTagMode) {
+      if (isTagMode && hasSelectedTags) {
+        // Tag filter active: fetch matching papers
         params.tags = selectedTags.join(",");
         params.tag_mode = tagMode;
         params.global_stats = globalStats;
-        params.show_all = showAll;
+      } else if (isTagMode && !hasSelectedTags) {
+        // Tag panel open, no tags selected: show all papers
+        params.show_all = true;
       } else {
+        // Normal category view
         params.category = category;
       }
       const res = await axios.get(`${API}/api/leaderboard`, { params, signal: controller.signal });
@@ -121,7 +125,7 @@ export default function LeaderboardPage() {
         setLoading(false);
       }
     }
-  }, [category, period, selectedTags, tagMode, isTagMode, globalStats, showAll]);
+  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats]);
 
   // Fetch on param change
   useEffect(() => {
