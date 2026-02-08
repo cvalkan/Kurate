@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Bot, BarChart3, CheckCircle2, XCircle } from "lucide-react";
 
@@ -16,52 +15,155 @@ function getColor(model) {
   return MODEL_COLORS[model] || { bg: "bg-secondary", text: "text-foreground", border: "border-border", dot: "#64748b" };
 }
 
-function CorrelationCell({ value, label }) {
-  const abs = Math.abs(value);
-  const hue = abs > 0.8 ? "text-green-700 bg-green-50" : abs > 0.5 ? "text-amber-700 bg-amber-50" : "text-red-700 bg-red-50";
-  return (
-    <div className={`p-3 rounded-lg border border-border text-center ${hue}`} data-testid={`corr-${label}`}>
-      <div className="font-mono text-lg font-bold">{value.toFixed(2)}</div>
-      <div className="text-[10px] mt-0.5 opacity-70">Spearman r</div>
-    </div>
-  );
-}
-
 function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
-  if (!data.length) return null;
-  const w = 280, h = 280, pad = 35;
-
+  if (!data || data.length === 0) return null;
+  const w = 240, h = 240, pad = 30;
   return (
-    <div className="border border-border rounded-lg p-3 bg-background">
-      <div className="text-xs text-muted-foreground mb-2 text-center">
-        <span className="font-mono" style={{ color: xColor }}>{xModel}</span>
+    <div className="p-3 border border-border rounded-lg bg-secondary/10">
+      <div className="text-[10px] text-center mb-1">
+        <span style={{ color: xColor }} className="font-mono font-medium">{xModel}</span>
         {" vs "}
-        <span className="font-mono" style={{ color: yColor }}>{yModel}</span>
+        <span style={{ color: yColor }} className="font-mono font-medium">{yModel}</span>
       </div>
-      <svg width={w} height={h} className="mx-auto">
-        {/* Grid */}
-        <line x1={pad} y1={h - pad} x2={w - 5} y2={h - pad} stroke="#e2e8f0" />
-        <line x1={pad} y1={5} x2={pad} y2={h - pad} stroke="#e2e8f0" />
-        {[0, 25, 50, 75, 100].map(v => (
-          <g key={v}>
-            <text x={pad - 4} y={h - pad - (v / 100) * (h - pad - 5)} fontSize="8" fill="#94a3b8" textAnchor="end" dominantBaseline="middle">{v}</text>
-            <text x={pad + (v / 100) * (w - pad - 5)} y={h - pad + 12} fontSize="8" fill="#94a3b8" textAnchor="middle">{v}</text>
-            <line x1={pad} y1={h - pad - (v / 100) * (h - pad - 5)} x2={w - 5} y2={h - pad - (v / 100) * (h - pad - 5)} stroke="#f1f5f9" />
-          </g>
-        ))}
-        {/* Diagonal */}
-        <line x1={pad} y1={h - pad} x2={w - 5} y2={5} stroke="#cbd5e1" strokeDasharray="4 4" />
-        {/* Points */}
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-[240px] mx-auto">
+        <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="#e5e7eb" strokeWidth="1" />
+        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="#e5e7eb" strokeWidth="1" />
+        <line x1={pad} y1={h - pad} x2={w - pad} y2={pad} stroke="#e5e7eb" strokeWidth="0.5" strokeDasharray="4" />
+        {[0, 25, 50, 75, 100].map(v => {
+          const x = pad + (v / 100) * (w - 2 * pad);
+          const y = h - pad - (v / 100) * (h - 2 * pad);
+          return (<g key={v}>
+            <text x={x} y={h - pad + 12} textAnchor="middle" className="text-[8px] fill-muted-foreground">{v}</text>
+            <text x={pad - 5} y={y + 3} textAnchor="end" className="text-[8px] fill-muted-foreground">{v}</text>
+          </g>);
+        })}
         {data.map((d, i) => {
-          const x = pad + (d.x / 100) * (w - pad - 5);
-          const y = h - pad - (d.y / 100) * (h - pad - 5);
+          const cx = pad + (d.x / 100) * (w - 2 * pad);
+          const cy = h - pad - (d.y / 100) * (h - 2 * pad);
           return (
-            <circle key={i} cx={x} cy={y} r={3.5} fill="#2563eb" fillOpacity={0.5} stroke="#2563eb" strokeWidth={0.5}>
+            <circle key={i} cx={cx} cy={cy} r={3.5} fill="#3b82f6" fillOpacity={0.5} stroke="#3b82f6" strokeWidth={0.5}>
               <title>{d.title}: {d.x}% vs {d.y}%</title>
             </circle>
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+function CorrelationSection({ sectionData, title, description }) {
+  if (!sectionData || !sectionData.models?.length) {
+    return (
+      <div className="mb-10 p-6 border border-border rounded-lg text-center text-muted-foreground">
+        <p className="text-sm font-medium mb-1">{title}</p>
+        <p className="text-xs">No data available yet. Run matches to generate analysis.</p>
+      </div>
+    );
+  }
+
+  const { models, correlations, agreement, scatter_data, n_common_papers } = sectionData;
+  const corrEntries = Object.entries(correlations);
+  const agreeEntries = Object.entries(agreement);
+  const scatterPairs = [];
+  for (let i = 0; i < models.length; i++) {
+    for (let j = i + 1; j < models.length; j++) {
+      const m1 = models[i].short;
+      const m2 = models[j].short;
+      const points = (scatter_data || []).map(d => ({ x: d[m1] || 50, y: d[m2] || 50, title: d.title }));
+      scatterPairs.push({ m1, m2, points, c1: getColor(m1).dot, c2: getColor(m2).dot });
+    }
+  }
+
+  return (
+    <div className="mb-10">
+      <div className="mb-4 pb-2 border-b border-border">
+        <h2 className="font-heading text-lg font-medium">{title}</h2>
+        <p className="text-xs text-muted-foreground">{description} Based on {n_common_papers} papers.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        {models.map(m => {
+          const c = getColor(m.short);
+          return (
+            <div key={m.key} className={`p-3 rounded-lg border ${c.border} ${c.bg}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <Bot className={`h-3.5 w-3.5 ${c.text}`} />
+                <span className={`font-mono text-xs font-medium ${c.text}`}>{m.short}</span>
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                <span className="font-mono text-foreground">{m.total_matches}</span> matches
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {corrEntries.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-medium mb-2">Rank Correlations</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {corrEntries.map(([pair, stats]) => (
+              <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
+                <div className="text-[11px] text-muted-foreground mb-2">{pair.replace(" vs ", " ↔ ")}</div>
+                <div className="flex items-center gap-3">
+                  <div>
+                    <div className={`font-mono text-xl font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
+                      {stats.spearman_r.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">Spearman</div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-sm text-muted-foreground">{stats.pearson_r.toFixed(2)}</div>
+                    <div className="text-[10px] text-muted-foreground">Pearson</div>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">n={stats.n_papers}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {agreeEntries.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-medium mb-2">Pairwise Agreement</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {agreeEntries.map(([pair, stats]) => {
+              const clear = stats.clear_cut || {};
+              const contested = stats.contested || {};
+              return (
+                <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
+                  <div className="text-[11px] text-muted-foreground mb-2">{pair.replace(" vs ", " ↔ ")}</div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="font-mono text-xl font-bold">{stats.rate}%</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5 text-green-600" />{stats.agree}</div>
+                      <div className="flex items-center gap-1"><XCircle className="h-2.5 w-2.5 text-red-500" />{stats.disagree}</div>
+                    </div>
+                  </div>
+                  {(clear.total > 0 || contested.total > 0) && (
+                    <div className="border-t border-border/50 pt-1.5 space-y-0.5">
+                      {clear.total > 0 && <div className="flex justify-between text-[10px]"><span className="text-muted-foreground">Clear-cut</span><span className="font-mono text-green-600">{clear.rate}% ({clear.agree}/{clear.total})</span></div>}
+                      {contested.total > 0 && <div className="flex justify-between text-[10px]"><span className="text-muted-foreground">Contested</span><span className={`font-mono ${contested.rate >= 50 ? "text-amber-600" : "text-red-500"}`}>{contested.rate}% ({contested.agree}/{contested.total})</span></div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {scatterPairs.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium mb-2">Win Rate Scatter</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {scatterPairs.map(({ m1, m2, points, c1, c2 }, i) => (
+              <ScatterPlot key={i} data={points} xModel={m1} yModel={m2} xColor={c1} yColor={c2} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -126,21 +228,6 @@ export default function CorrelationPage() {
     );
   }
 
-  const { models, correlations, agreement, scatter_data, n_common_papers } = data;
-  const corrEntries = Object.entries(correlations);
-  const agreeEntries = Object.entries(agreement);
-
-  // Build scatter pairs
-  const scatterPairs = [];
-  for (let i = 0; i < models.length; i++) {
-    for (let j = i + 1; j < models.length; j++) {
-      const m1 = models[i].short;
-      const m2 = models[j].short;
-      const points = scatter_data.map(d => ({ x: d[m1] || 50, y: d[m2] || 50, title: d.title }));
-      scatterPairs.push({ m1, m2, points, c1: getColor(m1).dot, c2: getColor(m2).dot });
-    }
-  }
-
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-5xl py-6 md:py-10">
       <div className="mb-8">
@@ -148,12 +235,10 @@ export default function CorrelationPage() {
           Model Correlation
         </h1>
         <p className="text-muted-foreground text-sm max-w-2xl">
-          How well do GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro agree on paper rankings?
-          Analysis based on {n_common_papers} papers with sufficient data from all models.
+          How well do GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro agree on paper rankings across different evaluation modes?
         </p>
       </div>
 
-      {/* Category Tabs */}
       {categories.length > 1 && (
         <div className="flex items-center gap-1 mb-6 p-1 bg-primary/5 rounded-lg w-fit" data-testid="corr-cat-tabs">
           {categories.map((c) => (
@@ -170,130 +255,28 @@ export default function CorrelationPage() {
         </div>
       )}
 
-      {/* Model Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8" data-testid="model-cards">
-        {models.map(m => {
-          const c = getColor(m.short);
-          return (
-            <div key={m.key} className={`p-4 rounded-lg border ${c.border} ${c.bg}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Bot className={`h-4 w-4 ${c.text}`} />
-                <span className={`font-mono text-sm font-medium ${c.text}`}>{m.short}</span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                <span className="font-mono text-foreground">{m.total_matches}</span> matches &middot; <span className="font-mono text-foreground">{m.papers_judged}</span> papers judged
-              </div>
-            </div>
-          );
-        })}
+      <CorrelationSection
+        sectionData={data}
+        title="Standard Tournament"
+        description='Full-text evaluation: "Which paper has higher scientific impact?"'
+      />
+
+      <CorrelationSection
+        sectionData={predAbsData}
+        title="Prediction Tournament (Abstract Only)"
+        description='Abstract-only: "Which paper would the scientific crowd consider more impactful?"'
+      />
+
+      <CorrelationSection
+        sectionData={predFtData}
+        title="Prediction Tournament (Full Text)"
+        description='Full-text with prediction prompt: "Which paper would the crowd consider more impactful?"'
+      />
+
+      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+        <span className="font-medium">Note:</span> Standard tournament uses adaptive matchmaking (biased toward contested pairs).
+        Prediction tournaments use uniform random pairing for unbiased coverage.
       </div>
-
-      {/* Rank Correlations */}
-      {corrEntries.length > 0 && (
-        <div className="mb-8" data-testid="correlations">
-          <h2 className="font-heading text-lg font-medium mb-3">Rank Correlations</h2>
-          <p className="text-xs text-muted-foreground mb-4">
-            Spearman rank correlation of per-paper win rates between models. Values close to 1.0 indicate strong agreement on relative paper quality.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {corrEntries.map(([pair, stats]) => (
-              <div key={pair} className="p-4 rounded-lg border border-border bg-secondary/20">
-                <div className="text-xs text-muted-foreground mb-2">{pair.replace(" vs ", " ↔ ")}</div>
-                <div className="flex items-center gap-4">
-                  <div>
-                    <div className={`font-mono text-2xl font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
-                      {stats.spearman_r.toFixed(2)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">Spearman r</div>
-                  </div>
-                  <div>
-                    <div className="font-mono text-lg text-muted-foreground">{stats.pearson_r.toFixed(2)}</div>
-                    <div className="text-[10px] text-muted-foreground">Pearson r</div>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    p={stats.spearman_p < 0.001 ? "<0.001" : stats.spearman_p.toFixed(3)}<br />
-                    n={stats.n_papers}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Agreement Rates */}
-      {agreeEntries.length > 0 && (
-        <div className="mb-8" data-testid="agreement">
-          <h2 className="font-heading text-lg font-medium mb-1">Pairwise Agreement</h2>
-          <p className="text-xs text-muted-foreground mb-4">
-            When two models judge the same paper pair, how often do they pick the same winner? Broken down by pair difficulty.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-            {agreeEntries.map(([pair, stats]) => {
-              const clear = stats.clear_cut || {};
-              const contested = stats.contested || {};
-              const contestedPct = contested.total ? Math.round(contested.total / stats.total * 100) : 0;
-              return (
-                <div key={pair} className="p-4 rounded-lg border border-border bg-secondary/20">
-                  <div className="text-xs text-muted-foreground mb-3">{pair.replace(" vs ", " ↔ ")}</div>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="font-mono text-2xl font-bold text-foreground">{stats.rate}%</div>
-                    <div className="flex-1 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                        {stats.agree} agree
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <XCircle className="h-3 w-3 text-red-500" />
-                        {stats.disagree} disagree
-                      </div>
-                    </div>
-                  </div>
-                  <div className="border-t border-border/50 pt-2 space-y-1">
-                    {clear.total > 0 && (
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-muted-foreground">Clear-cut pairs</span>
-                        <span className="font-mono text-green-600 font-medium">{clear.rate}% <span className="text-muted-foreground font-normal">({clear.agree}/{clear.total})</span></span>
-                      </div>
-                    )}
-                    {contested.total > 0 && (
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-muted-foreground">Contested pairs</span>
-                        <span className={`font-mono font-medium ${contested.rate >= 50 ? "text-amber-600" : "text-red-500"}`}>{contested.rate}% <span className="text-muted-foreground font-normal">({contested.agree}/{contested.total})</span></span>
-                      </div>
-                    )}
-                    {contestedPct > 70 && (
-                      <div className="text-[10px] text-muted-foreground/70 mt-1">
-                        {contestedPct}% of sampled pairs are contested
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-            <span className="font-medium">Note:</span> The matchmaker preferentially pairs papers with similar win rates to produce more informative comparisons.
-            This means most pairs judged by multiple models are contested (close calls), which biases the overall agreement rate downward.
-            Clear-cut pairs (≥10pp win rate difference) typically show much higher agreement.
-          </div>
-        </div>
-      )}
-
-      {/* Scatter Plots */}
-      {scatterPairs.length > 0 && (
-        <div data-testid="scatter-plots">
-          <h2 className="font-heading text-lg font-medium mb-3">Win Rate Scatter Plots</h2>
-          <p className="text-xs text-muted-foreground mb-4">
-            Each dot is a paper. X/Y axes show win rate (%) as judged by each model. Points near the diagonal indicate agreement.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {scatterPairs.map(({ m1, m2, points, c1, c2 }) => (
-              <ScatterPlot key={`${m1}-${m2}`} data={points} xModel={m1} yModel={m2} xColor={c1} yColor={c2} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
