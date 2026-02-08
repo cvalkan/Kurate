@@ -41,6 +41,9 @@ frontend/src/pages/
 - [Feb 2026] **Global/Local stats toggle** — when tags selected, toggle between within-set stats (Local) and full tournament stats (Global)
 - [Feb 2026] **Category column** — "Cat" column shows primary category badges in tag mode
 - [Feb 2026] **Cross-category tournament exploration** — analysis document at /app/CROSS_CATEGORY_TOURNAMENTS.md
+- [Feb 2026] **Infinite scroll** — lists > 100 entries load 50 at a time via IntersectionObserver
+- [Feb 2026] **Status bar count fix** — shows actual displayed count with total in parentheses when period-filtered
+- [Feb 2026] **Paper detail categories** — all category tags shown on paper page with primary highlighted and labeled
 
 ## Key API Endpoints
 - `GET /api/leaderboard?category=cs.RO` — Cached category leaderboard
