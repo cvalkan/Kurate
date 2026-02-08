@@ -232,6 +232,24 @@ export default function LeaderboardPage() {
                 {c.name}
               </Button>
             ))}
+            <div className="w-px h-5 bg-border mx-0.5" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => isLoggedIn ? setShowSuggestion(true) : requireAuth()}
+                  className="text-xs h-8 gap-1 text-muted-foreground hover:text-accent shrink-0"
+                  data-testid="suggest-field-btn"
+                >
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  Suggest
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs">{isLoggedIn ? "Suggest a new field or share feedback" : "Sign in to suggest a field"}</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
           {isTagMode && (
             <p className="text-[10px] text-muted-foreground mt-1 ml-1">Category tabs disabled while tag filter is active</p>
