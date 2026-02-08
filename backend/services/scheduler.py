@@ -741,3 +741,36 @@ def _select_pairs(
             round_count[p2] += 1
 
     return pairs[:max_pairs]
+
+
+
+async def backfill_shared_categories():
+    """One-time backfill: add shared_categories to existing matches that lack it."""
+    count = await db.matches.count_documents({"shared_categories": {"$exists": False}})
+    if count == 0:
+        logger.info("shared_categories backfill: nothing to do")
+        return 0
+
+    logger.info(f"Backfilling shared_categories for {count} matches...")
+
+    # Build paper categories lookup
+    paper_cats = {}
+    async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
+        paper_cats[p["id"]] = set(p.get("categories", []))
+
+    updated = 0
+    async for m in db.matches.find(
+        {"shared_categories": {"$exists": False}},
+        {"_id": 1, "paper1_id": 1, "paper2_id": 1},
+    ):
+        p1_cats = paper_cats.get(m.get("paper1_id"), set())
+        p2_cats = paper_cats.get(m.get("paper2_id"), set())
+        shared = sorted(p1_cats & p2_cats)
+        await db.matches.update_one(
+            {"_id": m["_id"]},
+            {"$set": {"shared_categories": shared}},
+        )
+        updated += 1
+
+    logger.info(f"Backfilled shared_categories for {updated} matches")
+    return updated
