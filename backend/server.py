@@ -97,6 +97,13 @@ async def startup():
     except Exception as e:
         logger.warning(f"shared_categories backfill warning: {e}")
 
+    # Initialize tournament registry from CATEGORIES
+    try:
+        from services.scheduler import init_tournament_registry
+        await init_tournament_registry()
+    except Exception as e:
+        logger.warning(f"Tournament registry init warning: {e}")
+
     await start_scheduler()
 
     # Start background cache refresh loop — pre-computes all leaderboard data
