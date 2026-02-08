@@ -81,5 +81,6 @@ DEFAULT_SETTINGS = {
     "max_matches_per_paper": 150,
     "max_new_matches_per_round": 3,
     "ci_target": 12,
+    "min_papers_for_tournament": 8,
     "paused": False,
 }
