@@ -289,10 +289,6 @@ export default function LeaderboardPage() {
               <TooltipContent><p className="text-xs">Sign in to filter by tags</p></TooltipContent>
             </Tooltip>
           )}
-            <Tag className="h-3 w-3" />
-            Filter by tags
-            {tagFilterOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </Button>
           <Tooltip>
             <TooltipTrigger asChild>
               <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
