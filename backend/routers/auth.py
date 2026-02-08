@@ -155,7 +155,7 @@ async def register(req: RegisterRequest, request: Request, response: Response):
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
-    # Send verification email
+    # Send verification email — do NOT create session until verified
     origin = request.headers.get("origin", request.headers.get("referer", ""))
     if origin and "?" in origin:
         origin = origin.split("?")[0]
@@ -163,13 +163,10 @@ async def register(req: RegisterRequest, request: Request, response: Response):
         origin = origin[:-1]
     sent = await _send_verification_email(req.email, req.name, verification_token, origin)
 
-    # Create session (user can use the app, but some features may require verification)
-    token = await _create_session(user_id, response)
-
     return {
-        "user": {"user_id": user_id, "email": req.email, "name": req.name, "picture": None, "email_verified": False, "provider": "email"},
-        "session_token": token,
+        "status": "verification_required",
         "verification_sent": sent,
+        "message": "Account created. Please check your email to verify your account before logging in.",
     }
 
 
