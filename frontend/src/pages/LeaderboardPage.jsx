@@ -175,7 +175,7 @@ export default function LeaderboardPage() {
 
       {/* Category Tabs */}
       {categories.length > 1 && (
-        <div className="mb-3 -mx-4 px-4 overflow-x-auto">
+        <div className={`mb-3 -mx-4 px-4 overflow-x-auto transition-opacity ${isTagMode ? "opacity-40 pointer-events-none" : ""}`}>
           <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg w-max" data-testid="category-tabs">
             {categories.map((c) => (
               <Button
@@ -185,11 +185,15 @@ export default function LeaderboardPage() {
                 onClick={() => { setCategory(c.id); setSelectedTags([]); }}
                 className="text-xs h-8 shrink-0"
                 data-testid={`cat-${c.id}`}
+                disabled={isTagMode}
               >
                 {c.name}
               </Button>
             ))}
           </div>
+          {isTagMode && (
+            <p className="text-[10px] text-muted-foreground mt-1 ml-1">Category tabs disabled while tag filter is active</p>
+          )}
         </div>
       )}
 
