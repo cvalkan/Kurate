@@ -60,7 +60,8 @@ export default function LeaderboardPage() {
   const abortRef = useRef(null);
 
   const categoryName = categories.find(c => c.id === category)?.name || "Papers";
-  const isTagMode = selectedTags.length > 0;
+  const isTagMode = tagFilterOpen;
+  const hasSelectedTags = selectedTags.length > 0;
 
   // Notify navbar of category/tag changes
   useEffect(() => {
