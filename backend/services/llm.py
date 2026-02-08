@@ -28,6 +28,8 @@ async def download_and_extract_pdf(pdf_url: str) -> Optional[str]:
 
         full_text = "\n".join(text_parts)
         full_text = " ".join(full_text.split())
+        # Remove Unicode surrogate characters that can't be encoded to UTF-8
+        full_text = full_text.encode("utf-8", errors="replace").decode("utf-8")
         return full_text
     except Exception as e:
         logger.error(f"Failed to download/extract PDF from {pdf_url}: {e}")
