@@ -75,6 +75,14 @@ export function AuthModal({ open, onClose }) {
     }
   };
 
+  // Auto-send verification email when the verification screen appears
+  useEffect(() => {
+    if (verificationSent && email) {
+      handleResendVerification();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verificationSent]);
+
   const handleGoogle = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     const redirectUrl = window.location.origin + "/auth/callback";
