@@ -339,6 +339,8 @@ export default function AdminPage() {
       {activeTab === "suggestions" && <AdminSuggestions />}
 
       {activeTab === "users" && <AdminUsers />}
+
+      {activeTab === "tournaments" && <AdminTournaments />}
     </div>
   );
 }
