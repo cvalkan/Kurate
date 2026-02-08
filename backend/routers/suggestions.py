@@ -66,3 +66,11 @@ async def update_suggestion_status(suggestion_id: str, request: Request):
         raise HTTPException(404, "Suggestion not found")
 
     return {"status": "ok"}
+
+
+@router.get("/admin/users", dependencies=[Depends(verify_admin)])
+async def get_users():
+    users = await db.users.find(
+        {}, {"_id": 0, "password_hash": 0, "verification_token": 0}
+    ).sort("created_at", -1).to_list(500)
+    return {"users": users}
