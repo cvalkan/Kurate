@@ -13,7 +13,7 @@ export function AuthModal({ open, onClose }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
-  const { login, register } = useAuth();
+  const { login } = useAuth();
 
   if (!open) return null;
 
@@ -26,15 +26,18 @@ export function AuthModal({ open, onClose }) {
         await login(email, password);
         onClose();
       } else {
-        const res = await register(email, password, name);
-        if (res.verification_sent) {
-          setVerificationSent(true);
-        } else {
-          onClose();
-        }
+        const API = process.env.REACT_APP_BACKEND_URL;
+        const res = await fetch(`${API}/api/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw { response: { data } };
+        setVerificationSent(true);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "Something went wrong");
+      setError(err.response?.data?.detail || err?.response?.data?.message || "Something went wrong");
     } finally {
       setSubmitting(false);
     }
