@@ -2,6 +2,7 @@ import asyncio
 import uuid
 import random
 import math
+import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict
 from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
