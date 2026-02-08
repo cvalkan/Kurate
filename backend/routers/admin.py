@@ -618,7 +618,7 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
             else:
                 presented.append((p1_id, p2_id))
         for p1_id, p2_id in presented:
-            tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config, abstract_only=True))
+            tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config, abstract_only=abstract_only))
 
         results = await aio.gather(*tasks, return_exceptions=True)
 
@@ -627,7 +627,7 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
                 "id": str(uuid.uuid4()),
                 "paper1_id": p1_id,
                 "paper2_id": p2_id,
-                "mode": "prediction",
+                "mode": mode,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             if isinstance(result, Exception):
