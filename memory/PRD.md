@@ -47,24 +47,33 @@ frontend/src/pages/
 - [Feb 2026] **Piggyback cross-category (Option C)** — every match now stores `shared_categories` (intersection of both papers' tags). Tag-filtered leaderboards automatically benefit from all matches where both papers share that tag. 13,134 existing matches backfilled. `/api/tags` returns per-tag match coverage. Tag panel shows match counts.
 - [Feb 2026] **Prediction correlation moved to Admin** — prediction tournament analysis sections moved from public Correlation page to Admin Experiment tab
 - [Feb 2026] **Component refactoring** — extracted shared components (ModelBadge, CorrelationSection, ScatterPlot) and admin sub-components (AdminOverview, AdminExperiment). Eliminated duplicated ModelBadge code.
+- [Feb 2026] **User Authentication** — Google OAuth (via Emergent) + email/password registration with email verification (Resend). Session-based auth with httpOnly cookies.
+- [Feb 2026] **Gated features** — non-logged-in users can only view "Most Recent" and "This Week". "This Month", "All Time", and "Filter by tags" show lock icons prompting sign-in.
+- [Feb 2026] **Suggest Field** — "Suggest" button next to category tabs lets logged-in users suggest new fields or send general feedback. Admin "Suggestions" tab for review.
 
 ## Component Architecture
 ```
 frontend/src/
+  contexts/
+    AuthContext.jsx         — auth state, login/register/logout/Google OAuth
   components/
-    ModelBadge.jsx          — shared LLM model badge (used in PaperPage, AdminOverview)
+    AuthModal.jsx           — login/register modal (email + Google)
+    SuggestionModal.jsx     — field suggestion / general feedback modal
+    ModelBadge.jsx          — shared LLM model badge
     CorrelationSection.jsx  — model correlation analysis cards + scatter plots
-    AdminOverview.jsx       — admin overview tab (stats, scheduler, usage, recent matches)
-    AdminExperiment.jsx     — experiment tab (prediction controls, comparison table, prediction correlation)
-    Navbar.jsx              — top navigation bar
+    AdminOverview.jsx       — admin overview tab
+    AdminExperiment.jsx     — experiment tab + prediction correlation
+    Navbar.jsx              — navigation + auth state display
     ui/                     — shadcn UI primitives
   pages/
-    LeaderboardPage.jsx     — public leaderboard with tag filtering, infinite scroll
+    LeaderboardPage.jsx     — public leaderboard with gated features
     CorrelationPage.jsx     — public model correlation (standard tournament only)
     MethodologyPage.jsx     — methodology explanation
     PaperPage.jsx           — individual paper detail
-    AdminPage.jsx           — admin shell (tabs, data fetching, settings/prompt forms)
+    AdminPage.jsx           — admin shell + suggestions tab
     AdminLoginPage.jsx      — admin login
+    AuthCallback.jsx        — Google OAuth callback
+    VerifyEmailPage.jsx     — email verification
 ```
 
 ## Key API Endpoints
