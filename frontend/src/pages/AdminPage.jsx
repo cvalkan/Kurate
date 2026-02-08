@@ -736,30 +736,44 @@ export default function AdminPage() {
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <Input
-                type="number" min="1" max="500"
-                value={predictionMatches}
-                onChange={(e) => setPredictionMatches(Math.min(500, Math.max(1, Number(e.target.value) || 50)))}
-                className="w-20 h-10 text-center font-mono text-sm"
-              />
-              <Button
-                onClick={async () => {
-                  setPredictionLoading(true);
-                  try {
-                    await axios.post(`${API}/api/admin/run-prediction`, { num_matches: predictionMatches, category: "cs.RO" }, { headers: getAdminHeaders() });
-                    toast.success(`Started ${predictionMatches} prediction comparisons for cs.RO`);
-                  } catch (err) { toast.error("Failed: " + (err.response?.data?.detail || err.message)); }
-                  finally { setPredictionLoading(false); }
-                }}
-                disabled={predictionLoading}
-                className="gap-2"
-              >
-                <FlaskConical className={`h-4 w-4 ${predictionLoading ? "animate-spin" : ""}`} />
-                Run Prediction Tournament
-              </Button>
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              type="number" min="1" max="500"
+              value={predictionMatches}
+              onChange={(e) => setPredictionMatches(Math.min(500, Math.max(1, Number(e.target.value) || 50)))}
+              className="w-20 h-10 text-center font-mono text-sm"
+            />
+            <Button
+              onClick={async () => {
+                setPredictionLoading(true);
+                try {
+                  await axios.post(`${API}/api/admin/run-prediction`, { num_matches: predictionMatches, category: "cs.RO", use_full_text: false }, { headers: getAdminHeaders() });
+                  toast.success(`Started ${predictionMatches} abstract-only prediction matches`);
+                } catch (err) { toast.error("Failed: " + (err.response?.data?.detail || err.message)); }
+                finally { setPredictionLoading(false); }
+              }}
+              disabled={predictionLoading}
+              variant="outline"
+              className="gap-2"
+            >
+              <FlaskConical className="h-4 w-4" />
+              Predict (Abstract)
+            </Button>
+            <Button
+              onClick={async () => {
+                setPredictionLoading(true);
+                try {
+                  await axios.post(`${API}/api/admin/run-prediction`, { num_matches: predictionMatches, category: "cs.RO", use_full_text: true }, { headers: getAdminHeaders() });
+                  toast.success(`Started ${predictionMatches} full-text prediction matches`);
+                } catch (err) { toast.error("Failed: " + (err.response?.data?.detail || err.message)); }
+                finally { setPredictionLoading(false); }
+              }}
+              disabled={predictionLoading}
+              className="gap-2"
+            >
+              <FlaskConical className="h-4 w-4" />
+              Predict (Full Text)
+            </Button>
             <Button variant="outline" onClick={async () => {
               try {
                 const res = await axios.get(`${API}/api/admin/experiment-comparison`, { headers: getAdminHeaders(), params: { category: "cs.RO" } });
