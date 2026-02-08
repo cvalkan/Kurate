@@ -39,6 +39,7 @@ async def startup():
         await db.matches.create_index("paper1_id")
         await db.matches.create_index("paper2_id")
         await db.matches.create_index("shared_categories")
+        await db.matches.create_index("primary_category")
         await db.matches.create_index("created_at")
         await db.settings.create_index("key", unique=True)
         await db.users.create_index("email", unique=True)
