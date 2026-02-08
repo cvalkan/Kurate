@@ -424,6 +424,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             else:
                 prompt_config = DEFAULT_EVALUATION_PROMPT
 
+            current_prompt_hash = _prompt_hash(prompt_config)
+
             all_papers = await db.papers.find(
                 {"categories.0": category},
                 {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
