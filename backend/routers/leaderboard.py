@@ -356,6 +356,10 @@ async def _compute_tag_leaderboard(
             w = m.get("winner_id")
             if w and w in global_wins:
                 global_wins[w] += 1
+
+        # Compute global Elo scores from each paper's global win rate
+        import math
+        ELO_BASE = 1200
         for entry in full:
             pid = entry["id"]
             g_w = global_wins.get(pid, 0)
@@ -364,6 +368,12 @@ async def _compute_tag_leaderboard(
             entry["global_losses"] = g_c - g_w
             entry["global_comparisons"] = g_c
             entry["global_win_rate"] = round(100 * g_w / g_c, 1) if g_c > 0 else 0
+            if g_c > 0:
+                p_reg = (g_w + 0.5) / (g_c + 1.0)
+                p_reg = max(0.02, min(0.98, p_reg))
+                entry["global_score"] = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE)
+            else:
+                entry["global_score"] = ELO_BASE
 
     # Period filtering
     utc_now = datetime.now(timezone.utc)
