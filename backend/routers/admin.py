@@ -736,7 +736,7 @@ async def get_tournaments():
 
 
 @router.post("/tournaments/{tournament_id}/status", dependencies=[Depends(verify_admin)])
-async def update_tournament_status(tournament_id: str, request):
+async def update_tournament_status(tournament_id: str, request: Request):
     body = await request.json()
     new_status = body.get("status")
     if new_status not in ("active", "paused"):
