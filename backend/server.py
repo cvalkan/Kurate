@@ -47,6 +47,11 @@ async def startup():
         await db.user_sessions.create_index("session_token", unique=True)
         await db.user_sessions.create_index("user_id")
         await db.suggestions.create_index("created_at")
+        # Tournament indexes — drop stale ones first to avoid conflicts
+        try:
+            await db.tournaments.drop_index("id_1")
+        except Exception:
+            pass
         await db.tournaments.create_index("tournament_id", unique=True)
         await db.tournaments.create_index([("status", 1), ("category", 1)])
         logger.info("MongoDB indexes created")
