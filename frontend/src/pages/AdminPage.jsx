@@ -411,3 +411,63 @@ function AdminSuggestions() {
     </div>
   );
 }
+
+function AdminUsers() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await axios.get(`${API}/api/admin/users`, { headers: getAdminHeaders() });
+        setUsers(res.data.users || []);
+      } catch (err) {
+        console.error("Failed to load users:", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-secondary/30 rounded-lg animate-pulse" />)}</div>;
+
+  return (
+    <div className="space-y-4" data-testid="admin-users">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-lg font-medium">Registered Users</h2>
+        <span className="text-xs text-muted-foreground">{users.length} total</span>
+      </div>
+
+      {users.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground border border-border rounded-lg">
+          <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No registered users yet.</p>
+        </div>
+      ) : (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <div className="grid grid-cols-[1fr_1fr_6rem_7rem] gap-2 px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
+            <div>Email</div>
+            <div>Name</div>
+            <div>Provider</div>
+            <div>Registered</div>
+          </div>
+          {users.map(u => (
+            <div key={u.user_id} className="grid grid-cols-[1fr_1fr_6rem_7rem] gap-2 px-4 py-2.5 border-b border-border/50 text-sm items-center" data-testid={`user-row-${u.user_id}`}>
+              <div className="truncate text-xs">{u.email}</div>
+              <div className="truncate text-xs text-muted-foreground">{u.name || "—"}</div>
+              <div>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${u.provider === "google" ? "bg-blue-50 text-blue-700" : "bg-secondary text-muted-foreground"}`}>
+                  {u.provider}
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground font-mono">
+                {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
