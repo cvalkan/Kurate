@@ -260,9 +260,9 @@ export default function LeaderboardPage() {
               <X className="h-3 w-3" />
             </Badge>
           ))}
-          {selectedTags.length > 0 && (
+          {(selectedTags.length > 0 || tagFilterOpen) && (
             <button onClick={clearTags} className="text-xs text-muted-foreground hover:text-foreground underline">
-              Clear all
+              {selectedTags.length > 0 ? "Clear all" : "Close"}
             </button>
           )}
         </div>
