@@ -38,6 +38,14 @@ async def _refresh_cache():
         cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
         papers_by_cat.setdefault(cat, []).append(p)
 
+    # Pre-index: build paper_id → list of match indices for O(1) lookup
+    match_index = {}  # paper_id -> [match_idx, ...]
+    for idx, m in enumerate(all_matches):
+        for pid in (m["paper1_id"], m["paper2_id"]):
+            if pid not in match_index:
+                match_index[pid] = []
+            match_index[pid].append(idx)
+
     # Load settings once
     from core.auth import get_settings
     settings = await get_settings()
@@ -56,7 +64,15 @@ async def _refresh_cache():
             continue
 
         cat_paper_ids = {p["id"] for p in cat_papers}
-        cat_matches = [m for m in all_matches if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids]
+
+        # Use pre-built index: collect matches where BOTH papers are in this category
+        cat_match_idxs = set()
+        for pid in cat_paper_ids:
+            for midx in match_index.get(pid, []):
+                cat_match_idxs.add(midx)
+        cat_matches = [all_matches[i] for i in cat_match_idxs
+                       if all_matches[i]["paper1_id"] in cat_paper_ids
+                       and all_matches[i]["paper2_id"] in cat_paper_ids]
 
         full = compute_leaderboard(cat_papers, cat_matches)
 
