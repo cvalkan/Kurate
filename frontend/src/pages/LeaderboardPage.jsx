@@ -133,6 +133,7 @@ export default function LeaderboardPage() {
   // Fetch on param change
   useEffect(() => {
     setLoading(true);
+    setDisplayCount(50); // Reset infinite scroll on data change
     fetchLeaderboard();
     return () => { if (abortRef.current) abortRef.current.abort(); };
   }, [fetchLeaderboard]);
@@ -143,6 +144,22 @@ export default function LeaderboardPage() {
     const interval = setInterval(fetchLeaderboard, 30000);
     return () => clearInterval(interval);
   }, [fetchLeaderboard, isTagMode]);
+
+  // Infinite scroll: observe sentinel element
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setDisplayCount(prev => prev + 50);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [leaderboard]); // Re-attach when leaderboard data changes
 
   const toggleTag = (tagId) => {
     setSelectedTags(prev =>
