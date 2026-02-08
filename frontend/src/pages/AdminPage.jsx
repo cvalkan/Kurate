@@ -171,6 +171,7 @@ export default function AdminPage() {
     { key: "experiment", label: "Experiment", icon: FlaskConical },
     { key: "suggestions", label: "Suggestions", icon: MessageSquare },
     { key: "users", label: "Users", icon: Users },
+    { key: "tournaments", label: "Tournaments", icon: Trophy },
   ];
 
   return (
