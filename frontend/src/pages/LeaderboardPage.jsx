@@ -644,6 +644,7 @@ export default function LeaderboardPage() {
         }
       </div>
     </div>
+    <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} defaultType="field" />
     </TooltipProvider>
   );
 }
