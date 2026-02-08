@@ -226,6 +226,67 @@ async def get_leaderboard(
     }
 
 
+async def _compute_all_papers_leaderboard(period: str, limit: int, offset: int):
+    """Return all papers from all categories ranked together."""
+    cache = await _get_cached_leaderboard()
+    raw_papers = cache.get("_raw_papers", [])
+    raw_matches = cache.get("_raw_matches", [])
+
+    if not raw_papers:
+        return {
+            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+            "total_matches": 0, "is_ranking": False, "period": period,
+            "category": None, "tags": None, "tag_mode": None, "show_all": True,
+        }
+
+    full = compute_leaderboard(raw_papers, raw_matches)
+
+    # Add primary_category to each entry
+    paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in raw_papers}
+    for entry in full:
+        entry["primary_category"] = paper_cat_lookup.get(entry["id"], "unknown")
+
+    # Period filtering
+    utc_now = datetime.now(timezone.utc)
+    paper_dates = {}
+    for entry in full:
+        try:
+            paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
+        except (ValueError, KeyError):
+            pass
+
+    max_date = max(paper_dates.values()) if paper_dates else utc_now
+    recent_cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
+
+    period_map = {
+        "recent": recent_cutoff,
+        "week": utc_now - timedelta(weeks=1),
+        "month": utc_now - timedelta(days=30),
+    }
+
+    if period in period_map:
+        cutoff = period_map[period]
+        data = [{**e} for e in full if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff]
+        for i, e in enumerate(data):
+            e["rank"] = i + 1
+    else:
+        data = full
+
+    return {
+        "leaderboard": data[offset:offset + limit],
+        "total_papers": len(raw_papers),
+        "total_in_period": len(data),
+        "total_matches": len(raw_matches),
+        "is_ranking": False,
+        "period": period,
+        "category": None,
+        "tags": None,
+        "tag_mode": None,
+        "show_all": True,
+    }
+
+
+
 async def _compute_tag_leaderboard(
     tag_list: list, period: str, limit: int, offset: int,
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
