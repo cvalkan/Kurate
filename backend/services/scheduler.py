@@ -731,32 +731,56 @@ def _select_pairs(
 
 
 async def backfill_shared_categories():
-    """One-time backfill: add shared_categories to existing matches that lack it."""
-    count = await db.matches.count_documents({"shared_categories": {"$exists": False}})
-    if count == 0:
-        logger.info("shared_categories backfill: nothing to do")
+    """One-time backfill: add shared_categories and primary_category to existing matches."""
+    # Backfill primary_category (denormalized for indexed queries)
+    missing_primary = await db.matches.count_documents({"primary_category": {"$exists": False}})
+
+    if missing_primary > 0:
+        logger.info(f"Backfilling primary_category for {missing_primary} matches...")
+        # Build paper -> primary category lookup
+        paper_primary = {}
+        async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
+            cats = p.get("categories", [])
+            paper_primary[p["id"]] = cats[0] if cats else "unknown"
+
+        updated_pc = 0
+        async for m in db.matches.find(
+            {"primary_category": {"$exists": False}},
+            {"_id": 1, "paper1_id": 1},
+        ):
+            p1_cat = paper_primary.get(m.get("paper1_id"), "unknown")
+            await db.matches.update_one(
+                {"_id": m["_id"]},
+                {"$set": {"primary_category": p1_cat}},
+            )
+            updated_pc += 1
+        logger.info(f"Backfilled primary_category for {updated_pc} matches")
+
+    # Backfill shared_categories
+    missing_shared = await db.matches.count_documents({"shared_categories": {"$exists": False}})
+    if missing_shared == 0 and missing_primary == 0:
+        logger.info("shared_categories/primary_category backfill: nothing to do")
         return 0
 
-    logger.info(f"Backfilling shared_categories for {count} matches...")
+    if missing_shared > 0:
+        logger.info(f"Backfilling shared_categories for {missing_shared} matches...")
+        paper_cats = {}
+        async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
+            paper_cats[p["id"]] = set(p.get("categories", []))
 
-    # Build paper categories lookup
-    paper_cats = {}
-    async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
-        paper_cats[p["id"]] = set(p.get("categories", []))
+        updated = 0
+        async for m in db.matches.find(
+            {"shared_categories": {"$exists": False}},
+            {"_id": 1, "paper1_id": 1, "paper2_id": 1},
+        ):
+            p1_cats = paper_cats.get(m.get("paper1_id"), set())
+            p2_cats = paper_cats.get(m.get("paper2_id"), set())
+            shared = sorted(p1_cats & p2_cats)
+            await db.matches.update_one(
+                {"_id": m["_id"]},
+                {"$set": {"shared_categories": shared}},
+            )
+            updated += 1
+        logger.info(f"Backfilled shared_categories for {updated} matches")
 
-    updated = 0
-    async for m in db.matches.find(
-        {"shared_categories": {"$exists": False}},
-        {"_id": 1, "paper1_id": 1, "paper2_id": 1},
-    ):
-        p1_cats = paper_cats.get(m.get("paper1_id"), set())
-        p2_cats = paper_cats.get(m.get("paper2_id"), set())
-        shared = sorted(p1_cats & p2_cats)
-        await db.matches.update_one(
-            {"_id": m["_id"]},
-            {"$set": {"shared_categories": shared}},
-        )
-        updated += 1
-
-    logger.info(f"Backfilled shared_categories for {updated} matches")
-    return updated
+    return missing_primary + missing_shared
