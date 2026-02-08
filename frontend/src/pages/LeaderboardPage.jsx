@@ -55,6 +55,10 @@ export default function LeaderboardPage() {
   // Global/Local stats toggle (tag mode only)
   const [globalStats, setGlobalStats] = useState(false);
 
+  // Infinite scroll
+  const [displayCount, setDisplayCount] = useState(50);
+  const sentinelRef = useRef(null);
+
   // Abort controller to cancel stale requests
   const abortRef = useRef(null);
 
