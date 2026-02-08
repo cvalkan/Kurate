@@ -151,6 +151,7 @@ export default function LeaderboardPage() {
     setSelectedTags([]);
     setTagFilterOpen(false);
     setTagSearch("");
+    setGlobalStats(false);
   };
 
   const filteredTags = allTags.filter(t => {
