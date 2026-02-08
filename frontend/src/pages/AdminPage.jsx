@@ -64,6 +64,12 @@ export default function AdminPage() {
   const [manualMatches, setManualMatches] = useState(50);
   const [summaryPrompt, setSummaryPrompt] = useState(null);
   const [editSummaryPrompt, setEditSummaryPrompt] = useState({});
+  const [predictionPrompt, setPredictionPrompt] = useState(null);
+  const [editPredictionPrompt, setEditPredictionPrompt] = useState({});
+  const [experiment, setExperiment] = useState(null);
+  const [experimentSort, setExperimentSort] = useState("standard_rank");
+  const [predictionMatches, setPredictionMatches] = useState(50);
+  const [predictionLoading, setPredictionLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [adminCat, setAdminCat] = useState("");
 
