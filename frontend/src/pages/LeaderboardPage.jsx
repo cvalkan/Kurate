@@ -531,8 +531,10 @@ export default function LeaderboardPage() {
       })()}
 
       <div className="mt-6 text-center text-xs text-muted-foreground">
-        {isTagMode
+        {hasSelectedTags
           ? "Cross-category rankings based on available tournament matches between tagged papers."
+          : isTagMode
+          ? "All papers ranked by their tournament performance within their primary categories."
           : "Elo-style ratings from Bradley-Terry model with 95% confidence intervals. Papers compared using full-text deep analysis."
         }
       </div>
