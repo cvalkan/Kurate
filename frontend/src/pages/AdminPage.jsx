@@ -790,7 +790,8 @@ export default function AdminPage() {
             <div>
               <div className="flex items-center gap-3 mb-3 text-xs text-muted-foreground">
                 <span>Standard: <span className="font-mono text-foreground">{experiment.standard_matches}</span> matches</span>
-                <span>Prediction: <span className="font-mono text-foreground">{experiment.prediction_matches}</span> matches</span>
+                <span>Prediction (abstract): <span className="font-mono text-foreground">{experiment.prediction_matches}</span> matches</span>
+                <span>Prediction (full text): <span className="font-mono text-foreground">{experiment.prediction_ft_matches || 0}</span> matches</span>
               </div>
 
               {experiment.prediction_matches === 0 ? (
