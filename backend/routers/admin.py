@@ -562,19 +562,21 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
             "user_prompt": prompt_doc["user_prompt"],
         }
 
-    # Load papers (need abstracts)
+    # Load papers
+    fields = {"_id": 0, "id": 1, "title": 1, "abstract": 1, "authors": 1, "arxiv_id": 1, "published": 1}
+    if not abstract_only:
+        fields["full_text"] = 1
     all_papers = await db.papers.find(
-        {"categories.0": category},
-        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "authors": 1, "arxiv_id": 1, "published": 1},
+        {"categories.0": category}, fields,
     ).to_list(5000)
 
     if len(all_papers) < 2:
         logger.warning(f"Prediction: not enough papers for {category}")
         return
 
-    # Get existing prediction matches to avoid duplicates
+    # Get existing matches for this mode to avoid duplicates
     existing = await db.matches.find(
-        {"mode": "prediction", "completed": True, "failed": {"$ne": True}},
+        {"mode": mode, "completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1},
     ).to_list(100000)
 
