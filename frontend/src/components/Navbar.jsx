@@ -113,7 +113,14 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile: auth + hamburger */}
+          {/* Mobile: hamburger (left) + auth (right) */}
+          <div className="flex md:hidden items-center gap-2 order-first">
+            <Button variant="ghost" size="sm" onClick={() => setMobileOpen(!mobileOpen)} className="h-8 w-8 p-0" data-testid="mobile-menu-toggle">
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
+
+          {/* Mobile: auth button (right side) */}
           <div className="flex md:hidden items-center gap-2">
             {!authLoading && !user && (
               <Button size="sm" onClick={() => setShowAuth(true)} className="gap-1 h-8 text-xs" data-testid="nav-login-btn-mobile">
@@ -131,9 +138,6 @@ export default function Navbar() {
                 )}
               </>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setMobileOpen(!mobileOpen)} className="h-8 w-8 p-0" data-testid="mobile-menu-toggle">
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
           </div>
         </div>
       </div>
