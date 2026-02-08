@@ -468,3 +468,245 @@ async def update_summary_prompt(update: PromptUpdate):
         upsert=True,
     )
     return {"success": True}
+
+
+# --- Prediction Experiment (Surprisingly Popular) ---
+
+DEFAULT_PREDICTION_PROMPT = {
+    "system_prompt": """You are predicting scientific consensus. Your task is NOT to evaluate the papers yourself, but to anticipate which paper the broader scientific community would consider more impactful.
+
+Think about what most researchers in the field would say. Consider:
+1. Which paper addresses a more widely recognized problem?
+2. Which methodology would appeal to the mainstream research community?
+3. Which results would generate more citations and follow-up work?
+4. Which paper aligns better with current funding priorities and trends?
+
+You MUST respond with valid JSON only:
+{"winner": "paper1" or "paper2", "reasoning": "Explain why the scientific crowd would favor this paper (max 200 words)"}""",
+    "user_prompt": """Predict which paper the scientific community would consider more impactful:
+
+**Paper 1: {paper1_title}**
+{paper1_content}
+
+**Paper 2: {paper2_title}**
+{paper2_content}
+
+Which paper would most researchers pick as more impactful? Respond with JSON only.""",
+}
+
+
+@router.get("/prediction-prompt", dependencies=[Depends(verify_admin)])
+async def get_prediction_prompt():
+    doc = await db.settings.find_one({"key": "prediction_prompt"}, {"_id": 0})
+    if doc and doc.get("system_prompt"):
+        return {
+            "system_prompt": doc.get("system_prompt", ""),
+            "user_prompt": doc.get("user_prompt", ""),
+        }
+    await db.settings.update_one(
+        {"key": "prediction_prompt"},
+        {"$set": {"key": "prediction_prompt", **DEFAULT_PREDICTION_PROMPT}},
+        upsert=True,
+    )
+    return DEFAULT_PREDICTION_PROMPT
+
+
+@router.put("/prediction-prompt", dependencies=[Depends(verify_admin)])
+async def update_prediction_prompt(update: PromptUpdate):
+    await db.settings.update_one(
+        {"key": "prediction_prompt"},
+        {"$set": {
+            "key": "prediction_prompt",
+            "system_prompt": update.system_prompt,
+            "user_prompt": update.user_prompt,
+        }},
+        upsert=True,
+    )
+    return {"success": True}
+
+
+class PredictionRunRequest(BaseModel):
+    num_matches: int = 50
+    category: str = "cs.RO"
+
+
+@router.post("/run-prediction", dependencies=[Depends(verify_admin)])
+async def run_prediction_tournament(body: PredictionRunRequest = PredictionRunRequest()):
+    """Run prediction tournament: abstract-only, crowd-prediction prompt."""
+    import asyncio
+    asyncio.create_task(_run_prediction_round(body.category, min(max(body.num_matches, 1), 500)))
+    return {"status": "started", "category": body.category, "num_matches": body.num_matches}
+
+
+async def _run_prediction_round(category: str, max_pairs: int):
+    """Run a prediction comparison round using abstracts only."""
+    import uuid
+    import random
+    from datetime import datetime, timezone
+    from services.llm import compare_papers
+
+    # Load prediction prompt
+    prompt_doc = await db.settings.find_one({"key": "prediction_prompt"}, {"_id": 0})
+    if not prompt_doc or not prompt_doc.get("system_prompt"):
+        prompt_config = DEFAULT_PREDICTION_PROMPT
+    else:
+        prompt_config = {
+            "system_prompt": prompt_doc["system_prompt"],
+            "user_prompt": prompt_doc["user_prompt"],
+        }
+
+    # Load papers (need abstracts)
+    all_papers = await db.papers.find(
+        {"categories.0": category},
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "authors": 1, "arxiv_id": 1, "published": 1},
+    ).to_list(5000)
+
+    if len(all_papers) < 2:
+        logger.warning(f"Prediction: not enough papers for {category}")
+        return
+
+    # Get existing prediction matches to avoid duplicates
+    existing = await db.matches.find(
+        {"mode": "prediction", "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ).to_list(100000)
+
+    cat_paper_ids = {p["id"] for p in all_papers}
+    compared = set()
+    for m in existing:
+        if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids:
+            compared.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+
+    # Generate random pairs (simple uniform sampling)
+    paper_ids = [p["id"] for p in all_papers]
+    pairs = []
+    attempts = 0
+    while len(pairs) < max_pairs and attempts < max_pairs * 10:
+        p1, p2 = random.sample(paper_ids, 2)
+        key = tuple(sorted([p1, p2]))
+        if key not in compared:
+            pairs.append((p1, p2))
+            compared.add(key)
+        attempts += 1
+
+    if not pairs:
+        logger.info(f"Prediction: no new pairs for {category}")
+        return
+
+    paper_lookup = {p["id"]: p for p in all_papers}
+    settings = await get_settings()
+    parallel = min(max(settings.get("parallel_agents", 5), 1), 20)
+    completed = 0
+    import asyncio as aio
+
+    for i in range(0, len(pairs), parallel):
+        batch = pairs[i:i + parallel]
+        tasks = []
+        presented = []
+        for p1_id, p2_id in batch:
+            if random.random() < 0.5:
+                presented.append((p2_id, p1_id))
+            else:
+                presented.append((p1_id, p2_id))
+        for p1_id, p2_id in presented:
+            tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config, abstract_only=True))
+
+        results = await aio.gather(*tasks, return_exceptions=True)
+
+        for (p1_id, p2_id), result in zip(presented, results):
+            match_doc = {
+                "id": str(uuid.uuid4()),
+                "paper1_id": p1_id,
+                "paper2_id": p2_id,
+                "mode": "prediction",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if isinstance(result, Exception):
+                match_doc["completed"] = False
+                match_doc["failed"] = True
+                match_doc["error"] = str(result)[:200]
+            else:
+                winner_key = result.get("winner", "paper1")
+                match_doc["winner_id"] = p1_id if winner_key == "paper1" else p2_id
+                match_doc["reasoning"] = result.get("reasoning", "")
+                match_doc["model_used"] = result.get("model_used", {})
+                match_doc["tokens"] = result.get("tokens", {})
+                match_doc["completed"] = True
+                match_doc["failed"] = False
+                completed += 1
+
+            await db.matches.insert_one(match_doc)
+        await aio.sleep(0.5)
+
+    logger.info(f"Prediction round for {category}: {completed}/{len(pairs)} completed")
+
+
+@router.get("/experiment-comparison", dependencies=[Depends(verify_admin)])
+async def get_experiment_comparison(category: str = "cs.RO"):
+    """Compare standard vs prediction rankings for the Surprisingly Popular experiment."""
+    from services.ranking import compute_leaderboard
+
+    # Load papers
+    all_papers = await db.papers.find(
+        {"categories.0": category},
+        {"_id": 0, "full_text": 0},
+    ).to_list(5000)
+
+    if not all_papers:
+        return {"papers": [], "category": category, "standard_matches": 0, "prediction_matches": 0}
+
+    cat_paper_ids = {p["id"] for p in all_papers}
+
+    # Load standard matches (no mode field or mode=standard)
+    all_matches_raw = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "mode": 1, "completed": 1, "failed": 1},
+    ).to_list(200000)
+
+    standard_matches = [m for m in all_matches_raw
+                        if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids
+                        and m.get("mode") != "prediction"]
+
+    prediction_matches = [m for m in all_matches_raw
+                          if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids
+                          and m.get("mode") == "prediction"]
+
+    # Compute rankings for each mode
+    std_ranking = compute_leaderboard(all_papers, standard_matches)
+    pred_ranking = compute_leaderboard(all_papers, prediction_matches)
+
+    # Build lookup
+    std_lookup = {p["id"]: p for p in std_ranking}
+    pred_lookup = {p["id"]: p for p in pred_ranking}
+
+    # Merge into comparison table
+    comparison = []
+    for paper in all_papers:
+        pid = paper["id"]
+        std = std_lookup.get(pid, {})
+        pred = pred_lookup.get(pid, {})
+        std_rank = std.get("rank", 999)
+        pred_rank = pred.get("rank", 999)
+        comparison.append({
+            "id": pid,
+            "title": paper["title"],
+            "authors": paper.get("authors", [])[:3],
+            "arxiv_id": paper.get("arxiv_id", ""),
+            "standard_rank": std_rank,
+            "standard_score": std.get("score", 1200),
+            "standard_win_rate": std.get("win_rate", 0),
+            "standard_matches": std.get("comparisons", 0),
+            "prediction_rank": pred_rank,
+            "prediction_score": pred.get("score", 1200),
+            "prediction_win_rate": pred.get("win_rate", 0),
+            "prediction_matches": pred.get("comparisons", 0),
+            "rank_delta": pred_rank - std_rank,  # Positive = prediction ranks lower (potential hidden gem)
+        })
+
+    return {
+        "papers": comparison,
+        "category": category,
+        "standard_matches": len(standard_matches),
+        "prediction_matches": len(prediction_matches),
+    }
+
