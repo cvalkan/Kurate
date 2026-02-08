@@ -4,12 +4,16 @@ import os
 from core.config import db, logger
 from routers.leaderboard import router as leaderboard_router
 from routers.admin import router as admin_router
+from routers.auth import router as auth_router
+from routers.suggestions import router as suggestions_router
 from services.scheduler import start_scheduler
 
 app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
 
 app.include_router(leaderboard_router)
 app.include_router(admin_router)
+app.include_router(auth_router)
+app.include_router(suggestions_router)
 
 app.add_middleware(
     CORSMiddleware,
