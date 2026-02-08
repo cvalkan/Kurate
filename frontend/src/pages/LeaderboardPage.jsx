@@ -574,7 +574,9 @@ export default function LeaderboardPage() {
             <div>#</div>
             <div>Paper</div>
             {showCatCol && <div className="text-center hidden sm:block">Cat</div>}
-            <div className="text-right">Score</div>
+            <div className="text-right">
+              {hasSelectedTags && globalStats ? "Score (G)" : "Score"}
+            </div>
             <div className="text-right hidden sm:block">
               {hasSelectedTags && globalStats ? "Win % (G)" : "Win %"}
             </div>
