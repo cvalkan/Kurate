@@ -45,6 +45,27 @@ frontend/src/pages/
 - [Feb 2026] **Status bar count fix** — shows actual displayed count with total in parentheses when period-filtered
 - [Feb 2026] **Paper detail categories** — all category tags shown on paper page with primary highlighted and labeled
 - [Feb 2026] **Piggyback cross-category (Option C)** — every match now stores `shared_categories` (intersection of both papers' tags). Tag-filtered leaderboards automatically benefit from all matches where both papers share that tag. 13,134 existing matches backfilled. `/api/tags` returns per-tag match coverage. Tag panel shows match counts.
+- [Feb 2026] **Prediction correlation moved to Admin** — prediction tournament analysis sections moved from public Correlation page to Admin Experiment tab
+- [Feb 2026] **Component refactoring** — extracted shared components (ModelBadge, CorrelationSection, ScatterPlot) and admin sub-components (AdminOverview, AdminExperiment). Eliminated duplicated ModelBadge code.
+
+## Component Architecture
+```
+frontend/src/
+  components/
+    ModelBadge.jsx          — shared LLM model badge (used in PaperPage, AdminOverview)
+    CorrelationSection.jsx  — model correlation analysis cards + scatter plots
+    AdminOverview.jsx       — admin overview tab (stats, scheduler, usage, recent matches)
+    AdminExperiment.jsx     — experiment tab (prediction controls, comparison table, prediction correlation)
+    Navbar.jsx              — top navigation bar
+    ui/                     — shadcn UI primitives
+  pages/
+    LeaderboardPage.jsx     — public leaderboard with tag filtering, infinite scroll
+    CorrelationPage.jsx     — public model correlation (standard tournament only)
+    MethodologyPage.jsx     — methodology explanation
+    PaperPage.jsx           — individual paper detail
+    AdminPage.jsx           — admin shell (tabs, data fetching, settings/prompt forms)
+    AdminLoginPage.jsx      — admin login
+```
 
 ## Key API Endpoints
 - `GET /api/leaderboard?category=cs.RO` — Cached category leaderboard
