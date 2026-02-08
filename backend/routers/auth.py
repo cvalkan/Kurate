@@ -185,6 +185,43 @@ async def verify_email(token: str):
     return {"status": "ok", "message": "Email verified successfully"}
 
 
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+@router.post("/resend-verification")
+async def resend_verification(req: ResendVerificationRequest, request: Request):
+    user = await db.users.find_one({"email": req.email}, {"_id": 0})
+    if not user:
+        # Don't reveal whether email exists
+        return {"status": "ok", "message": "If this email is registered, a verification link has been sent."}
+
+    if user.get("email_verified"):
+        return {"status": "ok", "message": "Email is already verified. You can log in."}
+
+    if user.get("provider") == "google":
+        return {"status": "ok", "message": "Google accounts are automatically verified. Use Google sign-in."}
+
+    # Generate fresh token
+    new_token = _generate_verification_token()
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"verification_token": new_token}},
+    )
+
+    origin = request.headers.get("origin", request.headers.get("referer", ""))
+    if origin and "?" in origin:
+        origin = origin.split("?")[0]
+    if origin and origin.endswith("/"):
+        origin = origin[:-1]
+
+    sent = await _send_verification_email(req.email, user.get("name", ""), new_token, origin)
+    if not sent:
+        raise HTTPException(500, "Failed to send verification email. Please try again later.")
+
+    return {"status": "ok", "message": "Verification email sent. Check your inbox."}
+
+
 @router.post("/login")
 async def login(req: LoginRequest, response: Response):
     user = await db.users.find_one({"email": req.email}, {"_id": 0})
