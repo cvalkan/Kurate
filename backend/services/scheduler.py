@@ -60,6 +60,77 @@ def _get_global_activity() -> str:
     return "; ".join(active) if active else "Idle"
 
 
+def _prompt_hash(prompt_config: dict) -> str:
+    """Short hash of prompt text for version tracking."""
+    text = (prompt_config.get("system_prompt", "") + prompt_config.get("user_prompt", "")).encode()
+    return hashlib.sha256(text).hexdigest()[:8]
+
+
+async def init_tournament_registry():
+    """Ensure a tournament document exists for each primary category."""
+    settings = await get_settings()
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+
+    for cat_id in active_cats:
+        tid = f"cat={cat_id}|mode=standard"
+        existing = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0})
+        if not existing:
+            paper_count = await db.papers.count_documents({"categories.0": cat_id})
+            match_count = await db.matches.count_documents(
+                {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id}
+            )
+            await db.tournaments.insert_one({
+                "tournament_id": tid,
+                "category": cat_id,
+                "mode": "standard",
+                "status": "active",
+                "goals": {
+                    "min_matches": settings.get("min_matches_per_paper", 5),
+                    "ci_target": settings.get("ci_target", 12),
+                    "top_k": settings.get("top_k_focus", 10),
+                    "max_matches": settings.get("max_matches_per_paper", 150),
+                },
+                "stats": {
+                    "papers": paper_count,
+                    "matches": match_count,
+                    "goals_met": False,
+                },
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            })
+            logger.info(f"Created tournament: {tid} ({paper_count} papers, {match_count} matches)")
+
+    total = await db.tournaments.count_documents({})
+    logger.info(f"Tournament registry: {total} tournaments")
+
+
+async def get_active_tournaments() -> list:
+    """Return all active tournament documents."""
+    tournaments = await db.tournaments.find(
+        {"status": "active"}, {"_id": 0}
+    ).to_list(500)
+    return tournaments
+
+
+async def update_tournament_stats(category: str, mode: str = "standard"):
+    """Update stats on a tournament document."""
+    tid = f"cat={category}|mode={mode}"
+    paper_count = await db.papers.count_documents({"categories.0": category})
+    match_count = await db.matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category}
+    )
+    goals_met = await _check_goals_met(category=category)
+    await db.tournaments.update_one(
+        {"tournament_id": tid},
+        {"$set": {
+            "stats.papers": paper_count,
+            "stats.matches": match_count,
+            "stats.goals_met": goals_met,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+
+
 async def start_scheduler():
     global _scheduler_running
     if _scheduler_running:
