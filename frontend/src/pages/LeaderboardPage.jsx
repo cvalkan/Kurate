@@ -431,17 +431,19 @@ export default function LeaderboardPage() {
 
         // Helper: pick the right stat based on Global/Local toggle
         const getWinRate = (paper) => {
-          if (isTagMode && globalStats && paper.global_win_rate !== undefined) return paper.global_win_rate;
+          if (hasSelectedTags && globalStats && paper.global_win_rate !== undefined) return paper.global_win_rate;
           return paper.win_rate;
         };
         const getComparisons = (paper) => {
-          if (isTagMode && globalStats && paper.global_comparisons !== undefined) return paper.global_comparisons;
+          if (hasSelectedTags && globalStats && paper.global_comparisons !== undefined) return paper.global_comparisons;
           return paper.comparisons;
         };
         const getWilsonMargin = (paper) => {
-          if (isTagMode && globalStats) return null; // Global view doesn't have within-set CI
+          if (hasSelectedTags && globalStats) return null;
           return paper.wilson_margin;
         };
+
+        const showCatCol = isTagMode;
 
         return loading ? (
         <div className="space-y-3" data-testid="loading-skeleton">
@@ -453,9 +455,9 @@ export default function LeaderboardPage() {
         <div className="text-center py-20 text-muted-foreground" data-testid="empty-state">
           <Trophy className="h-10 w-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">
-            {kw ? `No papers matching "${keyword}".` : `No papers found for this ${isTagMode ? "tag combination" : "period"}.`}
+            {kw ? `No papers matching "${keyword}".` : `No papers found for this ${hasSelectedTags ? "tag combination" : "period"}.`}
           </p>
-          <p className="text-xs mt-1">{kw ? "Try different keywords." : isTagMode ? "Try different tags, switch to OR mode, or clear the filter." : "Try a broader time range."}</p>
+          <p className="text-xs mt-1">{kw ? "Try different keywords." : hasSelectedTags ? "Try different tags, switch to OR mode, or clear the filter." : "Try a broader time range."}</p>
         </div>
       ) : (
         <>
@@ -466,34 +468,32 @@ export default function LeaderboardPage() {
         )}
         <div className="border border-border rounded-lg overflow-x-auto" data-testid="leaderboard-table">
           <div className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border ${
-            isTagMode && showAll
+            showCatCol
               ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_7rem]"
               : "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem]"
           }`}>
             <div>#</div>
             <div>Paper</div>
-            {isTagMode && showAll && <div className="text-center hidden sm:block">Cat</div>}
+            {showCatCol && <div className="text-center hidden sm:block">Cat</div>}
             <div className="text-right">Score</div>
             <div className="text-right hidden sm:block">
-              {isTagMode && globalStats ? "Win % (G)" : "Win %"}
+              {hasSelectedTags && globalStats ? "Win % (G)" : "Win %"}
             </div>
             <div className="text-right hidden sm:block">95% CI</div>
             <div className="text-right hidden sm:block">
-              {isTagMode && globalStats ? "Mtch (G)" : "Mtch"}
+              {hasSelectedTags && globalStats ? "Mtch (G)" : "Mtch"}
             </div>
             <div className="text-right hidden md:block">Published</div>
           </div>
-          {displayList.map((paper, idx) => {
-            const isDimmed = isTagMode && showAll && paper.matches_tag === false;
-            return (
+          {displayList.map((paper, idx) => (
             <Link
               key={paper.id}
               to={`/paper/${paper.id}`}
               className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${
-                isTagMode && showAll
+                showCatCol
                   ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_7rem]"
                   : "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem]"
-              } ${idx < 3 && !kw && !isDimmed ? "bg-accent/[0.02]" : ""} ${isDimmed ? "opacity-35" : ""}`}
+              } ${idx < 3 && !kw ? "bg-accent/[0.02]" : ""}`}
               data-testid={`leaderboard-row-${idx}`}
             >
               <div><RankBadge rank={paper.rank} /></div>
@@ -504,13 +504,9 @@ export default function LeaderboardPage() {
                   {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
                 </p>
               </div>
-              {isTagMode && showAll && (
+              {showCatCol && (
                 <div className="text-center hidden sm:block">
-                  <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded font-mono ${
-                    paper.matches_tag
-                      ? "bg-primary/10 text-primary border border-primary/20"
-                      : "bg-secondary text-muted-foreground"
-                  }`}>
+                  <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono bg-secondary text-muted-foreground">
                     {paper.primary_category || "?"}
                   </span>
                 </div>
@@ -528,7 +524,7 @@ export default function LeaderboardPage() {
                 {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
               </div>
             </Link>
-          )})}
+          ))}
         </div>
         </>
       );
