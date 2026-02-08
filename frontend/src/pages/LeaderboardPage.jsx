@@ -159,8 +159,10 @@ export default function LeaderboardPage() {
     return true;
   });
 
-  const title = isTagMode
+  const title = hasSelectedTags
     ? `${selectedTags.join(tagMode === "and" ? " ∩ " : " ∪ ")} Papers`
+    : isTagMode
+    ? "All Papers"
     : `${categoryName} Paper Rankings`;
 
   return (
@@ -172,8 +174,10 @@ export default function LeaderboardPage() {
           {title}
         </h1>
         <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
-          {isTagMode
+          {hasSelectedTags
             ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}. Rankings based on available tournament matches.`
+            : isTagMode
+            ? "Showing all papers across all categories. Select tags below to filter."
             : `AI-estimated scientific impact ranking of the latest arXiv ${categoryName} papers. Papers are evaluated using full-text analysis by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.`
           }
         </p>
