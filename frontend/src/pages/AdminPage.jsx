@@ -168,6 +168,7 @@ export default function AdminPage() {
     { key: "settings", label: "Settings", icon: Settings },
     { key: "prompt", label: "Prompt", icon: FileText },
     { key: "experiment", label: "Experiment", icon: FlaskConical },
+    { key: "suggestions", label: "Suggestions", icon: MessageSquare },
   ];
 
   return (
