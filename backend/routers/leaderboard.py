@@ -124,6 +124,7 @@ async def _refresh_cache():
         "total_matches": len(all_matches),
         "_raw_papers": all_papers,
         "_raw_matches": all_matches,
+        "_raw_matches_all": all_matches_raw,  # Includes experiment matches for tag queries
     })
 
 
