@@ -283,6 +283,8 @@ async def google_session(req: SessionRequest, response: Response):
     # Upsert user
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:
+        if existing.get("active") is False:
+            raise HTTPException(403, "Your account has been deactivated. Please contact the administrator.")
         await db.users.update_one(
             {"email": email},
             {"$set": {"name": name, "picture": picture, "provider": "google", "email_verified": True}},
