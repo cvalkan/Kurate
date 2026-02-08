@@ -679,6 +679,179 @@ export default function AdminPage() {
               Save Summary Prompt
             </Button>
           </div>
+
+          {/* Prediction Prompt (Surprisingly Popular Experiment) */}
+          <div className="space-y-4 border-t border-border pt-6">
+            <h3 className="text-sm font-medium flex items-center gap-2">
+              <FlaskConical className="h-4 w-4 text-accent" />
+              Prediction Prompt (Surprisingly Popular)
+            </h3>
+            <p className="text-xs text-muted-foreground">Used for the prediction tournament: abstract-only comparisons asking which paper the crowd would favor.</p>
+            <div>
+              <Label className="text-xs">System Prompt</Label>
+              <Textarea
+                rows={10}
+                value={editPredictionPrompt.system_prompt || ""}
+                onChange={(e) => setEditPredictionPrompt({ ...editPredictionPrompt, system_prompt: e.target.value })}
+                className="font-mono text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">User Prompt Template</Label>
+              <Textarea
+                rows={6}
+                value={editPredictionPrompt.user_prompt || ""}
+                onChange={(e) => setEditPredictionPrompt({ ...editPredictionPrompt, user_prompt: e.target.value })}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Variables: {"{paper1_title}"}, {"{paper1_content}"}, {"{paper2_title}"}, {"{paper2_content}"}
+              </p>
+            </div>
+            <Button onClick={async () => {
+              try {
+                await axios.put(`${API}/api/admin/prediction-prompt`, {
+                  system_prompt: editPredictionPrompt.system_prompt,
+                  user_prompt: editPredictionPrompt.user_prompt,
+                }, { headers: getAdminHeaders() });
+                toast.success("Prediction prompt saved");
+              } catch { toast.error("Save failed"); }
+            }} className="gap-2">
+              <Save className="h-4 w-4" />
+              Save Prediction Prompt
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Experiment Tab */}
+      {activeTab === "experiment" && (
+        <div className="space-y-6" data-testid="admin-experiment">
+          <div>
+            <h2 className="font-heading text-lg font-medium mb-1">Surprisingly Popular Experiment</h2>
+            <p className="text-xs text-muted-foreground max-w-2xl">
+              Based on Drazen Prelec's method. Compares standard rankings (full-text, "which is better?") with prediction rankings (abstract-only, "which would the crowd pick?").
+              Papers that rank higher in the standard tournament than predicted may be <span className="text-foreground font-medium">hidden gems</span>.
+            </p>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number" min="1" max="500"
+                value={predictionMatches}
+                onChange={(e) => setPredictionMatches(Math.min(500, Math.max(1, Number(e.target.value) || 50)))}
+                className="w-20 h-10 text-center font-mono text-sm"
+              />
+              <Button
+                onClick={async () => {
+                  setPredictionLoading(true);
+                  try {
+                    await axios.post(`${API}/api/admin/run-prediction`, { num_matches: predictionMatches, category: "cs.RO" }, { headers: getAdminHeaders() });
+                    toast.success(`Started ${predictionMatches} prediction comparisons for cs.RO`);
+                  } catch (err) { toast.error("Failed: " + (err.response?.data?.detail || err.message)); }
+                  finally { setPredictionLoading(false); }
+                }}
+                disabled={predictionLoading}
+                className="gap-2"
+              >
+                <FlaskConical className={`h-4 w-4 ${predictionLoading ? "animate-spin" : ""}`} />
+                Run Prediction Tournament
+              </Button>
+            </div>
+            <Button variant="outline" onClick={async () => {
+              try {
+                const res = await axios.get(`${API}/api/admin/experiment-comparison`, { headers: getAdminHeaders(), params: { category: "cs.RO" } });
+                setExperiment(res.data);
+              } catch (err) { toast.error("Failed to load"); }
+            }} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Load Comparison
+            </Button>
+          </div>
+
+          {/* Comparison Table */}
+          {experiment && (
+            <div>
+              <div className="flex items-center gap-3 mb-3 text-xs text-muted-foreground">
+                <span>Standard: <span className="font-mono text-foreground">{experiment.standard_matches}</span> matches</span>
+                <span>Prediction: <span className="font-mono text-foreground">{experiment.prediction_matches}</span> matches</span>
+              </div>
+
+              {experiment.prediction_matches === 0 ? (
+                <div className="p-6 text-center text-muted-foreground border border-border rounded-lg">
+                  <FlaskConical className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No prediction matches yet. Run the prediction tournament to generate data.</p>
+                </div>
+              ) : (
+                <div className="border border-border rounded-lg overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-secondary/50 border-b border-border">
+                        {[
+                          { key: "standard_rank", label: "Std #" },
+                          { key: "title", label: "Paper" },
+                          { key: "standard_score", label: "Std Score" },
+                          { key: "standard_win_rate", label: "Std Win%" },
+                          { key: "prediction_rank", label: "Pred #" },
+                          { key: "prediction_score", label: "Pred Score" },
+                          { key: "prediction_win_rate", label: "Pred Win%" },
+                          { key: "rank_delta", label: "Δ Rank" },
+                        ].map(col => (
+                          <th key={col.key}
+                            className="px-2 py-2.5 text-left font-medium text-muted-foreground cursor-pointer hover:text-foreground whitespace-nowrap"
+                            onClick={() => setExperimentSort(col.key)}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              {col.label}
+                              {experimentSort === col.key && <ArrowUpDown className="h-3 w-3" />}
+                            </span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...experiment.papers]
+                        .filter(p => p.standard_matches > 0 || p.prediction_matches > 0)
+                        .sort((a, b) => {
+                          const key = experimentSort;
+                          if (key === "title") return a.title.localeCompare(b.title);
+                          if (key === "rank_delta") return a[key] - b[key]; // Most negative first (hidden gems)
+                          return a[key] - b[key];
+                        })
+                        .map(p => {
+                          const delta = p.rank_delta;
+                          const isGem = delta > 5;  // Predicted lower but actually ranks higher
+                          const isOverhyped = delta < -5;
+                          return (
+                            <tr key={p.id} className={`border-b border-border/50 ${isGem ? "bg-green-50/50" : isOverhyped ? "bg-red-50/30" : ""}`}>
+                              <td className="px-2 py-2 font-mono">{p.standard_rank}</td>
+                              <td className="px-2 py-2 max-w-[250px] truncate font-medium" title={p.title}>{p.title}</td>
+                              <td className="px-2 py-2 font-mono">{p.standard_score}</td>
+                              <td className="px-2 py-2 font-mono">{p.standard_win_rate}%</td>
+                              <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? p.prediction_rank : "—"}</td>
+                              <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? p.prediction_score : "—"}</td>
+                              <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? `${p.prediction_win_rate}%` : "—"}</td>
+                              <td className={`px-2 py-2 font-mono font-medium ${isGem ? "text-green-700" : isOverhyped ? "text-red-600" : "text-muted-foreground"}`}>
+                                {p.prediction_matches > 0 ? (delta > 0 ? `+${delta}` : delta) : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {experiment.prediction_matches > 0 && (
+                <div className="mt-3 text-[11px] text-muted-foreground">
+                  <span className="inline-block w-3 h-3 bg-green-50 border border-green-200 rounded mr-1" /> Δ &gt; +5: Potential hidden gem (actually better than crowd predicts) &nbsp;
+                  <span className="inline-block w-3 h-3 bg-red-50 border border-red-200 rounded mr-1" /> Δ &lt; -5: Potentially overhyped (crowd predicts higher than actual)
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
