@@ -530,16 +530,23 @@ class PredictionRunRequest(BaseModel):
     category: str = "cs.RO"
 
 
+class PredictionRunRequest(BaseModel):
+    num_matches: int = 50
+    category: str = "cs.RO"
+    use_full_text: bool = False  # False = abstract only, True = full text
+
+
 @router.post("/run-prediction", dependencies=[Depends(verify_admin)])
 async def run_prediction_tournament(body: PredictionRunRequest = PredictionRunRequest()):
-    """Run prediction tournament: abstract-only, crowd-prediction prompt."""
+    """Run prediction tournament with crowd-prediction prompt."""
     import asyncio
-    asyncio.create_task(_run_prediction_round(body.category, min(max(body.num_matches, 1), 500)))
-    return {"status": "started", "category": body.category, "num_matches": body.num_matches}
+    mode = "prediction-fulltext" if body.use_full_text else "prediction"
+    asyncio.create_task(_run_prediction_round(body.category, min(max(body.num_matches, 1), 500), abstract_only=not body.use_full_text, mode=mode))
+    return {"status": "started", "category": body.category, "num_matches": body.num_matches, "mode": mode}
 
 
-async def _run_prediction_round(category: str, max_pairs: int):
-    """Run a prediction comparison round using abstracts only."""
+async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bool = True, mode: str = "prediction"):
+    """Run a prediction comparison round."""
     import uuid
     import random
     from datetime import datetime, timezone
