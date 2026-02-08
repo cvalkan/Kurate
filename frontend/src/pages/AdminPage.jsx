@@ -794,9 +794,11 @@ export default function AdminPage() {
                           { key: "title", label: "Paper" },
                           { key: "standard_score", label: "Std Score" },
                           { key: "standard_win_rate", label: "Std Win%" },
+                          { key: "standard_matches", label: "Std Mtch" },
                           { key: "prediction_rank", label: "Pred #" },
                           { key: "prediction_score", label: "Pred Score" },
                           { key: "prediction_win_rate", label: "Pred Win%" },
+                          { key: "prediction_matches", label: "Pred Mtch" },
                           { key: "rank_delta", label: "Δ Rank" },
                         ].map(col => (
                           <th key={col.key}
