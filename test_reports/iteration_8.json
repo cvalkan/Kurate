@@ -1,0 +1,106 @@
+{
+  "summary": "Completed testing of revised tag-filtered leaderboard features. All 22 backend tests passed (100%). All 7 frontend UI tests passed verifying: tag panel open shows all 250 papers, tag selection filters to ~7 papers, Global/Local toggle appears only with tags selected, Cat column shows category badges, category tabs grey out in tag mode, Clear all returns to category view.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "Backend: GET /api/leaderboard?show_all=true&period=all returns 250 papers with primary_category field",
+    "Backend: GET /api/leaderboard?tags=physics.chem-ph&period=all returns 7 matching papers",
+    "Backend: GET /api/leaderboard?tags=physics.chem-ph&global_stats=true includes global_wins, global_comparisons, global_win_rate",
+    "Backend: global_comparisons >= comparisons for all papers with tags",
+    "Backend: show_all without tags returns all papers from all categories",
+    "Backend: tags param returns only matching papers (no show_all)",
+    "Backend: category param uses cached category leaderboard",
+    "Backend: Response fields include show_all, tags, tag_mode flags correctly",
+    "Backend: Multiple tags with OR mode returns union of papers",
+    "Frontend: Clicking 'Filter by tags' shows all 250 papers, title becomes 'All Papers'",
+    "Frontend: Category tabs grey out (opacity-40 pointer-events-none) when tag mode active",
+    "Frontend: Selecting tag filters to only matching papers (~7 for physics.chem-ph)",
+    "Frontend: Local/Global toggle appears ONLY when tags are selected",
+    "Frontend: Cat column visible in tag mode showing primary category badges",
+    "Frontend: Global toggle changes column headers to 'Win % (G)' and 'Mtch (G)'",
+    "Frontend: Global toggle changes match counts to global values",
+    "Frontend: Clear all returns to category view, tabs re-enabled, toggle hidden",
+    "Frontend: Tag panel can be closed while keeping tags selected - filter remains active",
+    "Frontend: Status bar shows correct counts (250 in all-papers mode, 7 in filtered mode)",
+    "Frontend: No dimming/opacity on paper rows in tag mode",
+    "Frontend: 'All categories' indicator shown in status bar when panel open with no tags",
+    "Frontend: 'Cross-category (OR)' indicator shown when tags selected"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_tag_leaderboard_features.py",
+    "/app/backend/tests/test_tag_mode_revised.py",
+    "/app/test_reports/pytest/tag_mode_revised_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "isTagMode logic (tagFilterOpen || hasSelectedTags) correctly determines tag mode state",
+    "show_all param without tags returns all papers via _compute_all_papers_leaderboard",
+    "tags param returns filtered papers via _compute_tag_leaderboard",
+    "Global/Local stats toggle only appears when hasSelectedTags is true",
+    "Category tabs correctly disabled with opacity-40 and pointer-events-none in tag mode",
+    "primary_category field correctly populated for all papers in tag/show_all modes",
+    "No dimming/opacity applied to individual paper rows (old behavior removed)"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_tag_mode_revised.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (22/22 tests passed)",
+    "frontend": "100% (7/7 UI tests passed)"
+  },
+
+  "test_credentials": "No credentials needed - public app",
+
+  "seed_data_creation": "No seed data created - used existing data: 250 total papers, physics.chem-ph has 7 papers",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Revised tag-filtered leaderboard verified working. Key behaviors: 1) When 'Filter by tags' clicked (panel open, no tags), shows all 250 papers with Cat column. 2) When tags selected, filters to matching papers only. 3) Global/Local toggle appears only when tags selected - switches between local (within-set) and global (all matches) stats. 4) Category tabs grey out in tag mode. 5) Clear all returns to normal category view. Test file test_tag_mode_revised.py covers show_all without tags scenario.",
+
+  "verified_features": {
+    "tag_panel_open_all_papers": {
+      "shows_250_papers": true,
+      "title_changes_to_all_papers": true,
+      "category_tabs_greyed_out": true,
+      "cat_column_visible": true,
+      "all_categories_indicator": true
+    },
+    "tag_selection_filtering": {
+      "filters_to_matching_papers": true,
+      "no_dimming_on_rows": true,
+      "cross_category_indicator": true
+    },
+    "global_local_toggle": {
+      "appears_only_with_tags": true,
+      "changes_column_headers": true,
+      "changes_match_counts": true
+    },
+    "clear_all": {
+      "returns_to_category_view": true,
+      "tabs_re_enabled": true,
+      "toggle_hidden": true
+    },
+    "panel_close_with_tags": {
+      "panel_closes": true,
+      "tags_retained": true,
+      "filter_remains_active": true
+    }
+  }
+}
