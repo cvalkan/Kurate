@@ -610,7 +610,7 @@ export default function LeaderboardPage() {
                   </span>
                 </div>
               )}
-              <div className="text-right font-mono text-xs sm:text-sm font-medium">{paper.score}</div>
+              <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper)}</div>
               <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:block">{getWinRate(paper)}%</div>
               <div className="text-right font-mono text-xs text-muted-foreground hidden sm:block">
                 {(() => {
