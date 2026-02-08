@@ -464,6 +464,9 @@ export default function LeaderboardPage() {
         };
 
         const showCatCol = isTagMode;
+        // Infinite scroll: only render up to displayCount items
+        const visibleList = displayList.slice(0, displayCount);
+        const hasMore = displayList.length > visibleList.length;
 
         return loading ? (
         <div className="space-y-3" data-testid="loading-skeleton">
