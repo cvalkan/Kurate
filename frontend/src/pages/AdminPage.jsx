@@ -842,21 +842,27 @@ export default function AdminPage() {
                         })
                         .map(p => {
                           const delta = p.rank_delta;
-                          const isGem = delta > 5;  // Predicted lower but actually ranks higher
-                          const isOverhyped = delta < -5;
+                          const deltaFt = p.rank_delta_ft;
+                          const isGem = delta > 5 || deltaFt > 5;
+                          const isOverhyped = delta < -5 || deltaFt < -5;
                           return (
                             <tr key={p.id} className={`border-b border-border/50 ${isGem ? "bg-green-50/50" : isOverhyped ? "bg-red-50/30" : ""}`}>
                               <td className="px-2 py-2 font-mono">{p.standard_rank}</td>
-                              <td className="px-2 py-2 max-w-[250px] truncate font-medium" title={p.title}>{p.title}</td>
+                              <td className="px-2 py-2 max-w-[200px] truncate font-medium" title={p.title}>{p.title}</td>
                               <td className="px-2 py-2 font-mono">{p.standard_score}</td>
                               <td className="px-2 py-2 font-mono">{p.standard_win_rate}%</td>
                               <td className="px-2 py-2 font-mono text-muted-foreground">{p.standard_matches}</td>
                               <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? p.prediction_rank : "—"}</td>
-                              <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? p.prediction_score : "—"}</td>
                               <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? `${p.prediction_win_rate}%` : "—"}</td>
                               <td className="px-2 py-2 font-mono text-muted-foreground">{p.prediction_matches || "—"}</td>
-                              <td className={`px-2 py-2 font-mono font-medium ${isGem ? "text-green-700" : isOverhyped ? "text-red-600" : "text-muted-foreground"}`}>
+                              <td className={`px-2 py-2 font-mono font-medium ${delta > 5 ? "text-green-700" : delta < -5 ? "text-red-600" : "text-muted-foreground"}`}>
                                 {p.prediction_matches > 0 ? (delta > 0 ? `+${delta}` : delta) : "—"}
+                              </td>
+                              <td className="px-2 py-2 font-mono">{p.pred_ft_matches > 0 ? p.pred_ft_rank : "—"}</td>
+                              <td className="px-2 py-2 font-mono">{p.pred_ft_matches > 0 ? `${p.pred_ft_win_rate}%` : "—"}</td>
+                              <td className="px-2 py-2 font-mono text-muted-foreground">{p.pred_ft_matches || "—"}</td>
+                              <td className={`px-2 py-2 font-mono font-medium ${deltaFt > 5 ? "text-green-700" : deltaFt < -5 ? "text-red-600" : "text-muted-foreground"}`}>
+                                {p.pred_ft_matches > 0 ? (deltaFt > 0 ? `+${deltaFt}` : deltaFt) : "—"}
                               </td>
                             </tr>
                           );
