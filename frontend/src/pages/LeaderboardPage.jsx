@@ -192,7 +192,7 @@ export default function LeaderboardPage() {
                 key={c.id}
                 variant={!isTagMode && category === c.id ? "default" : "ghost"}
                 size="sm"
-                onClick={() => { setCategory(c.id); setSelectedTags([]); }}
+                onClick={() => { setCategory(c.id); setSelectedTags([]); setTagFilterOpen(false); }}
                 className="text-xs h-8 shrink-0"
                 data-testid={`cat-${c.id}`}
                 disabled={isTagMode}
