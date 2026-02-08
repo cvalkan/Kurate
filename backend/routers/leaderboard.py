@@ -204,6 +204,10 @@ async def get_leaderboard(
         if tag_list:
             return await _compute_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all)
 
+    # Show all papers from all categories (tag panel open, no tags selected)
+    if show_all:
+        return await _compute_all_papers_leaderboard(period, limit, offset)
+
     # Default: use pre-computed primary category cache
     cache = await _get_cached_leaderboard()
     cat_data = cache["categories"].get(category, {})
