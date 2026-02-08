@@ -100,6 +100,27 @@ export default function PaperPage() {
             </a>
           )}
         </div>
+
+        {/* Categories */}
+        {paper.categories && paper.categories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-3" data-testid="paper-categories">
+            <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            {paper.categories.map((cat, i) => (
+              <span
+                key={cat}
+                className={`inline-flex items-center text-[11px] px-2 py-0.5 rounded-md font-mono ${
+                  i === 0
+                    ? "bg-primary/10 text-primary border border-primary/20 font-medium"
+                    : "bg-secondary text-muted-foreground border border-border"
+                }`}
+                data-testid={`paper-cat-${cat}`}
+              >
+                {cat}
+                {i === 0 && <span className="ml-1 text-[9px] opacity-60">(primary)</span>}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Abstract */}
