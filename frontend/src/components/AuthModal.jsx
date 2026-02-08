@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { X, Mail, Chrome } from "lucide-react";
+import { X, Mail, Chrome, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 export function AuthModal({ open, onClose }) {
   const [mode, setMode] = useState("login"); // login | register
@@ -13,6 +15,8 @@ export function AuthModal({ open, onClose }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
   const { login } = useAuth();
 
   if (!open) return null;
@@ -26,7 +30,6 @@ export function AuthModal({ open, onClose }) {
         await login(email, password);
         onClose();
       } else {
-        const API = process.env.REACT_APP_BACKEND_URL;
         const res = await fetch(`${API}/api/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -37,9 +40,38 @@ export function AuthModal({ open, onClose }) {
         setVerificationSent(true);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || err?.response?.data?.message || "Something went wrong");
+      const detail = err.response?.data?.detail || "Something went wrong";
+      // If login fails because unverified, show verification screen
+      if (detail.includes("verify your email")) {
+        setVerificationSent(true);
+        return;
+      }
+      setError(detail);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) return;
+    setResending(true);
+    setResendMsg("");
+    try {
+      const res = await fetch(`${API}/api/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setResendMsg(data.detail || "Failed to resend");
+      } else {
+        setResendMsg(data.message || "Verification email sent!");
+      }
+    } catch {
+      setResendMsg("Failed to resend. Try again.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -59,8 +91,25 @@ export function AuthModal({ open, onClose }) {
             <p className="text-sm text-muted-foreground mb-4">
               We sent a verification link to <span className="font-medium text-foreground">{email}</span>. Click it to verify your account before logging in.
             </p>
-            <p className="text-xs text-muted-foreground mb-4">You must verify your email before you can sign in.</p>
-            <Button onClick={onClose} className="w-full">Got it</Button>
+
+            <Button
+              variant="outline"
+              className="w-full gap-2 mb-3"
+              onClick={handleResendVerification}
+              disabled={resending}
+              data-testid="resend-verification-btn"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${resending ? "animate-spin" : ""}`} />
+              {resending ? "Sending..." : "Resend verification email"}
+            </Button>
+
+            {resendMsg && (
+              <p className="text-xs text-muted-foreground mb-3">{resendMsg}</p>
+            )}
+
+            <Button onClick={() => { setVerificationSent(false); setMode("login"); setError(""); setResendMsg(""); }} variant="ghost" className="w-full text-xs">
+              Back to sign in
+            </Button>
           </div>
         </div>
       </div>
@@ -127,13 +176,26 @@ export function AuthModal({ open, onClose }) {
             </Button>
           </form>
 
-          <p className="text-xs text-center text-muted-foreground">
-            {mode === "login" ? (
-              <>Don't have an account? <button onClick={() => { setMode("register"); setError(""); }} className="text-accent hover:underline" data-testid="switch-to-register">Sign up</button></>
-            ) : (
-              <>Already have an account? <button onClick={() => { setMode("login"); setError(""); }} className="text-accent hover:underline" data-testid="switch-to-login">Sign in</button></>
+          <div className="text-xs text-center space-y-1.5">
+            <p className="text-muted-foreground">
+              {mode === "login" ? (
+                <>Don't have an account? <button onClick={() => { setMode("register"); setError(""); }} className="text-accent hover:underline" data-testid="switch-to-register">Sign up</button></>
+              ) : (
+                <>Already have an account? <button onClick={() => { setMode("login"); setError(""); }} className="text-accent hover:underline" data-testid="switch-to-login">Sign in</button></>
+              )}
+            </p>
+            {mode === "login" && (
+              <p>
+                <button
+                  onClick={() => { if (email) { setVerificationSent(true); } else { setError("Enter your email first"); } }}
+                  className="text-muted-foreground hover:text-accent hover:underline"
+                  data-testid="resend-link"
+                >
+                  Resend verification email
+                </button>
+              </p>
             )}
-          </p>
+          </div>
         </div>
       </div>
     </div>
