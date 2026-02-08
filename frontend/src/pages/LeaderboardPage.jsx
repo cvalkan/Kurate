@@ -328,8 +328,8 @@ export default function LeaderboardPage() {
       <div className="flex items-center gap-3 mb-6 text-xs flex-wrap" data-testid="status-bar">
         <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
           <Users className="h-3.5 w-3.5" />
-          <span className="font-mono">{totalPapers}</span>
-          <span>papers</span>
+          <span className="font-mono">{leaderboard.length}</span>
+          <span>papers{leaderboard.length < totalPapers ? ` (${totalPapers} total)` : ""}</span>
         </div>
         <div className="w-px h-3 bg-border shrink-0" />
         <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
