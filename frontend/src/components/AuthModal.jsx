@@ -19,6 +19,37 @@ export function AuthModal({ open, onClose }) {
   const [resendMsg, setResendMsg] = useState("");
   const { login } = useAuth();
 
+  const handleResendVerification = async () => {
+    if (!email) return;
+    setResending(true);
+    setResendMsg("");
+    try {
+      const res = await fetch(`${API}/api/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setResendMsg(data.detail || "Failed to resend");
+      } else {
+        setResendMsg(data.message || "Verification email sent!");
+      }
+    } catch {
+      setResendMsg("Failed to resend. Try again.");
+    } finally {
+      setResending(false);
+    }
+  };
+
+  // Auto-send verification email when the verification screen appears
+  useEffect(() => {
+    if (verificationSent && email) {
+      handleResendVerification();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verificationSent]);
+
   if (!open) return null;
 
   const handleSubmit = async (e) => {
