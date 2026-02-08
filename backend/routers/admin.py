@@ -733,3 +733,27 @@ async def get_experiment_comparison(category: str = "cs.RO"):
         "prediction_ft_matches": len(prediction_ft_matches),
     }
 
+
+@router.get("/tournaments", dependencies=[Depends(verify_admin)])
+async def get_tournaments():
+    tournaments = await db.tournaments.find({}, {"_id": 0}).sort("category", 1).to_list(500)
+    return {"tournaments": tournaments}
+
+
+@router.post("/tournaments/{tournament_id}/status", dependencies=[Depends(verify_admin)])
+async def update_tournament_status(tournament_id: str, request):
+    body = await request.json()
+    new_status = body.get("status")
+    if new_status not in ("active", "paused"):
+        raise HTTPException(400, "Status must be 'active' or 'paused'")
+
+    from datetime import datetime, timezone
+    result = await db.tournaments.update_one(
+        {"tournament_id": tournament_id},
+        {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Tournament not found")
+
+    return {"status": "ok", "tournament_status": new_status}
+
