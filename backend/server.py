@@ -77,6 +77,13 @@ async def startup():
     except Exception as e:
         logger.warning(f"Prompt migration warning: {e}")
 
+    # Backfill shared_categories on existing matches (piggyback for cross-category)
+    try:
+        from services.scheduler import backfill_shared_categories
+        await backfill_shared_categories()
+    except Exception as e:
+        logger.warning(f"shared_categories backfill warning: {e}")
+
     await start_scheduler()
 
     # Start background cache refresh loop — pre-computes all leaderboard data
