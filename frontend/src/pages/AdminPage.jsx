@@ -416,18 +416,32 @@ function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await axios.get(`${API}/api/admin/users`, { headers: getAdminHeaders() });
-        setUsers(res.data.users || []);
-      } catch (err) {
-        console.error("Failed to load users:", err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const fetchUsers = async () => {
+    try {
+      const res = await axios.get(`${API}/api/admin/users`, { headers: getAdminHeaders() });
+      setUsers(res.data.users || []);
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const toggleActive = async (userId, currentlyActive) => {
+    try {
+      await axios.post(`${API}/api/admin/users/${userId}/status`, { active: !currentlyActive }, { headers: getAdminHeaders() });
+      toast.success(currentlyActive ? "User deactivated" : "User reactivated");
+      fetchUsers();
+    } catch { toast.error("Failed"); }
+  };
+
+  const getUserStatus = (u) => {
+    if (u.active === false) return { label: "Deactivated", cls: "bg-red-50 text-red-700" };
+    if (u.email_verified) return { label: "Verified", cls: "bg-green-50 text-green-700" };
+    return { label: "Unverified", cls: "bg-amber-50 text-amber-700" };
+  };
 
   if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-secondary/30 rounded-lg animate-pulse" />)}</div>;
 
@@ -445,26 +459,48 @@ function AdminUsers() {
         </div>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_1fr_6rem_7rem] gap-2 px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
+          <div className="grid grid-cols-[1fr_10rem_5rem_5.5rem_6rem_5rem] gap-2 px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
             <div>Email</div>
             <div>Name</div>
             <div>Provider</div>
+            <div>Status</div>
             <div>Registered</div>
+            <div className="text-right">Action</div>
           </div>
-          {users.map(u => (
-            <div key={u.user_id} className="grid grid-cols-[1fr_1fr_6rem_7rem] gap-2 px-4 py-2.5 border-b border-border/50 text-sm items-center" data-testid={`user-row-${u.user_id}`}>
-              <div className="truncate text-xs">{u.email}</div>
-              <div className="truncate text-xs text-muted-foreground">{u.name || "—"}</div>
-              <div>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${u.provider === "google" ? "bg-blue-50 text-blue-700" : "bg-secondary text-muted-foreground"}`}>
-                  {u.provider}
-                </span>
+          {users.map(u => {
+            const status = getUserStatus(u);
+            const isActive = u.active !== false;
+            return (
+              <div key={u.user_id} className={`grid grid-cols-[1fr_10rem_5rem_5.5rem_6rem_5rem] gap-2 px-4 py-2.5 border-b border-border/50 text-sm items-center ${!isActive ? "opacity-50" : ""}`} data-testid={`user-row-${u.user_id}`}>
+                <div className="truncate text-xs">{u.email}</div>
+                <div className="truncate text-xs text-muted-foreground">{u.name || "\u2014"}</div>
+                <div>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${u.provider === "google" ? "bg-blue-50 text-blue-700" : "bg-secondary text-muted-foreground"}`}>
+                    {u.provider}
+                  </span>
+                </div>
+                <div>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${status.cls}`}>
+                    {status.label}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground font-mono">
+                  {u.created_at ? new Date(u.created_at).toLocaleDateString() : "\u2014"}
+                </div>
+                <div className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-6 text-[10px] px-2 ${isActive ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-green-600 hover:text-green-700 hover:bg-green-50"}`}
+                    onClick={() => toggleActive(u.user_id, isActive)}
+                    data-testid={`user-toggle-${u.user_id}`}
+                  >
+                    {isActive ? "Deactivate" : "Reactivate"}
+                  </Button>
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground font-mono">
-                {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
