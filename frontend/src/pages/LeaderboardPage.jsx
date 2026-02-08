@@ -14,7 +14,10 @@ import { Switch } from "@/components/ui/switch";
 import {
   Trophy, Clock, Calendar, CalendarDays, Infinity,
   Users, Swords, Activity, Tag, X, ChevronDown, ChevronUp, HelpCircle, Search, Globe, MapPin,
+  Lock, Lightbulb,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { SuggestionModal } from "@/components/SuggestionModal";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
