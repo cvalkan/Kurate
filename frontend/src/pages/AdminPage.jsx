@@ -832,9 +832,11 @@ export default function AdminPage() {
                               <td className="px-2 py-2 max-w-[250px] truncate font-medium" title={p.title}>{p.title}</td>
                               <td className="px-2 py-2 font-mono">{p.standard_score}</td>
                               <td className="px-2 py-2 font-mono">{p.standard_win_rate}%</td>
+                              <td className="px-2 py-2 font-mono text-muted-foreground">{p.standard_matches}</td>
                               <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? p.prediction_rank : "—"}</td>
                               <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? p.prediction_score : "—"}</td>
                               <td className="px-2 py-2 font-mono">{p.prediction_matches > 0 ? `${p.prediction_win_rate}%` : "—"}</td>
+                              <td className="px-2 py-2 font-mono text-muted-foreground">{p.prediction_matches || "—"}</td>
                               <td className={`px-2 py-2 font-mono font-medium ${isGem ? "text-green-700" : isOverhyped ? "text-red-600" : "text-muted-foreground"}`}>
                                 {p.prediction_matches > 0 ? (delta > 0 ? `+${delta}` : delta) : "—"}
                               </td>
