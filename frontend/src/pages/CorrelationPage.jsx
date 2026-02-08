@@ -68,6 +68,8 @@ function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
 
 export default function CorrelationPage() {
   const [data, setData] = useState(null);
+  const [predAbsData, setPredAbsData] = useState(null);
+  const [predFtData, setPredFtData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
   const [category, setCategory] = useState("");
@@ -76,15 +78,21 @@ export default function CorrelationPage() {
     axios.get(`${API}/api/categories`).then(res => {
       const cats = res.data.categories || [];
       setCategories([{ id: "", name: "All Categories" }, ...cats]);
-      setCategory("");  // Default to all
+      setCategory("");
     }).catch(() => setCategory(""));
   }, []);
 
   const fetchData = useCallback(async () => {
     try {
       const params = category ? { category } : {};
-      const res = await axios.get(`${API}/api/model-correlation`, { params });
-      setData(res.data);
+      const [stdRes, predAbsRes, predFtRes] = await Promise.all([
+        axios.get(`${API}/api/model-correlation`, { params }),
+        axios.get(`${API}/api/model-correlation`, { params: { ...params, mode: "prediction" } }),
+        axios.get(`${API}/api/model-correlation`, { params: { ...params, mode: "prediction-fulltext" } }),
+      ]);
+      setData(stdRes.data);
+      setPredAbsData(predAbsRes.data);
+      setPredFtData(predFtRes.data);
     } catch (err) {
       console.error("Failed to fetch correlation data:", err);
     } finally {
