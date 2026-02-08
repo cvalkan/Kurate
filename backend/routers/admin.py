@@ -674,19 +674,25 @@ async def get_experiment_comparison(category: str = "cs.RO"):
 
     standard_matches = [m for m in all_matches_raw
                         if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids
-                        and m.get("mode") != "prediction"]
+                        and not m.get("mode")]
 
     prediction_matches = [m for m in all_matches_raw
                           if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids
                           and m.get("mode") == "prediction"]
 
+    prediction_ft_matches = [m for m in all_matches_raw
+                             if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids
+                             and m.get("mode") == "prediction-fulltext"]
+
     # Compute rankings for each mode
     std_ranking = compute_leaderboard(all_papers, standard_matches)
     pred_ranking = compute_leaderboard(all_papers, prediction_matches)
+    pred_ft_ranking = compute_leaderboard(all_papers, prediction_ft_matches)
 
     # Build lookup
     std_lookup = {p["id"]: p for p in std_ranking}
     pred_lookup = {p["id"]: p for p in pred_ranking}
+    pred_ft_lookup = {p["id"]: p for p in pred_ft_ranking}
 
     # Merge into comparison table
     comparison = []
@@ -694,8 +700,10 @@ async def get_experiment_comparison(category: str = "cs.RO"):
         pid = paper["id"]
         std = std_lookup.get(pid, {})
         pred = pred_lookup.get(pid, {})
+        pred_ft = pred_ft_lookup.get(pid, {})
         std_rank = std.get("rank", 999)
         pred_rank = pred.get("rank", 999)
+        pred_ft_rank = pred_ft.get("rank", 999)
         comparison.append({
             "id": pid,
             "title": paper["title"],
@@ -709,7 +717,12 @@ async def get_experiment_comparison(category: str = "cs.RO"):
             "prediction_score": pred.get("score", 1200),
             "prediction_win_rate": pred.get("win_rate", 0),
             "prediction_matches": pred.get("comparisons", 0),
-            "rank_delta": pred_rank - std_rank,  # Positive = prediction ranks lower (potential hidden gem)
+            "rank_delta": pred_rank - std_rank,
+            "pred_ft_rank": pred_ft_rank,
+            "pred_ft_score": pred_ft.get("score", 1200),
+            "pred_ft_win_rate": pred_ft.get("win_rate", 0),
+            "pred_ft_matches": pred_ft.get("comparisons", 0),
+            "rank_delta_ft": pred_ft_rank - std_rank,
         })
 
     return {
@@ -717,5 +730,6 @@ async def get_experiment_comparison(category: str = "cs.RO"):
         "category": category,
         "standard_matches": len(standard_matches),
         "prediction_matches": len(prediction_matches),
+        "prediction_ft_matches": len(prediction_ft_matches),
     }
 
