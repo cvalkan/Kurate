@@ -499,24 +499,19 @@ async def _generate_pending_summaries(category: str = None):
     if not all_papers:
         return
 
-    # Get match counts for these papers (only within their category)
+    # Get match counts for these papers (indexed query by category)
     paper_ids = [p["id"] for p in all_papers]
     paper_match_count = {pid: 0 for pid in paper_ids}
     paper_wins = {pid: 0 for pid in paper_ids}
 
-    # Get all category paper IDs for filtering matches
-    cat_paper_ids = set()
+    match_query = {"completed": True, "failed": {"$ne": True}}
     if category:
-        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-            cat_paper_ids.add(p["id"])
+        match_query["primary_category"] = category
 
     async for m in db.matches.find(
-        {"completed": True, "failed": {"$ne": True}},
+        match_query,
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ):
-        # Only count matches within the same category
-        if category and (m["paper1_id"] not in cat_paper_ids or m["paper2_id"] not in cat_paper_ids):
-            continue
         for pid in [m["paper1_id"], m["paper2_id"]]:
             if pid in paper_match_count:
                 paper_match_count[pid] += 1
