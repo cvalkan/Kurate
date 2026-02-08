@@ -508,7 +508,7 @@ export default function LeaderboardPage() {
             </div>
             <div className="text-right hidden md:block">Published</div>
           </div>
-          {displayList.map((paper, idx) => (
+          {visibleList.map((paper, idx) => (
             <Link
               key={paper.id}
               to={`/paper/${paper.id}`}
@@ -549,6 +549,12 @@ export default function LeaderboardPage() {
             </Link>
           ))}
         </div>
+        {/* Infinite scroll sentinel */}
+        {hasMore && (
+          <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">
+            Loading more...
+          </div>
+        )}
         </>
       );
       })()}
