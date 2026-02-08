@@ -67,19 +67,19 @@ def _prompt_hash(prompt_config: dict) -> str:
 
 
 async def init_tournament_registry():
-    """Ensure a tournament document exists for each primary category."""
+    """Ensure a tournament document exists for each primary category. Uses upsert to prevent duplicates."""
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
     for cat_id in active_cats:
         tid = f"cat={cat_id}|mode=standard"
-        existing = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0})
-        if not existing:
-            paper_count = await db.papers.count_documents({"categories.0": cat_id})
-            match_count = await db.matches.count_documents(
-                {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id}
-            )
-            await db.tournaments.insert_one({
+        paper_count = await db.papers.count_documents({"categories.0": cat_id})
+        match_count = await db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id}
+        )
+        await db.tournaments.update_one(
+            {"tournament_id": tid},
+            {"$setOnInsert": {
                 "tournament_id": tid,
                 "category": cat_id,
                 "mode": "standard",
@@ -90,15 +90,21 @@ async def init_tournament_registry():
                     "top_k": settings.get("top_k_focus", 10),
                     "max_matches": settings.get("max_matches_per_paper", 150),
                 },
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }, "$set": {
                 "stats": {
                     "papers": paper_count,
                     "matches": match_count,
                     "goals_met": False,
                 },
-                "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
-            logger.info(f"Created tournament: {tid} ({paper_count} papers, {match_count} matches)")
+            }},
+            upsert=True,
+        )
+
+    # Clean up any orphan/duplicate tournaments without a valid tournament_id
+    await db.tournaments.delete_many({"tournament_id": {"$exists": False}})
+    await db.tournaments.delete_many({"tournament_id": None})
 
     total = await db.tournaments.count_documents({})
     logger.info(f"Tournament registry: {total} tournaments")
