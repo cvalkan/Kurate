@@ -124,6 +124,8 @@ export default function AdminPage() {
       setUsageStats(statsRes.data);
       setSummaryPrompt(summaryPromptRes.data);
       setEditSummaryPrompt(summaryPromptRes.data);
+      setPredictionPrompt(predPromptRes.data);
+      setEditPredictionPrompt(predPromptRes.data);
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         sessionStorage.removeItem("admin_token");
