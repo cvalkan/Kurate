@@ -468,7 +468,24 @@ export default function LeaderboardPage() {
         <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-lg overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" data-testid="period-filter">
           {PERIODS.map((p) => {
             const Icon = p.icon;
-            return (
+            const isLocked = !isLoggedIn && (p.key === "month" || p.key === "all");
+            return isLocked ? (
+              <Tooltip key={p.key}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={requireAuth}
+                    className="gap-1.5 text-xs h-8 shrink-0 opacity-40"
+                    data-testid={`filter-${p.key}-locked`}
+                  >
+                    <Lock className="h-3 w-3" />
+                    {p.label}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">Sign in to access {p.label.toLowerCase()} view</p></TooltipContent>
+              </Tooltip>
+            ) : (
               <Button
                 key={p.key}
                 variant={period === p.key ? "default" : "ghost"}
