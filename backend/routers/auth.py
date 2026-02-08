@@ -197,6 +197,9 @@ async def login(req: LoginRequest, response: Response):
     if not user.get("password_hash") or not bcrypt.verify(req.password, user["password_hash"]):
         raise HTTPException(401, "Invalid email or password")
 
+    if not user.get("email_verified"):
+        raise HTTPException(403, "Please verify your email before logging in. Check your inbox for the verification link.")
+
     token = await _create_session(user["user_id"], response)
 
     return {
