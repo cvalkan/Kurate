@@ -106,13 +106,14 @@ export default function AdminPage() {
     if (!adminCat) return;
     const headers = getAdminHeaders();
     try {
-      const [statusRes, settingsRes, promptRes, progressRes, statsRes, summaryPromptRes] = await Promise.all([
+      const [statusRes, settingsRes, promptRes, progressRes, statsRes, summaryPromptRes, predPromptRes] = await Promise.all([
         axios.get(`${API}/api/admin/status`, { headers, params: { category: adminCat } }),
         axios.get(`${API}/api/admin/settings`, { headers }),
         axios.get(`${API}/api/admin/prompt`, { headers }),
         axios.get(`${API}/api/admin/progress`, { headers, params: { category: adminCat } }),
         axios.get(`${API}/api/admin/stats`, { headers, params: { category: adminCat } }),
         axios.get(`${API}/api/admin/summary-prompt`, { headers }),
+        axios.get(`${API}/api/admin/prediction-prompt`, { headers }),
       ]);
       setStatus(statusRes.data);
       setSettings(settingsRes.data.settings);
