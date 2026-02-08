@@ -222,7 +222,10 @@ async def get_leaderboard(
     }
 
 
-async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offset: int, tag_mode: str = "or"):
+async def _compute_tag_leaderboard(
+    tag_list: list, period: str, limit: int, offset: int,
+    tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
+):
     """Compute leaderboard from in-memory cached data — no DB queries."""
     cache = await _get_cached_leaderboard()
     raw_papers = cache.get("_raw_papers", [])
@@ -235,25 +238,57 @@ async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offs
             "category": None, "tags": tag_list, "tag_mode": tag_mode,
         }
 
-    # Filter papers by tags from cached data
+    # Identify which papers match the selected tags
     tag_set = set(tag_list)
     if tag_mode == "and" and len(tag_list) > 1:
-        all_papers = [p for p in raw_papers if tag_set.issubset(set(p.get("categories", [])))]
+        matching_papers = [p for p in raw_papers if tag_set.issubset(set(p.get("categories", [])))]
     else:
-        all_papers = [p for p in raw_papers if tag_set.intersection(set(p.get("categories", [])))]
+        matching_papers = [p for p in raw_papers if tag_set.intersection(set(p.get("categories", [])))]
 
-    if not all_papers:
+    matching_ids = {p["id"] for p in matching_papers}
+
+    if not matching_papers and not show_all:
         return {
             "leaderboard": [], "total_papers": 0, "total_in_period": 0,
             "total_matches": 0, "is_ranking": False, "period": period,
             "category": None, "tags": tag_list, "tag_mode": tag_mode,
         }
 
-    paper_ids = {p["id"] for p in all_papers}
-    tag_matches = [m for m in raw_matches if m["paper1_id"] in paper_ids and m["paper2_id"] in paper_ids]
+    # Decide which papers to include in the output
+    display_papers = raw_papers if show_all else matching_papers
+    display_ids = {p["id"] for p in display_papers}
 
-    full = compute_leaderboard(all_papers, tag_matches)
+    # Compute leaderboard using matches between ALL displayed papers
+    display_matches = [m for m in raw_matches if m["paper1_id"] in display_ids and m["paper2_id"] in display_ids]
+    full = compute_leaderboard(display_papers, display_matches)
 
+    # Add primary_category and matches_tag flag
+    paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in display_papers}
+    for entry in full:
+        entry["matches_tag"] = entry["id"] in matching_ids
+        entry["primary_category"] = paper_cat_lookup.get(entry["id"], "unknown")
+
+    # If global_stats requested, compute each paper's stats across ALL matches
+    if global_stats:
+        global_wins = {pid: 0 for pid in display_ids}
+        global_comparisons = {pid: 0 for pid in display_ids}
+        for m in raw_matches:
+            for pid in [m["paper1_id"], m["paper2_id"]]:
+                if pid in global_comparisons:
+                    global_comparisons[pid] += 1
+            w = m.get("winner_id")
+            if w and w in global_wins:
+                global_wins[w] += 1
+        for entry in full:
+            pid = entry["id"]
+            g_w = global_wins.get(pid, 0)
+            g_c = global_comparisons.get(pid, 0)
+            entry["global_wins"] = g_w
+            entry["global_losses"] = g_c - g_w
+            entry["global_comparisons"] = g_c
+            entry["global_win_rate"] = round(100 * g_w / g_c, 1) if g_c > 0 else 0
+
+    # Period filtering
     utc_now = datetime.now(timezone.utc)
     paper_dates = {}
     for entry in full:
@@ -279,16 +314,23 @@ async def _compute_tag_leaderboard(tag_list: list, period: str, limit: int, offs
     else:
         data = full
 
+    # Count matches only between matching papers (for the "local" match count)
+    tag_only_matches = [m for m in raw_matches if m["paper1_id"] in matching_ids and m["paper2_id"] in matching_ids]
+
     return {
         "leaderboard": data[offset:offset + limit],
-        "total_papers": len(all_papers),
+        "total_papers": len(matching_papers),
+        "total_all_papers": len(display_papers) if show_all else len(matching_papers),
         "total_in_period": len(data),
-        "total_matches": len(tag_matches),
+        "total_matches": len(tag_only_matches),
+        "total_all_matches": len(display_matches) if show_all else len(tag_only_matches),
         "is_ranking": False,
         "period": period,
         "category": None,
         "tags": tag_list,
         "tag_mode": tag_mode,
+        "show_all": show_all,
+        "global_stats": global_stats,
     }
 
 
