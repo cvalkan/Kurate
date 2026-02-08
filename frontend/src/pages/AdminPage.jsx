@@ -810,11 +810,14 @@ export default function AdminPage() {
                           { key: "standard_score", label: "Std Score" },
                           { key: "standard_win_rate", label: "Std Win%" },
                           { key: "standard_matches", label: "Std Mtch" },
-                          { key: "prediction_rank", label: "Pred #" },
-                          { key: "prediction_score", label: "Pred Score" },
-                          { key: "prediction_win_rate", label: "Pred Win%" },
-                          { key: "prediction_matches", label: "Pred Mtch" },
-                          { key: "rank_delta", label: "Δ Rank" },
+                          { key: "prediction_rank", label: "Abs #" },
+                          { key: "prediction_win_rate", label: "Abs Win%" },
+                          { key: "prediction_matches", label: "Abs Mtch" },
+                          { key: "rank_delta", label: "Δ Abs" },
+                          { key: "pred_ft_rank", label: "FT #" },
+                          { key: "pred_ft_win_rate", label: "FT Win%" },
+                          { key: "pred_ft_matches", label: "FT Mtch" },
+                          { key: "rank_delta_ft", label: "Δ FT" },
                         ].map(col => (
                           <th key={col.key}
                             className="px-2 py-2.5 text-left font-medium text-muted-foreground cursor-pointer hover:text-foreground whitespace-nowrap"
