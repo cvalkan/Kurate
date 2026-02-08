@@ -100,6 +100,8 @@ export default function LeaderboardPage() {
       if (isTagMode) {
         params.tags = selectedTags.join(",");
         params.tag_mode = tagMode;
+        params.global_stats = globalStats;
+        params.show_all = showAll;
       } else {
         params.category = category;
       }
@@ -118,7 +120,7 @@ export default function LeaderboardPage() {
         setLoading(false);
       }
     }
-  }, [category, period, selectedTags, tagMode, isTagMode]);
+  }, [category, period, selectedTags, tagMode, isTagMode, globalStats, showAll]);
 
   // Fetch on param change
   useEffect(() => {
