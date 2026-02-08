@@ -260,13 +260,35 @@ export default function LeaderboardPage() {
       {/* Tag Filter */}
       <div className="mb-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant={tagFilterOpen ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTagFilterOpen(!tagFilterOpen)}
-            className="gap-1.5 text-xs h-7"
-            data-testid="tag-filter-toggle"
-          >
+          {isLoggedIn ? (
+            <Button
+              variant={tagFilterOpen ? "default" : "outline"}
+              size="sm"
+              onClick={() => setTagFilterOpen(!tagFilterOpen)}
+              className="gap-1.5 text-xs h-7"
+              data-testid="tag-filter-toggle"
+            >
+              <Tag className="h-3 w-3" />
+              Filter by tags
+              {tagFilterOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={requireAuth}
+                  className="gap-1.5 text-xs h-7 opacity-50"
+                  data-testid="tag-filter-toggle-locked"
+                >
+                  <Lock className="h-3 w-3" />
+                  Filter by tags
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-xs">Sign in to filter by tags</p></TooltipContent>
+            </Tooltip>
+          )}
             <Tag className="h-3 w-3" />
             Filter by tags
             {tagFilterOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
