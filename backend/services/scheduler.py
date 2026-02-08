@@ -173,8 +173,9 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     paper_match_count = {pid: 0 for pid in paper_ids}
     paper_wins = {pid: 0 for pid in paper_ids}
 
+    # Use indexed query on primary_category instead of full collection scan
     async for m in db.matches.find(
-        {"completed": True, "failed": {"$ne": True}},
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ):
         if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
