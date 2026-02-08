@@ -237,6 +237,9 @@ async def login(req: LoginRequest, response: Response):
     if not user.get("email_verified"):
         raise HTTPException(403, "Please verify your email before logging in. Check your inbox for the verification link.")
 
+    if user.get("active") is False:
+        raise HTTPException(403, "Your account has been deactivated. Please contact the administrator.")
+
     token = await _create_session(user["user_id"], response)
 
     return {
