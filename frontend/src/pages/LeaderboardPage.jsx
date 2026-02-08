@@ -55,8 +55,6 @@ export default function LeaderboardPage() {
 
   // Global/Local stats toggle (tag mode only)
   const [globalStats, setGlobalStats] = useState(false);
-  // Show all papers in tag mode
-  const [showAll, setShowAll] = useState(true);
 
   // Abort controller to cancel stale requests
   const abortRef = useRef(null);
