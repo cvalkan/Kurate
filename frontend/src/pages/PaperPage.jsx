@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowLeft, ExternalLink, Trophy, XCircle, CheckCircle2, Clock, Bot, Sparkles,
+  ArrowLeft, ExternalLink, Trophy, XCircle, CheckCircle2, Clock, Bot, Sparkles, Tag,
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
