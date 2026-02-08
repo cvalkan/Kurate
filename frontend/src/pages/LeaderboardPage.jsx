@@ -11,7 +11,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Trophy, Clock, Calendar, CalendarDays, Infinity,
   Users, Swords, Activity, Tag, X, ChevronDown, ChevronUp, HelpCircle, Search, Globe, MapPin,
