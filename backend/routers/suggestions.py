@@ -74,3 +74,25 @@ async def get_users():
         {}, {"_id": 0, "password_hash": 0, "verification_token": 0}
     ).sort("created_at", -1).to_list(500)
     return {"users": users}
+
+
+@router.post("/admin/users/{user_id}/status", dependencies=[Depends(verify_admin)])
+async def update_user_status(user_id: str, request: Request):
+    body = await request.json()
+    active = body.get("active")
+    if active is None:
+        raise HTTPException(400, "Missing 'active' field")
+
+    result = await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"active": bool(active)}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "User not found")
+
+    # If deactivating, clear all their sessions
+    if not active:
+        await db.user_sessions.delete_many({"user_id": user_id})
+
+    return {"status": "ok", "active": bool(active)}
+
