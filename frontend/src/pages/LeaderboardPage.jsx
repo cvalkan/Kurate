@@ -295,17 +295,17 @@ export default function LeaderboardPage() {
       </div>
 
       {/* Status Bar */}
-      <div className="flex items-center gap-3 mb-6 text-xs flex-nowrap" data-testid="status-bar">
+      <div className="flex items-center gap-3 mb-6 text-xs flex-wrap" data-testid="status-bar">
         <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
           <Users className="h-3.5 w-3.5" />
           <span className="font-mono">{totalPapers}</span>
-          <span>papers</span>
+          <span>{isTagMode && showAll ? "tagged" : "papers"}</span>
         </div>
         <div className="w-px h-3 bg-border shrink-0" />
         <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
           <Swords className="h-3.5 w-3.5" />
           <span className="font-mono">{totalMatches}</span>
-          <span>comparisons</span>
+          <span>{isTagMode ? "tag matches" : "comparisons"}</span>
         </div>
         {isRanking && (
           <>
@@ -326,6 +326,67 @@ export default function LeaderboardPage() {
           </>
         )}
       </div>
+
+      {/* Global/Local Stats Toggle — tag mode only */}
+      {isTagMode && (
+        <div className="flex items-center gap-4 mb-4 p-2.5 bg-secondary/30 border border-border rounded-lg" data-testid="stats-toggle-bar">
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={`flex items-center gap-1 text-xs font-medium cursor-help ${!globalStats ? "text-foreground" : "text-muted-foreground"}`}>
+                  <MapPin className="h-3 w-3" />
+                  Local
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="text-xs">Stats computed only from matches between papers in the current filtered set. Win rates and match counts reflect head-to-head comparisons within this group.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Switch
+              checked={globalStats}
+              onCheckedChange={setGlobalStats}
+              className="h-4 w-7"
+              data-testid="global-local-toggle"
+            />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={`flex items-center gap-1 text-xs font-medium cursor-help ${globalStats ? "text-foreground" : "text-muted-foreground"}`}>
+                  <Globe className="h-3 w-3" />
+                  Global
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="text-xs">Stats from all tournament matches each paper has participated in, including matches against papers outside this filtered set. Gives the full picture of each paper's performance.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div className="w-px h-4 bg-border" />
+
+          <div className="flex items-center gap-2">
+            <Label htmlFor="show-all-toggle" className="text-xs text-muted-foreground cursor-pointer">
+              Show all papers
+            </Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="text-xs">When enabled, shows all papers from all categories. Papers not matching the selected tags are greyed out for context.</p>
+              </TooltipContent>
+            </Tooltip>
+            <Switch
+              id="show-all-toggle"
+              checked={showAll}
+              onCheckedChange={setShowAll}
+              className="h-4 w-7"
+              data-testid="show-all-toggle"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Period Filter + Keyword Search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-6">
