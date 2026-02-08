@@ -299,6 +299,7 @@ export default function LeaderboardPage() {
             <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
               {filteredTags.map(tag => {
                 const isSelected = selectedTags.includes(tag.id);
+                const matchCount = tag.matches || 0;
                 return (
                   <button
                     key={tag.id}
@@ -308,11 +309,17 @@ export default function LeaderboardPage() {
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-background text-muted-foreground border-border hover:bg-secondary"
                     }`}
+                    title={`${tag.count} papers, ${matchCount} matches`}
                   >
                     {tag.id}
                     <span className={`font-mono text-[10px] ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60"}`}>
                       {tag.count}
                     </span>
+                    {matchCount > 0 && (
+                      <span className={`font-mono text-[9px] ${isSelected ? "text-primary-foreground/50" : "text-muted-foreground/40"}`}>
+                        ({matchCount})
+                      </span>
+                    )}
                   </button>
                 );
               })}
