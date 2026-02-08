@@ -44,6 +44,7 @@ frontend/src/pages/
 - [Feb 2026] **Infinite scroll** — lists > 100 entries load 50 at a time via IntersectionObserver
 - [Feb 2026] **Status bar count fix** — shows actual displayed count with total in parentheses when period-filtered
 - [Feb 2026] **Paper detail categories** — all category tags shown on paper page with primary highlighted and labeled
+- [Feb 2026] **Piggyback cross-category (Option C)** — every match now stores `shared_categories` (intersection of both papers' tags). Tag-filtered leaderboards automatically benefit from all matches where both papers share that tag. 13,134 existing matches backfilled. `/api/tags` returns per-tag match coverage. Tag panel shows match counts.
 
 ## Key API Endpoints
 - `GET /api/leaderboard?category=cs.RO` — Cached category leaderboard
