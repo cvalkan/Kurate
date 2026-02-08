@@ -113,23 +113,15 @@ async def _scheduler_loop():
                     last_dt = datetime.fromisoformat(cat_last)
                     cat_status["next_fetch_at"] = (last_dt + timedelta(hours=interval_hours)).isoformat()
 
-            # Update per-category paper/match counts
+            # Update per-category paper/match counts (indexed queries)
             for cat in active_cats:
                 cat_status = _get_cat_status(cat)
-                cat_paper_ids = set()
-                async for p in db.papers.find({"categories.0": cat}, {"_id": 0, "id": 1}):
-                    cat_paper_ids.add(p["id"])
-                cat_status["papers_count"] = len(cat_paper_ids)
-
-                if cat_paper_ids:
-                    cat_match_count = 0
-                    async for m in db.matches.find(
-                        {"completed": True, "failed": {"$ne": True}},
-                        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
-                    ):
-                        if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids:
-                            cat_match_count += 1
-                    cat_status["matches_count"] = cat_match_count
+                cat_paper_count = await db.papers.count_documents({"categories.0": cat})
+                cat_status["papers_count"] = cat_paper_count
+                cat_match_count = await db.matches.count_documents(
+                    {"completed": True, "failed": {"$ne": True}, "primary_category": cat}
+                )
+                cat_status["matches_count"] = cat_match_count
 
             if not is_paused:
                 # Check which categories need work
