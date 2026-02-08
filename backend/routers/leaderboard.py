@@ -23,7 +23,7 @@ async def _refresh_cache():
 
     all_matches_raw = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1, "shared_categories": 1},
     ).to_list(200000)
 
     # Exclude experiment matches from public leaderboard
