@@ -65,12 +65,14 @@ export default function LeaderboardPage() {
 
   // Notify navbar of category/tag changes
   useEffect(() => {
-    if (isTagMode) {
+    if (hasSelectedTags) {
       window.dispatchEvent(new CustomEvent("category-change", { detail: { tags: selectedTags } }));
+    } else if (isTagMode) {
+      window.dispatchEvent(new CustomEvent("category-change", { detail: { name: "All Papers" } }));
     } else if (categoryName && categoryName !== "Papers") {
       window.dispatchEvent(new CustomEvent("category-change", { detail: { name: categoryName } }));
     }
-  }, [categoryName, isTagMode, selectedTags]);
+  }, [categoryName, isTagMode, hasSelectedTags, selectedTags]);
 
   // Load categories and tags once
   useEffect(() => {
