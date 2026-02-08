@@ -76,6 +76,8 @@ frontend/src/
     VerifyEmailPage.jsx     — email verification
 ```
 
+- [Feb 2026] **P0 Scalability fix** — Added `primary_category` field to all match documents (denormalized, indexed). Replaced O(N×M) full collection scans with indexed queries in scheduler and cache. Pre-indexed matches by paper_id in cache refresh. System now scales to 100+ categories.
+
 ## Key API Endpoints
 - `GET /api/leaderboard?category=cs.RO` — Cached category leaderboard
 - `GET /api/leaderboard?tags=physics.chem-ph&global_stats=true` — Tag-filtered with global stats
