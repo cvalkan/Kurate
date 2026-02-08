@@ -41,6 +41,11 @@ async def startup():
         await db.matches.create_index("shared_categories")
         await db.matches.create_index("created_at")
         await db.settings.create_index("key", unique=True)
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("user_id", unique=True)
+        await db.user_sessions.create_index("session_token", unique=True)
+        await db.user_sessions.create_index("user_id")
+        await db.suggestions.create_index("created_at")
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
