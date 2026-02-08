@@ -84,7 +84,7 @@ def _pick_random_model() -> Dict[str, str]:
     return random.choice(TOURNAMENT_MODELS)
 
 
-async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None) -> Dict:
+async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False) -> Dict:
     if prompt_config is None:
         prompt_config = DEFAULT_EVALUATION_PROMPT
 
@@ -95,8 +95,12 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None)
     system_msg = prompt_config["system_prompt"]
     user_template = prompt_config["user_prompt"]
 
-    p1_content = _build_paper_content(paper1)
-    p2_content = _build_paper_content(paper2)
+    if abstract_only:
+        p1_content = f"Abstract: {paper1.get('abstract', '')[:1500]}"
+        p2_content = f"Abstract: {paper2.get('abstract', '')[:1500]}"
+    else:
+        p1_content = _build_paper_content(paper1)
+        p2_content = _build_paper_content(paper2)
 
     prompt = user_template.format(
         paper1_title=paper1["title"],
