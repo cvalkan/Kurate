@@ -152,7 +152,13 @@ async def _scheduler_loop():
             settings = await get_settings()
             interval_hours = settings.get("fetch_interval_hours", 24)
             is_paused = settings.get("paused", False)
-            active_cats = settings.get("active_categories", ["cs.RO"])
+            min_papers = settings.get("min_papers_for_tournament", 8)
+
+            # Get active tournaments from registry
+            tournaments = await get_active_tournaments()
+            active_cats = list({t["category"] for t in tournaments})
+            if not active_cats:
+                active_cats = settings.get("active_categories", ["cs.RO"])
 
             # Per-category fetch check
             for cat in active_cats:
@@ -185,7 +191,7 @@ async def _scheduler_loop():
                     last_dt = datetime.fromisoformat(cat_last)
                     cat_status["next_fetch_at"] = (last_dt + timedelta(hours=interval_hours)).isoformat()
 
-            # Update per-category paper/match counts (indexed queries)
+            # Update per-category paper/match counts and tournament stats
             for cat in active_cats:
                 cat_status = _get_cat_status(cat)
                 cat_paper_count = await db.papers.count_documents({"categories.0": cat})
@@ -194,11 +200,16 @@ async def _scheduler_loop():
                     {"completed": True, "failed": {"$ne": True}, "primary_category": cat}
                 )
                 cat_status["matches_count"] = cat_match_count
+                await update_tournament_stats(cat)
 
             if not is_paused:
-                # Check which categories need work
+                # Check which categories need work (skip if below min papers threshold)
                 unmet_cats = []
                 for cat in active_cats:
+                    paper_count = _get_cat_status(cat).get("papers_count", 0)
+                    if paper_count < min_papers:
+                        _get_cat_status(cat)["current_activity"] = f"Insufficient papers ({paper_count}/{min_papers})"
+                        continue
                     if not await _check_goals_met(category=cat):
                         unmet_cats.append(cat)
 
@@ -210,7 +221,8 @@ async def _scheduler_loop():
                     continue
                 else:
                     for cat in active_cats:
-                        _get_cat_status(cat)["current_activity"] = "Goals met — idle"
+                        if _get_cat_status(cat).get("papers_count", 0) >= min_papers:
+                            _get_cat_status(cat)["current_activity"] = "Goals met — idle"
             else:
                 for cat in active_cats:
                     _get_cat_status(cat)["current_activity"] = "Paused"
