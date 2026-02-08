@@ -1,0 +1,295 @@
+import uuid
+import secrets
+import asyncio
+from datetime import datetime, timezone, timedelta
+from fastapi import APIRouter, HTTPException, Request, Response
+from pydantic import BaseModel, EmailStr
+from typing import Optional
+from passlib.hash import bcrypt
+import httpx
+import resend
+import os
+
+from core.config import db, logger
+
+router = APIRouter(prefix="/api/auth")
+
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+SESSION_DAYS = 7
+
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+
+# --- Models ---
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class SessionRequest(BaseModel):
+    session_id: str
+
+
+# --- Helpers ---
+
+def _generate_session_token():
+    return f"sess_{secrets.token_urlsafe(32)}"
+
+
+def _generate_verification_token():
+    return secrets.token_urlsafe(32)
+
+
+async def _get_current_user(request: Request) -> Optional[dict]:
+    """Extract user from session token (cookie or header)."""
+    token = request.cookies.get("session_token")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if not token:
+        return None
+
+    session = await db.user_sessions.find_one(
+        {"session_token": token}, {"_id": 0}
+    )
+    if not session:
+        return None
+
+    expires_at = session.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        return None
+
+    user = await db.users.find_one(
+        {"user_id": session["user_id"]}, {"_id": 0}
+    )
+    return user
+
+
+async def _create_session(user_id: str, response: Response) -> str:
+    token = _generate_session_token()
+    await db.user_sessions.insert_one({
+        "session_token": token,
+        "user_id": user_id,
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    response.set_cookie(
+        key="session_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+        max_age=SESSION_DAYS * 86400,
+    )
+    return token
+
+
+async def _send_verification_email(email: str, name: str, token: str, origin: str):
+    if not RESEND_API_KEY:
+        logger.warning("No RESEND_API_KEY — skipping verification email")
+        return False
+
+    verify_url = f"{origin}/verify-email?token={token}"
+    html = f"""
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Verify your email</h2>
+      <p style="color: #666; font-size: 14px;">Hi {name}, click the button below to verify your email address for PaperSumo.</p>
+      <a href="{verify_url}" style="display: inline-block; background: #1a1a2e; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 14px; margin: 16px 0;">Verify Email</a>
+      <p style="color: #999; font-size: 12px; margin-top: 24px;">If you didn't create this account, ignore this email.</p>
+    </div>
+    """
+    params = {
+        "from": SENDER_EMAIL,
+        "to": [email],
+        "subject": "Verify your PaperSumo account",
+        "html": html,
+    }
+    try:
+        await asyncio.to_thread(resend.Emails.send, params)
+        logger.info(f"Verification email sent to {email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send verification email: {e}")
+        return False
+
+
+# --- Endpoints ---
+
+@router.post("/register")
+async def register(req: RegisterRequest, request: Request, response: Response):
+    existing = await db.users.find_one({"email": req.email}, {"_id": 0})
+    if existing:
+        if existing.get("provider") == "google":
+            raise HTTPException(400, "This email is registered via Google. Please use Google sign-in.")
+        raise HTTPException(400, "Email already registered")
+
+    if len(req.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    verification_token = _generate_verification_token()
+    password_hash = bcrypt.hash(req.password)
+
+    await db.users.insert_one({
+        "user_id": user_id,
+        "email": req.email,
+        "name": req.name,
+        "picture": None,
+        "password_hash": password_hash,
+        "email_verified": False,
+        "verification_token": verification_token,
+        "provider": "email",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    # Send verification email
+    origin = request.headers.get("origin", request.headers.get("referer", ""))
+    if origin and "?" in origin:
+        origin = origin.split("?")[0]
+    if origin and origin.endswith("/"):
+        origin = origin[:-1]
+    sent = await _send_verification_email(req.email, req.name, verification_token, origin)
+
+    # Create session (user can use the app, but some features may require verification)
+    token = await _create_session(user_id, response)
+
+    return {
+        "user": {"user_id": user_id, "email": req.email, "name": req.name, "picture": None, "email_verified": False, "provider": "email"},
+        "session_token": token,
+        "verification_sent": sent,
+    }
+
+
+@router.post("/verify-email")
+async def verify_email(token: str):
+    user = await db.users.find_one(
+        {"verification_token": token}, {"_id": 0}
+    )
+    if not user:
+        raise HTTPException(400, "Invalid or expired verification token")
+
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"email_verified": True}, "$unset": {"verification_token": ""}},
+    )
+    return {"status": "ok", "message": "Email verified successfully"}
+
+
+@router.post("/login")
+async def login(req: LoginRequest, response: Response):
+    user = await db.users.find_one({"email": req.email}, {"_id": 0})
+    if not user:
+        raise HTTPException(401, "Invalid email or password")
+
+    if user.get("provider") == "google":
+        raise HTTPException(400, "This email is registered via Google. Please use Google sign-in.")
+
+    if not user.get("password_hash") or not bcrypt.verify(req.password, user["password_hash"]):
+        raise HTTPException(401, "Invalid email or password")
+
+    token = await _create_session(user["user_id"], response)
+
+    return {
+        "user": {
+            "user_id": user["user_id"],
+            "email": user["email"],
+            "name": user["name"],
+            "picture": user.get("picture"),
+            "email_verified": user.get("email_verified", False),
+            "provider": user.get("provider", "email"),
+        },
+        "session_token": token,
+    }
+
+
+@router.post("/google-session")
+async def google_session(req: SessionRequest, response: Response):
+    """Exchange Emergent Google OAuth session_id for user data and create local session."""
+    async with httpx.AsyncClient() as client:
+        try:
+            res = await client.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": req.session_id},
+                timeout=10,
+            )
+            if res.status_code != 200:
+                raise HTTPException(401, "Invalid Google session")
+            data = res.json()
+        except httpx.RequestError as e:
+            raise HTTPException(502, f"Failed to verify Google session: {e}")
+
+    email = data.get("email")
+    name = data.get("name", "")
+    picture = data.get("picture", "")
+
+    if not email:
+        raise HTTPException(400, "No email returned from Google")
+
+    # Upsert user
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"name": name, "picture": picture, "provider": "google", "email_verified": True}},
+        )
+        user_id = existing["user_id"]
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": email,
+            "name": name,
+            "picture": picture,
+            "password_hash": None,
+            "email_verified": True,
+            "provider": "google",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    token = await _create_session(user_id, response)
+
+    return {
+        "user": {"user_id": user_id, "email": email, "name": name, "picture": picture, "email_verified": True, "provider": "google"},
+        "session_token": token,
+    }
+
+
+@router.get("/me")
+async def get_me(request: Request):
+    user = await _get_current_user(request)
+    if not user:
+        raise HTTPException(401, "Not authenticated")
+    return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user["name"],
+        "picture": user.get("picture"),
+        "email_verified": user.get("email_verified", False),
+        "provider": user.get("provider", "email"),
+    }
+
+
+@router.post("/logout")
+async def logout(request: Request, response: Response):
+    token = request.cookies.get("session_token")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if token:
+        await db.user_sessions.delete_one({"session_token": token})
+    response.delete_cookie("session_token", path="/", samesite="none", secure=True)
+    return {"status": "ok"}
