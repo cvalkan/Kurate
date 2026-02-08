@@ -77,6 +77,9 @@ frontend/src/
 ```
 
 - [Feb 2026] **P0 Scalability fix** — Added `primary_category` field to all match documents (denormalized, indexed). Replaced O(N×M) full collection scans with indexed queries in scheduler and cache. Pre-indexed matches by paper_id in cache refresh. System now scales to 100+ categories.
+- [Feb 2026] **P1: Tournament registry** — `tournaments` collection with per-tournament goals, stats, and status. Scheduler iterates over active tournaments. Admin can pause/resume individual tournaments. Auto-initialized from CATEGORIES on startup.
+- [Feb 2026] **P1: Min viable tournament** — `min_papers_for_tournament` setting (default 8). Scheduler skips categories below threshold.
+- [Feb 2026] **P1: Prompt version tracking** — `prompt_hash` (SHA-256 truncated) stored on each new match document for comparability tracking.
 
 ## Key API Endpoints
 - `GET /api/leaderboard?category=cs.RO` — Cached category leaderboard
