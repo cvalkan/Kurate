@@ -384,6 +384,7 @@ async def get_system_status():
 @router.get("/model-correlation")
 async def get_model_correlation(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
+    mode: Optional[str] = Query(None, description="Match mode: None=standard, 'prediction', 'prediction-fulltext'"),
 ):
     """Correlation analysis between the 3 LLMs used for rankings."""
     import numpy as np
@@ -397,8 +398,15 @@ async def get_model_correlation(
 
     matches_raw = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1, "mode": 1},
     ).to_list(100000)
+
+    # Filter by mode
+    if mode:
+        matches_raw = [m for m in matches_raw if m.get("mode") == mode]
+    else:
+        # Default: standard matches only (exclude experiments)
+        matches_raw = [m for m in matches_raw if not m.get("mode")]
 
     if cat_paper_ids is not None:
         matches = [m for m in matches_raw if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids]
@@ -406,7 +414,7 @@ async def get_model_correlation(
         matches = matches_raw
 
     if not matches:
-        return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category}
+        return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category, "mode": mode}
 
     paper_titles = {}
     async for p in db.papers.find({}, {"_id": 0, "id": 1, "title": 1}):
