@@ -34,6 +34,7 @@ async def startup():
         await db.matches.create_index("id", unique=True)
         await db.matches.create_index("paper1_id")
         await db.matches.create_index("paper2_id")
+        await db.matches.create_index("shared_categories")
         await db.matches.create_index("created_at")
         await db.settings.create_index("key", unique=True)
         logger.info("MongoDB indexes created")
