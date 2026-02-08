@@ -74,6 +74,8 @@ async def _get_current_user(request: Request) -> Optional[dict]:
     user = await db.users.find_one(
         {"user_id": session["user_id"]}, {"_id": 0}
     )
+    if not user or user.get("active") is False:
+        return None
     return user
 
 
