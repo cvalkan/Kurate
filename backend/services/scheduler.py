@@ -432,10 +432,16 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
                 for (p1_id, p2_id), result in zip(presented_batch, results):
+                    # Compute shared categories between the two papers (piggyback)
+                    p1_cats = set(paper_lookup[p1_id].get("categories", []))
+                    p2_cats = set(paper_lookup[p2_id].get("categories", []))
+                    shared_cats = sorted(p1_cats & p2_cats)
+
                     match_doc = {
                         "id": str(uuid.uuid4()),
                         "paper1_id": p1_id,
                         "paper2_id": p2_id,
+                        "shared_categories": shared_cats,
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }
 
