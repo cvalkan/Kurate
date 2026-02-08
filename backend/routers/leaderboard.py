@@ -193,14 +193,16 @@ async def get_leaderboard(
     period: Optional[str] = Query("all", description="Filter: recent, week, month, all"),
     tags: Optional[str] = Query(None, description="Comma-separated category tags to filter by (overrides category)"),
     tag_mode: Optional[str] = Query("or", description="How to combine tags: 'or' (any) or 'and' (all)"),
-    limit: int = Query(100, description="Max papers to return"),
+    global_stats: bool = Query(False, description="Include global stats (all matches) for each paper"),
+    show_all: bool = Query(False, description="Show all papers with matches_tag flag (tag mode only)"),
+    limit: int = Query(500, description="Max papers to return"),
     offset: int = Query(0, description="Offset for pagination"),
 ):
     # Tag-based filtering: compute on-demand
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         if tag_list:
-            return await _compute_tag_leaderboard(tag_list, period, limit, offset, tag_mode)
+            return await _compute_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all)
 
     # Default: use pre-computed primary category cache
     cache = await _get_cached_leaderboard()
