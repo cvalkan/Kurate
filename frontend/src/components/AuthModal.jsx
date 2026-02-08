@@ -57,9 +57,9 @@ export function AuthModal({ open, onClose }) {
             <Mail className="h-10 w-10 mx-auto mb-3 text-accent" />
             <h2 className="text-lg font-semibold mb-2">Check your email</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              We sent a verification link to <span className="font-medium text-foreground">{email}</span>. Click it to verify your account.
+              We sent a verification link to <span className="font-medium text-foreground">{email}</span>. Click it to verify your account before logging in.
             </p>
-            <p className="text-xs text-muted-foreground mb-4">You can use the app while waiting, but some features may require verification.</p>
+            <p className="text-xs text-muted-foreground mb-4">You must verify your email before you can sign in.</p>
             <Button onClick={onClose} className="w-full">Got it</Button>
           </div>
         </div>
