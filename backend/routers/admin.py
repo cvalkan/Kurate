@@ -3,11 +3,37 @@ from pydantic import BaseModel
 from typing import Optional, List
 from collections import defaultdict
 from datetime import datetime, timezone
+import time as _time
 from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
 from core.auth import verify_admin, get_settings, invalidate_settings_cache
 from services.scheduler import run_fetch_cycle, run_comparison_round, get_scheduler_status, _get_cat_status, wake_scheduler
 
 router = APIRouter(prefix="/api/admin")
+
+# Per-category cache for admin endpoints (avoids hammering DB on rapid category switching)
+_admin_cache = {}  # {(endpoint, category): {"data": ..., "ts": float}}
+_ADMIN_CACHE_TTL = 8  # seconds
+
+
+def _get_admin_cached(key: str, category: str):
+    entry = _admin_cache.get((key, category))
+    if entry and _time.time() - entry["ts"] < _ADMIN_CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def _set_admin_cached(key: str, category: str, data):
+    _admin_cache[(key, category)] = {"data": data, "ts": _time.time()}
+
+
+def _invalidate_admin_cache(category: str = None):
+    """Invalidate admin cache for a category (or all if None)."""
+    if category:
+        keys_to_remove = [k for k in _admin_cache if k[1] == category]
+    else:
+        keys_to_remove = list(_admin_cache.keys())
+    for k in keys_to_remove:
+        _admin_cache.pop(k, None)
 
 
 class AdminLogin(BaseModel):
