@@ -92,7 +92,7 @@ function CustomTooltip({ active, payload, label, formatter }) {
   );
 }
 
-export function AdminStatistics({ categories, adminCat, setAdminCat, usageStats }) {
+export function AdminStatistics({ categories }) {
   const [timeseries, setTimeseries] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("cumulative"); // "daily" | "cumulative"
