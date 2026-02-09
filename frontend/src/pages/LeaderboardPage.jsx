@@ -22,7 +22,7 @@ import { SuggestionModal } from "@/components/SuggestionModal";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const PERIODS = [
-  { key: "recent", label: "Latest Drop", icon: Clock },
+  { key: "recent", label: "Most Recent", icon: Clock },
   { key: "week", label: "This Week", icon: Calendar },
   { key: "month", label: "This Month", icon: CalendarDays },
   { key: "all", label: "All Time", icon: Infinity },
