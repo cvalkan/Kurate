@@ -87,6 +87,11 @@ export default function AdminPage() {
       setPrompt(promptRes.data);
       setEditPrompt(promptRes.data);
       setProgress(progressRes.data);
+      // Default manual matches to estimated remaining, or a sensible default
+      if (manualMatches === null) {
+        const est = progressRes.data?.estimated_matches_remaining;
+        setManualMatches(est > 0 ? Math.min(est, 100) : 20);
+      }
       setUsageStats(statsRes.data);
       setSummaryPrompt(summaryPromptRes.data);
       setEditSummaryPrompt(summaryPromptRes.data);
