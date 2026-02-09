@@ -34,7 +34,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("statistics");
   const [progress, setProgress] = useState(null);
   const [usageStats, setUsageStats] = useState(null);
-  const [manualMatches, setManualMatches] = useState(50);
+  const [manualMatches, setManualMatches] = useState(null);
   const [summaryPrompt, setSummaryPrompt] = useState(null);
   const [editSummaryPrompt, setEditSummaryPrompt] = useState({});
   const [editPredictionPrompt, setEditPredictionPrompt] = useState({});
