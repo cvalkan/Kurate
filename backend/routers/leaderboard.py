@@ -328,7 +328,7 @@ async def get_leaderboard(
     }
 
 
-async def _compute_all_papers_leaderboard(period: str, limit: int, offset: int):
+async def _compute_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None):
     """Return all papers from all categories — served from pre-computed cache."""
     cache = await _get_cached_leaderboard()
     all_lb = cache.get("_all_papers_leaderboard")
@@ -341,6 +341,7 @@ async def _compute_all_papers_leaderboard(period: str, limit: int, offset: int):
         }
 
     data = all_lb.get(period, all_lb.get("all", []))
+    data = _apply_search(data, search)
 
     return {
         "leaderboard": data[offset:offset + limit],
