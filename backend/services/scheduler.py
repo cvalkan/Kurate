@@ -147,10 +147,11 @@ async def update_tournament_stats(category: str, mode: str = "standard"):
 
 
 async def start_scheduler():
-    global _scheduler_running
+    global _scheduler_running, _wake_event
     if _scheduler_running:
         return
     _scheduler_running = True
+    _wake_event = asyncio.Event()
     # Initialize status for all active categories (dynamic from settings)
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
@@ -161,7 +162,7 @@ async def start_scheduler():
 
 
 async def _scheduler_loop():
-    global _scheduler_running
+    global _scheduler_running, _wake_event
     await asyncio.sleep(5)
 
     while _scheduler_running:
