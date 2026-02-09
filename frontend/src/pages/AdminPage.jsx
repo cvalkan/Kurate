@@ -72,31 +72,20 @@ export default function AdminPage() {
     }
   }, [navigate, adminCat]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchAll = useCallback(async () => {
-    if (!adminCat) return;
+  // Fetch global settings (only on mount, not on category change)
+  const fetchGlobalSettings = useCallback(async () => {
     const headers = getAdminHeaders();
     try {
-      const [statusRes, settingsRes, promptRes, progressRes, statsRes, summaryPromptRes, predPromptRes] = await Promise.all([
-        axios.get(`${API}/api/admin/status`, { headers, params: { category: adminCat } }),
+      const [settingsRes, promptRes, summaryPromptRes, predPromptRes] = await Promise.all([
         axios.get(`${API}/api/admin/settings`, { headers }),
         axios.get(`${API}/api/admin/prompt`, { headers }),
-        axios.get(`${API}/api/admin/progress`, { headers, params: { category: adminCat } }),
-        axios.get(`${API}/api/admin/stats`, { headers, params: { category: adminCat } }),
         axios.get(`${API}/api/admin/summary-prompt`, { headers }),
         axios.get(`${API}/api/admin/prediction-prompt`, { headers }),
       ]);
-      setStatus(statusRes.data);
       setSettings(settingsRes.data.settings);
       setEditSettings(settingsRes.data.settings);
       setPrompt(promptRes.data);
       setEditPrompt(promptRes.data);
-      setProgress(progressRes.data);
-      // Default manual matches to estimated remaining, or a sensible default
-      if (manualMatches === null) {
-        const est = progressRes.data?.estimated_matches_remaining;
-        setManualMatches(est > 0 ? Math.min(est, 100) : 20);
-      }
-      setUsageStats(statsRes.data);
       setSummaryPrompt(summaryPromptRes.data);
       setEditSummaryPrompt(summaryPromptRes.data);
       setEditPredictionPrompt(predPromptRes.data);
@@ -106,7 +95,11 @@ export default function AdminPage() {
         navigate("/admin");
       }
     }
-  }, [navigate, adminCat]);
+  }, [navigate]);
+
+  const fetchAll = useCallback(async () => {
+    await Promise.all([fetchGlobalSettings(), fetchLiveData()]);
+  }, [fetchGlobalSettings, fetchLiveData]);
 
   useEffect(() => {
     if (!sessionStorage.getItem("admin_token")) { navigate("/admin"); return; }
