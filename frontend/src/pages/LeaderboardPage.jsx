@@ -246,37 +246,36 @@ export default function LeaderboardPage() {
               </Button>
             ))}
             {categories.length > 5 && (
-              <div className="relative">
+              <div className="relative" ref={moreCatsRef}>
                 <Button
                   variant={!isTagMode && categories.slice(5).some(c => c.id === category) ? "default" : "ghost"}
                   size="sm"
                   className="text-xs h-8 gap-1 shrink-0"
-                  onClick={() => {
-                    const el = document.getElementById("more-cats-dropdown");
-                    if (el) el.classList.toggle("hidden");
-                  }}
+                  onClick={() => setMoreCatsOpen(v => !v)}
                   disabled={isTagMode}
                   data-testid="more-categories-btn"
                 >
                   {categories.slice(5).find(c => c.id === category)?.name || "More"}
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className={`h-3 w-3 transition-transform ${moreCatsOpen ? "rotate-180" : ""}`} />
                 </Button>
-                <div id="more-cats-dropdown" className="hidden absolute top-full left-0 mt-1 z-50 bg-background border border-border rounded-lg shadow-lg min-w-48 py-1" data-testid="more-categories-dropdown">
-                  {categories.slice(5).map((c) => (
-                    <button
-                      key={c.id}
-                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${category === c.id ? "bg-accent/10 text-accent font-medium" : ""}`}
-                      onClick={() => {
-                        setCategory(c.id); setSelectedTags([]); setTagFilterOpen(false);
-                        document.getElementById("more-cats-dropdown")?.classList.add("hidden");
-                      }}
-                      data-testid={`cat-${c.id}`}
-                    >
-                      <span className="font-mono text-[11px] text-muted-foreground mr-2">{c.id}</span>
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
+                {moreCatsOpen && (
+                  <div className="absolute top-full left-0 mt-1 z-50 bg-background border border-border rounded-lg shadow-lg min-w-48 py-1" data-testid="more-categories-dropdown">
+                    {categories.slice(5).map((c) => (
+                      <button
+                        key={c.id}
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${category === c.id ? "bg-accent/10 text-accent font-medium" : ""}`}
+                        onClick={() => {
+                          setCategory(c.id); setSelectedTags([]); setTagFilterOpen(false);
+                          setMoreCatsOpen(false);
+                        }}
+                        data-testid={`cat-${c.id}`}
+                      >
+                        <span className="font-mono text-[11px] text-muted-foreground mr-2">{c.id}</span>
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <div className="w-px h-5 bg-border mx-0.5" />
