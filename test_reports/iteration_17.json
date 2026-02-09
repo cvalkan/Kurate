@@ -1,0 +1,97 @@
+{
+  "summary": "Methodology Page Update (10 steps) and Prompts Page Testing Complete. All 8 backend tests passed. All frontend features verified: 10 methodology steps with round-robin, Top-K cross-match, evaluation/summary prompt links, and navigation to Prompts page working correctly.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "GET /api/prompts returns 200 without authentication",
+      "Response contains evaluation prompt object",
+      "Evaluation prompt has non-empty system_prompt and user_prompt",
+      "Response contains summary key",
+      "Summary prompt has system_prompt and user_prompt",
+      "Evaluation prompt contains expected keywords (scientific, paper, impact, compare)",
+      "User prompt contains template variables ({paper1_title}, {paper2_title})",
+      "/api/prompts is publicly accessible (no auth required)"
+    ],
+    "frontend": [
+      "Methodology page shows exactly 10 steps",
+      "Step 2 mentions 'round-robin rotation' for model selection",
+      "Step 4 mentions 'Top-K cross-match' as convergence goal",
+      "Step 4 lists all 3 convergence goals (Minimum matches, CI convergence, Top-K cross-match)",
+      "Step 2 has link 'View the evaluation prompt' to /prompts",
+      "Step 8 (Impact Assessment) has link 'View the summary prompt' to /prompts",
+      "Step 5 has 'Model Analysis' link to /correlation",
+      "Prompts page at /prompts shows 'Comparison Prompt' with system and user prompt",
+      "Prompts page shows 'Impact Summary Prompt' with system and user prompt",
+      "Prompts page has 'Back to Methodology' link that navigates to /methodology",
+      "Navigation between Methodology and Prompts pages works correctly"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_prompts_endpoint.py",
+    "/app/test_reports/pytest/prompts_endpoint_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/backend/tests/test_prompts_endpoint.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (8/8 tests passed)",
+    "frontend": "100% (11/11 features verified)"
+  },
+
+  "test_credentials": "None required - all tested pages are public",
+
+  "seed_data_creation": "None",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 17 verified the Methodology page update with 10 steps and the new Prompts page. Key findings: (1) Methodology page correctly shows 10 steps with round-robin rotation in Step 2 and Top-K cross-match in Step 4, (2) Prompts links in Steps 2 and 8 navigate to /prompts correctly, (3) /api/prompts endpoint returns evaluation and summary prompts without authentication, (4) Prompts page shows both Comparison Prompt and Impact Summary Prompt with system and user templates, (5) All navigation links work correctly including Model Analysis link to /correlation. No issues found.",
+
+  "verified_features": {
+    "methodology_page": {
+      "total_steps": 10,
+      "step_2_round_robin": true,
+      "step_4_top_k_cross_match": true,
+      "step_4_three_convergence_goals": ["Minimum matches", "CI convergence", "Top-K cross-match"],
+      "step_2_evaluation_prompt_link": "/prompts",
+      "step_8_summary_prompt_link": "/prompts",
+      "step_5_model_analysis_link": "/correlation"
+    },
+    "prompts_page": {
+      "comparison_prompt": {
+        "has_system_prompt": true,
+        "has_user_prompt": true
+      },
+      "impact_summary_prompt": {
+        "has_system_prompt": true,
+        "has_user_prompt": true
+      },
+      "back_to_methodology_link": true
+    },
+    "prompts_api": {
+      "endpoint": "GET /api/prompts",
+      "public_access": true,
+      "returns_evaluation": true,
+      "returns_summary": true
+    }
+  }
+}
