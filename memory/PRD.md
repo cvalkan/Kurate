@@ -90,9 +90,10 @@ frontend/src/
 ## Key API Endpoints
 - `GET /api/leaderboard?category=cs.RO` — Cached category leaderboard
 - `GET /api/leaderboard?tags=physics.chem-ph&global_stats=true` — Tag-filtered with global stats
+- `GET /api/prompts` — Public read-only view of evaluation and summary prompts
 - `GET /api/admin/timeseries` — Daily time-series + per-model cost breakdown (system-wide)
 - `GET /api/admin/stats?category=...` — Per-category token usage by model
-- `GET /api/admin/progress?category=...` — Progress with tournament_paused/global_paused
+- `GET /api/admin/progress?category=...` — Progress with 3 goals + tournament_paused/global_paused
 - `GET /api/admin/tournaments` — Tournament registry
 - `POST /api/admin/tournaments/{id}/status` — Pause/resume tournament
 
