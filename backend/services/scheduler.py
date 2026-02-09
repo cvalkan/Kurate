@@ -185,8 +185,8 @@ async def _scheduler_loop():
             if not all_tournament_cats:
                 all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
-            # Fetch papers for ALL known categories (even paused ones continue to receive papers)
-            for cat in all_tournament_cats:
+            # Fetch papers only for ACTIVE categories (paused categories don't fetch)
+            for cat in active_cats:
                 cat_status = _get_cat_status(cat)
                 last_fetch_key = f"last_fetch_at_{cat}"
                 last_fetch = settings.get(last_fetch_key)
