@@ -307,11 +307,11 @@ export default function LeaderboardPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => isLoggedIn ? setShowSuggestion(true) : requireAuth()}
-                  className="text-xs h-8 gap-1 text-muted-foreground hover:text-accent shrink-0"
+                  className="text-xs h-8 gap-1 shrink-0 text-muted-foreground"
                   data-testid="suggest-field-btn"
                 >
                   <Lightbulb className="h-3.5 w-3.5" />
-                  Suggest
+                  <span>Suggest</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
