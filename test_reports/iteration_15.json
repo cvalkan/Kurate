@@ -1,0 +1,97 @@
+{
+  "summary": "Admin Panel Improvements (Iteration 15) - All features verified working. 18 backend tests passed. UI verified: 7 tabs (Tournaments merged into Controls), Statistics tab shows Cost by Model matching total cost, Controls tab includes Tournament Registry section.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "Admin login works with correct password (papersumo2025)",
+      "Admin login rejects wrong password (403)",
+      "GET /api/admin/timeseries returns 'models' field with per-model cost breakdown",
+      "Timeseries model costs sum to total cost (within $0.01)",
+      "Timeseries model percentages sum to ~100%",
+      "Timeseries returns daily series data",
+      "Timeseries requires authentication",
+      "GET /api/admin/progress returns tournament_paused field",
+      "GET /api/admin/progress returns global_paused field", 
+      "GET /api/admin/progress includes goal1, goal2, goals_met tracking",
+      "Progress endpoint works for all 5 categories",
+      "GET /api/admin/tournaments returns list of tournaments",
+      "Tournaments have required fields: tournament_id, status, category, goals",
+      "Tournament pause/resume endpoint works",
+      "Timeseries handles missing tokens gracefully",
+      "Timeseries handles missing created_at gracefully",
+      "Stats handles missing model_used gracefully",
+      "Timeseries excludes experiment matches (12199 standard vs 14515 total)"
+    ],
+    "frontend": [
+      "7 tabs visible: Statistics, Controls, Settings, Prompt, Experiment, Suggestions, Users",
+      "Tournaments tab correctly removed (merged into Controls)",
+      "Statistics tab shows Total Cost: $102.28 with '3 models' subtitle",
+      "Cost by Model section shows all 3 models with percentages summing to 100%",
+      "Model breakdown: claude-opus-4-5 (54%), gpt-5.2 (23%), gemini-3-pro-preview (23%)",
+      "Controls tab includes Tournament Registry section",
+      "Tournament Registry shows 5 tournaments with status, category, goals, Resume buttons",
+      "Ranking Progress shows 'Resume' button when tournament is paused",
+      "Scheduler Status shows 'Tournament paused' activity"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_admin_improvements.py",
+    "/app/test_reports/pytest/admin_improvements_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/backend/tests/test_admin_improvements.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+
+  "test_credentials": "Admin password: papersumo2025",
+
+  "seed_data_creation": "None - tested with existing production data",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 15 verified admin panel improvements: (1) Cost by Model now uses timeseries.models data for consistent system-wide totals - model costs sum to $102.28 within $0.01 of total, (2) Tournaments tab merged into Controls - now showing Tournament Registry section with 5 tournaments and pause/resume buttons, (3) Progress endpoint returns both tournament_paused and global_paused for smart pause/resume routing, (4) Timeseries excludes experiment matches (12199 standard matches vs 14515 total). All 5 categories have tournaments with paused status and goals_met=true.",
+
+  "verified_features": {
+    "cost_by_model": {
+      "total_cost": "$102.28",
+      "models": {
+        "anthropic/claude-opus-4-5-20251101": {"calls": 4063, "cost": "$54.92", "percentage": "54%"},
+        "openai/gpt-5.2": {"calls": 4128, "cost": "$23.95", "percentage": "23%"},
+        "gemini/gemini-3-pro-preview": {"calls": 4008, "cost": "$23.42", "percentage": "23%"}
+      },
+      "percentages_sum_to_100": true,
+      "model_costs_match_total": true
+    },
+    "tabs_after_merge": ["Statistics", "Controls", "Settings", "Prompt", "Experiment", "Suggestions", "Users"],
+    "tournaments_tab_removed": true,
+    "tournament_registry_in_controls": true,
+    "pause_resume_routing": {
+      "tournament_paused": true,
+      "global_paused": false,
+      "pause_button_targets_tournament": true
+    }
+  }
+}
