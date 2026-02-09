@@ -170,7 +170,7 @@ export function AdminOverview({
           <Input
             type="number" min="1" max="500"
             value={manualMatches}
-            onChange={(e) => setManualMatches(Math.min(500, Math.max(1, Number(e.target.value) || 50)))}
+            onChange={(e) => setManualMatches(Math.min(500, Math.max(1, Number(e.target.value) || 20)))}
             className="w-20 h-10 text-center font-mono text-sm"
             data-testid="manual-matches-input"
           />
