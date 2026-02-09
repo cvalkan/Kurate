@@ -264,9 +264,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
 
     # Per-category counts
     cat_matches_done = sum(paper_match_count.values()) // 2  # each match counted twice
-    cat_papers_with_pdf = 0
-    async for p in db.papers.find({"categories.0": category, "full_text": {"$ne": None}}, {"_id": 0}):
-        cat_papers_with_pdf += 1
+    cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
 
     return {
         "total_papers": total_papers,
