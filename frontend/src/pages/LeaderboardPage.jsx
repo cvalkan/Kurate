@@ -230,8 +230,8 @@ export default function LeaderboardPage() {
 
       {/* Category Tabs */}
       {categories.length > 1 && (
-        <div className={`mb-3 -mx-4 px-4 overflow-x-auto transition-opacity ${isTagMode ? "opacity-40 pointer-events-none" : ""}`}>
-          <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg w-max" data-testid="category-tabs">
+        <div className={`mb-3 transition-opacity ${isTagMode ? "opacity-40 pointer-events-none" : ""}`}>
+          <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg flex-wrap" data-testid="category-tabs">
             {categories.slice(0, 5).map((c) => (
               <Button
                 key={c.id}
