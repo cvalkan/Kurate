@@ -75,7 +75,7 @@ async def init_tournament_registry():
         tid = f"cat={cat_id}|mode=standard"
         paper_count = await db.papers.count_documents({"categories.0": cat_id})
         match_count = await db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id}
+            {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id, "mode": {"$exists": False}}
         )
         await db.tournaments.update_one(
             {"tournament_id": tid},
