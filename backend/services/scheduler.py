@@ -708,11 +708,12 @@ def _select_pairs(
     Smart pair selection with adaptive per-paper round caps.
 
     Key principles:
-    1. Papers below min_matches get highest priority AND higher per-round cap
-    2. After min_matches, CI-width drives both priority and round cap
-    3. Papers with narrow CIs or extreme win rates get lower caps
-    4. Pairs with similar win rates are preferred (most informative)
-    5. Top-K papers get boosted priority and caps when CI needs narrowing
+    1. Top-K cross-matches: missing pairs among top-K papers get HIGHEST priority
+    2. Papers below min_matches get high priority AND higher per-round cap
+    3. After min_matches, CI-width drives both priority and round cap
+    4. Papers with narrow CIs or extreme win rates get lower caps
+    5. Pairs with similar win rates are preferred (most informative)
+    6. Top-K papers get boosted priority and caps when CI needs narrowing
     """
     paper_ids = [p["id"] for p in papers]
     n = len(paper_ids)
@@ -743,6 +744,33 @@ def _select_pairs(
     ranked = sorted(active, key=lambda pid: win_rates[pid], reverse=True)
     top_k_set = set(ranked[:min(top_k, len(ranked))])
 
+    # --- Phase 0: Top-K cross-matches (highest priority) ---
+    # Find all missing pairs among top-K papers and inject them first
+    topk_list = [pid for pid in ranked if pid in top_k_set]
+    topk_missing_pairs = []
+    for i in range(len(topk_list)):
+        for j in range(i + 1, len(topk_list)):
+            pair_key = tuple(sorted([topk_list[i], topk_list[j]]))
+            if pair_key not in compared_pairs:
+                topk_missing_pairs.append((topk_list[i], topk_list[j]))
+
+    pairs = []
+    round_count = {pid: 0 for pid in active}
+
+    # Inject top-K cross-match pairs first (up to half the budget)
+    topk_budget = max(max_pairs // 2, len(topk_missing_pairs))
+    for p1, p2 in topk_missing_pairs[:topk_budget]:
+        if len(pairs) >= max_pairs:
+            break
+        pairs.append((p1, p2))
+        compared_pairs.add(tuple(sorted([p1, p2])))
+        round_count[p1] += 1
+        round_count[p2] += 1
+
+    if len(pairs) >= max_pairs:
+        return pairs[:max_pairs]
+
+    # --- Phase 1+: Normal priority-based selection ---
     # Per-paper priority score AND adaptive round cap
     paper_priority = {}
     paper_round_cap = {}  # Adaptive per-paper cap
@@ -767,12 +795,14 @@ def _select_pairs(
         if pid in top_k_set and ci > ci_target:
             topk_bonus = ci_urgency * 2.0
 
-        # Extreme penalty
+        # Extreme penalty — reduced for top-K papers to ensure they get matched
         extreme_penalty = 0
         is_extreme = False
         if c >= min_matches and (wr > 0.9 or wr < 0.1):
             is_extreme = True
-            extreme_penalty = 0.5 * (1 - min(ci_urgency, 1.0))
+            if pid not in top_k_set:
+                extreme_penalty = 0.5 * (1 - min(ci_urgency, 1.0))
+            # No penalty for top-K extreme papers — they need differentiation
 
         priority = (deficit * 10.0
                     + ci_urgency * 5.0
@@ -788,8 +818,8 @@ def _select_pairs(
         elif pid in top_k_set and ci > ci_target:
             # Top-K papers still needing CI narrowing: boosted cap
             paper_round_cap[pid] = max(max_per_round, int(max_per_round * (1 + ci_urgency)))
-        elif is_extreme and ci <= ci_target:
-            # Extreme papers with narrow CI: minimal cap
+        elif is_extreme and ci <= ci_target and pid not in top_k_set:
+            # Extreme NON-top-K papers with narrow CI: minimal cap
             paper_round_cap[pid] = max(1, max_per_round // 2)
         elif ci <= ci_target and c >= min_matches:
             # Converged papers: reduced cap
@@ -802,9 +832,6 @@ def _select_pairs(
     priority_sorted = sorted(active, key=lambda pid: paper_priority[pid], reverse=True)
 
     # Generate candidate pairs with adaptive caps
-    round_count = {pid: 0 for pid in active}
-    pairs = []
-
     for p1 in priority_sorted:
         cap1 = paper_round_cap.get(p1, max_per_round)
         if round_count[p1] >= cap1 or len(pairs) >= max_pairs:
