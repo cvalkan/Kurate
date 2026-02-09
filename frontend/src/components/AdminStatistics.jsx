@@ -199,11 +199,11 @@ export function AdminStatistics({ categories }) {
           <YAxis tickFormatter={metric === "cost" ? formatCost : (metric === "tokens" ? formatTokens : undefined)} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={55} />
           <RechartsTooltip content={<CustomTooltip formatter={formatter} />} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          {allCats.map((cat) =>
+          {nonEmptyCats.map((cat) =>
             viewMode === "daily" ? (
-              <Bar key={cat} dataKey={`${metric}_${cat}`} stackId="a" fill={getColor(cat)} name={cat} />
+              <Bar key={cat} dataKey={`${metric}_${cat}`} stackId="a" fill={catColorMap[cat]} name={cat} />
             ) : (
-              <Area key={cat} type="monotone" dataKey={`${metric}_${cat}`} stackId="a" stroke={getColor(cat)} fill={getColor(cat)} fillOpacity={0.2} strokeWidth={1.5} name={cat} />
+              <Area key={cat} type="monotone" dataKey={`${metric}_${cat}`} stackId="a" stroke={catColorMap[cat]} fill={catColorMap[cat]} fillOpacity={0.2} strokeWidth={1.5} name={cat} />
             )
           )}
         </ChartType>
