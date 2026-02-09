@@ -122,11 +122,11 @@ async def get_admin_status(category: str = "cs.RO"):
 
     unranked = len(cat_paper_ids - match_paper_ids)
 
-    # Recent matches for this category
+    # Recent matches for this category (standard only)
     recent_all = await db.matches.find(
-        {"completed": True, "failed": {"$ne": True}},
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
         {"_id": 0},
-    ).sort("created_at", -1).to_list(50)
+    ).sort("created_at", -1).to_list(10)
 
     recent_matches = [m for m in recent_all if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids][:10]
 
