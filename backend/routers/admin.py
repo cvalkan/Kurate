@@ -877,7 +877,7 @@ async def get_timeseries(category: Optional[str] = None):
         "series": series,
         "categories": all_cats,
         "totals": {
-            "papers": cum_papers["_total"],
+            "papers": max(cum_papers["_total"], total_papers_count),
             "matches": cum_matches["_total"],
             "tokens": cum_tokens["_total"],
             "input_tokens": sum(s.get("input_tokens", 0) for s in model_stats.values()),
