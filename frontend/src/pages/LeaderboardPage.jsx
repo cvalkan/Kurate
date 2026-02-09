@@ -94,9 +94,8 @@ export default function LeaderboardPage() {
   // Close "More" dropdown on click outside
   useEffect(() => {
     const handler = (e) => {
-      const dd = document.getElementById("more-cats-dropdown");
-      if (dd && !dd.classList.contains("hidden") && !dd.parentElement.contains(e.target)) {
-        dd.classList.add("hidden");
+      if (moreCatsRef.current && !moreCatsRef.current.contains(e.target)) {
+        setMoreCatsOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
