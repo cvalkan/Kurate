@@ -156,14 +156,28 @@ export default function LeaderboardPage() {
   }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats]);
 
   // Fetch on param change — only show full skeleton on initial load
+  // Debounce tag mode fetches to batch rapid tag toggling
   const initialLoadDone = useRef(false);
+  const debounceRef = useRef(null);
   useEffect(() => {
     if (!initialLoadDone.current) {
       setLoading(true); // Full skeleton only on first load
     }
     setDisplayCount(50); // Reset infinite scroll on data change
-    fetchLeaderboard().then(() => { initialLoadDone.current = true; });
-    return () => { if (abortRef.current) abortRef.current.abort(); };
+
+    // In tag mode, debounce to avoid firing on every rapid tag click
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (isTagMode && initialLoadDone.current) {
+      debounceRef.current = setTimeout(() => {
+        fetchLeaderboard().then(() => { initialLoadDone.current = true; });
+      }, 250);
+    } else {
+      fetchLeaderboard().then(() => { initialLoadDone.current = true; });
+    }
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, [fetchLeaderboard]);
 
   // Auto-refresh only for primary category view (cached, fast). Skip for tag queries.
