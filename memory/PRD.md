@@ -83,7 +83,7 @@ frontend/src/
 - [Feb 2026] **Scheduler respects paused categories for fetching** — Paper fetching only runs for active (non-paused) tournament categories.
 - [Feb 2026] **Filter view optimization (show_all + tags)** — Pre-computed "all papers" leaderboard in background cache (4 period variants). Tag queries cached with 20s TTL (keyed on tag combo + params, max 100 entries). Reduced show_all response time from ~300ms to ~50ms. Frontend debounce (250ms) on tag toggling to batch rapid selections. Match index reused from cache for O(1) match lookups in tag queries.
 - [Feb 2026] **Server-side keyword search** — Added `search` query param to `/api/leaderboard`. Filters papers by title (case-insensitive) server-side before pagination. Works with all paths: category, show_all, and tags. Response time ~50ms. Frontend debounces keyword input by 300ms via `debouncedKeyword` state.
-- [Feb 2026] **Virtual scrolling (react-window)** — Replaced infinite scroll with `FixedSizeList` (react-window v1.8.10). ROW_HEIGHT=52px, max 50 visible rows (2600px container), overscanCount=10. Only ~20-30 DOM nodes rendered at any time regardless of list size. Row clicks use `useNavigate()` hook for paper detail navigation.
+- [Feb 2026] **Infinite scroll with progressive rendering** — IntersectionObserver sentinel loads 50 items at a time as user scrolls the page naturally. Combined with server-side search, the browser never handles more than 500 papers at once.
 
 ## Tournament Goal System (3 Goals)
 1. **Goal 1 (Min Matches)**: Every paper must have >= `min_matches_per_paper` comparisons
