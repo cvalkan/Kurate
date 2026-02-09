@@ -485,9 +485,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                          "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1, "added_at": 1}
                     ).to_list(5000)
 
-            # Only load matches for this category (indexed query)
+            # Only load standard matches for this category (exclude experiments)
             all_matches = await db.matches.find(
-                {"completed": True, "failed": {"$ne": True}, "primary_category": category},
+                {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
             ).to_list(100000)
 
