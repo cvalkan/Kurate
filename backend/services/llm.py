@@ -184,7 +184,7 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
 
 async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None) -> Optional[str]:
     """Generate a scientific impact summary for a converged paper using its content and match logs."""
-    model_info = _pick_random_model()
+    model_info = _pick_round_robin_model()
     provider = model_info["provider"]
     model = model_info["model"]
 
