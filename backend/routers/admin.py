@@ -747,12 +747,16 @@ async def get_timeseries(category: Optional[str] = None):
     if category:
         paper_query["categories.0"] = category
     papers_daily = defaultdict(lambda: defaultdict(int))
-    async for p in db.papers.find(paper_query, {"_id": 0, "added_at": 1, "categories": 1}):
-        added = p.get("added_at", "")
-        if not added:
+    total_papers_count = 0
+    async for p in db.papers.find(paper_query, {"_id": 0, "added_at": 1, "published": 1, "categories": 1}):
+        total_papers_count += 1
+        # Prefer added_at, fall back to published date
+        added = p.get("added_at") or p.get("published") or ""
+        if not added or len(added) < 10:
             continue
         day = added[:10]  # "YYYY-MM-DD"
-        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
+        cats = p.get("categories") or []
+        cat = cats[0] if cats else "unknown"
         papers_daily[day][cat] += 1
         papers_daily[day]["_total"] += 1
 
