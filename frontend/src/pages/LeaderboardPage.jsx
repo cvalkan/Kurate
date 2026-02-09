@@ -171,6 +171,7 @@ export default function LeaderboardPage() {
     if (!initialLoadDone.current) {
       setLoading(true); // Full skeleton only on first load
     }
+    setDisplayCount(50); // Reset infinite scroll on data change
 
     // In tag mode, debounce to avoid firing on every rapid tag click
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -193,6 +194,22 @@ export default function LeaderboardPage() {
     const interval = setInterval(fetchLeaderboard, 30000);
     return () => clearInterval(interval);
   }, [fetchLeaderboard, isTagMode]);
+
+  // Infinite scroll: observe sentinel element
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setDisplayCount(prev => prev + 50);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [leaderboard]);
 
   const toggleTag = (tagId) => {
     setSelectedTags(prev =>
