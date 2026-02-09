@@ -200,6 +200,10 @@ async def get_admin_status(category: str = "cs.RO"):
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate(category: str = "cs.RO"):
     """Triple-goal progress with estimated remaining matches and time."""
+    cached = _get_admin_cached("progress", category)
+    if cached:
+        return cached
+
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     max_matches = settings.get("max_matches_per_paper", 150)
