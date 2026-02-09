@@ -102,11 +102,16 @@ async def get_admin_status(category: str = "cs.RO"):
 
     total_papers = len(cat_paper_ids)
 
-    # Count matches within this category
+    # Count matches within this category (standard tournament matches only)
     total_matches = 0
     failed_matches = 0
     match_paper_ids = set()
-    async for m in db.matches.find({}, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "completed": 1, "failed": 1}):
+    async for m in db.matches.find(
+        {"primary_category": category},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "completed": 1, "failed": 1, "mode": 1},
+    ):
+        if m.get("mode"):
+            continue  # Exclude experiment/prediction matches
         if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids:
             if m.get("completed") and not m.get("failed"):
                 total_matches += 1
