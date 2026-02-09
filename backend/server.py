@@ -65,6 +65,7 @@ async def startup():
     # Migration: remove papers whose primary category is not in active categories
     try:
         from core.auth import get_settings
+        from core.config import CATEGORIES
         _settings = await get_settings()
         valid_cats = set(_settings.get("active_categories", list(CATEGORIES.keys())))
         # Only clean up if we have valid categories
