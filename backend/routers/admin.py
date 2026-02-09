@@ -190,9 +190,11 @@ async def get_progress_estimate(category: str = "cs.RO"):
     paper_wins = {pid: 0 for pid in all_paper_ids}
     compared_pairs = set()
     async for m in db.matches.find(
-        {"completed": True, "failed": {"$ne": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "mode": 1},
     ):
+        if m.get("mode"):
+            continue  # Exclude experiment/prediction matches
         if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
             paper_match_count[m["paper1_id"]] += 1
             paper_match_count[m["paper2_id"]] += 1
