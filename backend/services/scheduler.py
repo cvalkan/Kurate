@@ -256,7 +256,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     
     Goal 1: All papers have >= min_matches
     Goal 2: Top-K papers have CI <= ci_target
-    Goal 3: All top-K papers have played against each other at least once
+    Goal 3: All non-capped top-K papers have played against each other at least once
     """
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
@@ -273,7 +273,6 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     paper_wins = {pid: 0 for pid in paper_ids}
     compared_pairs = set()
 
-    # Use indexed query on primary_category instead of full collection scan
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
@@ -291,7 +290,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         if c < min_matches:
             return False
 
-    # Identify top-K by win rate
+    # Identify top-K by win rate (ALL papers, including capped)
     sorted_papers = sorted(
         paper_match_count.keys(),
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
@@ -309,10 +308,13 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         if margin_pct > ci_target:
             return False
 
-    # Goal 3: Top-K cross-matches — every pair of top-K papers must have played
-    for i in range(len(top_k_ids)):
-        for j in range(i + 1, len(top_k_ids)):
-            pair = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
+    # Goal 3: Cross-matches among non-capped top-K papers
+    # Papers at max_matches are exempt — they've played enough
+    capped = {pid for pid in top_k_ids if paper_match_count[pid] >= max_matches}
+    crossmatch_ids = [pid for pid in top_k_ids if pid not in capped]
+    for i in range(len(crossmatch_ids)):
+        for j in range(i + 1, len(crossmatch_ids)):
+            pair = tuple(sorted([crossmatch_ids[i], crossmatch_ids[j]]))
             if pair not in compared_pairs:
                 return False
 
