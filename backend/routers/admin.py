@@ -162,7 +162,7 @@ async def get_admin_status(category: str = "cs.RO"):
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate(category: str = "cs.RO"):
-    """Dual-goal progress with estimated remaining matches and time."""
+    """Triple-goal progress with estimated remaining matches and time."""
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     max_matches = settings.get("max_matches_per_paper", 150)
@@ -188,6 +188,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     pid_set = set(all_paper_ids)
     paper_match_count = {pid: 0 for pid in all_paper_ids}
     paper_wins = {pid: 0 for pid in all_paper_ids}
+    compared_pairs = set()
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
@@ -195,6 +196,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
             paper_match_count[m["paper1_id"]] += 1
             paper_match_count[m["paper2_id"]] += 1
+            compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
             w = m.get("winner_id")
             if w and w in paper_wins:
                 paper_wins[w] += 1
@@ -205,7 +207,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     matches_for_goal1 = max(0, (deficit + 1) // 2)
     goal1_met = papers_at_min == total_papers
 
-    # Goal 2: Top-K papers have Wilson CI margin ≤ ci_target %
+    # Goal 2: Top-K papers have Wilson CI margin <= ci_target %
     sorted_papers = sorted(
         all_paper_ids,
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
@@ -226,8 +228,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
         if converged:
             top_k_converged += 1
         else:
-            # Direct solve: Wilson margin ≈ z*sqrt(p(1-p)/n) for large n
-            # So n_needed ≈ z² * p*(1-p) / target²
             p = w / n if n > 0 else 0.5
             p = max(0.05, min(0.95, p))
             z = 1.96
@@ -241,7 +241,18 @@ async def get_progress_estimate(category: str = "cs.RO"):
         })
     goal2_met = bool(top_k_converged == len(top_k_ids))
 
-    total_est = matches_for_goal1 + matches_for_goal2
+    # Goal 3: Top-K cross-matches — every pair of top-K papers must have played
+    topk_total_pairs = len(top_k_ids) * (len(top_k_ids) - 1) // 2
+    topk_matched_pairs = 0
+    for i in range(len(top_k_ids)):
+        for j in range(i + 1, len(top_k_ids)):
+            pair = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
+            if pair in compared_pairs:
+                topk_matched_pairs += 1
+    matches_for_goal3 = topk_total_pairs - topk_matched_pairs
+    goal3_met = bool(topk_matched_pairs == topk_total_pairs)
+
+    total_est = matches_for_goal1 + matches_for_goal2 + matches_for_goal3
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
@@ -259,7 +270,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "global_paused": global_paused,
         "tournament_paused": bool(tournament_paused),
         "category": category,
-        "goals_met": bool(goal1_met and goal2_met),
+        "goals_met": bool(goal1_met and goal2_met and goal3_met),
         "goal1": {
             "met": bool(goal1_met),
             "label": f"Min {min_matches} matches/paper",
@@ -269,6 +280,12 @@ async def get_progress_estimate(category: str = "cs.RO"):
             "label": f"CI \u2264 {ci_target}% for top-{len(top_k_ids)}",
             "done": int(top_k_converged),
             "total": int(len(top_k_ids)),
+        },
+        "goal3": {
+            "met": bool(goal3_met),
+            "label": f"Top-{len(top_k_ids)} cross-matches",
+            "done": int(topk_matched_pairs),
+            "total": int(topk_total_pairs),
         },
         "estimated_matches_remaining": int(total_est),
         "estimated_minutes": int(est_minutes),
