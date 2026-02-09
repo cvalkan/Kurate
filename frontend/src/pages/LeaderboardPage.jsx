@@ -53,15 +53,12 @@ export default function LeaderboardPage() {
   const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
 
-  // Keyword search
+  // Keyword search (server-side)
   const [keyword, setKeyword] = useState("");
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
 
   // Global/Local stats toggle (tag mode only)
   const [globalStats, setGlobalStats] = useState(false);
-
-  // Infinite scroll
-  const [displayCount, setDisplayCount] = useState(50);
-  const sentinelRef = useRef(null);
 
   // Auth + suggestions
   const { user } = useAuth();
@@ -69,6 +66,7 @@ export default function LeaderboardPage() {
   const [moreCatsOpen, setMoreCatsOpen] = useState(false);
   const moreCatsRef = useRef(null);
   const isLoggedIn = !!user;
+  const navigate = useNavigate();
 
   const requireAuth = () => {
     window.dispatchEvent(new Event("open-auth-modal"));
