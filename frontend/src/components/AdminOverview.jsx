@@ -105,7 +105,7 @@ export function AdminOverview({
           {progress.goals_met ? (
             <div className="flex items-center gap-2 text-sm text-green-600 mb-2">
               <CheckCircle2 className="h-4 w-4" />
-              Both goals met — system idle
+              All goals met — system idle
             </div>
           ) : (
             <div className="space-y-2 mb-2">
@@ -124,6 +124,17 @@ export function AdminOverview({
                 </div>
                 {!progress.goal2?.met && (
                   <span className="font-mono text-muted-foreground">{progress.goal2?.done}/{progress.goal2?.total}</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  {progress.goal3?.met
+                    ? <><CheckCircle2 className="h-3 w-3 text-green-600" /><span className="text-green-600">{progress.goal3?.label}</span></>
+                    : <><Clock className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">{progress.goal3?.label}</span></>
+                  }
+                </div>
+                {!progress.goal3?.met && progress.goal3?.total > 0 && (
+                  <span className="font-mono text-muted-foreground">{progress.goal3?.done}/{progress.goal3?.total}</span>
                 )}
               </div>
             </div>
