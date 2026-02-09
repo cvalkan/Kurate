@@ -151,12 +151,13 @@ export function AdminOverview({
               {progress.estimated_minutes > 0 && (
                 <span> &middot; ~<span className="font-mono text-foreground font-medium">{progress.estimated_minutes} min</span></span>
               )}
-              {progress.paused && (
-                <span className="ml-2 text-amber-600 font-medium">
-                  {progress.tournament_paused && !progress.global_paused ? "TOURNAMENT PAUSED" : "PAUSED"}
-                </span>
+              {progress.tournament_paused && (
+                <span className="ml-2 text-amber-600 font-medium">TOURNAMENT PAUSED</span>
               )}
-              {!progress.paused && <span className="ml-2 text-accent">Running</span>}
+              {progress.global_paused && !progress.tournament_paused && (
+                <span className="ml-2 text-amber-600 font-medium">SYSTEM PAUSED</span>
+              )}
+              {!progress.tournament_paused && !progress.global_paused && <span className="ml-2 text-accent">Running</span>}
             </div>
           )}
 
