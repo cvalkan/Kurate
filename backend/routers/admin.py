@@ -1066,7 +1066,6 @@ async def estimate_category(cat_id: str):
     min_matches = settings.get("min_matches_per_paper", 5)
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 12)
-    max_matches = settings.get("max_matches_per_paper", 150)
 
     # Base: each paper needs min_matches, each match covers 2 papers
     base_matches = weekly_papers * min_matches // 2
