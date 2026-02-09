@@ -776,11 +776,11 @@ async def get_timeseries(category: Optional[str] = None):
     ):
         if m.get("mode"):
             continue  # Exclude experiment matches
-        created = m.get("created_at", "")
-        if not created:
+        created = m.get("created_at") or ""
+        if not created or len(created) < 10:
             continue
         day = created[:10]
-        cat = m.get("primary_category", "unknown")
+        cat = m.get("primary_category") or "unknown"
         tokens = m.get("tokens") or {}
         inp = tokens.get("input_est", 0) or 0
         out = tokens.get("output_est", 0) or 0
