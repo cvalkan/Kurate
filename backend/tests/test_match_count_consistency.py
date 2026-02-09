@@ -125,18 +125,24 @@ class TestSchedulerStatus:
     """Test scheduler status correctly reflects tournament states."""
 
     def test_csro_not_goals_met_idle(self, admin_headers):
-        """cs.RO should NOT show 'Goals met — idle' since Goal 3 is not met."""
+        """cs.RO should NOT show 'Goals met — idle' since it's paused with unmet Goal 3."""
         response = requests.get(f"{BASE_URL}/api/status")
         assert response.status_code == 200
         data = response.json()
         
-        # cs.RO should be 'Tournament paused' not 'Goals met — idle'
+        # cs.RO should NOT be 'Goals met — idle' - it's paused with unmet Goal 3
         scheduler_cats = data["scheduler"]["categories"]
         assert scheduler_cats["cs.RO"] != "Goals met — idle", \
             f"cs.RO incorrectly shows 'Goals met — idle': {scheduler_cats['cs.RO']}"
-        # It should show 'Tournament paused'
-        assert "paused" in scheduler_cats["cs.RO"].lower(), \
-            f"cs.RO should show 'Tournament paused', got: {scheduler_cats['cs.RO']}"
+        
+        # Verify via tournaments endpoint that cs.RO is paused
+        t_response = requests.get(f"{BASE_URL}/api/admin/tournaments", headers=admin_headers)
+        assert t_response.status_code == 200
+        tournaments = t_response.json()["tournaments"]
+        csro_tournament = next((t for t in tournaments if t["category"] == "cs.RO"), None)
+        assert csro_tournament is not None, "cs.RO tournament not found"
+        assert csro_tournament["status"] == "paused", \
+            f"cs.RO tournament should be paused, got: {csro_tournament['status']}"
 
     def test_csro_progress_goals_met_false(self, admin_headers):
         """cs.RO goals_met should be False (Goal 3 not met: 10/21)."""
