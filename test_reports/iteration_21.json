@@ -1,0 +1,88 @@
+{
+  "summary": "Iteration 21 - All 4 bugfixes verified and working: (1) Category removal confirmation dialog, (2) More dropdown on leaderboard, (3) Match estimation with settings_used and top-K overhead, (4) Manual matches defaults to estimated remaining instead of hardcoded 50. All 6 backend tests passed, all 4 frontend UI tests passed.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "GET /api/admin/category-estimate/{cat_id} includes settings_used field",
+      "settings_used contains min_matches_per_paper, top_k_focus, ci_target",
+      "estimated_weekly_matches includes top-K overhead (320 vs 220 base for cs.DC)",
+      "Settings are consistent across all category estimates",
+      "GET /api/admin/progress returns estimated_matches_remaining",
+      "estimated_matches_remaining provides sensible default for manual matches (min(est, 100) or 20)",
+      "GET /api/categories returns 6 active categories including cs.GT"
+    ],
+    "frontend": [
+      "More dropdown button visible on leaderboard with 6 categories",
+      "More dropdown opens correctly showing cs.GT (Game Theory)",
+      "More dropdown closes when clicking outside (moreCatsRef click-outside handler works)",
+      "Admin panel tab says 'Tournaments' (not 'Controls')",
+      "Manual matches input defaults to 11 (estimated_matches_remaining), not hardcoded 50",
+      "Category removal button shows confirmation dialog before removal",
+      "Confirmation dialog displays category ID in the warning message",
+      "Confirmation dialog has Cancel and Remove buttons with data-testid",
+      "Cancel button closes dialog without removing the category"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_bugfixes_iter21.py",
+    "/app/test_reports/pytest/bugfixes_iter21_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/backend/tests/test_bugfixes_iter21.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (6/6 tests passed)",
+    "frontend": "100% (4/4 bugfixes verified)"
+  },
+
+  "test_credentials": "Admin token: papersumo2025 (X-Admin-Token header)",
+
+  "seed_data_creation": "None - tested with existing production data",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 21 verified 4 bugfixes. Active categories: cs.RO, cs.DC, econ.GN, physics.comp-ph, q-bio.BM, cs.GT (6 total). The More dropdown on leaderboard now uses moreCatsRef for click-outside handling and works correctly. Category removal shows confirmation dialog with confirmRemove state. Manual matches input defaults to min(estimated_matches_remaining, 100) instead of hardcoded 50. The category-estimate endpoint now includes settings_used field with min_matches_per_paper, top_k_focus, ci_target, and the weekly_matches estimate includes top-K overhead.",
+
+  "verified_bugfixes": {
+    "confirmation_dialog": {
+      "status": "FIXED",
+      "details": "confirmRemove state in AdminCategories.jsx triggers overlay dialog with Cancel/Remove buttons",
+      "data_testids": ["confirm-remove-dialog", "confirm-remove-cancel", "confirm-remove-yes"]
+    },
+    "more_dropdown_ui": {
+      "status": "FIXED", 
+      "details": "moreCatsRef + click-outside handler properly closes dropdown when clicking outside",
+      "data_testids": ["more-categories-btn", "more-categories-dropdown"]
+    },
+    "match_estimation": {
+      "status": "FIXED",
+      "details": "category-estimate endpoint returns settings_used field, weekly_matches includes top-K overhead",
+      "example": "cs.DC: base_matches=220, with top-K overhead=320"
+    },
+    "manual_matches_default": {
+      "status": "FIXED",
+      "details": "AdminPage.jsx sets manualMatches to min(progress.estimated_matches_remaining, 100) or 20",
+      "observed_value": "11 (based on current estimated_matches_remaining)"
+    }
+  }
+}
