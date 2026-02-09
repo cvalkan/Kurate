@@ -82,8 +82,16 @@ def _build_paper_content(paper: dict) -> str:
     return f"Abstract: {paper['abstract'][:1200]}"
 
 
-def _pick_random_model() -> Dict[str, str]:
-    return random.choice(TOURNAMENT_MODELS)
+_model_counter = 0
+_model_lock = None
+
+
+def _pick_round_robin_model() -> Dict[str, str]:
+    """Round-robin model selection for even distribution across all models."""
+    global _model_counter
+    model = TOURNAMENT_MODELS[_model_counter % len(TOURNAMENT_MODELS)]
+    _model_counter += 1
+    return model
 
 
 async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False) -> Dict:
