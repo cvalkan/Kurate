@@ -8,8 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users, Trophy,
-  Pause, Play, Sliders,
+  Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
+  Sliders,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
