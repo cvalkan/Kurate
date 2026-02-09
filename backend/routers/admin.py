@@ -1057,11 +1057,25 @@ async def estimate_category(cat_id: str):
     if weekly_papers == 0 and total_fetched > 0:
         weekly_papers = total_fetched  # conservative fallback
 
-    # Cost estimate: matches needed ≈ papers * min_matches / 2
+    # Cost estimate based on actual settings
+    # Each new paper needs min_matches comparisons (each match covers 2 papers)
+    # Plus top-K papers need extra matches for CI convergence
+    # Empirical multiplier: total matches ≈ papers * min_matches * 0.8
+    # (accounting for pair reuse, but top-K and CI add overhead)
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 5)
-    avg_cost_per_match = 0.015  # ~$0.015 per comparison across 3 models
-    matches_needed = weekly_papers * min_matches // 2
+    top_k = settings.get("top_k_focus", 10)
+    ci_target = settings.get("ci_target", 12)
+    max_matches = settings.get("max_matches_per_paper", 150)
+
+    # Base: each paper needs min_matches, each match covers 2 papers
+    base_matches = weekly_papers * min_matches // 2
+    # Top-K overhead: top papers get ~3x more matches for CI convergence
+    topk_overhead = min(top_k, weekly_papers) * min_matches
+    matches_needed = base_matches + topk_overhead
+
+    # Cost per match: average across 3 models (~$0.015 per comparison)
+    avg_cost_per_match = 0.015
     weekly_cost = round(matches_needed * avg_cost_per_match, 2)
 
     # Check if we already have papers for this category
