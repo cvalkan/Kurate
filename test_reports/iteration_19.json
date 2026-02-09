@@ -1,0 +1,88 @@
+{
+  "summary": "Iteration 19 - Match Count Consistency Audit PASSED. All 26 tests verified that /api/admin/status, /api/admin/progress, and /api/leaderboard show IDENTICAL match counts for each category. Experiment matches are correctly excluded from tournament operations.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "cs.RO: admin/status=3774, admin/progress=3774, leaderboard=3774 (MATCH)",
+      "cs.DC: admin/status=2828, admin/progress=2828, leaderboard=2828 (MATCH)",
+      "econ.GN: admin/status=2182, admin/progress=2182, leaderboard=2182 (MATCH)",
+      "physics.comp-ph: admin/status=2305, admin/progress=2305, leaderboard=2305 (MATCH)",
+      "q-bio.BM: admin/status=1897, admin/progress=1897, leaderboard=1897 (MATCH)",
+      "Public /api/status total_matches=12986 (sum of all category standard matches)",
+      "cs.RO goals_met=False (Goal 3 not met: 10/21 cross-matches)",
+      "cs.DC, econ.GN, physics.comp-ph, q-bio.BM all have goals_met=True",
+      "cs.RO tournament is paused (verified via /api/admin/tournaments)",
+      "Paper detail (eaa080f2-dcf2-406f-be8b-3a474452b0da) shows 152 matches = leaderboard",
+      "Recent matches in admin/status do NOT include experiment matches (no 'mode' field)",
+      "Cross-category isolation verified - each category has distinct counts"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_match_count_consistency.py",
+    "/app/test_reports/pytest/match_count_consistency_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/backend/tests/test_match_count_consistency.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (26/26 tests passed)",
+    "frontend": "N/A (backend-only testing)"
+  },
+
+  "test_credentials": "Admin token: papersumo2025 (X-Admin-Token header)",
+
+  "seed_data_creation": "None - tested with existing production data",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 19 completed the final consistency audit. All three views (/api/admin/status, /api/admin/progress, /api/leaderboard) now show identical match counts for each category. The mode:{$exists:False} filter has been consistently applied across scheduler.py, admin.py, and leaderboard.py to exclude experiment/prediction matches from tournament counts. Verified counts: cs.RO=3774, cs.DC=2828, econ.GN=2182, physics.comp-ph=2305, q-bio.BM=1897. Total standard matches=12986. cs.RO is paused with Goal 3 at 10/21.",
+
+  "verified_features": {
+    "match_count_consistency": {
+      "cs.RO": {"admin_status": 3774, "admin_progress": 3774, "leaderboard": 3774, "consistent": true},
+      "cs.DC": {"admin_status": 2828, "admin_progress": 2828, "leaderboard": 2828, "consistent": true},
+      "econ.GN": {"admin_status": 2182, "admin_progress": 2182, "leaderboard": 2182, "consistent": true},
+      "physics.comp-ph": {"admin_status": 2305, "admin_progress": 2305, "leaderboard": 2305, "consistent": true},
+      "q-bio.BM": {"admin_status": 1897, "admin_progress": 1897, "leaderboard": 1897, "consistent": true}
+    },
+    "experiment_exclusion": {
+      "public_status_total": 12986,
+      "sum_of_categories": 12986,
+      "matches_match": true,
+      "recent_matches_no_mode": true
+    },
+    "goal_progress": {
+      "cs.RO": {"goals_met": false, "goal3_done": 10, "goal3_total": 21, "tournament_paused": true},
+      "cs.DC": {"goals_met": true},
+      "econ.GN": {"goals_met": true},
+      "physics.comp-ph": {"goals_met": true},
+      "q-bio.BM": {"goals_met": true}
+    },
+    "paper_detail": {
+      "paper_id": "eaa080f2-dcf2-406f-be8b-3a474452b0da",
+      "detail_matches": 152,
+      "leaderboard_matches": 152,
+      "consistent": true
+    }
+  }
+}
