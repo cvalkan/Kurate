@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   RefreshCw, Swords, Activity, FileText, CheckCircle2, XCircle,
-  ChevronDown, ChevronUp, Pause, Play, Clock, Trophy,
+  ChevronDown, ChevronUp, Pause, Play, Clock,
 } from "lucide-react";
 import { ModelBadge } from "@/components/ModelBadge";
 import { toast } from "sonner";
