@@ -76,6 +76,14 @@ frontend/src/
 - [Feb 2026] **Cost-by-model alignment fix** — model stats now from system-wide timeseries endpoint (not per-category), percentages sum to 100%
 - [Feb 2026] **Controls + Tournaments merge** — Tournament Registry embedded in Controls tab, Tournaments tab removed
 - [Feb 2026] **Production robustness** — timeseries handles missing `tokens`, `created_at`, `added_at`, `primary_category`, unknown models; falls back to `published` date for papers without `added_at`
+- [Feb 2026] **Top-K Cross-Match (Goal 3)** — New tournament goal ensures all top-K papers play against each other before goals are considered met. Prevents papers from maintaining 100% win rates by never facing rivals. _select_pairs Phase 0 injects missing top-K pairs with highest priority.
+- [Feb 2026] **Round-Robin Model Selection** — Replaced random model selection with deterministic round-robin across GPT-5.2, Claude Opus 4.5, Gemini 3 Pro. Ensures even distribution of evaluations per model.
+- [Feb 2026] **Manual match override kept as-is** — `/api/compare` endpoint intentionally bypasses goal checks (user chose Option A)
+
+## Tournament Goal System (3 Goals)
+1. **Goal 1 (Min Matches)**: Every paper must have >= `min_matches_per_paper` comparisons
+2. **Goal 2 (CI Convergence)**: Top-K papers must have Wilson CI margin <= `ci_target`%
+3. **Goal 3 (Top-K Cross-Match)**: Every pair of top-K papers must have played against each other at least once
 
 ## Key API Endpoints
 - `GET /api/leaderboard?category=cs.RO` — Cached category leaderboard
