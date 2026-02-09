@@ -220,10 +220,10 @@ export default function LeaderboardPage() {
         </h1>
         <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
           {hasSelectedTags
-            ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}. Rankings based on available tournament matches.`
+            ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}.`
             : isTagMode
             ? "Showing all papers across all categories. Select tags below to filter."
-            : `AI-estimated scientific impact ranking of the latest arXiv ${categoryName} papers. Papers are evaluated using full-text analysis by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.`
+            : <>AI-estimated scientific impact ranking of the latest arXiv {categoryName} papers. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link></>
           }
         </p>
       </div>
