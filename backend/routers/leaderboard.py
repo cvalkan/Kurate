@@ -347,10 +347,25 @@ async def _compute_tag_leaderboard(
     tag_list: list, period: str, limit: int, offset: int,
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
 ):
-    """Compute leaderboard from in-memory cached data — no DB queries."""
+    """Compute leaderboard for tag queries — cached per tag combination."""
+    # Build a cache key from the query parameters (excluding pagination)
+    cache_key = (frozenset(tag_list), period, tag_mode, global_stats, show_all)
+
+    now = time.time()
+    cached = _tag_cache.get(cache_key)
+    if cached and now - cached["ts"] < _TAG_CACHE_TTL:
+        # Serve from cache, apply pagination
+        full_result = cached["result"]
+        return {
+            **full_result,
+            "leaderboard": full_result["_full_data"][offset:offset + limit],
+        }
+
     cache = await _get_cached_leaderboard()
     raw_papers = cache.get("_raw_papers", [])
     raw_matches = cache.get("_raw_matches", [])
+    match_index = cache.get("_match_index", {})
+    paper_cat_lookup = cache.get("_paper_cat_lookup", {})
 
     if not raw_papers:
         return {
@@ -379,31 +394,35 @@ async def _compute_tag_leaderboard(
     display_papers = raw_papers if show_all else matching_papers
     display_ids = {p["id"] for p in display_papers}
 
-    # Compute leaderboard using matches between ALL displayed papers
-    display_matches = [m for m in raw_matches if m["paper1_id"] in display_ids and m["paper2_id"] in display_ids]
+    # Use pre-built match index for fast match lookup
+    display_match_idxs = set()
+    for pid in display_ids:
+        for midx in match_index.get(pid, []):
+            display_match_idxs.add(midx)
+    display_matches = [raw_matches[i] for i in display_match_idxs
+                       if raw_matches[i]["paper1_id"] in display_ids
+                       and raw_matches[i]["paper2_id"] in display_ids]
+
     full = compute_leaderboard(display_papers, display_matches)
 
     # Add primary_category and matches_tag flag
-    paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in display_papers}
     for entry in full:
         entry["matches_tag"] = entry["id"] in matching_ids
         entry["primary_category"] = paper_cat_lookup.get(entry["id"], "unknown")
 
     # If global_stats requested, compute each paper's stats across ALL matches
     if global_stats:
-        global_wins = {pid: 0 for pid in display_ids}
-        global_comparisons = {pid: 0 for pid in display_ids}
-        for m in raw_matches:
-            for pid in [m["paper1_id"], m["paper2_id"]]:
-                if pid in global_comparisons:
-                    global_comparisons[pid] += 1
-            w = m.get("winner_id")
-            if w and w in global_wins:
-                global_wins[w] += 1
-
-        # Compute global Elo scores from each paper's global win rate
         import math
         ELO_BASE = 1200
+        global_wins = {pid: 0 for pid in display_ids}
+        global_comparisons = {pid: 0 for pid in display_ids}
+        for pid in display_ids:
+            for midx in match_index.get(pid, []):
+                m = raw_matches[midx]
+                global_comparisons[pid] += 1
+                if m.get("winner_id") == pid:
+                    global_wins[pid] += 1
+
         for entry in full:
             pid = entry["id"]
             g_w = global_wins.get(pid, 0)
@@ -420,41 +439,25 @@ async def _compute_tag_leaderboard(
                 entry["global_score"] = ELO_BASE
 
     # Period filtering
-    utc_now = datetime.now(timezone.utc)
-    paper_dates = {}
-    for entry in full:
-        try:
-            paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
-        except (ValueError, KeyError):
-            pass
-
-    max_date = max(paper_dates.values()) if paper_dates else utc_now
-    recent_cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
-
-    period_map = {
-        "recent": recent_cutoff,
-        "week": utc_now - timedelta(weeks=1),
-        "month": utc_now - timedelta(days=30),
-    }
-
-    if period in period_map:
-        cutoff = period_map[period]
-        data = [{**e} for e in full if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff]
-        for i, e in enumerate(data):
-            e["rank"] = i + 1
-    else:
-        data = full
+    data, total_in_period = _apply_period_filter(full, period)
 
     # Count matches only between matching papers (for the "local" match count)
-    tag_only_matches = [m for m in raw_matches if m["paper1_id"] in matching_ids and m["paper2_id"] in matching_ids]
+    tag_match_idxs = set()
+    for pid in matching_ids:
+        for midx in match_index.get(pid, []):
+            tag_match_idxs.add(midx)
+    tag_only_match_count = sum(
+        1 for i in tag_match_idxs
+        if raw_matches[i]["paper1_id"] in matching_ids
+        and raw_matches[i]["paper2_id"] in matching_ids
+    )
 
-    return {
-        "leaderboard": data[offset:offset + limit],
+    result = {
         "total_papers": len(matching_papers),
         "total_all_papers": len(display_papers) if show_all else len(matching_papers),
-        "total_in_period": len(data),
-        "total_matches": len(tag_only_matches),
-        "total_all_matches": len(display_matches) if show_all else len(tag_only_matches),
+        "total_in_period": total_in_period,
+        "total_matches": tag_only_match_count,
+        "total_all_matches": len(display_matches) if show_all else tag_only_match_count,
         "is_ranking": False,
         "period": period,
         "category": None,
@@ -462,6 +465,18 @@ async def _compute_tag_leaderboard(
         "tag_mode": tag_mode,
         "show_all": show_all,
         "global_stats": global_stats,
+        "_full_data": data,  # Full list for pagination
+    }
+
+    # Store in cache (evict oldest if full)
+    if len(_tag_cache) >= _TAG_CACHE_MAX:
+        oldest_key = min(_tag_cache, key=lambda k: _tag_cache[k]["ts"])
+        del _tag_cache[oldest_key]
+    _tag_cache[cache_key] = {"ts": now, "result": result}
+
+    return {
+        **result,
+        "leaderboard": data[offset:offset + limit],
     }
 
 
