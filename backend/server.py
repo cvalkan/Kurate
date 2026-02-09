@@ -62,10 +62,13 @@ async def startup():
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
 
-    # Migration: remove papers whose primary category is not in CATEGORIES
+    # Migration: remove papers whose primary category is not in active categories
     try:
-        from core.config import CATEGORIES
-        valid_cats = set(CATEGORIES.keys())
+        from core.auth import get_settings
+        _settings = await get_settings()
+        valid_cats = set(_settings.get("active_categories", list(CATEGORIES.keys())))
+        # Only clean up if we have valid categories
+        if valid_cats:
         invalid_papers = []
         async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
             cats = p.get("categories", [])
