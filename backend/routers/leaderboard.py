@@ -121,6 +121,28 @@ async def _refresh_cache():
         "_raw_matches_all": all_matches_raw,  # Includes experiment matches for tag queries
     })
 
+    # Pre-compute tags data (avoids recomputation on every /api/tags call)
+    from collections import Counter
+    tag_counts = Counter()
+    for p in all_papers:
+        for cat in p.get("categories", []):
+            tag_counts[cat] += 1
+    tag_match_counts = Counter()
+    for m in all_matches:
+        for cat in m.get("shared_categories", []):
+            tag_match_counts[cat] += 1
+    _cache["_tags"] = [
+        {"id": tag, "count": count, "matches": tag_match_counts.get(tag, 0)}
+        for tag, count in tag_counts.most_common()
+    ]
+
+    # Pre-compute categories list
+    _cache["_categories"] = [
+        {"id": cat_id, "name": CATEGORIES.get(cat_id) or cat_id}
+        for cat_id in active_cats
+    ]
+    _cache["_default_category"] = active_cats[0] if active_cats else "cs.RO"
+
 
 async def _bg_cache_loop():
     """Background loop that keeps the cache fresh."""
