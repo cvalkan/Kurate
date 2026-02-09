@@ -91,7 +91,7 @@ export function AdminOverview({
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium">Ranking Progress</h3>
             <Button
-              onClick={togglePause}
+              onClick={handlePauseResume}
               variant={progress.paused ? "default" : "outline"}
               size="sm"
               className="gap-1.5 h-8"
