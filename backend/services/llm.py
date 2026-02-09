@@ -98,7 +98,7 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     if prompt_config is None:
         prompt_config = DEFAULT_EVALUATION_PROMPT
 
-    model_info = _pick_random_model()
+    model_info = _pick_round_robin_model()
     provider = model_info["provider"]
     model = model_info["model"]
 
