@@ -756,13 +756,15 @@ async def get_timeseries(category: Optional[str] = None):
         papers_daily[day][cat] += 1
         papers_daily[day]["_total"] += 1
 
-    # --- Matches by day ---
+    # --- Matches by day + model stats ---
     match_query = {"completed": True, "failed": {"$ne": True}}
     if category:
         match_query["primary_category"] = category
     matches_daily = defaultdict(lambda: defaultdict(lambda: {
         "count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0
     }))
+    # System-wide model breakdown (not per-category, always total)
+    model_stats = {}
 
     async for m in db.matches.find(
         match_query,
@@ -775,11 +777,13 @@ async def get_timeseries(category: Optional[str] = None):
             continue
         day = created[:10]
         cat = m.get("primary_category", "unknown")
-        tokens = m.get("tokens", {})
-        inp = tokens.get("input_est", 0)
-        out = tokens.get("output_est", 0)
-        mu = m.get("model_used", {})
-        model_key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        tokens = m.get("tokens") or {}
+        inp = tokens.get("input_est", 0) or 0
+        out = tokens.get("output_est", 0) or 0
+        mu = m.get("model_used") or {}
+        provider = mu.get("provider", "unknown")
+        model = mu.get("model", "unknown")
+        model_key = f"{provider}/{model}" if provider != "unknown" or model != "unknown" else "unknown"
         pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
         cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
 
