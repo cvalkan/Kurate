@@ -241,12 +241,15 @@ async def get_progress_estimate(category: str = "cs.RO"):
         })
     goal2_met = bool(top_k_converged == len(top_k_ids))
 
-    # Goal 3: Top-K cross-matches — every pair of top-K papers must have played
-    topk_total_pairs = len(top_k_ids) * (len(top_k_ids) - 1) // 2
+    # Goal 3: Cross-matches among non-capped top-K papers
+    # Papers at max_matches are exempt — they've played enough
+    topk_capped = {pid for pid in top_k_ids if paper_match_count[pid] >= max_matches}
+    topk_crossmatch_ids = [pid for pid in top_k_ids if pid not in topk_capped]
+    topk_total_pairs = len(topk_crossmatch_ids) * (len(topk_crossmatch_ids) - 1) // 2
     topk_matched_pairs = 0
-    for i in range(len(top_k_ids)):
-        for j in range(i + 1, len(top_k_ids)):
-            pair = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
+    for i in range(len(topk_crossmatch_ids)):
+        for j in range(i + 1, len(topk_crossmatch_ids)):
+            pair = tuple(sorted([topk_crossmatch_ids[i], topk_crossmatch_ids[j]]))
             if pair in compared_pairs:
                 topk_matched_pairs += 1
     matches_for_goal3 = topk_total_pairs - topk_matched_pairs
