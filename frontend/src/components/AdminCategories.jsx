@@ -229,6 +229,26 @@ export function AdminCategories({ onCategoriesChanged }) {
           </div>
         )}
       </div>
+
+      {/* Confirm removal dialog */}
+      {confirmRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-testid="confirm-remove-dialog">
+          <div className="bg-background rounded-lg border border-border shadow-xl p-5 max-w-sm mx-4 space-y-3">
+            <h4 className="font-medium text-sm">Remove category?</h4>
+            <p className="text-xs text-muted-foreground">
+              This will pause the <span className="font-mono text-foreground">{confirmRemove}</span> tournament and remove it from the public leaderboard. Existing data (papers, matches) will be preserved.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setConfirmRemove(null)} data-testid="confirm-remove-cancel">
+                Cancel
+              </Button>
+              <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => { handleRemove(confirmRemove); setConfirmRemove(null); }} data-testid="confirm-remove-yes">
+                Remove
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
