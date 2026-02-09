@@ -82,6 +82,9 @@ frontend/src/
 - [Feb 2026] **Methodology page updated** — Condensed to 10 steps reflecting round-robin, top-K cross-match, and three convergence goals
 - [Feb 2026] **Public Prompts page** — New `/prompts` page shows evaluation and summary prompts (read-only). Linked from Methodology steps 2 and 8. Backend: `GET /api/prompts` (public, no auth)
 - [Feb 2026] **Experiment isolation audit** — All 22 match queries across scheduler, admin, and leaderboard audited. Experiment/prediction matches (with `mode` field) now consistently excluded from tournament counts via `mode: {$exists: False}`. Fixes: inflated match counts, false goals-met detection, scheduler stalling.
+- [Feb 2026] **Dynamic category management** — Admin can add/remove arXiv categories via searchable dropdown (155 categories). Includes weekly paper volume and cost estimates. Categories stored in DB settings, dynamically reflected across all views.
+- [Feb 2026] **Renamed Controls to Tournaments** — Admin tab renamed for clarity
+- [Feb 2026] **Leaderboard category overflow** — First 5 categories shown as tabs (hot picks), additional categories in "More" dropdown
 
 ## Tournament Goal System (3 Goals)
 1. **Goal 1 (Min Matches)**: Every paper must have >= `min_matches_per_paper` comparisons
