@@ -361,19 +361,22 @@ async def _compute_all_papers_leaderboard(period: str, limit: int, offset: int, 
 async def _compute_tag_leaderboard(
     tag_list: list, period: str, limit: int, offset: int,
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
+    search: str = None,
 ):
     """Compute leaderboard for tag queries — cached per tag combination."""
-    # Build a cache key from the query parameters (excluding pagination)
+    # Build a cache key from the query parameters (excluding pagination and search)
     cache_key = (frozenset(tag_list), period, tag_mode, global_stats, show_all)
 
     now = time.time()
     cached = _tag_cache.get(cache_key)
     if cached and now - cached["ts"] < _TAG_CACHE_TTL:
-        # Serve from cache, apply pagination
+        # Serve from cache, apply search + pagination
+        full_data = _apply_search(cached["result"]["_full_data"], search)
         full_result = cached["result"]
         return {
             **{k: v for k, v in full_result.items() if k != "_full_data"},
-            "leaderboard": full_result["_full_data"][offset:offset + limit],
+            "leaderboard": full_data[offset:offset + limit],
+            "total_in_period": len(full_data),
         }
 
     cache = await _get_cached_leaderboard()
