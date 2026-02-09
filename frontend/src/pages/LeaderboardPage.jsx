@@ -159,7 +159,7 @@ export default function LeaderboardPage() {
         setLoading(false);
       }
     }
-  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats]);
+  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword]);
 
   // Fetch on param change — only show full skeleton on initial load
   // Debounce tag mode fetches to batch rapid tag toggling
