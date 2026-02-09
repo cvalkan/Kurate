@@ -329,13 +329,12 @@ export function AdminStatistics({ categories }) {
               </tr>
             </thead>
             <tbody>
-              {allCats.map(cat => {
-                const lastDay = series[series.length - 1] || {};
+              {nonEmptyCats.map(cat => {
                 return (
                   <tr key={cat} className="border-b border-border/50">
                     <td className="py-2 pr-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getColor(cat) }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: catColorMap[cat] }} />
                         <span className="font-mono">{cat}</span>
                       </div>
                     </td>
