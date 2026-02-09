@@ -991,6 +991,8 @@ async def update_tournament_status(tournament_id: str, request: Request):
                 logger.info(f"Resume triggered immediate paper fetch for {cat} ({paper_count} papers)")
         wake_scheduler()  # Wake immediately so comparisons start
 
+    # Invalidate cache for the affected category
+    _invalidate_admin_cache()
     return {"status": "ok", "tournament_status": new_status}
 
 
