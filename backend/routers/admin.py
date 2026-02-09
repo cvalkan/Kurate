@@ -254,6 +254,8 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "total_matches": cat_matches_done,
         "papers_with_pdf": cat_papers_with_pdf,
         "paused": is_paused,
+        "global_paused": global_paused,
+        "tournament_paused": bool(tournament_paused),
         "category": category,
         "goals_met": bool(goal1_met and goal2_met),
         "goal1": {
