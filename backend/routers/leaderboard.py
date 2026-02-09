@@ -503,6 +503,31 @@ async def get_system_status():
     }
 
 
+@router.get("/prompts")
+async def get_public_prompts():
+    """Public read-only view of the evaluation and summary prompts."""
+    from core.config import DEFAULT_EVALUATION_PROMPT
+
+    eval_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
+    eval_prompt = {
+        "system_prompt": eval_doc.get("system_prompt", "") if eval_doc else DEFAULT_EVALUATION_PROMPT["system_prompt"],
+        "user_prompt": eval_doc.get("user_prompt", "") if eval_doc else DEFAULT_EVALUATION_PROMPT["user_prompt"],
+    }
+
+    summary_doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
+    summary_prompt = None
+    if summary_doc and summary_doc.get("system_prompt"):
+        summary_prompt = {
+            "system_prompt": summary_doc.get("system_prompt", ""),
+            "user_prompt": summary_doc.get("user_prompt", ""),
+        }
+
+    return {
+        "evaluation": eval_prompt,
+        "summary": summary_prompt,
+    }
+
+
 @router.get("/model-correlation")
 async def get_model_correlation(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
