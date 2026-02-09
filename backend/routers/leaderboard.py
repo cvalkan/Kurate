@@ -475,7 +475,7 @@ async def _compute_tag_leaderboard(
     _tag_cache[cache_key] = {"ts": now, "result": result}
 
     return {
-        **result,
+        **{k: v for k, v in result.items() if k != "_full_data"},
         "leaderboard": data[offset:offset + limit],
     }
 
