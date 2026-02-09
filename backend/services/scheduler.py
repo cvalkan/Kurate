@@ -160,11 +160,18 @@ async def _scheduler_loop():
             is_paused = settings.get("paused", False)
             min_papers = settings.get("min_papers_for_tournament", 8)
 
-            # Get active tournaments from registry
+            # Get active tournaments from registry (single source of truth for what to run)
             tournaments = await get_active_tournaments()
             active_cats = list({t["category"] for t in tournaments})
-            if not active_cats:
-                active_cats = settings.get("active_categories", ["cs.RO"])
+
+            # Also track ALL known categories for fetch/stats (even paused ones)
+            all_tournament_cats = set()
+            all_tournaments_raw = await db.tournaments.find({}, {"_id": 0, "category": 1}).to_list(500)
+            for t in all_tournaments_raw:
+                all_tournament_cats.add(t["category"])
+            # Fallback only if no tournaments exist at all (fresh install)
+            if not all_tournament_cats:
+                all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
             # Per-category fetch check
             for cat in active_cats:
