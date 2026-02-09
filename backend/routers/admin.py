@@ -548,7 +548,6 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
     """Run a prediction comparison round."""
     import uuid
     import random
-    from datetime import datetime, timezone
     from services.llm import compare_papers
 
     # Load prediction prompt
@@ -872,7 +871,6 @@ async def update_tournament_status(tournament_id: str, request: Request):
     if new_status not in ("active", "paused"):
         raise HTTPException(400, "Status must be 'active' or 'paused'")
 
-    from datetime import datetime, timezone
     result = await db.tournaments.update_one(
         {"tournament_id": tournament_id},
         {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}},
