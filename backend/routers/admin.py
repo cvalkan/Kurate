@@ -96,6 +96,7 @@ class FetchRequest(BaseModel):
 @router.post("/fetch", dependencies=[Depends(verify_admin)])
 async def trigger_fetch(body: FetchRequest = FetchRequest()):
     result = await run_fetch_cycle(category=body.category)
+    _invalidate_admin_cache(body.category)
     return result
 
 
