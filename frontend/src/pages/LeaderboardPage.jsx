@@ -303,16 +303,14 @@ export default function LeaderboardPage() {
             <div className="w-px h-5 bg-border mx-0.5" />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={() => isLoggedIn ? setShowSuggestion(true) : requireAuth()}
-                  className="text-xs h-8 gap-1 shrink-0 text-muted-foreground"
+                  className="inline-flex items-center gap-1 text-xs h-8 px-3 shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary/80 rounded-md transition-colors"
                   data-testid="suggest-field-btn"
                 >
                   <Lightbulb className="h-3.5 w-3.5" />
                   <span>Suggest</span>
-                </Button>
+                </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 <p className="text-xs">{isLoggedIn ? "Suggest a new field or share feedback" : "Sign in to suggest a field"}</p>
