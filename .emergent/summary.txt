@@ -1,137 +1,114 @@
-<analysis>**original_problem_statement**: The user initiated a series of feature requests and bug reports. The main goals were:
-1.  **Enhance Leaderboard Filtering**: Add a Global/Local stats toggle for tag-filtered views and change the behavior so that clicking Filter by tags shows all papers by default.
-2.  **User Authentication & Gating**: Implement a full user registration/login system (email & Google OAuth) with email verification. Gate features like advanced filtering and specific time-period views for logged-in users only.
-3.  **Admin Features**: Add admin views for user management (list, status, deactivate/reactivate), user suggestions, and tournament management (pause/resume).
-4.  **Secondary Category Tournaments**: Implement a piggyback system to gather match data for papers' secondary categories during primary tournaments.
-5.  **Scalability & Refactoring**: Analyze and address performance bottlenecks for a large number of categories, leading to a major refactoring of the tournament and scheduling system. This included creating a formal tournament registry.
-6.  **Bug Fixes & UI Polish**: Address various issues including infinite scrolling for long lists, mobile navbar layout, inconsistent ranking in progress status, and bugs related to server restarts and deployment.
+<analysis>**original_problem_statement:**
+The user initially requested the following:
+1.  Check if the pause/resume logic is consistent across the entire system.
+2.  Transform the Overview page in the Admin section into a more detailed Statistics page. This page should include charts showing papers, matches, tokens, and costs over time (cumulative and daily) for each category and for the system as a whole.
+
+After the initial implementation, the user provided further feedback and requests:
+1.  The Cost by Model breakdown on the new Statistics page was inconsistent with the total cost.
+2.  Suggested merging the Controls and Tournaments tabs for better organization.
+3.  Questioned whether the new features would be compatible with the existing production database.
+4.  Pointed out that the Tournament Registry section on the merged Controls tab seemed redundant.
+5.  Asked about the system's behavior when manual comparisons are initiated even after tournament goals have been met.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The project is a web application for ranking academic papers using an LLM-based judge. It features a Python/FastAPI backend with a MongoDB database and a React frontend.
+The Overview tab in the Admin panel has been successfully replaced with a new, comprehensive Statistics page. This page features:
+- Summary cards for total papers, matches, tokens, and costs.
+- A Cost by Model breakdown.
+- Interactive charts (using Recharts) that can be toggled to show data cumulatively (area chart) or daily (bar chart), and for the whole system or broken down by category.
 
-Key implemented features include:
-- A main leaderboard with filtering by primary category and time periods.
-- A tag-based filtering system with a Global/Local statistics toggle.
-- A robust user authentication system supporting email/password and Google OAuth, with mandatory email verification for the former.
-- Gated content, where non-logged-in users have restricted access.
-- An admin panel with functionality to manage users (view, deactivate/reactivate), view user suggestions, fetch new papers, and manage tournaments (view status, pause/resume).
-- A background scheduler that automatically manages paper fetching and runs comparison tournaments for all active categories until predefined goals are met.
-- A tournament registry in the database that acts as the single source of truth for all tournament states, which was implemented to improve scalability and control.
-- A piggyback mechanism that records match data for secondary categories at no additional LLM cost.
-- A mobile-responsive UI with a hamburger menu.
+The backend has been enhanced with a new  endpoint that is hardened to handle potential missing data in a production environment (e.g., matches without token counts, papers without creation dates).
+
+Pause/resume logic has been improved. A bug that caused the scheduler to run even when all tournaments were paused has been fixed. The UI now correctly reflects both global and per-tournament pause states.
+
+The UI has been refactored based on user feedback. The Controls and Tournaments tabs are merged, and the redundant Tournament Registry has been removed from the Controls tab. The pause/resume button on the Controls tab is now smart, correctly targeting the specific tournament's pause state rather than the global one.
 
 **Last working item**:
--   **Last item agent was working**: The user reported an inconsistency where the public-facing leaderboard would show Ranking in progress while the admin panel reported that all tournament goals were met and the system was idle. The agent identified that these two views were calculating the ranking status independently, leading to a race condition or divergence. The fix involved refactoring the leaderboard's data cache () to use the newly implemented tournament registry as the single source of truth for a tournament's status, ensuring both the admin and public pages show consistent information.
+-   **Last item agent was working on**: The agent was analyzing the behavior of the manual Run Matches button, which is triggered via the  endpoint. The user asked what happens if this is used when tournament goals are already met. The agent determined that the endpoint bypasses goal checks and proceeds to run comparisons, prioritizing novel pairs of papers that have not been compared before. The agent then asked the user for their preference on whether this override behavior is desirable or if a confirmation warning/block should be added.
 -   **Status**: USER VERIFICATION PENDING
--   **Agent Testing Done**: Y
--   **Which testing method agent to use?**: frontend testing agent
+-   **Agent Testing Done**: N
+-   **Which testing method agent to use?**: manual testing by curl
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-There are no outstanding issues. The last reported bug has been fixed, and the next step is user verification.
+-   **Issue 1**: Manual Run Matches behavior when goals are met (Priority: P0)
+
+    -   **Issue Detail**:
+        -   **Description**: The user is questioning the behavior of the manual Run Matches feature when tournament goals are already satisfied. The current implementation proceeds to run new matches, which might incur unexpected costs. The agent is waiting for the user to decide if this behavior should be kept or changed (e.g., by adding a confirmation dialog).
+        -   **Next debug checklist**: Based on the user's decision, the agent may need to modify the  endpoint handler in . If a block or confirmation is requested, the logic in  will need to be updated to check tournament goals before proceeding.
+        -   **Why fix this issue and what will be achieved with the fix?**: To ensure the manual override feature aligns with the user's expectations and prevents unintentional LLM usage and costs.
+        -   **Status**: USER VERIFICATION PENDING
+        -   **Is recurring issue?**: N
+        -   **Should Test frontend/backend/both after fix?**: backend
+        -   **Blocked on other issue**: None
 
 **In progress Task List**:
 There are no tasks currently in progress.
 
 **Upcoming and Future Tasks**
-Based on the scalability and feature feedback analysis, the following tasks are planned:
-
-**Upcoming Tasks:**
--   **Task 1 (P2): Refactor Matchmaking & Scoring**
-    -   **Where to resume**: 
-    -   **What will be achieved with this?**: The current matchmaking heuristic (win-rate similarity) will be replaced with a more advanced method that prioritizes pairs with high Bradley-Terry (BT) uncertainty to maximize information gain. Additionally, regularization (priors) will be added to the BT score calculation to prevent extreme scores in small tournaments, leading to more stable and efficient rankings.
-    -   **Status**: NOT STARTED
-
-**Future Tasks:**
--   **Task 2 (P3): Formalize Judge & Cohorts**
-    -   **Where to resume**: , 
-    -   **What will be achieved with this?**: The  schema will be extended to include detailed metadata about the judge (e.g., , , ). This will allow for more granular data analysis and prevent data contamination when prompts or models are updated.
-    -   **Status**: NOT STARTED
-
--   **Task 3 (P3): Global Tournaments & UI Clarity**
-    -   **Where to resume**: , , 
-    -   **What will be achieved with this?**: The system will be enhanced to support explicit global tournaments (e.g., one for all cs papers). The UI for tag-filtered views will be updated to show a paper's primary/global score alongside its score within the filtered tournament, providing users with better context.
-    -   **Status**: NOT STARTED
+-   **Upcoming Tasks**:
+    -   **P0: Implement user's preference for manual match runs:** Depending on the user's feedback, either keep the current functionality or modify  to add a warning or block manual match execution when goals are met.
 
 **Completed work in this session**
--   **Feature**: User Authentication system with email/password and Google OAuth (DONE).
--   **Feature**: Gated content for non-logged-in users (DONE).
--   **Feature**: Admin panel with User, Suggestion, and Tournament management (DONE).
--   **Feature**: Email verification flow with a Resend option (DONE).
--   **Feature**: Global/Local stats toggle on the leaderboard (DONE).
--   **Feature**: Piggyback matches for secondary categories (DONE).
--   **Feature**: Infinite scroll for long leaderboards (DONE).
--   **Scalability**: Implemented P0 and P1 from the action plan, including a full Tournament Registry system, indexed DB queries in the scheduler, and prompt version tracking (DONE).
--   **Refactor**: Componentized several pages (, ) for better maintainability (DONE).
--   **UI/UX**: Implemented a responsive mobile navbar with a hamburger menu (DONE).
--   **Bugfix**: Fixed inconsistent Ranking in progress status between admin and leaderboard views (DONE, pending user verification).
--   **Bugfix**: Made tournament initialization idempotent to prevent duplicates on server restart (DONE).
--   **Bugfix**: Fixed PDF parsing crashes due to Unicode errors (DONE).
+-   **New Statistics Page**: Implemented a comprehensive statistics dashboard.
+    -   Created the  endpoint in .
+    -   Created the  component with Recharts for data visualization.
+    -   Integrated the component into .
+-   **Pause/Resume Consistency Fixes**: Addressed inconsistencies in the pause/resume logic.
+    -   Fixed scheduler fallback bug in .
+    -   Updated  endpoint in  to report both global and tournament-level pause status.
+-   **Production Database Hardening**: Made the statistics endpoint robust against missing data in older database records ().
+-   **UI/UX Refinements**:
+    -   Fixed cost calculation mismatch by providing system-wide model costs from the backend.
+    -   Merged Controls and Tournaments tabs in .
+    -   Removed redundant Tournament Registry from .
+    -   Created a context-aware Pause/Resume button in  that correctly targets per-tournament pause states.
 
 **Earlier issues found/mentioned but not fixed**
-None. The agent has addressed all issues raised by the user during the session.
+-   None.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: None
--   **Recurrence count**: 0
--   **Status**: NOT STARTED
+-   None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend**: Python, FastAPI, Motor (async MongoDB driver).
--   **Frontend**: React, Vite, Tailwind CSS.
--   **Database**: MongoDB.
--   **Authentication**: JWT-based sessions, Google OAuth 2.0, email/password with verification.
--   **Ranking**: Bradley-Terry model for Elo-like scores, Wilson score for confidence intervals.
--   **Asynchronous Operations**: The backend is fully async, and the scheduler runs as a background task within the FastAPI event loop.
+-   **Backend**: FastAPI, MongoDB (Motor), Background Tasks
+-   **Frontend**: React, Vite, Tailwind CSS, Recharts
+-   **Architecture**: A monorepo with separate  and  applications communicating via a REST API. A background process handles automated tasks.
 
 **key DB schema**
 -   **papers**: 
 -   **matches**: 
--   **users**: 
--   **sessions**: 
--   **suggestions**: 
 -   **tournaments**: 
--   **settings**: 
 
 **changes in tech stack**
--   **Resend** was integrated for handling transactional emails (e.g., email verification).
+-   None.
 
 **All files of reference**
--   : Contains the core logic for running tournaments. It was heavily refactored for scalability and now operates based on the  collection.
--   : Manages leaderboard data generation and caching. It was updated to use the tournament registry for status and to compute global Elo scores.
--   : The main FastAPI application file. It handles application startup, including initializing the tournament registry.
--   : Implements all user authentication logic, including registration, login, verification, and status checks.
--   : Defines all admin-related API endpoints, including user and tournament management.
--   : The primary user-facing component, modified to handle auth state, gated content, and new UI features.
--   : The admin dashboard, which now includes tabs for Users, Suggestions, and Tournaments.
--   : The UI component for user login and registration, including the email verification flow.
--   : A key document outlining the rationale and plan for major architectural changes.
+-   : Created  endpoint, hardened it for production, and updated  pause logic.
+-   : Fixed a bug to prevent the scheduler from running when all tournaments are paused.
+-   : Refactored to integrate the new Statistics page and merge the Controls/Tournaments tabs.
+-   : (New file) Contains the UI and logic for the Statistics page charts.
+-   : Refactored to include a smart pause/resume button and remove the redundant tournament registry.
+-   : Updated to reflect completed tasks.
 
 **Areas that need refactoring**:
--    remains a large component (over 500 lines) and could benefit from further decomposition by extracting UI sections like the status bar and filter controls into separate components.
+-   None identified. The agent has already performed significant refactoring of the Admin page UI.
 
 **key api endpoints**
--   : Retrieves leaderboard for a primary category.
--   : Retrieves leaderboard for filtered tags.
--   : Creates a new user.
--   : Authenticates a user and creates a session.
--   : Verifies a user's email address.
--   : [ADMIN] Lists all registered users.
--   : [ADMIN] Activates or deactivates a user.
--   : [ADMIN] Lists all tournaments and their status.
--   : [ADMIN] Pauses a tournament.
--   : [ADMIN] Resumes a tournament.
+-   : **(New)** Provides aggregated data for the statistics charts.
+-   : **(Updated)** Returns scheduler status, now including both global and tournament-level pause states.
+-   : **(Used)** Pauses a specific tournament.
+-   : **(Used)** Resumes a specific tournament.
+-   : Endpoint for manual match runs, which bypasses goal checks.
 
 **Critical Info for New Agent**
--   **Tournament Registry is King**: The application's architecture was fundamentally changed to use a  collection in MongoDB as the single source of truth for all tournament states. The scheduler () and leaderboard () both rely on this collection. This was a critical scalability fix.
--   **Authentication Flow**: Be aware of the strict authentication flow. Users signing up with email/password cannot log in until they verify their email. Deactivated users are blocked at the API level from logging in or using existing sessions.
--   **Idempotent Startup**: The server startup logic in  (especially ) is designed to be idempotent using . This is crucial because development server hot-reloads can trigger this logic multiple times.
--   **Scalability Work**: Major performance bottlenecks in the scheduler related to database queries have been resolved by adding an index on  in the  collection and refactoring the code to use it (P0 task). The groundwork for further improvements (P2/P3 tasks) has been laid out in .
+-   **Your immediate task is to get a decision from the user.** You need to ask the user how the manual Run Matches button should behave when tournament goals are already met. The current implementation allows it to run, which acts as an override. Present the options: keep as is, or add a confirmation dialog/block.
+-   All major features requested by the user (Statistics page, pause/resume fixes, UI cleanup) have been implemented and tested.
+-   The application has been hardened to work with an existing production database, addressing a key user concern about compatibility.
 
 **documents and test reports created in this job**
 -   
@@ -139,37 +116,33 @@ None. The agent has addressed all issues raised by the user during the session.
 -   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (msg 814)**: Reported inconsistency in Ranking in Progress status. **Status: USER VERIFICATION PENDING**. Agent implemented a fix.
-2.  **User (msg 805)**: Reported deployed app showed too many tournaments. **Status: Completed**. Agent fixed the non-idempotent initialization logic.
-3.  **User (msg 798)**: Requested a deployment health check. **Status: Completed**.
-4.  **User (msg 781)**: Reported Pause tournament button was failing. **Status: Completed**. Agent fixed the endpoint bug.
-5.  **User (msg 775)**: Asked for confirmation of the scheduler's automatic behavior. **Status: Completed**. Agent provided a detailed explanation.
-6.  **User (msg 688)**: Requested implementation of P1 scalability tasks. **Status: Completed**.
-7.  **User (msg 677)**: Asked why a new tournament didn't seem to run. **Status: Completed**. Agent investigated and fixed a related bug.
-8.  **User (msg 628)**: Requested implementation of P0 scalability tasks. **Status: Completed**.
-9.  **User (msg 617)**: Provided extensive feedback and asked for a scalability analysis. **Status: Completed**. Agent created the action plan.
-10. **User (msg 606)**: Requested mobile hamburger menu be moved to the left. **Status: Completed**.
+10. **User**: Requested a check on pause/resume consistency and a new Statistics page. (Completed)
+9. **User**: Provided feedback: cost mismatch, merge Controls/Tournaments, and questioned production readiness. (Completed)
+8. **Agent**: Acknowledged the feedback and formulated a plan.
+7. **Agent**: Updated the PRD after the first round of fixes.
+6. **User**: Questioned the redundancy of the Tournament Registry section. (Completed)
+5. **Agent**: Agreed it was redundant and proposed removing it.
+4. **Agent**: Confirmed the registry was removed.
+3. **User**: Asked if the version will work when deployed with the existing database. (Completed)
+2. **Agent**: Provided a detailed audit confirming production-readiness.
+1. **User**: Asked what happens when running manual comparisons if goals are already met. **(PENDING RESPONSE)**
 
 **Project Health Check:**
--   **Broken**: None. All known issues have been addressed.
--   **Mocked**: The email sending functionality via **Resend** is dependent on a correctly configured API key and verified DNS for the  domain in the production environment.
+-   **Broken**: None
+-   **Mocked**: None
 
 **3rd Party Integrations**
--   **OpenAI GPT models**: Used for the core paper comparison logic. Uses Emergent LLM Key.
--   **Google OAuth 2.0**: For social login. Requires User-provided OAuth client ID/secret.
--   **Resend**: For sending transactional emails. Requires User-provided API Key and a verified domain.
--   **MongoDB**: The primary database for all application data.
+-   **LLMs**: The application integrates with multiple LLMs, identified from the cost breakdown as , , and . The key management method (Emergent vs. User) is not specified.
+-   **Charting**:  is used for data visualization on the frontend.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES
+-   **Testing agent used after significant changes**: YES. The testing agent was run twice, achieving 100% pass rates for both frontend and backend tests after major feature implementations and subsequent fixes.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**:
-    -   
--   **Known regressions**: None
+-   **Test files created**: None.
+-   **Known regressions**: None.
 
 **Credentials to test flow:**
--   Admin access is tied to the email address specified in the  environment variable.
--   Standard user accounts can be created via the registration form. Email verification will be required.
+Login is required to access the Admin panel. Use standard login credentials if available, or follow the app's sign-up/sign-in flow.
 
 **What agent forgot to execute**
-The agent has successfully addressed all user requests and implemented all planned tasks from this session. The next steps are clearly defined in the Upcoming and Future Tasks section, which are intentionally left for future work.</analysis>
+The agent has addressed all user requests and identified issues. The only outstanding item is awaiting a decision from the user.</analysis>
