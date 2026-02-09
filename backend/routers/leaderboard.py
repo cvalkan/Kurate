@@ -57,19 +57,6 @@ async def _refresh_cache():
     # Use dynamic active categories from settings
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
-    # Compute global max publication date across ALL papers (for "Most Recent" filter)
-    global_max_date = utc_now
-    all_paper_dates = {}
-    for p in all_papers:
-        try:
-            d = datetime.fromisoformat(p.get("published", "").replace("Z", "+00:00"))
-            all_paper_dates[p["id"]] = d
-        except (ValueError, KeyError):
-            pass
-    if all_paper_dates:
-        global_max_date = max(all_paper_dates.values())
-    global_recent_cutoff = datetime(global_max_date.year, global_max_date.month, global_max_date.day, tzinfo=timezone.utc)
-
     for cat_id in active_cats:
         cat_papers = papers_by_cat.get(cat_id, [])
         if not cat_papers:
@@ -94,9 +81,13 @@ async def _refresh_cache():
 
         paper_dates = {}
         for entry in full:
-            pid = entry["id"]
-            if pid in all_paper_dates:
-                paper_dates[pid] = all_paper_dates[pid]
+            try:
+                paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
+            except (ValueError, KeyError):
+                pass
+
+        max_date = max(paper_dates.values()) if paper_dates else utc_now
+        recent_cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
 
         def filter_and_rerank(cutoff, entries=full):
             filtered = [{**e} for e in entries if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff]
@@ -112,7 +103,7 @@ async def _refresh_cache():
 
         categories_data[cat_id] = {
             "all": full,
-            "recent": filter_and_rerank(global_recent_cutoff),
+            "recent": filter_and_rerank(recent_cutoff),
             "week": filter_and_rerank(utc_now - timedelta(weeks=1)),
             "month": filter_and_rerank(utc_now - timedelta(days=30)),
             "_matches": len(cat_matches),
