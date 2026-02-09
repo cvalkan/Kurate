@@ -65,6 +65,8 @@ export default function LeaderboardPage() {
   // Auth + suggestions
   const { user } = useAuth();
   const [showSuggestion, setShowSuggestion] = useState(false);
+  const [moreCatsOpen, setMoreCatsOpen] = useState(false);
+  const moreCatsRef = useRef(null);
   const isLoggedIn = !!user;
 
   const requireAuth = () => {
