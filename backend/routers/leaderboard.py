@@ -275,6 +275,16 @@ async def get_categories():
     }
 
 
+def _apply_search(data: list, search: str) -> list:
+    """Filter leaderboard entries by title search and re-rank."""
+    if not search:
+        return data
+    search_lower = search.lower()
+    filtered = [p for p in data if search_lower in p.get("title", "").lower()]
+    # Re-rank the filtered results
+    return [{**p, "rank": i + 1} for i, p in enumerate(filtered)]
+
+
 @router.get("/leaderboard")
 async def get_leaderboard(
     category: Optional[str] = Query("cs.RO", description="arXiv primary category"),
@@ -283,6 +293,7 @@ async def get_leaderboard(
     tag_mode: Optional[str] = Query("or", description="How to combine tags: 'or' (any) or 'and' (all)"),
     global_stats: bool = Query(False, description="Include global stats (all matches) for each paper"),
     show_all: bool = Query(False, description="Show all papers with matches_tag flag (tag mode only)"),
+    search: Optional[str] = Query(None, description="Search papers by title (case-insensitive)"),
     limit: int = Query(500, description="Max papers to return"),
     offset: int = Query(0, description="Offset for pagination"),
 ):
@@ -290,16 +301,19 @@ async def get_leaderboard(
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         if tag_list:
-            return await _compute_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all)
+            return await _compute_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search)
 
     # Show all papers from all categories (tag panel open, no tags selected)
     if show_all:
-        return await _compute_all_papers_leaderboard(period, limit, offset)
+        return await _compute_all_papers_leaderboard(period, limit, offset, search)
 
     # Default: use pre-computed primary category cache
     cache = await _get_cached_leaderboard()
     cat_data = cache["categories"].get(category, {})
     data = cat_data.get(period, cat_data.get("all", []))
+
+    # Apply search filter
+    data = _apply_search(data, search)
 
     return {
         "leaderboard": data[offset:offset + limit],
