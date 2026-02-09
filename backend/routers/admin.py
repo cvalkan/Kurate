@@ -956,7 +956,7 @@ class CategoryAction(BaseModel):
 
 @router.post("/categories/add", dependencies=[Depends(verify_admin)])
 async def add_category(body: CategoryAction):
-    """Add a new tournament category."""
+    """Add a new tournament category. New categories start as paused."""
     from core.arxiv_categories import ARXIV_TAXONOMY
     cat_id = body.category_id.strip()
     if cat_id not in ARXIV_TAXONOMY:
@@ -973,13 +973,21 @@ async def add_category(body: CategoryAction):
         {"$set": {"active_categories": active}},
         upsert=True,
     )
+    invalidate_settings_cache()
 
     # Initialize tournament for the new category
     from services.scheduler import init_tournament_registry
     await init_tournament_registry()
 
-    logger.info(f"Admin added category: {cat_id}")
-    return {"status": "ok", "active_categories": active}
+    # Set new category tournament to paused (admin must explicitly resume)
+    tid = f"cat={cat_id}|mode=standard"
+    await db.tournaments.update_one(
+        {"tournament_id": tid},
+        {"$set": {"status": "paused", "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+    logger.info(f"Admin added category: {cat_id} (preset to paused)")
+    return {"status": "ok", "active_categories": active, "tournament_status": "paused"}
 
 
 @router.post("/categories/remove", dependencies=[Depends(verify_admin)])
