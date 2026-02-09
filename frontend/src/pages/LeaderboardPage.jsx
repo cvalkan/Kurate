@@ -155,11 +155,14 @@ export default function LeaderboardPage() {
     }
   }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats]);
 
-  // Fetch on param change
+  // Fetch on param change — only show full skeleton on initial load
+  const initialLoadDone = useRef(false);
   useEffect(() => {
-    setLoading(true);
+    if (!initialLoadDone.current) {
+      setLoading(true); // Full skeleton only on first load
+    }
     setDisplayCount(50); // Reset infinite scroll on data change
-    fetchLeaderboard();
+    fetchLeaderboard().then(() => { initialLoadDone.current = true; });
     return () => { if (abortRef.current) abortRef.current.abort(); };
   }, [fetchLeaderboard]);
 
