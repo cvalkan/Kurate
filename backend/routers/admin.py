@@ -835,7 +835,8 @@ async def get_timeseries(category: Optional[str] = None):
 
     # Build sorted date list
     all_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys())))
-    all_cats = sorted(CATEGORIES.keys())
+    settings_for_cats = await get_settings()
+    all_cats = sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
 
     # Build daily series
     series = []
