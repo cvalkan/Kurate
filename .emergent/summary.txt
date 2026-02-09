@@ -1,172 +1,175 @@
-<analysis>**original_problem_statement:**
-The user wants to create a web application that automatically fetches academic papers from arXiv, ranks them using pairwise comparisons from multiple Large Language Models (LLMs), and displays the results on a public-facing leaderboard.
-
-**PRODUCT REQUIREMENTS:**
-- **Paper Fetching:** Automatically fetch papers from specified arXiv categories.
-- **LLM-based Ranking:** Use multiple LLMs (GPT, Claude, Gemini) to compare pairs of papers based on their full text or abstracts.
-- **Ranking Algorithm:** Implement a Bradley-Terry model to calculate Elo-like scores from pairwise comparisons.
-- **Adaptive Matchmaking:** Develop a sophisticated scheduler to intelligently select which papers to compare next, focusing on papers that need it most to improve ranking efficiency.
-- **Multi-Category Support:** The application must support multiple, independent tournaments for different arXiv categories, with no data cross-contamination.
-- **Admin Panel:** A comprehensive admin dashboard to:
-    - Monitor scheduler status and performance for each category.
-    - View detailed statistics (paper counts, match counts, costs).
-    - Manage and edit the prompts used for LLM comparisons.
-    - Run experiments.
-- **Public Leaderboard:** A user-friendly interface to display the rankings for each category, with features like:
-    - Cross-category filtering using tags (with AND/OR logic).
-    - Keyword search through paper titles.
-    - Mobile-responsive design.
-- **Model Analysis:** Provide analytics on the LLMs themselves, including:
-    - Rank correlation (e.g., Spearman's rho) between different models.
-    - Pairwise agreement rates, with a breakdown for clear-cut vs. contested pairs.
-- **Surprisingly Popular Experiment:** Implement a feature to run separate tournaments to identify hidden gems by comparing a standard full-text ranking against a prediction-based ranking (where the LLM predicts which paper the crowd would find more impactful). This should support both abstract-only and full-text prediction modes.
-- **Performance:** The application, especially the leaderboard, must be fast and responsive, even with a large number of papers and categories.
+<analysis>**original_problem_statement**: The user initiated a series of feature requests and bug reports. The main goals were:
+1.  **Enhance Leaderboard Filtering**: Add a Global/Local stats toggle for tag-filtered views and change the behavior so that clicking Filter by tags shows all papers by default.
+2.  **User Authentication & Gating**: Implement a full user registration/login system (email & Google OAuth) with email verification. Gate features like advanced filtering and specific time-period views for logged-in users only.
+3.  **Admin Features**: Add admin views for user management (list, status, deactivate/reactivate), user suggestions, and tournament management (pause/resume).
+4.  **Secondary Category Tournaments**: Implement a piggyback system to gather match data for papers' secondary categories during primary tournaments.
+5.  **Scalability & Refactoring**: Analyze and address performance bottlenecks for a large number of categories, leading to a major refactoring of the tournament and scheduling system. This included creating a formal tournament registry.
+6.  **Bug Fixes & UI Polish**: Address various issues including infinite scrolling for long lists, mobile navbar layout, inconsistent ranking in progress status, and bugs related to server restarts and deployment.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application with a FastAPI backend and React frontend. It successfully fetches and ranks papers from multiple arXiv categories in separate, parallel tournaments. The backend features an adaptive matchmaking scheduler and a background cache that makes API responses nearly instant. The frontend provides a public leaderboard with multi-category views, tag-based filtering (AND/OR), and keyword search. A comprehensive admin panel allows for monitoring, prompt management, and running a Surprisingly Popular experiment with side-by-side comparison tables. The system also includes detailed model correlation and agreement analysis. All major user requests and bug fixes from the session have been implemented.
+The project is a web application for ranking academic papers using an LLM-based judge. It features a Python/FastAPI backend with a MongoDB database and a React frontend.
+
+Key implemented features include:
+- A main leaderboard with filtering by primary category and time periods.
+- A tag-based filtering system with a Global/Local statistics toggle.
+- A robust user authentication system supporting email/password and Google OAuth, with mandatory email verification for the former.
+- Gated content, where non-logged-in users have restricted access.
+- An admin panel with functionality to manage users (view, deactivate/reactivate), view user suggestions, fetch new papers, and manage tournaments (view status, pause/resume).
+- A background scheduler that automatically manages paper fetching and runs comparison tournaments for all active categories until predefined goals are met.
+- A tournament registry in the database that acts as the single source of truth for all tournament states, which was implemented to improve scalability and control.
+- A piggyback mechanism that records match data for secondary categories at no additional LLM cost.
+- A mobile-responsive UI with a hamburger menu.
 
 **Last working item**:
-- Last item agent was working: The user asked why their Emergent platform credits were not decreasing when running the tournament. The agent investigated and explained that the LLM calls are billed against the Universal Key balance, which is separate from the main platform credits, and directed the user on how to check this balance.
-- Status: NONE
-- Agent Testing Done: N/A (Informational query)
-- Which testing method agent to use? NA(if testing is already done)
-- User Testing Done: N/A (Informational query)
+-   **Last item agent was working**: The user reported an inconsistency where the public-facing leaderboard would show Ranking in progress while the admin panel reported that all tournament goals were met and the system was idle. The agent identified that these two views were calculating the ranking status independently, leading to a race condition or divergence. The fix involved refactoring the leaderboard's data cache () to use the newly implemented tournament registry as the single source of truth for a tournament's status, ensuring both the admin and public pages show consistent information.
+-   **Status**: USER VERIFICATION PENDING
+-   **Agent Testing Done**: Y
+-   **Which testing method agent to use?**: frontend testing agent
+-   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-There are no pending or in-progress issues.
+There are no outstanding issues. The last reported bug has been fixed, and the next step is user verification.
 
 **In progress Task List**:
-There are no in-progress tasks.
+There are no tasks currently in progress.
 
 **Upcoming and Future Tasks**
+Based on the scalability and feature feedback analysis, the following tasks are planned:
 
-Upcoming Tasks:
-- **Task 1: Enable partial Thinking for GPT models (P1)**
-    - **Where to resume**: The agent identified that  can be enabled for GPT models via the proxy, which provides a marginal improvement in reasoning. This was not implemented as the user changed the subject.
-    - **What will be achieved with this?**: Potentially higher quality comparisons from GPT models at a small cost/latency increase.
-    - **Files to modify**: .
+**Upcoming Tasks:**
+-   **Task 1 (P2): Refactor Matchmaking & Scoring**
+    -   **Where to resume**: 
+    -   **What will be achieved with this?**: The current matchmaking heuristic (win-rate similarity) will be replaced with a more advanced method that prioritizes pairs with high Bradley-Terry (BT) uncertainty to maximize information gain. Additionally, regularization (priors) will be added to the BT score calculation to prevent extreme scores in small tournaments, leading to more stable and efficient rankings.
+    -   **Status**: NOT STARTED
 
-Future Tasks:
-- **Task 1: Explore Direct API Integration for True Extended Thinking (P2)**
-    - **Where to resume**: The agent discovered that the Emergent proxy blocks provider-specific parameters needed for deep thinking modes in Claude and Gemini. The next step is to investigate bypassing the proxy for these models.
-    - **What will be achieved with this?**: This would unlock significantly deeper reasoning for LLM judgments, potentially improving ranking quality for difficult, contested paper pairs, at the cost of higher latency and a more complex architecture.
-    - **Files to modify**: This would require significant changes, likely involving new API client implementations in  and new configuration for API keys.
+**Future Tasks:**
+-   **Task 2 (P3): Formalize Judge & Cohorts**
+    -   **Where to resume**: , 
+    -   **What will be achieved with this?**: The  schema will be extended to include detailed metadata about the judge (e.g., , , ). This will allow for more granular data analysis and prevent data contamination when prompts or models are updated.
+    -   **Status**: NOT STARTED
+
+-   **Task 3 (P3): Global Tournaments & UI Clarity**
+    -   **Where to resume**: , , 
+    -   **What will be achieved with this?**: The system will be enhanced to support explicit global tournaments (e.g., one for all cs papers). The UI for tag-filtered views will be updated to show a paper's primary/global score alongside its score within the filtered tournament, providing users with better context.
+    -   **Status**: NOT STARTED
 
 **Completed work in this session**
-- **Multi-Category Isolation**: Refactored the entire application to ensure clean separation of data and processes (scheduling, stats, leaderboard) for each category.
-- **Adaptive Matchmaking V2**: Reworked the matchmaking algorithm to be adaptive and prioritize matches intelligently, moving away from a uniform distribution.
-- **Performance Overhaul**:
-    - Implemented a background caching layer for the leaderboard API, reducing response times for category and tag switching to <100ms.
-    - Optimized the Bradley-Terry calculation, yielding a ~7x speedup for on-the-fly tag-based leaderboards.
-- **Surprisingly Popular Experiment Feature**:
-    - Built a new Experiment section in the admin panel.
-    - Implemented two new tournament modes:  and .
-    - Created a side-by-side comparison UI to identify hidden gems and overhyped papers.
-    - Excluded all experiment matches from public-facing comparison counts.
-- **Advanced Filtering & Search**:
-    - Implemented cross-category tag-based filtering with an AND/OR toggle.
-    - Added a client-side keyword search to the leaderboard.
-- **Model Correlation & Agreement Analysis**:
-    - Fixed a bug in the agreement calculation to use a majority vote for re-matched pairs.
-    - Added a Contested vs. Clear-cut pair breakdown to provide context for low agreement scores.
-    - Added separate correlation analysis sections for the new prediction experiment modes.
-- **Positional Bias Fix**: Implemented random swapping of paper order before sending to the LLM to eliminate positional bias.
-- **UI/UX & Mobile Responsiveness**:
-    - Significantly improved the mobile view of the leaderboard by creating a compact, horizontally scrollable table.
-    - Fixed various UI bugs, including race conditions on the admin page and layout issues.
-- **System Stability**: Added a startup script () to automatically rebuild the frontend if the build directory is missing, preventing a common startup failure.
-- **Cost Analysis**: Provided detailed cost-per-paper and cost-per-match breakdowns and explained the Emergent Universal Key billing model.
+-   **Feature**: User Authentication system with email/password and Google OAuth (DONE).
+-   **Feature**: Gated content for non-logged-in users (DONE).
+-   **Feature**: Admin panel with User, Suggestion, and Tournament management (DONE).
+-   **Feature**: Email verification flow with a Resend option (DONE).
+-   **Feature**: Global/Local stats toggle on the leaderboard (DONE).
+-   **Feature**: Piggyback matches for secondary categories (DONE).
+-   **Feature**: Infinite scroll for long leaderboards (DONE).
+-   **Scalability**: Implemented P0 and P1 from the action plan, including a full Tournament Registry system, indexed DB queries in the scheduler, and prompt version tracking (DONE).
+-   **Refactor**: Componentized several pages (, ) for better maintainability (DONE).
+-   **UI/UX**: Implemented a responsive mobile navbar with a hamburger menu (DONE).
+-   **Bugfix**: Fixed inconsistent Ranking in progress status between admin and leaderboard views (DONE, pending user verification).
+-   **Bugfix**: Made tournament initialization idempotent to prevent duplicates on server restart (DONE).
+-   **Bugfix**: Fixed PDF parsing crashes due to Unicode errors (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-None. All identified issues were addressed.
+None. The agent has addressed all issues raised by the user during the session.
 
 **Known issue recurrence from previous fork**
-None.
+-   **Issue recurrence in previous fork**: None
+-   **Recurrence count**: 0
+-   **Status**: NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, Motor (async MongoDB), asyncio
-- **Frontend:** React, Vite, TypeScript, Tailwind CSS, Recharts
-- **Database:** MongoDB
-- **Ranking:** Bradley-Terry model for score calculation from pairwise wins/losses.
-- **Scheduling:** An adaptive, parallelized scheduler () that runs as a background task to manage paper fetching and comparison generation for multiple categories simultaneously.
-- **Performance:** In-memory caching for API endpoints (, ) to provide instant responses for leaderboard views.
-- **LLM Integration:** All LLM calls are routed through the Emergent Universal Key proxy.
+-   **Backend**: Python, FastAPI, Motor (async MongoDB driver).
+-   **Frontend**: React, Vite, Tailwind CSS.
+-   **Database**: MongoDB.
+-   **Authentication**: JWT-based sessions, Google OAuth 2.0, email/password with verification.
+-   **Ranking**: Bradley-Terry model for Elo-like scores, Wilson score for confidence intervals.
+-   **Asynchronous Operations**: The backend is fully async, and the scheduler runs as a background task within the FastAPI event loop.
 
 **key DB schema**
-- **papers**: 
-- **matches**: 
-- **settings**:  (Used for storing prompts and scheduler state)
+-   **papers**: 
+-   **matches**: 
+-   **users**: 
+-   **sessions**: 
+-   **suggestions**: 
+-   **tournaments**: 
+-   **settings**: 
 
 **changes in tech stack**
-None.
+-   **Resend** was integrated for handling transactional emails (e.g., email verification).
 
 **All files of reference**
-- : The core engine of the application; manages all background processing for fetching and matching.
-- : Contains the heavily optimized, cached endpoints that power the public leaderboard.
-- : Defines all endpoints for the admin panel, including the experiment logic.
-- : The main UI for the public leaderboard, containing logic for tag filtering and keyword search.
-- : The UI for the admin panel, including the experiment comparison table.
-- : UI for the three-part model correlation analysis.
-- : The main startup script that ensures the frontend is built and both servers are launched correctly.
+-   : Contains the core logic for running tournaments. It was heavily refactored for scalability and now operates based on the  collection.
+-   : Manages leaderboard data generation and caching. It was updated to use the tournament registry for status and to compute global Elo scores.
+-   : The main FastAPI application file. It handles application startup, including initializing the tournament registry.
+-   : Implements all user authentication logic, including registration, login, verification, and status checks.
+-   : Defines all admin-related API endpoints, including user and tournament management.
+-   : The primary user-facing component, modified to handle auth state, gated content, and new UI features.
+-   : The admin dashboard, which now includes tabs for Users, Suggestions, and Tournaments.
+-   : The UI component for user login and registration, including the email verification flow.
+-   : A key document outlining the rationale and plan for major architectural changes.
 
 **Areas that need refactoring**:
-- The  and  components have grown quite large. Some of the UI sections (e.g., tag filter panel, experiment table) could be extracted into their own sub-components to improve readability and maintenance.
+-    remains a large component (over 500 lines) and could benefit from further decomposition by extracting UI sections like the status bar and filter controls into separate components.
 
 **key api endpoints**
-- : Gets the cached leaderboard for a primary category.
-- : Gets the leaderboard for a combination of tags (cross-category view). Supports  and  (AND/OR) query parameters.
-- : Gets a list of all unique category tags with paper counts.
-- : Gets the detailed status for the admin panel.
-- : Triggers a round of the Surprisingly Popular experiment.
-- : Gets the data for the experiment comparison table.
-- : Gets the model correlation and agreement stats. Supports  query parameter.
+-   : Retrieves leaderboard for a primary category.
+-   : Retrieves leaderboard for filtered tags.
+-   : Creates a new user.
+-   : Authenticates a user and creates a session.
+-   : Verifies a user's email address.
+-   : [ADMIN] Lists all registered users.
+-   : [ADMIN] Activates or deactivates a user.
+-   : [ADMIN] Lists all tournaments and their status.
+-   : [ADMIN] Pauses a tournament.
+-   : [ADMIN] Resumes a tournament.
 
 **Critical Info for New Agent**
-- **LLM Proxy Limitation**: Be aware that the Emergent proxy strips provider-specific parameters. This prevents the use of true extended thinking modes for Claude and Gemini. Any work in this area will require exploring direct API integration.
-- **Background Cache is Key**: The public leaderboard's performance relies entirely on a background cache that refreshes every 30 seconds. The cache logic is in . If you make changes to the data structure of papers or matches, you may need to restart the server to see the changes reflected on the leaderboard.
-- **Experiment Modes**: The  collection has a  field (, , ). Ensure all public-facing queries filter for  to avoid contaminating public leaderboards with experiment data. This has already been implemented in the relevant endpoints.
-- **Startup Script**: Use the  script to run the application. It handles building the frontend if necessary, preventing common preview not working errors after a fresh checkout.
+-   **Tournament Registry is King**: The application's architecture was fundamentally changed to use a  collection in MongoDB as the single source of truth for all tournament states. The scheduler () and leaderboard () both rely on this collection. This was a critical scalability fix.
+-   **Authentication Flow**: Be aware of the strict authentication flow. Users signing up with email/password cannot log in until they verify their email. Deactivated users are blocked at the API level from logging in or using existing sessions.
+-   **Idempotent Startup**: The server startup logic in  (especially ) is designed to be idempotent using . This is crucial because development server hot-reloads can trigger this logic multiple times.
+-   **Scalability Work**: Major performance bottlenecks in the scheduler related to database queries have been resolved by adding an index on  in the  collection and refactoring the code to use it (P0 task). The groundwork for further improvements (P2/P3 tasks) has been laid out in .
 
 **documents and test reports created in this job**
-- 
-- 
+-   
+-   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1. **User:** When I run the tournament using the Emergent API I don't see my credit going down. Why? (Answered)
-2. **User:** How do the costs compare for abstract-only prediction and regular opinion based on full-text? (Answered)
-3. **User:** Can you add two more sections for the Model correlation analysis specifically for the two Prediction tracks? (Implemented)
-4. **User:** Proceed and also remove those prediction results from the overall All Categories page. (Implemented)
-5. **User:** Can you add a second experiment where the existing Robotics ranking is compared to a tournament based on the prediction prompt, but with the entire paper being reviewed (not just the abstract). (Implemented)
-6. **User:** Add the number of prediction matches to the leaderboard. Is the same adaptive method used for the predictions as for the standard matches? (Implemented and answered)
-7. **User:** I want to run an experiment for the Robotics topic to test whether we could apply a Surprisingly Popular method... (Implemented)
-8. **User:** Please explore [extended thinking for LLMs]. (Partially explored, follow-up task created)
-9. **User:** I don't quite understand how it's such a small change both cost and latency wise [for thinking]. (Answered and clarified)
-10. **User:** When the model agents assess a pairing, how much thinking effort do they spend? Or do they instantly answer? (Answered)
+1.  **User (msg 814)**: Reported inconsistency in Ranking in Progress status. **Status: USER VERIFICATION PENDING**. Agent implemented a fix.
+2.  **User (msg 805)**: Reported deployed app showed too many tournaments. **Status: Completed**. Agent fixed the non-idempotent initialization logic.
+3.  **User (msg 798)**: Requested a deployment health check. **Status: Completed**.
+4.  **User (msg 781)**: Reported Pause tournament button was failing. **Status: Completed**. Agent fixed the endpoint bug.
+5.  **User (msg 775)**: Asked for confirmation of the scheduler's automatic behavior. **Status: Completed**. Agent provided a detailed explanation.
+6.  **User (msg 688)**: Requested implementation of P1 scalability tasks. **Status: Completed**.
+7.  **User (msg 677)**: Asked why a new tournament didn't seem to run. **Status: Completed**. Agent investigated and fixed a related bug.
+8.  **User (msg 628)**: Requested implementation of P0 scalability tasks. **Status: Completed**.
+9.  **User (msg 617)**: Provided extensive feedback and asked for a scalability analysis. **Status: Completed**. Agent created the action plan.
+10. **User (msg 606)**: Requested mobile hamburger menu be moved to the left. **Status: Completed**.
 
 **Project Health Check:**
-- **Broken:** None
-- **Mocked:** None
+-   **Broken**: None. All known issues have been addressed.
+-   **Mocked**: The email sending functionality via **Resend** is dependent on a correctly configured API key and verified DNS for the  domain in the production environment.
 
 **3rd Party Integrations**
-- **arXiv API**: For fetching academic papers.
-- **Emergent Universal LLM Key**: Provides access to multiple LLM APIs through a unified, OpenAI-compatible endpoint.
-    - **GPT-5.2** (likely GPT-4 series) — uses Emergent LLM Key
-    - **Claude Opus 4.5** (likely Claude 3 Opus) — uses Emergent LLM Key
-    - **Gemini 3 Pro** (likely Gemini 1.5 Pro) — uses Emergent LLM Key
+-   **OpenAI GPT models**: Used for the core paper comparison logic. Uses Emergent LLM Key.
+-   **Google OAuth 2.0**: For social login. Requires User-provided OAuth client ID/secret.
+-   **Resend**: For sending transactional emails. Requires User-provided API Key and a verified domain.
+-   **MongoDB**: The primary database for all application data.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES (After the multi-category refactor).
-- **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** None. Existing test reports were generated by the testing agent.
-- **Known regressions:** None.
+-   **Testing agent used after significant changes**: YES
+-   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Test files created**:
+    -   
+-   **Known regressions**: None
 
 **Credentials to test flow:**
-Not applicable. The application runs locally without requiring user authentication.
+-   Admin access is tied to the email address specified in the  environment variable.
+-   Standard user accounts can be created via the registration form. Email verification will be required.
 
 **What agent forgot to execute**
-The agent was asked to explore enabling true extended thinking. It correctly identified limitations but did not implement the achievable, partial improvement for GPT models () because the user changed the topic. This has been noted in the Upcoming Tasks section.</analysis>
+The agent has successfully addressed all user requests and implemented all planned tasks from this session. The next steps are clearly defined in the Upcoming and Future Tasks section, which are intentionally left for future work.</analysis>
