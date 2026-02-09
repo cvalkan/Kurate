@@ -16,17 +16,25 @@ function getAdminHeaders() {
   return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" };
 }
 
-const CATEGORY_COLORS = {
-  "cs.RO": "#3b82f6",
-  "cs.DC": "#8b5cf6",
-  "econ.GN": "#f59e0b",
-  "physics.comp-ph": "#10b981",
-  "q-bio.BM": "#ef4444",
-  _total: "#e2e8f0",
-};
+const CATEGORY_COLORS = [
+  "#3b82f6", // blue
+  "#f59e0b", // amber
+  "#10b981", // emerald
+  "#ef4444", // red
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#06b6d4", // cyan
+  "#f97316", // orange
+  "#14b8a6", // teal
+  "#a855f7", // purple
+  "#84cc16", // lime
+  "#e11d48", // rose
+  "#6366f1", // indigo
+  "#0ea5e9", // sky
+];
 
-function getColor(cat) {
-  return CATEGORY_COLORS[cat] || "#94a3b8";
+function getColor(cat, index) {
+  return CATEGORY_COLORS[index % CATEGORY_COLORS.length];
 }
 
 function StatSummaryCard({ label, value, sub, icon: Icon, color }) {
