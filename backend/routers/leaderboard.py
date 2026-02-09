@@ -54,7 +54,10 @@ async def _refresh_cache():
     _top_k = settings.get("top_k_focus", 10)
     _max_matches = settings.get("max_matches_per_paper", 150)
 
-    for cat_id in CATEGORIES:
+    # Use dynamic active categories from settings
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+
+    for cat_id in active_cats:
         cat_papers = papers_by_cat.get(cat_id, [])
         if not cat_papers:
             categories_data[cat_id] = {
