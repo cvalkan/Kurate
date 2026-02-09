@@ -754,8 +754,8 @@ def _select_pairs(
     # For priority/cap calculations: top-K among active papers
     top_k_set = set(top_k_all) & set(active)
 
-    # Also rank active papers for normal pair selection
-    ranked = sorted(active, key=lambda pid: win_rates[pid], reverse=True)
+    # Also sort active papers for normal pair selection (used in Phase 1+)
+    # (priority_sorted is used below instead of ranked)
 
     # --- Phase 0: Top-K cross-matches (highest priority) ---
     # Find all missing pairs among non-capped top-K papers
