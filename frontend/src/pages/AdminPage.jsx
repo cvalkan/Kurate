@@ -166,7 +166,8 @@ export default function AdminPage() {
   const logout = () => { sessionStorage.removeItem("admin_token"); navigate("/admin"); };
 
   const tabs = [
-    { key: "overview", label: "Overview", icon: Activity },
+    { key: "statistics", label: "Statistics", icon: Activity },
+    { key: "overview", label: "Controls", icon: Settings },
     { key: "settings", label: "Settings", icon: Settings },
     { key: "prompt", label: "Prompt", icon: FileText },
     { key: "experiment", label: "Experiment", icon: FlaskConical },
