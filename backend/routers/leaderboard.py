@@ -357,7 +357,7 @@ async def _compute_tag_leaderboard(
         # Serve from cache, apply pagination
         full_result = cached["result"]
         return {
-            **full_result,
+            **{k: v for k, v in full_result.items() if k != "_full_data"},
             "leaderboard": full_result["_full_data"][offset:offset + limit],
         }
 
