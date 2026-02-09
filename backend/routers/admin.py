@@ -1086,6 +1086,7 @@ async def remove_category(body: CategoryAction):
     )
 
     logger.info(f"Admin removed category: {cat_id}")
+    _invalidate_admin_cache()
     return {"status": "ok", "active_categories": active}
 
 
