@@ -937,3 +937,145 @@ async def update_tournament_status(tournament_id: str, request: Request):
 
     return {"status": "ok", "tournament_status": new_status}
 
+
+
+# --- Category Management ---
+
+@router.get("/arxiv-categories", dependencies=[Depends(verify_admin)])
+async def get_arxiv_categories():
+    """Return full arXiv taxonomy for searchable category picker."""
+    from core.arxiv_categories import ARXIV_TAXONOMY, get_group
+    settings = await get_settings()
+    active = set(settings.get("active_categories", list(CATEGORIES.keys())))
+
+    cats = []
+    for cat_id, name in sorted(ARXIV_TAXONOMY.items()):
+        cats.append({
+            "id": cat_id,
+            "name": name,
+            "group": get_group(cat_id),
+            "active": cat_id in active,
+        })
+    return {"categories": cats, "active": sorted(active)}
+
+
+class CategoryAction(BaseModel):
+    category_id: str
+
+
+@router.post("/categories/add", dependencies=[Depends(verify_admin)])
+async def add_category(body: CategoryAction):
+    """Add a new tournament category."""
+    from core.arxiv_categories import ARXIV_TAXONOMY
+    cat_id = body.category_id.strip()
+    if cat_id not in ARXIV_TAXONOMY:
+        raise HTTPException(400, f"Unknown arXiv category: {cat_id}")
+
+    settings = await get_settings()
+    active = settings.get("active_categories", list(CATEGORIES.keys()))
+    if cat_id in active:
+        raise HTTPException(400, f"{cat_id} is already active")
+
+    active.append(cat_id)
+    await db.settings.update_one(
+        {"key": "global"},
+        {"$set": {"active_categories": active}},
+        upsert=True,
+    )
+
+    # Initialize tournament for the new category
+    from services.scheduler import init_tournament_registry
+    await init_tournament_registry()
+
+    logger.info(f"Admin added category: {cat_id}")
+    return {"status": "ok", "active_categories": active}
+
+
+@router.post("/categories/remove", dependencies=[Depends(verify_admin)])
+async def remove_category(body: CategoryAction):
+    """Remove a tournament category (keeps data, just stops tournaments)."""
+    cat_id = body.category_id.strip()
+    settings = await get_settings()
+    active = settings.get("active_categories", list(CATEGORIES.keys()))
+
+    if cat_id not in active:
+        raise HTTPException(400, f"{cat_id} is not active")
+    if len(active) <= 1:
+        raise HTTPException(400, "Cannot remove the last category")
+
+    active = [c for c in active if c != cat_id]
+    await db.settings.update_one(
+        {"key": "global"},
+        {"$set": {"active_categories": active}},
+        upsert=True,
+    )
+
+    # Pause the tournament (don't delete data)
+    tid = f"cat={cat_id}|mode=standard"
+    await db.tournaments.update_one(
+        {"tournament_id": tid},
+        {"$set": {"status": "paused", "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+    logger.info(f"Admin removed category: {cat_id}")
+    return {"status": "ok", "active_categories": active}
+
+
+@router.get("/category-estimate/{cat_id}", dependencies=[Depends(verify_admin)])
+async def estimate_category(cat_id: str):
+    """Estimate weekly paper volume and tournament cost for a category."""
+    from core.arxiv_categories import ARXIV_TAXONOMY
+    from services.arxiv import fetch_arxiv_papers
+
+    if cat_id not in ARXIV_TAXONOMY:
+        raise HTTPException(400, f"Unknown arXiv category: {cat_id}")
+
+    # Fetch a small sample to estimate volume
+    try:
+        sample = await fetch_arxiv_papers(category=cat_id, max_results=100)
+        total_fetched = len(sample)
+    except Exception as e:
+        logger.warning(f"Failed to estimate {cat_id}: {e}")
+        total_fetched = 0
+
+    # Estimate weekly papers from the sample date range
+    weekly_papers = 0
+    if total_fetched >= 2:
+        from datetime import datetime, timezone
+        dates = []
+        for p in sample:
+            try:
+                d = datetime.fromisoformat(p["published"].replace("Z", "+00:00"))
+                dates.append(d)
+            except (ValueError, KeyError):
+                pass
+        if len(dates) >= 2:
+            dates.sort()
+            span_days = max((dates[-1] - dates[0]).days, 1)
+            weekly_papers = round(len(dates) / span_days * 7)
+    if weekly_papers == 0 and total_fetched > 0:
+        weekly_papers = total_fetched  # conservative fallback
+
+    # Cost estimate: matches needed ≈ papers * min_matches / 2
+    settings = await get_settings()
+    min_matches = settings.get("min_matches_per_paper", 5)
+    avg_cost_per_match = 0.015  # ~$0.015 per comparison across 3 models
+    matches_needed = weekly_papers * min_matches // 2
+    weekly_cost = round(matches_needed * avg_cost_per_match, 2)
+
+    # Check if we already have papers for this category
+    existing_papers = await db.papers.count_documents({"categories.0": cat_id})
+    existing_matches = await db.matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id, "mode": {"$exists": False}}
+    )
+
+    return {
+        "category_id": cat_id,
+        "name": ARXIV_TAXONOMY.get(cat_id, cat_id),
+        "estimated_weekly_papers": weekly_papers,
+        "estimated_weekly_matches": matches_needed,
+        "estimated_weekly_cost": weekly_cost,
+        "existing_papers": existing_papers,
+        "existing_matches": existing_matches,
+        "sample_size": total_fetched,
+    }
