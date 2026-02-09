@@ -238,7 +238,7 @@ export function AdminStatistics({ categories }) {
           <div className="space-y-2">
             {Object.entries(modelStats)
               .sort((a, b) => (b[1].cost_total || 0) - (a[1].cost_total || 0))
-              .map(([model, stats]) => {
+              .map(([model, stats], idx) => {
                 const pct = totals.cost > 0 ? ((stats.cost_total || 0) / totals.cost) * 100 : 0;
                 return (
                   <div key={model} className="flex items-center gap-3">
@@ -246,7 +246,7 @@ export function AdminStatistics({ categories }) {
                     <div className="flex-1 h-5 bg-secondary/50 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
-                        style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: getColor(model) || "#3b82f6" }}
+                        style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: getColor(model, idx) }}
                       />
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
