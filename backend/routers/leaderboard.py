@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 import asyncio
 import time
 from core.config import db, logger, CATEGORIES
-from services.ranking import compute_leaderboard, calculate_confidence_interval, _wilson_margin_pct
+from services.ranking import compute_leaderboard, calculate_confidence_interval
 
 router = APIRouter(prefix="/api")
 
