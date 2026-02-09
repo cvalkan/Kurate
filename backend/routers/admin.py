@@ -188,7 +188,11 @@ async def get_progress_estimate(category: str = "cs.RO"):
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
-        return {"total_papers": 0, "goals_met": True, "paused": is_paused, "category": category}
+        return {
+            "total_papers": 0, "goals_met": True, "paused": is_paused,
+            "global_paused": global_paused, "tournament_paused": bool(tournament_paused),
+            "category": category,
+        }
 
     pid_set = set(all_paper_ids)
     paper_match_count = {pid: 0 for pid in all_paper_ids}
