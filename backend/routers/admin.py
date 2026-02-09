@@ -1008,6 +1008,7 @@ async def remove_category(body: CategoryAction):
         {"$set": {"active_categories": active}},
         upsert=True,
     )
+    invalidate_settings_cache()
 
     # Pause the tournament (don't delete data)
     tid = f"cat={cat_id}|mode=standard"
