@@ -115,6 +115,12 @@ export default function LeaderboardPage() {
     }).catch(() => {});
   }, []);
 
+  // Debounce keyword for server-side search (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedKeyword(keyword), 300);
+    return () => clearTimeout(t);
+  }, [keyword]);
+
   const fetchLeaderboard = useCallback(async () => {
     if (!category && !isTagMode) return;
 
