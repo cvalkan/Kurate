@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   FileText, Swords, Coins, Cpu, TrendingUp, BarChart3,
-  RefreshCw, ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
