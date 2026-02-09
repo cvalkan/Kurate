@@ -160,7 +160,7 @@ export function AdminCategories({ onCategoriesChanged }) {
                 )}
                 <Button variant="ghost" size="sm"
                   className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => handleRemove(c.id)} disabled={removing === c.id || activeIds.length <= 1}
+                  onClick={() => setConfirmRemove(c.id)} disabled={removing === c.id || activeIds.length <= 1}
                   data-testid={`remove-${c.id}`}
                 >
                   {removing === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
