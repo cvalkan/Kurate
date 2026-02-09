@@ -199,6 +199,15 @@ export default function AdminPage() {
         })}
       </div>
 
+      {activeTab === "statistics" && (
+        <AdminStatistics
+          categories={categories}
+          adminCat={adminCat}
+          setAdminCat={setAdminCat}
+          usageStats={usageStats}
+        />
+      )}
+
       {activeTab === "overview" && (
         <AdminOverview
           status={status} progress={progress} usageStats={usageStats}
