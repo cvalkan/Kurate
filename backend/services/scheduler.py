@@ -260,7 +260,12 @@ async def _scheduler_loop():
         except Exception as e:
             logger.error(f"Scheduler loop error: {e}")
 
-        await asyncio.sleep(30)
+        # Wait up to 30s, but wake immediately if signaled
+        _wake_event.clear()
+        try:
+            await asyncio.wait_for(_wake_event.wait(), timeout=30)
+        except asyncio.TimeoutError:
+            pass
 
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
