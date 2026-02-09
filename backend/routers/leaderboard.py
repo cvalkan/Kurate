@@ -137,8 +137,12 @@ async def _refresh_cache():
     ]
 
     # Pre-compute categories list
+    try:
+        from core.arxiv_categories import ARXIV_TAXONOMY
+    except ImportError:
+        ARXIV_TAXONOMY = {}
     _cache["_categories"] = [
-        {"id": cat_id, "name": CATEGORIES.get(cat_id) or cat_id}
+        {"id": cat_id, "name": CATEGORIES.get(cat_id) or ARXIV_TAXONOMY.get(cat_id) or cat_id}
         for cat_id in active_cats
     ]
     _cache["_default_category"] = active_cats[0] if active_cats else "cs.RO"
