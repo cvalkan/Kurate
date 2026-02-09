@@ -231,7 +231,7 @@ export default function LeaderboardPage() {
       {/* Category Tabs */}
       {categories.length > 1 && (
         <div className={`mb-3 transition-opacity ${isTagMode ? "opacity-40 pointer-events-none" : ""}`}>
-          <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg flex-wrap" data-testid="category-tabs">
+          <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg overflow-x-auto scrollbar-none" data-testid="category-tabs">
             {categories.slice(0, 5).map((c) => (
               <Button
                 key={c.id}
@@ -246,7 +246,7 @@ export default function LeaderboardPage() {
               </Button>
             ))}
             {categories.length > 5 && (
-              <div className="relative" ref={moreCatsRef}>
+              <div className="relative shrink-0" ref={moreCatsRef}>
                 <Button
                   variant={!isTagMode && categories.slice(5).some(c => c.id === category) ? "default" : "ghost"}
                   size="sm"
@@ -259,7 +259,7 @@ export default function LeaderboardPage() {
                   <ChevronDown className={`h-3 w-3 transition-transform ${moreCatsOpen ? "rotate-180" : ""}`} />
                 </Button>
                 {moreCatsOpen && (
-                  <div className="absolute top-full left-0 mt-1 z-50 bg-background border border-border rounded-lg shadow-lg min-w-48 py-1" data-testid="more-categories-dropdown">
+                  <div className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-48 py-1" style={{ top: moreCatsRef.current?.getBoundingClientRect().bottom + 4, left: moreCatsRef.current?.getBoundingClientRect().left }} data-testid="more-categories-dropdown">
                     {categories.slice(5).map((c) => (
                       <button
                         key={c.id}
