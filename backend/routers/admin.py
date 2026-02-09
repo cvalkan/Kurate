@@ -739,6 +739,132 @@ async def get_experiment_comparison(category: str = "cs.RO"):
     }
 
 
+MODEL_PRICING = {
+    "openai/gpt-5.2": {"input": 1.75, "output": 14.00},
+    "anthropic/claude-opus-4-5-20251101": {"input": 5.00, "output": 25.00},
+    "gemini/gemini-3-pro-preview": {"input": 2.00, "output": 12.00},
+}
+
+
+@router.get("/timeseries", dependencies=[Depends(verify_admin)])
+async def get_timeseries(category: Optional[str] = None):
+    """Return daily time-series data for papers, matches, tokens, costs."""
+    # --- Papers by day ---
+    paper_query = {}
+    if category:
+        paper_query["categories.0"] = category
+    papers_daily = defaultdict(lambda: defaultdict(int))
+    async for p in db.papers.find(paper_query, {"_id": 0, "added_at": 1, "categories": 1}):
+        added = p.get("added_at", "")
+        if not added:
+            continue
+        day = added[:10]  # "YYYY-MM-DD"
+        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
+        papers_daily[day][cat] += 1
+        papers_daily[day]["_total"] += 1
+
+    # --- Matches by day ---
+    match_query = {"completed": True, "failed": {"$ne": True}}
+    if category:
+        match_query["primary_category"] = category
+    matches_daily = defaultdict(lambda: defaultdict(lambda: {
+        "count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0
+    }))
+
+    async for m in db.matches.find(
+        match_query,
+        {"_id": 0, "created_at": 1, "primary_category": 1, "tokens": 1, "model_used": 1, "mode": 1},
+    ):
+        if m.get("mode"):
+            continue  # Exclude experiment matches
+        created = m.get("created_at", "")
+        if not created:
+            continue
+        day = created[:10]
+        cat = m.get("primary_category", "unknown")
+        tokens = m.get("tokens", {})
+        inp = tokens.get("input_est", 0)
+        out = tokens.get("output_est", 0)
+        mu = m.get("model_used", {})
+        model_key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
+        cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
+
+        for key in [cat, "_total"]:
+            bucket = matches_daily[day][key]
+            bucket["count"] += 1
+            bucket["input_tokens"] += inp
+            bucket["output_tokens"] += out
+            bucket["cost"] += cost
+
+    # Build sorted date list
+    all_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys())))
+    all_cats = sorted(CATEGORIES.keys())
+
+    # Build daily series
+    series = []
+    cum_papers = defaultdict(int)
+    cum_matches = defaultdict(int)
+    cum_tokens = defaultdict(int)
+    cum_cost = defaultdict(float)
+
+    for day in all_dates:
+        entry = {"date": day}
+
+        # Papers
+        p_total = papers_daily[day].get("_total", 0)
+        cum_papers["_total"] += p_total
+        entry["papers_daily"] = p_total
+        entry["papers_cumulative"] = cum_papers["_total"]
+
+        # Per-category papers
+        for cat in all_cats:
+            p_cat = papers_daily[day].get(cat, 0)
+            cum_papers[cat] += p_cat
+            entry[f"papers_daily_{cat}"] = p_cat
+            entry[f"papers_cumulative_{cat}"] = cum_papers[cat]
+
+        # Matches
+        m_data = matches_daily[day].get("_total", {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
+        cum_matches["_total"] += m_data["count"]
+        cum_tokens["_total"] += m_data["input_tokens"] + m_data["output_tokens"]
+        cum_cost["_total"] += m_data["cost"]
+        entry["matches_daily"] = m_data["count"]
+        entry["matches_cumulative"] = cum_matches["_total"]
+        entry["tokens_daily"] = m_data["input_tokens"] + m_data["output_tokens"]
+        entry["tokens_cumulative"] = cum_tokens["_total"]
+        entry["cost_daily"] = round(m_data["cost"], 4)
+        entry["cost_cumulative"] = round(cum_cost["_total"], 4)
+        entry["input_tokens_daily"] = m_data["input_tokens"]
+        entry["output_tokens_daily"] = m_data["output_tokens"]
+
+        # Per-category matches
+        for cat in all_cats:
+            mc = matches_daily[day].get(cat, {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
+            cum_matches[cat] += mc["count"]
+            cum_tokens[cat] += mc["input_tokens"] + mc["output_tokens"]
+            cum_cost[cat] += mc["cost"]
+            entry[f"matches_daily_{cat}"] = mc["count"]
+            entry[f"matches_cumulative_{cat}"] = cum_matches[cat]
+            entry[f"tokens_daily_{cat}"] = mc["input_tokens"] + mc["output_tokens"]
+            entry[f"tokens_cumulative_{cat}"] = cum_tokens[cat]
+            entry[f"cost_daily_{cat}"] = round(mc["cost"], 4)
+            entry[f"cost_cumulative_{cat}"] = round(cum_cost[cat], 4)
+
+        series.append(entry)
+
+    return {
+        "series": series,
+        "categories": all_cats,
+        "totals": {
+            "papers": cum_papers["_total"],
+            "matches": cum_matches["_total"],
+            "tokens": cum_tokens["_total"],
+            "cost": round(cum_cost["_total"], 4),
+        },
+    }
+
+
 @router.get("/tournaments", dependencies=[Depends(verify_admin)])
 async def get_tournaments():
     tournaments = await db.tournaments.find({}, {"_id": 0}).sort("category", 1).to_list(500)
