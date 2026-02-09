@@ -97,31 +97,27 @@ async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()
 
 @router.get("/status", dependencies=[Depends(verify_admin)])
 async def get_admin_status(category: str = "cs.RO"):
-    # Get paper IDs for this category
+    total_papers = await db.papers.count_documents({"categories.0": category})
+
+    # Use indexed count queries instead of scanning all matches
+    total_matches = await db.matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+    )
+    failed_matches = await db.matches.count_documents(
+        {"failed": True, "primary_category": category, "mode": {"$exists": False}}
+    )
+
+    # Count papers with at least one match
     cat_paper_ids = set()
     async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
         cat_paper_ids.add(p["id"])
-
-    total_papers = len(cat_paper_ids)
-
-    # Count matches within this category (standard tournament matches only)
-    total_matches = 0
-    failed_matches = 0
     match_paper_ids = set()
     async for m in db.matches.find(
-        {"primary_category": category},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "completed": 1, "failed": 1, "mode": 1},
-    ):
-        if m.get("mode"):
-            continue  # Exclude experiment/prediction matches
-        if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids:
-            if m.get("completed") and not m.get("failed"):
-                total_matches += 1
-                match_paper_ids.add(m["paper1_id"])
-                match_paper_ids.add(m["paper2_id"])
-            if m.get("failed"):
-                failed_matches += 1
-
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ).limit(5000):
+        match_paper_ids.add(m["paper1_id"])
+        match_paper_ids.add(m["paper2_id"])
     unranked = len(cat_paper_ids - match_paper_ids)
 
     # Recent matches for this category (standard only)
