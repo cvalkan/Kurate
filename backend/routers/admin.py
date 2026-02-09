@@ -78,6 +78,7 @@ async def toggle_pause():
     settings = await get_settings()
     new_state = not settings.get("paused", False)
     await db.settings.update_one({"key": "global"}, {"$set": {"paused": new_state}}, upsert=True)
+    invalidate_settings_cache()
     if not new_state:
         wake_scheduler()  # Wake immediately on unpause
     return {"paused": new_state}
