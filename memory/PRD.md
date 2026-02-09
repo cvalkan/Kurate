@@ -79,6 +79,8 @@ frontend/src/
 - [Feb 2026] **Top-K Cross-Match (Goal 3)** — New tournament goal ensures all top-K papers play against each other before goals are considered met. Prevents papers from maintaining 100% win rates by never facing rivals. _select_pairs Phase 0 injects missing top-K pairs with highest priority.
 - [Feb 2026] **Round-Robin Model Selection** — Replaced random model selection with deterministic round-robin across GPT-5.2, Claude Opus 4.5, Gemini 3 Pro. Ensures even distribution of evaluations per model.
 - [Feb 2026] **Manual match override kept as-is** — `/api/compare` endpoint intentionally bypasses goal checks (user chose Option A)
+- [Feb 2026] **Methodology page updated** — Condensed to 10 steps reflecting round-robin, top-K cross-match, and three convergence goals
+- [Feb 2026] **Public Prompts page** — New `/prompts` page shows evaluation and summary prompts (read-only). Linked from Methodology steps 2 and 8. Backend: `GET /api/prompts` (public, no auth)
 
 ## Tournament Goal System (3 Goals)
 1. **Goal 1 (Min Matches)**: Every paper must have >= `min_matches_per_paper` comparisons
