@@ -173,8 +173,8 @@ async def _scheduler_loop():
             if not all_tournament_cats:
                 all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
-            # Per-category fetch check
-            for cat in active_cats:
+            # Fetch papers for ALL known categories (even paused ones continue to receive papers)
+            for cat in all_tournament_cats:
                 cat_status = _get_cat_status(cat)
                 last_fetch_key = f"last_fetch_at_{cat}"
                 last_fetch = settings.get(last_fetch_key)
@@ -204,8 +204,8 @@ async def _scheduler_loop():
                     last_dt = datetime.fromisoformat(cat_last)
                     cat_status["next_fetch_at"] = (last_dt + timedelta(hours=interval_hours)).isoformat()
 
-            # Update per-category paper/match counts and tournament stats
-            for cat in active_cats:
+            # Update per-category paper/match counts and tournament stats for ALL categories
+            for cat in all_tournament_cats:
                 cat_status = _get_cat_status(cat)
                 cat_paper_count = await db.papers.count_documents({"categories.0": cat})
                 cat_status["papers_count"] = cat_paper_count
@@ -215,8 +215,13 @@ async def _scheduler_loop():
                 cat_status["matches_count"] = cat_match_count
                 await update_tournament_stats(cat)
 
-            if not is_paused:
-                # Check which categories need work (skip if below min papers threshold)
+            # Mark paused categories in status
+            paused_cats = all_tournament_cats - set(active_cats)
+            for cat in paused_cats:
+                _get_cat_status(cat)["current_activity"] = "Tournament paused"
+
+            if not is_paused and active_cats:
+                # Check which active categories need work (skip if below min papers threshold)
                 unmet_cats = []
                 for cat in active_cats:
                     paper_count = _get_cat_status(cat).get("papers_count", 0)
@@ -236,9 +241,9 @@ async def _scheduler_loop():
                     for cat in active_cats:
                         if _get_cat_status(cat).get("papers_count", 0) >= min_papers:
                             _get_cat_status(cat)["current_activity"] = "Goals met — idle"
-            else:
-                for cat in active_cats:
-                    _get_cat_status(cat)["current_activity"] = "Paused"
+            elif is_paused:
+                for cat in all_tournament_cats:
+                    _get_cat_status(cat)["current_activity"] = "System paused"
 
         except Exception as e:
             logger.error(f"Scheduler loop error: {e}")
