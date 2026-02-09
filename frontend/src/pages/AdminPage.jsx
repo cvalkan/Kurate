@@ -59,6 +59,10 @@ export default function AdminPage() {
       ]);
       setStatus(statusRes.data);
       setProgress(progressRes.data);
+      if (manualMatches === null) {
+        const est = progressRes.data?.estimated_matches_remaining;
+        setManualMatches(est > 0 ? Math.min(est, 100) : 20);
+      }
       setUsageStats(statsRes.data);
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
@@ -66,7 +70,7 @@ export default function AdminPage() {
         navigate("/admin");
       }
     }
-  }, [navigate, adminCat]);
+  }, [navigate, adminCat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAll = useCallback(async () => {
     if (!adminCat) return;
