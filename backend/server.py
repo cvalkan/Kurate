@@ -41,6 +41,10 @@ async def startup():
         await db.matches.create_index("shared_categories")
         await db.matches.create_index("primary_category")
         await db.matches.create_index("created_at")
+        # Compound index for the most common admin query pattern
+        await db.matches.create_index([
+            ("primary_category", 1), ("completed", 1), ("failed", 1), ("mode", 1)
+        ])
         await db.settings.create_index("key", unique=True)
         await db.users.create_index("email", unique=True)
         await db.users.create_index("user_id", unique=True)
