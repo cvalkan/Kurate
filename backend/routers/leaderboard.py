@@ -206,11 +206,18 @@ async def get_all_tags():
 
 @router.get("/categories")
 async def get_categories():
+    # Serve from background cache if available (avoids DB hit)
+    cache = await _get_cached_leaderboard()
+    if "_categories" in cache and cache["_categories"]:
+        return {
+            "categories": cache["_categories"],
+            "default": cache.get("_default_category", "cs.RO"),
+        }
+    # Fallback: query DB directly (cold cache)
     from core.auth import get_settings
     from core.arxiv_categories import ARXIV_TAXONOMY
     settings = await get_settings()
     active = settings.get("active_categories", list(CATEGORIES.keys()))
-    # Use taxonomy for names, fall back to CATEGORIES dict, then raw ID
     cats = []
     for cat_id in active:
         name = CATEGORIES.get(cat_id) or ARXIV_TAXONOMY.get(cat_id) or cat_id
