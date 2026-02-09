@@ -30,9 +30,33 @@ function StatCard({ label, value, icon: Icon }) {
 export function AdminOverview({
   status, progress, usageStats, categories, adminCat, setAdminCat,
   triggerFetch, triggerCompare, togglePause, loading,
-  manualMatches, setManualMatches,
+  manualMatches, setManualMatches, onRefresh,
 }) {
   const [expandedLogs, setExpandedLogs] = useState(new Set());
+
+  // Smart pause: if tournament is paused but global isn't, toggle the tournament status
+  const handlePauseResume = async () => {
+    if (progress?.tournament_paused && !progress?.global_paused) {
+      // Resume the specific tournament
+      const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
+      try {
+        await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "active" }, { headers: getAdminHeaders() });
+        toast.success(`Tournament ${adminCat} resumed`);
+        if (onRefresh) onRefresh();
+      } catch { toast.error("Failed to resume tournament"); }
+    } else if (!progress?.paused) {
+      // Pause the specific tournament
+      const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
+      try {
+        await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "paused" }, { headers: getAdminHeaders() });
+        toast.success(`Tournament ${adminCat} paused`);
+        if (onRefresh) onRefresh();
+      } catch { toast.error("Failed to pause tournament"); }
+    } else {
+      // Global pause is on — toggle it
+      togglePause();
+    }
+  };
 
   if (!status) return null;
 
