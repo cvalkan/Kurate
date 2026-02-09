@@ -1,11 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   RefreshCw, Swords, Activity, FileText, CheckCircle2, XCircle,
-  ChevronDown, ChevronUp, Pause, Play, Clock,
+  ChevronDown, ChevronUp, Pause, Play, Clock, Trophy,
 } from "lucide-react";
 import { ModelBadge } from "@/components/ModelBadge";
+import { toast } from "sonner";
+
+const API = process.env.REACT_APP_BACKEND_URL;
+
+function getAdminHeaders() {
+  return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" };
+}
 
 function StatCard({ label, value, icon: Icon }) {
   return (
