@@ -431,7 +431,7 @@ async def get_usage_stats(category: str = None):
         total_chars = 0
         papers_with_text = 0
 
-    return {
+    result = {
         "models": model_stats,
         "totals": {
             "input_tokens": total_input,
@@ -447,6 +447,8 @@ async def get_usage_stats(category: str = None):
             "size_mb": round(total_chars / (1024 * 1024), 2),
         },
     }
+    _set_admin_cached("stats", cache_cat, result)
+    return result
 
 
 @router.get("/prompt", dependencies=[Depends(verify_admin)])
