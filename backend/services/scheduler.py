@@ -274,7 +274,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     compared_pairs = set()
 
     async for m in db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category},
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ):
         if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
