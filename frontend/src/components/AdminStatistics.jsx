@@ -134,6 +134,18 @@ export function AdminStatistics({ categories }) {
   const suffix = viewMode === "cumulative" ? "cumulative" : "daily";
   const modelCount = modelStats ? Object.keys(modelStats).length : 0;
 
+  // Build stable color map for categories
+  const catColorMap = {};
+  allCats.forEach((cat, i) => { catColorMap[cat] = getColor(cat, i); });
+
+  // Filter out empty categories (0 papers AND 0 matches in the dataset)
+  const lastDay = series.length > 0 ? series[series.length - 1] : {};
+  const nonEmptyCats = allCats.filter(cat => {
+    const papers = lastDay[`papers_cumulative_${cat}`] || 0;
+    const matches = lastDay[`matches_cumulative_${cat}`] || 0;
+    return papers > 0 || matches > 0;
+  });
+
   // Build chart data based on scope
   const chartData = series.map(entry => {
     const d = { date: entry.date };
