@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
 import { AdminExperiment } from "@/components/AdminExperiment";
+import { AdminStatistics } from "@/components/AdminStatistics";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
