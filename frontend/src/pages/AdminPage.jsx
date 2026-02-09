@@ -30,7 +30,7 @@ export default function AdminPage() {
   const [editSettings, setEditSettings] = useState({});
   const [editPrompt, setEditPrompt] = useState({});
   const [loading, setLoading] = useState({ fetch: false, compare: false, settings: false, prompt: false });
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("statistics");
   const [progress, setProgress] = useState(null);
   const [usageStats, setUsageStats] = useState(null);
   const [manualMatches, setManualMatches] = useState(50);
