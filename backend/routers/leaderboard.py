@@ -105,7 +105,7 @@ async def _refresh_cache():
             "month": filter_and_rerank(utc_now - timedelta(days=30)),
             "_matches": len(cat_matches),
             "_papers": len(cat_papers),
-            "_is_ranking": goal1_unmet or goal2_unmet,
+            "_is_ranking": is_ranking,
         }
 
     _cache.update({
