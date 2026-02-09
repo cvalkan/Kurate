@@ -922,9 +922,21 @@ async def update_tournament_status(tournament_id: str, request: Request):
     if result.matched_count == 0:
         raise HTTPException(404, "Tournament not found")
 
-    # Wake scheduler immediately on resume so it doesn't wait up to 30s
+    # On resume: immediately start fetching papers + tournament
     if new_status == "active":
-        wake_scheduler()
+        # Get the category from the tournament
+        tournament = await db.tournaments.find_one(
+            {"tournament_id": tournament_id}, {"_id": 0, "category": 1}
+        )
+        if tournament:
+            cat = tournament["category"]
+            paper_count = await db.papers.count_documents({"categories.0": cat})
+            # If few/no papers, kick off an immediate fetch
+            if paper_count < 10:
+                import asyncio
+                asyncio.create_task(run_fetch_cycle(category=cat))
+                logger.info(f"Resume triggered immediate paper fetch for {cat} ({paper_count} papers)")
+        wake_scheduler()  # Wake immediately so comparisons start
 
     return {"status": "ok", "tournament_status": new_status}
 
