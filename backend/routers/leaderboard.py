@@ -419,10 +419,11 @@ async def get_paper_detail(paper_id: str):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Paper not found")
 
-    # Get all matches for this paper
+    # Get all standard matches for this paper (exclude experiments)
     matches = await db.matches.find(
         {
             "completed": True,
+            "mode": {"$exists": False},
             "$or": [{"paper1_id": paper_id}, {"paper2_id": paper_id}],
         },
         {"_id": 0},
