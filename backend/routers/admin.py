@@ -336,15 +336,13 @@ async def get_usage_stats(category: str = None):
             cat_paper_ids.add(p["id"])
 
     model_stats = {}
+    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    if category:
+        match_query["primary_category"] = category
     async for m in db.matches.find(
-        {"completed": True, "failed": {"$ne": True}},
-        {"_id": 0, "model_used": 1, "tokens": 1, "paper1_id": 1, "paper2_id": 1},
+        match_query,
+        {"_id": 0, "model_used": 1, "tokens": 1},
     ):
-        # Filter by category if specified
-        if cat_paper_ids is not None:
-            if m.get("paper1_id") not in cat_paper_ids or m.get("paper2_id") not in cat_paper_ids:
-                continue
-
         mu = m.get("model_used", {})
         key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
         if key not in model_stats:
