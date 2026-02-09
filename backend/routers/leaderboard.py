@@ -182,10 +182,16 @@ async def get_all_tags():
 @router.get("/categories")
 async def get_categories():
     from core.auth import get_settings
+    from core.arxiv_categories import ARXIV_TAXONOMY
     settings = await get_settings()
     active = settings.get("active_categories", list(CATEGORIES.keys()))
+    # Use taxonomy for names, fall back to CATEGORIES dict, then raw ID
+    cats = []
+    for cat_id in active:
+        name = CATEGORIES.get(cat_id) or ARXIV_TAXONOMY.get(cat_id) or cat_id
+        cats.append({"id": cat_id, "name": name})
     return {
-        "categories": [{"id": k, "name": v} for k, v in CATEGORIES.items() if k in active],
+        "categories": cats,
         "default": active[0] if active else "cs.RO",
     }
 
