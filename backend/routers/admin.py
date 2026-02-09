@@ -371,6 +371,11 @@ def _elo_ci(wins, comparisons):
 @router.get("/stats", dependencies=[Depends(verify_admin)])
 async def get_usage_stats(category: str = None):
     """Token usage by model with cost estimation, optionally filtered by category."""
+    cache_cat = category or "__all__"
+    cached = _get_admin_cached("stats", cache_cat)
+    if cached:
+        return cached
+
     model_stats = {}
     match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
     if category:
