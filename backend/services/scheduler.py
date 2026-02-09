@@ -14,6 +14,7 @@ from services.ranking import calculate_confidence_interval
 _scheduler_running = False
 _processing_locks = {}  # Per-category locks
 _fetching_cats = set()  # Categories currently being fetched
+_wake_event: asyncio.Event = None  # Wake scheduler immediately on resume
 
 
 def _get_lock(category: str) -> asyncio.Lock:
