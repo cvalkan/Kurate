@@ -310,7 +310,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     cat_matches_done = sum(paper_match_count.values()) // 2  # each match counted twice
     cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
 
-    return {
+    result = {
         "total_papers": total_papers,
         "total_matches": cat_matches_done,
         "papers_with_pdf": cat_papers_with_pdf,
@@ -338,6 +338,8 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "estimated_matches_remaining": int(total_est),
         "estimated_minutes": int(est_minutes),
     }
+    _set_admin_cached("progress", category, result)
+    return result
 
 
 def _wilson_margin(wins, comparisons):
