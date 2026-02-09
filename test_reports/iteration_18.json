@@ -1,0 +1,99 @@
+{
+  "summary": "Goal 3 Convergence Bugfix Testing Complete. All 12 backend tests passed. Both bugs fixed: (1) Capped papers now excluded from Goal 3 cross-match requirements, (2) Progress endpoint now correctly filters by primary_category and excludes experiment matches.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/admin/tournaments",
+        "issue": "Tournament stats.goals_met not synced with progress endpoint goals_met for cs.DC and econ.GN",
+        "priority": "LOW",
+        "note": "Tournament document shows goals_met=False while progress shows True - may be stale cache"
+      }
+    ]
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "cs.RO Goal 3 label shows 'Top-7 cross-matches (3 capped)'",
+      "cs.RO Goal 3 total=21 (less than 45, capped papers excluded correctly)",
+      "cs.RO Goal 3 done=10 out of 21 (non-capped top-K cross-matches)",
+      "cs.DC goals_met=True with 45/45 cross-matches",
+      "econ.GN goals_met=True with 45/45 cross-matches",
+      "physics.comp-ph goals_met=True with 45/45 cross-matches",
+      "q-bio.BM goals_met=True with 45/45 cross-matches",
+      "cs.RO total_matches=3774 (experiment matches excluded)",
+      "cs.DC total_matches=2828 (filtered by primary_category)",
+      "Match counts are category-specific (primary_category filter working)",
+      "cs.RO tournament is paused as expected",
+      "Goal 3 math verified: C(7,2)=21 total pairs for top-7 non-capped papers"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_goal3_convergence_fix.py",
+    "/app/test_reports/pytest/goal3_convergence_fix_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/backend/tests/test_goal3_convergence_fix.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "N/A (backend-only testing)"
+  },
+
+  "test_credentials": "Admin token: papersumo2025 (X-Admin-Token header)",
+
+  "seed_data_creation": "None - tested with existing production data",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 18 verified the Goal 3 convergence bugfix. Key findings: (1) cs.RO shows 'Top-7 cross-matches (3 capped)' with 10/21 done - 3 papers are at max_matches (150+) and excluded from Goal 3, (2) Goal 3 total correctly reduced to C(7,2)=21 from C(10,2)=45, (3) Progress endpoint now filters matches by primary_category and excludes experiment/prediction matches, (4) Other categories (cs.DC, econ.GN, physics.comp-ph, q-bio.BM) all have goals_met=True with full 45/45 cross-matches, (5) cs.RO tournament is paused. Minor note: Tournament document stats.goals_met may be stale (shows False for cs.DC while progress shows True).",
+
+  "verified_features": {
+    "goal3_capped_papers_excluded": {
+      "cs.RO": {
+        "capped_count": 3,
+        "non_capped_top_k": 7,
+        "expected_pairs": 21,
+        "actual_total": 21,
+        "done": 10,
+        "met": false,
+        "label": "Top-7 cross-matches (3 capped)"
+      },
+      "cs.DC": {"met": true, "done": 45, "total": 45},
+      "econ.GN": {"met": true, "done": 45, "total": 45},
+      "physics.comp-ph": {"met": true, "done": 45, "total": 45},
+      "q-bio.BM": {"met": true, "done": 45, "total": 45}
+    },
+    "progress_endpoint_filters": {
+      "primary_category_filter": true,
+      "experiment_matches_excluded": true,
+      "cs.RO_total_matches": 3774,
+      "cs.DC_total_matches": 2828
+    },
+    "scheduler_status": {
+      "cs.RO": "paused",
+      "cs.DC": "goals_met_idle",
+      "econ.GN": "goals_met_idle"
+    },
+    "bugs_fixed": [
+      "Capped papers now excluded from Goal 3 requirements (they've played max_matches)",
+      "Progress endpoint counts only standard tournament matches (not experiment/prediction)"
+    ]
+  }
+}
