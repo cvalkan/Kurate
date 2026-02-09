@@ -81,6 +81,7 @@ frontend/src/
 - [Feb 2026] **New category preset to paused** — Admin-added categories start as "paused". No paper fetching or tournament activity until explicitly resumed.
 - [Feb 2026] **Resume triggers immediate fetch** — Resuming a paused category with <10 papers triggers an immediate paper fetch cycle + scheduler wake-up.
 - [Feb 2026] **Scheduler respects paused categories for fetching** — Paper fetching only runs for active (non-paused) tournament categories.
+- [Feb 2026] **Filter view optimization (show_all + tags)** — Pre-computed "all papers" leaderboard in background cache (4 period variants). Tag queries cached with 20s TTL (keyed on tag combo + params, max 100 entries). Reduced show_all response time from ~300ms to ~50ms. Frontend debounce (250ms) on tag toggling to batch rapid selections. Match index reused from cache for O(1) match lookups in tag queries.
 
 ## Tournament Goal System (3 Goals)
 1. **Goal 1 (Min Matches)**: Every paper must have >= `min_matches_per_paper` comparisons
