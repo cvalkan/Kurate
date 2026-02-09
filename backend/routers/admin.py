@@ -327,14 +327,6 @@ def _elo_ci(wins, comparisons):
 @router.get("/stats", dependencies=[Depends(verify_admin)])
 async def get_usage_stats(category: str = None):
     """Token usage by model with cost estimation, optionally filtered by category."""
-
-    # Get category paper IDs if filtering
-    cat_paper_ids = None
-    if category:
-        cat_paper_ids = set()
-        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-            cat_paper_ids.add(p["id"])
-
     model_stats = {}
     match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
     if category:
