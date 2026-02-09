@@ -131,6 +131,7 @@ export default function LeaderboardPage() {
 
     try {
       const params = { period };
+      if (debouncedKeyword) params.search = debouncedKeyword;
       if (hasSelectedTags) {
         // Tag filter active: fetch matching papers
         params.tags = selectedTags.join(",");
