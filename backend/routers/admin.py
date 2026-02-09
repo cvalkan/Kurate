@@ -1054,6 +1054,7 @@ async def add_category(body: CategoryAction):
     )
 
     logger.info(f"Admin added category: {cat_id} (preset to paused)")
+    _invalidate_admin_cache()
     return {"status": "ok", "active_categories": active, "tournament_status": "paused"}
 
 
