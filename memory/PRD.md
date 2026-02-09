@@ -13,8 +13,8 @@ Build a platform that automatically downloads papers from multiple arXiv categor
 ```
 backend/
   core/config.py       - DB, LLM keys, categories, default settings
-  core/auth.py         - Settings management + admin auth
-  routers/leaderboard.py - Public leaderboard API (with background cache)
+  core/auth.py         - Settings management (with 5s TTL cache) + admin auth
+  routers/leaderboard.py - Public leaderboard API (with background cache, pre-computed tags/categories)
   routers/admin.py     - Admin panel API + experiment + timeseries endpoints
   routers/auth.py      - User auth (email/password + Google OAuth)
   routers/suggestions.py - User suggestions API
@@ -24,7 +24,7 @@ backend/
   services/arxiv.py    - arXiv paper fetcher
 frontend/src/
   pages/
-    LeaderboardPage.jsx  - Public leaderboard with tag filtering
+    LeaderboardPage.jsx  - Public leaderboard with tag filtering (optimistic switching)
     AdminPage.jsx        - Admin dashboard (7 tabs)
     CorrelationPage.jsx  - Model correlation analysis
     PaperPage.jsx        - Individual paper detail
@@ -36,6 +36,7 @@ frontend/src/
     AdminStatistics.jsx  - Charts & analytics (Recharts, self-contained data fetching)
     AdminOverview.jsx    - Controls: fetch, compare, scheduler status + Tournament Registry
     AdminExperiment.jsx  - Experiment tab
+    AdminCategories.jsx  - Category management (add/remove)
     AuthModal.jsx        - Login/register modal
     SuggestionModal.jsx  - Suggestion modal
     ModelBadge.jsx       - LLM model badge
@@ -44,15 +45,6 @@ frontend/src/
   contexts/
     AuthContext.jsx      - Auth state management
 ```
-
-## Admin Panel Tabs (7)
-1. **Statistics** (default) — Summary cards, cost-by-model breakdown, 4 time-series charts (Papers/Matches/Tokens/Cost), cumulative/daily + system/category toggles, per-category totals table
-2. **Controls** — Per-category stats, ranking progress with smart pause/resume, fetch/compare buttons, scheduler status, Tournament Registry with per-tournament pause/resume
-3. **Settings** — System parameters (fetch interval, parallel agents, CI target, etc.)
-4. **Prompt** — Comparison/summary/prediction prompt editors
-5. **Experiment** — Surprisingly Popular prediction tournament
-6. **Suggestions** — User feedback review
-7. **Users** — User management (deactivate/reactivate)
 
 ## What's Been Implemented
 - [Feb 2026] Multi-category tournaments (cs.RO, cs.DC, econ.GN, physics.comp-ph, q-bio.BM)
@@ -73,18 +65,22 @@ frontend/src/
 - [Feb 2026] P1: Tournament registry, min viable tournament threshold, prompt version tracking
 - [Feb 2026] Admin Statistics tab with Recharts time-series charts
 - [Feb 2026] Pause/resume consistency: scheduler respects tournament-level pause, smart pause/resume routing
-- [Feb 2026] **Cost-by-model alignment fix** — model stats now from system-wide timeseries endpoint (not per-category), percentages sum to 100%
-- [Feb 2026] **Controls + Tournaments merge** — Tournament Registry embedded in Controls tab, Tournaments tab removed
-- [Feb 2026] **Production robustness** — timeseries handles missing `tokens`, `created_at`, `added_at`, `primary_category`, unknown models; falls back to `published` date for papers without `added_at`
-- [Feb 2026] **Top-K Cross-Match (Goal 3)** — New tournament goal ensures all top-K papers play against each other before goals are considered met. Prevents papers from maintaining 100% win rates by never facing rivals. _select_pairs Phase 0 injects missing top-K pairs with highest priority.
-- [Feb 2026] **Round-Robin Model Selection** — Replaced random model selection with deterministic round-robin across GPT-5.2, Claude Opus 4.5, Gemini 3 Pro. Ensures even distribution of evaluations per model.
-- [Feb 2026] **Manual match override kept as-is** — `/api/compare` endpoint intentionally bypasses goal checks (user chose Option A)
-- [Feb 2026] **Methodology page updated** — Condensed to 10 steps reflecting round-robin, top-K cross-match, and three convergence goals
-- [Feb 2026] **Public Prompts page** — New `/prompts` page shows evaluation and summary prompts (read-only). Linked from Methodology steps 2 and 8. Backend: `GET /api/prompts` (public, no auth)
-- [Feb 2026] **Experiment isolation audit** — All 22 match queries across scheduler, admin, and leaderboard audited. Experiment/prediction matches (with `mode` field) now consistently excluded from tournament counts via `mode: {$exists: False}`. Fixes: inflated match counts, false goals-met detection, scheduler stalling.
-- [Feb 2026] **Dynamic category management** — Admin can add/remove arXiv categories via searchable dropdown (155 categories). Includes weekly paper volume and cost estimates. Categories stored in DB settings, dynamically reflected across all views.
-- [Feb 2026] **Renamed Controls to Tournaments** — Admin tab renamed for clarity
-- [Feb 2026] **Leaderboard category overflow** — First 5 categories shown as tabs (hot picks), additional categories in "More" dropdown
+- [Feb 2026] Cost-by-model alignment fix
+- [Feb 2026] Controls + Tournaments merge
+- [Feb 2026] Production robustness for timeseries handling
+- [Feb 2026] Top-K Cross-Match (Goal 3)
+- [Feb 2026] Round-Robin Model Selection
+- [Feb 2026] Methodology page updated, Public Prompts page
+- [Feb 2026] Experiment isolation audit (mode field filtering)
+- [Feb 2026] Dynamic category management (add/remove)
+- [Feb 2026] Leaderboard category overflow (hot picks + More dropdown)
+- [Feb 2026] Backend DB query optimization (compound indexes, moved filters to DB level)
+- [Feb 2026] **Settings TTL cache** — `get_settings()` cached with 5s TTL, invalidated on admin updates. Eliminates redundant DB hits on every request.
+- [Feb 2026] **Pre-computed tags & categories** — `/api/tags` and `/api/categories` now served from background cache (20s TTL), no per-request computation.
+- [Feb 2026] **Optimistic frontend category switching** — No loading skeleton flash when switching categories. Old data stays visible until new data arrives.
+- [Feb 2026] **New category preset to paused** — Admin-added categories start as "paused". No paper fetching or tournament activity until explicitly resumed.
+- [Feb 2026] **Resume triggers immediate fetch** — Resuming a paused category with <10 papers triggers an immediate paper fetch cycle + scheduler wake-up.
+- [Feb 2026] **Scheduler respects paused categories for fetching** — Paper fetching only runs for active (non-paused) tournament categories.
 
 ## Tournament Goal System (3 Goals)
 1. **Goal 1 (Min Matches)**: Every paper must have >= `min_matches_per_paper` comparisons
@@ -94,22 +90,23 @@ frontend/src/
 ## Key API Endpoints
 - `GET /api/leaderboard?category=cs.RO` — Cached category leaderboard
 - `GET /api/leaderboard?tags=physics.chem-ph&global_stats=true` — Tag-filtered with global stats
-- `GET /api/categories` — Dynamic active categories (reads from DB settings)
+- `GET /api/categories` — Dynamic active categories (served from background cache)
+- `GET /api/tags` — All unique tags with counts (served from background cache)
 - `GET /api/prompts` — Public read-only view of evaluation and summary prompts
 - `GET /api/admin/arxiv-categories` — Full arXiv taxonomy (155 categories) for searchable picker
-- `POST /api/admin/categories/add` — Add a tournament category
+- `POST /api/admin/categories/add` — Add a tournament category (preset to paused)
 - `POST /api/admin/categories/remove` — Remove a tournament category (pauses, keeps data)
 - `GET /api/admin/category-estimate/{cat_id}` — Estimate weekly papers, matches, costs
-- `GET /api/admin/timeseries` — Daily time-series + per-model cost breakdown (system-wide)
-- `GET /api/admin/progress?category=...` — Progress with 3 goals + tournament_paused/global_paused
+- `GET /api/admin/timeseries` — Daily time-series + per-model cost breakdown
+- `GET /api/admin/progress?category=...` — Progress with 3 goals + pause status
 - `GET /api/admin/tournaments` — Tournament registry
-- `POST /api/admin/tournaments/{id}/status` — Pause/resume tournament
+- `POST /api/admin/tournaments/{id}/status` — Pause/resume tournament (resume triggers fetch for new categories)
 
 ## Pause/Resume Architecture
-- **Global pause** (`settings.paused`): Stops ALL tournament activity. Toggled via Settings or toggle-pause endpoint.
-- **Per-tournament pause** (`tournaments.status`): Stops specific category. Toggled via tournament status endpoint.
-- **Smart routing**: Controls tab Pause/Resume button targets tournament-level when tournament is paused and global isn't, otherwise targets global.
-- **Scheduler**: Respects both mechanisms. No fallback override when all tournaments are paused.
+- **Global pause** (`settings.paused`): Stops ALL tournament activity
+- **Per-tournament pause** (`tournaments.status`): Stops specific category
+- **New category workflow**: Add → paused → Resume → immediate fetch + tournament start
+- **Scheduler**: Respects both mechanisms. Only fetches papers for active categories.
 
 ## Backlog
 - P2: Refactor matchmaking with BT uncertainty-based pairing + regularization priors
