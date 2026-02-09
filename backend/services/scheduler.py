@@ -210,7 +210,7 @@ async def _scheduler_loop():
                 cat_paper_count = await db.papers.count_documents({"categories.0": cat})
                 cat_status["papers_count"] = cat_paper_count
                 cat_match_count = await db.matches.count_documents(
-                    {"completed": True, "failed": {"$ne": True}, "primary_category": cat}
+                    {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
                 )
                 cat_status["matches_count"] = cat_match_count
                 await update_tournament_stats(cat)
