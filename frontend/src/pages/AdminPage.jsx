@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users, Trophy,
-  Pause, Play,
+  Pause, Play, Sliders,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
