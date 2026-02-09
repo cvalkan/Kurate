@@ -215,8 +215,18 @@ export default function AdminPage() {
 
       {activeTab === "settings" && settings && (
         <TooltipProvider delayDuration={200}>
-        <div className="space-y-6 max-w-lg" data-testid="admin-settings">
-          <div className="space-y-4">
+        <div className="space-y-6 max-w-xl" data-testid="admin-settings">
+          <AdminCategories onCategoriesChanged={() => {
+            axios.get(`${API}/api/categories`).then(res => {
+              setCategories(res.data.categories || []);
+              // If current adminCat was removed, switch to first available
+              const ids = (res.data.categories || []).map(c => c.id);
+              if (!ids.includes(adminCat) && ids.length > 0) setAdminCat(ids[0]);
+            }).catch(() => {});
+          }} />
+
+          <div className="border-t border-border pt-6 space-y-4">
+            <h3 className="text-sm font-medium">System Parameters</h3>
             {[
               { key: "fetch_interval_hours", label: "Fetch Interval (hours)", help: "How often to check arXiv for new papers. Default: 24h." },
               { key: "max_papers_per_fetch", label: "Max Papers Per Fetch", help: "Maximum papers to retrieve from arXiv per cycle." },
