@@ -23,6 +23,7 @@ export function AdminCategories({ onCategoriesChanged }) {
   const [estimates, setEstimates] = useState({});
   const [removing, setRemoving] = useState(null);
   const [adding, setAdding] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(null);
   const dropdownRef = useRef(null);
 
   const fetchCategories = async () => {
