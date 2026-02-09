@@ -88,16 +88,23 @@ export function AdminOverview({
         <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="progress-indicator">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium">Ranking Progress</h3>
-            <Button
-              onClick={handlePauseResume}
-              variant={progress.paused ? "default" : "outline"}
-              size="sm"
-              className="gap-1.5 h-8"
-              data-testid="pause-resume-button"
-            >
-              {progress.paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-              {progress.paused ? "Resume" : "Pause"}
-            </Button>
+            <div className="flex items-center gap-2">
+              {progress.global_paused && (
+                <span className="text-[10px] px-2 py-1 rounded bg-amber-50 text-amber-700 font-medium" data-testid="global-pause-warning">
+                  System paused
+                </span>
+              )}
+              <Button
+                onClick={handlePauseResume}
+                variant={progress.tournament_paused ? "default" : "outline"}
+                size="sm"
+                className="gap-1.5 h-8"
+                data-testid="pause-resume-button"
+              >
+                {progress.tournament_paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+                {progress.tournament_paused ? "Resume" : "Pause"}
+              </Button>
+            </div>
           </div>
 
           {progress.goals_met ? (
