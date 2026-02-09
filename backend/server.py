@@ -69,18 +69,18 @@ async def startup():
         valid_cats = set(_settings.get("active_categories", list(CATEGORIES.keys())))
         # Only clean up if we have valid categories
         if valid_cats:
-        invalid_papers = []
-        async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
-            cats = p.get("categories", [])
-            if not cats or cats[0] not in valid_cats:
-                invalid_papers.append(p["id"])
-        if invalid_papers:
-            await db.matches.delete_many({"$or": [
-                {"paper1_id": {"$in": invalid_papers}},
-                {"paper2_id": {"$in": invalid_papers}},
-            ]})
-            await db.papers.delete_many({"id": {"$in": invalid_papers}})
-            logger.info(f"Cleaned {len(invalid_papers)} papers with unsupported primary categories")
+            invalid_papers = []
+            async for p in db.papers.find({}, {"_id": 0, "id": 1, "categories": 1}):
+                cats = p.get("categories", [])
+                if not cats or cats[0] not in valid_cats:
+                    invalid_papers.append(p["id"])
+            if invalid_papers:
+                await db.matches.delete_many({"$or": [
+                    {"paper1_id": {"$in": invalid_papers}},
+                    {"paper2_id": {"$in": invalid_papers}},
+                ]})
+                await db.papers.delete_many({"id": {"$in": invalid_papers}})
+                logger.info(f"Cleaned {len(invalid_papers)} papers with unsupported primary categories")
     except Exception as e:
         logger.warning(f"Migration warning: {e}")
 
