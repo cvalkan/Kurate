@@ -858,6 +858,17 @@ async def get_timeseries(category: Optional[str] = None):
 
         series.append(entry)
 
+    # Compute per-model costs
+    total_model_cost = 0.0
+    for key, stats in model_stats.items():
+        pricing = MODEL_PRICING.get(key, {"input": 2.0, "output": 10.0})
+        cost_in = (stats["input_tokens"] / 1_000_000) * pricing["input"]
+        cost_out = (stats["output_tokens"] / 1_000_000) * pricing["output"]
+        stats["cost_input"] = round(cost_in, 4)
+        stats["cost_output"] = round(cost_out, 4)
+        stats["cost_total"] = round(cost_in + cost_out, 4)
+        total_model_cost += cost_in + cost_out
+
     return {
         "series": series,
         "categories": all_cats,
@@ -865,8 +876,11 @@ async def get_timeseries(category: Optional[str] = None):
             "papers": cum_papers["_total"],
             "matches": cum_matches["_total"],
             "tokens": cum_tokens["_total"],
+            "input_tokens": sum(s.get("input_tokens", 0) for s in model_stats.values()),
+            "output_tokens": sum(s.get("output_tokens", 0) for s in model_stats.values()),
             "cost": round(cum_cost["_total"], 4),
         },
+        "models": model_stats,
     }
 
 
