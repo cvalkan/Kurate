@@ -34,27 +34,25 @@ export function AdminOverview({
 }) {
   const [expandedLogs, setExpandedLogs] = useState(new Set());
 
-  // Smart pause: if tournament is paused but global isn't, toggle the tournament status
+  // Always operate on the tournament level for the current category
   const handlePauseResume = async () => {
-    if (progress?.tournament_paused && !progress?.global_paused) {
-      // Resume the specific tournament
-      const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
+    const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
+    const headers = getAdminHeaders();
+
+    if (progress?.tournament_paused) {
+      // Resume this tournament
       try {
-        await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "active" }, { headers: getAdminHeaders() });
+        await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "active" }, { headers });
         toast.success(`Tournament ${adminCat} resumed`);
         if (onRefresh) onRefresh();
       } catch { toast.error("Failed to resume tournament"); }
-    } else if (!progress?.paused) {
-      // Pause the specific tournament
-      const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
+    } else {
+      // Pause this tournament
       try {
-        await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "paused" }, { headers: getAdminHeaders() });
+        await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "paused" }, { headers });
         toast.success(`Tournament ${adminCat} paused`);
         if (onRefresh) onRefresh();
       } catch { toast.error("Failed to pause tournament"); }
-    } else {
-      // Global pause is on — toggle it
-      togglePause();
     }
   };
 
