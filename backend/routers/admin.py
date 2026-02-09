@@ -166,8 +166,14 @@ async def get_progress_estimate(category: str = "cs.RO"):
     max_matches = settings.get("max_matches_per_paper", 150)
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 12)
-    is_paused = settings.get("paused", False)
+    global_paused = settings.get("paused", False)
     parallel_agents = settings.get("parallel_agents", 5)
+
+    # Check tournament-level pause status
+    tid = f"cat={category}|mode=standard"
+    tournament = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "status": 1})
+    tournament_paused = tournament and tournament.get("status") == "paused"
+    is_paused = global_paused or tournament_paused
 
     all_paper_ids = []
     async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
