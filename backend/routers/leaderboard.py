@@ -492,9 +492,13 @@ async def _compute_tag_leaderboard(
         del _tag_cache[oldest_key]
     _tag_cache[cache_key] = {"ts": now, "result": result}
 
+    # Apply search filter (after caching unfiltered data)
+    searched_data = _apply_search(data, search)
+
     return {
         **{k: v for k, v in result.items() if k != "_full_data"},
-        "leaderboard": data[offset:offset + limit],
+        "leaderboard": searched_data[offset:offset + limit],
+        "total_in_period": len(searched_data),
     }
 
 
