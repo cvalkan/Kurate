@@ -168,7 +168,7 @@ export default function AdminPage() {
 
   const tabs = [
     { key: "statistics", label: "Statistics", icon: Activity },
-    { key: "overview", label: "Controls", icon: Sliders },
+    { key: "overview", label: "Tournaments", icon: Sliders },
     { key: "settings", label: "Settings", icon: Settings },
     { key: "prompt", label: "Prompt", icon: FileText },
     { key: "experiment", label: "Experiment", icon: FlaskConical },
