@@ -742,19 +742,29 @@ def _select_pairs(
     if len(active) < 2:
         return []
 
-    # Rank papers by win rate for top-K detection
+    # Rank ALL papers by win rate for top-K detection (including capped)
+    # This ensures top-K identification is consistent with _check_goals_met
+    all_ranked = sorted(paper_ids, key=lambda pid: win_rates[pid], reverse=True)
+    top_k_all = all_ranked[:min(top_k, len(all_ranked))]
+
+    # For Phase 0 cross-matching: only non-capped top-K papers
+    # Capped papers are exempt (they've hit max_matches)
+    top_k_crossmatch = [pid for pid in top_k_all if pid not in capped]
+
+    # For priority/cap calculations: top-K among active papers
+    top_k_set = set(top_k_all) & set(active)
+
+    # Also rank active papers for normal pair selection
     ranked = sorted(active, key=lambda pid: win_rates[pid], reverse=True)
-    top_k_set = set(ranked[:min(top_k, len(ranked))])
 
     # --- Phase 0: Top-K cross-matches (highest priority) ---
-    # Find all missing pairs among top-K papers and inject them first
-    topk_list = [pid for pid in ranked if pid in top_k_set]
+    # Find all missing pairs among non-capped top-K papers
     topk_missing_pairs = []
-    for i in range(len(topk_list)):
-        for j in range(i + 1, len(topk_list)):
-            pair_key = tuple(sorted([topk_list[i], topk_list[j]]))
+    for i in range(len(top_k_crossmatch)):
+        for j in range(i + 1, len(top_k_crossmatch)):
+            pair_key = tuple(sorted([top_k_crossmatch[i], top_k_crossmatch[j]]))
             if pair_key not in compared_pairs:
-                topk_missing_pairs.append((topk_list[i], topk_list[j]))
+                topk_missing_pairs.append((top_k_crossmatch[i], top_k_crossmatch[j]))
 
     pairs = []
     round_count = {pid: 0 for pid in active}
