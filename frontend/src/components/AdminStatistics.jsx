@@ -200,23 +200,23 @@ export function AdminStatistics({ categories }) {
         <StatSummaryCard
           label="Total Tokens"
           value={formatTokens(totals.tokens)}
-          sub={`${formatTokens(usageStats?.totals?.input_tokens || 0)} in / ${formatTokens(usageStats?.totals?.output_tokens || 0)} out`}
+          sub={`${formatTokens(totals.input_tokens || 0)} in / ${formatTokens(totals.output_tokens || 0)} out`}
           icon={Cpu} color="#10b981"
         />
         <StatSummaryCard
           label="Total Cost"
           value={`$${totals.cost.toFixed(2)}`}
-          sub={usageStats?.models ? `${Object.keys(usageStats.models).length} models` : null}
+          sub={modelCount > 0 ? `${modelCount} models` : null}
           icon={Coins} color="#f59e0b"
         />
       </div>
 
       {/* Model breakdown */}
-      {usageStats?.models && Object.keys(usageStats.models).length > 0 && (
+      {modelStats && modelCount > 0 && (
         <div className="rounded-lg border border-border bg-card p-4" data-testid="model-breakdown">
           <h3 className="text-sm font-medium mb-3">Cost by Model</h3>
           <div className="space-y-2">
-            {Object.entries(usageStats.models)
+            {Object.entries(modelStats)
               .sort((a, b) => (b[1].cost_total || 0) - (a[1].cost_total || 0))
               .map(([model, stats]) => {
                 const pct = totals.cost > 0 ? ((stats.cost_total || 0) / totals.cost) * 100 : 0;
