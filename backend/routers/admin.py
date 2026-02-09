@@ -794,6 +794,14 @@ async def get_timeseries(category: Optional[str] = None):
             bucket["output_tokens"] += out
             bucket["cost"] += cost
 
+        # Accumulate per-model stats (system-wide, always unfiltered by category)
+        if model_key != "unknown":
+            if model_key not in model_stats:
+                model_stats[model_key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+            model_stats[model_key]["matches"] += 1
+            model_stats[model_key]["input_tokens"] += inp
+            model_stats[model_key]["output_tokens"] += out
+
     # Build sorted date list
     all_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys())))
     all_cats = sorted(CATEGORIES.keys())
