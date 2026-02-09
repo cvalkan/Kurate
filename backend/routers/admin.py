@@ -58,6 +58,7 @@ async def update_settings(update: SettingsUpdate):
         {"$set": update_dict},
         upsert=True,
     )
+    invalidate_settings_cache()
     logger.info(f"Admin updated settings: {list(update_dict.keys())}")
     return {"success": True, "updated": list(update_dict.keys())}
 
