@@ -121,9 +121,10 @@ export function AdminStatistics({ categories }) {
     );
   }
 
-  const { series, totals } = timeseries;
+  const { series, totals, models: modelStats } = timeseries;
   const allCats = timeseries.categories || [];
   const suffix = viewMode === "cumulative" ? "cumulative" : "daily";
+  const modelCount = modelStats ? Object.keys(modelStats).length : 0;
 
   // Build chart data based on scope
   const chartData = series.map(entry => {
