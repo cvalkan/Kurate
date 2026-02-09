@@ -142,8 +142,10 @@ async def start_scheduler():
     if _scheduler_running:
         return
     _scheduler_running = True
-    # Initialize status for all categories
-    for cat_id in CATEGORIES:
+    # Initialize status for all active categories (dynamic from settings)
+    settings = await get_settings()
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+    for cat_id in active_cats:
         _get_cat_status(cat_id)
     logger.info("Background scheduler started")
     asyncio.create_task(_scheduler_loop())
