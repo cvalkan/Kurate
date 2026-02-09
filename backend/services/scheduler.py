@@ -628,7 +628,7 @@ async def _generate_pending_summaries(category: str = None):
     paper_match_count = {pid: 0 for pid in paper_ids}
     paper_wins = {pid: 0 for pid in paper_ids}
 
-    match_query = {"completed": True, "failed": {"$ne": True}}
+    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
     if category:
         match_query["primary_category"] = category
 
