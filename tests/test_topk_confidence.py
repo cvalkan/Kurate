@@ -11,7 +11,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scirank-tournament.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://filter-recent.preview.emergentagent.com')
 
 
 class TestTopKAndConfidenceBackendAPI:

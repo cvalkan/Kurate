@@ -1,152 +1,174 @@
-<analysis>Analyse and provide summary of the LLM message history for the next agent.
+<analysis>An analysis of the user's requests and the AI agent's actions has been completed. Here is the summary to assist the next agent in continuing the work.
 
 **original_problem_statement**:
-The user's initial request was to investigate the matchmaking logic, which led to a series of feature implementations and bug fixes. The key requests included:
-- Implementing a Top-K Cross-Match feature to ensure top papers compete against each other.
-- Changing the LLM selection logic from random to round-robin.
-- Adding a new Prompts page and updating the Methodology page.
-- Implementing a feature for admins to dynamically add/remove tournament categories.
-- Fixing multiple bugs related to matchmaking logic, scheduler state, and data consistency (specifically, isolating experiment matches from tournament data).
-- Addressing several UI/UX issues, including a More dropdown bug, mobile layout problems, and confusing UI elements.
-- Fixing significant performance issues, including a long scheduler delay and very slow API endpoints in the admin panel.
+The user has provided a series of feature requests and bug reports throughout the session:
+1.  **Performance:** Optimize the speed of the public-facing leaderboard, specifically when switching categories and filtering. The admin panel was also reported to be slow when switching categories.
+2.  **Category Lifecycle:**
+    *   When a new category is added, it should be preset to paused.
+    *   When a paused category is resumed, it should immediately start fetching papers.
+3.  **UI/UX Bugs & Improvements:**
+    *   **Admin Panel:**
+        *   Adding/removing a category took too long to reflect in the UI.
+        *   Resuming a new category (with 0 papers) incorrectly triggered a global system pause.
+        *   The dual-purpose Resume button (for both system and tournament) was confusing. The user requested this be simplified so the button *only* affects the specific tournament.
+        *   The number of papers shown in the fetching toast (new papers) versus the total box was confusing.
+        *   Admin charts should use distinct colors for each category and not display empty categories.
+        *   Category bars on the Admin and Model Correlation pages should scroll horizontally if there are too many categories, instead of breaking the layout.
+    *   **Public Leaderboard:**
+        *   Categories under the More dropdown should only be accessible to logged-in users.
+        *   The text on the Suggest button disappeared on hover.
+    *   **Most Recent Filter:**
+        *   The user asked for clarification on what Most Recent means.
+        *   The user requested to change the logic to show papers from the single latest publication day across *all* categories.
+        *   The user then requested to revert this logic back to the original behavior (latest day *per category*) while keeping the name Most Recent.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is SciRank, a platform that ranks arXiv papers using a pairwise tournament system powered by LLMs. It features a public leaderboard and an admin dashboard for managing tournaments, settings, and viewing statistics. The codebase includes a FastAPI backend handling the core logic and a React frontend. Key features like dynamic category management, top-K cross-matching, round-robin model selection, and an optimized, responsive scheduler are now implemented. The backend database performance has been significantly improved with new compound indexes.
+The agent has implemented several significant features and fixes:
+- **Performance:** Caching has been implemented on both the public-facing and admin APIs. Public category/tag loading is now faster due to a background cache. Admin category switching is now instant due to a server-side cache on the three most expensive endpoints (, , ).
+- **Category Lifecycle:** New categories are now created in a paused state. Resuming a tournament now correctly triggers an immediate paper fetch.
+- **Admin Panel UX:**
+    - The pause/resume button logic has been refactored to be unambiguous. It now only controls the selected tournament. A separate badge indicates the global system pause status.
+    - Admin charts now use a dynamic color palette to assign a unique color to each category and filter out categories that have no data.
+    - Category selection bars on all admin pages now correctly scroll horizontally when overflowing.
+- **Leaderboard UI:** The More dropdown is now restricted to authenticated users, and the Suggest button hover bug is fixed.
+- **Most Recent Filter:** The logic was changed to a global filter and then reverted back to a per-category filter at the user's request. The code for the reverted (original) logic is in place but requires verification.
 
 **Last working item**:
-- **Last item agent was working**: The user reported that switching between categories in the admin dashboard was still very slow on the live deployed version, despite previous frontend optimizations. The agent investigated and diagnosed a severe backend performance bottleneck. The  and  endpoints were taking 6-14 seconds to respond due to inefficient database queries that performed full collection scans and filtered data in Python instead of at the database level.
+- **Last item agent was working**: The agent was fulfilling a user request to revert the behavior of the Most Recent filter. The logic was changed back to show papers from the latest publication day *within each specific category*, rather than from a single global latest day.
 - **Status**: IN PROGRESS
-- **Agent Testing Done**: Y
-- **Which testing method agent to use?** Manual testing by curl
+- **Agent Testing Done**: N
+- **Which testing method agent to use?**: backend testing agent
 - **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-- **Issue 1: Admin category switching is slow on the deployed version (P0)**
-  - **Description**: The admin dashboard is sluggish when switching between tournament categories. This was identified as a backend performance issue caused by slow database queries.
-  - **Status**: IN PROGRESS
-  - **Details**:
-    - **Attempted fixes**: The agent implemented a comprehensive backend optimization pass:
-      1.  Added a new compound MongoDB index on the  collection:  to cover the most common query patterns.
-      2.  Refactored the  endpoint to move the  filter from a Python loop into the database query ().
-      3.  Refactored the  endpoint to filter by  at the database level, preventing a full collection scan.
-      4.  Optimized a slow  query by replacing cursor iteration with .
-      5.  Fixed a related bug in a migration script that incorrectly used a hardcoded category list.
-    - **Next debug checklist**: The fixes have been implemented and tested locally, showing a dramatic speedup (from seconds to ~140ms). The next step is for the user to verify the performance on the live, deployed version after these changes are pushed. If the issue persists, further profiling on the production database would be required.
-    - **Why fix this issue?** A responsive admin panel is crucial for effective management of the tournaments. The current slowness makes the UI frustrating and difficult to use.
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** Backend
+- **Issue 1: Verify the reverted Most Recent filter logic (P0)**
+    - **Description**: The agent reverted the code for the Most Recent filter in  to use a per-category latest date. This change needs to be tested and confirmed to ensure it works as it did originally, before the user is notified.
+    - **Attempted fixes**: The code has been reverted.
+    - **Next debug checklist**:
+        1.  Restart the backend server to ensure the change is active.
+        2.  Use  or the backend testing agent to call the  endpoint. Note the publication dates of the returned papers.
+        3.  Call the same endpoint for a different category: .
+        4.  Confirm that the publication dates for CATEGORY_B can be different from CATEGORY_A, proving that each category is using its own most recent date.
+    - **Why fix this issue and what will be achieved with the fix?**: To complete the user's latest request and ensure the filter logic is correct before closing the loop with the user.
+    - **Status**: IN PROGRESS
+    - **Is recurring issue?**: Y (The logic has been changed back and forth).
+    - **Should Test frontend/backend/both after fix?**: backend
+    - **Blocked on other issue**: None
 
 **In progress Task List**:
-- None
+There are no partially completed tasks; the focus is on the pending issue above.
 
 **Upcoming and Future Tasks**
-- No new tasks are currently requested.
+There are no outstanding tasks from the user's requests that have not been addressed.
 
 **Completed work in this session**
-- **Core Logic & Feature Enhancements**:
-  - Implemented Top-K Cross-Match (Goal 3) to force top papers to compete. ()
-  - Switched LLM selection to a round-robin system for fairness. ()
-  - Added a full-featured admin tool to dynamically add/remove tournament categories. (, , )
-
-- **UI & Content**:
-  - Created a new  page and updated the  page. (, )
-  - Redesigned the leaderboard to handle many categories with hot picks and a More dropdown. ()
-  - Improved the mobile view of the leaderboard with a horizontally scrolling category list and a shorter description. ()
-  - Added a confirmation dialog for removing a category to prevent accidents. ()
-
-- **Bug Fixes & Performance**:
-  - **Critical**: Performed a full-codebase audit to isolate experiment matches from tournament logic, fixing a bug that caused the scheduler to stall on production. (, , )
-  - Fixed multiple bugs related to the Goal 3 logic being stuck due to incorrect handling of capped papers.
-  - Drastically improved the accuracy of the weekly match/cost estimation logic by using historical data. ()
-  - Reduced scheduler cycle time from 5 minutes to 30 seconds and added an instant wake-up mechanism for immediate responsiveness after admin actions. (, )
-  - Fixed a UI layout bug where the More dropdown was clipped by a scrollable container. ()
+- **Public Leaderboard Speed Optimization:** Implemented background caching for tags and categories (, ).
+- **Admin Panel Speed Optimization:** Implemented server-side caching for admin endpoints ().
+- **New Category Default State:** New categories are now created as paused ().
+- **Immediate Fetch on Resume:** Resuming a tournament now triggers an immediate paper fetch ().
+- **Admin UI Lag Fix:** Fixed a bug where category changes were delayed by using the correct cache ().
+- **Admin Pause/Resume Bug Fix:** Fixed a bug where resuming a new category would toggle the global system pause ().
+- **Admin Pause/Resume UX Refactor:** Simplified the pause/resume controls for better clarity ().
+- **Responsive Category Bars:** Added horizontal scrolling to category bars on admin pages (, ).
+- **Leaderboard UI Fixes:**
+    - Restricted More dropdown access to logged-in users ().
+    - Fixed Suggest button text disappearing on hover ().
+- **Admin Chart Improvements:**
+    - Implemented a dynamic and distinct color palette for categories ().
+    - Filtered out empty categories from being rendered in the charts ().
 
 **Earlier issues found/mentioned but not fixed**
-- None. All identified issues have been addressed or are currently in progress.
+None. The agent has addressed all issues raised by the user in this session.
 
 **Known issue recurrence from previous fork**
-- No recurrences from a previous fork were noted. However, the performance of the admin panel has been a recurring theme within this session, requiring multiple rounds of fixes.
+None.
 
 **Code Architecture**
-
+-   **Backend**: Python (FastAPI) application located in .
+    -   : Main application entry point.
+    -   : Contains API endpoint definitions (e.g., , ).
+    -   : Contains business logic (e.g., , ).
+    -   : Defines database models (Pydantic models for MongoDB).
+-   **Frontend**: React application (Create React App) located in .
+    -   : Top-level page components (e.g., , ).
+    -   : Reusable UI components.
+-   **Database**: MongoDB.
 
 **Key Technical Concepts**
-- **Backend**: FastAPI (Python), MongoDB (with  for async operations),  for the concurrent scheduler loop.
-- **Frontend**: React, Vite, Tailwind CSS.
-- **Architecture**: A decoupled frontend and backend. The backend's  is the heart of the system, running as a persistent asynchronous task that manages the entire tournament lifecycle.
-- **Database**: MongoDB is used to store , , and a singleton  document which now holds the dynamic list of active categories.
+-   **Backend Caching**: Utilizes  for in-memory, time-based caching of API responses and settings to reduce database load.
+-   **Background Tasks**: A background thread () is used to periodically refresh a cache for the public leaderboard.
+-   **Frontend State Management**: Uses React hooks (, ) for managing component state and fetching data.
+-   **API Design**: RESTful API built with FastAPI, using Pydantic for data validation.
 
 **key DB schema**
-- **papers**: 
-- **matches**:  (The  field is critical for distinguishing tournament matches from experiments).
-- **settings**: 
-- **tournaments**: 
+-   **papers**: Stores individual paper details ().
+-   **tournaments**: Manages categories and their status ().
+-   **settings**: A singleton document for global application settings ().
+-   **matches**: Stores the results of paper comparisons ().
 
 **changes in tech stack**
-- No changes to the fundamental tech stack.
+None.
 
 **All files of reference**
-- : Heavily modified for performance optimizations (moving filters to DB), adding category management endpoints, and triggering the scheduler wake-up event.
-- : Significantly refactored to support dynamic categories, reduce cycle delay, implement the wake-up event, and correctly filter out experiment matches from all tournament logic.
-- : Updated to define the  collection schema for storing dynamic categories.
-- : Refactored to optimize API calls on category switching and to integrate the new  component.
-- : A new component created to manage tournament categories.
-- : Updated to handle an overflow of categories with a More dropdown, fix UI/layout bugs, and improve the mobile experience.
+*   : Modified for caching and the Most Recent filter logic.
+*   : Modified for admin caching, category lifecycle logic, and fixing the pause/resume bug.
+*   : Modified to use correct caching for the  endpoint.
+*   : Updated to only fetch papers for active tournaments.
+*   : Modified for UI optimizations and bug fixes (Suggest button, More dropdown).
+*   : Modified for the pause/resume UX refactor and responsive category bar.
+*   : Modified for chart color and filtering improvements.
+*   : Modified for the responsive category bar.
 
 **Areas that need refactoring**:
-- While major performance issues caused by database queries have been fixed, the recurrence of this problem suggests that a proactive approach to indexing and query optimization is necessary. A future audit could focus on ensuring all frequently used query patterns are covered by an index.
+None identified. The agent has performed refactoring as part of the bug fixes.
 
 **key api endpoints**
-- : Gets tournament goal progress for a category (now heavily optimized).
-- : Gets overview stats for a category (now heavily optimized).
-- : Adds a new tournament category.
-- : Removes a tournament category.
-- : Pauses/resumes a tournament and triggers an immediate scheduler wake-up.
-- : Returns the dynamic list of active categories from the database.
+-   : Fetches papers for the leaderboard.
+-   : Fetches the list of available categories.
+-   : Fetches the list of available tags.
+-   : Fetches progress data for a tournament.
+-   : Fetches statistics for a tournament.
+-   : Fetches model cost data.
+-   : Adds a new category.
+-   : Pauses or resumes a tournament.
 
 **Critical Info for New Agent**
-- **Performance on Production**: The user is testing on a live deployment with a large database. Local performance is not a reliable indicator. Any new database query must be highly efficient and backed by an index. The last fix involved adding a crucial compound index: .
-- **Scheduler Wake-Up Mechanism**: The scheduler no longer relies solely on a timed loop. It now uses an  that is triggered by admin actions (like resuming a tournament) to provide instant responsiveness. This is implemented in  and triggered from .
-- **Dynamic Categories**: The list of tournament categories is no longer hardcoded. It is fetched from the  collection in MongoDB. Any logic that iterates through or references categories must use this dynamic source.
-- **Isolate Experiment Matches**: This is a critical architectural pattern. All queries related to tournament statistics, scheduling, and progress MUST exclude experiment matches by filtering for . Failure to do so has caused major bugs.
+-   The Most Recent filter has been a point of confusion. The final user request was to revert its logic to be **per-category**, which has been done in the code but requires verification. Do not change it again unless explicitly asked.
+-   When making changes to the frontend code, the Create React App development server () may occasionally require a manual restart to reflect the latest Javascript bundle. The agent ran into this issue and solved it by restarting the process.
 
 **documents and test reports created in this job**
--  was updated throughout the session.
-- Test reports from the testing agent were generated in .
+None.
 
-**Last 10 User Messages and any pending HUMAN messages** 
-1.  **User**: Requested mobile UI fixes: horizontal scroll for categories and a shorter description on the leaderboard. (Completed)
-2.  **Agent**: Encountered a tool loop.
-3.  **User**: Pointed out the agent was stuck in a loop.
-4.  **Agent**: Recovered and verified the mobile UI fixes.
-5.  **User**: Reported that the admin panel is *still* slow on the live site. (Pending)
-6.  **Agent**: Investigated the live API and confirmed it was a severe backend performance issue.
-7.  **Agent**: Traced the slowness to inefficient database queries in .
-8.  **Agent**: Proposed and implemented several backend optimizations, including a new compound index.
-9.  **Agent**: Fixed a related bug found during the optimization process.
-10. **Agent**: Tested the optimizations locally and confirmed a massive speed improvement. The fix is ready for user verification on deployment.
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User (Latest):** Revert Most Recent back to its original logic. (IN PROGRESS)
+2.  **User:** Rename Latest Drop back to Most Recent, change logic to be global, add unique chart colors, and hide empty categories in charts. (DONE)
+3.  **User:** What does Most Recent mean? More dropdown should require login. Suggest button text disappears on hover. (DONE)
+4.  **User:** Make admin category bars scroll horizontally like the main leaderboard. (DONE)
+5.  **User:** Why is there a paper count mismatch? Why is the admin panel slow again? (EXPLAINED and DONE)
+6.  **User:** The logic of clicking Resume twice (once for system, once for tournament) is confusing. (DONE)
+7.  **User:** I can't resume a new category; I get a System paused error. (DONE)
+8.  **User:** Adding/removing a category takes a minute to show up. (DONE)
+9.  **User:** Initial feature request: Optimize speed and change new categories to be paused by default. (DONE)
 
 **Project Health Check:**
-- **Broken**: None.
-- **Mocked**: LLM API calls are likely mocked in the testing environment.
+- **Broken:** Nothing is currently broken.
+- **Mocked:** No functionality is mocked.
 
 **3rd Party Integrations**
-- **OpenAI (e.g., GPT-4o)** — uses Emergent LLM Key
-- **Anthropic (e.g., Claude Opus)** — uses Emergent LLM Key
-- **Google (e.g., Gemini Pro)** — uses Emergent LLM Key
-- **arXiv API** — for fetching papers
+- No new 3rd party integrations were added. The project uses standard Python and Node.js libraries.
 
 **Testing status**
-- **Testing agent used after significant changes**: YES
+- **Testing agent used after significant changes**: YES, it was used once after the initial feature implementation.
 - **Troubleshoot agent used after agent stuck in loop**: NO
-- **Test files created**: None.
-- **Known regressions**: The performance of the admin panel has been a recurring issue, fixed multiple times. The latest fix is the most comprehensive and should be permanent.
+- **Test files created**: []
+- **Known regressions**: None. A performance regression in the admin panel was introduced and subsequently fixed with caching.
 
 **Credentials to test flow:**
-An authentication modal can interfere with UI automation. Direct navigation to admin pages () may be necessary.
+Use the standard credentials for admin access:
+- **Username:** 
+- **Password:** 
 
 **What agent forgot to execute**
-- The agent initially failed to diagnose the root cause of the admin panel slowness, focusing on frontend API call patterns instead of the backend database queries. The user had to report the issue a second time for the true bottleneck to be identified and fixed.
-- The agent got stuck in a repetitive tool loop while trying to build the frontend, requiring user intervention to break the cycle.</analysis>
+The agent has addressed all user requests up to this point. The only pending action is to verify the last code change made before concluding.</analysis>
