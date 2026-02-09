@@ -287,9 +287,6 @@ export function AdminOverview({
           </div>
         </div>
       )}
-
-      {/* Tournament Registry (merged from Tournaments tab) */}
-      <TournamentSection />
     </div>
   );
 }
