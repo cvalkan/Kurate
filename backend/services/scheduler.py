@@ -123,7 +123,7 @@ async def update_tournament_stats(category: str, mode: str = "standard"):
     tid = f"cat={category}|mode={mode}"
     paper_count = await db.papers.count_documents({"categories.0": category})
     match_count = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category}
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
     )
     goals_met = await _check_goals_met(category=category)
     await db.tournaments.update_one(
