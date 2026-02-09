@@ -208,6 +208,7 @@ export default function AdminPage() {
           categories={categories} adminCat={adminCat} setAdminCat={setAdminCat}
           triggerFetch={triggerFetch} triggerCompare={triggerCompare} togglePause={togglePause}
           loading={loading} manualMatches={manualMatches} setManualMatches={setManualMatches}
+          onRefresh={fetchAll}
         />
       )}
 
