@@ -55,6 +55,14 @@ def get_scheduler_status(category: str = None) -> dict:
     }
 
 
+def wake_scheduler():
+    """Wake the scheduler immediately (e.g., after resuming a tournament)."""
+    global _wake_event
+    if _wake_event:
+        _wake_event.set()
+
+
+
 def _get_global_activity() -> str:
     active = [f"{k}: {v['current_activity']}" for k, v in _category_status.items()
               if v.get("current_activity") not in ("Idle", "Goals met — idle")]
