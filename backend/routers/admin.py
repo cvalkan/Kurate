@@ -936,6 +936,10 @@ async def update_tournament_status(tournament_id: str, request: Request):
     if result.matched_count == 0:
         raise HTTPException(404, "Tournament not found")
 
+    # Wake scheduler immediately on resume so it doesn't wait up to 30s
+    if new_status == "active":
+        wake_scheduler()
+
     return {"status": "ok", "tournament_status": new_status}
 
 
