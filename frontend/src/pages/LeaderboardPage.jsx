@@ -89,6 +89,18 @@ export default function LeaderboardPage() {
     }
   }, [categoryName, isTagMode, hasSelectedTags, selectedTags]);
 
+  // Close "More" dropdown on click outside
+  useEffect(() => {
+    const handler = (e) => {
+      const dd = document.getElementById("more-cats-dropdown");
+      if (dd && !dd.classList.contains("hidden") && !dd.parentElement.contains(e.target)) {
+        dd.classList.add("hidden");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   // Load categories and tags once
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
