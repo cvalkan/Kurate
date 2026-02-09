@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import datetime, timezone, timedelta
+from collections import Counter
 import asyncio
 import time
 from core.config import db, logger, CATEGORIES
@@ -13,6 +14,40 @@ _cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0}
 _CACHE_TTL = 20
 _cache_lock = asyncio.Lock()
 _bg_task_started = False
+
+# Tag query cache — keyed on (frozenset(tags), period, tag_mode, global_stats, show_all)
+_tag_cache = {}  # key -> {"ts": float, "result": dict}
+_TAG_CACHE_TTL = 20  # Same as main cache TTL
+_TAG_CACHE_MAX = 100  # Max cached tag combos
+
+
+def _apply_period_filter(full_leaderboard, period):
+    """Apply period filter to a pre-ranked leaderboard. Returns (filtered_list, total_in_period)."""
+    if period == "all":
+        return full_leaderboard, len(full_leaderboard)
+
+    utc_now = datetime.now(timezone.utc)
+    paper_dates = {}
+    for entry in full_leaderboard:
+        try:
+            paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
+        except (ValueError, KeyError):
+            pass
+
+    if period == "recent":
+        max_date = max(paper_dates.values()) if paper_dates else utc_now
+        cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
+    elif period == "week":
+        cutoff = utc_now - timedelta(weeks=1)
+    elif period == "month":
+        cutoff = utc_now - timedelta(days=30)
+    else:
+        return full_leaderboard, len(full_leaderboard)
+
+    filtered = [{**e} for e in full_leaderboard if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff]
+    for i, e in enumerate(filtered):
+        e["rank"] = i + 1
+    return filtered, len(filtered)
 
 
 async def _refresh_cache():
@@ -49,10 +84,6 @@ async def _refresh_cache():
     # Load settings once
     from core.auth import get_settings
     settings = await get_settings()
-    _min = settings.get("min_matches_per_paper", 3)
-    _ci_target = settings.get("ci_target", 12)
-    _top_k = settings.get("top_k_focus", 10)
-    _max_matches = settings.get("max_matches_per_paper", 150)
 
     # Use dynamic active categories from settings
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
@@ -111,6 +142,17 @@ async def _refresh_cache():
             "_is_ranking": is_ranking,
         }
 
+    # --- Pre-compute "all papers" leaderboard (used by show_all=true) ---
+    all_full = compute_leaderboard(all_papers, all_matches)
+    paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in all_papers}
+    for entry in all_full:
+        entry["primary_category"] = paper_cat_lookup.get(entry["id"], "unknown")
+
+    all_periods = {"all": all_full}
+    for period_key in ("recent", "week", "month"):
+        filtered, _ = _apply_period_filter(all_full, period_key)
+        all_periods[period_key] = filtered
+
     _cache.update({
         "ts": time.time(),
         "categories": categories_data,
@@ -118,11 +160,16 @@ async def _refresh_cache():
         "total_matches": len(all_matches),
         "_raw_papers": all_papers,
         "_raw_matches": all_matches,
-        "_raw_matches_all": all_matches_raw,  # Includes experiment matches for tag queries
+        "_raw_matches_all": all_matches_raw,
+        "_match_index": match_index,
+        "_paper_cat_lookup": paper_cat_lookup,
+        "_all_papers_leaderboard": all_periods,
     })
 
-    # Pre-compute tags data (avoids recomputation on every /api/tags call)
-    from collections import Counter
+    # Invalidate tag cache on data refresh
+    _tag_cache.clear()
+
+    # Pre-compute tags data
     tag_counts = Counter()
     for p in all_papers:
         for cat in p.get("categories", []):
