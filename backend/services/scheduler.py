@@ -250,7 +250,7 @@ async def _scheduler_loop():
         except Exception as e:
             logger.error(f"Scheduler loop error: {e}")
 
-        await asyncio.sleep(300)
+        await asyncio.sleep(30)
 
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
