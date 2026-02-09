@@ -1057,31 +1057,44 @@ async def estimate_category(cat_id: str):
     if weekly_papers == 0 and total_fetched > 0:
         weekly_papers = total_fetched  # conservative fallback
 
-    # Cost estimate based on actual settings
-    # Each new paper needs min_matches comparisons (each match covers 2 papers)
-    # Plus top-K papers need extra matches for CI convergence
-    # Empirical multiplier: total matches ≈ papers * min_matches * 0.8
-    # (accounting for pair reuse, but top-K and CI add overhead)
+    # Cost estimate based on historical matches-per-paper ratio
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 5)
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 12)
-
-    # Base: each paper needs min_matches, each match covers 2 papers
-    base_matches = weekly_papers * min_matches // 2
-    # Top-K overhead: top papers get ~3x more matches for CI convergence
-    topk_overhead = min(top_k, weekly_papers) * min_matches
-    matches_needed = base_matches + topk_overhead
-
-    # Cost per match: average across 3 models (~$0.015 per comparison)
-    avg_cost_per_match = 0.015
-    weekly_cost = round(matches_needed * avg_cost_per_match, 2)
 
     # Check if we already have papers for this category
     existing_papers = await db.papers.count_documents({"categories.0": cat_id})
     existing_matches = await db.matches.count_documents(
         {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id, "mode": {"$exists": False}}
     )
+
+    # Calculate matches-per-paper ratio from historical data across ALL categories
+    # This captures the real cost including CI convergence, top-K focus, and re-matches
+    total_hist_papers = 0
+    total_hist_matches = 0
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+    for ac in active_cats:
+        hp = await db.papers.count_documents({"categories.0": ac})
+        hm = await db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": ac, "mode": {"$exists": False}}
+        )
+        total_hist_papers += hp
+        total_hist_matches += hm
+
+    # Use historical ratio if available, otherwise estimate from settings
+    if total_hist_papers >= 20 and total_hist_matches >= 100:
+        matches_per_paper = total_hist_matches / total_hist_papers
+    else:
+        # Theoretical estimate when no history: min_matches * ~4 (empirical multiplier
+        # accounting for CI convergence rounds, top-K focus, and re-matching)
+        matches_per_paper = min_matches * 4
+
+    matches_needed = round(weekly_papers * matches_per_paper)
+
+    # Cost per match: average across 3 models (~$0.015 per comparison)
+    avg_cost_per_match = 0.015
+    weekly_cost = round(matches_needed * avg_cost_per_match, 2)
 
     return {
         "category_id": cat_id,
