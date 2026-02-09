@@ -101,10 +101,17 @@ export default function AdminPage() {
     await Promise.all([fetchGlobalSettings(), fetchLiveData()]);
   }, [fetchGlobalSettings, fetchLiveData]);
 
+  // Initial load: fetch everything
   useEffect(() => {
     if (!sessionStorage.getItem("admin_token")) { navigate("/admin"); return; }
-    fetchAll();
-  }, [fetchAll, navigate]);
+    fetchGlobalSettings();
+  }, [fetchGlobalSettings, navigate]);
+
+  // When category changes, only fetch category-specific data (fast)
+  useEffect(() => {
+    if (!adminCat || !sessionStorage.getItem("admin_token")) return;
+    fetchLiveData();
+  }, [adminCat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const interval = setInterval(fetchLiveData, 15000);
