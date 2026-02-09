@@ -250,18 +250,37 @@ export default function LeaderboardPage() {
             ))}
             {categories.length > 5 && (
               <div className="relative shrink-0" ref={moreCatsRef}>
-                <Button
-                  variant={!isTagMode && categories.slice(5).some(c => c.id === category) ? "default" : "ghost"}
-                  size="sm"
-                  className="text-xs h-8 gap-1 shrink-0"
-                  onClick={() => setMoreCatsOpen(v => !v)}
-                  disabled={isTagMode}
-                  data-testid="more-categories-btn"
-                >
-                  {categories.slice(5).find(c => c.id === category)?.name || "More"}
-                  <ChevronDown className={`h-3 w-3 transition-transform ${moreCatsOpen ? "rotate-180" : ""}`} />
-                </Button>
-                {moreCatsOpen && (
+                {isLoggedIn ? (
+                  <Button
+                    variant={!isTagMode && categories.slice(5).some(c => c.id === category) ? "default" : "ghost"}
+                    size="sm"
+                    className="text-xs h-8 gap-1 shrink-0"
+                    onClick={() => setMoreCatsOpen(v => !v)}
+                    disabled={isTagMode}
+                    data-testid="more-categories-btn"
+                  >
+                    {categories.slice(5).find(c => c.id === category)?.name || "More"}
+                    <ChevronDown className={`h-3 w-3 transition-transform ${moreCatsOpen ? "rotate-180" : ""}`} />
+                  </Button>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-8 gap-1 shrink-0 opacity-50"
+                        onClick={requireAuth}
+                        data-testid="more-categories-btn-locked"
+                      >
+                        <Lock className="h-3 w-3" />
+                        More
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p className="text-xs">Sign in to access more categories</p></TooltipContent>
+                  </Tooltip>
+                )}
+                {moreCatsOpen && isLoggedIn && (
                   <div className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-48 py-1" style={{ top: moreCatsRef.current?.getBoundingClientRect().bottom + 4, left: moreCatsRef.current?.getBoundingClientRect().left }} data-testid="more-categories-dropdown">
                     {categories.slice(5).map((c) => (
                       <button
