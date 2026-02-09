@@ -252,7 +252,12 @@ async def _scheduler_loop():
 
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
-    """Check if both ranking goals are satisfied for a category."""
+    """Check if all ranking goals are satisfied for a category.
+    
+    Goal 1: All papers have >= min_matches
+    Goal 2: Top-K papers have CI <= ci_target
+    Goal 3: All top-K papers have played against each other at least once
+    """
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     max_matches = settings.get("max_matches_per_paper", 150)
@@ -266,6 +271,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     pid_set = set(paper_ids)
     paper_match_count = {pid: 0 for pid in paper_ids}
     paper_wins = {pid: 0 for pid in paper_ids}
+    compared_pairs = set()
 
     # Use indexed query on primary_category instead of full collection scan
     async for m in db.matches.find(
@@ -275,20 +281,25 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
             paper_match_count[m["paper1_id"]] += 1
             paper_match_count[m["paper2_id"]] += 1
+            compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
             w = m.get("winner_id")
             if w and w in paper_wins:
                 paper_wins[w] += 1
 
+    # Goal 1: min matches per paper
     for c in paper_match_count.values():
         if c < min_matches:
             return False
 
+    # Identify top-K by win rate
     sorted_papers = sorted(
         paper_match_count.keys(),
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
         reverse=True,
     )
     top_k_ids = sorted_papers[:min(top_k, len(sorted_papers))]
+
+    # Goal 2: CI convergence for top-K
     for pid in top_k_ids:
         n = paper_match_count[pid]
         if n >= max_matches:
@@ -297,6 +308,13 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         margin_pct = _wilson_margin_pct(w, n)
         if margin_pct > ci_target:
             return False
+
+    # Goal 3: Top-K cross-matches — every pair of top-K papers must have played
+    for i in range(len(top_k_ids)):
+        for j in range(i + 1, len(top_k_ids)):
+            pair = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
+            if pair not in compared_pairs:
+                return False
 
     return True
 
