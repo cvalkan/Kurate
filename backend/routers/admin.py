@@ -125,6 +125,10 @@ async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()
 
 @router.get("/status", dependencies=[Depends(verify_admin)])
 async def get_admin_status(category: str = "cs.RO"):
+    cached = _get_admin_cached("status", category)
+    if cached:
+        return cached
+
     total_papers = await db.papers.count_documents({"categories.0": category})
 
     # Use indexed count queries instead of scanning all matches
@@ -180,7 +184,7 @@ async def get_admin_status(category: str = "cs.RO"):
     # Per-category scheduler status
     cat_scheduler = _get_cat_status(category)
 
-    return {
+    result = {
         "total_papers": total_papers,
         "total_matches": total_matches,
         "failed_matches": failed_matches,
@@ -189,6 +193,8 @@ async def get_admin_status(category: str = "cs.RO"):
         "scheduler": cat_scheduler,
         "recent_matches": enriched_recent,
     }
+    _set_admin_cached("status", category, result)
+    return result
 
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
