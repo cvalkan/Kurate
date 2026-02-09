@@ -8,6 +8,7 @@ import MethodologyPage from "@/pages/MethodologyPage";
 import PaperPage from "@/pages/PaperPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import AdminPage from "@/pages/AdminPage";
+import PromptsPage from "@/pages/PromptsPage";
 import AuthCallback from "@/pages/AuthCallback";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import Navbar from "@/components/Navbar";
