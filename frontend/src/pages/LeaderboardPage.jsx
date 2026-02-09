@@ -584,13 +584,12 @@ export default function LeaderboardPage() {
 
       {/* Leaderboard Table */}
       {(() => {
-        const kw = keyword.toLowerCase().trim();
-        const displayList = kw
-          ? leaderboard.filter(p => p.title.toLowerCase().includes(kw))
-          : leaderboard;
-        const isFiltered = kw && displayList.length !== leaderboard.length;
+        const showCatCol = isTagMode;
+        const ROW_HEIGHT = 52;
+        const MAX_VISIBLE = 50;
+        const listHeight = Math.min(leaderboard.length, MAX_VISIBLE) * ROW_HEIGHT;
 
-        // Helper: pick the right stat based on Global/Local toggle
+        // Helpers: pick the right stat based on Global/Local toggle
         const getScore = (paper) => {
           if (hasSelectedTags && globalStats && paper.global_score !== undefined) return paper.global_score;
           return paper.score;
@@ -608,63 +607,19 @@ export default function LeaderboardPage() {
           return paper.wilson_margin;
         };
 
-        const showCatCol = isTagMode;
-        // Infinite scroll: only render up to displayCount items
-        const visibleList = displayList.slice(0, displayCount);
-        const hasMore = displayList.length > visibleList.length;
+        const gridCls = showCatCol
+          ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_7rem]"
+          : "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem]";
 
-        return loading ? (
-        <div className="space-y-3" data-testid="loading-skeleton">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-14 bg-secondary/30 rounded-lg animate-pulse" />
-          ))}
-        </div>
-      ) : displayList.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground" data-testid="empty-state">
-          <Trophy className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">
-            {kw ? `No papers matching "${keyword}".` : `No papers found for this ${hasSelectedTags ? "tag combination" : "period"}.`}
-          </p>
-          <p className="text-xs mt-1">{kw ? "Try different keywords." : hasSelectedTags ? "Try different tags, switch to OR mode, or clear the filter." : "Try a broader time range."}</p>
-        </div>
-      ) : (
-        <>
-        {isFiltered && (
-          <div className="text-xs text-muted-foreground mb-2">
-            Showing {displayList.length} of {leaderboard.length} papers matching "{keyword}"
-          </div>
-        )}
-        <div className="border border-border rounded-lg overflow-x-auto" data-testid="leaderboard-table">
-          <div className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border ${
-            showCatCol
-              ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_7rem]"
-              : "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem]"
-          }`}>
-            <div>#</div>
-            <div>Paper</div>
-            {showCatCol && <div className="text-center hidden sm:block">Cat</div>}
-            <div className="text-right">
-              {hasSelectedTags && globalStats ? "Score (G)" : "Score"}
-            </div>
-            <div className="text-right hidden sm:block">
-              {hasSelectedTags && globalStats ? "Win % (G)" : "Win %"}
-            </div>
-            <div className="text-right hidden sm:block">95% CI</div>
-            <div className="text-right hidden sm:block">
-              {hasSelectedTags && globalStats ? "Mtch (G)" : "Mtch"}
-            </div>
-            <div className="text-right hidden md:block">Published</div>
-          </div>
-          {visibleList.map((paper, idx) => (
-            <Link
-              key={paper.id}
-              to={`/paper/${paper.id}`}
-              className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${
-                showCatCol
-                  ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_7rem]"
-                  : "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem]"
-              } ${idx < 3 && !kw ? "bg-accent/[0.02]" : ""}`}
-              data-testid={`leaderboard-row-${idx}`}
+        const Row = ({ index, style }) => {
+          const paper = leaderboard[index];
+          if (!paper) return null;
+          return (
+            <div
+              style={style}
+              className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${gridCls} ${index < 3 && !debouncedKeyword ? "bg-accent/[0.02]" : ""}`}
+              onClick={() => navigate(`/paper/${paper.id}`)}
+              data-testid={`leaderboard-row-${index}`}
             >
               <div><RankBadge rank={paper.rank} /></div>
               <div className="min-w-0">
@@ -693,15 +648,60 @@ export default function LeaderboardPage() {
               <div className="text-right text-xs text-muted-foreground hidden md:block">
                 {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
               </div>
-            </Link>
+            </div>
+          );
+        };
+
+        return loading ? (
+        <div className="space-y-3" data-testid="loading-skeleton">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="h-14 bg-secondary/30 rounded-lg animate-pulse" />
           ))}
         </div>
-        {/* Infinite scroll sentinel */}
-        {hasMore && (
-          <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">
-            Loading more...
+      ) : leaderboard.length === 0 ? (
+        <div className="text-center py-20 text-muted-foreground" data-testid="empty-state">
+          <Trophy className="h-10 w-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">
+            {debouncedKeyword ? `No papers matching "${keyword}".` : `No papers found for this ${hasSelectedTags ? "tag combination" : "period"}.`}
+          </p>
+          <p className="text-xs mt-1">{debouncedKeyword ? "Try different keywords." : hasSelectedTags ? "Try different tags, switch to OR mode, or clear the filter." : "Try a broader time range."}</p>
+        </div>
+      ) : (
+        <>
+        {debouncedKeyword && (
+          <div className="text-xs text-muted-foreground mb-2">
+            Showing {leaderboard.length} papers matching "{keyword}"
           </div>
         )}
+        <div className="border border-border rounded-lg overflow-hidden" data-testid="leaderboard-table">
+          {/* Sticky header */}
+          <div className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border ${gridCls}`}>
+            <div>#</div>
+            <div>Paper</div>
+            {showCatCol && <div className="text-center hidden sm:block">Cat</div>}
+            <div className="text-right">
+              {hasSelectedTags && globalStats ? "Score (G)" : "Score"}
+            </div>
+            <div className="text-right hidden sm:block">
+              {hasSelectedTags && globalStats ? "Win % (G)" : "Win %"}
+            </div>
+            <div className="text-right hidden sm:block">95% CI</div>
+            <div className="text-right hidden sm:block">
+              {hasSelectedTags && globalStats ? "Mtch (G)" : "Mtch"}
+            </div>
+            <div className="text-right hidden md:block">Published</div>
+          </div>
+          {/* Virtualized rows */}
+          <FixedSizeList
+            height={listHeight}
+            itemCount={leaderboard.length}
+            itemSize={ROW_HEIGHT}
+            width="100%"
+            overscanCount={10}
+          >
+            {Row}
+          </FixedSizeList>
+        </div>
         </>
       );
       })()}
