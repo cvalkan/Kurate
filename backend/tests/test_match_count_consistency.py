@@ -170,16 +170,17 @@ class TestSchedulerStatus:
         assert data["goals_met"] == True, \
             f"cs.DC goals_met should be True, got: {data['goals_met']}"
 
-    def test_other_categories_goals_met_idle(self):
-        """Other categories (cs.DC, econ.GN, etc.) should show 'Goals met — idle'."""
-        response = requests.get(f"{BASE_URL}/api/status")
-        assert response.status_code == 200
-        data = response.json()
-        
-        scheduler_cats = data["scheduler"]["categories"]
+    def test_other_categories_goals_met_idle(self, admin_headers):
+        """Other categories should have goals_met=True in progress endpoint."""
         for cat in ["cs.DC", "econ.GN", "physics.comp-ph", "q-bio.BM"]:
-            assert scheduler_cats[cat] == "Goals met — idle", \
-                f"{cat} should show 'Goals met — idle', got: {scheduler_cats[cat]}"
+            response = requests.get(
+                f"{BASE_URL}/api/admin/progress?category={cat}",
+                headers=admin_headers
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["goals_met"] == True, \
+                f"{cat} should have goals_met=True, got: {data['goals_met']}"
 
 
 class TestPaperDetailMatchCount:
