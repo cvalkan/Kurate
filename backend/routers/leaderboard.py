@@ -92,36 +92,11 @@ async def _refresh_cache():
                 e["rank"] = i + 1
             return filtered
 
-        # Compute is_ranking from match data already in memory
-        cat_match_counts = {pid: 0 for pid in cat_paper_ids}
-        cat_win_counts = {pid: 0 for pid in cat_paper_ids}
-        for m in cat_matches:
-            if m["paper1_id"] in cat_match_counts:
-                cat_match_counts[m["paper1_id"]] += 1
-            if m["paper2_id"] in cat_match_counts:
-                cat_match_counts[m["paper2_id"]] += 1
-            w = m.get("winner_id")
-            if w and w in cat_win_counts:
-                cat_win_counts[w] += 1
-
-        goal1_unmet = any(c < _min for c in cat_match_counts.values()) if cat_match_counts else False
-        goal2_unmet = False
-        if cat_match_counts and len(cat_match_counts) >= 2:
-            sorted_by_wr = sorted(
-                cat_paper_ids,
-                key=lambda pid: cat_win_counts.get(pid, 0) / max(cat_match_counts.get(pid, 0), 1),
-                reverse=True,
-            )
-            top_k_ids = sorted_by_wr[:min(_top_k, len(sorted_by_wr))]
-            for pid in top_k_ids:
-                n = cat_match_counts.get(pid, 0)
-                if n >= _max_matches:
-                    continue
-                w = cat_win_counts.get(pid, 0)
-                margin = _wilson_margin_pct(w, n)
-                if margin > _ci_target:
-                    goal2_unmet = True
-                    break
+        # Use tournament registry for is_ranking status (single source of truth)
+        tournament = await db.tournaments.find_one(
+            {"category": cat_id, "mode": "standard"}, {"_id": 0, "stats": 1}
+        )
+        is_ranking = not (tournament and tournament.get("stats", {}).get("goals_met", False))
 
         categories_data[cat_id] = {
             "all": full,
