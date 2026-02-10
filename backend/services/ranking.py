@@ -199,8 +199,8 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     return leaderboard
 
 
-def _wilson_margin_pct(wins, comparisons):
-    """Wilson CI half-width as percentage points (e.g. 5.2 means ±5.2%)."""
+def wilson_margin_pct(wins, comparisons):
+    """Wilson CI half-width as percentage points (e.g. 5.2 means +/-5.2%). Single source of truth."""
     from scipy import stats as scipy_stats
     if comparisons == 0:
         return 0
