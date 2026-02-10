@@ -174,7 +174,7 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
         w, n = s["wins"], s["comparisons"]
 
         # Wilson CI margin (same metric used for goal convergence)
-        wilson_m = _wilson_margin_pct(w, n)
+        wilson_m = wilson_margin_pct(w, n)
 
         # Win rate
         win_rate = round(100 * w / n, 1) if n > 0 else 0
