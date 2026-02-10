@@ -119,6 +119,5 @@ frontend/src/
 - P2: Refactor matchmaking with BT uncertainty-based pairing + regularization priors
 - P3: Formalize Judge & Cohorts (extend match schema with judge metadata)
 - P3: Global Tournaments & UI Clarity (explicit cross-category tournaments)
-- P3: LeaderboardPage.jsx decomposition (500+ lines)
 - P3: Historical ranking trends
 - P3: Paper abstract preview on hover
