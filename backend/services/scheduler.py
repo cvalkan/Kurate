@@ -321,7 +321,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         if n >= max_matches:
             continue
         w = paper_wins.get(pid, 0)
-        margin_pct = _wilson_margin_pct(w, n)
+        margin_pct = wilson_margin_pct(w, n)
         if margin_pct > ci_target:
             return False
 
@@ -338,7 +338,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     return True
 
 
-def _wilson_margin_pct(wins, comparisons):
+def wilson_margin_pct(wins, comparisons):
     """Wilson CI half-width as percentage points."""
     from scipy import stats as scipy_stats
     if comparisons == 0:
@@ -671,7 +671,7 @@ async def _generate_pending_summaries(category: str = None):
         if n < 3:
             continue
 
-        margin = _wilson_margin_pct(w, n)
+        margin = wilson_margin_pct(w, n)
         is_converged = margin <= ci_target or n >= max_matches
 
         if not is_converged:
@@ -754,7 +754,7 @@ def _select_pairs(
         if c >= max_matches:
             capped.add(pid)
         win_rates[pid] = w / max(c, 1)
-        ci_widths[pid] = _wilson_margin_pct(w, c)
+        ci_widths[pid] = wilson_margin_pct(w, c)
 
     active = [pid for pid in paper_ids if pid not in capped]
     if len(active) < 2:
