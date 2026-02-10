@@ -24,19 +24,27 @@ _DEFAULT_RATE = (120, 60)  # 120 per 60s for all other endpoints
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    ip = request.client.host if request.client else "unknown"
+    # Use X-Forwarded-For for real client IP behind proxy/K8s ingress
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
     path = request.url.path
     max_requests, window = _RATE_LIMITS.get(path, _DEFAULT_RATE)
     key = f"{ip}:{path}" if path in _RATE_LIMITS else ip
 
     now = _time.time()
-    # Prune old entries
     _rate_buckets[key] = [t for t in _rate_buckets[key] if now - t < window]
 
     if len(_rate_buckets[key]) >= max_requests:
         return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Please slow down."})
 
     _rate_buckets[key].append(now)
+
+    # Periodic cleanup of stale buckets (every ~1000 requests)
+    if len(_rate_buckets) > 5000:
+        stale = [k for k, v in _rate_buckets.items() if not v or now - v[-1] > 120]
+        for k in stale:
+            del _rate_buckets[k]
+
     return await call_next(request)
 
 
