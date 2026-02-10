@@ -9,7 +9,7 @@ from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
 from core.auth import get_settings
 from services.arxiv import fetch_arxiv_papers
 from services.llm import download_and_extract_pdf, compare_papers
-from services.ranking import calculate_confidence_interval
+from services.ranking import calculate_confidence_interval, wilson_margin_pct
 
 _scheduler_running = False
 _processing_locks = {}  # Per-category locks
