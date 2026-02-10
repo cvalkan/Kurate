@@ -129,14 +129,6 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
                 stats[loser]["losses"] += 1
                 stats[loser]["comparisons"] += 1
 
-    # Convert BT scores to Elo (LMArena style)
-    # Use log-scale centered on geometric mean, mapped to Elo base
-    bt_values = [max(scores.get(pid, 1.0), 1e-10) for pid in paper_ids if stats.get(pid, {}).get("comparisons", 0) > 0]
-    if bt_values:
-        geo_mean = math.exp(sum(math.log(v) for v in bt_values) / len(bt_values))
-    else:
-        geo_mean = 1.0
-
     elo_scores = {}
     elo_ci = {}
     for pid in paper_ids:
