@@ -38,6 +38,8 @@ export default function LeaderboardPage() {
   const [debouncedKeyword, setDebouncedKeyword] = useState(searchParams.get("q") || "");
   const [globalStats, setGlobalStats] = useState(searchParams.get("global") === "1");
   const [displayCount, setDisplayCount] = useState(50);
+  const [sortKey, setSortKey] = useState(searchParams.get("sort") || "rank");
+  const [sortDir, setSortDir] = useState(searchParams.get("dir") || "asc");
 
   const { user } = useAuth();
   const [showSuggestion, setShowSuggestion] = useState(false);
