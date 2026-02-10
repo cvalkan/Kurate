@@ -261,31 +261,17 @@ async def get_progress_estimate(category: str = "cs.RO"):
     paper_wins = {pid: 0 for pid in all_paper_ids}
     compared_pairs = set()
 
-    # Use in-memory matches if available
-    if raw_matches:
-        for m in raw_matches:
-            if m.get("primary_category") != category:
-                continue
-            p1, p2 = m["paper1_id"], m["paper2_id"]
-            if p1 in pid_set and p2 in pid_set:
-                paper_match_count[p1] += 1
-                paper_match_count[p2] += 1
-                compared_pairs.add(tuple(sorted([p1, p2])))
-                w = m.get("winner_id")
-                if w and w in paper_wins:
-                    paper_wins[w] += 1
-    else:
-        async for m in db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-        ):
-            if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
-                paper_match_count[m["paper1_id"]] += 1
-                paper_match_count[m["paper2_id"]] += 1
-                compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
-                w = m.get("winner_id")
-                if w and w in paper_wins:
-                    paper_wins[w] += 1
+    for m in raw_matches:
+        if m.get("primary_category") != category:
+            continue
+        p1, p2 = m["paper1_id"], m["paper2_id"]
+        if p1 in pid_set and p2 in pid_set:
+            paper_match_count[p1] += 1
+            paper_match_count[p2] += 1
+            compared_pairs.add(tuple(sorted([p1, p2])))
+            w = m.get("winner_id")
+            if w and w in paper_wins:
+                paper_wins[w] += 1
 
     # Goal 1: All papers at min matches
     papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
