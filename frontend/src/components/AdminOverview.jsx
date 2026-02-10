@@ -79,7 +79,7 @@ export function AdminOverview({
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Papers" value={status.total_papers} icon={FileText} />
-        <StatCard label="Matches" value={status.total_matches} icon={Swords} />
+        <StatCard label="Matches" value={Math.max(status.total_matches || 0, progress?.total_matches || 0)} icon={Swords} />
         <StatCard label="Failed" value={status.failed_matches} icon={XCircle} />
         <StatCard label="Unranked" value={status.unranked_papers} icon={Activity} />
       </div>
