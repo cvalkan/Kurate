@@ -85,6 +85,7 @@ def is_valid_admin_token(token: str) -> bool:
 async def get_admin_settings():
     settings = await get_settings()
     settings.pop("_id", None)
+    settings.pop("admin_password", None)
     return {"settings": settings}
 
 
