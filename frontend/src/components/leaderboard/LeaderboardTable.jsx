@@ -1,21 +1,25 @@
 import { useRef, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Trophy, ArrowUp, ArrowDown } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RankBadge } from "./RankBadge";
 
-const SORT_COLUMNS = [
-  { key: "rank", label: "#", align: "left" },
-  { key: "title", label: "Paper", align: "left" },
-  { key: "score", label: "Score", align: "right", hideOnMobile: false },
-  { key: "win_rate", label: "Win %", align: "right", hideOnMobile: true },
-  { key: "wilson_margin", label: "95% CI", align: "right", hideOnMobile: true },
-  { key: "comparisons", label: "Mtch", align: "right", hideOnMobile: true },
-  { key: "published", label: "Published", align: "right", hideOnTablet: true },
-];
+const COLUMN_TIPS = {
+  rank: "Position based on Elo score (higher = better). Click to restore default ranking.",
+  title: "Paper title. Click to sort alphabetically.",
+  score: "Elo-style rating from Bradley-Terry model. 1200 = average, higher = stronger.",
+  score_g: "Elo score from ALL matches across all categories (Bradley-Terry). Reflects overall performance.",
+  win_rate: "Percentage of head-to-head comparisons won within this set.",
+  win_rate_g: "Win rate across ALL matches the paper has participated in, not just this filtered set.",
+  wilson_margin: "95% Wilson confidence interval half-width. Lower = more certain. \u00B16% at 99% means true rate is likely 93\u2013100%.",
+  comparisons: "Number of head-to-head LLM comparisons this paper has participated in within this set.",
+  comparisons_g: "Total comparisons across ALL categories, including matches outside this filtered set.",
+  published: "arXiv publication date.",
+};
 
-function SortHeader({ label, sortKey, currentSort, currentDir, onSort, className }) {
+function SortHeader({ label, sortKey, currentSort, currentDir, onSort, className, tip }) {
   const isActive = currentSort === sortKey;
-  return (
+  const btn = (
     <button
       onClick={() => onSort(sortKey)}
       className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${isActive ? "text-foreground" : ""} ${className || ""}`}
@@ -24,6 +28,13 @@ function SortHeader({ label, sortKey, currentSort, currentDir, onSort, className
       {label}
       {isActive && (currentDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
     </button>
+  );
+  if (!tip) return btn;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{btn}</TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">{tip}</p></TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -45,14 +56,25 @@ export function LeaderboardTable({
     return () => observer.disconnect();
   }, [leaderboard, setDisplayCount]);
 
-  const getScore = (p) => hasSelectedTags && globalStats && p.global_score !== undefined ? p.global_score : p.score;
-  const getWinRate = (p) => hasSelectedTags && globalStats && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
-  const getComparisons = (p) => hasSelectedTags && globalStats && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
-  const getWilsonMargin = (p) => hasSelectedTags && globalStats ? null : p.wilson_margin;
+  const isGlobal = hasSelectedTags && globalStats;
+  const getScore = (p) => isGlobal && p.global_score !== undefined ? p.global_score : p.score;
+  const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
+  const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
+  const getWilsonMargin = (p) => isGlobal ? null : p.wilson_margin;
 
-  // Sort the leaderboard
+  // Re-rank by global score when Global toggle is active, then apply user sort
   const sorted = useMemo(() => {
-    if (!sortKey || sortKey === "rank") return leaderboard;
+    // Step 1: Re-rank by the active score metric
+    let ranked;
+    if (isGlobal) {
+      ranked = [...leaderboard].sort((a, b) => (b.global_score || 0) - (a.global_score || 0));
+      ranked.forEach((p, i) => { p._displayRank = i + 1; });
+    } else {
+      ranked = leaderboard.map(p => ({ ...p, _displayRank: p.rank }));
+    }
+
+    // Step 2: Apply user sort (if not default rank)
+    if (!sortKey || sortKey === "rank") return ranked;
     const getValue = (p) => {
       switch (sortKey) {
         case "title": return p.title?.toLowerCase() || "";
@@ -65,13 +87,13 @@ export function LeaderboardTable({
       }
     };
     const dir = sortDir === "asc" ? 1 : -1;
-    return [...leaderboard].sort((a, b) => {
+    return [...ranked].sort((a, b) => {
       const va = getValue(a), vb = getValue(b);
       if (va < vb) return -1 * dir;
       if (va > vb) return 1 * dir;
       return 0;
     });
-  }, [leaderboard, sortKey, sortDir, hasSelectedTags, globalStats]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leaderboard, sortKey, sortDir, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gridCls = showCatCol
     ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_7rem]"
@@ -80,9 +102,9 @@ export function LeaderboardTable({
   const visibleList = sorted.slice(0, displayCount);
   const hasMore = sorted.length > visibleList.length;
 
-  const scoreLabel = hasSelectedTags && globalStats ? "Score (G)" : "Score";
-  const winLabel = hasSelectedTags && globalStats ? "Win % (G)" : "Win %";
-  const matchLabel = hasSelectedTags && globalStats ? "Mtch (G)" : "Mtch";
+  const scoreLabel = isGlobal ? "Score (G)" : "Score";
+  const winLabel = isGlobal ? "Win % (G)" : "Win %";
+  const matchLabel = isGlobal ? "Mtch (G)" : "Mtch";
 
   if (loading) {
     return (
@@ -111,14 +133,14 @@ export function LeaderboardTable({
       )}
       <div className="border border-border rounded-lg overflow-x-auto" data-testid="leaderboard-table">
         <div className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none ${gridCls}`}>
-          <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
-          <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
+          <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
+          <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
           {showCatCol && <div className="text-center hidden sm:block">Cat</div>}
-          <SortHeader label={scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
-          <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" />
-          <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" />
-          <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" />
-          <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden md:flex" />
+          <SortHeader label={scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
+          <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />
+          <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={COLUMN_TIPS.wilson_margin} />
+          <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />
+          <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden md:flex" tip={COLUMN_TIPS.published} />
         </div>
         {visibleList.map((paper, idx) => (
           <Link
@@ -127,7 +149,7 @@ export function LeaderboardTable({
             className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${gridCls} ${idx < 3 && !debouncedKeyword && (!sortKey || sortKey === "rank") ? "bg-accent/[0.02]" : ""}`}
             data-testid={`leaderboard-row-${idx}`}
           >
-            <div><RankBadge rank={paper.rank} /></div>
+            <div><RankBadge rank={paper._displayRank ?? paper.rank} /></div>
             <div className="min-w-0">
               <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
