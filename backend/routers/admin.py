@@ -368,24 +368,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     return result
 
 
-def _wilson_margin(wins, comparisons):
-    """Wilson score CI half-width (0 to 0.5 range)."""
-    from scipy import stats as scipy_stats
-    if comparisons == 0:
-        return 0.5
-    p = wins / comparisons
-    n = comparisons
-    z = scipy_stats.norm.ppf(0.975)
-    denom = 1 + z**2 / n
-    center = (p + z**2 / (2*n)) / denom
-    spread = z * ((p*(1-p) + z**2/(4*n)) / n) ** 0.5 / denom
-    lower = max(0, center - spread)
-    upper = min(1, center + spread)
-    return (upper - lower) / 2
-
-
 def _elo_ci(wins, comparisons):
-    import math
     if comparisons < 2:
         return 999
     p = max(0.02, min(0.98, (wins + 0.5) / (comparisons + 1.0)))
