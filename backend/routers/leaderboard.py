@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from collections import Counter
@@ -6,8 +6,11 @@ import asyncio
 import time
 from core.config import db, logger, CATEGORIES
 from services.ranking import compute_leaderboard, calculate_confidence_interval
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter(prefix="/api")
+_limiter = Limiter(key_func=get_remote_address)
 
 # Pre-computed cache — refreshed in the background, never blocks requests
 _cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0}
