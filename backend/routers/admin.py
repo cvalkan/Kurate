@@ -64,7 +64,6 @@ _admin_sessions = set()
 
 
 @router.post("/login")
-@_limiter.limit("5/minute")
 async def admin_login(body: AdminLogin, request: Request):
     settings = await get_settings()
     if body.password != settings.get("admin_password", DEFAULT_SETTINGS["admin_password"]):
