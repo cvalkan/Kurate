@@ -148,19 +148,22 @@ async def get_admin_status(category: str = "cs.RO"):
     if cached:
         return cached
 
-    # Use leaderboard cache for paper/match counts when available
     from routers.leaderboard import _cache as lb_cache
     lb_cat_data = lb_cache.get("categories", {}).get(category, {})
     raw_matches = lb_cache.get("_raw_matches", [])
 
+    # Paper count from leaderboard cache or DB
     if lb_cat_data:
         total_papers = lb_cat_data.get("_papers", 0)
-        total_matches = lb_cat_data.get("_matches", 0)
     else:
         total_papers = await db.papers.count_documents({"categories.0": category})
-        total_matches = await db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
-        )
+
+    # Match count: scheduler live count is the single source of truth
+    cat_scheduler = _get_cat_status(category)
+    total_matches = cat_scheduler.get("matches_count", 0)
+    # Fallback to leaderboard cache if scheduler hasn't populated yet
+    if total_matches == 0 and lb_cat_data:
+        total_matches = lb_cat_data.get("_matches", 0)
 
     failed_by_cat = lb_cache.get("_failed_by_cat", {})
     if failed_by_cat:
