@@ -82,10 +82,6 @@ def is_valid_admin_token(token: str) -> bool:
     """Check if token is a valid admin session or the legacy password."""
     if token in _admin_sessions:
         return True
-    # Legacy: accept password directly (existing sessions)
-    import asyncio
-    loop = asyncio.get_event_loop()
-    # Sync check against default password (fast, no await needed)
     return token == DEFAULT_SETTINGS.get("admin_password", "")
 
 
