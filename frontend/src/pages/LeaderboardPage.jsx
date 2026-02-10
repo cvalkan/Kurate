@@ -206,6 +206,7 @@ export default function LeaderboardPage() {
         hasSelectedTags={hasSelectedTags} globalStats={globalStats}
         debouncedKeyword={debouncedKeyword} keyword={keyword}
         displayCount={displayCount} setDisplayCount={setDisplayCount}
+        sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
       />
 
       <div className="mt-6 text-center text-xs text-muted-foreground">
