@@ -670,7 +670,7 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
         for p1_id, p2_id in presented:
             tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config, abstract_only=abstract_only))
 
-        results = await aio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for (p1_id, p2_id), result in zip(presented, results):
             match_doc = {
@@ -695,7 +695,7 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
                 completed += 1
 
             await db.matches.insert_one(match_doc)
-        await aio.sleep(0.5)
+        await asyncio.sleep(0.5)
 
     logger.info(f"Prediction round for {category}: {completed}/{len(pairs)} completed")
 
