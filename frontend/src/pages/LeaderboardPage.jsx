@@ -52,6 +52,15 @@ export default function LeaderboardPage() {
   const hasSelectedTags = selectedTags.length > 0;
   const isTagMode = tagFilterOpen || hasSelectedTags;
 
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir(key === "title" || key === "published" ? "asc" : "desc");
+    }
+  };
+
   // Sync state → URL (replaceState)
   const syncRef = useRef(false);
   useEffect(() => {
@@ -64,9 +73,11 @@ export default function LeaderboardPage() {
     if (tagFilterOpen && !selectedTags.length) p.set("tagOpen", "1");
     if (debouncedKeyword) p.set("q", debouncedKeyword);
     if (globalStats) p.set("global", "1");
+    if (sortKey && sortKey !== "rank") p.set("sort", sortKey);
+    if (sortKey && sortKey !== "rank" && sortDir !== "asc") p.set("dir", sortDir);
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [category, period, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode]);
+  }, [category, period, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir]);
 
   // Notify navbar
   useEffect(() => {
