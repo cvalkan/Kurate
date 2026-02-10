@@ -96,6 +96,8 @@ async def startup():
             pass
         await db.tournaments.create_index("tournament_id", unique=True)
         await db.tournaments.create_index([("status", 1), ("category", 1)])
+        # Admin sessions collection
+        await db.admin_sessions.create_index("key", unique=True)
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
