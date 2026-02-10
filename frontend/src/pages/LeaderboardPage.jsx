@@ -113,10 +113,11 @@ export default function LeaderboardPage() {
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
       setCategories(res.data.categories || []);
-      setCategory(res.data.default || "cs.RO");
+      // Only set default category if not restored from URL
+      if (!category) setCategory(res.data.default || "cs.RO");
     }).catch(() => {
       setCategories([{ id: "cs.RO", name: "Robotics" }]);
-      setCategory("cs.RO");
+      if (!category) setCategory("cs.RO");
     });
     axios.get(`${API}/api/tags`).then(res => {
       setAllTags(res.data.tags || []);
