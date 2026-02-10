@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import os
 from core.config import db, logger
 from routers.leaderboard import router as leaderboard_router
@@ -8,7 +12,16 @@ from routers.auth import router as auth_router
 from routers.suggestions import router as suggestions_router
 from services.scheduler import start_scheduler
 
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+
 app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Please slow down."})
+
 
 app.include_router(leaderboard_router)
 app.include_router(admin_router)
