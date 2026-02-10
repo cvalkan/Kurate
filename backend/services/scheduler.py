@@ -338,22 +338,6 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     return True
 
 
-def wilson_margin_pct(wins, comparisons):
-    """Wilson CI half-width as percentage points."""
-    from scipy import stats as scipy_stats
-    if comparisons == 0:
-        return 50.0
-    p = wins / comparisons
-    n = comparisons
-    z = scipy_stats.norm.ppf(0.975)
-    denom = 1 + z**2 / n
-    center = (p + z**2 / (2 * n)) / denom
-    spread = z * ((p * (1 - p) + z**2 / (4 * n)) / n) ** 0.5 / denom
-    lower = max(0, center - spread)
-    upper = min(1, center + spread)
-    return (upper - lower) / 2 * 100
-
-
 async def run_fetch_cycle(category: str = "cs.RO"):
     if category in _fetching_cats:
         return {"status": "already_fetching"}
