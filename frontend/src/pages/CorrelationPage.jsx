@@ -114,7 +114,6 @@ export default function CorrelationPage() {
             The standard tournament uses <span className="font-medium">adaptive matchmaking</span> that deliberately over-samples contested pairs
             to converge rankings faster. This means the agreement rates above are <span className="font-medium">biased downward</span> — models are being
             tested disproportionately on the hardest cases. On a random sample of pairs, agreement would be substantially higher.
-            The Prediction tournament (available in Admin &rarr; Experiment) uses random pairing for unbiased comparison.
           </p>
         </div>
       </div>
