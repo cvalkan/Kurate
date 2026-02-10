@@ -11,6 +11,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function PaperPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
