@@ -86,6 +86,8 @@ frontend/src/
 - [Feb 2026] **Infinite scroll with progressive rendering** — IntersectionObserver sentinel loads 50 items at a time as user scrolls the page naturally. Combined with server-side search, the browser never handles more than 500 papers at once.
 - [Feb 2026] **Leaderboard state preservation via URL params** — Category, period, tags, search, tagMode, globalStats synced to URL query params via `replaceState`. Browser back button restores exact leaderboard view after visiting a paper detail page.
 - [Feb 2026] **Admin Tournament view optimization** — Admin endpoints (`/status`, `/stats`) now read from the leaderboard background cache instead of querying the DB. Cache TTL reduced from 8s to 5s. Frontend polls every 5s during active tournaments, 15s when idle. Category switching: ~35ms (was ~100-150ms).
+- [Feb 2026] **LeaderboardPage decomposition** — Split 754-line monolith into 209-line orchestrator + 6 focused components: CategoryTabs, TagFilter, StatusBar, StatsToggle, PeriodFilter, LeaderboardTable. All in `src/components/leaderboard/`.
+- [Feb 2026] **Security hardening** — Rate limiting (slowapi): 60/min global, 5/min on admin login, 10/min on model-correlation. Admin login now returns `adm_` session tokens instead of password. Input caps: limit<=1000, search<=200 chars, tags<=50. Legacy password-as-token still accepted for backward compat.
 
 ## Tournament Goal System (3 Goals)
 1. **Goal 1 (Min Matches)**: Every paper must have >= `min_matches_per_paper` comparisons
