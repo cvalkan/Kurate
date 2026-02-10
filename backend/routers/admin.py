@@ -295,8 +295,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     for pid in top_k_ids:
         n = paper_match_count[pid]
         w = paper_wins.get(pid, 0)
-        margin = float(_wilson_margin(w, n))
-        margin_pct = round(margin * 100, 1)
+        margin_pct = wilson_margin_pct(w, n)
         converged = bool(margin_pct <= ci_target or n >= max_matches)
         if converged:
             top_k_converged += 1
