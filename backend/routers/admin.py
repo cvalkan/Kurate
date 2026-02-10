@@ -365,7 +365,11 @@ async def get_progress_estimate(category: str = "cs.RO"):
 
     # Per-category counts
     cat_matches_done = sum(paper_match_count.values()) // 2  # each match counted twice
-    cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
+    # Count papers with PDF from in-memory cache
+    if raw_papers:
+        cat_papers_with_pdf = sum(1 for p in raw_papers if p.get("categories", [None])[0] == category and p.get("full_text") is not None)
+    else:
+        cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
 
     result = {
         "total_papers": total_papers,
