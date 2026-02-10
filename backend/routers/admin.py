@@ -132,36 +132,52 @@ async def get_admin_status(category: str = "cs.RO"):
     if cached:
         return cached
 
-    total_papers = await db.papers.count_documents({"categories.0": category})
+    # Use leaderboard cache for paper/match counts when available
+    from routers.leaderboard import _cache as lb_cache
+    lb_cat_data = lb_cache.get("categories", {}).get(category, {})
 
-    # Use indexed count queries instead of scanning all matches
-    total_matches = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
-    )
+    if lb_cat_data:
+        total_papers = lb_cat_data.get("_papers", 0)
+        total_matches = lb_cat_data.get("_matches", 0)
+    else:
+        total_papers = await db.papers.count_documents({"categories.0": category})
+        total_matches = await db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+        )
+
     failed_matches = await db.matches.count_documents(
         {"failed": True, "primary_category": category, "mode": {"$exists": False}}
     )
 
-    # Count papers with at least one match
-    cat_paper_ids = set()
-    async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-        cat_paper_ids.add(p["id"])
-    match_paper_ids = set()
-    async for m in db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
-    ).limit(5000):
-        match_paper_ids.add(m["paper1_id"])
-        match_paper_ids.add(m["paper2_id"])
-    unranked = len(cat_paper_ids - match_paper_ids)
+    # Count unranked papers using leaderboard cache if available
+    if lb_cat_data and lb_cat_data.get("all"):
+        ranked_ids = {e["id"] for e in lb_cat_data["all"] if e.get("comparisons", 0) > 0}
+        all_ids = {e["id"] for e in lb_cat_data["all"]}
+        unranked = len(all_ids - ranked_ids)
+    else:
+        cat_paper_ids = set()
+        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+            cat_paper_ids.add(p["id"])
+        match_paper_ids = set()
+        async for m in db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+        ).limit(5000):
+            match_paper_ids.add(m["paper1_id"])
+            match_paper_ids.add(m["paper2_id"])
+        unranked = len(cat_paper_ids - match_paper_ids)
 
-    # Recent matches for this category (standard only)
+    # Recent matches — use DB (only 10 docs)
+    cat_paper_ids_for_recent = set()
+    async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+        cat_paper_ids_for_recent.add(p["id"])
+
     recent_all = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
         {"_id": 0},
     ).sort("created_at", -1).to_list(10)
 
-    recent_matches = [m for m in recent_all if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids][:10]
+    recent_matches = [m for m in recent_all if m["paper1_id"] in cat_paper_ids_for_recent and m["paper2_id"] in cat_paper_ids_for_recent][:10]
 
     paper_ids_needed = set()
     for m in recent_matches:
@@ -184,7 +200,6 @@ async def get_admin_status(category: str = "cs.RO"):
         for m in recent_matches
     ]
 
-    # Per-category scheduler status
     cat_scheduler = _get_cat_status(category)
 
     result = {
