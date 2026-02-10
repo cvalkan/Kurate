@@ -428,33 +428,24 @@ async def _compute_tag_leaderboard(
         entry["matches_tag"] = entry["id"] in matching_ids
         entry["primary_category"] = paper_cat_lookup.get(entry["id"], "unknown")
 
-    # If global_stats requested, compute each paper's stats across ALL matches
+    # If global_stats requested, use pre-computed "All Papers" BT scores
     if global_stats:
-        import math
-        ELO_BASE = 1200
-        global_wins = {pid: 0 for pid in display_ids}
-        global_comparisons = {pid: 0 for pid in display_ids}
-        for pid in display_ids:
-            for midx in match_index.get(pid, []):
-                m = raw_matches[midx]
-                global_comparisons[pid] += 1
-                if m.get("winner_id") == pid:
-                    global_wins[pid] += 1
-
+        all_lb = cache.get("_all_papers_leaderboard", {}).get("all", [])
+        global_lookup = {e["id"]: e for e in all_lb}
         for entry in full:
-            pid = entry["id"]
-            g_w = global_wins.get(pid, 0)
-            g_c = global_comparisons.get(pid, 0)
-            entry["global_wins"] = g_w
-            entry["global_losses"] = g_c - g_w
-            entry["global_comparisons"] = g_c
-            entry["global_win_rate"] = round(100 * g_w / g_c, 1) if g_c > 0 else 0
-            if g_c > 0:
-                p_reg = (g_w + 0.5) / (g_c + 1.0)
-                p_reg = max(0.02, min(0.98, p_reg))
-                entry["global_score"] = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE)
+            g = global_lookup.get(entry["id"])
+            if g:
+                entry["global_score"] = g["score"]
+                entry["global_wins"] = g["wins"]
+                entry["global_losses"] = g["losses"]
+                entry["global_comparisons"] = g["comparisons"]
+                entry["global_win_rate"] = g["win_rate"]
             else:
-                entry["global_score"] = ELO_BASE
+                entry["global_score"] = 1200
+                entry["global_wins"] = 0
+                entry["global_losses"] = 0
+                entry["global_comparisons"] = 0
+                entry["global_win_rate"] = 0
 
     # Period filtering
     data, total_in_period = _apply_period_filter(full, period)
