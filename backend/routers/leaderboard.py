@@ -633,7 +633,9 @@ async def get_public_prompts():
 
 
 @router.get("/model-correlation")
+@_limiter.limit("10/minute")
 async def get_model_correlation(
+    request: Request,
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
     mode: Optional[str] = Query(None, description="Match mode: None=standard, 'prediction', 'prediction-fulltext'"),
 ):
