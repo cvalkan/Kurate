@@ -8,7 +8,7 @@ import os
 import time
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://filter-recent.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://paper-rank-pro.preview.emergentagent.com').rstrip('/')
 ADMIN_PASSWORD = "papersumo2025"
 
 # Test user credentials - unique for each test run

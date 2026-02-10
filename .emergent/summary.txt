@@ -1,174 +1,161 @@
-<analysis>An analysis of the user's requests and the AI agent's actions has been completed. Here is the summary to assist the next agent in continuing the work.
+<analysis>**original_problem_statement:**
+The user's primary goal was to systematically enhance the performance, user experience, security, and maintainability of the PaperSumo application.
 
-**original_problem_statement**:
-The user has provided a series of feature requests and bug reports throughout the session:
-1.  **Performance:** Optimize the speed of the public-facing leaderboard, specifically when switching categories and filtering. The admin panel was also reported to be slow when switching categories.
-2.  **Category Lifecycle:**
-    *   When a new category is added, it should be preset to paused.
-    *   When a paused category is resumed, it should immediately start fetching papers.
-3.  **UI/UX Bugs & Improvements:**
-    *   **Admin Panel:**
-        *   Adding/removing a category took too long to reflect in the UI.
-        *   Resuming a new category (with 0 papers) incorrectly triggered a global system pause.
-        *   The dual-purpose Resume button (for both system and tournament) was confusing. The user requested this be simplified so the button *only* affects the specific tournament.
-        *   The number of papers shown in the fetching toast (new papers) versus the total box was confusing.
-        *   Admin charts should use distinct colors for each category and not display empty categories.
-        *   Category bars on the Admin and Model Correlation pages should scroll horizontally if there are too many categories, instead of breaking the layout.
-    *   **Public Leaderboard:**
-        *   Categories under the More dropdown should only be accessible to logged-in users.
-        *   The text on the Suggest button disappeared on hover.
-    *   **Most Recent Filter:**
-        *   The user asked for clarification on what Most Recent means.
-        *   The user requested to change the logic to show papers from the single latest publication day across *all* categories.
-        *   The user then requested to revert this logic back to the original behavior (latest day *per category*) while keeping the name Most Recent.
+**PRODUCT REQUIREMENTS:**
+1.  **Performance Optimization:** Optimize the Filter by tags view for large datasets (10k-100k papers) and improve the responsiveness of the admin Tournament view, especially during active tournaments.
+2.  **UX & Statefulness:**
+    *   Preserve the user's leaderboard view (category, filters, search query) when they navigate to a paper and then return.
+    *   Implement an infinite scroll mechanism that doesn't use a fixed container with a separate scrollbar.
+    *   Make all leaderboard columns sortable by their headers.
+    *   Re-rank the leaderboard on the frontend when switching between Local and Global stats.
+3.  **Clarity & Explanation:**
+    *   Provide detailed explanations of the piggyback algorithm, scoring mechanics (Bradley-Terry, Elo), and how scores differ across various views (primary category, tag filter, all papers).
+    *   Clarify the meaning of Wilson Confidence Intervals (CI), especially at extreme win percentages, and add this information to tooltips.
+    *   Restore and enhance the explanation of contested vs. clear-cut pairs on the model correlation page.
+4.  **Security & Robustness:**
+    *   Conduct a thorough security audit, identifying and fixing vulnerabilities like potential DoS attacks, information leakage (e.g., admin password), and insecure authentication.
+    *   Implement rate limiting on public and sensitive endpoints.
+5.  **Code Quality & Maintainability:**
+    *   Decompose the large  frontend component into smaller, manageable pieces.
+    *   Scan the entire codebase to identify and refactor complications, such as redundant database queries, duplicated code, and inconsistent data sources.
+    *   Remove the hardcoded 500-paper limit in the tag view to support larger datasets.
+6.  **Bug Fixes:**
+    *   Fix the Back to Leaderboard link on the paper detail page to correctly preserve state.
+    *   Resolve inconsistencies in match counts displayed in the admin panel.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The agent has implemented several significant features and fixes:
-- **Performance:** Caching has been implemented on both the public-facing and admin APIs. Public category/tag loading is now faster due to a background cache. Admin category switching is now instant due to a server-side cache on the three most expensive endpoints (, , ).
-- **Category Lifecycle:** New categories are now created in a paused state. Resuming a tournament now correctly triggers an immediate paper fetch.
-- **Admin Panel UX:**
-    - The pause/resume button logic has been refactored to be unambiguous. It now only controls the selected tournament. A separate badge indicates the global system pause status.
-    - Admin charts now use a dynamic color palette to assign a unique color to each category and filter out categories that have no data.
-    - Category selection bars on all admin pages now correctly scroll horizontally when overflowing.
-- **Leaderboard UI:** The More dropdown is now restricted to authenticated users, and the Suggest button hover bug is fixed.
-- **Most Recent Filter:** The logic was changed to a global filter and then reverted back to a per-category filter at the user's request. The code for the reverted (original) logic is in place but requires verification.
+The application is a functional web platform for ranking academic papers using a pairwise comparison model. The backend is Python (FastAPI) with MongoDB, and the frontend is React. Key features include a main leaderboard with category and tag filtering, an admin panel for managing tournaments, and a detailed paper view. Significant performance enhancements have been implemented via a background caching layer (), which serves most read-heavy requests from memory. The codebase has undergone substantial security hardening and refactoring, resulting in a more robust and maintainable state.
 
 **Last working item**:
-- **Last item agent was working**: The agent was fulfilling a user request to revert the behavior of the Most Recent filter. The logic was changed back to show papers from the latest publication day *within each specific category*, rather than from a single global latest day.
-- **Status**: IN PROGRESS
-- **Agent Testing Done**: N
-- **Which testing method agent to use?**: backend testing agent
-- **User Testing Done**: N
+    - Last item agent was working: The user requested to remove the 500-paper limit in the tag-filtered view. The agent addressed this by removing the default limit from the backend's  endpoint, as the data is served from an in-memory cache and the frontend already uses an efficient infinite scroll implementation.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y
+    - Which testing method agent to use? manual testing by curl
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-- **Issue 1: Verify the reverted Most Recent filter logic (P0)**
-    - **Description**: The agent reverted the code for the Most Recent filter in  to use a per-category latest date. This change needs to be tested and confirmed to ensure it works as it did originally, before the user is notified.
-    - **Attempted fixes**: The code has been reverted.
-    - **Next debug checklist**:
-        1.  Restart the backend server to ensure the change is active.
-        2.  Use  or the backend testing agent to call the  endpoint. Note the publication dates of the returned papers.
-        3.  Call the same endpoint for a different category: .
-        4.  Confirm that the publication dates for CATEGORY_B can be different from CATEGORY_A, proving that each category is using its own most recent date.
-    - **Why fix this issue and what will be achieved with the fix?**: To complete the user's latest request and ensure the filter logic is correct before closing the loop with the user.
-    - **Status**: IN PROGRESS
-    - **Is recurring issue?**: Y (The logic has been changed back and forth).
-    - **Should Test frontend/backend/both after fix?**: backend
-    - **Blocked on other issue**: None
+There are no pending or in-progress issues. All tasks from the session have been completed.
 
 **In progress Task List**:
-There are no partially completed tasks; the focus is on the pending issue above.
+There are no tasks currently in progress.
 
 **Upcoming and Future Tasks**
-There are no outstanding tasks from the user's requests that have not been addressed.
+There are no outstanding tasks requested by the user or identified from the PRD that have not been implemented.
 
 **Completed work in this session**
-- **Public Leaderboard Speed Optimization:** Implemented background caching for tags and categories (, ).
-- **Admin Panel Speed Optimization:** Implemented server-side caching for admin endpoints ().
-- **New Category Default State:** New categories are now created as paused ().
-- **Immediate Fetch on Resume:** Resuming a tournament now triggers an immediate paper fetch ().
-- **Admin UI Lag Fix:** Fixed a bug where category changes were delayed by using the correct cache ().
-- **Admin Pause/Resume Bug Fix:** Fixed a bug where resuming a new category would toggle the global system pause ().
-- **Admin Pause/Resume UX Refactor:** Simplified the pause/resume controls for better clarity ().
-- **Responsive Category Bars:** Added horizontal scrolling to category bars on admin pages (, ).
-- **Leaderboard UI Fixes:**
-    - Restricted More dropdown access to logged-in users ().
-    - Fixed Suggest button text disappearing on hover ().
-- **Admin Chart Improvements:**
-    - Implemented a dynamic and distinct color palette for categories ().
-    - Filtered out empty categories from being rendered in the charts ().
+- **Performance & Optimization:**
+  - Implemented backend caching for All Papers and tag-filtered leaderboards ().
+  - Implemented server-side search to handle large datasets efficiently (, ).
+  - Heavily optimized all admin panel polling endpoints (, , ) to read from the in-memory cache, eliminating nearly all database queries on the hot path (, ).
+
+- **UI/UX & Feature Enhancements:**
+  - Implemented leaderboard state preservation using URL search parameters ().
+  - Implemented a natural infinite scroll without a fixed scrollbar ().
+  - Made leaderboard columns sortable by Title, Score, Win%, CI, Matches, and Published date ().
+  - Added frontend logic to re-rank papers when toggling to Global stats ().
+  - Added detailed tooltips to leaderboard column headers ().
+  - Removed the 500-paper limit on API responses for tag-filtered views ().
+
+- **Code Quality & Refactoring:**
+  - Decomposed the monolithic  into six smaller, reusable components.
+  - Systematically refactored backend endpoints to use a single source of truth for data (e.g., live match counts from the scheduler), eliminating inconsistencies and redundant DB queries (, ).
+  - Consolidated duplicated code, including the  calculation, into a single source in .
+  - Removed dead code () and cleaned up unused/messy imports across multiple files.
+
+- **Security Hardening:**
+  - Implemented robust, middleware-based rate limiting on all endpoints, with stricter rules for sensitive actions ().
+  - Replaced insecure admin authentication with a session token-based system, preventing the password from being transmitted or exposed (, ).
+  - Capped potentially abusive input parameters like  and  ().
+
+- **Bug Fixes & Explanations:**
+  - Fixed the Back to Leaderboard link to preserve the user's previous view state ().
+  - Corrected the Global Stats calculation to use the proper Bradley-Terry model score ().
+  - Provided extensive in-chat explanations and added a detailed section to the UI explaining scoring, the piggyback mechanism, and model correlation biases ().
 
 **Earlier issues found/mentioned but not fixed**
-None. The agent has addressed all issues raised by the user in this session.
+None. The agent has successfully addressed all issues identified during this session.
 
 **Known issue recurrence from previous fork**
-None.
+N/A
 
 **Code Architecture**
--   **Backend**: Python (FastAPI) application located in .
-    -   : Main application entry point.
-    -   : Contains API endpoint definitions (e.g., , ).
-    -   : Contains business logic (e.g., , ).
-    -   : Defines database models (Pydantic models for MongoDB).
--   **Frontend**: React application (Create React App) located in .
-    -   : Top-level page components (e.g., , ).
-    -   : Reusable UI components.
--   **Database**: MongoDB.
+
 
 **Key Technical Concepts**
--   **Backend Caching**: Utilizes  for in-memory, time-based caching of API responses and settings to reduce database load.
--   **Background Tasks**: A background thread () is used to periodically refresh a cache for the public leaderboard.
--   **Frontend State Management**: Uses React hooks (, ) for managing component state and fetching data.
--   **API Design**: RESTful API built with FastAPI, using Pydantic for data validation.
+- **Backend:** Python 3.11, FastAPI, Motor (async MongoDB driver).
+- **Frontend:** React, .
+- **Core Architecture:** A background caching pattern () pre-computes and stores all expensive queries in an in-memory dictionary. This makes read-heavy endpoints extremely fast. The tournament scheduler runs as a separate, parallel asynchronous task.
+- **Scoring Algorithm:** The system uses the Bradley-Terry model to estimate paper strength from pairwise comparisons, which is then converted to an Elo-style score. It also calculates a Wilson score interval for confidence.
+- **Security:** Security is handled via custom FastAPI middleware for rate limiting (using the  header) and a session token system for admin authentication.
 
 **key DB schema**
--   **papers**: Stores individual paper details ().
--   **tournaments**: Manages categories and their status ().
--   **settings**: A singleton document for global application settings ().
--   **matches**: Stores the results of paper comparisons ().
+- **papers**: Stores paper metadata. 
+- **matches**: Stores results of pairwise comparisons. 
+- **tournaments**: Manages the state of each category's tournament. 
+- **admin_settings**: Stores global settings. 
 
 **changes in tech stack**
-None.
+-  was installed for rate limiting but was later removed in favor of a more reliable custom middleware solution built directly into .
+-  was installed for virtual scrolling but was removed when the user requested a return to a natural infinite scroll implementation.
 
 **All files of reference**
-*   : Modified for caching and the Most Recent filter logic.
-*   : Modified for admin caching, category lifecycle logic, and fixing the pause/resume bug.
-*   : Modified to use correct caching for the  endpoint.
-*   : Updated to only fetch papers for active tournaments.
-*   : Modified for UI optimizations and bug fixes (Suggest button, More dropdown).
-*   : Modified for the pause/resume UX refactor and responsive category bar.
-*   : Modified for chart color and filtering improvements.
-*   : Modified for the responsive category bar.
+- ****: The heart of all performance optimizations. This file's background thread pre-computes data for both the public leaderboard and the admin panel.
+- ****: Underwent significant refactoring to eliminate database queries and improve security (admin login).
+- ****: Key changes for server-side search, caching, global stats calculation, and parameter capping.
+- ****: Major refactoring from a monolithic component to an orchestrator for smaller, specialized components. Handles state management for filters and sorting.
+- ****: Implemented column sorting, tooltips, and the logic to re-rank based on the Local/Global toggle.
+- ****: Contains the custom rate-limiting middleware, a critical security feature.
+- ****: Refactored to provide a single source of truth for live match counts.
+- ****: Consolidated duplicated scoring logic ().
 
 **Areas that need refactoring**:
-None identified. The agent has performed refactoring as part of the bug fixes.
+The agent performed extensive refactoring, and the codebase is currently in a clean state. No immediate areas require refactoring.
 
 **key api endpoints**
--   : Fetches papers for the leaderboard.
--   : Fetches the list of available categories.
--   : Fetches the list of available tags.
--   : Fetches progress data for a tournament.
--   : Fetches statistics for a tournament.
--   : Fetches model cost data.
--   : Adds a new category.
--   : Pauses or resumes a tournament.
+- : The main public endpoint for all leaderboard data. It is highly optimized and reads from the in-memory cache.
+- : Provides a list of all filterable tags.
+- : Secure admin login, now rate-limited and returns a session token.
+- , , : The three main admin panel polling endpoints, now fully served from the in-memory cache for high performance.
+- : A public but computationally expensive endpoint that is now rate-limited to prevent abuse.
 
 **Critical Info for New Agent**
--   The Most Recent filter has been a point of confusion. The final user request was to revert its logic to be **per-category**, which has been done in the code but requires verification. Do not change it again unless explicitly asked.
--   When making changes to the frontend code, the Create React App development server () may occasionally require a manual restart to reflect the latest Javascript bundle. The agent ran into this issue and solved it by restarting the process.
+- **Caching is Key:** The application's performance relies entirely on the background caching mechanism in . When adding new read-heavy features, extend this cache rather than querying the database directly in the request-response cycle.
+- **Single Source of Truth:** A major refactoring effort was made to ensure single sources of truth for critical data (e.g., match counts come from the scheduler's in-memory state, not multiple DB queries). Maintain this pattern to avoid data inconsistencies.
+- **Security:** Rate limiting is handled globally via middleware in . Admin authentication uses session tokens () and should be validated using . Do not expose sensitive information like passwords in API responses.
+- **Frontend Decomposition:** The main leaderboard page () is now an orchestrator for smaller components in . State is managed in the parent and passed down as props.
 
 **documents and test reports created in this job**
-None.
+-  (continuously updated throughout the session)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Latest):** Revert Most Recent back to its original logic. (IN PROGRESS)
-2.  **User:** Rename Latest Drop back to Most Recent, change logic to be global, add unique chart colors, and hide empty categories in charts. (DONE)
-3.  **User:** What does Most Recent mean? More dropdown should require login. Suggest button text disappears on hover. (DONE)
-4.  **User:** Make admin category bars scroll horizontally like the main leaderboard. (DONE)
-5.  **User:** Why is there a paper count mismatch? Why is the admin panel slow again? (EXPLAINED and DONE)
-6.  **User:** The logic of clicking Resume twice (once for system, once for tournament) is confusing. (DONE)
-7.  **User:** I can't resume a new category; I get a System paused error. (DONE)
-8.  **User:** Adding/removing a category takes a minute to show up. (DONE)
-9.  **User:** Initial feature request: Optimize speed and change new categories to be paused by default. (DONE)
+1.  **Request:** Scan code for other complications and simplify. **Status:** Completed.
+2.  **Request:** Remove the 500-paper limit in the tag view. **Status:** Completed.
+3.  **Request:** Final security check and verification of no negative impacts. **Status:** Completed.
+4.  **Request:** Re-rank on Global/Local switch and add tooltips to headers. **Status:** Completed.
+5.  **Request:** Update CI tooltip with asymmetry explanation and restore contested vs clear-cut text. **Status:** Completed.
+6.  **Request:** Remove a specific sentence from the correlation page. **Status:** Completed.
+7.  **Request:** Fix out-of-sync match counts in the admin panel. **Status:** Completed.
+8.  **Feedback:** Questioned if the initial fix for match counts was overly complicated. **Status:** Addressed. This led to a better, simpler solution.
+9.  **Request:** Scan for and fix similar data indirections across the codebase. **Status:** Completed.
+10. **Request:** Make leaderboards sortable and explain CI at extreme percentages. **Status:** Completed.
 
 **Project Health Check:**
-- **Broken:** Nothing is currently broken.
-- **Mocked:** No functionality is mocked.
+- **Broken:** None. The application is stable and significantly improved.
+- **Mocked:** None.
 
 **3rd Party Integrations**
-- No new 3rd party integrations were added. The project uses standard Python and Node.js libraries.
+- No third-party integrations requiring user-provided keys (e.g., OpenAI, Stripe) are configured in the application. The LLM comparison mechanism is generic.
 
 **Testing status**
-- **Testing agent used after significant changes**: YES, it was used once after the initial feature implementation.
-- **Troubleshoot agent used after agent stuck in loop**: NO
-- **Test files created**: []
-- **Known regressions**: None. A performance regression in the admin panel was introduced and subsequently fixed with caching.
+- **Testing agent used after significant changes:** YES. The agent frequently used the testing agent to validate performance optimizations, security fixes, and new features.
+- **Troubleshoot agent used after agent stuck in loop:** NO. The agent did not get stuck.
+- **Test files created:** None. Testing was conducted via the integrated  tool using  and browser screenshots.
+- **Known regressions:** None.
 
 **Credentials to test flow:**
-Use the standard credentials for admin access:
-- **Username:** 
-- **Password:** 
+- **Admin Password:**  (found in ).
 
 **What agent forgot to execute**
-The agent has addressed all user requests up to this point. The only pending action is to verify the last code change made before concluding.</analysis>
+The agent successfully executed all tasks requested by the user during this session. No tasks were overlooked.</analysis>
