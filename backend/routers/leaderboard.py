@@ -175,15 +175,25 @@ async def _refresh_cache():
         failed_by_cat[m.get("primary_category", "unknown")] += 1
     _cache["_failed_by_cat"] = dict(failed_by_cat)
 
-    # Pre-compute PDF counts per category (for admin panel)
+    # Pre-compute PDF counts and storage stats per category (for admin panel)
     pdf_by_cat = Counter()
+    storage_chars_by_cat = Counter()
+    storage_chars_total = 0
     async for p in db.papers.find(
         {"full_text": {"$ne": None}},
-        {"_id": 0, "categories": 1},
+        {"_id": 0, "categories": 1, "full_text": 1},
     ):
         cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
         pdf_by_cat[cat] += 1
+        chars = len(p.get("full_text", ""))
+        storage_chars_by_cat[cat] += chars
+        storage_chars_total += chars
     _cache["_pdf_by_cat"] = dict(pdf_by_cat)
+    _cache["_storage"] = {
+        "total_chars": storage_chars_total,
+        "total_with_text": sum(pdf_by_cat.values()),
+        "chars_by_cat": dict(storage_chars_by_cat),
+    }
 
     # Invalidate tag cache on data refresh
     _tag_cache.clear()
