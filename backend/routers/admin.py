@@ -3,11 +3,15 @@ from pydantic import BaseModel
 from typing import Optional, List
 from collections import defaultdict
 from datetime import datetime, timezone
+import asyncio
+import math
 import time as _time
 import secrets as _secrets
 from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
 from core.auth import verify_admin, get_settings, invalidate_settings_cache
 from services.scheduler import run_fetch_cycle, run_comparison_round, get_scheduler_status, _get_cat_status, wake_scheduler
+from services.ranking import wilson_margin_pct
+from routers.leaderboard import _cache as lb_cache
 
 router = APIRouter(prefix="/api/admin")
 
