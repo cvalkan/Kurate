@@ -113,10 +113,12 @@ export default function AdminPage() {
     fetchLiveData();
   }, [adminCat]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Poll faster (5s) when tournament is active, slower (15s) when idle/paused
   useEffect(() => {
-    const interval = setInterval(fetchLiveData, 15000);
+    const isActive = progress && !progress.paused && !progress.goals_met;
+    const interval = setInterval(fetchLiveData, isActive ? 5000 : 15000);
     return () => clearInterval(interval);
-  }, [fetchLiveData]);
+  }, [fetchLiveData, progress]);
 
   const triggerFetch = async () => {
     setLoading(l => ({ ...l, fetch: true }));
