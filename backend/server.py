@@ -22,6 +22,27 @@ _RATE_LIMITS = {
 _DEFAULT_RATE = (120, 60)  # 120 per 60s for all other endpoints
 
 
+# --- Security Headers ---
+SECURITY_HEADERS = {
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",  # HSTS - 1 year
+    "X-Content-Type-Options": "nosniff",  # Prevent MIME sniffing
+    "X-Frame-Options": "DENY",  # Prevent clickjacking
+    "X-XSS-Protection": "1; mode=block",  # XSS filter for legacy browsers
+    "Referrer-Policy": "strict-origin-when-cross-origin",  # Control referrer info
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",  # Restrict browser features
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none';",
+}
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    for header, value in SECURITY_HEADERS.items():
+        response.headers[header] = value
+    return response
+
+
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     # Use X-Forwarded-For for real client IP behind proxy/K8s ingress
