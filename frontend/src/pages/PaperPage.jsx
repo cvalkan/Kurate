@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Badge } from "@/components/ui/badge";
 import { ModelBadge } from "@/components/ModelBadge";
