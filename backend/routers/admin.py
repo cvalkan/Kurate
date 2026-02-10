@@ -65,8 +65,28 @@ class PromptUpdate(BaseModel):
     user_prompt: str
 
 
-# Admin session tokens (in-memory, cleared on restart)
-_admin_sessions = set()
+# Admin session tokens - stored in MongoDB for persistence across restarts/pods
+async def _get_admin_sessions():
+    """Get all valid admin session tokens from DB."""
+    doc = await db.admin_sessions.find_one({"key": "sessions"})
+    if not doc:
+        return set()
+    return set(doc.get("tokens", []))
+
+
+async def _add_admin_session(token: str):
+    """Add a new admin session token to DB."""
+    await db.admin_sessions.update_one(
+        {"key": "sessions"},
+        {"$addToSet": {"tokens": token}},
+        upsert=True,
+    )
+
+
+async def _is_valid_session(token: str) -> bool:
+    """Check if a token exists in the admin sessions."""
+    doc = await db.admin_sessions.find_one({"key": "sessions", "tokens": token})
+    return doc is not None
 
 
 @router.post("/login")
@@ -75,8 +95,7 @@ async def admin_login(body: AdminLogin, request: Request):
     if body.password != settings.get("admin_password", DEFAULT_SETTINGS["admin_password"]):
         raise HTTPException(status_code=403, detail="Invalid password")
     token = f"adm_{_secrets.token_urlsafe(32)}"
-    _admin_sessions.add(token)
-    # Also accept the legacy password-as-token for backward compat during transition
+    await _add_admin_session(token)
     return {"success": True, "token": token}
 
 
