@@ -51,12 +51,14 @@ export default function PaperPage() {
   const { paper, matches, stats } = data;
   const winRate = stats.comparisons > 0 ? Math.round((stats.wins / stats.comparisons) * 100) : 0;
 
+  const navigate = useNavigate();
+
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-4xl py-6 md:py-10">
-      <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors" data-testid="back-link">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors" data-testid="back-link">
         <ArrowLeft className="h-4 w-4" />
         Back to Leaderboard
-      </Link>
+      </button>
 
       {/* Paper Header */}
       <div className="mb-8" data-testid="paper-header">
