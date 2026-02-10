@@ -151,47 +151,23 @@ async def get_admin_status(category: str = "cs.RO"):
     from routers.leaderboard import _cache as lb_cache
     lb_cat_data = lb_cache.get("categories", {}).get(category, {})
     raw_matches = lb_cache.get("_raw_matches", [])
+    raw_papers = lb_cache.get("_raw_papers", [])
 
-    # Paper count from leaderboard cache or DB
-    if lb_cat_data:
-        total_papers = lb_cat_data.get("_papers", 0)
-    else:
-        total_papers = await db.papers.count_documents({"categories.0": category})
-
-    # Match count: scheduler live count is the single source of truth
+    # All counts from scheduler (live) or leaderboard cache (background)
     cat_scheduler = _get_cat_status(category)
-    total_matches = cat_scheduler.get("matches_count", 0)
-    # Fallback to leaderboard cache if scheduler hasn't populated yet
-    if total_matches == 0 and lb_cat_data:
-        total_matches = lb_cat_data.get("_matches", 0)
+    total_papers = cat_scheduler.get("papers_count", 0) or lb_cat_data.get("_papers", 0)
+    total_matches = cat_scheduler.get("matches_count", 0) or lb_cat_data.get("_matches", 0)
+    failed_matches = lb_cache.get("_failed_by_cat", {}).get(category, 0)
 
-    failed_by_cat = lb_cache.get("_failed_by_cat", {})
-    if failed_by_cat:
-        failed_matches = failed_by_cat.get(category, 0)
-    else:
-        failed_matches = await db.matches.count_documents(
-            {"failed": True, "primary_category": category, "mode": {"$exists": False}}
-        )
-
-    # Count unranked papers using leaderboard cache if available
-    if lb_cat_data and lb_cat_data.get("all"):
+    # Unranked from leaderboard data
+    if lb_cat_data and lb_cat_data.get("all") is not None:
         ranked_ids = {e["id"] for e in lb_cat_data["all"] if e.get("comparisons", 0) > 0}
         all_ids = {e["id"] for e in lb_cat_data["all"]}
         unranked = len(all_ids - ranked_ids)
     else:
-        cat_paper_ids = set()
-        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-            cat_paper_ids.add(p["id"])
-        match_paper_ids = set()
-        async for m in db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1},
-        ).limit(5000):
-            match_paper_ids.add(m["paper1_id"])
-            match_paper_ids.add(m["paper2_id"])
-        unranked = len(cat_paper_ids - match_paper_ids)
+        unranked = 0
 
-    # Recent matches — use in-memory cache if available
+    # Recent matches from in-memory cache
     if raw_matches:
         cat_matches_sorted = sorted(
             (m for m in raw_matches if m.get("primary_category") == category),
@@ -199,24 +175,14 @@ async def get_admin_status(category: str = "cs.RO"):
             reverse=True,
         )[:10]
     else:
-        cat_matches_sorted = await db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-            {"_id": 0},
-        ).sort("created_at", -1).to_list(10)
+        cat_matches_sorted = []
 
+    # Paper titles from in-memory cache
     paper_ids_needed = set()
     for m in cat_matches_sorted:
         paper_ids_needed.update([m["paper1_id"], m["paper2_id"], m.get("winner_id", "")])
     paper_ids_needed.discard("")
-
-    # Use leaderboard cache for paper titles if available
-    raw_papers = lb_cache.get("_raw_papers", [])
-    if raw_papers:
-        paper_titles = {p["id"]: p["title"] for p in raw_papers if p["id"] in paper_ids_needed}
-    else:
-        paper_titles = {}
-        async for p in db.papers.find({"id": {"$in": list(paper_ids_needed)}}, {"_id": 0, "id": 1, "title": 1}):
-            paper_titles[p["id"]] = p["title"]
+    paper_titles = {p["id"]: p["title"] for p in raw_papers if p["id"] in paper_ids_needed} if raw_papers else {}
 
     enriched_recent = [
         {
@@ -230,8 +196,6 @@ async def get_admin_status(category: str = "cs.RO"):
         }
         for m in cat_matches_sorted
     ]
-
-    cat_scheduler = _get_cat_status(category)
 
     result = {
         "total_papers": total_papers,
