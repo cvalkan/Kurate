@@ -4,11 +4,15 @@ from typing import Optional, List
 from collections import defaultdict
 from datetime import datetime, timezone
 import time as _time
+import secrets as _secrets
 from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
 from core.auth import verify_admin, get_settings, invalidate_settings_cache
 from services.scheduler import run_fetch_cycle, run_comparison_round, get_scheduler_status, _get_cat_status, wake_scheduler
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter(prefix="/api/admin")
+_limiter = Limiter(key_func=get_remote_address)
 
 # Per-category cache for admin endpoints (avoids hammering DB on rapid category switching)
 _admin_cache = {}  # {(endpoint, category): {"data": ..., "ts": float}}
