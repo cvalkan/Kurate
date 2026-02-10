@@ -248,9 +248,21 @@ async def get_progress_estimate(category: str = "cs.RO"):
     tournament_paused = tournament and tournament.get("status") == "paused"
     is_paused = global_paused or tournament_paused
 
-    all_paper_ids = []
-    async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-        all_paper_ids.append(p["id"])
+    # Use leaderboard cache for paper IDs and match data
+    from routers.leaderboard import _cache as lb_cache
+    lb_cat_data = lb_cache.get("categories", {}).get(category, {})
+    raw_matches = lb_cache.get("_raw_matches", [])
+    raw_papers = lb_cache.get("_raw_papers", [])
+
+    if lb_cat_data and lb_cat_data.get("all") is not None:
+        # Get paper IDs from leaderboard data
+        all_paper_ids = [e["id"] for e in lb_cat_data["all"]]
+    elif raw_papers:
+        all_paper_ids = [p["id"] for p in raw_papers if p.get("categories", [None])[0] == category]
+    else:
+        all_paper_ids = []
+        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+            all_paper_ids.append(p["id"])
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
@@ -266,17 +278,32 @@ async def get_progress_estimate(category: str = "cs.RO"):
     paper_match_count = {pid: 0 for pid in all_paper_ids}
     paper_wins = {pid: 0 for pid in all_paper_ids}
     compared_pairs = set()
-    async for m in db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ):
-        if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
-            paper_match_count[m["paper1_id"]] += 1
-            paper_match_count[m["paper2_id"]] += 1
-            compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
-            w = m.get("winner_id")
-            if w and w in paper_wins:
-                paper_wins[w] += 1
+
+    # Use in-memory matches if available
+    if raw_matches:
+        for m in raw_matches:
+            if m.get("primary_category") != category:
+                continue
+            p1, p2 = m["paper1_id"], m["paper2_id"]
+            if p1 in pid_set and p2 in pid_set:
+                paper_match_count[p1] += 1
+                paper_match_count[p2] += 1
+                compared_pairs.add(tuple(sorted([p1, p2])))
+                w = m.get("winner_id")
+                if w and w in paper_wins:
+                    paper_wins[w] += 1
+    else:
+        async for m in db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ):
+            if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
+                paper_match_count[m["paper1_id"]] += 1
+                paper_match_count[m["paper2_id"]] += 1
+                compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+                w = m.get("winner_id")
+                if w and w in paper_wins:
+                    paper_wins[w] += 1
 
     # Goal 1: All papers at min matches
     papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
