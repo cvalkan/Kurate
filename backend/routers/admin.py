@@ -78,13 +78,6 @@ async def admin_login(body: AdminLogin, request: Request):
     return {"success": True, "token": token}
 
 
-def is_valid_admin_token(token: str) -> bool:
-    """Check if token is a valid admin session or the legacy password."""
-    if token in _admin_sessions:
-        return True
-    return token == DEFAULT_SETTINGS.get("admin_password", "")
-
-
 @router.get("/settings", dependencies=[Depends(verify_admin)])
 async def get_admin_settings():
     settings = await get_settings()
