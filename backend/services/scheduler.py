@@ -595,6 +595,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
 
                     await db.matches.insert_one(match_doc)
 
+                cat_status["matches_count"] = total_matches + completed + failed
                 cat_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
                 await asyncio.sleep(0.5)
 
