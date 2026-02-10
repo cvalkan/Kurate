@@ -315,9 +315,9 @@ async def get_leaderboard(
     tag_mode: Optional[str] = Query("or", description="How to combine tags: 'or' (any) or 'and' (all)"),
     global_stats: bool = Query(False, description="Include global stats (all matches) for each paper"),
     show_all: bool = Query(False, description="Show all papers with matches_tag flag (tag mode only)"),
-    search: Optional[str] = Query(None, description="Search papers by title (case-insensitive)"),
-    limit: int = Query(500, description="Max papers to return"),
-    offset: int = Query(0, description="Offset for pagination"),
+    search: Optional[str] = Query(None, description="Search papers by title (case-insensitive)", max_length=200),
+    limit: int = Query(500, description="Max papers to return", ge=1, le=1000),
+    offset: int = Query(0, description="Offset for pagination", ge=0),
 ):
     # Tag-based filtering: compute on-demand
     if tags:
