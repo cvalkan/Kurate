@@ -11,7 +11,7 @@ const COLUMN_TIPS = {
   score_g: "Elo score from ALL matches across all categories (Bradley-Terry). Reflects overall performance.",
   win_rate: "Percentage of head-to-head comparisons won within this set.",
   win_rate_g: "Win rate across ALL matches the paper has participated in, not just this filtered set.",
-  wilson_margin: "95% Wilson confidence interval half-width. Lower = more certain. \u00B16% at 99% means true rate is likely 93\u2013100%.",
+  wilson_margin: "95% Wilson confidence interval half-width. The interval is asymmetric \u2014 at 99% win rate, \u00B16% means the true rate is likely between 93\u2013100% (not 93\u2013105%). At extreme win rates the uncertainty is mostly one-sided because win rate can\u2019t exceed 100% or go below 0%. Lower margin = more matches played = more certainty.",
   comparisons: "Number of head-to-head LLM comparisons this paper has participated in within this set.",
   comparisons_g: "Total comparisons across ALL categories, including matches outside this filtered set.",
   published: "arXiv publication date.",
