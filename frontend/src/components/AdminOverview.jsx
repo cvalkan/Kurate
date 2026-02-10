@@ -162,7 +162,7 @@ export function AdminOverview({
           )}
 
           <div className="text-[10px] text-muted-foreground mt-1.5">
-            {bestMatchCount} matches &middot; {progress.papers_with_pdf}/{progress.total_papers} PDFs
+            {status.total_matches} matches &middot; {progress.papers_with_pdf}/{progress.total_papers} PDFs
           </div>
         </div>
       )}
