@@ -36,10 +36,13 @@ function RankBadge({ rank }) {
 }
 
 export default function LeaderboardPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Initialize state from URL params (restored on back navigation)
   const [leaderboard, setLeaderboard] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [category, setCategory] = useState("");
-  const [period, setPeriod] = useState("week");
+  const [category, setCategory] = useState(searchParams.get("cat") || "");
+  const [period, setPeriod] = useState(searchParams.get("period") || "week");
   const [loading, setLoading] = useState(true);
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
@@ -47,17 +50,20 @@ export default function LeaderboardPage() {
 
   // Tag filter state
   const [allTags, setAllTags] = useState([]);
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [tagMode, setTagMode] = useState("or"); // "or" or "and"
-  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [selectedTags, setSelectedTags] = useState(() => {
+    const t = searchParams.get("tags");
+    return t ? t.split(",").filter(Boolean) : [];
+  });
+  const [tagMode, setTagMode] = useState(searchParams.get("tagMode") || "or");
+  const [tagFilterOpen, setTagFilterOpen] = useState(searchParams.get("tagOpen") === "1");
   const [tagSearch, setTagSearch] = useState("");
 
   // Keyword search (server-side)
-  const [keyword, setKeyword] = useState("");
-  const [debouncedKeyword, setDebouncedKeyword] = useState("");
+  const [keyword, setKeyword] = useState(searchParams.get("q") || "");
+  const [debouncedKeyword, setDebouncedKeyword] = useState(searchParams.get("q") || "");
 
   // Global/Local stats toggle (tag mode only)
-  const [globalStats, setGlobalStats] = useState(false);
+  const [globalStats, setGlobalStats] = useState(searchParams.get("global") === "1");
 
   // Infinite scroll
   const [displayCount, setDisplayCount] = useState(50);
