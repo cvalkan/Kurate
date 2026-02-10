@@ -416,50 +416,27 @@ async def get_usage_stats(category: str = None):
     if cached:
         return cached
 
-    # Use leaderboard cache's raw matches to avoid DB scan
     from routers.leaderboard import _cache as lb_cache
-    raw_matches_all = lb_cache.get("_raw_matches", [])
+    raw_matches = lb_cache.get("_raw_matches", [])
 
-    if raw_matches_all:
-        # Filter from in-memory cache (fast)
-        if category:
-            matches_iter = (m for m in raw_matches_all if m.get("primary_category") == category)
-        else:
-            matches_iter = iter(raw_matches_all)
-    else:
-        # Fallback: DB query (cold cache)
-        match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-        if category:
-            match_query["primary_category"] = category
-        matches_iter = None  # signal to use DB
-
+    # Compute model stats from in-memory matches
     model_stats = {}
-    if matches_iter is not None:
-        for m in matches_iter:
-            mu = m.get("model_used", {})
-            if not mu:
-                continue
-            key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
-            if key not in model_stats:
-                model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-            model_stats[key]["matches"] += 1
-            tokens = m.get("tokens", {})
-            model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
-            model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
+    if category:
+        matches_iter = (m for m in raw_matches if m.get("primary_category") == category)
     else:
-        # DB fallback — need to fetch token data which isn't in the leaderboard cache projection
-        match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-        if category:
-            match_query["primary_category"] = category
-        async for m in db.matches.find(match_query, {"_id": 0, "model_used": 1, "tokens": 1}):
-            mu = m.get("model_used", {})
-            key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
-            if key not in model_stats:
-                model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-            model_stats[key]["matches"] += 1
-            tokens = m.get("tokens", {})
-            model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
-            model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
+        matches_iter = iter(raw_matches)
+
+    for m in matches_iter:
+        mu = m.get("model_used", {})
+        if not mu:
+            continue
+        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        if key not in model_stats:
+            model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+        model_stats[key]["matches"] += 1
+        tokens = m.get("tokens", {})
+        model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
+        model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
 
     # Calculate cost per model
     total_cost = 0.0
@@ -475,29 +452,17 @@ async def get_usage_stats(category: str = None):
     total_input = sum(s["input_tokens"] for s in model_stats.values())
     total_output = sum(s["output_tokens"] for s in model_stats.values())
 
-    # Storage
+    # Storage from pre-computed background cache
+    storage_cache = lb_cache.get("_storage", {})
     if category:
-        storage_pipeline = [
-            {"$match": {"full_text": {"$ne": None}, "categories.0": category}},
-            {"$project": {"text_len": {"$strLenCP": "$full_text"}}},
-            {"$group": {"_id": None, "total_chars": {"$sum": "$text_len"}, "count": {"$sum": 1}}},
-        ]
-        total_papers = await db.papers.count_documents({"categories.0": category})
+        total_chars = storage_cache.get("chars_by_cat", {}).get(category, 0)
+        papers_with_text = lb_cache.get("_pdf_by_cat", {}).get(category, 0)
+        cat_sched = _get_cat_status(category)
+        total_papers = cat_sched.get("papers_count", 0) or lb_cache.get("categories", {}).get(category, {}).get("_papers", 0)
     else:
-        storage_pipeline = [
-            {"$match": {"full_text": {"$ne": None}}},
-            {"$project": {"text_len": {"$strLenCP": "$full_text"}}},
-            {"$group": {"_id": None, "total_chars": {"$sum": "$text_len"}, "count": {"$sum": 1}}},
-        ]
-        total_papers = await db.papers.count_documents({})
-
-    storage_result = await db.papers.aggregate(storage_pipeline).to_list(1)
-    if storage_result:
-        total_chars = storage_result[0]["total_chars"]
-        papers_with_text = storage_result[0]["count"]
-    else:
-        total_chars = 0
-        papers_with_text = 0
+        total_chars = storage_cache.get("total_chars", 0)
+        papers_with_text = storage_cache.get("total_with_text", 0)
+        total_papers = lb_cache.get("total_papers", 0)
 
     result = {
         "models": model_stats,
