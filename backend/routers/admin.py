@@ -135,6 +135,7 @@ async def get_admin_status(category: str = "cs.RO"):
     # Use leaderboard cache for paper/match counts when available
     from routers.leaderboard import _cache as lb_cache
     lb_cat_data = lb_cache.get("categories", {}).get(category, {})
+    raw_matches = lb_cache.get("_raw_matches", [])
 
     if lb_cat_data:
         total_papers = lb_cat_data.get("_papers", 0)
@@ -167,29 +168,36 @@ async def get_admin_status(category: str = "cs.RO"):
             match_paper_ids.add(m["paper2_id"])
         unranked = len(cat_paper_ids - match_paper_ids)
 
-    # Recent matches — use DB (only 10 docs)
-    cat_paper_ids_for_recent = set()
-    async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-        cat_paper_ids_for_recent.add(p["id"])
-
-    recent_all = await db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0},
-    ).sort("created_at", -1).to_list(10)
-
-    recent_matches = [m for m in recent_all if m["paper1_id"] in cat_paper_ids_for_recent and m["paper2_id"] in cat_paper_ids_for_recent][:10]
+    # Recent matches — use in-memory cache if available
+    if raw_matches:
+        cat_matches_sorted = sorted(
+            (m for m in raw_matches if m.get("primary_category") == category),
+            key=lambda m: m.get("created_at", ""),
+            reverse=True,
+        )[:10]
+    else:
+        cat_matches_sorted = await db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
+            {"_id": 0},
+        ).sort("created_at", -1).to_list(10)
 
     paper_ids_needed = set()
-    for m in recent_matches:
+    for m in cat_matches_sorted:
         paper_ids_needed.update([m["paper1_id"], m["paper2_id"], m.get("winner_id", "")])
+    paper_ids_needed.discard("")
 
-    paper_titles = {}
-    async for p in db.papers.find({"id": {"$in": list(paper_ids_needed)}}, {"_id": 0, "id": 1, "title": 1}):
-        paper_titles[p["id"]] = p["title"]
+    # Use leaderboard cache for paper titles if available
+    raw_papers = lb_cache.get("_raw_papers", [])
+    if raw_papers:
+        paper_titles = {p["id"]: p["title"] for p in raw_papers if p["id"] in paper_ids_needed}
+    else:
+        paper_titles = {}
+        async for p in db.papers.find({"id": {"$in": list(paper_ids_needed)}}, {"_id": 0, "id": 1, "title": 1}):
+            paper_titles[p["id"]] = p["title"]
 
     enriched_recent = [
         {
-            "id": m["id"],
+            "id": m.get("id", ""),
             "paper1_title": paper_titles.get(m["paper1_id"], "Unknown"),
             "paper2_title": paper_titles.get(m["paper2_id"], "Unknown"),
             "winner_title": paper_titles.get(m.get("winner_id", ""), "Unknown"),
@@ -197,7 +205,7 @@ async def get_admin_status(category: str = "cs.RO"):
             "model_used": m.get("model_used", {}),
             "created_at": m.get("created_at", ""),
         }
-        for m in recent_matches
+        for m in cat_matches_sorted
     ]
 
     cat_scheduler = _get_cat_status(category)
