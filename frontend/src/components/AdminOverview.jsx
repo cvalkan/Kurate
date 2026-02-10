@@ -58,6 +58,12 @@ export function AdminOverview({
 
   if (!status) return null;
 
+  // Extract live match count from scheduler activity string (e.g., "Comparing... 380 total matches")
+  const activityStr = status.scheduler?.current_activity || "";
+  const liveMatchCount = parseInt((activityStr.match(/(\d+)\s*total\s*match/i) || [])[1]) || 0;
+  // Use the highest count from all sources (cache may lag behind live scheduler)
+  const bestMatchCount = Math.max(status.total_matches || 0, progress?.total_matches || 0, liveMatchCount);
+
   return (
     <div className="space-y-6" data-testid="admin-overview">
       {categories.length > 1 && (
