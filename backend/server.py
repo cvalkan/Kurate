@@ -1,10 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 import os
+import time as _time
+from collections import defaultdict
 from core.config import db, logger
 from routers.leaderboard import router as leaderboard_router
 from routers.admin import router as admin_router
@@ -12,15 +11,33 @@ from routers.auth import router as auth_router
 from routers.suggestions import router as suggestions_router
 from services.scheduler import start_scheduler
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
-
 app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
-app.state.limiter = limiter
+
+# --- Simple in-memory rate limiter ---
+_rate_buckets = defaultdict(list)  # ip -> [timestamps]
+_RATE_LIMITS = {
+    "/api/admin/login": (5, 60),       # 5 per 60s
+    "/api/model-correlation": (10, 60), # 10 per 60s
+}
+_DEFAULT_RATE = (120, 60)  # 120 per 60s for all other endpoints
 
 
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Please slow down."})
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    ip = request.client.host if request.client else "unknown"
+    path = request.url.path
+    max_requests, window = _RATE_LIMITS.get(path, _DEFAULT_RATE)
+    key = f"{ip}:{path}" if path in _RATE_LIMITS else ip
+
+    now = _time.time()
+    # Prune old entries
+    _rate_buckets[key] = [t for t in _rate_buckets[key] if now - t < window]
+
+    if len(_rate_buckets[key]) >= max_requests:
+        return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Please slow down."})
+
+    _rate_buckets[key].append(now)
+    return await call_next(request)
 
 
 app.include_router(leaderboard_router)
