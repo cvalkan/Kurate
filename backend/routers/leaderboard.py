@@ -587,9 +587,16 @@ async def get_system_status():
 
     now = time.time()
     if _status_cache["data"] is None or now - _status_cache["ts"] > 10:
-        total_papers = await db.papers.count_documents({})
-        total_matches = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}})
-        failed_matches = await db.matches.count_documents({"failed": True})
+        # Use leaderboard background cache (refreshed every 20s)
+        total_papers = _cache.get("total_papers", 0)
+        total_matches = _cache.get("total_matches", 0)
+        failed_by_cat = _cache.get("_failed_by_cat", {})
+        failed_matches = sum(failed_by_cat.values())
+        # Fallback to DB only if cache is completely empty (cold boot)
+        if total_papers == 0 and not _cache.get("categories"):
+            total_papers = await db.papers.count_documents({})
+            total_matches = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}})
+            failed_matches = await db.matches.count_documents({"failed": True})
         _status_cache["data"] = {
             "total_papers": total_papers,
             "total_matches": total_matches,
