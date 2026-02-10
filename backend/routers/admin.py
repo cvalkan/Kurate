@@ -394,22 +394,50 @@ async def get_usage_stats(category: str = None):
     if cached:
         return cached
 
+    # Use leaderboard cache's raw matches to avoid DB scan
+    from routers.leaderboard import _cache as lb_cache
+    raw_matches_all = lb_cache.get("_raw_matches", [])
+
+    if raw_matches_all:
+        # Filter from in-memory cache (fast)
+        if category:
+            matches_iter = (m for m in raw_matches_all if m.get("primary_category") == category)
+        else:
+            matches_iter = iter(raw_matches_all)
+    else:
+        # Fallback: DB query (cold cache)
+        match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        if category:
+            match_query["primary_category"] = category
+        matches_iter = None  # signal to use DB
+
     model_stats = {}
-    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-    if category:
-        match_query["primary_category"] = category
-    async for m in db.matches.find(
-        match_query,
-        {"_id": 0, "model_used": 1, "tokens": 1},
-    ):
-        mu = m.get("model_used", {})
-        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
-        if key not in model_stats:
-            model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-        model_stats[key]["matches"] += 1
-        tokens = m.get("tokens", {})
-        model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
-        model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
+    if matches_iter is not None:
+        for m in matches_iter:
+            mu = m.get("model_used", {})
+            if not mu:
+                continue
+            key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+            if key not in model_stats:
+                model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+            model_stats[key]["matches"] += 1
+            tokens = m.get("tokens", {})
+            model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
+            model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
+    else:
+        # DB fallback — need to fetch token data which isn't in the leaderboard cache projection
+        match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        if category:
+            match_query["primary_category"] = category
+        async for m in db.matches.find(match_query, {"_id": 0, "model_used": 1, "tokens": 1}):
+            mu = m.get("model_used", {})
+            key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+            if key not in model_stats:
+                model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+            model_stats[key]["matches"] += 1
+            tokens = m.get("tokens", {})
+            model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
+            model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
 
     # Calculate cost per model
     total_cost = 0.0
