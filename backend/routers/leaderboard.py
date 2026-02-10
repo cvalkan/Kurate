@@ -321,7 +321,7 @@ async def get_leaderboard(
 ):
     # Tag-based filtering: compute on-demand
     if tags:
-        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()][:50]  # Cap at 50 tags
         if tag_list:
             return await _compute_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search)
 
