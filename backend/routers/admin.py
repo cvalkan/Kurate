@@ -446,7 +446,6 @@ async def get_usage_stats(category: str = None):
 
 @router.get("/prompt", dependencies=[Depends(verify_admin)])
 async def get_evaluation_prompt():
-    from core.config import DEFAULT_EVALUATION_PROMPT
     doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
     if doc:
         return {
@@ -602,8 +601,6 @@ async def run_prediction_tournament(body: PredictionRunRequest = PredictionRunRe
 
 async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bool = True, mode: str = "prediction"):
     """Run a prediction comparison round."""
-    import uuid
-    import random
     from services.llm import compare_papers
 
     # Load prediction prompt
