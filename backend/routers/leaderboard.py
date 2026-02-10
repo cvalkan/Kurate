@@ -166,6 +166,15 @@ async def _refresh_cache():
         "_all_papers_leaderboard": all_periods,
     })
 
+    # Pre-compute failed match counts per category (for admin panel)
+    failed_by_cat = Counter()
+    async for m in db.matches.find(
+        {"failed": True, "mode": {"$exists": False}},
+        {"_id": 0, "primary_category": 1},
+    ):
+        failed_by_cat[m.get("primary_category", "unknown")] += 1
+    _cache["_failed_by_cat"] = dict(failed_by_cat)
+
     # Invalidate tag cache on data refresh
     _tag_cache.clear()
 
