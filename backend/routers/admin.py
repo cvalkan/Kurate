@@ -146,9 +146,13 @@ async def get_admin_status(category: str = "cs.RO"):
             {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
         )
 
-    failed_matches = await db.matches.count_documents(
-        {"failed": True, "primary_category": category, "mode": {"$exists": False}}
-    )
+    failed_by_cat = lb_cache.get("_failed_by_cat", {})
+    if failed_by_cat:
+        failed_matches = failed_by_cat.get(category, 0)
+    else:
+        failed_matches = await db.matches.count_documents(
+            {"failed": True, "primary_category": category, "mode": {"$exists": False}}
+        )
 
     # Count unranked papers using leaderboard cache if available
     if lb_cat_data and lb_cat_data.get("all"):
