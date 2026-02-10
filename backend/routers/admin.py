@@ -237,14 +237,11 @@ async def get_progress_estimate(category: str = "cs.RO"):
     raw_papers = lb_cache.get("_raw_papers", [])
 
     if lb_cat_data and lb_cat_data.get("all") is not None:
-        # Get paper IDs from leaderboard data
         all_paper_ids = [e["id"] for e in lb_cat_data["all"]]
     elif raw_papers:
         all_paper_ids = [p["id"] for p in raw_papers if p.get("categories", [None])[0] == category]
     else:
         all_paper_ids = []
-        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-            all_paper_ids.append(p["id"])
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
