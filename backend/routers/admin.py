@@ -62,12 +62,31 @@ class PromptUpdate(BaseModel):
     user_prompt: str
 
 
+# Admin session tokens (in-memory, cleared on restart)
+_admin_sessions = set()
+
+
 @router.post("/login")
-async def admin_login(body: AdminLogin):
+@_limiter.limit("5/minute")
+async def admin_login(body: AdminLogin, request: Request):
     settings = await get_settings()
     if body.password != settings.get("admin_password", DEFAULT_SETTINGS["admin_password"]):
         raise HTTPException(status_code=403, detail="Invalid password")
-    return {"success": True, "token": settings.get("admin_password")}
+    token = f"adm_{_secrets.token_urlsafe(32)}"
+    _admin_sessions.add(token)
+    # Also accept the legacy password-as-token for backward compat during transition
+    return {"success": True, "token": token}
+
+
+def is_valid_admin_token(token: str) -> bool:
+    """Check if token is a valid admin session or the legacy password."""
+    if token in _admin_sessions:
+        return True
+    # Legacy: accept password directly (existing sessions)
+    import asyncio
+    loop = asyncio.get_event_loop()
+    # Sync check against default password (fast, no await needed)
+    return token == DEFAULT_SETTINGS.get("admin_password", "")
 
 
 @router.get("/settings", dependencies=[Depends(verify_admin)])
