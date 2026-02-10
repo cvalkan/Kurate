@@ -348,11 +348,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     # Per-category counts
     cat_matches_done = sum(paper_match_count.values()) // 2  # each match counted twice
     # PDF count: use pre-computed from background cache, fallback to DB
-    pdf_by_cat = lb_cache.get("_pdf_by_cat", {})
-    if pdf_by_cat:
-        cat_papers_with_pdf = pdf_by_cat.get(category, 0)
-    else:
-        cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
+    cat_papers_with_pdf = lb_cache.get("_pdf_by_cat", {}).get(category, 0)
 
     result = {
         "total_papers": total_papers,
