@@ -87,6 +87,24 @@ export default function LeaderboardPage() {
   const hasSelectedTags = selectedTags.length > 0;
   const isTagMode = tagFilterOpen || hasSelectedTags;
 
+  // Sync state → URL params (replaceState, no history push)
+  const syncRef = useRef(false);
+  useEffect(() => {
+    // Skip the very first render to avoid overwriting URL before categories load
+    if (!syncRef.current) { syncRef.current = true; return; }
+    const p = new URLSearchParams();
+    if (category && !isTagMode) p.set("cat", category);
+    if (period !== "week") p.set("period", period);
+    if (selectedTags.length) p.set("tags", selectedTags.join(","));
+    if (tagMode !== "or") p.set("tagMode", tagMode);
+    if (tagFilterOpen && !selectedTags.length) p.set("tagOpen", "1");
+    if (debouncedKeyword) p.set("q", debouncedKeyword);
+    if (globalStats) p.set("global", "1");
+    const qs = p.toString();
+    const newUrl = qs ? `?${qs}` : window.location.pathname;
+    window.history.replaceState(null, "", newUrl);
+  }, [category, period, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode]);
+
   // Notify navbar of category/tag changes
   useEffect(() => {
     if (hasSelectedTags) {
