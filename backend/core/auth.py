@@ -36,12 +36,12 @@ def invalidate_settings_cache():
 async def verify_admin(x_admin_token: str = Header(None)):
     if not x_admin_token:
         raise HTTPException(status_code=401, detail="Admin token required")
-    # Check session tokens first (new secure tokens)
-    from routers.admin import _admin_sessions
-    if x_admin_token in _admin_sessions:
+    # Check session tokens in DB (persistent across restarts/pods)
+    from routers.admin import _is_valid_session
+    if await _is_valid_session(x_admin_token):
         return True
-    # Legacy: accept password directly
+    # Legacy: accept password directly (for backward compatibility)
     settings = await get_settings()
-    if x_admin_token != settings.get("admin_password", DEFAULT_SETTINGS["admin_password"]):
-        raise HTTPException(status_code=403, detail="Invalid admin credentials")
-    return True
+    if x_admin_token == settings.get("admin_password", DEFAULT_SETTINGS["admin_password"]):
+        return True
+    raise HTTPException(status_code=403, detail="Invalid admin credentials")
