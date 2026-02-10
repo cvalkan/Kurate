@@ -133,7 +133,6 @@ class ManualCompareRequest(BaseModel):
 
 @router.post("/compare", dependencies=[Depends(verify_admin)])
 async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()):
-    import asyncio
     num = min(max(body.num_matches, 1), 500)
     asyncio.create_task(run_comparison_round(max_pairs_override=num, category=body.category))
     return {"status": "started", "num_matches": num, "category": body.category}
@@ -594,7 +593,6 @@ class PredictionRunRequest(BaseModel):
 @router.post("/run-prediction", dependencies=[Depends(verify_admin)])
 async def run_prediction_tournament(body: PredictionRunRequest = PredictionRunRequest()):
     """Run prediction tournament with crowd-prediction prompt."""
-    import asyncio
     mode = "prediction-fulltext" if body.use_full_text else "prediction"
     asyncio.create_task(_run_prediction_round(body.category, min(max(body.num_matches, 1), 500), abstract_only=not body.use_full_text, mode=mode))
     return {"status": "started", "category": body.category, "num_matches": body.num_matches, "mode": mode}
@@ -660,7 +658,6 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
     settings = await get_settings()
     parallel = min(max(settings.get("parallel_agents", 5), 1), 20)
     completed = 0
-    import asyncio as aio
 
     for i in range(0, len(pairs), parallel):
         batch = pairs[i:i + parallel]
@@ -1100,7 +1097,6 @@ async def estimate_category(cat_id: str):
     # Estimate weekly papers from the sample date range
     weekly_papers = 0
     if total_fetched >= 2:
-        from datetime import datetime, timezone
         dates = []
         for p in sample:
             try:
