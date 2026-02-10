@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/admin")
 
 # Per-category cache for admin endpoints (avoids hammering DB on rapid category switching)
 _admin_cache = {}  # {(endpoint, category): {"data": ..., "ts": float}}
-_ADMIN_CACHE_TTL = 8  # seconds
+_ADMIN_CACHE_TTL = 5  # seconds — matches leaderboard cache refresh rate
 
 
 def _get_admin_cached(key: str, category: str):
