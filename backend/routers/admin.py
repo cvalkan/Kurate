@@ -145,7 +145,6 @@ async def get_admin_status(category: str = "cs.RO"):
     if cached:
         return cached
 
-    from routers.leaderboard import _cache as lb_cache
     lb_cat_data = lb_cache.get("categories", {}).get(category, {})
     raw_matches = lb_cache.get("_raw_matches", [])
     raw_papers = lb_cache.get("_raw_papers", [])
@@ -228,7 +227,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
     is_paused = global_paused or tournament_paused
 
     # Use leaderboard cache for paper IDs and match data
-    from routers.leaderboard import _cache as lb_cache
     lb_cat_data = lb_cache.get("categories", {}).get(category, {})
     raw_matches = lb_cache.get("_raw_matches", [])
     raw_papers = lb_cache.get("_raw_papers", [])
@@ -378,7 +376,6 @@ async def get_usage_stats(category: str = None):
     if cached:
         return cached
 
-    from routers.leaderboard import _cache as lb_cache
     raw_matches = lb_cache.get("_raw_matches", [])
 
     # Compute model stats from in-memory matches
