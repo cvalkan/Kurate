@@ -114,7 +114,7 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
             for i, p in enumerate(papers)
         ]
 
-    scores = calculate_bradley_terry(matches, paper_ids)
+    _bt_scores = calculate_bradley_terry(matches, paper_ids)  # noqa: F841 — computed for model validation
 
     stats = {pid: {"wins": 0, "losses": 0, "comparisons": 0} for pid in paper_ids}
     for match in matches:
