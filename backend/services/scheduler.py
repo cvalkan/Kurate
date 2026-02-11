@@ -689,7 +689,7 @@ async def _generate_pending_summaries(category: str = None):
             cat_status["current_activity"] = f"Generating summary: {paper['title'][:40]}..."
         logger.info(f"Generating impact summary for: {paper['title'][:50]}")
 
-        summary = await generate_impact_summary(paper, logs, summary_prompt)
+        summary = await generate_impact_summary(paper, logs, summary_prompt, char_limit=section_char_limit)
         if summary:
             await db.papers.update_one(
                 {"id": pid},
