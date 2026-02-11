@@ -81,8 +81,13 @@ export function AdminExtraction() {
         <div>
           <h2 className="font-heading text-lg font-medium">PDF Extraction Statistics</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Section extraction from {stats.papers_with_text.toLocaleString()} papers 
-            (limit: {(stats.section_char_limit || 2000).toLocaleString()} chars/section, first half + last half)
+            {stats.is_sampled ? (
+              <>Sampled {stats.sample_size} of {stats.papers_with_text.toLocaleString()} papers</>
+            ) : (
+              <>Analyzed {stats.papers_with_text.toLocaleString()} papers</>
+            )}
+            {" "}(limit: {(stats.section_char_limit || 2000).toLocaleString()} chars/section)
+            {stats.is_sampled && <span className="text-amber-600 ml-1">(estimates)</span>}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchStats} className="gap-2">
