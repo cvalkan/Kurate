@@ -676,6 +676,7 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
     paper_lookup = {p["id"]: p for p in all_papers}
     settings = await get_settings()
     parallel = min(max(settings.get("parallel_agents", 5), 1), 20)
+    section_char_limit = settings.get("section_char_limit", 2000)  # Pre-fetch for batch
     completed = 0
 
     for i in range(0, len(pairs), parallel):
@@ -688,7 +689,7 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
             else:
                 presented.append((p1_id, p2_id))
         for p1_id, p2_id in presented:
-            tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config, abstract_only=abstract_only))
+            tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config, abstract_only=abstract_only, char_limit=section_char_limit))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
