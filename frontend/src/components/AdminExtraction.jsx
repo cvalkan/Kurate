@@ -280,8 +280,8 @@ export function AdminExtraction() {
         <ul className="text-xs text-muted-foreground space-y-1">
           <li><span className="text-foreground font-medium">1. Regex-based header detection</span> — Matches numbered sections (e.g., "1. Introduction") and all-caps headers</li>
           <li><span className="text-foreground font-medium">2. Field-adaptive markers</span> — Economics uses "Data/Identification", Physics uses "Theory/Numerical Methods", etc.</li>
-          <li><span className="text-foreground font-medium">3. Position-aware extraction</span> — Introduction must be in first 30%, Conclusion in last 40% of document</li>
-          <li><span className="text-foreground font-medium">4. Fallback</span> — If header not found, simple substring search within position bounds</li>
+          <li><span className="text-foreground font-medium">3. Sequential search</span> — Each section searched after the previous one to maintain document order</li>
+          <li><span className="text-foreground font-medium">4. Fallback strategy</span> — If no sections found: use first 3000 chars as intro, last 2000 chars as conclusion. If partial: fill missing intro/conclusion from document edges</li>
         </ul>
       </div>
     </div>
