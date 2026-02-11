@@ -609,6 +609,7 @@ async def _generate_pending_summaries(category: str = None):
     settings = await get_settings()
     ci_target = settings.get("ci_target", 12)
     max_matches = settings.get("max_matches_per_paper", 150)
+    section_char_limit = settings.get("section_char_limit", 2000)  # Pre-fetch for batch
 
     summary_prompt_doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
     summary_prompt = summary_prompt_doc if summary_prompt_doc and summary_prompt_doc.get("system_prompt") else None
