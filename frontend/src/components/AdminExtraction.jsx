@@ -247,7 +247,8 @@ export function AdminExtraction() {
                       {(data.avg_full_text_chars / 1000).toFixed(1)}K
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
             </tbody>
           </table>
         </div>
