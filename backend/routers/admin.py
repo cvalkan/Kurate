@@ -1243,10 +1243,10 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
             "is_sampled": False,
         }
     
-    # Use sampling for large datasets (>100 papers) on first load
-    # Sample 100 papers max for quick stats, or all if small dataset
-    sample_size = min(100, total_with_text)
-    use_sampling = total_with_text > 100 and not _extraction_cache["data"]
+    # Use sampling for large datasets (>200 papers) on first load only
+    # If user explicitly refreshes, process all papers
+    use_sampling = total_with_text > 200 and not refresh and not _extraction_cache["data"]
+    sample_size = 100 if use_sampling else total_with_text
     
     # Get papers (sampled or all)
     if use_sampling:
