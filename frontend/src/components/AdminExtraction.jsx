@@ -101,11 +101,11 @@ export function AdminExtraction() {
         <div className="p-4 border border-border rounded-lg bg-background">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <CheckCircle className="h-4 w-4 text-green-500" />
-            <span className="text-xs font-medium">All 4 Sections Found</span>
+            <span className="text-xs font-medium">All 4 Headers Found</span>
           </div>
-          <div className="text-2xl font-semibold">{stats.all_sections_found.toLocaleString()}</div>
+          <div className="text-2xl font-semibold">{(stats.all_headers_found || 0).toLocaleString()}</div>
           <div className="text-xs text-muted-foreground mt-1">
-            {stats.all_sections_rate}% success rate
+            {stats.all_headers_rate || 0}% true detection rate
           </div>
         </div>
 
@@ -123,11 +123,14 @@ export function AdminExtraction() {
         <div className="p-4 border border-border rounded-lg bg-background">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <XCircle className="h-4 w-4 text-amber-500" />
-            <span className="text-xs font-medium">No Sections Found</span>
+            <span className="text-xs font-medium">Fallback Used</span>
           </div>
-          <div className="text-2xl font-semibold">{stats.no_sections_found}</div>
+          <div className="text-2xl font-semibold">
+            {stats.all_sections_found - (stats.all_headers_found || 0)}
+          </div>
           <div className="text-xs text-muted-foreground mt-1">
-            {stats.no_sections_rate}% failure rate
+            papers with at least 1 fallback
+          </div>
           </div>
         </div>
       </div>
