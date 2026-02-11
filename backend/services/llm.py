@@ -566,7 +566,9 @@ async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: 
     provider = model_info["provider"]
     model = model_info["model"]
 
-    paper_content = _build_paper_content(paper)
+    # Get section char limit from settings
+    char_limit = await _get_section_char_limit()
+    paper_content = _build_paper_content(paper, char_limit)
 
     # Build match context — sample of wins and losses with reasoning
     wins = [m for m in match_logs if m.get("won") and m.get("reasoning")]
