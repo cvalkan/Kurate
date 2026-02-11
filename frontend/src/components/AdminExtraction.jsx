@@ -318,10 +318,11 @@ export function AdminExtraction() {
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2">Extraction Algorithm</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li><span className="text-foreground font-medium">1. Regex-based header detection</span> — Matches numbered sections (e.g., "1. Introduction") and all-caps headers</li>
+          <li><span className="text-foreground font-medium">1. Regex-based header detection</span> — Matches numbered sections (e.g., "1. Introduction", "I. Methods") and all-caps headers</li>
           <li><span className="text-foreground font-medium">2. Field-adaptive markers</span> — Economics uses "Data/Identification", Physics uses "Theory/Numerical Methods", etc.</li>
-          <li><span className="text-foreground font-medium">3. Sequential search</span> — Each section searched after the previous one to maintain document order</li>
-          <li><span className="text-foreground font-medium">4. Fallback strategy</span> — If no sections found: use first 3000 chars as intro, last 2000 chars as conclusion. If partial: fill missing intro/conclusion from document edges</li>
+          <li><span className="text-foreground font-medium">3. Smart truncation</span> — If section exceeds limit: extract first half + last half (captures section intro and conclusion)</li>
+          <li><span className="text-foreground font-medium">4. Fallback strategy</span> — If headers not found: extract from document positions (first/middle/last portions)</li>
+          <li><span className="text-foreground font-medium">5. Configurable limit</span> — Adjust "Section Char Limit" in Settings to balance context vs. cost</li>
         </ul>
       </div>
     </div>
