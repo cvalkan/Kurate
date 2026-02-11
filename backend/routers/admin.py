@@ -1184,3 +1184,176 @@ async def estimate_category(cat_id: str):
             "matches_per_paper_ratio": round(matches_per_paper, 1),
         },
     }
+
+
+
+# --- Extraction Statistics ---
+
+@router.get("/extraction-stats", dependencies=[Depends(verify_admin)])
+async def get_extraction_stats(category: str = None):
+    """
+    Get detailed statistics about PDF text extraction across all papers.
+    Includes success rates by section, character counts, and per-category breakdown.
+    """
+    from services.llm import extract_key_sections, get_extraction_stats
+    
+    # Build query
+    query = {"full_text": {"$exists": True, "$ne": None, "$ne": ""}}
+    if category:
+        query["categories.0"] = category
+    
+    # Get papers with full text
+    papers = await db.papers.find(
+        query,
+        {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1, "abstract": 1}
+    ).to_list(2000)
+    
+    # Also count papers without full text
+    no_text_query = {"$or": [
+        {"full_text": {"$exists": False}},
+        {"full_text": None},
+        {"full_text": ""}
+    ]}
+    if category:
+        no_text_query["categories.0"] = category
+    papers_without_text = await db.papers.count_documents(no_text_query)
+    
+    if not papers:
+        return {
+            "total_papers": papers_without_text,
+            "papers_with_text": 0,
+            "papers_without_text": papers_without_text,
+            "by_category": {},
+            "overall": {
+                "introduction": {"found": 0, "total": 0, "rate": 0},
+                "methodology": {"found": 0, "total": 0, "rate": 0},
+                "results": {"found": 0, "total": 0, "rate": 0},
+                "conclusion": {"found": 0, "total": 0, "rate": 0},
+            },
+            "all_sections_found": 0,
+            "no_sections_found": 0,
+        }
+    
+    # Aggregate stats
+    by_category = {}
+    overall = {
+        "introduction": {"found": 0, "total": 0, "avg_chars": 0, "total_chars": 0},
+        "methodology": {"found": 0, "total": 0, "avg_chars": 0, "total_chars": 0},
+        "results": {"found": 0, "total": 0, "avg_chars": 0, "total_chars": 0},
+        "conclusion": {"found": 0, "total": 0, "avg_chars": 0, "total_chars": 0},
+    }
+    all_sections_found = 0
+    no_sections_found = 0
+    total_chars = 0
+    total_extracted_chars = 0
+    
+    # Sample papers for detailed breakdown (limit to avoid timeout)
+    sample_papers = []
+    
+    for paper in papers:
+        cat = paper.get("categories", ["unknown"])[0]
+        full_text = paper.get("full_text", "")
+        
+        if cat not in by_category:
+            by_category[cat] = {
+                "total": 0,
+                "introduction": {"found": 0, "total_chars": 0},
+                "methodology": {"found": 0, "total_chars": 0},
+                "results": {"found": 0, "total_chars": 0},
+                "conclusion": {"found": 0, "total_chars": 0},
+                "all_sections": 0,
+                "no_sections": 0,
+                "avg_full_text_chars": 0,
+                "total_full_text_chars": 0,
+            }
+        
+        cat_stats = by_category[cat]
+        cat_stats["total"] += 1
+        cat_stats["total_full_text_chars"] += len(full_text)
+        total_chars += len(full_text)
+        
+        # Extract sections
+        sections = extract_key_sections(full_text, cat)
+        
+        sections_found_count = 0
+        paper_extracted_chars = 0
+        
+        for section_name in ["introduction", "methodology", "results", "conclusion"]:
+            section_text = sections.get(section_name, "")
+            found = len(section_text) > 0
+            chars = len(section_text)
+            
+            overall[section_name]["total"] += 1
+            cat_stats[section_name]["total_chars"] += chars
+            paper_extracted_chars += chars
+            
+            if found:
+                overall[section_name]["found"] += 1
+                overall[section_name]["total_chars"] += chars
+                cat_stats[section_name]["found"] += 1
+                sections_found_count += 1
+        
+        total_extracted_chars += paper_extracted_chars
+        
+        if sections_found_count == 4:
+            all_sections_found += 1
+            cat_stats["all_sections"] += 1
+        elif sections_found_count == 0:
+            no_sections_found += 1
+            cat_stats["no_sections"] += 1
+        
+        # Add to sample (limit to 100)
+        if len(sample_papers) < 100:
+            sample_papers.append({
+                "id": paper["id"],
+                "title": paper["title"][:60],
+                "category": cat,
+                "full_text_chars": len(full_text),
+                "sections_found": sections_found_count,
+                "extracted_chars": paper_extracted_chars,
+                "intro_chars": len(sections.get("introduction", "")),
+                "method_chars": len(sections.get("methodology", "")),
+                "results_chars": len(sections.get("results", "")),
+                "conclusion_chars": len(sections.get("conclusion", "")),
+            })
+    
+    # Calculate rates and averages
+    total_with_text = len(papers)
+    
+    for section_name in ["introduction", "methodology", "results", "conclusion"]:
+        if overall[section_name]["total"] > 0:
+            overall[section_name]["rate"] = round(
+                overall[section_name]["found"] / overall[section_name]["total"] * 100, 1
+            )
+            overall[section_name]["avg_chars"] = round(
+                overall[section_name]["total_chars"] / max(overall[section_name]["found"], 1)
+            )
+    
+    # Calculate per-category rates
+    for cat, stats in by_category.items():
+        if stats["total"] > 0:
+            stats["avg_full_text_chars"] = round(stats["total_full_text_chars"] / stats["total"])
+            for section_name in ["introduction", "methodology", "results", "conclusion"]:
+                stats[section_name]["rate"] = round(
+                    stats[section_name]["found"] / stats["total"] * 100, 1
+                )
+                stats[section_name]["avg_chars"] = round(
+                    stats[section_name]["total_chars"] / max(stats[section_name]["found"], 1)
+                )
+    
+    return {
+        "total_papers": total_with_text + papers_without_text,
+        "papers_with_text": total_with_text,
+        "papers_without_text": papers_without_text,
+        "text_coverage_rate": round(total_with_text / max(total_with_text + papers_without_text, 1) * 100, 1),
+        "by_category": by_category,
+        "overall": overall,
+        "all_sections_found": all_sections_found,
+        "all_sections_rate": round(all_sections_found / max(total_with_text, 1) * 100, 1),
+        "no_sections_found": no_sections_found,
+        "no_sections_rate": round(no_sections_found / max(total_with_text, 1) * 100, 1),
+        "avg_full_text_chars": round(total_chars / max(total_with_text, 1)),
+        "avg_extracted_chars": round(total_extracted_chars / max(total_with_text, 1)),
+        "extraction_ratio": round(total_extracted_chars / max(total_chars, 1) * 100, 2),
+        "sample_papers": sample_papers[:50],  # Return first 50 for UI display
+    }
