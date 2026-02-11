@@ -333,7 +333,7 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
     else:
         # Partial extraction - fill in missing sections intelligently
         if not sections["introduction"]:
-            sections["introduction"] = full_text[:2000].strip()
+            sections["introduction"] = full_text[:char_limit].strip()
             used_fallback["introduction"] = True
         
         if not sections["conclusion"]:
@@ -345,12 +345,12 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
             for marker in ["conclusion", "summary", "discussion", "future work"]:
                 idx = last_30_lower.find(marker)
                 if idx != -1:
-                    sections["conclusion"] = last_30_pct[idx:idx+2000].strip()
+                    sections["conclusion"] = last_30_pct[idx:idx+char_limit].strip()
                     found_in_last = True
                     break
             
             if not found_in_last:
-                sections["conclusion"] = full_text[-2000:].strip()
+                sections["conclusion"] = full_text[-char_limit:].strip()
             used_fallback["conclusion"] = True
         
         if not sections["methodology"]:
@@ -362,7 +362,7 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
             for marker in ["method", "approach", "model", "framework"]:
                 idx = middle_lower.find(marker)
                 if idx != -1:
-                    sections["methodology"] = middle_text[idx:idx+2000].strip()
+                    sections["methodology"] = middle_text[idx:idx+char_limit].strip()
                     break
             used_fallback["methodology"] = True
         
