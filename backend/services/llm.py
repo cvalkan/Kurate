@@ -562,14 +562,15 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
 
 
-async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None) -> Optional[str]:
+async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None, char_limit: int = None) -> Optional[str]:
     """Generate a scientific impact summary for a converged paper using its content and match logs."""
     model_info = _pick_round_robin_model()
     provider = model_info["provider"]
     model = model_info["model"]
 
-    # Get section char limit from settings
-    char_limit = await _get_section_char_limit()
+    # Use pre-fetched char_limit if provided, otherwise fetch from settings
+    if char_limit is None:
+        char_limit = await _get_section_char_limit()
     paper_content = _build_paper_content(paper, char_limit)
 
     # Build match context — sample of wins and losses with reasoning
