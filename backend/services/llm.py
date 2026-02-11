@@ -423,8 +423,9 @@ def get_extraction_stats(full_text: str, category: str = None) -> Dict:
 
 async def _get_section_char_limit() -> int:
     """Get the section char limit from settings, with fallback to default."""
-    from core.config import db, DEFAULT_SETTINGS
-    settings = await db.settings.find_one({"key": "global"}) or {}
+    from core.auth import get_settings
+    from core.config import DEFAULT_SETTINGS
+    settings = await get_settings()
     return settings.get("section_char_limit", DEFAULT_SETTINGS.get("section_char_limit", 2000))
 
 
