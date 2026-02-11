@@ -170,8 +170,8 @@ def _find_section_header(text: str, markers: list, start_pos: int = 0, end_pos: 
     Returns (position, matched_marker) or (-1, None) if not found.
     
     Looks for patterns like:
-    - "1. Introduction"
-    - "2 Methods"
+    - "1. Introduction", "2 Methods" (Arabic numerals)
+    - "I. Introduction", "II. Methods" (Roman numerals)
     - "Introduction" at start of line
     - "INTRODUCTION" (all caps)
     """
@@ -185,21 +185,27 @@ def _find_section_header(text: str, markers: list, start_pos: int = 0, end_pos: 
     
     for marker in markers:
         marker_lower = marker.lower()
+        marker_escaped = re.escape(marker_lower)
         
-        # Pattern 1: Numbered section header (e.g., "1. Introduction", "2 Methods")
-        pattern1 = rf'(?:^|\n)\s*(?:[0-9]+\.?\s+)?{re.escape(marker_lower)}(?:\s*\n|$)'
+        # Pattern 1: Arabic numbered section header (e.g., "1. Introduction", "2 Methods", "3.1 Setup")
+        pattern1 = rf'(?:^|\n)\s*(?:[0-9]+(?:\.[0-9]+)?\.?\s+)?{marker_escaped}(?:\s*\n|$|:)'
         match1 = re.search(pattern1, text_lower, re.IGNORECASE | re.MULTILINE)
         
-        # Pattern 2: All caps header (e.g., "INTRODUCTION")
-        pattern2 = rf'(?:^|\n)\s*{re.escape(marker.upper())}\s*(?:\n|$)'
-        match2 = re.search(pattern2, search_text, re.MULTILINE)
+        # Pattern 2: Roman numeral section header (e.g., "I. Introduction", "II. Methods", "III. Results")
+        pattern2 = rf'(?:^|\n)\s*(?:[IVXLC]+\.?\s+)?{marker_escaped}(?:\s*\n|$|:)'
+        match2 = re.search(pattern2, text_lower, re.IGNORECASE | re.MULTILINE)
         
-        # Pattern 3: Simple marker with newline context
-        pattern3 = rf'(?:^|\n)\s*{re.escape(marker_lower)}\s*(?:\n|:)'
-        match3 = re.search(pattern3, text_lower, re.IGNORECASE | re.MULTILINE)
+        # Pattern 3: All caps header (e.g., "INTRODUCTION", "METHODS AND MATERIALS")
+        marker_upper = marker.upper()
+        pattern3 = rf'(?:^|\n)\s*{re.escape(marker_upper)}\s*(?:\n|$)'
+        match3 = re.search(pattern3, search_text, re.MULTILINE)
+        
+        # Pattern 4: Simple marker at line start with colon or newline
+        pattern4 = rf'(?:^|\n)\s*{marker_escaped}\s*(?:\n|:)'
+        match4 = re.search(pattern4, text_lower, re.IGNORECASE | re.MULTILINE)
         
         # Find the earliest valid match
-        for match in [match1, match2, match3]:
+        for match in [match1, match2, match3, match4]:
             if match:
                 pos = start_pos + match.start()
                 if best_match[0] == -1 or pos < best_match[0]:
