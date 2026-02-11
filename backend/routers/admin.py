@@ -1191,7 +1191,7 @@ async def estimate_category(cat_id: str):
 # --- Extraction Statistics ---
 
 # Simple cache for extraction stats (expensive to compute)
-_extraction_cache = {"data": None, "timestamp": 0}
+_extraction_cache = {"data": None, "timestamp": 0, "computing": False}
 _EXTRACTION_CACHE_TTL = 300  # 5 minutes
 
 
@@ -1199,14 +1199,15 @@ _EXTRACTION_CACHE_TTL = 300  # 5 minutes
 async def get_extraction_stats(category: str = None, refresh: bool = False):
     """
     Get detailed statistics about PDF text extraction across all papers.
-    Includes success rates by section, character counts, and per-category breakdown.
-    Results are cached for 5 minutes for performance.
+    Uses sampling for fast initial load, with full stats cached after first computation.
     """
     import time as _time
+    import random
     from services.llm import extract_key_sections
     
-    # Check cache (only for full dataset, not filtered by category)
     now = _time.time()
+    
+    # Return cached data if available and fresh
     if not category and not refresh and _extraction_cache["data"] and (now - _extraction_cache["timestamp"]) < _EXTRACTION_CACHE_TTL:
         return _extraction_cache["data"]
     
@@ -1214,30 +1215,46 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
     settings_doc = await db.settings.find_one({"key": "global"}) or {}
     char_limit = settings_doc.get("section_char_limit", DEFAULT_SETTINGS.get("section_char_limit", 2000))
     
-    # Build query
+    # Count papers efficiently
     query = {"full_text": {"$exists": True, "$ne": None, "$ne": ""}}
     if category:
         query["categories.0"] = category
     
-    # Get papers with full text
-    papers = await db.papers.find(
-        query,
-        {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1, "abstract": 1}
-    ).to_list(2000)
+    total_with_text = await db.papers.count_documents(query)
     
-    # Also count papers without full text
-    no_text_query = {"$or": [
-        {"full_text": {"$exists": False}},
-        {"full_text": None},
-        {"full_text": ""}
-    ]}
+    no_text_query = {"$or": [{"full_text": {"$exists": False}}, {"full_text": None}, {"full_text": ""}]}
     if category:
         no_text_query["categories.0"] = category
     papers_without_text = await db.papers.count_documents(no_text_query)
     
-    if not papers:
+    if total_with_text == 0:
         return {
             "total_papers": papers_without_text,
+            "papers_with_text": 0,
+            "papers_without_text": papers_without_text,
+            "by_category": {},
+            "overall": {s: {"found": 0, "total": 0, "rate": 0, "header_rate": 0, "fallback_rate": 0, "avg_chars": 0} for s in ["introduction", "methodology", "results", "conclusion"]},
+            "all_sections_found": 0,
+            "all_sections_rate": 0,
+            "all_headers_found": 0,
+            "all_headers_rate": 0,
+            "section_char_limit": char_limit,
+            "sample_size": 0,
+            "is_sampled": False,
+        }
+    
+    # Use sampling for large datasets (>100 papers) on first load
+    # Sample 100 papers max for quick stats, or all if small dataset
+    sample_size = min(100, total_with_text)
+    use_sampling = total_with_text > 100 and not _extraction_cache["data"]
+    
+    # Get papers (sampled or all)
+    if use_sampling:
+        # Use aggregation with $sample for random sampling
+        pipeline = [{"$match": query}, {"$sample": {"size": sample_size}}, {"$project": {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}}]
+        papers = await db.papers.aggregate(pipeline).to_list(sample_size)
+    else:
+        papers = await db.papers.find(query, {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}).to_list(2000)
             "papers_with_text": 0,
             "papers_without_text": papers_without_text,
             "by_category": {},
