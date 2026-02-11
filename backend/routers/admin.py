@@ -58,6 +58,7 @@ class SettingsUpdate(BaseModel):
     ci_target: Optional[int] = None
     paused: Optional[bool] = None
     admin_password: Optional[str] = None
+    section_char_limit: Optional[int] = None  # Truncation limit per section (default 2000)
 
 
 class PromptUpdate(BaseModel):
