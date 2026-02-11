@@ -83,4 +83,5 @@ DEFAULT_SETTINGS = {
     "ci_target": 12,
     "min_papers_for_tournament": 8,
     "paused": False,
+    "section_char_limit": 2000,  # Max chars to extract per section (first half + last half)
 }
