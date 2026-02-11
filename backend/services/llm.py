@@ -421,21 +421,40 @@ def get_extraction_stats(full_text: str, category: str = None) -> Dict:
     return stats
 
 
-def _build_paper_content(paper: dict) -> str:
+async def _get_section_char_limit() -> int:
+    """Get the section char limit from settings, with fallback to default."""
+    from core.config import db, DEFAULT_SETTINGS
+    settings = await db.settings.find_one({"key": "global"}) or {}
+    return settings.get("section_char_limit", DEFAULT_SETTINGS.get("section_char_limit", 2000))
+
+
+def _build_paper_content(paper: dict, char_limit: int = 2000) -> str:
+    """Build paper content for LLM comparison using extracted sections."""
     if paper.get("full_text"):
         category = paper.get("categories", [None])[0]
-        sections = extract_key_sections(paper["full_text"], category)
-        content = f"Abstract: {paper['abstract'][:500]}\n\n"
+        sections = extract_key_sections(paper["full_text"], category, char_limit)
+        # Remove metadata
+        sections.pop("_meta", None)
+        
+        # Use proportional limits based on char_limit
+        # Total budget: roughly char_limit * 2 for the whole paper content
+        intro_limit = int(char_limit * 0.5)
+        method_limit = int(char_limit * 0.5)
+        results_limit = int(char_limit * 0.4)
+        conclusion_limit = int(char_limit * 0.25)
+        abstract_limit = int(char_limit * 0.25)
+        
+        content = f"Abstract: {paper['abstract'][:abstract_limit]}\n\n"
         if sections["introduction"]:
-            content += f"Introduction: {sections['introduction'][:1000]}\n\n"
+            content += f"Introduction: {sections['introduction'][:intro_limit]}\n\n"
         if sections["methodology"]:
-            content += f"Methodology: {sections['methodology'][:1000]}\n\n"
+            content += f"Methodology: {sections['methodology'][:method_limit]}\n\n"
         if sections["results"]:
-            content += f"Results: {sections['results'][:800]}\n\n"
+            content += f"Results: {sections['results'][:results_limit]}\n\n"
         if sections["conclusion"]:
-            content += f"Conclusion: {sections['conclusion'][:500]}\n"
+            content += f"Conclusion: {sections['conclusion'][:conclusion_limit]}\n"
         return content
-    return f"Abstract: {paper['abstract'][:1200]}"
+    return f"Abstract: {paper['abstract'][:int(char_limit * 0.6)]}"
 
 
 _model_counter = 0
