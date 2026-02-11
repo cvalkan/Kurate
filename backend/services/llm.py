@@ -37,36 +37,112 @@ async def download_and_extract_pdf(pdf_url: str) -> Optional[str]:
 
 
 # Field-specific marker configurations
+# Markers are ordered by specificity (more specific first)
 FIELD_MARKERS = {
     "default": {
-        "introduction": ["introduction", "1. introduction", "1 introduction", "i. introduction"],
-        "methodology": ["method", "methodology", "approach", "proposed method", "our approach", "technical approach"],
-        "results": ["result", "experiment", "evaluation", "empirical", "performance"],
-        "conclusion": ["conclusion", "discussion", "concluding remarks", "summary", "final remarks"],
+        "introduction": [
+            "1. introduction", "1 introduction", "i. introduction", "ii. introduction",
+            "introduction", "background", "overview", "motivation", "preliminaries",
+        ],
+        "methodology": [
+            "materials and methods", "methods and materials", "experimental setup",
+            "proposed method", "our approach", "system design", "technical approach",
+            "methodology", "method", "approach", "model", "framework", "algorithm",
+            "implementation", "architecture", "setup", "formulation",
+        ],
+        "results": [
+            "results and discussion", "experimental results", "main results",
+            "result", "experiment", "evaluation", "analysis", "finding",
+            "empirical", "performance", "benchmark", "ablation", "comparison",
+            "simulation", "numerical results", "case study",
+        ],
+        "conclusion": [
+            "conclusion and future work", "conclusions and future work",
+            "concluding remarks", "final remarks", "broader impact",
+            "conclusion", "conclusions", "discussion", "summary", 
+            "limitation", "future work", "closing remarks",
+        ],
     },
     "econ": {
-        "introduction": ["introduction", "1. introduction", "1 introduction"],
-        "methodology": ["method", "methodology", "data", "identification", "estimation", "empirical strategy", "model", "framework"],
-        "results": ["result", "empirical result", "finding", "estimation result", "main result", "evidence", "analysis"],
-        "conclusion": ["conclusion", "discussion", "policy implication", "concluding remarks", "summary"],
+        "introduction": [
+            "1. introduction", "1 introduction", "i. introduction",
+            "introduction", "background", "motivation", "overview",
+        ],
+        "methodology": [
+            "empirical strategy", "identification strategy", "estimation strategy",
+            "data and methodology", "model and data",
+            "methodology", "method", "data", "identification", "estimation", 
+            "model", "framework", "econometric",
+        ],
+        "results": [
+            "main results", "empirical results", "estimation results",
+            "result", "finding", "evidence", "analysis", "robustness",
+        ],
+        "conclusion": [
+            "conclusion and policy", "policy implications",
+            "conclusion", "conclusions", "discussion", "summary",
+            "limitation", "future work", "concluding remarks",
+        ],
     },
     "physics": {
-        "introduction": ["introduction", "1. introduction", "1 introduction"],
-        "methodology": ["method", "methodology", "theory", "theoretical framework", "formalism", "numerical method", "computational method", "model"],
-        "results": ["result", "numerical result", "simulation", "analysis", "calculation", "computation"],
-        "conclusion": ["conclusion", "discussion", "summary", "concluding remarks"],
+        "introduction": [
+            "1. introduction", "i. introduction",
+            "introduction", "background", "motivation", "overview",
+        ],
+        "methodology": [
+            "theoretical framework", "numerical method", "computational method",
+            "theory", "formalism", "model", "method", "methodology",
+            "setup", "simulation setup",
+        ],
+        "results": [
+            "numerical results", "simulation results",
+            "result", "analysis", "calculation", "computation", "simulation",
+        ],
+        "conclusion": [
+            "summary and conclusion", "conclusion and outlook",
+            "conclusion", "conclusions", "discussion", "summary",
+            "outlook", "future work",
+        ],
     },
     "q-bio": {
-        "introduction": ["introduction", "1. introduction", "1 introduction", "background"],
-        "methodology": ["method", "methodology", "materials and methods", "materials", "protocol", "experimental procedure", "computational method"],
-        "results": ["result", "experimental result", "finding", "observation", "analysis"],
-        "conclusion": ["conclusion", "discussion", "concluding remarks", "summary"],
+        "introduction": [
+            "1. introduction", "i. introduction",
+            "introduction", "background", "overview",
+        ],
+        "methodology": [
+            "materials and methods", "methods and materials", "experimental procedure",
+            "method", "methodology", "protocol", "computational method",
+            "data collection", "experimental design",
+        ],
+        "results": [
+            "experimental results",
+            "result", "finding", "observation", "analysis",
+        ],
+        "conclusion": [
+            "conclusion", "conclusions", "discussion", "summary",
+            "limitation", "future direction",
+        ],
     },
     "cs": {
-        "introduction": ["introduction", "1. introduction", "1 introduction"],
-        "methodology": ["method", "methodology", "approach", "proposed method", "our approach", "system design", "architecture", "framework", "algorithm"],
-        "results": ["result", "experiment", "evaluation", "empirical evaluation", "performance", "benchmark"],
-        "conclusion": ["conclusion", "discussion", "summary", "concluding remarks", "future work"],
+        "introduction": [
+            "1. introduction", "1 introduction", "i. introduction",
+            "introduction", "background", "motivation", "overview", "preliminaries",
+        ],
+        "methodology": [
+            "proposed method", "our approach", "system design", "system overview",
+            "method", "methodology", "approach", "architecture", "framework", 
+            "algorithm", "implementation", "model", "design",
+        ],
+        "results": [
+            "experimental results", "main results",
+            "result", "experiment", "evaluation", "analysis",
+            "performance", "benchmark", "ablation", "comparison",
+        ],
+        "conclusion": [
+            "conclusion and future work", "conclusions and future work",
+            "conclusion", "conclusions", "discussion", "summary",
+            "limitation", "future work", "broader impact",
+        ],
     },
 }
 
@@ -77,9 +153,9 @@ def _get_field_markers(category: str = None) -> dict:
         return FIELD_MARKERS["default"]
     
     cat_lower = category.lower()
-    if cat_lower.startswith("econ"):
+    if cat_lower.startswith("econ") or cat_lower.startswith("q-fin"):
         return FIELD_MARKERS["econ"]
-    elif cat_lower.startswith("physics") or cat_lower.startswith("astro"):
+    elif cat_lower.startswith("physics") or cat_lower.startswith("astro") or cat_lower.startswith("cond-mat"):
         return FIELD_MARKERS["physics"]
     elif cat_lower.startswith("q-bio"):
         return FIELD_MARKERS["q-bio"]
