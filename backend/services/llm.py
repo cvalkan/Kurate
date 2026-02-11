@@ -254,7 +254,8 @@ def get_extraction_stats(full_text: str, category: str = None) -> Dict:
 
 def _build_paper_content(paper: dict) -> str:
     if paper.get("full_text"):
-        sections = extract_key_sections(paper["full_text"])
+        category = paper.get("categories", [None])[0]
+        sections = extract_key_sections(paper["full_text"], category)
         content = f"Abstract: {paper['abstract'][:500]}\n\n"
         if sections["introduction"]:
             content += f"Introduction: {sections['introduction'][:1000]}\n\n"
