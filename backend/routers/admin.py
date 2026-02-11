@@ -1410,6 +1410,10 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
     # Calculate all headers found (no fallback used)
     all_headers_found = sum(1 for cat_stats in by_category.values() for _ in range(cat_stats.get("all_headers", 0)))
     
+    # Scale stats if we used sampling
+    processed_count = len(papers)
+    scale_factor = total_with_text / processed_count if processed_count > 0 else 1
+    
     result = {
         "total_papers": total_with_text + papers_without_text,
         "papers_with_text": total_with_text,
@@ -1417,18 +1421,20 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         "text_coverage_rate": round(total_with_text / max(total_with_text + papers_without_text, 1) * 100, 1),
         "by_category": by_category,
         "overall": overall,
-        "all_sections_found": all_sections_found,
-        "all_sections_rate": round(all_sections_found / max(total_with_text, 1) * 100, 1),
-        "all_headers_found": sum(stats.get("all_headers", 0) for stats in by_category.values()),
-        "all_headers_rate": round(sum(stats.get("all_headers", 0) for stats in by_category.values()) / max(total_with_text, 1) * 100, 1),
-        "no_sections_found": no_sections_found,
-        "no_sections_rate": round(no_sections_found / max(total_with_text, 1) * 100, 1),
-        "avg_full_text_chars": round(total_chars / max(total_with_text, 1)),
-        "avg_extracted_chars": round(total_extracted_chars / max(total_with_text, 1)),
+        "all_sections_found": int(all_sections_found * scale_factor) if use_sampling else all_sections_found,
+        "all_sections_rate": round(all_sections_found / max(processed_count, 1) * 100, 1),
+        "all_headers_found": int(sum(stats.get("all_headers", 0) for stats in by_category.values()) * scale_factor) if use_sampling else sum(stats.get("all_headers", 0) for stats in by_category.values()),
+        "all_headers_rate": round(sum(stats.get("all_headers", 0) for stats in by_category.values()) / max(processed_count, 1) * 100, 1),
+        "no_sections_found": int(no_sections_found * scale_factor) if use_sampling else no_sections_found,
+        "no_sections_rate": round(no_sections_found / max(processed_count, 1) * 100, 1),
+        "avg_full_text_chars": round(total_chars / max(processed_count, 1)),
+        "avg_extracted_chars": round(total_extracted_chars / max(processed_count, 1)),
         "extraction_ratio": round(total_extracted_chars / max(total_chars, 1) * 100, 2),
         "section_char_limit": char_limit,
         "header_detection": header_detection,
-        "sample_papers": sample_papers[:50],  # Return first 50 for UI display
+        "sample_papers": sample_papers[:50],
+        "is_sampled": use_sampling,
+        "sample_size": processed_count if use_sampling else None,
     }
     
     # Update cache if not filtering by category
