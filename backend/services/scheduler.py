@@ -542,7 +542,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     else:
                         presented_batch.append((p1_id, p2_id))
                 for p1_id, p2_id in presented_batch:
-                    tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config))
+                    tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config, char_limit=section_char_limit))
 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
