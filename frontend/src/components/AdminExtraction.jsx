@@ -18,19 +18,27 @@ export function AdminExtraction() {
   const fetchStats = async () => {
     setLoading(true);
     setError(null);
+    console.log("[AdminExtraction] Starting fetch...");
     try {
+      const headers = getAdminHeaders();
+      console.log("[AdminExtraction] Headers:", headers);
       const res = await axios.get(`${API}/api/admin/extraction-stats`, {
-        headers: getAdminHeaders(),
+        headers,
+        timeout: 30000,
       });
+      console.log("[AdminExtraction] Response:", res.status, res.data?.total_papers);
       setStats(res.data);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to load extraction stats");
+      console.error("[AdminExtraction] Error:", err);
+      setError(err.response?.data?.detail || err.message || "Failed to load extraction stats");
     } finally {
+      console.log("[AdminExtraction] Setting loading to false");
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    console.log("[AdminExtraction] Component mounted, calling fetchStats");
     fetchStats();
   }, []);
 
