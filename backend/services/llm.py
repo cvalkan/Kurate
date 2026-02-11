@@ -293,14 +293,55 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
         # Extract last 2000 chars as "conclusion"
         sections["introduction"] = full_text[:3000].strip()
         sections["conclusion"] = full_text[-2000:].strip()
-    elif sections_found < 3:
-        # Partial extraction - fill in missing critical sections
+    else:
+        # Partial extraction - fill in missing sections intelligently
         if not sections["introduction"] and intro_pos == -1:
             # No introduction found - use first 2000 chars
             sections["introduction"] = full_text[:2000].strip()
+        
         if not sections["conclusion"] and conclusion_pos == -1:
-            # No conclusion found - use last 2000 chars
-            sections["conclusion"] = full_text[-2000:].strip()
+            # No conclusion found - search more aggressively in last 30%
+            last_30_pct = full_text[int(text_len * 0.7):]
+            last_30_lower = last_30_pct.lower()
+            
+            # Try to find any conclusion-like marker in last 30%
+            found_in_last = False
+            for marker in ["conclusion", "summary", "discussion", "future work"]:
+                idx = last_30_lower.find(marker)
+                if idx != -1:
+                    sections["conclusion"] = last_30_pct[idx:idx+2000].strip()
+                    found_in_last = True
+                    break
+            
+            # If still not found, use last 2000 chars
+            if not found_in_last:
+                sections["conclusion"] = full_text[-2000:].strip()
+        
+        if not sections["methodology"] and method_pos == -1:
+            # No methodology found - try to extract from middle portion
+            middle_start = int(text_len * 0.15)
+            middle_end = int(text_len * 0.5)
+            middle_text = full_text[middle_start:middle_end]
+            middle_lower = middle_text.lower()
+            
+            for marker in ["method", "approach", "model", "framework"]:
+                idx = middle_lower.find(marker)
+                if idx != -1:
+                    sections["methodology"] = middle_text[idx:idx+2000].strip()
+                    break
+        
+        if not sections["results"] and results_pos == -1:
+            # No results found - try to extract from latter middle portion
+            mid_start = int(text_len * 0.4)
+            mid_end = int(text_len * 0.8)
+            mid_text = full_text[mid_start:mid_end]
+            mid_lower = mid_text.lower()
+            
+            for marker in ["result", "experiment", "evaluation", "analysis"]:
+                idx = mid_lower.find(marker)
+                if idx != -1:
+                    sections["results"] = mid_text[idx:idx+2000].strip()
+                    break
     
     return sections
 
