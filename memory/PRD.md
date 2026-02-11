@@ -12,21 +12,29 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 ## Architecture
 
 ### Key Files
-- `backend/server.py` - FastAPI app entrypoint, rate-limiting middleware
+- `backend/server.py` - FastAPI app entrypoint, rate-limiting middleware, security headers
 - `backend/core/auth.py` - Admin authentication (MongoDB-backed sessions)
-- `backend/routers/admin.py` - Admin panel endpoints
+- `backend/routers/admin.py` - Admin panel endpoints including extraction stats
 - `backend/routers/leaderboard.py` - Public leaderboard API
 - `backend/db_utils/leaderboard_cache.py` - Background caching thread
-- `frontend/src/pages/LeaderboardPage.jsx` - Main leaderboard orchestrator
-- `frontend/src/components/leaderboard/` - Decomposed leaderboard components
+- `backend/services/llm.py` - PDF extraction algorithm, LLM comparison logic
+- `frontend/src/pages/AdminPage.jsx` - Admin panel tabs
+- `frontend/src/components/AdminExtraction.jsx` - Extraction statistics page
 
 ### Key Patterns
 1. **Background Caching**: All expensive queries are pre-computed by `leaderboard_cache.py` and served from memory
 2. **Single Source of Truth**: Match counts come from scheduler state, not multiple DB queries
-3. **Rate Limiting**: Custom middleware in `main.py` with stricter limits on sensitive endpoints
+3. **Rate Limiting**: Custom middleware in `server.py` with stricter limits on sensitive endpoints
 4. **Admin Sessions**: Stored in MongoDB `admin_sessions` collection (persistent across restarts/pods)
+5. **Extraction Stats Cache**: 5-minute TTL cache for extraction statistics
 
 ## Implemented Features
+
+### PDF Extraction Algorithm (Implemented Feb 2026)
+- ✅ Regex-based header detection (numbered sections, all-caps headers)
+- ✅ Field-adaptive markers (Economics, Physics, Biology, CS specific terms)
+- ✅ Position-aware extraction (Introduction in first 30%, Conclusion in last 40%)
+- ✅ Admin Extraction page with statistics
 
 ### Performance Optimization (Completed Dec 2025)
 - ✅ Backend caching for "All Papers" and tag-filtered leaderboards
@@ -41,25 +49,22 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - ✅ Frontend re-ranking on Global/Local toggle
 - ✅ Detailed tooltips on column headers
 
-### Security Hardening (Completed Dec 2025)
+### Security Hardening (Completed Feb 2026)
 - ✅ Rate limiting middleware on all endpoints
 - ✅ Session token-based admin auth (MongoDB-backed)
 - ✅ Parameter capping (limit, search length)
-
-### Code Quality (Completed Dec 2025)
-- ✅ Decomposed LeaderboardPage.jsx into 6 smaller components
-- ✅ Consolidated duplicated wilson_margin calculation
-- ✅ Removed dead code and unused imports
+- ✅ Security headers (HSTS, CSP, X-Frame-Options, etc.) for API endpoints
+- ⚠️ Security headers for frontend static files (needs nginx config on production)
 
 ### Bug Fixes (Completed Feb 2026)
 - ✅ Fixed "Back to Leaderboard" link state preservation
 - ✅ Fixed Global Stats calculation (Bradley-Terry model)
-- ✅ **Fixed admin login not working on deployed version** - Changed from in-memory to MongoDB session storage
+- ✅ Fixed admin login not working on deployed version (MongoDB sessions)
 
 ## Database Schema
 
 ### Collections
-- `papers`: `{ arxiv_id, title, primary_category, categories, published_date, ... }`
+- `papers`: `{ arxiv_id, title, primary_category, categories, published_date, full_text, ... }`
 - `matches`: `{ paper1_id, paper2_id, winner_id, primary_category, shared_categories, ... }`
 - `tournaments`: `{ category, is_active, last_run, status, ... }`
 - `admin_settings`: `{ admin_password, openai_api_key, ... }`
@@ -70,15 +75,35 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - `GET /api/tags` - Filterable tags
 - `POST /api/admin/login` - Admin login → returns session token
 - `GET /api/admin/status`, `/progress`, `/stats` - Admin polling (cached)
+- `GET /api/admin/extraction-stats` - PDF extraction statistics (5-min cache)
+
+## Extraction Algorithm Details
+
+### Current Performance (416 papers)
+- Introduction: 96.6% found
+- Methodology: 99.0% found
+- Results: 98.6% found
+- Conclusion: 81.2% found
+- All 4 sections: 76.4% success rate
+
+### Field-Specific Markers
+- **Economics**: data, identification, estimation, robustness, policy
+- **Physics**: theory, formalism, numerical method, derivation
+- **Biology**: materials and methods, protocol, assay
+- **CS**: approach, system design, architecture, algorithm
 
 ## Credentials
 - **Admin Password**: `papersumo2025`
 
 ## Deployment Notes
-- Admin sessions are stored in MongoDB, so they persist across:
-  - Backend restarts
-  - Multiple pod instances in Kubernetes
-  - Deployments
+- Admin sessions stored in MongoDB (persistent across restarts/pods)
+- Security headers work on API endpoints, need nginx config for frontend static files on production
+- Extraction stats endpoint has 5-minute cache for performance
+
+## Known Issues
+- Security headers for frontend static files require nginx configuration on production (contact Emergent support)
+- Conclusion extraction rate (81.2%) is lower than other sections
 
 ## Backlog
-No outstanding tasks.
+- Consider using full PDFs for top-K high-value paper comparisons
+- Improve conclusion detection algorithm
