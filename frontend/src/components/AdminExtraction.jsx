@@ -139,19 +139,41 @@ export function AdminExtraction() {
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="px-4 py-3 bg-secondary/30 border-b border-border">
           <h3 className="text-sm font-medium">Section Extraction Rates (Overall)</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Green = header detected, Amber = fallback used
+          </p>
         </div>
         <div className="p-4 space-y-4">
           {sectionOrder.map((section) => {
             const data = stats.overall[section];
+            const headerRate = data.header_rate || 0;
+            const fallbackRate = data.fallback_rate || 0;
             return (
               <div key={section} className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">{sectionLabels[section]}</span>
-                  <span className="text-muted-foreground">
-                    {data.found.toLocaleString()} / {data.total.toLocaleString()} ({data.rate}%)
-                  </span>
+                  <div className="text-right">
+                    <span className="text-green-600 font-medium">{headerRate}%</span>
+                    <span className="text-muted-foreground"> header</span>
+                    {fallbackRate > 0 && (
+                      <>
+                        <span className="text-muted-foreground"> + </span>
+                        <span className="text-amber-600">{fallbackRate}%</span>
+                        <span className="text-muted-foreground"> fallback</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <Progress value={data.rate} className="h-2" />
+                <div className="h-2 bg-secondary rounded-full overflow-hidden flex">
+                  <div 
+                    className="bg-green-500 h-full" 
+                    style={{ width: `${headerRate}%` }}
+                  />
+                  <div 
+                    className="bg-amber-500 h-full" 
+                    style={{ width: `${fallbackRate}%` }}
+                  />
+                </div>
                 <div className="text-xs text-muted-foreground">
                   Avg {data.avg_chars.toLocaleString()} chars when found
                 </div>
@@ -165,6 +187,9 @@ export function AdminExtraction() {
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="px-4 py-3 bg-secondary/30 border-b border-border">
           <h3 className="text-sm font-medium">Extraction by Category</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Showing header detection rate (excludes fallback)
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
