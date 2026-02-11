@@ -1269,6 +1269,11 @@ async def get_extraction_stats(category: str = None):
         
         cat_stats = by_category[cat]
         cat_stats["total"] += 1
+        
+        # Handle None or empty full_text
+        if not full_text:
+            continue
+            
         cat_stats["total_full_text_chars"] += len(full_text)
         total_chars += len(full_text)
         
