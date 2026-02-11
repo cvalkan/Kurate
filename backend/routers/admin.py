@@ -1243,18 +1243,19 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
             "is_sampled": False,
         }
     
-    # Use sampling for large datasets (>200 papers) on first load only
-    # If user explicitly refreshes, process all papers
-    use_sampling = total_with_text > 200 and not refresh and not _extraction_cache["data"]
-    sample_size = 100 if use_sampling else total_with_text
+    # Always use sampling for initial load (fast), full scan only on explicit refresh
+    # But cap processing to prevent timeouts
+    MAX_PAPERS_TO_PROCESS = 500  # Hard cap to prevent timeout
+    use_sampling = not refresh and not _extraction_cache["data"]
     
-    # Get papers (sampled or all)
     if use_sampling:
-        # Use aggregation with $sample for random sampling
+        # Quick sample for initial load
+        sample_size = min(100, total_with_text)
         pipeline = [{"$match": query}, {"$sample": {"size": sample_size}}, {"$project": {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}}]
         papers = await db.papers.aggregate(pipeline).to_list(sample_size)
     else:
-        papers = await db.papers.find(query, {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}).to_list(2000)
+        # Full scan but capped to prevent timeout
+        papers = await db.papers.find(query, {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}).limit(MAX_PAPERS_TO_PROCESS).to_list(MAX_PAPERS_TO_PROCESS)
     
     # Aggregate stats
     by_category = {}
