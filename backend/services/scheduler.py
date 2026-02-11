@@ -452,6 +452,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             max_matches_per_paper = settings.get("max_matches_per_paper", 150)
             max_new_per_round = settings.get("max_new_matches_per_round", 3)
             ci_target = settings.get("ci_target", 12)
+            section_char_limit = settings.get("section_char_limit", 2000)  # Pre-fetch for batch
 
             from core.config import DEFAULT_EVALUATION_PROMPT
             custom_prompt_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
