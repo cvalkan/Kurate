@@ -208,33 +208,39 @@ export function AdminExtraction() {
             <tbody>
               {Object.entries(stats.by_category)
                 .sort((a, b) => b[1].total - a[1].total)
-                .map(([cat, data]) => (
+                .map(([cat, data]) => {
+                  const introRate = data.introduction.header_rate || 0;
+                  const methodRate = data.methodology.header_rate || 0;
+                  const resultsRate = data.results.header_rate || 0;
+                  const conclusionRate = data.conclusion.header_rate || 0;
+                  const allHeadersRate = data.all_headers_rate || 0;
+                  return (
                   <tr key={cat} className="border-b border-border/50 hover:bg-secondary/10">
                     <td className="px-4 py-2.5 font-mono text-xs">{cat}</td>
                     <td className="text-right px-3 py-2.5">{data.total}</td>
                     <td className="text-right px-3 py-2.5">
-                      <span className={data.introduction.rate >= 95 ? "text-green-600" : data.introduction.rate >= 80 ? "text-amber-600" : "text-red-600"}>
-                        {data.introduction.rate}%
+                      <span className={introRate >= 95 ? "text-green-600" : introRate >= 80 ? "text-amber-600" : "text-red-600"}>
+                        {introRate}%
                       </span>
                     </td>
                     <td className="text-right px-3 py-2.5">
-                      <span className={data.methodology.rate >= 95 ? "text-green-600" : data.methodology.rate >= 80 ? "text-amber-600" : "text-red-600"}>
-                        {data.methodology.rate}%
+                      <span className={methodRate >= 95 ? "text-green-600" : methodRate >= 80 ? "text-amber-600" : "text-red-600"}>
+                        {methodRate}%
                       </span>
                     </td>
                     <td className="text-right px-3 py-2.5">
-                      <span className={data.results.rate >= 95 ? "text-green-600" : data.results.rate >= 80 ? "text-amber-600" : "text-red-600"}>
-                        {data.results.rate}%
+                      <span className={resultsRate >= 95 ? "text-green-600" : resultsRate >= 80 ? "text-amber-600" : "text-red-600"}>
+                        {resultsRate}%
                       </span>
                     </td>
                     <td className="text-right px-3 py-2.5">
-                      <span className={data.conclusion.rate >= 95 ? "text-green-600" : data.conclusion.rate >= 80 ? "text-amber-600" : "text-red-600"}>
-                        {data.conclusion.rate}%
+                      <span className={conclusionRate >= 95 ? "text-green-600" : conclusionRate >= 80 ? "text-amber-600" : "text-red-600"}>
+                        {conclusionRate}%
                       </span>
                     </td>
                     <td className="text-right px-3 py-2.5">
-                      <span className={data.all_sections / data.total >= 0.9 ? "text-green-600" : "text-amber-600"}>
-                        {Math.round(data.all_sections / data.total * 100)}%
+                      <span className={allHeadersRate >= 90 ? "text-green-600" : "text-amber-600"}>
+                        {allHeadersRate}%
                       </span>
                     </td>
                     <td className="text-right px-4 py-2.5 text-muted-foreground text-xs">
