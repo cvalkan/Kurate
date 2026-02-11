@@ -9,13 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
-  Sliders,
+  Sliders, FileSearch,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
 import { AdminExperiment } from "@/components/AdminExperiment";
 import { AdminStatistics } from "@/components/AdminStatistics";
 import { AdminCategories } from "@/components/AdminCategories";
+import { AdminExtraction } from "@/components/AdminExtraction";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
