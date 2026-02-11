@@ -131,7 +131,6 @@ export function AdminExtraction() {
           <div className="text-xs text-muted-foreground mt-1">
             papers with at least 1 fallback
           </div>
-          </div>
         </div>
       </div>
 
