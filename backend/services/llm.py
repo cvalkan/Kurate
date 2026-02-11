@@ -36,34 +36,220 @@ async def download_and_extract_pdf(pdf_url: str) -> Optional[str]:
         return None
 
 
-def extract_key_sections(full_text: str) -> Dict[str, str]:
+# Field-specific marker configurations
+FIELD_MARKERS = {
+    "default": {
+        "introduction": ["introduction", "1. introduction", "1 introduction", "i. introduction"],
+        "methodology": ["method", "methodology", "approach", "proposed method", "our approach", "technical approach"],
+        "results": ["result", "experiment", "evaluation", "empirical", "performance"],
+        "conclusion": ["conclusion", "discussion", "concluding remarks", "summary", "final remarks"],
+    },
+    "econ": {
+        "introduction": ["introduction", "1. introduction", "1 introduction"],
+        "methodology": ["method", "methodology", "data", "identification", "estimation", "empirical strategy", "model", "framework"],
+        "results": ["result", "empirical result", "finding", "estimation result", "main result", "evidence", "analysis"],
+        "conclusion": ["conclusion", "discussion", "policy implication", "concluding remarks", "summary"],
+    },
+    "physics": {
+        "introduction": ["introduction", "1. introduction", "1 introduction"],
+        "methodology": ["method", "methodology", "theory", "theoretical framework", "formalism", "numerical method", "computational method", "model"],
+        "results": ["result", "numerical result", "simulation", "analysis", "calculation", "computation"],
+        "conclusion": ["conclusion", "discussion", "summary", "concluding remarks"],
+    },
+    "q-bio": {
+        "introduction": ["introduction", "1. introduction", "1 introduction", "background"],
+        "methodology": ["method", "methodology", "materials and methods", "materials", "protocol", "experimental procedure", "computational method"],
+        "results": ["result", "experimental result", "finding", "observation", "analysis"],
+        "conclusion": ["conclusion", "discussion", "concluding remarks", "summary"],
+    },
+    "cs": {
+        "introduction": ["introduction", "1. introduction", "1 introduction"],
+        "methodology": ["method", "methodology", "approach", "proposed method", "our approach", "system design", "architecture", "framework", "algorithm"],
+        "results": ["result", "experiment", "evaluation", "empirical evaluation", "performance", "benchmark"],
+        "conclusion": ["conclusion", "discussion", "summary", "concluding remarks", "future work"],
+    },
+}
+
+
+def _get_field_markers(category: str = None) -> dict:
+    """Get field-specific markers based on paper category."""
+    if not category:
+        return FIELD_MARKERS["default"]
+    
+    cat_lower = category.lower()
+    if cat_lower.startswith("econ"):
+        return FIELD_MARKERS["econ"]
+    elif cat_lower.startswith("physics") or cat_lower.startswith("astro"):
+        return FIELD_MARKERS["physics"]
+    elif cat_lower.startswith("q-bio"):
+        return FIELD_MARKERS["q-bio"]
+    elif cat_lower.startswith("cs"):
+        return FIELD_MARKERS["cs"]
+    return FIELD_MARKERS["default"]
+
+
+def _find_section_header(text: str, markers: list, start_pos: int = 0, end_pos: int = None) -> tuple:
+    """
+    Find a section header using regex-based detection.
+    Returns (position, matched_marker) or (-1, None) if not found.
+    
+    Looks for patterns like:
+    - "1. Introduction"
+    - "2 Methods"
+    - "Introduction" at start of line
+    - "INTRODUCTION" (all caps)
+    """
+    if end_pos is None:
+        end_pos = len(text)
+    
+    search_text = text[start_pos:end_pos]
+    text_lower = search_text.lower()
+    
+    best_match = (-1, None)
+    
+    for marker in markers:
+        marker_lower = marker.lower()
+        
+        # Pattern 1: Numbered section header (e.g., "1. Introduction", "2 Methods")
+        pattern1 = rf'(?:^|\n)\s*(?:[0-9]+\.?\s+)?{re.escape(marker_lower)}(?:\s*\n|$)'
+        match1 = re.search(pattern1, text_lower, re.IGNORECASE | re.MULTILINE)
+        
+        # Pattern 2: All caps header (e.g., "INTRODUCTION")
+        pattern2 = rf'(?:^|\n)\s*{re.escape(marker.upper())}\s*(?:\n|$)'
+        match2 = re.search(pattern2, search_text, re.MULTILINE)
+        
+        # Pattern 3: Simple marker with newline context
+        pattern3 = rf'(?:^|\n)\s*{re.escape(marker_lower)}\s*(?:\n|:)'
+        match3 = re.search(pattern3, text_lower, re.IGNORECASE | re.MULTILINE)
+        
+        # Find the earliest valid match
+        for match in [match1, match2, match3]:
+            if match:
+                pos = start_pos + match.start()
+                if best_match[0] == -1 or pos < best_match[0]:
+                    best_match = (pos, marker)
+    
+    return best_match
+
+
+def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]:
+    """
+    Extract key sections from paper text using:
+    1. Regex-based header detection (not just substring matching)
+    2. Field-adaptive markers based on paper category
+    3. Position-aware extraction (introduction early, conclusion late)
+    
+    Returns dict with keys: introduction, methodology, results, conclusion
+    Each value is the extracted text (up to 2000 chars) or empty string.
+    """
     sections = {"introduction": "", "methodology": "", "results": "", "conclusion": ""}
-    text_lower = full_text.lower()
-
-    intro_markers = ["introduction", "1. introduction", "1 introduction"]
-    method_markers = ["method", "methodology", "approach", "2. method", "3. method"]
-    results_markers = ["result", "experiment", "evaluation", "4. result"]
-    conclusion_markers = ["conclusion", "discussion", "summary", "6. conclusion"]
-
-    def find_section(markers, next_markers=None):
-        for marker in markers:
-            idx = text_lower.find(marker)
+    text_len = len(full_text)
+    
+    if text_len < 100:
+        return sections
+    
+    markers = _get_field_markers(category)
+    
+    # Position constraints (as fraction of document)
+    # Introduction should be in first 30%, conclusion in last 40%
+    intro_end_limit = int(text_len * 0.30)
+    conclusion_start_limit = int(text_len * 0.60)
+    
+    # Find introduction (must be in first 30% of document)
+    intro_pos, intro_marker = _find_section_header(full_text, markers["introduction"], 0, intro_end_limit)
+    
+    # If no header found, fallback to simple search in first 30%
+    if intro_pos == -1:
+        text_lower = full_text[:intro_end_limit].lower()
+        for marker in markers["introduction"]:
+            idx = text_lower.find(marker.lower())
             if idx != -1:
-                end_idx = len(full_text)
-                if next_markers:
-                    for nm in next_markers:
-                        nm_idx = text_lower.find(nm, idx + len(marker))
-                        if nm_idx != -1 and nm_idx < end_idx:
-                            end_idx = nm_idx
-                section_text = full_text[idx:min(idx + 2500, end_idx)]
-                return section_text[:2000]
-        return ""
-
-    sections["introduction"] = find_section(intro_markers, method_markers)
-    sections["methodology"] = find_section(method_markers, results_markers)
-    sections["results"] = find_section(results_markers, conclusion_markers)
-    sections["conclusion"] = find_section(conclusion_markers)
+                intro_pos = idx
+                break
+    
+    # Find methodology (after introduction, in first 70%)
+    method_start = intro_pos + 500 if intro_pos != -1 else 0
+    method_end_limit = int(text_len * 0.70)
+    method_pos, method_marker = _find_section_header(full_text, markers["methodology"], method_start, method_end_limit)
+    
+    if method_pos == -1:
+        text_lower = full_text[method_start:method_end_limit].lower()
+        for marker in markers["methodology"]:
+            idx = text_lower.find(marker.lower())
+            if idx != -1:
+                method_pos = method_start + idx
+                break
+    
+    # Find results (after methodology, in middle 70%)
+    results_start = method_pos + 500 if method_pos != -1 else int(text_len * 0.20)
+    results_end_limit = int(text_len * 0.90)
+    results_pos, results_marker = _find_section_header(full_text, markers["results"], results_start, results_end_limit)
+    
+    if results_pos == -1:
+        text_lower = full_text[results_start:results_end_limit].lower()
+        for marker in markers["results"]:
+            idx = text_lower.find(marker.lower())
+            if idx != -1:
+                results_pos = results_start + idx
+                break
+    
+    # Find conclusion (must be in last 40% of document)
+    conclusion_pos, conclusion_marker = _find_section_header(full_text, markers["conclusion"], conclusion_start_limit)
+    
+    if conclusion_pos == -1:
+        text_lower = full_text[conclusion_start_limit:].lower()
+        for marker in markers["conclusion"]:
+            idx = text_lower.find(marker.lower())
+            if idx != -1:
+                conclusion_pos = conclusion_start_limit + idx
+                break
+    
+    # Extract text for each section (up to 2500 chars, trimmed to 2000)
+    def extract_section_text(start_pos: int, next_pos: int = None) -> str:
+        if start_pos == -1:
+            return ""
+        end_pos = next_pos if next_pos and next_pos != -1 else len(full_text)
+        section_text = full_text[start_pos:min(start_pos + 2500, end_pos)]
+        return section_text[:2000].strip()
+    
+    sections["introduction"] = extract_section_text(intro_pos, method_pos)
+    sections["methodology"] = extract_section_text(method_pos, results_pos)
+    sections["results"] = extract_section_text(results_pos, conclusion_pos)
+    sections["conclusion"] = extract_section_text(conclusion_pos)
+    
     return sections
+
+
+def get_extraction_stats(full_text: str, category: str = None) -> Dict:
+    """
+    Get detailed extraction statistics for a single paper.
+    Used for the admin extraction stats page.
+    """
+    sections = extract_key_sections(full_text, category)
+    
+    stats = {
+        "total_chars": len(full_text),
+        "total_tokens_est": len(full_text) // 4,
+        "sections": {},
+        "sections_found": 0,
+        "total_extracted_chars": 0,
+    }
+    
+    for name, text in sections.items():
+        found = len(text) > 0
+        chars = len(text)
+        stats["sections"][name] = {
+            "found": found,
+            "chars": chars,
+            "tokens_est": chars // 4,
+        }
+        if found:
+            stats["sections_found"] += 1
+        stats["total_extracted_chars"] += chars
+    
+    stats["extraction_ratio"] = stats["total_extracted_chars"] / max(stats["total_chars"], 1)
+    
+    return stats
 
 
 def _build_paper_content(paper: dict) -> str:
