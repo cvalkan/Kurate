@@ -152,7 +152,7 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "min_matches_per_paper", "max_matches_per_paper", "max_new_matches_per_round", "ci_target"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "min_matches_per_paper", "max_matches_per_paper", "max_new_matches_per_round", "ci_target", "section_char_limit"]) {
         if (editSettings[key] !== settings[key]) updates[key] = Number(editSettings[key]);
       }
       if (editSettings.paused !== settings.paused) updates.paused = editSettings.paused;
