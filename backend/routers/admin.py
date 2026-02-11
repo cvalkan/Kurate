@@ -1255,18 +1255,6 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         papers = await db.papers.aggregate(pipeline).to_list(sample_size)
     else:
         papers = await db.papers.find(query, {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}).to_list(2000)
-            "papers_with_text": 0,
-            "papers_without_text": papers_without_text,
-            "by_category": {},
-            "overall": {
-                "introduction": {"found": 0, "total": 0, "rate": 0},
-                "methodology": {"found": 0, "total": 0, "rate": 0},
-                "results": {"found": 0, "total": 0, "rate": 0},
-                "conclusion": {"found": 0, "total": 0, "rate": 0},
-            },
-            "all_sections_found": 0,
-            "no_sections_found": 0,
-        }
     
     # Aggregate stats
     by_category = {}
