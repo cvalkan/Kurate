@@ -262,32 +262,39 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
                 results_pos = idx
                 break
     
-    # Find conclusion (search in the last 50% of the document for better accuracy)
-    # Also prioritize stronger conclusion markers
-    conclusion_min_start = max(results_start, int(text_len * 0.5))  # At least in last 50%
+    # Find conclusion - use a hybrid approach
+    # 1. First, try finding strong conclusion markers in the last 40% of the document
+    # 2. If not found, search after results section
+    # 3. Apply fallback if still not found
     
-    # First try strong conclusion markers in last 50%
-    strong_conclusion_markers = ["conclusion", "conclusions", "concluding remarks", "conclusion and future work"]
-    conclusion_pos, _ = _find_section_header(full_text, strong_conclusion_markers, conclusion_min_start)
+    # Strong conclusion markers that are unambiguous
+    strong_conclusion_markers = ["conclusion", "conclusions", "concluding remarks", 
+                                  "conclusion and future work", "conclusions and future work"]
     
-    # If not found, try all markers in last 50%
+    # Calculate search boundaries
+    last_40_pct_start = int(text_len * 0.6)
+    after_results_start = results_pos + 500 if results_pos != -1 else int(text_len * 0.5)
+    
+    # Try 1: Strong markers in last 40%
+    conclusion_pos, _ = _find_section_header(full_text, strong_conclusion_markers, last_40_pct_start)
+    
+    # Try 2: Strong markers via simple search in last 40%
     if conclusion_pos == -1:
-        conclusion_pos, _ = _find_section_header(full_text, markers["conclusion"], conclusion_min_start)
-    
-    # If still not found, try simple string search for strong markers in last 50%
-    if conclusion_pos == -1:
-        search_text = text_lower[conclusion_min_start:]
+        search_text = text_lower[last_40_pct_start:]
         for marker in strong_conclusion_markers:
             idx = search_text.find(marker.lower())
             if idx != -1:
-                conclusion_pos = conclusion_min_start + idx
+                conclusion_pos = last_40_pct_start + idx
                 break
     
-    # Last resort: search for any conclusion marker after results
+    # Try 3: All conclusion markers after results section
     if conclusion_pos == -1:
-        conclusion_start = results_pos + 500 if results_pos != -1 else conclusion_min_start
+        conclusion_pos, _ = _find_section_header(full_text, markers["conclusion"], after_results_start)
+    
+    # Try 4: Simple search for all markers after results
+    if conclusion_pos == -1:
         for marker in markers["conclusion"]:
-            idx = text_lower.find(marker.lower(), conclusion_start)
+            idx = text_lower.find(marker.lower(), after_results_start)
             if idx != -1:
                 conclusion_pos = idx
                 break
