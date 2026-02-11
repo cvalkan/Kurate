@@ -278,13 +278,26 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
                 conclusion_pos = idx
                 break
     
-    # Extract text for each section (up to 2500 chars, trimmed to 2000)
+    # Smart extraction: if section is longer than limit, take first half + last half
+    # This captures both the section introduction and its conclusions
     def extract_section_text(start_pos: int, next_pos: int = None) -> str:
         if start_pos == -1:
             return ""
         end_pos = next_pos if next_pos and next_pos != -1 else len(full_text)
-        section_text = full_text[start_pos:min(start_pos + 2500, end_pos)]
-        return section_text[:2000].strip()
+        section_text = full_text[start_pos:end_pos].strip()
+        section_len = len(section_text)
+        
+        if section_len <= char_limit:
+            # Section fits within limit, return as-is
+            return section_text
+        
+        # Section is too long - take first half + last half
+        half_limit = char_limit // 2
+        first_half = section_text[:half_limit]
+        last_half = section_text[-half_limit:]
+        
+        # Add separator to indicate truncation
+        return f"{first_half}\n\n[...middle content truncated...]\n\n{last_half}"
     
     # Track which sections were found via header detection vs fallback
     found_via_header = {
@@ -308,11 +321,13 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
         "conclusion": False,
     }
     
+    half_limit = char_limit // 2
     sections_found = sum(1 for s in sections.values() if s)
     if sections_found == 0:
         # No sections detected - use fallback strategy
-        sections["introduction"] = full_text[:3000].strip()
-        sections["conclusion"] = full_text[-2000:].strip()
+        # Take first 1.5x limit for intro, last limit for conclusion
+        sections["introduction"] = full_text[:int(char_limit * 1.5)].strip()
+        sections["conclusion"] = full_text[-char_limit:].strip()
         used_fallback["introduction"] = True
         used_fallback["conclusion"] = True
     else:
