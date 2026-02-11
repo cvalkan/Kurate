@@ -214,15 +214,21 @@ def _find_section_header(text: str, markers: list, start_pos: int = 0, end_pos: 
     return best_match
 
 
-def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]:
+def extract_key_sections(full_text: str, category: str = None, char_limit: int = 2000) -> Dict[str, str]:
     """
     Extract key sections from paper text using:
     1. Regex-based header detection (not just substring matching)
     2. Field-adaptive markers based on paper category
-    3. Fallback: If sections not found, extract first/last N chars
+    3. Smart truncation: first half + last half of section (captures intro and conclusion of each section)
+    4. Fallback: If sections not found, extract first/last N chars
+    
+    Args:
+        full_text: The full paper text
+        category: Paper category for field-specific markers
+        char_limit: Maximum chars per section (first half from start, second half from end)
     
     Returns dict with keys: introduction, methodology, results, conclusion
-    Each value is the extracted text (up to 2000 chars) or empty string.
+    Each value is the extracted text (up to char_limit chars) or empty string.
     """
     sections = {"introduction": "", "methodology": "", "results": "", "conclusion": ""}
     text_len = len(full_text)
