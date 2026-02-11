@@ -1189,13 +1189,25 @@ async def estimate_category(cat_id: str):
 
 # --- Extraction Statistics ---
 
+# Simple cache for extraction stats (expensive to compute)
+_extraction_cache = {"data": None, "timestamp": 0}
+_EXTRACTION_CACHE_TTL = 300  # 5 minutes
+
+
 @router.get("/extraction-stats", dependencies=[Depends(verify_admin)])
-async def get_extraction_stats(category: str = None):
+async def get_extraction_stats(category: str = None, refresh: bool = False):
     """
     Get detailed statistics about PDF text extraction across all papers.
     Includes success rates by section, character counts, and per-category breakdown.
+    Results are cached for 5 minutes for performance.
     """
-    from services.llm import extract_key_sections, get_extraction_stats
+    import time as _time
+    from services.llm import extract_key_sections
+    
+    # Check cache (only for full dataset, not filtered by category)
+    now = _time.time()
+    if not category and not refresh and _extraction_cache["data"] and (now - _extraction_cache["timestamp"]) < _EXTRACTION_CACHE_TTL:
+        return _extraction_cache["data"]
     
     # Build query
     query = {"full_text": {"$exists": True, "$ne": None, "$ne": ""}}
