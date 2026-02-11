@@ -105,6 +105,12 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - Security headers for frontend static files require nginx configuration on production (contact Emergent support)
 - Conclusion extraction rate (81.2%) is lower than other sections
 
+## Resolved Issues (Feb 2026)
+- **Performance Regression Fixed**: Admin panel was slow due to `_get_section_char_limit()` in `llm.py` making direct DB queries for each paper comparison. Fixed by:
+  1. Using cached `get_settings()` instead of direct DB query
+  2. Pre-fetching `section_char_limit` once before batch operations in `scheduler.py` and `admin.py`
+  3. Passing `char_limit` as parameter to `compare_papers()` and `generate_impact_summary()`
+
 ## Backlog
 - Consider using full PDFs for top-K high-value paper comparisons
 - Improve conclusion detection algorithm
