@@ -280,31 +280,46 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
         section_text = full_text[start_pos:min(start_pos + 2500, end_pos)]
         return section_text[:2000].strip()
     
+    # Track which sections were found via header detection vs fallback
+    found_via_header = {
+        "introduction": intro_pos != -1,
+        "methodology": method_pos != -1,
+        "results": results_pos != -1,
+        "conclusion": conclusion_pos != -1,
+    }
+    
     sections["introduction"] = extract_section_text(intro_pos, method_pos)
     sections["methodology"] = extract_section_text(method_pos, results_pos)
     sections["results"] = extract_section_text(results_pos, conclusion_pos)
     sections["conclusion"] = extract_section_text(conclusion_pos)
     
-    # FALLBACK: If no sections found, extract first and last portions of document
+    # FALLBACK: If sections missing, extract from document positions
+    # Track fallback usage
+    used_fallback = {
+        "introduction": False,
+        "methodology": False,
+        "results": False,
+        "conclusion": False,
+    }
+    
     sections_found = sum(1 for s in sections.values() if s)
     if sections_found == 0:
         # No sections detected - use fallback strategy
-        # Extract first 3000 chars as "introduction" (covers abstract + early content)
-        # Extract last 2000 chars as "conclusion"
         sections["introduction"] = full_text[:3000].strip()
         sections["conclusion"] = full_text[-2000:].strip()
+        used_fallback["introduction"] = True
+        used_fallback["conclusion"] = True
     else:
         # Partial extraction - fill in missing sections intelligently
-        if not sections["introduction"] and intro_pos == -1:
-            # No introduction found - use first 2000 chars
+        if not sections["introduction"]:
             sections["introduction"] = full_text[:2000].strip()
+            used_fallback["introduction"] = True
         
-        if not sections["conclusion"] and conclusion_pos == -1:
-            # No conclusion found - search more aggressively in last 30%
+        if not sections["conclusion"]:
+            # Search more aggressively in last 30%
             last_30_pct = full_text[int(text_len * 0.7):]
             last_30_lower = last_30_pct.lower()
             
-            # Try to find any conclusion-like marker in last 30%
             found_in_last = False
             for marker in ["conclusion", "summary", "discussion", "future work"]:
                 idx = last_30_lower.find(marker)
@@ -313,12 +328,11 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
                     found_in_last = True
                     break
             
-            # If still not found, use last 2000 chars
             if not found_in_last:
                 sections["conclusion"] = full_text[-2000:].strip()
+            used_fallback["conclusion"] = True
         
-        if not sections["methodology"] and method_pos == -1:
-            # No methodology found - try to extract from middle portion
+        if not sections["methodology"]:
             middle_start = int(text_len * 0.15)
             middle_end = int(text_len * 0.5)
             middle_text = full_text[middle_start:middle_end]
@@ -329,9 +343,9 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
                 if idx != -1:
                     sections["methodology"] = middle_text[idx:idx+2000].strip()
                     break
+            used_fallback["methodology"] = True
         
-        if not sections["results"] and results_pos == -1:
-            # No results found - try to extract from latter middle portion
+        if not sections["results"]:
             mid_start = int(text_len * 0.4)
             mid_end = int(text_len * 0.8)
             mid_text = full_text[mid_start:mid_end]
@@ -342,6 +356,13 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
                 if idx != -1:
                     sections["results"] = mid_text[idx:idx+2000].strip()
                     break
+            used_fallback["results"] = True
+    
+    # Store metadata for stats (will be stripped before returning to caller if needed)
+    sections["_meta"] = {
+        "found_via_header": found_via_header,
+        "used_fallback": used_fallback,
+    }
     
     return sections
 
