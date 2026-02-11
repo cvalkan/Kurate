@@ -470,7 +470,7 @@ def _pick_round_robin_model() -> Dict[str, str]:
     return model
 
 
-async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False) -> Dict:
+async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None) -> Dict:
     if prompt_config is None:
         prompt_config = DEFAULT_EVALUATION_PROMPT
 
@@ -481,8 +481,9 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     system_msg = prompt_config["system_prompt"]
     user_template = prompt_config["user_prompt"]
 
-    # Get section char limit from settings
-    char_limit = await _get_section_char_limit()
+    # Use pre-fetched char_limit if provided, otherwise fetch from settings
+    if char_limit is None:
+        char_limit = await _get_section_char_limit()
 
     if abstract_only:
         p1_content = f"Abstract: {paper1.get('abstract', '')[:1500]}"
