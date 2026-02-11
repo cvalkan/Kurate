@@ -480,12 +480,15 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     system_msg = prompt_config["system_prompt"]
     user_template = prompt_config["user_prompt"]
 
+    # Get section char limit from settings
+    char_limit = await _get_section_char_limit()
+
     if abstract_only:
         p1_content = f"Abstract: {paper1.get('abstract', '')[:1500]}"
         p2_content = f"Abstract: {paper2.get('abstract', '')[:1500]}"
     else:
-        p1_content = _build_paper_content(paper1)
-        p2_content = _build_paper_content(paper2)
+        p1_content = _build_paper_content(paper1, char_limit)
+        p2_content = _build_paper_content(paper2, char_limit)
 
     prompt = user_template.format(
         paper1_title=paper1["title"],
