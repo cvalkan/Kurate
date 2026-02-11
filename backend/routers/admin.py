@@ -1421,6 +1421,7 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         "avg_full_text_chars": round(total_chars / max(total_with_text, 1)),
         "avg_extracted_chars": round(total_extracted_chars / max(total_with_text, 1)),
         "extraction_ratio": round(total_extracted_chars / max(total_chars, 1) * 100, 2),
+        "section_char_limit": char_limit,
         "header_detection": header_detection,
         "sample_papers": sample_papers[:50],  # Return first 50 for UI display
     }
