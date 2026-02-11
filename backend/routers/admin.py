@@ -1262,6 +1262,14 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
     # Sample papers for detailed breakdown (limit to avoid timeout)
     sample_papers = []
     
+    # Additional tracking for header vs fallback
+    header_detection = {
+        "introduction": {"found": 0, "fallback": 0},
+        "methodology": {"found": 0, "fallback": 0},
+        "results": {"found": 0, "fallback": 0},
+        "conclusion": {"found": 0, "fallback": 0},
+    }
+    
     for paper in papers:
         cat = paper.get("categories", ["unknown"])[0]
         full_text = paper.get("full_text", "")
@@ -1269,11 +1277,12 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         if cat not in by_category:
             by_category[cat] = {
                 "total": 0,
-                "introduction": {"found": 0, "total_chars": 0},
-                "methodology": {"found": 0, "total_chars": 0},
-                "results": {"found": 0, "total_chars": 0},
-                "conclusion": {"found": 0, "total_chars": 0},
+                "introduction": {"found": 0, "header": 0, "fallback": 0, "total_chars": 0},
+                "methodology": {"found": 0, "header": 0, "fallback": 0, "total_chars": 0},
+                "results": {"found": 0, "header": 0, "fallback": 0, "total_chars": 0},
+                "conclusion": {"found": 0, "header": 0, "fallback": 0, "total_chars": 0},
                 "all_sections": 0,
+                "all_headers": 0,
                 "no_sections": 0,
                 "avg_full_text_chars": 0,
                 "total_full_text_chars": 0,
@@ -1291,31 +1300,47 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         
         # Extract sections
         sections = extract_key_sections(full_text, cat)
+        meta = sections.pop("_meta", {})
+        found_via_header = meta.get("found_via_header", {})
+        used_fallback = meta.get("used_fallback", {})
         
         sections_found_count = 0
+        headers_found_count = 0
         paper_extracted_chars = 0
         
         for section_name in ["introduction", "methodology", "results", "conclusion"]:
             section_text = sections.get(section_name, "")
-            found = len(section_text) > 0
+            has_content = len(section_text) > 0
             chars = len(section_text)
+            via_header = found_via_header.get(section_name, False)
+            via_fallback = used_fallback.get(section_name, False)
             
             overall[section_name]["total"] += 1
             cat_stats[section_name]["total_chars"] += chars
             paper_extracted_chars += chars
             
-            if found:
+            if has_content:
                 overall[section_name]["found"] += 1
                 overall[section_name]["total_chars"] += chars
                 cat_stats[section_name]["found"] += 1
                 sections_found_count += 1
+                
+                if via_header:
+                    header_detection[section_name]["found"] += 1
+                    cat_stats[section_name]["header"] += 1
+                    headers_found_count += 1
+                elif via_fallback:
+                    header_detection[section_name]["fallback"] += 1
+                    cat_stats[section_name]["fallback"] += 1
         
         total_extracted_chars += paper_extracted_chars
         
         if sections_found_count == 4:
             all_sections_found += 1
             cat_stats["all_sections"] += 1
-        elif sections_found_count == 0:
+        if headers_found_count == 4:
+            cat_stats["all_headers"] += 1
+        if sections_found_count == 0:
             no_sections_found += 1
             cat_stats["no_sections"] += 1
         
