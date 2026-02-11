@@ -1372,16 +1372,33 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
             )
     
     # Calculate per-category rates
+    # Calculate header detection rates
+    for section_name in ["introduction", "methodology", "results", "conclusion"]:
+        total = overall[section_name]["total"]
+        header_count = header_detection[section_name]["found"]
+        fallback_count = header_detection[section_name]["fallback"]
+        overall[section_name]["header_found"] = header_count
+        overall[section_name]["header_rate"] = round(header_count / max(total, 1) * 100, 1)
+        overall[section_name]["fallback_used"] = fallback_count
+        overall[section_name]["fallback_rate"] = round(fallback_count / max(total, 1) * 100, 1)
+    
     for cat, stats in by_category.items():
         if stats["total"] > 0:
             stats["avg_full_text_chars"] = round(stats["total_full_text_chars"] / stats["total"])
+            stats["all_headers_rate"] = round(stats.get("all_headers", 0) / stats["total"] * 100, 1)
             for section_name in ["introduction", "methodology", "results", "conclusion"]:
                 stats[section_name]["rate"] = round(
                     stats[section_name]["found"] / stats["total"] * 100, 1
                 )
+                stats[section_name]["header_rate"] = round(
+                    stats[section_name].get("header", 0) / stats["total"] * 100, 1
+                )
                 stats[section_name]["avg_chars"] = round(
                     stats[section_name]["total_chars"] / max(stats[section_name]["found"], 1)
                 )
+    
+    # Calculate all headers found (no fallback used)
+    all_headers_found = sum(1 for cat_stats in by_category.values() for _ in range(cat_stats.get("all_headers", 0)))
     
     result = {
         "total_papers": total_with_text + papers_without_text,
@@ -1392,11 +1409,14 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         "overall": overall,
         "all_sections_found": all_sections_found,
         "all_sections_rate": round(all_sections_found / max(total_with_text, 1) * 100, 1),
+        "all_headers_found": sum(stats.get("all_headers", 0) for stats in by_category.values()),
+        "all_headers_rate": round(sum(stats.get("all_headers", 0) for stats in by_category.values()) / max(total_with_text, 1) * 100, 1),
         "no_sections_found": no_sections_found,
         "no_sections_rate": round(no_sections_found / max(total_with_text, 1) * 100, 1),
         "avg_full_text_chars": round(total_chars / max(total_with_text, 1)),
         "avg_extracted_chars": round(total_extracted_chars / max(total_with_text, 1)),
         "extraction_ratio": round(total_extracted_chars / max(total_chars, 1) * 100, 2),
+        "header_detection": header_detection,
         "sample_papers": sample_papers[:50],  # Return first 50 for UI display
     }
     
