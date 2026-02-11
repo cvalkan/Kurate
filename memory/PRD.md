@@ -36,11 +36,12 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - ✅ Position-aware extraction (Introduction in first 30%, Conclusion in last 40%)
 - ✅ Admin Extraction page with statistics
 
-### Performance Optimization (Completed Dec 2025)
+### Performance Optimization (Completed Dec 2025, Updated Feb 2026)
 - ✅ Backend caching for "All Papers" and tag-filtered leaderboards
 - ✅ Server-side search for large datasets
 - ✅ Optimized admin polling endpoints (read from cache, no DB queries on hot path)
 - ✅ Removed 500-paper limit on tag-filtered views
+- ✅ Pre-fetched settings for batch operations (Feb 2026) - Fixed performance regression in admin panel
 
 ### UI/UX Enhancements (Completed Dec 2025)
 - ✅ Leaderboard state preservation via URL parameters
