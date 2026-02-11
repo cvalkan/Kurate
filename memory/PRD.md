@@ -112,5 +112,8 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
   3. Passing `char_limit` as parameter to `compare_papers()` and `generate_impact_summary()`
 
 ## Backlog
-- Consider using full PDFs for top-K high-value paper comparisons
-- Improve conclusion detection algorithm
+- P1: Implement security headers for production frontend via nginx configuration
+- P1: Experiment with Gemini 3 Flash as alternative LLM model
+- P2: Consider using full PDFs for top-K high-value paper comparisons
+- P2: Improve conclusion detection algorithm
+- P2: Review full security scan report for other vulnerabilities
