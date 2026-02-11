@@ -375,7 +375,7 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
             for marker in ["result", "experiment", "evaluation", "analysis"]:
                 idx = mid_lower.find(marker)
                 if idx != -1:
-                    sections["results"] = mid_text[idx:idx+2000].strip()
+                    sections["results"] = mid_text[idx:idx+char_limit].strip()
                     break
             used_fallback["results"] = True
     
@@ -383,6 +383,7 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
     sections["_meta"] = {
         "found_via_header": found_via_header,
         "used_fallback": used_fallback,
+        "char_limit": char_limit,
     }
     
     return sections
