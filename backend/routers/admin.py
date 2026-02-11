@@ -1303,8 +1303,8 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         cat_stats["total_full_text_chars"] += len(full_text)
         total_chars += len(full_text)
         
-        # Extract sections
-        sections = extract_key_sections(full_text, cat)
+        # Extract sections using configured char limit
+        sections = extract_key_sections(full_text, cat, char_limit)
         meta = sections.pop("_meta", {})
         found_via_header = meta.get("found_via_header", {})
         used_fallback = meta.get("used_fallback", {})
