@@ -30,7 +30,7 @@ SECURITY_HEADERS = {
     "X-XSS-Protection": "1; mode=block",  # XSS filter for legacy browsers
     "Referrer-Policy": "strict-origin-when-cross-origin",  # Control referrer info
     "Permissions-Policy": "geolocation=(), microphone=(), camera=()",  # Restrict browser features
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none';",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:; frame-ancestors 'none';",
 }
 
 
