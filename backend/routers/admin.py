@@ -1210,6 +1210,10 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
     if not category and not refresh and _extraction_cache["data"] and (now - _extraction_cache["timestamp"]) < _EXTRACTION_CACHE_TTL:
         return _extraction_cache["data"]
     
+    # Get section char limit from settings
+    settings_doc = await db.settings.find_one({"key": "global"}) or {}
+    char_limit = settings_doc.get("section_char_limit", DEFAULT_SETTINGS.get("section_char_limit", 2000))
+    
     # Build query
     query = {"full_text": {"$exists": True, "$ne": None, "$ne": ""}}
     if category:
