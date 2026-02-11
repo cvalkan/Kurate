@@ -226,6 +226,10 @@ export default function AdminPage() {
         />
       )}
 
+      {activeTab === "extraction" && (
+        <AdminExtraction />
+      )}
+
       {activeTab === "settings" && settings && (
         <TooltipProvider delayDuration={200}>
         <div className="space-y-6 max-w-xl" data-testid="admin-settings">
