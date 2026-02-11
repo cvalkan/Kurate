@@ -253,6 +253,7 @@ export default function AdminPage() {
               { key: "max_matches_per_paper", label: "Max Matches Per Paper", help: "Stop comparing after this many matches." },
               { key: "max_new_matches_per_round", label: "Max New Matches Per Round", help: "Max new matches per paper per round." },
               { key: "ci_target", label: "CI Target (% margin)", help: "Target win-rate confidence margin for top-K papers." },
+              { key: "section_char_limit", label: "Section Char Limit", help: "Max chars extracted per section (first half + last half). Higher = more context but higher cost. Default: 2000", min: 500, max: 20000 },
             ].map(({ key, label, help, min, max }) => (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
