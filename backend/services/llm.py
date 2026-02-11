@@ -137,7 +137,7 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
     Extract key sections from paper text using:
     1. Regex-based header detection (not just substring matching)
     2. Field-adaptive markers based on paper category
-    3. Position-aware extraction (introduction early, conclusion late)
+    3. Fallback: If sections not found, extract first/last N chars
     
     Returns dict with keys: introduction, methodology, results, conclusion
     Each value is the extracted text (up to 2000 chars) or empty string.
@@ -149,59 +149,45 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
         return sections
     
     markers = _get_field_markers(category)
+    text_lower = full_text.lower()
     
-    # Position constraints (as fraction of document)
-    # Introduction should be in first 30%, conclusion in last 40%
-    intro_end_limit = int(text_len * 0.30)
-    conclusion_start_limit = int(text_len * 0.60)
-    
-    # Find introduction (must be in first 30% of document)
-    intro_pos, intro_marker = _find_section_header(full_text, markers["introduction"], 0, intro_end_limit)
-    
-    # If no header found, fallback to simple search in first 30%
+    # Find introduction
+    intro_pos, _ = _find_section_header(full_text, markers["introduction"])
     if intro_pos == -1:
-        text_lower = full_text[:intro_end_limit].lower()
         for marker in markers["introduction"]:
             idx = text_lower.find(marker.lower())
             if idx != -1:
                 intro_pos = idx
                 break
     
-    # Find methodology (after introduction, in first 70%)
+    # Find methodology (search after introduction if found)
     method_start = intro_pos + 500 if intro_pos != -1 else 0
-    method_end_limit = int(text_len * 0.70)
-    method_pos, method_marker = _find_section_header(full_text, markers["methodology"], method_start, method_end_limit)
-    
+    method_pos, _ = _find_section_header(full_text, markers["methodology"], method_start)
     if method_pos == -1:
-        text_lower = full_text[method_start:method_end_limit].lower()
         for marker in markers["methodology"]:
-            idx = text_lower.find(marker.lower())
+            idx = text_lower.find(marker.lower(), method_start)
             if idx != -1:
-                method_pos = method_start + idx
+                method_pos = idx
                 break
     
-    # Find results (after methodology, in middle 70%)
-    results_start = method_pos + 500 if method_pos != -1 else int(text_len * 0.20)
-    results_end_limit = int(text_len * 0.90)
-    results_pos, results_marker = _find_section_header(full_text, markers["results"], results_start, results_end_limit)
-    
+    # Find results (search after methodology if found)
+    results_start = method_pos + 500 if method_pos != -1 else method_start
+    results_pos, _ = _find_section_header(full_text, markers["results"], results_start)
     if results_pos == -1:
-        text_lower = full_text[results_start:results_end_limit].lower()
         for marker in markers["results"]:
-            idx = text_lower.find(marker.lower())
+            idx = text_lower.find(marker.lower(), results_start)
             if idx != -1:
-                results_pos = results_start + idx
+                results_pos = idx
                 break
     
-    # Find conclusion (must be in last 40% of document)
-    conclusion_pos, conclusion_marker = _find_section_header(full_text, markers["conclusion"], conclusion_start_limit)
-    
+    # Find conclusion (search after results if found)
+    conclusion_start = results_pos + 500 if results_pos != -1 else results_start
+    conclusion_pos, _ = _find_section_header(full_text, markers["conclusion"], conclusion_start)
     if conclusion_pos == -1:
-        text_lower = full_text[conclusion_start_limit:].lower()
         for marker in markers["conclusion"]:
-            idx = text_lower.find(marker.lower())
+            idx = text_lower.find(marker.lower(), conclusion_start)
             if idx != -1:
-                conclusion_pos = conclusion_start_limit + idx
+                conclusion_pos = idx
                 break
     
     # Extract text for each section (up to 2500 chars, trimmed to 2000)
@@ -216,6 +202,23 @@ def extract_key_sections(full_text: str, category: str = None) -> Dict[str, str]
     sections["methodology"] = extract_section_text(method_pos, results_pos)
     sections["results"] = extract_section_text(results_pos, conclusion_pos)
     sections["conclusion"] = extract_section_text(conclusion_pos)
+    
+    # FALLBACK: If no sections found, extract first and last portions of document
+    sections_found = sum(1 for s in sections.values() if s)
+    if sections_found == 0:
+        # No sections detected - use fallback strategy
+        # Extract first 3000 chars as "introduction" (covers abstract + early content)
+        # Extract last 2000 chars as "conclusion"
+        sections["introduction"] = full_text[:3000].strip()
+        sections["conclusion"] = full_text[-2000:].strip()
+    elif sections_found < 3:
+        # Partial extraction - fill in missing critical sections
+        if not sections["introduction"] and intro_pos == -1:
+            # No introduction found - use first 2000 chars
+            sections["introduction"] = full_text[:2000].strip()
+        if not sections["conclusion"] and conclusion_pos == -1:
+            # No conclusion found - use last 2000 chars
+            sections["conclusion"] = full_text[-2000:].strip()
     
     return sections
 
