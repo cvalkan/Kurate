@@ -1358,7 +1358,7 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
                     stats[section_name]["total_chars"] / max(stats[section_name]["found"], 1)
                 )
     
-    return {
+    result = {
         "total_papers": total_with_text + papers_without_text,
         "papers_with_text": total_with_text,
         "papers_without_text": papers_without_text,
@@ -1374,3 +1374,10 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         "extraction_ratio": round(total_extracted_chars / max(total_chars, 1) * 100, 2),
         "sample_papers": sample_papers[:50],  # Return first 50 for UI display
     }
+    
+    # Update cache if not filtering by category
+    if not category:
+        _extraction_cache["data"] = result
+        _extraction_cache["timestamp"] = now
+    
+    return result
