@@ -497,11 +497,12 @@ export default function ValidationPage() {
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
         <ul className="text-xs text-muted-foreground space-y-1.5">
-          <li><strong>Pairwise experiment:</strong> Derives head-to-head comparisons from experts who rated multiple papers. Both human and AI rankings use Bradley-Terry.</li>
-          <li><strong>IRT experiment:</strong> Adjusts for expert severity bias using Item Response Theory. Each rating is z-scored: (rating − expert mean) / expert std. This removes the effect of "harsh" vs "generous" raters and increases score resolution from ~8 to ~44 distinct values. Pairwise matches are derived from z-scored ratings.</li>
-          <li><strong>Average rating experiment:</strong> Baseline using raw H1 ratings. Limited by the coarse 3-point scale.</li>
-          <li><strong>Match Agreement:</strong> Direct comparison — what % of overlapping pairs have the same winner.</li>
-          <li><strong>Ranking Concordance:</strong> What % of overlapping pairs have the same ordering in the final rankings. Can differ from match agreement because BT/IRT build global rankings that may reverse individual match results.</li>
+          <li><strong>Data source:</strong> 73 ICLR 2024-2025 papers (LLM category) with 4+ peer reviews each, sourced from OpenReview via the berenslab/iclr-dataset. Full PDFs downloaded from OpenReview for section extraction.</li>
+          <li><strong>AI tournament:</strong> Pairwise comparisons using full-text extraction (Introduction, Methodology, Results, Conclusion) with round-robin GPT-5.2, Claude Opus 4.5, Gemini 3 Pro. Ranked via Bradley-Terry + Elo.</li>
+          <li><strong>Pairwise experiment:</strong> Derives head-to-head comparisons from reviewers who scored multiple papers. Both human and AI rankings use Bradley-Terry.</li>
+          <li><strong>IRT experiment:</strong> Adjusts for reviewer severity bias via z-scoring. Increases score resolution by removing harsh/generous reviewer effects.</li>
+          <li><strong>Match Agreement:</strong> On pairs compared by both humans and AI, what % pick the same winner.</li>
+          <li><strong>Ranking Concordance:</strong> Same pairs, but using BT-derived global rankings. Can differ from match agreement due to BT's graph-level aggregation.</li>
           <li><strong>Spearman ρ / Kendall τ:</strong> Global rank correlation (−1 to +1). +1 = perfect agreement.</li>
         </ul>
       </div>
