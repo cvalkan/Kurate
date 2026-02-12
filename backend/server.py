@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 import os
 import time as _time
+import asyncio
 from collections import defaultdict
 from core.config import db, logger
 from routers.leaderboard import router as leaderboard_router
