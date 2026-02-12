@@ -258,9 +258,17 @@ async def get_validation_status():
     else:
         avg_matches = min_matches = max_matches_val = 0
 
+    # Extraction stats
+    extraction_matches = await db.validation_matches.count_documents({"completed": True, "failed": {"$ne": True}, "used_extraction": True})
+    abstract_matches = match_count - extraction_matches
+    papers_with_text = await db.validation_papers.count_documents({"full_text": {"$exists": True, "$ne": None, "$ne": ""}})
+
     return {
         "papers_imported": paper_count,
+        "papers_with_full_text": papers_with_text,
         "matches_completed": match_count,
+        "matches_with_extraction": extraction_matches,
+        "matches_abstract_only": abstract_matches,
         "matches_failed": failed_count,
         "total_possible_pairs": total_possible,
         "coverage_pct": round(match_count / max(total_possible, 1) * 100, 1),
