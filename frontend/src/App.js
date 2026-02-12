@@ -11,6 +11,7 @@ import AdminPage from "@/pages/AdminPage";
 import PromptsPage from "@/pages/PromptsPage";
 import AuthCallback from "@/pages/AuthCallback";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
+import ValidationPage from "@/pages/ValidationPage";
 import Navbar from "@/components/Navbar";
 
 function AppRouter() {
