@@ -1308,15 +1308,15 @@ async def estimate_category(cat_id: str):
 # --- Extraction Statistics ---
 
 # Simple cache for extraction stats (expensive to compute)
-_extraction_cache = {"data": None, "timestamp": 0, "computing": False}
-_EXTRACTION_CACHE_TTL = 300  # 5 minutes
+_extraction_cache = {"data": None, "timestamp": 0, "computing": False, "warming_up": True}
+_EXTRACTION_CACHE_TTL = 600  # 10 minutes (increased from 5 to reduce recomputation)
 
 
 @router.get("/extraction-stats", dependencies=[Depends(verify_admin)])
 async def get_extraction_stats(category: str = None, refresh: bool = False):
     """
     Get detailed statistics about PDF text extraction across all papers.
-    Uses sampling for fast initial load, with full stats cached after first computation.
+    Returns warming_up status if cache is not ready yet.
     """
     import time as _time
     import random
@@ -1327,6 +1327,34 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
     # Return cached data if available and fresh
     if not category and not refresh and _extraction_cache["data"] and (now - _extraction_cache["timestamp"]) < _EXTRACTION_CACHE_TTL:
         return _extraction_cache["data"]
+    
+    # If currently computing, return warming_up status immediately (non-blocking)
+    if _extraction_cache["computing"]:
+        if _extraction_cache["data"]:
+            # Return stale data with warming_up flag
+            return {**_extraction_cache["data"], "warming_up": True, "message": "Refreshing cache..."}
+        return {
+            "warming_up": True,
+            "message": "Computing extraction statistics, please wait...",
+            "total_papers": 0,
+            "papers_with_text": 0,
+            "papers_without_text": 0,
+        }
+    
+    # If no cache and this is a fresh request, return warming_up and trigger background computation
+    if not _extraction_cache["data"] and not refresh:
+        # Trigger background computation
+        asyncio.create_task(_compute_extraction_stats_bg(category))
+        return {
+            "warming_up": True,
+            "message": "Computing extraction statistics, please wait...",
+            "total_papers": 0,
+            "papers_with_text": 0,
+            "papers_without_text": 0,
+        }
+    
+    # Compute synchronously (for refresh=True or initial prewarm)
+    return await _compute_extraction_stats(category, char_limit=None)
     
     # Get section char limit from settings
     settings_doc = await db.settings.find_one({"key": "global"}) or {}
