@@ -178,12 +178,14 @@ export default function ValidationPage() {
 
   const fetchResults = useCallback(async () => {
     try {
-      const [avg, pair] = await Promise.all([
+      const [avg, pair, irt] = await Promise.all([
         axios.get(`${API}/api/validation/results`),
         axios.get(`${API}/api/validation/pairwise-results`),
+        axios.get(`${API}/api/validation/irt-results`),
       ]);
       if (avg.data.status === "ok") setAvgResults(avg.data);
       if (pair.data.status === "ok") setPairResults(pair.data);
+      if (irt.data.status === "ok") setIrtResults(irt.data);
     } catch (e) { console.error(e); }
   }, []);
 
