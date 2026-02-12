@@ -603,42 +603,50 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
 
 
 async def _generate_pending_summaries(category: str = None):
-    """Generate impact summaries for papers that don't have one yet.
+    """Generate impact summaries for papers in a category when the tournament has completed.
     
-    Criteria for generating summary:
+    Criteria for generating summaries:
+    - Tournament for the category must have all goals met (stopped)
     - Paper must have at least 3 matches (enough data for meaningful summary)
-    - No convergence requirement - summaries are generated for all papers with sufficient matches
     """
     from services.llm import generate_impact_summary
 
     settings = await get_settings()
-    section_char_limit = settings.get("section_char_limit", 2000)  # Pre-fetch for batch
+    section_char_limit = settings.get("section_char_limit", 2000)
+
+    # Check if tournament goals are met for this category
+    if category:
+        goals_met = await _check_goals_met(category=category)
+        if not goals_met:
+            logger.debug(f"Skipping summary generation for {category} - tournament goals not met")
+            return
+    else:
+        # If no category specified, skip - we need a specific category to check goals
+        return
 
     summary_prompt_doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
     summary_prompt = summary_prompt_doc if summary_prompt_doc and summary_prompt_doc.get("system_prompt") else None
 
-    # Find papers without summaries, scoped to category
-    # Increased limit to process more papers per cycle
-    query = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}]}
-    if category:
-        query["categories.0"] = category
+    # Find papers without summaries in this category
+    query = {
+        "$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}],
+        "categories.0": category
+    }
 
     all_papers = await db.papers.find(
         query,
         {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1, "categories": 1},
-    ).to_list(500)  # Increased from 100 to 500
+    ).to_list(500)
 
     if not all_papers:
         return
 
-    # Get match counts for these papers (indexed query by category)
+    # Get match counts for these papers
     paper_ids = [p["id"] for p in all_papers]
     paper_match_count = {pid: 0 for pid in paper_ids}
     paper_wins = {pid: 0 for pid in paper_ids}
 
-    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-    if category:
-        match_query["primary_category"] = category
+    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "primary_category": category}
 
     async for m in db.matches.find(
         match_query,
@@ -651,7 +659,7 @@ async def _generate_pending_summaries(category: str = None):
         if w and w in paper_wins:
             paper_wins[w] += 1
 
-    cat_status = _get_cat_status(category) if category else None
+    cat_status = _get_cat_status(category)
 
     # Sort papers by match count (highest first) to prioritize well-tested papers
     papers_sorted = sorted(all_papers, key=lambda p: paper_match_count.get(p["id"], 0), reverse=True)
@@ -660,7 +668,7 @@ async def _generate_pending_summaries(category: str = None):
         pid = paper["id"]
         n = paper_match_count.get(pid, 0)
 
-        # Only require minimum matches, no convergence requirement
+        # Require minimum matches for meaningful summary
         if n < 3:
             continue
 
