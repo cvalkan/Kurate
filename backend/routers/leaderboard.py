@@ -10,8 +10,8 @@ from services.ranking import compute_leaderboard, calculate_confidence_interval
 router = APIRouter(prefix="/api")
 
 # Pre-computed cache — refreshed in the background, never blocks requests
-_cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0}
-_CACHE_TTL = 20
+_cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "warming_up": True}
+_CACHE_TTL = 60  # Increased from 20s to reduce recomputation frequency
 _cache_lock = asyncio.Lock()
 _bg_task_started = False
 
