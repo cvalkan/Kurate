@@ -326,6 +326,42 @@ export default function ValidationPage() {
         </div>
       )}
 
+      {/* ── Key Finding: Agreement Analysis ── */}
+      {agreementData && (
+        <div className="mb-6 border-2 border-accent/20 rounded-lg overflow-hidden" data-testid="agreement-analysis">
+          <div className="px-4 py-3 bg-accent/5 border-b border-accent/20">
+            <h2 className="font-heading text-base font-medium">Key Finding: AI vs Expert Agreement</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              How does AI's pairwise agreement with human experts compare to experts' agreement with each other?
+            </p>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-4 rounded-lg border border-border bg-background text-center" data-testid="ee-agreement">
+                <div className="text-xs text-muted-foreground mb-1">Expert-Expert</div>
+                <div className="text-2xl font-semibold font-mono text-red-600">{agreementData.expert_expert.rate}%</div>
+                <div className="text-[10px] text-muted-foreground">{agreementData.expert_expert.agree}/{agreementData.expert_expert.total} pairs</div>
+              </div>
+              <div className="p-4 rounded-lg border border-border bg-background text-center" data-testid="ae-agreement">
+                <div className="text-xs text-muted-foreground mb-1">AI-Expert</div>
+                <div className={`text-2xl font-semibold font-mono ${agreementData.ai_expert.rate > agreementData.expert_expert.rate ? "text-green-600" : "text-amber-600"}`}>
+                  {agreementData.ai_expert.rate}%
+                </div>
+                <div className="text-[10px] text-muted-foreground">{agreementData.ai_expert.agree}/{agreementData.ai_expert.total} pairs</div>
+              </div>
+              <div className="p-4 rounded-lg border border-border bg-background text-center" data-testid="am-agreement">
+                <div className="text-xs text-muted-foreground mb-1">AI-Majority</div>
+                <div className="text-2xl font-semibold font-mono text-amber-600">{agreementData.ai_majority.rate}%</div>
+                <div className="text-[10px] text-muted-foreground">{agreementData.ai_majority.agree}/{agreementData.ai_majority.total} pairs</div>
+              </div>
+            </div>
+            <div className="p-3 border border-border rounded-lg bg-background text-sm text-muted-foreground">
+              {agreementData.interpretation}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Experiment 2: Pairwise-Derived (primary) ── */}
       {pairResults && (
         <div className="mb-6">
