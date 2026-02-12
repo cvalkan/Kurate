@@ -275,7 +275,64 @@ export default function ValidationPage() {
         </div>
       )}
 
-      {/* ── Main Experiment: IRT Score Ranking vs AI Tournament ── */}
+      {/* ── Experiment 1: Pairwise BT Ranking (no IRT) ── */}
+      {pairResults && (
+        <div className="mb-6">
+          <ExperimentSection
+            title="Pairwise Ranking (no severity correction)"
+            icon={<Users className="h-4 w-4 text-accent" />}
+            description={`Derives head-to-head preferences from ${pairResults.experts_contributing} reviewers who scored multiple papers. If Reviewer A scored Paper X higher than Paper Y, that's one human match. Both human and AI sides ranked via Bradley-Terry. Pairwise extraction implicitly cancels reviewer severity bias.`}
+            correlation={pairResults.correlation}
+            interpretation={pairResults.interpretation}
+            stats={[
+              `${pairResults.papers_analyzed} papers`,
+              `${pairResults.human_matches_derived} human pairs (${pairResults.human_matches_ties_excluded} ties excluded)`,
+              `${pairResults.ai_matches} AI matches`,
+            ]}
+          >
+            <div className="border border-border rounded-lg overflow-hidden" data-testid="ranking-table-pairwise">
+              <div className="px-4 py-3 bg-secondary/30 border-b border-border">
+                <h3 className="text-sm font-medium">Human (Pairwise BT) vs AI Ranking</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Human ranking from Bradley-Terry on reviewer-derived pairwise matches. Delta = AI rank − Human rank.</p>
+              </div>
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-background">
+                    <tr className="border-b border-border text-xs">
+                      <th className="text-left px-3 py-2 font-medium">Paper</th>
+                      <th className="text-right px-2 py-2 font-medium">H Rank</th>
+                      <th className="text-right px-2 py-2 font-medium">H Score</th>
+                      <th className="text-right px-2 py-2 font-medium">H Win%</th>
+                      <th className="text-right px-2 py-2 font-medium">AI Rank</th>
+                      <th className="text-right px-2 py-2 font-medium">AI Score</th>
+                      <th className="text-right px-2 py-2 font-medium">AI Win%</th>
+                      <th className="text-right px-3 py-2 font-medium">Delta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pairResults.comparison.map((row) => (
+                      <tr key={row.id} className="border-b border-border/30 hover:bg-secondary/10">
+                        <td className="px-3 py-2 max-w-[250px]">
+                          <div className="truncate text-xs font-medium" title={row.title}>{row.title}</div>
+                        </td>
+                        <td className="text-right px-2 py-2 font-mono text-xs">{row.human_rank}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.human_score}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.human_win_rate}%</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs">{row.ai_rank}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_score}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_win_rate}%</td>
+                        <td className="text-right px-3 py-2 text-xs"><RankDelta delta={row.rank_delta} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </ExperimentSection>
+        </div>
+      )}
+
+      {/* ── Experiment 2: IRT Score Ranking vs AI Tournament ── */}
       {irtResults && (
         <div className="mb-6">
           <ExperimentSection
