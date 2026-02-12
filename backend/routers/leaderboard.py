@@ -158,6 +158,7 @@ async def _refresh_cache():
         "categories": categories_data,
         "total_papers": len(all_papers),
         "total_matches": len(all_matches),
+        "warming_up": False,  # Cache is now ready
         "_raw_papers": all_papers,
         "_raw_matches": all_matches,
         "_raw_matches_all": all_matches_raw,
