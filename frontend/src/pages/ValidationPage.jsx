@@ -365,68 +365,44 @@ export default function ValidationPage() {
         </div>
       )}
 
-      {/* ── Experiment 2: Pairwise-Derived (primary) ── */}
-      {pairResults && (
-        <div className="mb-6">
-          <ExperimentSection
-            title="Experiment: Pairwise-Derived Human Rankings"
-            icon={<Users className="h-4 w-4 text-accent" />}
-            description={`Extracts head-to-head preferences from ${pairResults.experts_contributing} experts who rated multiple papers. If Expert A rated Paper X higher than Paper Y, that's one human comparison. Both human and AI rankings use Bradley-Terry on pairwise data.`}
-            correlation={pairResults.correlation}
-            pairwiseAgreement={pairResults.pairwise_agreement}
-            interpretation={pairResults.interpretation}
-            stats={[
-              `${pairResults.papers_analyzed} papers`,
-              `${pairResults.human_matches_derived} human pairs (${pairResults.human_matches_ties_excluded} ties excluded)`,
-              `${pairResults.ai_matches} AI matches`,
-              `${pairResults.pairwise_agreement.overlapping_pairs} directly overlapping pairs`,
-            ]}
-          >
-            <RankingTable data={pairResults.comparison} mode="pairwise" />
-          </ExperimentSection>
-        </div>
-      )}
-
-      {/* ── Experiment 3: IRT-Adjusted (new) ── */}
+      {/* ── Main Experiment: IRT Score Ranking vs AI Tournament ── */}
       {irtResults && (
         <div className="mb-6">
           <ExperimentSection
-            title="Experiment: IRT Severity-Adjusted Rankings"
-            icon={<FlaskConical className="h-4 w-4 text-violet-500" />}
-            description={`Adjusts for expert severity bias: each rating is z-scored against the expert's personal mean and discrimination. Increases resolution from ${irtResults.improvement.distinct_scores_raw} to ${irtResults.improvement.distinct_scores_irt} distinct paper scores.`}
+            title="IRT Score Ranking vs AI Tournament"
+            icon={<FlaskConical className="h-4 w-4 text-accent" />}
+            description={`Each reviewer's scores are z-scored against their personal mean and spread, removing severity bias. Averaged z-scores produce a continuous quality estimate per paper (${irtResults.improvement.distinct_scores_irt} distinct values vs ${irtResults.improvement.distinct_scores_raw} from raw averages). This IRT ranking is compared against the AI's Bradley-Terry tournament ranking.`}
             correlation={irtResults.correlation.irt_score_vs_ai}
-            pairwiseAgreement={irtResults.pairwise_agreement}
             interpretation={irtResults.interpretation}
             stats={[
               `${irtResults.papers_analyzed} papers`,
-              `${irtResults.experts_analyzed} experts modeled`,
-              `${irtResults.human_matches_irt} IRT-adjusted pairs`,
-              `${irtResults.ai_matches} AI matches`,
+              `${irtResults.experts_analyzed} reviewers`,
+              `${irtResults.ai_matches} AI matches (full-text extraction)`,
             ]}
           >
-            {/* Improvement callout */}
+            {/* Comparison: Raw vs IRT */}
             <div className="grid grid-cols-3 gap-3 mb-2">
               <div className="p-3 border border-border rounded-lg bg-background text-center">
-                <div className="text-[10px] text-muted-foreground">Raw Avg ρ</div>
+                <div className="text-[10px] text-muted-foreground">Raw Avg vs AI</div>
                 <div className="text-lg font-mono font-semibold text-muted-foreground">{irtResults.correlation.raw_avg_vs_ai.spearman_rho.toFixed(3)}</div>
               </div>
               <div className="p-3 border border-border rounded-lg bg-background text-center">
-                <div className="text-[10px] text-muted-foreground">→ IRT ρ</div>
+                <div className="text-[10px] text-muted-foreground">IRT Score vs AI</div>
                 <div className="text-lg font-mono font-semibold">{irtResults.correlation.irt_score_vs_ai.spearman_rho.toFixed(3)}</div>
               </div>
               <div className="p-3 border border-border rounded-lg bg-background text-center">
-                <div className="text-[10px] text-muted-foreground">Change</div>
+                <div className="text-[10px] text-muted-foreground">Improvement</div>
                 <div className={`text-lg font-mono font-semibold ${irtResults.improvement.delta > 0.02 ? "text-green-600" : irtResults.improvement.delta < -0.02 ? "text-red-600" : "text-muted-foreground"}`}>
                   {irtResults.improvement.delta >= 0 ? "+" : ""}{irtResults.improvement.delta.toFixed(3)}
                 </div>
               </div>
             </div>
 
-            {/* IRT ranking table */}
+            {/* Ranking table */}
             <div className="border border-border rounded-lg overflow-hidden" data-testid="ranking-table-irt">
               <div className="px-4 py-3 bg-secondary/30 border-b border-border">
-                <h3 className="text-sm font-medium">IRT-Adjusted vs AI Ranking</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Sorted by IRT score. IRT score = average z-scored expert rating (adjusts for expert severity).</p>
+                <h3 className="text-sm font-medium">Human (IRT) vs AI Ranking</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Sorted by IRT score. Delta = AI rank − IRT rank (negative = AI ranked higher).</p>
               </div>
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <table className="w-full text-sm">
@@ -436,9 +412,9 @@ export default function ValidationPage() {
                       <th className="text-right px-2 py-2 font-medium">IRT Score</th>
                       <th className="text-right px-2 py-2 font-medium">Raw Avg</th>
                       <th className="text-right px-2 py-2 font-medium">IRT Rank</th>
-                      <th className="text-right px-2 py-2 font-medium">Raw Rank</th>
                       <th className="text-right px-2 py-2 font-medium">AI Rank</th>
                       <th className="text-right px-2 py-2 font-medium">AI Score</th>
+                      <th className="text-right px-2 py-2 font-medium">AI Win%</th>
                       <th className="text-right px-3 py-2 font-medium">Delta</th>
                     </tr>
                   </thead>
@@ -447,7 +423,7 @@ export default function ValidationPage() {
                       <tr key={row.id} className="border-b border-border/30 hover:bg-secondary/10">
                         <td className="px-3 py-2 max-w-[250px]">
                           <div className="truncate text-xs font-medium" title={row.title}>{row.title}</div>
-                          <div className="text-[10px] text-muted-foreground">{row.journal} · {row.n_ratings} ratings</div>
+                          <div className="text-[10px] text-muted-foreground">{row.n_ratings} reviews</div>
                         </td>
                         <td className="text-right px-2 py-2">
                           <span className={`font-mono text-xs font-medium ${row.irt_score >= 0.3 ? "text-green-600" : row.irt_score <= -0.3 ? "text-red-600" : "text-muted-foreground"}`}>
@@ -456,9 +432,9 @@ export default function ValidationPage() {
                         </td>
                         <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.raw_mean.toFixed(1)}</td>
                         <td className="text-right px-2 py-2 font-mono text-xs">{row.irt_rank}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{typeof row.raw_rank === 'number' && row.raw_rank % 1 !== 0 ? row.raw_rank.toFixed(1) : row.raw_rank}</td>
                         <td className="text-right px-2 py-2 font-mono text-xs">{row.ai_rank}</td>
                         <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_score}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_win_rate}%</td>
                         <td className="text-right px-3 py-2 text-xs"><RankDelta delta={row.rank_delta} /></td>
                       </tr>
                     ))}
