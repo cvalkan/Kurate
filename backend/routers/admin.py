@@ -258,6 +258,13 @@ async def get_summary_stats(category: str = None):
     result = await db.papers.aggregate(pipeline).to_list(1)
     eligible = result[0]["eligible"] if result else 0
     
+    # Check tournament status for the category
+    tournament_status = None
+    if category:
+        from services.scheduler import _check_goals_met
+        goals_met = await _check_goals_met(category=category)
+        tournament_status = "completed" if goals_met else "in_progress"
+    
     return {
         "with_summary": with_summary,
         "without_summary": without_summary,
@@ -265,6 +272,7 @@ async def get_summary_stats(category: str = None):
         "total": with_summary + without_summary,
         "coverage_rate": round(with_summary / max(with_summary + without_summary, 1) * 100, 1),
         "category": category,
+        "tournament_status": tournament_status,
     }
 
 
