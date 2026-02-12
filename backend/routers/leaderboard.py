@@ -339,6 +339,23 @@ async def get_leaderboard(
 
     # Default: use pre-computed primary category cache
     cache = await _get_cached_leaderboard()
+    
+    # If cache is still warming up, return indicator
+    if cache.get("warming_up", True) and not cache["categories"]:
+        return {
+            "leaderboard": [],
+            "total_papers": 0,
+            "total_in_period": 0,
+            "total_matches": 0,
+            "is_ranking": False,
+            "period": period,
+            "category": category,
+            "tags": None,
+            "tag_mode": None,
+            "warming_up": True,
+            "message": "Leaderboard data is loading, please wait...",
+        }
+    
     cat_data = cache["categories"].get(category, {})
     data = cat_data.get(period, cat_data.get("all", []))
 
@@ -355,6 +372,7 @@ async def get_leaderboard(
         "category": category,
         "tags": None,
         "tag_mode": None,
+        "warming_up": False,
     }
 
 
