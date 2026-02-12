@@ -343,7 +343,7 @@ async def import_peerread_dataset(body: ImportPeerReadRequest):
 class TournamentRequest(BaseModel):
     dataset_id: str
     num_matches: int = 500
-    parallel: int = 5
+    parallel: int = 30
 
 
 @router.post("/run-tournament", dependencies=[Depends(verify_admin)])
@@ -356,7 +356,7 @@ async def run_tournament(body: TournamentRequest):
     if count < 2:
         return {"status": "error", "message": "Need at least 2 papers. Import first."}
 
-    asyncio.create_task(_run_tournament(body.dataset_id, min(max(body.num_matches, 1), 500), min(max(body.parallel, 1), 10)))
+    asyncio.create_task(_run_tournament(body.dataset_id, min(max(body.num_matches, 1), 2000), min(max(body.parallel, 1), 50)))
     return {"status": "started", "dataset_id": body.dataset_id, "num_matches": body.num_matches}
 
 
@@ -424,13 +424,310 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int):
 
                 await db.validation_matches.insert_one(doc)
                 state["completed_matches"] = completed
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.2)
 
         logger.info(f"Validation tournament [{dataset_id}]: {completed}/{len(pairs)}")
     except Exception as e:
         logger.error(f"Validation tournament [{dataset_id}] error: {e}")
     finally:
         state["running"] = False
+
+
+# ─── Multi-Model Tournament ───────────────────────────────────────────────────
+
+class MultiModelRequest(BaseModel):
+    dataset_id: str
+    parallel: int = 30
+
+
+@router.post("/run-multimodel", dependencies=[Depends(verify_admin)])
+async def run_multimodel_tournament(body: MultiModelRequest):
+    """Re-run existing pairs with all 3 models so each pair has 3 verdicts."""
+    state = _get_state(body.dataset_id)
+    if state["running"]:
+        return {"status": "already_running", **state}
+
+    asyncio.create_task(_run_multimodel(body.dataset_id, min(max(body.parallel, 1), 50)))
+    return {"status": "started", "dataset_id": body.dataset_id}
+
+
+async def _run_multimodel(dataset_id: str, parallel: int):
+    from core.config import TOURNAMENT_MODELS
+
+    state = _get_state(dataset_id)
+    state.update({"running": True, "completed_matches": 0, "total_matches": 0, "current_pair": "Scanning...", "started_at": _time.time()})
+
+    try:
+        papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+        lookup = {p["id"]: p for p in papers}
+
+        # Get all completed matches
+        matches = await db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}},
+            {"_id": 0},
+        ).to_list(100000)
+
+        # Group by pair → which models already ran
+        pair_models = defaultdict(list)
+        for m in matches:
+            pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            model = m.get("model_used", {})
+            model_key = f"{model.get('provider', '')}:{model.get('model', '')}"
+            pair_models[pair].append(model_key)
+
+        all_model_keys = {f"{m['provider']}:{m['model']}" for m in TOURNAMENT_MODELS}
+
+        # Build tasks: for each pair, run missing models
+        work = []  # (p1_id, p2_id, model_info)
+        for pair, done_keys in pair_models.items():
+            missing = all_model_keys - set(done_keys)
+            for mk in missing:
+                provider, model = mk.split(":", 1)
+                mi = {"provider": provider, "model": model}
+                work.append((pair[0], pair[1], mi))
+
+        if not work:
+            state["running"] = False
+            logger.info(f"Multi-model [{dataset_id}]: all pairs already have all 3 models")
+            return
+
+        state["total_matches"] = len(work)
+        state["current_pair"] = f"0/{len(work)} remaining"
+        prompt_config = DEFAULT_EVALUATION_PROMPT
+        completed = 0
+
+        for i in range(0, len(work), parallel):
+            batch = work[i:i + parallel]
+            state["current_pair"] = f"Batch {i // parallel + 1} ({completed}/{len(work)})"
+
+            tasks = []
+            for p1_id, p2_id, model_info in batch:
+                # Random presentation order
+                if random.random() < 0.5:
+                    tasks.append((p2_id, p1_id, model_info))
+                else:
+                    tasks.append((p1_id, p2_id, model_info))
+
+            coros = [
+                compare_papers(
+                    lookup[p1], lookup[p2], prompt_config,
+                    abstract_only=not (lookup[p1].get("full_text") and lookup[p2].get("full_text")),
+                    model_override=mi,
+                )
+                for p1, p2, mi in tasks
+            ]
+            results = await asyncio.gather(*coros, return_exceptions=True)
+
+            for (p1_id, p2_id, mi), result in zip(tasks, results):
+                used_ext = bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
+                doc = {
+                    "id": str(uuid.uuid4()), "dataset_id": dataset_id,
+                    "paper1_id": p1_id, "paper2_id": p2_id,
+                    "used_extraction": used_ext,
+                    "model_used": mi,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if isinstance(result, Exception):
+                    doc.update({"completed": False, "failed": True, "error": str(result)[:200]})
+                else:
+                    winner_key = result.get("winner", "paper1")
+                    doc.update({
+                        "winner_id": p1_id if winner_key == "paper1" else p2_id,
+                        "reasoning": result.get("reasoning", ""),
+                        "model_used": result.get("model_used", mi),
+                        "tokens": result.get("tokens", {}),
+                        "completed": True, "failed": False,
+                    })
+                    completed += 1
+
+                await db.validation_matches.insert_one(doc)
+                state["completed_matches"] = completed
+            await asyncio.sleep(0.2)
+
+        logger.info(f"Multi-model [{dataset_id}]: {completed}/{len(work)} new matches")
+    except Exception as e:
+        logger.error(f"Multi-model [{dataset_id}] error: {e}")
+    finally:
+        state["running"] = False
+
+
+# ─── Multi-Model Analysis ─────────────────────────────────────────────────────
+
+@router.get("/multimodel-results")
+async def get_multimodel_results(dataset_id: str = Query(...)):
+    """Inter-model agreement + majority-vote vs expert analysis."""
+    from core.config import TOURNAMENT_MODELS
+
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    matches = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+    ).to_list(100000)
+
+    if not papers or not matches:
+        return {"status": "no_data"}
+
+    # Group matches by pair and model
+    pair_verdicts = defaultdict(dict)  # pair -> model_key -> winner_id
+    model_keys_seen = set()
+    for m in matches:
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        mu = m.get("model_used", {})
+        mk = f"{mu.get('provider', '')}:{mu.get('model', '')}"
+        model_keys_seen.add(mk)
+        pair_verdicts[pair][mk] = m["winner_id"]
+
+    # Only use pairs that have all 3 models
+    all_models = sorted(model_keys_seen)
+    full_pairs = {p: v for p, v in pair_verdicts.items() if len(v) >= len(all_models)}
+
+    if len(full_pairs) < 5:
+        return {"status": "insufficient_multimodel_data", "pairs_with_all_models": len(full_pairs), "models_seen": all_models}
+
+    # Inter-model pairwise agreement
+    model_agreement = {}
+    for i, m1 in enumerate(all_models):
+        for j, m2 in enumerate(all_models):
+            if j <= i:
+                continue
+            agree = sum(1 for v in full_pairs.values() if v.get(m1) == v.get(m2))
+            total = len(full_pairs)
+            model_agreement[f"{m1} vs {m2}"] = {
+                "agree": agree, "total": total,
+                "rate": round(agree / max(total, 1) * 100, 1),
+            }
+
+    # Per-model BT rankings
+    paper_ids = {p["id"] for p in papers}
+    model_rankings = {}
+    for mk in all_models:
+        model_matches = [
+            {"paper1_id": p[0], "paper2_id": p[1], "winner_id": v[mk], "completed": True, "failed": False}
+            for p, v in full_pairs.items() if mk in v
+        ]
+        mp = [p for p in papers if p["id"] in paper_ids]
+        lb = compute_leaderboard(mp, model_matches)
+        model_rankings[mk] = {e["id"]: e["rank"] for e in lb}
+
+    # Inter-model rank correlation
+    model_correlations = {}
+    for i, m1 in enumerate(all_models):
+        for j, m2 in enumerate(all_models):
+            if j <= i:
+                continue
+            common = set(model_rankings[m1].keys()) & set(model_rankings[m2].keys())
+            if len(common) < 3:
+                continue
+            ids = sorted(common)
+            r1 = [model_rankings[m1][pid] for pid in ids]
+            r2 = [model_rankings[m2][pid] for pid in ids]
+            sp, sp_p = scipy_stats.spearmanr(r1, r2)
+            model_correlations[f"{m1} vs {m2}"] = {
+                "spearman_rho": round(sp, 4), "p_value": round(sp_p, 6), "papers": len(common),
+            }
+
+    # Majority vote
+    majority_winner = {}
+    for pair, verdicts in full_pairs.items():
+        winners = list(verdicts.values())
+        c = Counter(winners)
+        best, n = c.most_common(1)[0]
+        if n > len(winners) / 2:
+            majority_winner[pair] = best
+
+    # Majority vote vs human expert
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+
+    # Expert majority for each pair
+    expert_pair_votes = defaultdict(list)
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                ra, rb = ratings[a], ratings[b]
+                if ra != rb:
+                    pair = tuple(sorted([a, b]))
+                    expert_pair_votes[pair].append(a if ra > rb else b)
+
+    expert_majority = {}
+    for pair, votes in expert_pair_votes.items():
+        if len(votes) < 2:
+            continue
+        c = Counter(votes)
+        best, n = c.most_common(1)[0]
+        if n > len(votes) / 2:
+            expert_majority[pair] = best
+
+    # Compare AI majority vs expert majority
+    overlap = set(majority_winner.keys()) & set(expert_majority.keys())
+    maj_agree = sum(1 for p in overlap if majority_winner[p] == expert_majority[p])
+
+    # Compare each individual model vs expert majority
+    per_model_vs_expert = {}
+    for mk in all_models:
+        agree = 0
+        total = 0
+        for pair, exp_winner in expert_majority.items():
+            if pair in pair_verdicts and mk in pair_verdicts[pair]:
+                total += 1
+                if pair_verdicts[pair][mk] == exp_winner:
+                    agree += 1
+        per_model_vs_expert[mk] = {"agree": agree, "total": total, "rate": round(agree / max(total, 1) * 100, 1)}
+
+    # Majority-vote BT ranking vs human BT ranking
+    maj_matches = [
+        {"paper1_id": p[0], "paper2_id": p[1], "winner_id": w, "completed": True, "failed": False}
+        for p, w in majority_winner.items()
+    ]
+    # Human pairwise matches
+    human_matches = []
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                ra, rb = ratings[a], ratings[b]
+                if ra != rb:
+                    human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ra > rb else b, "completed": True, "failed": False})
+
+    h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
+    m_ids = {m["paper1_id"] for m in maj_matches} | {m["paper2_id"] for m in maj_matches}
+    common = h_ids & m_ids
+
+    maj_correlation = None
+    if len(common) >= 3:
+        cp = [p for p in papers if p["id"] in common]
+        ch = [m for m in human_matches if m["paper1_id"] in common and m["paper2_id"] in common]
+        cm = [m for m in maj_matches if m["paper1_id"] in common and m["paper2_id"] in common]
+        h_lb = compute_leaderboard(cp, ch)
+        m_lb = compute_leaderboard(cp, cm)
+        h_rank = {e["id"]: e["rank"] for e in h_lb}
+        m_rank = {e["id"]: e["rank"] for e in m_lb}
+        ids = sorted(common)
+        hr = [h_rank[pid] for pid in ids]
+        mr = [m_rank[pid] for pid in ids]
+        sp, sp_p = scipy_stats.spearmanr(hr, mr)
+        maj_correlation = {"spearman_rho": round(sp, 4), "p_value": round(sp_p, 6), "papers": len(common)}
+
+    return {
+        "status": "ok",
+        "models": all_models,
+        "pairs_with_all_models": len(full_pairs),
+        "inter_model_agreement": model_agreement,
+        "inter_model_correlation": model_correlations,
+        "majority_vs_expert_majority": {
+            "agree": maj_agree, "total": len(overlap),
+            "rate": round(maj_agree / max(len(overlap), 1) * 100, 1),
+        },
+        "per_model_vs_expert_majority": per_model_vs_expert,
+        "majority_bt_vs_human_bt": maj_correlation,
+    }
 
 
 # ─── Status ────────────────────────────────────────────────────────────────────
