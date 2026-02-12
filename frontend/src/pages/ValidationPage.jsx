@@ -242,19 +242,24 @@ export default function ValidationPage() {
 
       {/* Status cards */}
       {status && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <div className="p-3 border border-border rounded-lg" data-testid="stat-papers">
             <div className="text-xs text-muted-foreground">H1 Papers</div>
             <div className="text-xl font-semibold">{status.papers_imported}</div>
-            <div className="text-[10px] text-muted-foreground">{"\u2265"}{status.min_expert_ratings} expert ratings each</div>
+            <div className="text-[10px] text-muted-foreground">{status.papers_with_full_text || 0} with full text</div>
           </div>
           <div className="p-3 border border-border rounded-lg" data-testid="stat-matches">
             <div className="text-xs text-muted-foreground">AI Matches</div>
             <div className="text-xl font-semibold">{status.matches_completed}</div>
             <div className="text-[10px] text-muted-foreground">{status.coverage_pct}% of {status.total_possible_pairs} pairs</div>
           </div>
+          <div className="p-3 border border-border rounded-lg" data-testid="stat-extraction">
+            <div className="text-xs text-muted-foreground">Full Text Used</div>
+            <div className="text-xl font-semibold">{status.matches_with_extraction || 0}</div>
+            <div className="text-[10px] text-muted-foreground">{status.matches_abstract_only || 0} abstract-only</div>
+          </div>
           <div className="p-3 border border-border rounded-lg" data-testid="stat-avg-matches">
-            <div className="text-xs text-muted-foreground">Avg Matches/Paper</div>
+            <div className="text-xs text-muted-foreground">Avg/Paper</div>
             <div className="text-xl font-semibold">{status.avg_matches_per_paper}</div>
             <div className="text-[10px] text-muted-foreground">min {status.min_matches_per_paper} / max {status.max_matches_per_paper}</div>
           </div>
