@@ -1,0 +1,108 @@
+{
+  "summary": "Iteration 25 - Bug Fix Verification: Missing Sample Papers table on Admin Extraction page. The bug has been FIXED. Backend API /api/admin/extraction-stats returns sample_papers array with 50 entries, and the frontend AdminExtraction.jsx renders the table correctly. All 13 backend tests passed. UI verified via Playwright automation.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "GET /api/admin/extraction-stats returns 200 OK",
+      "Response contains sample_papers array - THE KEY BUG FIX",
+      "sample_papers contains up to 50 entries (actual: 50)",
+      "Each sample paper has required fields: id, title, category, full_text_chars, sections_found, intro_chars, method_chars, results_chars, conclusion_chars",
+      "Sample paper field types are correct (string/int)",
+      "sections_found values are in valid range [0,4]",
+      "by_category dict present in response",
+      "by_category structure has required keys per category",
+      "overall section rates present for all 4 sections",
+      "overall section has rate and avg_chars fields",
+      "papers_with_text count present",
+      "all_headers_found and all_headers_rate present",
+      "avg_extracted_chars and extraction_ratio present"
+    ],
+    "frontend": [
+      "Admin login with password 'papersumo2025' works",
+      "Extraction tab navigates to correct page",
+      "Overview cards visible: Papers with PDF (429), All 4 Headers Found (79), Avg Extracted (10,868), Fallback Used (20)",
+      "Section Extraction Rates (Overall) renders with progress bars for Introduction, Methodology, Results, Conclusion",
+      "Extraction by Category table renders with all 6 categories",
+      "Sample Papers (first 50) table heading visible",
+      "Sample Papers table has 50 rows",
+      "Sample Papers table columns: Title, Category, Sections (X/4), Intro, Method, Results, Concl, Full Text",
+      "First row displays actual paper data correctly"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_extraction_stats.py",
+    "/app/test_reports/pytest/extraction_stats_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Backend fix confirmed: _compute_extraction_stats_impl() at line 1533 returns sample_papers[:50]",
+    "Frontend rendering confirmed: AdminExtraction.jsx lines 282-334 correctly conditionally render Sample Papers table when stats.sample_papers array exists and has entries",
+    "Cache warming handled gracefully with retry mechanism in frontend"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_extraction_stats.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (9/9 UI verifications passed)"
+  },
+
+  "test_credentials": {
+    "admin_password": "papersumo2025",
+    "admin_login_endpoint": "POST /api/admin/login"
+  },
+
+  "seed_data_creation": "None - tested with existing production data",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 25 verified the bug fix for the missing Sample Papers table on Admin Extraction page. The table now shows 50 sample papers with title, category, sections found (out of 4), character counts for each section (intro, method, results, conclusion), and full text size. All features on the Admin Extraction page are working correctly.",
+
+  "verified_features": {
+    "sample_papers_table": {
+      "status": "WORKING - BUG FIXED",
+      "api_field": "sample_papers",
+      "max_entries": 50,
+      "entry_fields": ["id", "title", "category", "full_text_chars", "sections_found", "intro_chars", "method_chars", "results_chars", "conclusion_chars"]
+    },
+    "extraction_by_category_table": {
+      "status": "WORKING",
+      "categories_count": 6
+    },
+    "section_extraction_rates": {
+      "status": "WORKING",
+      "sections": ["introduction", "methodology", "results", "conclusion"]
+    },
+    "overview_cards": {
+      "status": "WORKING",
+      "cards": ["Papers with PDF", "All 4 Headers Found", "Avg Extracted", "Fallback Used"]
+    }
+  },
+
+  "bug_verification": {
+    "original_issue": "Sample Papers table was missing from Admin Extraction page due to sample_papers being removed from API response during performance refactoring",
+    "fix_location": "backend/routers/admin.py line 1533 - sample_papers[:50] now returned",
+    "fix_status": "VERIFIED WORKING",
+    "api_returns_sample_papers": true,
+    "frontend_renders_table": true,
+    "table_row_count": 50
+  }
+}
