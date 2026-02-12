@@ -8,6 +8,7 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - **Frontend**: React, react-router-dom, shadcn/ui components
 - **Database**: MongoDB
 - **Scoring**: Bradley-Terry model, Elo-style scores, Wilson confidence intervals
+- **Statistics**: scipy, statsmodels, numpy
 
 ## Architecture
 
@@ -16,12 +17,12 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - `backend/core/auth.py` - Admin authentication (MongoDB-backed sessions)
 - `backend/routers/admin.py` - Admin panel endpoints including extraction stats
 - `backend/routers/leaderboard.py` - Public leaderboard API
-- `backend/routers/validation.py` - Human vs AI validation experiment (siloed)
+- `backend/routers/validation.py` - Human vs AI validation experiment (siloed, multi-dataset, multi-model)
 - `backend/db_utils/leaderboard_cache.py` - Background caching thread
-- `backend/services/llm.py` - PDF extraction algorithm, LLM comparison logic
+- `backend/services/llm.py` - PDF extraction algorithm, LLM comparison logic (with model_override support)
 - `backend/services/ranking.py` - Bradley-Terry, Elo, Wilson CI computations
 - `frontend/src/pages/AdminPage.jsx` - Admin panel tabs
-- `frontend/src/pages/ValidationPage.jsx` - Human vs AI validation experiment page
+- `frontend/src/pages/ValidationPage.jsx` - Human vs AI validation (tabbed, sidebar nav, multi-model)
 - `frontend/src/components/AdminExtraction.jsx` - Extraction statistics page
 
 ### Key Patterns
@@ -32,24 +33,26 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 
 ## Implemented Features
 
-### Human vs AI Validation Experiment (Implemented Feb 2026)
-- Completely siloed from main leaderboard (`validation_papers`, `validation_matches` collections)
-- Imports 47 biomedical papers with ≥5 H1 Connect expert ratings
-- Runs independent AI pairwise tournament using round-robin GPT-5.2, Claude Opus, Gemini 3 Pro
-- **Two validation approaches:**
-  - **Pairwise-Derived (primary):** Extracts 757 implicit head-to-head comparisons from 21 experts who rated multiple papers. Both human and AI sides use Bradley-Terry — apples-to-apples. Result: ρ = −0.046, 56.1% pairwise agreement.
-  - **Average Rating:** Ranks by H1 avg rating. Limited by narrow 3-point scale (only 8 distinct values). Result: ρ = −0.156.
-- Public `/validation` page with dual experiment display, correlation badges, agreement gauge, ranking tables
-- Data source: `papertrend-viz.preview.emergentagent.com/api/papers`
+### Validation Experiment — Multi-Dataset (Implemented Feb 2026)
+- Completely siloed from main leaderboard
+- **Three datasets**:
+  1. **ICLR LLMs**: 73 papers, 811 matches, ρ≈0.65
+  2. **ICLR Protein Science**: 46 papers, 1499 matches (3-model), ρ≈0.60
+  3. **PeerRead ACL 2017**: 80 NLP/CL papers, 1000 matches, ρ≈0.41
+- Sidebar navigation per dataset with per-dataset stats
+- **Standard stats**: Pairwise BT, IRT Score, Agreement Analysis
+- **Multi-model analysis** (Protein Science): All 499 pairs evaluated by GPT-5.2, Claude Opus 4.5, Gemini 3 Pro
+  - Inter-model pairwise agreement: 80–82%
+  - Inter-model rank correlation: ρ=0.86–0.90
+  - Majority-vote vs expert majority: 74.7%
+  - Majority-vote BT ranking vs human BT: ρ=0.617
 
 ### PDF Extraction Algorithm (Implemented Feb 2026)
 - Regex-based header detection, field-adaptive markers
 - Position-aware extraction, smart truncation
-- Admin Extraction page with statistics + Sample Papers table
 
 ### Performance Optimization (Completed Dec 2025, Updated Feb 2026)
 - Backend caching, pre-warming, non-blocking "Warming up" indicators
-- Extraction stats cache TTL: 10 minutes
 
 ### AI Impact Reports (Updated Feb 2026)
 - Impact summaries for papers in completed tournaments
@@ -67,23 +70,24 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - `admin_sessions`: Admin auth tokens
 
 ### Validation Collections (Siloed)
-- `validation_papers`: H1 Connect papers with expert ratings
-- `validation_matches`: AI tournament matches for validation experiment
+- `validation_papers`: Papers with expert ratings (dataset_id partitioned)
+- `validation_matches`: AI tournament matches with model_used info
+- `validation_datasets`: Dataset metadata
 
 ## Key API Endpoints
 
-### Main Leaderboard
-- `GET /api/leaderboard` - Cached leaderboard
-- `GET /api/tags` - Filterable tags
-- `POST /api/admin/login` - Admin login
-- `GET /api/admin/extraction-stats` - PDF extraction statistics
-
 ### Validation Experiment
-- `GET /api/validation/status` - Import/tournament status (public)
-- `GET /api/validation/results` - Correlation analysis + comparison table (public)
-- `POST /api/validation/import` - Import H1 papers (admin)
-- `POST /api/validation/run-tournament` - Run AI tournament (admin)
-- `POST /api/validation/reset` - Clear all validation data (admin)
+- `GET /api/validation/datasets` - List all datasets
+- `GET /api/validation/status?dataset_id=X` - Dataset status
+- `GET /api/validation/pairwise-results?dataset_id=X` - Pairwise BT correlation
+- `GET /api/validation/irt-results?dataset_id=X` - IRT score correlation
+- `GET /api/validation/agreement-analysis?dataset_id=X` - Agreement rates
+- `GET /api/validation/multimodel-results?dataset_id=X` - Multi-model analysis
+- `POST /api/validation/import-iclr` - Import ICLR dataset (admin)
+- `POST /api/validation/import-peerread` - Import PeerRead dataset (admin)
+- `POST /api/validation/run-tournament` - Run AI tournament (admin, parallel up to 50)
+- `POST /api/validation/run-multimodel` - Run missing models for existing pairs (admin)
+- `POST /api/validation/reset` - Clear dataset (admin)
 
 ## Credentials
 - **Admin Password**: `papersumo2025`
@@ -94,9 +98,10 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - Validation data completely separate from main leaderboard
 
 ## Backlog
+- P1: Add HTTP security headers for production nginx
 - P1: Regenerate old AI impact summaries to add model badge (needs user confirmation)
-- P1: Implement security headers for production nginx
-- P1: Experiment with Gemini 3 Flash as alternative LLM model
-- P2: Run more validation tournament matches for better statistical power
-- P2: Improve conclusion detection algorithm
+- P2: Experiment with Gemini 3 Flash as alternative LLM model
+- P2: Run multi-model tournament on other datasets
 - P2: Full security scan review
+- P3: Abstract-only vs full-text comparison experiment
+- P3: Adaptive Swiss-tournament-style pairing
