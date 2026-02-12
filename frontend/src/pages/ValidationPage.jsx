@@ -336,7 +336,7 @@ export default function ValidationPage() {
       {irtResults && (
         <div className="mb-6">
           <ExperimentSection
-            title="IRT Score Ranking vs AI Tournament"
+            title="IRT Direct Score Ranking (explicit severity correction)"
             icon={<FlaskConical className="h-4 w-4 text-accent" />}
             description={`Each reviewer's scores are z-scored against their personal mean and spread, removing severity bias. Averaged z-scores produce a continuous quality estimate per paper (${irtResults.improvement.distinct_scores_irt} distinct values vs ${irtResults.improvement.distinct_scores_raw} from raw averages). This IRT ranking is compared against the AI's Bradley-Terry tournament ranking.`}
             correlation={irtResults.correlation.irt_score_vs_ai}
