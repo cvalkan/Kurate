@@ -1470,6 +1470,21 @@ async def _compute_extraction_stats_impl(category: str = None):
         if sections_found_count == 0:
             no_sections_found += 1
             cat_stats["no_sections"] += 1
+        
+        # Collect sample papers for the UI table (limit to 100)
+        if len(sample_papers) < 100:
+            sample_papers.append({
+                "id": paper["id"],
+                "title": paper.get("title", "")[:60],
+                "category": cat,
+                "full_text_chars": len(full_text),
+                "sections_found": sections_found_count,
+                "extracted_chars": paper_extracted_chars,
+                "intro_chars": len(sections.get("introduction", "")),
+                "method_chars": len(sections.get("methodology", "")),
+                "results_chars": len(sections.get("results", "")),
+                "conclusion_chars": len(sections.get("conclusion", "")),
+            })
     
     # Calculate rates
     processed_count = len(papers)
