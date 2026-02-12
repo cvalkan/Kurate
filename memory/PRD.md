@@ -42,6 +42,15 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - ✅ Optimized admin polling endpoints (read from cache, no DB queries on hot path)
 - ✅ Removed 500-paper limit on tag-filtered views
 - ✅ Pre-fetched settings for batch operations (Feb 2026) - Fixed performance regression in admin panel
+- ✅ Pre-warming extraction stats cache on startup (Feb 2026)
+- ✅ Leaderboard cache warm on startup with 20s TTL
+
+### AI Impact Reports (Updated Feb 2026)
+- ✅ Impact summaries generated for ALL papers with 3+ matches (removed convergence requirement)
+- ✅ Round-robin LLM selection: GPT-5.2, Claude Opus 4.5, Gemini 3 Pro
+- ✅ Manual trigger endpoint: POST /api/admin/generate-summaries
+- ✅ Summary stats endpoint: GET /api/admin/summary-stats
+- ✅ Increased batch size from 100 to 500 papers per cycle
 
 ### UI/UX Enhancements (Completed Dec 2025)
 - ✅ Leaderboard state preservation via URL parameters
