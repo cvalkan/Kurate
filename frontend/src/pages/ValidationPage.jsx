@@ -235,8 +235,9 @@ export default function ValidationPage() {
           <h1 className="font-heading text-2xl font-semibold" data-testid="validation-title">Human vs AI Validation</h1>
         </div>
         <p className="text-sm text-muted-foreground max-w-2xl">
-          Does PaperSumo's AI tournament agree with human experts? We import {status?.papers_imported || 47} biomedical
-          papers rated by specialists on H1 Connect and compare AI pairwise rankings against human judgments.
+          Does PaperSumo's AI tournament agree with human experts? We import {status?.papers_imported || 73} ICLR
+          papers with peer review scores from OpenReview and compare AI pairwise rankings against expert reviewer judgments
+          using full-text extraction.
         </p>
       </div>
 
