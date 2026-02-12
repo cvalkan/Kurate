@@ -357,13 +357,11 @@ export default function ValidationPage() {
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
         <ul className="text-xs text-muted-foreground space-y-1.5">
-          <li><strong>Data source:</strong> 73 ICLR 2024-2025 papers (LLM category) with 4+ peer reviews each, sourced from OpenReview via the berenslab/iclr-dataset. Full PDFs downloaded from OpenReview for section extraction.</li>
-          <li><strong>AI tournament:</strong> Pairwise comparisons using full-text extraction (Introduction, Methodology, Results, Conclusion) with round-robin GPT-5.2, Claude Opus 4.5, Gemini 3 Pro. Ranked via Bradley-Terry + Elo.</li>
-          <li><strong>Pairwise experiment:</strong> Derives head-to-head comparisons from reviewers who scored multiple papers. Both human and AI rankings use Bradley-Terry.</li>
-          <li><strong>IRT experiment:</strong> Adjusts for reviewer severity bias via z-scoring. Increases score resolution by removing harsh/generous reviewer effects.</li>
-          <li><strong>Match Agreement:</strong> On pairs compared by both humans and AI, what % pick the same winner.</li>
-          <li><strong>Ranking Concordance:</strong> Same pairs, but using BT-derived global rankings. Can differ from match agreement due to BT's graph-level aggregation.</li>
-          <li><strong>Spearman ρ / Kendall τ:</strong> Global rank correlation (−1 to +1). +1 = perfect agreement.</li>
+          <li><strong>Data:</strong> 73 ICLR 2024-2025 LLM papers with 4+ peer reviews each, from OpenReview (berenslab/iclr-dataset). Full PDFs downloaded for section extraction.</li>
+          <li><strong>Human ranking (IRT):</strong> Each reviewer's scores are z-scored against their personal mean and std, removing severity bias. Paper quality = average z-score across reviewers. This produces a continuous scale with {irtResults?.improvement.distinct_scores_irt || "~60"} distinct values.</li>
+          <li><strong>AI ranking:</strong> Pairwise comparisons using full-text extraction (Introduction, Methodology, Results, Conclusion) with round-robin GPT-5.2, Claude Opus 4.5, Gemini 3 Pro. Ranked via Bradley-Terry + Elo.</li>
+          <li><strong>Agreement analysis:</strong> Expert-Expert = how often two reviewers agree on which paper is better. AI-Expert = how often AI agrees with an individual reviewer's pairwise preference. AI-Majority = how often AI agrees with the reviewer consensus.</li>
+          <li><strong>Spearman ρ / Kendall τ:</strong> Rank correlation between IRT score ranking and AI tournament ranking. +1 = perfect agreement.</li>
         </ul>
       </div>
     </div>
