@@ -639,7 +639,7 @@ async def get_pairwise_validation_results():
     }
 
 
-def _interpret_pairwise(rho, p_value, agreement_rate, n_papers, n_pairs):
+def _interpret_pairwise(rho, p_value, agreement_rate, ranking_concordance, n_papers, n_pairs):
     """Interpret the pairwise-derived correlation results."""
     strength = abs(rho)
     if strength >= 0.7:
@@ -655,10 +655,11 @@ def _interpret_pairwise(rho, p_value, agreement_rate, n_papers, n_pairs):
     sig = "statistically significant" if p_value < 0.05 else "not statistically significant"
 
     return (
-        f"Using pairwise-derived human rankings ({n_papers} papers), there is a {level} {direction} "
-        f"rank correlation (Spearman ρ = {rho:.3f}, {sig}, p = {p_value:.4f}). "
-        f"On {n_pairs} directly overlapping paper pairs, AI and human experts "
-        f"agree on the winner {agreement_rate}% of the time."
+        f"On {n_pairs} directly overlapping paper pairs, AI and human experts agree on the "
+        f"winner {agreement_rate}% of the time (50% = random). However, the global Bradley-Terry "
+        f"rankings only agree on pair ordering {ranking_concordance}% of the time — BT aggregates across the "
+        f"full comparison graph and can reverse individual match outcomes. "
+        f"Overall rank correlation: Spearman ρ = {rho:.3f} ({level}, {sig}, p = {p_value:.4f}, n = {n_papers})."
     )
 
 
