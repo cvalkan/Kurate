@@ -438,6 +438,7 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int):
 class MultiModelRequest(BaseModel):
     dataset_id: str
     parallel: int = 30
+    max_pairs: int = 0  # 0 = all pairs
 
 
 @router.post("/run-multimodel", dependencies=[Depends(verify_admin)])
@@ -447,11 +448,11 @@ async def run_multimodel_tournament(body: MultiModelRequest):
     if state["running"]:
         return {"status": "already_running", **state}
 
-    asyncio.create_task(_run_multimodel(body.dataset_id, min(max(body.parallel, 1), 50)))
-    return {"status": "started", "dataset_id": body.dataset_id}
+    asyncio.create_task(_run_multimodel(body.dataset_id, min(max(body.parallel, 1), 50), body.max_pairs))
+    return {"status": "started", "dataset_id": body.dataset_id, "max_pairs": body.max_pairs}
 
 
-async def _run_multimodel(dataset_id: str, parallel: int):
+async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0):
     from core.config import TOURNAMENT_MODELS
 
     state = _get_state(dataset_id)
