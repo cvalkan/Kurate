@@ -34,13 +34,13 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 
 ### Human vs AI Validation Experiment (Implemented Feb 2026)
 - Completely siloed from main leaderboard (`validation_papers`, `validation_matches` collections)
-- Imports 47 biomedical papers with ≥5 H1 Connect expert ratings (Good=1, Very Good=2, Exceptional=3)
+- Imports 47 biomedical papers with ≥5 H1 Connect expert ratings
 - Runs independent AI pairwise tournament using round-robin GPT-5.2, Claude Opus, Gemini 3 Pro
-- Computes rank correlation: Spearman ρ, Kendall τ, Pearson r
-- Public `/validation` page with correlation badges, interpretation, and side-by-side ranking table
-- Admin controls for import, tournament execution, and reset
+- **Two validation approaches:**
+  - **Pairwise-Derived (primary):** Extracts 757 implicit head-to-head comparisons from 21 experts who rated multiple papers. Both human and AI sides use Bradley-Terry — apples-to-apples. Result: ρ = −0.046, 56.1% pairwise agreement.
+  - **Average Rating:** Ranks by H1 avg rating. Limited by narrow 3-point scale (only 8 distinct values). Result: ρ = −0.156.
+- Public `/validation` page with dual experiment display, correlation badges, agreement gauge, ranking tables
 - Data source: `papertrend-viz.preview.emergentagent.com/api/papers`
-- Current results: ρ = -0.118 (not significant, p = 0.43) with 170 matches on 47 papers
 
 ### PDF Extraction Algorithm (Implemented Feb 2026)
 - Regex-based header detection, field-adaptive markers
