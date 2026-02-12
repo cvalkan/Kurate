@@ -165,7 +165,6 @@ function ExperimentSection({ title, icon, description, correlation, pairwiseAgre
 
 export default function ValidationPage() {
   const [status, setStatus] = useState(null);
-  const [pairResults, setPairResults] = useState(null);
   const [irtResults, setIrtResults] = useState(null);
   const [agreementData, setAgreementData] = useState(null);
   const [loading, setLoading] = useState({ import: false, tournament: false, reset: false });
