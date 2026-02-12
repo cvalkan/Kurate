@@ -112,7 +112,7 @@ function RankingTable({ data, mode }) {
 
 // ─── Experiment Section ──────────────────────────────────────────────────────
 
-function ExperimentSection({ title, icon, description, correlation, pairwiseAgreement, interpretation, stats, children }) {
+function ExperimentSection({ title, icon, description, correlation, interpretation, stats, children }) {
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-4 py-3 bg-secondary/20 border-b border-border">
@@ -123,19 +123,9 @@ function ExperimentSection({ title, icon, description, correlation, pairwiseAgre
         <p className="text-xs text-muted-foreground mt-1">{description}</p>
       </div>
       <div className="p-4 space-y-4">
-        {/* Correlation badges */}
         {correlation && (
           <div className="space-y-3">
-            {pairwiseAgreement && (
-              <>
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Direct Match Outcomes</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <AgreementGauge rate={pairwiseAgreement.agreement_rate} label="Match Agreement" subtitle={`${pairwiseAgreement.agreements}/${pairwiseAgreement.overlapping_pairs} pairs · 50% = random`} />
-                  <AgreementGauge rate={pairwiseAgreement.ranking_concordance} label="Ranking Concordance" subtitle={`${pairwiseAgreement.concordant_pairs}/${pairwiseAgreement.concordant_pairs + pairwiseAgreement.discordant_pairs} pairs · BT rank order`} />
-                </div>
-              </>
-            )}
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Global Ranking Correlation</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rank Correlation</div>
             <div className="grid grid-cols-3 gap-3">
               <CorrelationBadge value={correlation.spearman_rho} label="Spearman ρ" />
               <CorrelationBadge value={correlation.kendall_tau} label="Kendall τ" />
@@ -143,13 +133,11 @@ function ExperimentSection({ title, icon, description, correlation, pairwiseAgre
             </div>
           </div>
         )}
-        {/* Interpretation */}
         {interpretation && (
           <div className="p-3 border border-border rounded-lg bg-background text-sm text-muted-foreground">
             {interpretation}
           </div>
         )}
-        {/* Stats line */}
         {stats && (
           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             {stats.map((s, i) => <span key={i}>{s}</span>)}
