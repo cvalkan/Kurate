@@ -7,7 +7,7 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - **Backend**: Python 3.11, FastAPI, Motor (async MongoDB driver)
 - **Frontend**: React, react-router-dom, shadcn/ui components
 - **Database**: MongoDB
-- **Scoring**: Bradley-Terry model → Elo-style scores, Wilson confidence intervals
+- **Scoring**: Bradley-Terry model, Elo-style scores, Wilson confidence intervals
 
 ## Architecture
 
@@ -16,105 +16,87 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - `backend/core/auth.py` - Admin authentication (MongoDB-backed sessions)
 - `backend/routers/admin.py` - Admin panel endpoints including extraction stats
 - `backend/routers/leaderboard.py` - Public leaderboard API
+- `backend/routers/validation.py` - Human vs AI validation experiment (siloed)
 - `backend/db_utils/leaderboard_cache.py` - Background caching thread
 - `backend/services/llm.py` - PDF extraction algorithm, LLM comparison logic
+- `backend/services/ranking.py` - Bradley-Terry, Elo, Wilson CI computations
 - `frontend/src/pages/AdminPage.jsx` - Admin panel tabs
+- `frontend/src/pages/ValidationPage.jsx` - Human vs AI validation experiment page
 - `frontend/src/components/AdminExtraction.jsx` - Extraction statistics page
 
 ### Key Patterns
-1. **Background Caching**: All expensive queries are pre-computed by `leaderboard_cache.py` and served from memory
-2. **Single Source of Truth**: Match counts come from scheduler state, not multiple DB queries
-3. **Rate Limiting**: Custom middleware in `server.py` with stricter limits on sensitive endpoints
-4. **Admin Sessions**: Stored in MongoDB `admin_sessions` collection (persistent across restarts/pods)
-5. **Extraction Stats Cache**: 10-minute TTL cache for extraction statistics
-6. **Production Frontend Build**: Frontend runs as a production build (`yarn build` + `serve`), NOT dev mode. Changes require `yarn build` + `supervisorctl restart frontend`.
+1. **Background Caching**: All expensive queries are pre-computed and served from memory
+2. **Rate Limiting**: Custom middleware in `server.py`
+3. **Admin Sessions**: Stored in MongoDB `admin_sessions` collection
+4. **Production Frontend Build**: `yarn build` + `serve` — changes require rebuild + restart
 
 ## Implemented Features
 
+### Human vs AI Validation Experiment (Implemented Feb 2026)
+- Completely siloed from main leaderboard (`validation_papers`, `validation_matches` collections)
+- Imports 47 biomedical papers with ≥5 H1 Connect expert ratings (Good=1, Very Good=2, Exceptional=3)
+- Runs independent AI pairwise tournament using round-robin GPT-5.2, Claude Opus, Gemini 3 Pro
+- Computes rank correlation: Spearman ρ, Kendall τ, Pearson r
+- Public `/validation` page with correlation badges, interpretation, and side-by-side ranking table
+- Admin controls for import, tournament execution, and reset
+- Data source: `papertrend-viz.preview.emergentagent.com/api/papers`
+- Current results: ρ = -0.118 (not significant, p = 0.43) with 170 matches on 47 papers
+
 ### PDF Extraction Algorithm (Implemented Feb 2026)
-- Regex-based header detection (numbered sections, all-caps headers)
-- Field-adaptive markers (Economics, Physics, Biology, CS specific terms)
-- Position-aware extraction (Introduction in first 30%, Conclusion in last 40%)
-- Admin Extraction page with statistics
-- Sample Papers table showing 50 papers with per-section character counts
+- Regex-based header detection, field-adaptive markers
+- Position-aware extraction, smart truncation
+- Admin Extraction page with statistics + Sample Papers table
 
 ### Performance Optimization (Completed Dec 2025, Updated Feb 2026)
-- Backend caching for "All Papers" and tag-filtered leaderboards
-- Server-side search for large datasets
-- Optimized admin polling endpoints (read from cache, no DB queries on hot path)
-- Removed 500-paper limit on tag-filtered views
-- Pre-fetched settings for batch operations (Feb 2026) - Fixed performance regression in admin panel
-- Pre-warming extraction stats cache on startup (Feb 2026)
-- Leaderboard cache warm on startup with 60s TTL (increased from 20s)
-- Admin cache TTL increased to 30s (from 5s)
-- Extraction stats cache TTL increased to 10 minutes (from 5 min)
-- Non-blocking "Warming up" indicators for cold cache scenarios
-- Background computation for extraction stats (never blocks requests)
+- Backend caching, pre-warming, non-blocking "Warming up" indicators
+- Extraction stats cache TTL: 10 minutes
 
 ### AI Impact Reports (Updated Feb 2026)
-- Impact summaries generated for ALL papers when tournament goals are met (not individual paper convergence)
-- Round-robin LLM selection: GPT-5.2, Claude Opus 4.5, Gemini 3 Pro
-- Manual trigger endpoint: POST /api/admin/generate-summaries (requires category, checks tournament status)
-- Summary stats endpoint: GET /api/admin/summary-stats (includes tournament_status)
-- LLM model badge displayed on AI Impact Assessment section (shows which model generated the summary)
-- Model info stored in `summary_model_used` field on papers collection
-- Increased batch size from 100 to 500 papers per cycle
-
-### UI/UX Enhancements (Completed Dec 2025)
-- Leaderboard state preservation via URL parameters
-- Natural infinite scroll (no fixed container/scrollbar)
-- Sortable columns (Title, Score, Win%, CI, Matches, Published)
-- Frontend re-ranking on Global/Local toggle
-- Detailed tooltips on column headers
+- Impact summaries for papers in completed tournaments
+- Round-robin LLM selection, model badge display
 
 ### Security Hardening (Completed Feb 2026)
-- Rate limiting middleware on all endpoints
-- Session token-based admin auth (MongoDB-backed)
-- Parameter capping (limit, search length)
-- Security headers (HSTS, CSP, X-Frame-Options, etc.) for API endpoints
-- Security headers for frontend static files (needs nginx config on production)
-
-### Bug Fixes (Completed Feb 2026)
-- Fixed "Back to Leaderboard" link state preservation
-- Fixed Global Stats calculation (Bradley-Terry model)
-- Fixed admin login not working on deployed version (MongoDB sessions)
-- Fixed missing Sample Papers table on Admin Extraction page (sample_papers dropped during performance refactoring)
+- Rate limiting, session-based admin auth, security headers (API-side)
 
 ## Database Schema
 
-### Collections
-- `papers`: `{ arxiv_id, title, primary_category, categories, published_date, full_text, summary, summary_model_used, ... }`
-- `matches`: `{ paper1_id, paper2_id, winner_id, primary_category, shared_categories, ... }`
-- `tournaments`: `{ category, is_active, last_run, status, ... }`
-- `admin_settings`: `{ admin_password, openai_api_key, ... }`
-- `admin_sessions`: `{ key: "sessions", tokens: [...] }` - Persistent admin session tokens
+### Main Collections
+- `papers`: ArXiv papers with full text, categories, scores
+- `matches`: Pairwise AI comparisons for main leaderboard
+- `tournaments`: Category tournament state
+- `admin_sessions`: Admin auth tokens
+
+### Validation Collections (Siloed)
+- `validation_papers`: H1 Connect papers with expert ratings
+- `validation_matches`: AI tournament matches for validation experiment
 
 ## Key API Endpoints
-- `GET /api/leaderboard` - Main leaderboard (cached)
+
+### Main Leaderboard
+- `GET /api/leaderboard` - Cached leaderboard
 - `GET /api/tags` - Filterable tags
-- `POST /api/admin/login` - Admin login → returns session token
-- `GET /api/admin/status`, `/progress`, `/stats` - Admin polling (cached)
-- `GET /api/admin/extraction-stats` - PDF extraction statistics (10-min cache, includes sample_papers)
-- `POST /api/admin/generate-summaries` - Trigger AI impact summary generation
-- `GET /api/admin/summary-stats` - AI impact summary coverage statistics
+- `POST /api/admin/login` - Admin login
+- `GET /api/admin/extraction-stats` - PDF extraction statistics
+
+### Validation Experiment
+- `GET /api/validation/status` - Import/tournament status (public)
+- `GET /api/validation/results` - Correlation analysis + comparison table (public)
+- `POST /api/validation/import` - Import H1 papers (admin)
+- `POST /api/validation/run-tournament` - Run AI tournament (admin)
+- `POST /api/validation/reset` - Clear all validation data (admin)
 
 ## Credentials
 - **Admin Password**: `papersumo2025`
 
 ## Deployment Notes
-- Admin sessions stored in MongoDB (persistent across restarts/pods)
-- Security headers work on API endpoints, need nginx config for frontend static files on production
-- Extraction stats endpoint has 10-minute cache for performance
-- Frontend is a PRODUCTION BUILD - changes require `yarn build` + `supervisorctl restart frontend`
-
-## Known Issues
-- Security headers for frontend static files require nginx configuration on production (contact Emergent support)
-- Conclusion extraction rate (~81%) is lower than other sections
+- Frontend is PRODUCTION BUILD — changes require `yarn build` + `supervisorctl restart frontend`
+- Admin sessions stored in MongoDB (persistent)
+- Validation data completely separate from main leaderboard
 
 ## Backlog
-- P1: Implement security headers for production frontend via nginx configuration
 - P1: Regenerate old AI impact summaries to add model badge (needs user confirmation)
+- P1: Implement security headers for production nginx
 - P1: Experiment with Gemini 3 Flash as alternative LLM model
-- P2: Consider using full PDFs for top-K high-value paper comparisons
+- P2: Run more validation tournament matches for better statistical power
 - P2: Improve conclusion detection algorithm
-- P2: Review full security scan report for other vulnerabilities
+- P2: Full security scan review
