@@ -160,6 +160,86 @@ async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()
     return {"status": "started", "num_matches": num, "category": body.category}
 
 
+class GenerateSummariesRequest(BaseModel):
+    category: str = None  # None = all categories
+
+
+@router.post("/generate-summaries", dependencies=[Depends(verify_admin)])
+async def trigger_summary_generation(body: GenerateSummariesRequest = GenerateSummariesRequest()):
+    """Manually trigger AI impact summary generation for papers missing summaries."""
+    from services.scheduler import _generate_pending_summaries
+    
+    # Count papers needing summaries
+    query = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}]}
+    if body.category:
+        query["categories.0"] = body.category
+    
+    pending_count = await db.papers.count_documents(query)
+    
+    # Run in background
+    asyncio.create_task(_generate_pending_summaries(category=body.category))
+    
+    return {
+        "status": "started",
+        "category": body.category or "all",
+        "papers_pending": pending_count,
+        "note": "Summaries are generated for papers with 3+ matches. Uses round-robin across GPT-5.2, Claude Opus, and Gemini Pro."
+    }
+
+
+@router.get("/summary-stats", dependencies=[Depends(verify_admin)])
+async def get_summary_stats(category: str = None):
+    """Get statistics about AI impact summary generation."""
+    query_with = {"impact_summary": {"$exists": True, "$ne": None}}
+    query_without = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}]}
+    
+    if category:
+        query_with["categories.0"] = category
+        query_without["categories.0"] = category
+    
+    with_summary = await db.papers.count_documents(query_with)
+    without_summary = await db.papers.count_documents(query_without)
+    
+    # Count papers with enough matches but no summary
+    pipeline = [
+        {"$match": query_without},
+        {"$lookup": {
+            "from": "matches",
+            "let": {"paper_id": "$id"},
+            "pipeline": [
+                {"$match": {
+                    "$expr": {"$or": [
+                        {"$eq": ["$paper1_id", "$$paper_id"]},
+                        {"$eq": ["$paper2_id", "$$paper_id"]}
+                    ]},
+                    "completed": True,
+                    "failed": {"$ne": True},
+                    "mode": {"$exists": False}
+                }},
+                {"$count": "match_count"}
+            ],
+            "as": "match_info"
+        }},
+        {"$addFields": {
+            "match_count": {"$ifNull": [{"$arrayElemAt": ["$match_info.match_count", 0]}, 0]}
+        }},
+        {"$match": {"match_count": {"$gte": 3}}},
+        {"$count": "eligible"}
+    ]
+    
+    result = await db.papers.aggregate(pipeline).to_list(1)
+    eligible = result[0]["eligible"] if result else 0
+    
+    return {
+        "with_summary": with_summary,
+        "without_summary": without_summary,
+        "eligible_for_summary": eligible,
+        "total": with_summary + without_summary,
+        "coverage_rate": round(with_summary / max(with_summary + without_summary, 1) * 100, 1),
+        "category": category,
+    }
+
+
 @router.get("/status", dependencies=[Depends(verify_admin)])
 async def get_admin_status(category: str = "cs.RO"):
     cached = _get_admin_cached("status", category)
