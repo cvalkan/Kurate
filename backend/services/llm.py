@@ -562,8 +562,11 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
 
 
-async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None, char_limit: int = None) -> Optional[str]:
-    """Generate a scientific impact summary for a converged paper using its content and match logs."""
+async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None, char_limit: int = None) -> Optional[Dict]:
+    """Generate a scientific impact summary for a paper using its content and match logs.
+    
+    Returns dict with 'summary' text and 'model_used' info, or None on failure.
+    """
     model_info = _pick_round_robin_model()
     provider = model_info["provider"]
     model = model_info["model"]
@@ -621,7 +624,10 @@ async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: 
             lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
         )
         if response and response.strip():
-            return response.strip()
+            return {
+                "summary": response.strip(),
+                "model_used": model_info,
+            }
     except Exception as e:
         logger.error(f"Summary generation failed for {paper.get('title', '')[:50]}: {e}")
 
