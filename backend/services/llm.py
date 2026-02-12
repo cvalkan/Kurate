@@ -470,11 +470,11 @@ def _pick_round_robin_model() -> Dict[str, str]:
     return model
 
 
-async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None) -> Dict:
+async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None, model_override: dict = None) -> Dict:
     if prompt_config is None:
         prompt_config = DEFAULT_EVALUATION_PROMPT
 
-    model_info = _pick_round_robin_model()
+    model_info = model_override or _pick_round_robin_model()
     provider = model_info["provider"]
     model = model_info["model"]
 
