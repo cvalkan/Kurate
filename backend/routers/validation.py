@@ -663,6 +663,303 @@ def _interpret_pairwise(rho, p_value, agreement_rate, ranking_concordance, n_pap
     )
 
 
+# ─── IRT-Adjusted Results ──────────────────────────────────────────────────────
+
+@router.get("/irt-results")
+async def get_irt_validation_results():
+    """
+    Item Response Theory approach: adjust expert ratings for severity bias,
+    then compare the IRT-derived human ranking against AI ranking.
+    
+    Method:
+    1. Estimate each expert's severity (mean) and discrimination (std)
+    2. Z-score each rating: (rating - expert_mean) / expert_std
+    3. Average z-scores per paper → latent quality estimate
+    4. Derive pairwise comparisons from adjusted scores (larger z-score gap = stronger signal)
+    5. Build human BT ranking from these adjusted pairwise matches
+    6. Correlate with AI BT ranking
+    """
+    import numpy as np
+
+    papers = await db.validation_papers.find({}, {"_id": 0}).to_list(1000)
+    ai_matches = await db.validation_matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+         "completed": 1, "failed": 1},
+    ).to_list(100000)
+
+    if not papers:
+        return {"status": "no_data", "message": "No papers imported yet."}
+
+    # ── Step 1: Build expert rating data ──
+    expert_ratings = defaultdict(list)  # expert -> [(paper_id, rating)]
+    paper_experts = defaultdict(list)   # paper_id -> [(expert, rating)]
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name].append((p["id"], ev["rating_value"]))
+                paper_experts[p["id"]].append((name, ev["rating_value"]))
+
+    # ── Step 2: Estimate expert parameters ──
+    expert_params = {}
+    for exp, rated in expert_ratings.items():
+        ratings = [r for _, r in rated]
+        mean = float(np.mean(ratings))
+        std = float(np.std(ratings, ddof=1)) if len(ratings) > 1 else 0.5  # prior for single-rating experts
+        # Shrink std toward population std (Bayesian regularization for small samples)
+        pop_std = 0.6  # rough population std from the data
+        shrink_weight = min(len(ratings) / 10.0, 1.0)  # trust expert's own std more with more ratings
+        adj_std = max(shrink_weight * std + (1 - shrink_weight) * pop_std, 0.3)
+        expert_params[exp] = {
+            "mean": round(mean, 3),
+            "std": round(std, 3),
+            "adj_std": round(adj_std, 3),
+            "n_ratings": len(ratings),
+            "severity_rank": 0,  # filled below
+        }
+
+    # Rank experts by severity
+    sorted_experts = sorted(expert_params.keys(), key=lambda e: expert_params[e]["mean"])
+    for i, exp in enumerate(sorted_experts):
+        expert_params[exp]["severity_rank"] = i + 1
+
+    # ── Step 3: Compute IRT-adjusted paper scores ──
+    paper_scores = {}
+    paper_details = {}
+    for pid, evals in paper_experts.items():
+        raw_ratings = []
+        z_scores = []
+        for exp, rating in evals:
+            ep = expert_params[exp]
+            z = (rating - ep["mean"]) / ep["adj_std"]
+            z_scores.append(z)
+            raw_ratings.append(rating)
+
+        raw_mean = float(np.mean(raw_ratings))
+        irt_score = float(np.mean(z_scores))
+        paper_scores[pid] = irt_score
+        paper_details[pid] = {
+            "raw_mean": round(raw_mean, 3),
+            "irt_score": round(irt_score, 3),
+            "n_ratings": len(evals),
+            "z_scores": [round(z, 3) for z in z_scores],
+        }
+
+    # ── Step 4: IRT-adjusted pairwise matches ──
+    # For each expert who rated 2+ papers, derive matches using z-scored ratings
+    irt_human_matches = []
+    for exp, rated in expert_ratings.items():
+        if len(rated) < 2:
+            continue
+        ep = expert_params[exp]
+        # Compute z-scores for this expert's ratings
+        zrated = [(pid, (r - ep["mean"]) / ep["adj_std"]) for pid, r in rated]
+        for i in range(len(zrated)):
+            for j in range(i + 1, len(zrated)):
+                pid_a, za = zrated[i]
+                pid_b, zb = zrated[j]
+                if abs(za - zb) < 0.01:  # effective tie in z-space
+                    continue
+                winner = pid_a if za > zb else pid_b
+                irt_human_matches.append({
+                    "paper1_id": pid_a, "paper2_id": pid_b,
+                    "winner_id": winner, "completed": True, "failed": False,
+                })
+
+    # ── Step 5: Build rankings ──
+    irt_paper_ids = set()
+    for m in irt_human_matches:
+        irt_paper_ids.add(m["paper1_id"])
+        irt_paper_ids.add(m["paper2_id"])
+
+    ai_paper_ids = set()
+    for m in ai_matches:
+        ai_paper_ids.add(m["paper1_id"])
+        ai_paper_ids.add(m["paper2_id"])
+
+    common_ids = irt_paper_ids & ai_paper_ids
+    common_papers = [p for p in papers if p["id"] in common_ids]
+
+    if len(common_papers) < 3:
+        return {"status": "insufficient_data", "message": "Not enough data for IRT analysis."}
+
+    # IRT score-based ranking (direct, no BT needed)
+    irt_sorted = sorted(common_ids, key=lambda pid: -paper_scores.get(pid, 0))
+    irt_rank = {pid: i + 1 for i, pid in enumerate(irt_sorted)}
+
+    # Also BT on IRT-adjusted pairwise matches
+    common_irt_matches = [m for m in irt_human_matches if m["paper1_id"] in common_ids and m["paper2_id"] in common_ids]
+    irt_bt_lb = compute_leaderboard(common_papers, common_irt_matches)
+    irt_bt_rank = {e["id"]: e["rank"] for e in irt_bt_lb}
+    irt_bt_lookup = {e["id"]: e for e in irt_bt_lb}
+
+    # Raw avg-rating ranking for comparison
+    raw_sorted = sorted(common_ids, key=lambda pid: -(paper_details.get(pid, {}).get("raw_mean", 0)))
+    raw_rank = {}
+    i = 0
+    while i < len(raw_sorted):
+        j = i
+        raw_val = paper_details.get(raw_sorted[i], {}).get("raw_mean", 0)
+        while j < len(raw_sorted) and paper_details.get(raw_sorted[j], {}).get("raw_mean", 0) == raw_val:
+            j += 1
+        avg_r = (i + 1 + j) / 2.0
+        for k in range(i, j):
+            raw_rank[raw_sorted[k]] = avg_r
+        i = j
+
+    # AI ranking
+    common_ai_matches = [m for m in ai_matches if m["paper1_id"] in common_ids and m["paper2_id"] in common_ids]
+    ai_lb = compute_leaderboard(common_papers, common_ai_matches)
+    ai_lookup = {e["id"]: e for e in ai_lb}
+    ai_rank = {e["id"]: e["rank"] for e in ai_lb}
+
+    # ── Step 6: Correlation ──
+    ids = sorted(common_ids)
+
+    # IRT score vs AI
+    irt_ranks = [irt_rank[pid] for pid in ids]
+    ai_ranks = [ai_rank[pid] for pid in ids]
+    sp_irt, sp_irt_p = scipy_stats.spearmanr(irt_ranks, ai_ranks)
+    kt_irt, kt_irt_p = scipy_stats.kendalltau(irt_ranks, ai_ranks)
+
+    # IRT BT vs AI
+    irt_bt_ranks = [irt_bt_rank[pid] for pid in ids]
+    sp_irt_bt, sp_irt_bt_p = scipy_stats.spearmanr(irt_bt_ranks, ai_ranks)
+
+    # Raw avg vs AI (for comparison)
+    raw_ranks = [raw_rank.get(pid, 999) for pid in ids]
+    sp_raw, sp_raw_p = scipy_stats.spearmanr(raw_ranks, ai_ranks)
+
+    # Pearson on scores
+    irt_scores_list = [paper_scores.get(pid, 0) for pid in ids]
+    ai_scores_list = [ai_lookup.get(pid, {}).get("score", 1200) for pid in ids]
+    pr_irt, pr_irt_p = scipy_stats.pearsonr(irt_scores_list, ai_scores_list)
+
+    # IRT score vs Raw avg correlation (how much did IRT change things?)
+    raw_means = [paper_details.get(pid, {}).get("raw_mean", 0) for pid in ids]
+    sp_change, _ = scipy_stats.spearmanr(irt_scores_list, raw_means)
+
+    # ── Step 7: Pairwise agreement with IRT-adjusted matches ──
+    irt_pair_w = defaultdict(list)
+    for m in common_irt_matches:
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        irt_pair_w[pair].append(m["winner_id"])
+    irt_majority = {}
+    for pair, winners in irt_pair_w.items():
+        from collections import Counter as C
+        c = C(winners)
+        best, n = c.most_common(1)[0]
+        if n > len(winners) / 2:
+            irt_majority[pair] = best
+
+    ai_pair_w = {}
+    for m in common_ai_matches:
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        ai_pair_w[pair] = m["winner_id"]
+
+    overlap = set(irt_majority.keys()) & set(ai_pair_w.keys())
+    agree = sum(1 for p in overlap if irt_majority[p] == ai_pair_w[p])
+    agreement_rate = round(agree / max(len(overlap), 1) * 100, 1)
+
+    # Concordance on overlapping pairs
+    conc = sum(1 for p in overlap
+               if (irt_rank[p[0]] < irt_rank[p[1]]) == (ai_rank[p[0]] < ai_rank[p[1]]))
+    concordance_rate = round(conc / max(len(overlap), 1) * 100, 1)
+
+    # ── Build comparison table ──
+    comparison = []
+    for pid in ids:
+        p = next((p for p in common_papers if p["id"] == pid), {})
+        ai_e = ai_lookup.get(pid, {})
+        irt_bt_e = irt_bt_lookup.get(pid, {})
+        det = paper_details.get(pid, {})
+        comparison.append({
+            "id": pid,
+            "title": p.get("title", ""),
+            "journal": p.get("journal", ""),
+            "raw_mean": det.get("raw_mean", 0),
+            "irt_score": det.get("irt_score", 0),
+            "n_ratings": det.get("n_ratings", 0),
+            "irt_rank": irt_rank.get(pid, 999),
+            "raw_rank": raw_rank.get(pid, 999),
+            "ai_rank": ai_rank.get(pid, 999),
+            "ai_score": ai_e.get("score", 1200),
+            "ai_win_rate": ai_e.get("win_rate", 0),
+            "ai_matches": ai_e.get("comparisons", 0),
+            "rank_delta": ai_rank.get(pid, 999) - irt_rank.get(pid, 999),
+            "raw_rank_delta": ai_rank.get(pid, 999) - raw_rank.get(pid, 999),
+        })
+    comparison.sort(key=lambda x: x["irt_rank"])
+
+    # Distinct score values
+    distinct_raw = len(set(round(paper_details[pid]["raw_mean"], 2) for pid in ids))
+    distinct_irt = len(set(round(paper_scores[pid], 3) for pid in ids))
+
+    return {
+        "status": "ok",
+        "method": "irt_adjusted",
+        "papers_analyzed": len(common_papers),
+        "human_matches_irt": len(common_irt_matches),
+        "ai_matches": len(common_ai_matches),
+        "experts_analyzed": len(expert_params),
+        "correlation": {
+            "irt_score_vs_ai": {
+                "spearman_rho": round(sp_irt, 4),
+                "spearman_p": round(sp_irt_p, 6),
+                "kendall_tau": round(kt_irt, 4),
+                "kendall_p": round(kt_irt_p, 6),
+                "pearson_r": round(pr_irt, 4),
+                "pearson_p": round(pr_irt_p, 6),
+            },
+            "irt_bt_vs_ai": {
+                "spearman_rho": round(sp_irt_bt, 4),
+                "spearman_p": round(sp_irt_bt_p, 6),
+            },
+            "raw_avg_vs_ai": {
+                "spearman_rho": round(sp_raw, 4),
+                "spearman_p": round(sp_raw_p, 6),
+            },
+        },
+        "improvement": {
+            "raw_spearman": round(sp_raw, 4),
+            "irt_spearman": round(sp_irt, 4),
+            "delta": round(sp_irt - sp_raw, 4),
+            "irt_vs_raw_correlation": round(sp_change, 4),
+            "distinct_scores_raw": distinct_raw,
+            "distinct_scores_irt": distinct_irt,
+        },
+        "pairwise_agreement": {
+            "overlapping_pairs": len(overlap),
+            "agreements": agree,
+            "agreement_rate": agreement_rate,
+            "ranking_concordance": concordance_rate,
+        },
+        "interpretation": _interpret_irt(sp_irt, sp_irt_p, sp_raw, agreement_rate, concordance_rate, distinct_raw, distinct_irt, len(common_papers)),
+        "comparison": comparison,
+        "expert_params": {k: v for k, v in sorted(expert_params.items(), key=lambda x: x[1]["mean"])},
+    }
+
+
+def _interpret_irt(sp_irt, sp_irt_p, sp_raw, agreement, concordance, distinct_raw, distinct_irt, n):
+    strength = abs(sp_irt)
+    if strength >= 0.7: level = "strong"
+    elif strength >= 0.4: level = "moderate"
+    elif strength >= 0.2: level = "weak"
+    else: level = "negligible"
+    direction = "positive" if sp_irt > 0 else "negative"
+    sig = "statistically significant" if sp_irt_p < 0.05 else "not statistically significant"
+    delta = sp_irt - sp_raw
+    change = "improved" if delta > 0.02 else "worsened" if delta < -0.02 else "unchanged"
+
+    return (
+        f"IRT severity adjustment increases score resolution from {distinct_raw} to {distinct_irt} distinct values. "
+        f"Rank correlation with AI: Spearman ρ = {sp_irt:.3f} ({level}, {sig}, p = {sp_irt_p:.4f}), "
+        f"{change} from raw avg (ρ = {sp_raw:.3f}). "
+        f"Match agreement: {agreement}%, ranking concordance: {concordance}% (n = {n})."
+    )
+
+
 # ─── Reset ─────────────────────────────────────────────────────────────────────
 
 @router.post("/reset", dependencies=[Depends(verify_admin)])
