@@ -218,7 +218,7 @@ export default function ValidationPage() {
     setLoading(l => ({ ...l, reset: true }));
     try {
       await axios.post(`${API}/api/validation/reset`, {}, { headers: getAdminHeaders() });
-      setAvgResults(null); setPairResults(null); fetchStatus();
+      setAvgResults(null); setPairResults(null); setIrtResults(null); fetchStatus();
     } catch (e) { console.error(e); }
     finally { setLoading(l => ({ ...l, reset: false })); }
   };
