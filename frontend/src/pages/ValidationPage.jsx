@@ -32,13 +32,13 @@ function RankDelta({ delta }) {
   return <span className="text-green-600 flex items-center gap-0.5"><TrendingUp className="h-3 w-3" /> {delta.toFixed(0)}</span>;
 }
 
-function AgreementGauge({ rate }) {
+function AgreementGauge({ rate, label, subtitle }) {
   const color = rate >= 65 ? "text-green-600" : rate >= 55 ? "text-amber-600" : "text-muted-foreground";
   return (
-    <div className="p-4 rounded-lg border border-border bg-secondary/50" data-testid="pairwise-agreement">
-      <div className="text-xs text-muted-foreground mb-1">Pairwise Agreement</div>
+    <div className="p-4 rounded-lg border border-border bg-secondary/50" data-testid={`gauge-${label?.toLowerCase().replace(/[^a-z]/g, '-') || 'agreement'}`}>
+      <div className="text-xs text-muted-foreground mb-1">{label || "Pairwise Agreement"}</div>
       <div className={`text-2xl font-semibold font-mono ${color}`}>{rate}%</div>
-      <div className="text-[10px] text-muted-foreground">50% = random</div>
+      <div className="text-[10px] text-muted-foreground">{subtitle || "50% = random"}</div>
     </div>
   );
 }
