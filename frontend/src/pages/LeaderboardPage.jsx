@@ -121,6 +121,16 @@ export default function LeaderboardPage() {
       }
       const res = await axios.get(`${API}/api/leaderboard`, { params, signal: controller.signal });
       if (!controller.signal.aborted) {
+        // Check for warming_up status
+        if (res.data.warming_up) {
+          setWarmingUp(true);
+          setLeaderboard([]);
+          setLoading(false);
+          // Retry after 2 seconds
+          setTimeout(() => fetchLeaderboard(), 2000);
+          return;
+        }
+        setWarmingUp(false);
         setLeaderboard(res.data.leaderboard || []);
         setTotalPapers(res.data.total_papers || 0);
         setTotalMatches(res.data.total_matches || 0);
