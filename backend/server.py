@@ -194,16 +194,22 @@ async def startup():
 
 async def _prewarm_extraction_cache():
     """Pre-warm the extraction stats cache in background to avoid slow first load."""
-    import time as _t
     await asyncio.sleep(5)  # Wait for other startup tasks
     try:
-        from routers.admin import get_extraction_stats, _extraction_cache
+        from routers.admin import _compute_extraction_stats_impl, _extraction_cache
+        import time as _t
         # Only prewarm if cache is empty
         if not _extraction_cache.get("data"):
             logger.info("Pre-warming extraction stats cache...")
-            # Import the function and call it directly
-            await get_extraction_stats(category=None, refresh=False)
-            logger.info("Extraction stats cache warmed")
+            _extraction_cache["computing"] = True
+            try:
+                result = await _compute_extraction_stats_impl(category=None)
+                _extraction_cache["data"] = result
+                _extraction_cache["timestamp"] = _t.time()
+                _extraction_cache["warming_up"] = False
+                logger.info("Extraction stats cache warmed")
+            finally:
+                _extraction_cache["computing"] = False
     except Exception as e:
         logger.warning(f"Extraction cache prewarm failed: {e}")
 
