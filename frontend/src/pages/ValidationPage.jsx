@@ -470,26 +470,6 @@ export default function ValidationPage() {
         </div>
       )}
 
-      {/* ── Experiment 1: Avg Rating (baseline) ── */}
-      {avgResults && (
-        <div className="mb-6">
-          <ExperimentSection
-            title="Experiment: Average H1 Rating"
-            icon={<Zap className="h-4 w-4 text-muted-foreground" />}
-            description="Ranks papers by their average H1 Connect rating (Good=1, Very Good=2, Exceptional=3). Limited by the narrow 3-point scale — many ties make correlation unreliable."
-            correlation={avgResults.correlation}
-            interpretation={avgResults.interpretation}
-            stats={[
-              `${avgResults.papers_analyzed} papers`,
-              `${avgResults.total_matches} AI matches`,
-              ...Object.entries(avgResults.model_usage || {}).map(([m, c]) => `${m.split("/")[1]?.slice(0, 12)}: ${c}`),
-            ]}
-          >
-            <RankingTable data={avgResults.comparison} mode="avg" />
-          </ExperimentSection>
-        </div>
-      )}
-
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
