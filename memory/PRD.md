@@ -46,10 +46,12 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - ✅ Leaderboard cache warm on startup with 20s TTL
 
 ### AI Impact Reports (Updated Feb 2026)
-- ✅ Impact summaries generated for ALL papers with 3+ matches (removed convergence requirement)
+- ✅ Impact summaries generated for ALL papers when tournament goals are met (not individual paper convergence)
 - ✅ Round-robin LLM selection: GPT-5.2, Claude Opus 4.5, Gemini 3 Pro
-- ✅ Manual trigger endpoint: POST /api/admin/generate-summaries
-- ✅ Summary stats endpoint: GET /api/admin/summary-stats
+- ✅ Manual trigger endpoint: POST /api/admin/generate-summaries (requires category, checks tournament status)
+- ✅ Summary stats endpoint: GET /api/admin/summary-stats (includes tournament_status)
+- ✅ LLM model badge displayed on AI Impact Assessment section (shows which model generated the summary)
+- ✅ Model info stored in `summary_model_used` field on papers collection
 - ✅ Increased batch size from 100 to 500 papers per cycle
 
 ### UI/UX Enhancements (Completed Dec 2025)
