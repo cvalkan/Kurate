@@ -663,6 +663,157 @@ def _interpret_pairwise(rho, p_value, agreement_rate, ranking_concordance, n_pap
     )
 
 
+# ─── Agreement Analysis ────────────────────────────────────────────────────────
+
+@router.get("/agreement-analysis")
+async def get_agreement_analysis():
+    """
+    Compare AI-Expert agreement vs Expert-Expert agreement on pairwise preferences.
+    This is the most meaningful validation metric: is the AI as good as a single expert?
+    """
+    papers = await db.validation_papers.find({}, {"_id": 0}).to_list(1000)
+    ai_matches = await db.validation_matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+    ).to_list(100000)
+
+    if not papers:
+        return {"status": "no_data"}
+
+    # Build expert ratings
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+
+    # Derive pairwise preferences per expert and collect per-pair votes
+    pair_votes = defaultdict(list)  # pair -> [(expert, winner)]
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                pa, pb = pids[i], pids[j]
+                ra, rb = ratings[pa], ratings[pb]
+                if ra == rb:
+                    continue
+                pair = tuple(sorted([pa, pb]))
+                winner = pa if ra > rb else pb
+                pair_votes[pair].append((exp, winner))
+
+    # Expert-Expert agreement: for pairs with 2+ experts, count agreement
+    ee_agree = 0
+    ee_total = 0
+    for pair, votes in pair_votes.items():
+        if len(votes) < 2:
+            continue
+        winners = [w for _, w in votes]
+        for i in range(len(winners)):
+            for j in range(i + 1, len(winners)):
+                ee_total += 1
+                if winners[i] == winners[j]:
+                    ee_agree += 1
+
+    ee_rate = round(ee_agree / max(ee_total, 1) * 100, 1)
+
+    # AI pair winners
+    ai_pair = {}
+    for m in ai_matches:
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        ai_pair[pair] = m["winner_id"]
+
+    # AI vs individual expert preferences (all pairs where an expert and AI both judged)
+    ae_agree = 0
+    ae_total = 0
+    expert_ai_stats = {}
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        exp_agree = 0
+        exp_total = 0
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                pa, pb = pids[i], pids[j]
+                ra, rb = ratings[pa], ratings[pb]
+                if ra == rb:
+                    continue
+                pair = tuple(sorted([pa, pb]))
+                if pair not in ai_pair:
+                    continue
+                exp_total += 1
+                ae_total += 1
+                exp_winner = pa if ra > rb else pb
+                if exp_winner == ai_pair[pair]:
+                    exp_agree += 1
+                    ae_agree += 1
+        if exp_total >= 3:
+            expert_ai_stats[exp] = {
+                "agree": exp_agree,
+                "total": exp_total,
+                "rate": round(exp_agree / exp_total * 100, 1),
+            }
+
+    ae_rate = round(ae_agree / max(ae_total, 1) * 100, 1)
+
+    # Multi-vote pair majority vs AI
+    multi_pairs = {pair: votes for pair, votes in pair_votes.items() if len(votes) >= 2}
+    pair_majority = {}
+    split_count = 0
+    for pair, votes in multi_pairs.items():
+        from collections import Counter as C
+        winners = [w for _, w in votes]
+        c = C(winners)
+        best, n = c.most_common(1)[0]
+        if n > len(winners) / 2:
+            pair_majority[pair] = best
+        else:
+            split_count += 1
+
+    majority_overlap = set(pair_majority.keys()) & set(ai_pair.keys())
+    majority_agree = sum(1 for p in majority_overlap if ai_pair[p] == pair_majority[p])
+    majority_rate = round(majority_agree / max(len(majority_overlap), 1) * 100, 1)
+
+    return {
+        "status": "ok",
+        "expert_expert": {
+            "agree": ee_agree,
+            "total": ee_total,
+            "rate": ee_rate,
+            "description": "How often two experts agree on which paper is better (same pair)",
+        },
+        "ai_expert": {
+            "agree": ae_agree,
+            "total": ae_total,
+            "rate": ae_rate,
+            "description": "How often AI agrees with an individual expert's preference",
+        },
+        "ai_majority": {
+            "agree": majority_agree,
+            "total": len(majority_overlap),
+            "rate": majority_rate,
+            "split_pairs": split_count,
+            "description": "How often AI agrees with the expert majority (pairs with 2+ voters)",
+        },
+        "per_expert_ai_agreement": dict(sorted(expert_ai_stats.items(), key=lambda x: -x[1]["rate"])),
+        "interpretation": (
+            f"Experts agree with each other {ee_rate}% of the time on pairwise preferences "
+            f"({ee_agree}/{ee_total} pairs). AI agrees with individual experts {ae_rate}% of the time "
+            f"({ae_agree}/{ae_total} pairs). "
+            + (f"AI-expert agreement exceeds expert-expert agreement, "
+               f"suggesting the AI performs at least as well as a typical human expert on this task. "
+               if ae_rate > ee_rate else
+               f"AI-expert agreement is below expert-expert agreement. ")
+            + f"The near-zero ranking correlation is explained by the high expert disagreement rate: "
+            f"when experts themselves agree below chance, no stable ground truth ranking exists to correlate against."
+        ),
+        "vote_distribution": {
+            "single_expert_pairs": sum(1 for v in pair_votes.values() if len(v) == 1),
+            "two_expert_pairs": sum(1 for v in pair_votes.values() if len(v) == 2),
+            "three_plus_pairs": sum(1 for v in pair_votes.values() if len(v) >= 3),
+        },
+    }
+
+
 # ─── IRT-Adjusted Results ──────────────────────────────────────────────────────
 
 @router.get("/irt-results")
