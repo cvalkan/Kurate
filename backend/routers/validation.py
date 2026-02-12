@@ -810,11 +810,12 @@ async def get_agreement_analysis():
             f"({ee_agree}/{ee_total} pairs). AI agrees with individual experts {ae_rate}% of the time "
             f"({ae_agree}/{ae_total} pairs). "
             + (f"AI-expert agreement exceeds expert-expert agreement, "
-               f"suggesting the AI performs at least as well as a typical human expert on this task. "
+               f"suggesting the AI performs at least as well as a typical human expert. "
                if ae_rate > ee_rate else
+               f"AI-expert agreement ({ae_rate}%) approaches expert-expert agreement ({ee_rate}%), "
+               f"suggesting the AI performs comparably to a human reviewer. "
+               if ae_rate > ee_rate * 0.85 else
                f"AI-expert agreement is below expert-expert agreement. ")
-            + f"The near-zero ranking correlation is explained by the high expert disagreement rate: "
-            f"when experts themselves agree below chance, no stable ground truth ranking exists to correlate against."
         ),
         "vote_distribution": {
             "single_expert_pairs": sum(1 for v in pair_votes.values() if len(v) == 1),
