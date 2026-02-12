@@ -230,7 +230,7 @@ export default function ValidationPage() {
       )}
 
       {/* No data */}
-      {!irtResults && !status?.tournament_running && (
+      {!pairResults && !irtResults && !status?.tournament_running && (
         <div className="border border-border rounded-lg p-8 text-center mb-6">
           <AlertCircle className="h-8 w-8 mx-auto mb-3 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
