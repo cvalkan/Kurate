@@ -1530,6 +1530,7 @@ async def _compute_extraction_stats_impl(category: str = None):
         "header_detection": header_detection,
         "is_sampled": use_sampling,
         "sample_size": processed_count,
+        "sample_papers": sample_papers[:50],
         "warming_up": False,
     }
 
