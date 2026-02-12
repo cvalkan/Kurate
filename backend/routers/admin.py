@@ -166,24 +166,52 @@ class GenerateSummariesRequest(BaseModel):
 
 @router.post("/generate-summaries", dependencies=[Depends(verify_admin)])
 async def trigger_summary_generation(body: GenerateSummariesRequest = GenerateSummariesRequest()):
-    """Manually trigger AI impact summary generation for papers missing summaries."""
-    from services.scheduler import _generate_pending_summaries
+    """Manually trigger AI impact summary generation for papers in completed tournaments.
     
-    # Count papers needing summaries
-    query = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}]}
-    if body.category:
-        query["categories.0"] = body.category
+    Summaries are only generated for categories where the tournament has met all goals.
+    """
+    from services.scheduler import _generate_pending_summaries, _check_goals_met
     
+    if not body.category:
+        return {
+            "status": "error",
+            "error": "Category is required. Summaries are generated per-category when tournament goals are met."
+        }
+    
+    # Check if tournament goals are met
+    goals_met = await _check_goals_met(category=body.category)
+    
+    if not goals_met:
+        # Count papers and return info
+        query = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}], "categories.0": body.category}
+        pending_count = await db.papers.count_documents(query)
+        return {
+            "status": "waiting",
+            "category": body.category,
+            "papers_pending": pending_count,
+            "note": "Tournament goals not yet met. Summaries will be generated automatically when the tournament completes."
+        }
+    
+    # Goals met - count papers needing summaries
+    query = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}], "categories.0": body.category}
     pending_count = await db.papers.count_documents(query)
+    
+    if pending_count == 0:
+        return {
+            "status": "complete",
+            "category": body.category,
+            "papers_pending": 0,
+            "note": "All papers in this category already have summaries."
+        }
     
     # Run in background
     asyncio.create_task(_generate_pending_summaries(category=body.category))
     
     return {
         "status": "started",
-        "category": body.category or "all",
+        "category": body.category,
         "papers_pending": pending_count,
-        "note": "Summaries are generated for papers with 3+ matches. Uses round-robin across GPT-5.2, Claude Opus, and Gemini Pro."
+        "note": "Tournament goals met. Generating summaries using round-robin across GPT-5.2, Claude Opus, and Gemini Pro."
     }
 
 
