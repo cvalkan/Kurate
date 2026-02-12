@@ -34,7 +34,6 @@ export function AdminExtraction() {
         return;
       }
       setWarmingUp(false);
-      console.log("EXTRACTION_DEBUG: sample_papers present:", "sample_papers" in res.data, "count:", (res.data.sample_papers || []).length, "keys:", Object.keys(res.data).sort().join(","));
       setStats(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || err.message || "Failed to load extraction stats");
