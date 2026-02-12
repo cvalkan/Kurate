@@ -56,14 +56,18 @@ async def find_real_paper(title: str) -> dict:
         real_title = detail.get("title", "")
 
         # Check for PMC ID
-        pmc_r = await client.get(
-            f"https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/",
-            params={"ids": pmid, "format": "json"}
-        )
-        pmc_id = None
-        for rec in pmc_r.json().get("records", []):
-            if rec.get("pmcid"):
-                pmc_id = rec["pmcid"]
+        try:
+            pmc_r = await client.get(
+                f"https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/",
+                params={"ids": pmid, "format": "json"}
+            )
+            pmc_id = None
+            if pmc_r.status_code == 200 and pmc_r.text.strip():
+                for rec in pmc_r.json().get("records", []):
+                    if rec.get("pmcid"):
+                        pmc_id = rec["pmcid"]
+        except Exception:
+            pmc_id = None
 
         # Get abstract from PubMed
         abs_r = await client.get(f"{NCBI_BASE}/efetch.fcgi", params={
