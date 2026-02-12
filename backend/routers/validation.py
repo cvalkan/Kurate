@@ -203,6 +203,140 @@ async def import_iclr_dataset(body: ImportICLRRequest):
     return {"status": "ok", "dataset_id": body.dataset_id, "imported": imported, "pdfs": pdfs}
 
 
+class ImportPeerReadRequest(BaseModel):
+    dataset_id: str
+    name: str
+    description: str = ""
+    venue: str = "acl_2017"
+    min_reviews: int = 2
+    max_papers: int = 80
+
+
+@router.post("/import-peerread", dependencies=[Depends(verify_admin)])
+async def import_peerread_dataset(body: ImportPeerReadRequest):
+    """Import papers from the PeerRead dataset (AllenAI)."""
+    import glob as glob_mod
+
+    base_path = f"/tmp/PeerRead/data/{body.venue}"
+    if not os.path.isdir(base_path):
+        return {"status": "error", "message": f"PeerRead venue not found at {base_path}. Clone github.com/allenai/PeerRead to /tmp/PeerRead/"}
+
+    all_papers = []
+    for split in ["train", "dev", "test"]:
+        review_dir = os.path.join(base_path, split, "reviews")
+        parsed_dir = os.path.join(base_path, split, "parsed_pdfs")
+        if not os.path.isdir(review_dir):
+            continue
+
+        for rf in glob_mod.glob(os.path.join(review_dir, "*.json")):
+            paper_id = os.path.basename(rf).replace(".json", "")
+            with open(rf) as f:
+                data = json.load(f)
+
+            reviews = data.get("reviews", [])
+            scores = []
+            for r in reviews:
+                rec = r.get("RECOMMENDATION")
+                if rec is not None:
+                    try:
+                        scores.append(int(rec))
+                    except (ValueError, TypeError):
+                        pass
+
+            if len(scores) < body.min_reviews:
+                continue
+
+            # Parse full text from parsed PDF
+            full_text = None
+            pdf_file = os.path.join(parsed_dir, f"{paper_id}.pdf.json")
+            if os.path.exists(pdf_file):
+                with open(pdf_file) as f:
+                    pdf_data = json.load(f)
+                meta = pdf_data.get("metadata", {})
+                sections = meta.get("sections", [])
+                body_text = " ".join(s.get("text", "") for s in sections)
+                if len(body_text) > 500:
+                    full_text = body_text
+
+            evaluations = [
+                {"rating_value": float(s), "evaluator": f"Reviewer_{j+1}", "source": "PeerRead"}
+                for j, s in enumerate(scores)
+            ]
+
+            authors = []
+            pdf_meta = {}
+            if os.path.exists(pdf_file):
+                with open(pdf_file) as f:
+                    pdf_meta = json.load(f).get("metadata", {})
+                authors = [{"name": a} for a in pdf_meta.get("authors", [])]
+
+            all_papers.append({
+                "paper_id": paper_id,
+                "title": data.get("title", pdf_meta.get("title", f"Paper {paper_id}")),
+                "abstract": data.get("abstract", pdf_meta.get("abstractText", "")),
+                "authors": authors,
+                "scores": scores,
+                "evaluations": evaluations,
+                "full_text": full_text,
+                "split": split,
+            })
+
+    if not all_papers:
+        return {"status": "error", "message": f"No papers with ≥{body.min_reviews} reviews found in {body.venue}"}
+
+    # Stratified sample by score
+    all_papers.sort(key=lambda p: sum(p["scores"]) / len(p["scores"]))
+    if len(all_papers) > body.max_papers:
+        # Take evenly spaced papers across the score range
+        step = len(all_papers) / body.max_papers
+        selected = [all_papers[int(i * step)] for i in range(body.max_papers)]
+    else:
+        selected = all_papers
+
+    imported = 0
+    texts = 0
+    for p in selected:
+        avg = sum(p["scores"]) / len(p["scores"])
+        doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": body.dataset_id,
+            "title": p["title"],
+            "abstract": p["abstract"],
+            "authors": p["authors"],
+            "peerread_id": p["paper_id"],
+            "venue": body.venue,
+            "h1_avg_rating": float(avg),
+            "h1_rating_count": len(p["scores"]),
+            "evaluations": p["evaluations"],
+            "scores": p["scores"],
+            "source": "peerread",
+            "full_text": p["full_text"],
+        }
+        await db.validation_papers.update_one(
+            {"dataset_id": body.dataset_id, "peerread_id": p["paper_id"]},
+            {"$set": doc}, upsert=True
+        )
+        imported += 1
+        if p["full_text"]:
+            texts += 1
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": body.dataset_id},
+        {"$set": {
+            "dataset_id": body.dataset_id,
+            "name": body.name,
+            "description": body.description,
+            "source": f"PeerRead / {body.venue}",
+            "venue": body.venue,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+    return {"status": "ok", "dataset_id": body.dataset_id, "imported": imported, "with_full_text": texts, "total_available": len(all_papers)}
+
+
+
 # ─── Tournament ────────────────────────────────────────────────────────────────
 
 class TournamentRequest(BaseModel):
