@@ -345,7 +345,90 @@ export default function ValidationPage() {
         </div>
       )}
 
-      {/* ── Experiment 1: Avg Rating (secondary) ── */}
+      {/* ── Experiment 3: IRT-Adjusted (new) ── */}
+      {irtResults && (
+        <div className="mb-6">
+          <ExperimentSection
+            title="Experiment: IRT Severity-Adjusted Rankings"
+            icon={<FlaskConical className="h-4 w-4 text-violet-500" />}
+            description={`Adjusts for expert severity bias: each rating is z-scored against the expert's personal mean and discrimination. Increases resolution from ${irtResults.improvement.distinct_scores_raw} to ${irtResults.improvement.distinct_scores_irt} distinct paper scores.`}
+            correlation={irtResults.correlation.irt_score_vs_ai}
+            pairwiseAgreement={irtResults.pairwise_agreement}
+            interpretation={irtResults.interpretation}
+            stats={[
+              `${irtResults.papers_analyzed} papers`,
+              `${irtResults.experts_analyzed} experts modeled`,
+              `${irtResults.human_matches_irt} IRT-adjusted pairs`,
+              `${irtResults.ai_matches} AI matches`,
+            ]}
+          >
+            {/* Improvement callout */}
+            <div className="grid grid-cols-3 gap-3 mb-2">
+              <div className="p-3 border border-border rounded-lg bg-background text-center">
+                <div className="text-[10px] text-muted-foreground">Raw Avg ρ</div>
+                <div className="text-lg font-mono font-semibold text-muted-foreground">{irtResults.correlation.raw_avg_vs_ai.spearman_rho.toFixed(3)}</div>
+              </div>
+              <div className="p-3 border border-border rounded-lg bg-background text-center">
+                <div className="text-[10px] text-muted-foreground">→ IRT ρ</div>
+                <div className="text-lg font-mono font-semibold">{irtResults.correlation.irt_score_vs_ai.spearman_rho.toFixed(3)}</div>
+              </div>
+              <div className="p-3 border border-border rounded-lg bg-background text-center">
+                <div className="text-[10px] text-muted-foreground">Change</div>
+                <div className={`text-lg font-mono font-semibold ${irtResults.improvement.delta > 0.02 ? "text-green-600" : irtResults.improvement.delta < -0.02 ? "text-red-600" : "text-muted-foreground"}`}>
+                  {irtResults.improvement.delta >= 0 ? "+" : ""}{irtResults.improvement.delta.toFixed(3)}
+                </div>
+              </div>
+            </div>
+
+            {/* IRT ranking table */}
+            <div className="border border-border rounded-lg overflow-hidden" data-testid="ranking-table-irt">
+              <div className="px-4 py-3 bg-secondary/30 border-b border-border">
+                <h3 className="text-sm font-medium">IRT-Adjusted vs AI Ranking</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Sorted by IRT score. IRT score = average z-scored expert rating (adjusts for expert severity).</p>
+              </div>
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-background">
+                    <tr className="border-b border-border text-xs">
+                      <th className="text-left px-3 py-2 font-medium">Paper</th>
+                      <th className="text-right px-2 py-2 font-medium">IRT Score</th>
+                      <th className="text-right px-2 py-2 font-medium">Raw Avg</th>
+                      <th className="text-right px-2 py-2 font-medium">IRT Rank</th>
+                      <th className="text-right px-2 py-2 font-medium">Raw Rank</th>
+                      <th className="text-right px-2 py-2 font-medium">AI Rank</th>
+                      <th className="text-right px-2 py-2 font-medium">AI Score</th>
+                      <th className="text-right px-3 py-2 font-medium">Delta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {irtResults.comparison.map((row) => (
+                      <tr key={row.id} className="border-b border-border/30 hover:bg-secondary/10">
+                        <td className="px-3 py-2 max-w-[250px]">
+                          <div className="truncate text-xs font-medium" title={row.title}>{row.title}</div>
+                          <div className="text-[10px] text-muted-foreground">{row.journal} · {row.n_ratings} ratings</div>
+                        </td>
+                        <td className="text-right px-2 py-2">
+                          <span className={`font-mono text-xs font-medium ${row.irt_score >= 0.3 ? "text-green-600" : row.irt_score <= -0.3 ? "text-red-600" : "text-muted-foreground"}`}>
+                            {row.irt_score >= 0 ? "+" : ""}{row.irt_score.toFixed(3)}
+                          </span>
+                        </td>
+                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.raw_mean.toFixed(1)}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs">{row.irt_rank}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{typeof row.raw_rank === 'number' && row.raw_rank % 1 !== 0 ? row.raw_rank.toFixed(1) : row.raw_rank}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs">{row.ai_rank}</td>
+                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_score}</td>
+                        <td className="text-right px-3 py-2 text-xs"><RankDelta delta={row.rank_delta} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </ExperimentSection>
+        </div>
+      )}
+
+      {/* ── Experiment 1: Avg Rating (baseline) ── */}
       {avgResults && (
         <div className="mb-6">
           <ExperimentSection
