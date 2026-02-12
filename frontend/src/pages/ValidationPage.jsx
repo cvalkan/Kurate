@@ -167,6 +167,7 @@ export default function ValidationPage() {
   const [status, setStatus] = useState(null);
   const [avgResults, setAvgResults] = useState(null);
   const [pairResults, setPairResults] = useState(null);
+  const [irtResults, setIrtResults] = useState(null);
   const [loading, setLoading] = useState({ import: false, tournament: false, reset: false });
   const [matchCount, setMatchCount] = useState(100);
   const isAdmin = !!sessionStorage.getItem("admin_token");
