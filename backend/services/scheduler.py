@@ -603,18 +603,22 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
 
 
 async def _generate_pending_summaries(category: str = None):
-    """Generate impact summaries for converged papers that don't have one yet."""
+    """Generate impact summaries for papers that don't have one yet.
+    
+    Criteria for generating summary:
+    - Paper must have at least 3 matches (enough data for meaningful summary)
+    - No convergence requirement - summaries are generated for all papers with sufficient matches
+    """
     from services.llm import generate_impact_summary
 
     settings = await get_settings()
-    ci_target = settings.get("ci_target", 12)
-    max_matches = settings.get("max_matches_per_paper", 150)
     section_char_limit = settings.get("section_char_limit", 2000)  # Pre-fetch for batch
 
     summary_prompt_doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
     summary_prompt = summary_prompt_doc if summary_prompt_doc and summary_prompt_doc.get("system_prompt") else None
 
     # Find papers without summaries, scoped to category
+    # Increased limit to process more papers per cycle
     query = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}]}
     if category:
         query["categories.0"] = category
@@ -622,7 +626,7 @@ async def _generate_pending_summaries(category: str = None):
     all_papers = await db.papers.find(
         query,
         {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1, "categories": 1},
-    ).to_list(100)
+    ).to_list(500)  # Increased from 100 to 500
 
     if not all_papers:
         return
@@ -649,18 +653,15 @@ async def _generate_pending_summaries(category: str = None):
 
     cat_status = _get_cat_status(category) if category else None
 
-    for paper in all_papers:
+    # Sort papers by match count (highest first) to prioritize well-tested papers
+    papers_sorted = sorted(all_papers, key=lambda p: paper_match_count.get(p["id"], 0), reverse=True)
+
+    for paper in papers_sorted:
         pid = paper["id"]
         n = paper_match_count.get(pid, 0)
-        w = paper_wins.get(pid, 0)
 
+        # Only require minimum matches, no convergence requirement
         if n < 3:
-            continue
-
-        margin = wilson_margin_pct(w, n)
-        is_converged = margin <= ci_target or n >= max_matches
-
-        if not is_converged:
             continue
 
         matches = await db.matches.find(
