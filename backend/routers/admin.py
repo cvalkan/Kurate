@@ -1390,6 +1390,7 @@ async def _compute_extraction_stats_impl(category: str = None):
     no_sections_found = 0
     total_chars = 0
     total_extracted_chars = 0
+    sample_papers = []
     
     header_detection = {
         "introduction": {"found": 0, "fallback": 0},
