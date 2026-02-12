@@ -698,13 +698,17 @@ async def _generate_pending_summaries(category: str = None):
             cat_status["current_activity"] = f"Generating summary: {paper['title'][:40]}..."
         logger.info(f"Generating impact summary for: {paper['title'][:50]}")
 
-        summary = await generate_impact_summary(paper, logs, summary_prompt, char_limit=section_char_limit)
-        if summary:
+        result = await generate_impact_summary(paper, logs, summary_prompt, char_limit=section_char_limit)
+        if result and result.get("summary"):
             await db.papers.update_one(
                 {"id": pid},
-                {"$set": {"impact_summary": summary, "summary_generated_at": datetime.now(timezone.utc).isoformat()}},
+                {"$set": {
+                    "impact_summary": result["summary"],
+                    "summary_model_used": result.get("model_used", {}),
+                    "summary_generated_at": datetime.now(timezone.utc).isoformat(),
+                }},
             )
-            logger.info(f"Summary generated for {pid}")
+            logger.info(f"Summary generated for {pid} using {result.get('model_used', {}).get('model', 'unknown')}")
         else:
             await db.papers.update_one(
                 {"id": pid},
