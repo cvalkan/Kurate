@@ -1,0 +1,142 @@
+{
+  "summary": "Iteration 27 - Pairwise-Derived Human Rankings feature testing. All 22 backend API tests passed. Frontend UI verified with both experiment sections rendering correctly - Pairwise-Derived (primary) and Average H1 Rating (secondary).",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "GET /api/validation/pairwise-results returns 200",
+      "GET /api/validation/pairwise-results returns status=ok",
+      "Pairwise results has method=pairwise_derived",
+      "Pairwise results contains human_matches_derived (757 derived matches)",
+      "Pairwise results contains human_matches_ties_excluded (540 ties)",
+      "Pairwise results contains experts_contributing (21 experts)",
+      "Pairwise results contains pairwise_agreement object",
+      "Pairwise agreement has overlapping_pairs (221), agreements (124), agreement_rate (56.1%)",
+      "Pairwise results contains correlation metrics (spearman, kendall, pearson)",
+      "Pairwise correlation values in valid range [-1, 1]",
+      "Pairwise results contains comparison table",
+      "Pairwise comparison entries have all required fields (human_rank, human_score, human_win_rate, human_matches, ai_rank, ai_score, rank_delta)",
+      "Pairwise comparison entries have valid human values",
+      "Pairwise results contains interpretation text mentioning pairwise",
+      "Pairwise results contains expert_stats with papers_rated, pairs_derived, ties",
+      "GET /api/validation/results (avg-rating) still returns 200",
+      "GET /api/validation/results (avg-rating) returns status ok",
+      "Avg rating results contains correlation metrics",
+      "Avg rating results contains comparison with 47 papers",
+      "Both endpoints return ok simultaneously",
+      "Endpoints have different methods (pairwise vs avg)",
+      "Status endpoint still returns expected data (47 papers)"
+    ],
+    "frontend": [
+      "Validation page loads with 'Human vs AI Validation' title",
+      "H1 Papers stat card shows 47 papers",
+      "AI Matches stat card shows 500 matches (46.3% coverage)",
+      "Tournament stat card shows 'Complete'",
+      "Pairwise-Derived Human Rankings section visible as primary experiment",
+      "Pairwise Agreement gauge shows 56.1% with '50% = random' label",
+      "Spearman ρ badge shows -0.046",
+      "Kendall τ badge shows -0.020",
+      "Pearson r badge shows -0.050",
+      "Stats line shows: 46 papers, 757 human pairs (540 ties excluded), 480 AI matches, 221 overlapping pairs",
+      "Pairwise table has Human Rank, H Score, H Win%, H Matches columns",
+      "Average H1 Rating section visible as secondary experiment",
+      "Avg rating table has H1 Rating column instead of H Score",
+      "Methodology section explains both experiments",
+      "Methodology mentions: Pairwise experiment (primary), Average rating experiment, AI tournament, Pairwise agreement, 50% = random"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_pairwise_validation.py",
+    "/app/test_reports/pytest/pairwise_validation_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Pairwise-derived human ranking implementation correctly extracts head-to-head preferences from experts who rated multiple papers",
+    "Both human and AI rankings use Bradley-Terry algorithm - apples-to-apples comparison as intended",
+    "56.1% pairwise agreement (>50% random baseline) indicates AI slightly better than random at matching human preferences",
+    "Correlation between AI and human Bradley-Terry rankings is negligible (ρ=-0.046, p=0.76) - not statistically significant",
+    "Frontend correctly shows pairwise experiment as primary (first) and avg rating as secondary (below)",
+    "data-testid attributes properly implemented for all key UI elements"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_pairwise_validation.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (22/22 tests passed)",
+    "frontend": "100% (15/15 UI verifications passed)"
+  },
+
+  "test_credentials": {
+    "admin_password": "papersumo2025",
+    "admin_login_endpoint": "POST /api/admin/login"
+  },
+
+  "seed_data_creation": "None - tested with existing validation data (47 papers, 500 AI matches, 21 contributing experts)",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 27 verified the new pairwise-derived human ranking feature. The /api/validation/pairwise-results endpoint returns 757 human matches derived from 21 experts (540 ties excluded). Pairwise agreement with AI is 56.1% on 221 overlapping pairs. Both experiments (pairwise and avg-rating) coexist and work independently. The validation data includes 47 H1 papers and 500 AI matches.",
+
+  "verified_features": {
+    "pairwise_results_api": {
+      "status": "WORKING",
+      "endpoint": "GET /api/validation/pairwise-results",
+      "method": "pairwise_derived",
+      "papers_analyzed": 46,
+      "human_matches_derived": 757,
+      "human_matches_ties_excluded": 540,
+      "experts_contributing": 21,
+      "pairwise_agreement": {
+        "overlapping_pairs": 221,
+        "agreements": 124,
+        "agreement_rate": 56.1
+      },
+      "correlation_metrics": {
+        "spearman_rho": -0.0459,
+        "kendall_tau": -0.0203,
+        "pearson_r": -0.0502
+      }
+    },
+    "avg_results_api": {
+      "status": "WORKING",
+      "endpoint": "GET /api/validation/results",
+      "papers_analyzed": 47,
+      "correlation_metrics": {
+        "spearman_rho": -0.156,
+        "kendall_tau": -0.108,
+        "pearson_r": -0.157
+      }
+    },
+    "validation_page_ui": {
+      "status": "WORKING",
+      "route": "/validation",
+      "pairwise_section": {
+        "heading": "Experiment: Pairwise-Derived Human Rankings",
+        "agreement_gauge": "56.1% with '50% = random' label",
+        "table_columns": ["Paper", "Human Rank", "H Score", "H Win%", "H Matches", "AI Rank", "AI Score", "AI Win%", "AI Matches", "Delta"]
+      },
+      "avg_rating_section": {
+        "heading": "Experiment: Average H1 Rating",
+        "table_columns": ["Paper", "H1 Rating", "Human Rank", "AI Rank", "AI Score", "AI Win%", "AI Matches", "Delta"]
+      },
+      "methodology_section": "WORKING - explains both experiments"
+    }
+  }
+}
