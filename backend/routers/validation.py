@@ -410,6 +410,220 @@ def _interpret_correlation(rho: float, p_value: float, n: int) -> str:
     )
 
 
+# ─── Pairwise-Derived Comparison ────────────────────────────────────────────────
+
+@router.get("/pairwise-results")
+async def get_pairwise_validation_results():
+    """
+    Derive human pairwise comparisons from experts who rated multiple papers.
+    If Expert A rated Paper X 'Exceptional' and Paper Y 'Good', that's an
+    implicit head-to-head: X beats Y. Build human Bradley-Terry rankings from
+    these derived matches and compare against AI rankings.
+    """
+    papers = await db.validation_papers.find({}, {"_id": 0}).to_list(1000)
+    ai_matches = await db.validation_matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+         "completed": 1, "failed": 1},
+    ).to_list(100000)
+
+    if not papers:
+        return {"status": "no_data", "message": "No papers imported yet."}
+
+    paper_lookup = {p["id"]: p for p in papers}
+
+    # ── Step 1: Derive human pairwise matches from expert evaluations ──
+    # For each expert who rated 2+ papers, create a match for every pair
+    # where their ratings differ (higher rating wins).
+    expert_ratings = defaultdict(list)  # expert -> [(paper_id, rating_value)]
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name].append((p["id"], ev["rating_value"]))
+
+    human_matches = []
+    expert_stats = {}
+    total_ties = 0
+    for expert, rated in expert_ratings.items():
+        if len(rated) < 2:
+            continue
+        pairs_from = 0
+        ties = 0
+        for i in range(len(rated)):
+            for j in range(i + 1, len(rated)):
+                pid_a, rating_a = rated[i]
+                pid_b, rating_b = rated[j]
+                if rating_a == rating_b:
+                    ties += 1
+                    total_ties += 1
+                    continue
+                winner = pid_a if rating_a > rating_b else pid_b
+                human_matches.append({
+                    "paper1_id": pid_a,
+                    "paper2_id": pid_b,
+                    "winner_id": winner,
+                    "completed": True,
+                    "failed": False,
+                    "expert": expert,
+                })
+                pairs_from += 1
+        expert_stats[expert] = {
+            "papers_rated": len(rated),
+            "pairs_derived": pairs_from,
+            "ties": ties,
+        }
+
+    if len(human_matches) < 2:
+        return {"status": "insufficient_data", "message": "Not enough cross-rated papers to derive human pairwise comparisons."}
+
+    # ── Step 2: Build human leaderboard ──
+    human_paper_ids = set()
+    for m in human_matches:
+        human_paper_ids.add(m["paper1_id"])
+        human_paper_ids.add(m["paper2_id"])
+    human_papers = [p for p in papers if p["id"] in human_paper_ids]
+    human_leaderboard = compute_leaderboard(human_papers, human_matches)
+    human_lookup = {e["id"]: e for e in human_leaderboard}
+
+    # ── Step 3: Build AI leaderboard (only for papers in both sets) ──
+    ai_paper_ids = set()
+    for m in ai_matches:
+        ai_paper_ids.add(m["paper1_id"])
+        ai_paper_ids.add(m["paper2_id"])
+    common_ids = human_paper_ids & ai_paper_ids
+    common_papers = [p for p in papers if p["id"] in common_ids]
+
+    if len(common_papers) < 3:
+        return {"status": "insufficient_overlap", "message": f"Only {len(common_papers)} papers have both human and AI matches."}
+
+    common_ai_matches = [
+        m for m in ai_matches
+        if m["paper1_id"] in common_ids and m["paper2_id"] in common_ids
+    ]
+    ai_leaderboard = compute_leaderboard(common_papers, common_ai_matches)
+    ai_lookup = {e["id"]: e for e in ai_leaderboard}
+
+    # ── Step 4: Correlation ──
+    ai_ranks = []
+    human_ranks = []
+    comparison = []
+    for p in common_papers:
+        pid = p["id"]
+        ai_entry = ai_lookup.get(pid, {})
+        human_entry = human_lookup.get(pid, {})
+        ai_r = ai_entry.get("rank", 999)
+        h_r = human_entry.get("rank", 999)
+        ai_ranks.append(ai_r)
+        human_ranks.append(h_r)
+        comparison.append({
+            "id": pid,
+            "title": p["title"],
+            "journal": p.get("journal", ""),
+            "h1_avg_rating": p.get("h1_avg_rating", 0),
+            "h1_rating_count": p.get("h1_rating_count", 0),
+            "human_rank": h_r,
+            "human_score": human_entry.get("score", 1200),
+            "human_win_rate": human_entry.get("win_rate", 0),
+            "human_matches": human_entry.get("comparisons", 0),
+            "ai_rank": ai_r,
+            "ai_score": ai_entry.get("score", 1200),
+            "ai_win_rate": ai_entry.get("win_rate", 0),
+            "ai_matches": ai_entry.get("comparisons", 0),
+            "rank_delta": ai_r - h_r,
+        })
+
+    comparison.sort(key=lambda x: x["human_rank"])
+
+    spearman_rho, spearman_p = scipy_stats.spearmanr(ai_ranks, human_ranks)
+    kendall_tau, kendall_p = scipy_stats.kendalltau(ai_ranks, human_ranks)
+    ai_scores = [ai_lookup.get(p["id"], {}).get("score", 1200) for p in common_papers]
+    human_scores = [human_lookup.get(p["id"], {}).get("score", 1200) for p in common_papers]
+    pearson_r, pearson_p = scipy_stats.pearsonr(ai_scores, human_scores) if len(ai_scores) > 2 else (0, 1)
+
+    # ── Step 5: Pairwise agreement rate ──
+    # For paper pairs compared by both humans AND AI, how often do they agree?
+    human_pair_winners = {}
+    for m in human_matches:
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        human_pair_winners.setdefault(pair, []).append(m["winner_id"])
+
+    # Majority vote for human pairs
+    human_majority = {}
+    for pair, winners in human_pair_winners.items():
+        from collections import Counter as C
+        counts = C(winners)
+        most_common = counts.most_common(1)[0]
+        if most_common[1] > len(winners) / 2:
+            human_majority[pair] = most_common[0]
+
+    ai_pair_winners = {}
+    for m in ai_matches:
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        ai_pair_winners[pair] = m["winner_id"]  # single AI verdict per pair
+
+    overlapping_pairs = set(human_majority.keys()) & set(ai_pair_winners.keys())
+    agreements = sum(1 for pair in overlapping_pairs if human_majority[pair] == ai_pair_winners[pair])
+    pairwise_agreement = round(agreements / max(len(overlapping_pairs), 1) * 100, 1)
+
+    # Model usage
+    model_counts = defaultdict(int)
+    for m in ai_matches:
+        mu = m.get("model_used", {})
+        if mu:
+            model_counts[f"{mu.get('provider', '?')}/{mu.get('model', '?')}"] += 1
+
+    return {
+        "status": "ok",
+        "method": "pairwise_derived",
+        "papers_analyzed": len(common_papers),
+        "human_matches_derived": len(human_matches),
+        "human_matches_ties_excluded": total_ties,
+        "ai_matches": len(common_ai_matches),
+        "experts_contributing": len(expert_stats),
+        "correlation": {
+            "spearman_rho": round(spearman_rho, 4),
+            "spearman_p_value": round(spearman_p, 6),
+            "kendall_tau": round(kendall_tau, 4),
+            "kendall_p_value": round(kendall_p, 6),
+            "pearson_r": round(pearson_r, 4),
+            "pearson_p_value": round(pearson_p, 6),
+        },
+        "pairwise_agreement": {
+            "overlapping_pairs": len(overlapping_pairs),
+            "agreements": agreements,
+            "agreement_rate": pairwise_agreement,
+        },
+        "interpretation": _interpret_pairwise(spearman_rho, spearman_p, pairwise_agreement, len(common_papers), len(overlapping_pairs)),
+        "comparison": comparison,
+        "expert_stats": dict(sorted(expert_stats.items(), key=lambda x: -x[1]["pairs_derived"])),
+        "model_usage": dict(model_counts),
+    }
+
+
+def _interpret_pairwise(rho, p_value, agreement_rate, n_papers, n_pairs):
+    """Interpret the pairwise-derived correlation results."""
+    strength = abs(rho)
+    if strength >= 0.7:
+        level = "strong"
+    elif strength >= 0.4:
+        level = "moderate"
+    elif strength >= 0.2:
+        level = "weak"
+    else:
+        level = "negligible"
+
+    direction = "positive" if rho > 0 else "negative"
+    sig = "statistically significant" if p_value < 0.05 else "not statistically significant"
+
+    return (
+        f"Using pairwise-derived human rankings ({n_papers} papers), there is a {level} {direction} "
+        f"rank correlation (Spearman ρ = {rho:.3f}, {sig}, p = {p_value:.4f}). "
+        f"On {n_pairs} directly overlapping paper pairs, AI and human experts "
+        f"agree on the winner {agreement_rate}% of the time."
+    )
+
+
 # ─── Reset ─────────────────────────────────────────────────────────────────────
 
 @router.post("/reset", dependencies=[Depends(verify_admin)])
