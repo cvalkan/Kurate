@@ -1312,49 +1312,28 @@ _extraction_cache = {"data": None, "timestamp": 0, "computing": False, "warming_
 _EXTRACTION_CACHE_TTL = 600  # 10 minutes (increased from 5 to reduce recomputation)
 
 
-@router.get("/extraction-stats", dependencies=[Depends(verify_admin)])
-async def get_extraction_stats(category: str = None, refresh: bool = False):
-    """
-    Get detailed statistics about PDF text extraction across all papers.
-    Returns warming_up status if cache is not ready yet.
-    """
-    import time as _time
-    import random
-    from services.llm import extract_key_sections
-    
-    now = _time.time()
-    
-    # Return cached data if available and fresh
-    if not category and not refresh and _extraction_cache["data"] and (now - _extraction_cache["timestamp"]) < _EXTRACTION_CACHE_TTL:
-        return _extraction_cache["data"]
-    
-    # If currently computing, return warming_up status immediately (non-blocking)
+async def _compute_extraction_stats_bg(category: str = None):
+    """Background task to compute extraction stats without blocking."""
     if _extraction_cache["computing"]:
-        if _extraction_cache["data"]:
-            # Return stale data with warming_up flag
-            return {**_extraction_cache["data"], "warming_up": True, "message": "Refreshing cache..."}
-        return {
-            "warming_up": True,
-            "message": "Computing extraction statistics, please wait...",
-            "total_papers": 0,
-            "papers_with_text": 0,
-            "papers_without_text": 0,
-        }
-    
-    # If no cache and this is a fresh request, return warming_up and trigger background computation
-    if not _extraction_cache["data"] and not refresh:
-        # Trigger background computation
-        asyncio.create_task(_compute_extraction_stats_bg(category))
-        return {
-            "warming_up": True,
-            "message": "Computing extraction statistics, please wait...",
-            "total_papers": 0,
-            "papers_with_text": 0,
-            "papers_without_text": 0,
-        }
-    
-    # Compute synchronously (for refresh=True or initial prewarm)
-    return await _compute_extraction_stats(category, char_limit=None)
+        return  # Already computing
+    _extraction_cache["computing"] = True
+    try:
+        result = await _compute_extraction_stats_impl(category)
+        if not category:
+            _extraction_cache["data"] = result
+            _extraction_cache["timestamp"] = _time.time()
+            _extraction_cache["warming_up"] = False
+    except Exception as e:
+        logger.error(f"Background extraction stats computation failed: {e}")
+    finally:
+        _extraction_cache["computing"] = False
+
+
+async def _compute_extraction_stats_impl(category: str = None):
+    """
+    Core implementation for computing extraction statistics.
+    """
+    from services.llm import extract_key_sections
     
     # Get section char limit from settings
     settings_doc = await db.settings.find_one({"key": "global"}) or {}
@@ -1386,21 +1365,18 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
             "section_char_limit": char_limit,
             "sample_size": 0,
             "is_sampled": False,
+            "warming_up": False,
         }
     
-    # Always use sampling for initial load (fast), full scan only on explicit refresh
-    # But cap processing to prevent timeouts
-    MAX_PAPERS_TO_PROCESS = 500  # Hard cap to prevent timeout
-    use_sampling = not refresh and not _extraction_cache["data"]
+    # Use sampling for reasonable performance (100 papers max)
+    MAX_PAPERS_TO_PROCESS = 100
+    use_sampling = total_with_text > MAX_PAPERS_TO_PROCESS
     
     if use_sampling:
-        # Quick sample for initial load
-        sample_size = min(100, total_with_text)
-        pipeline = [{"$match": query}, {"$sample": {"size": sample_size}}, {"$project": {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}}]
-        papers = await db.papers.aggregate(pipeline).to_list(sample_size)
+        pipeline = [{"$match": query}, {"$sample": {"size": MAX_PAPERS_TO_PROCESS}}, {"$project": {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}}]
+        papers = await db.papers.aggregate(pipeline).to_list(MAX_PAPERS_TO_PROCESS)
     else:
-        # Full scan but capped to prevent timeout
-        papers = await db.papers.find(query, {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}).limit(MAX_PAPERS_TO_PROCESS).to_list(MAX_PAPERS_TO_PROCESS)
+        papers = await db.papers.find(query, {"_id": 0, "id": 1, "title": 1, "full_text": 1, "categories": 1}).to_list(MAX_PAPERS_TO_PROCESS)
     
     # Aggregate stats
     by_category = {}
@@ -1415,10 +1391,6 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
     total_chars = 0
     total_extracted_chars = 0
     
-    # Sample papers for detailed breakdown (limit to avoid timeout)
-    sample_papers = []
-    
-    # Additional tracking for header vs fallback
     header_detection = {
         "introduction": {"found": 0, "fallback": 0},
         "methodology": {"found": 0, "fallback": 0},
@@ -1447,14 +1419,12 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         cat_stats = by_category[cat]
         cat_stats["total"] += 1
         
-        # Handle None or empty full_text
         if not full_text:
             continue
             
         cat_stats["total_full_text_chars"] += len(full_text)
         total_chars += len(full_text)
         
-        # Extract sections using configured char limit
         sections = extract_key_sections(full_text, cat, char_limit)
         meta = sections.pop("_meta", {})
         found_via_header = meta.get("found_via_header", {})
@@ -1499,37 +1469,14 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         if sections_found_count == 0:
             no_sections_found += 1
             cat_stats["no_sections"] += 1
-        
-        # Add to sample (limit to 100)
-        if len(sample_papers) < 100:
-            sample_papers.append({
-                "id": paper["id"],
-                "title": paper["title"][:60],
-                "category": cat,
-                "full_text_chars": len(full_text),
-                "sections_found": sections_found_count,
-                "extracted_chars": paper_extracted_chars,
-                "intro_chars": len(sections.get("introduction", "")),
-                "method_chars": len(sections.get("methodology", "")),
-                "results_chars": len(sections.get("results", "")),
-                "conclusion_chars": len(sections.get("conclusion", "")),
-            })
     
-    # Calculate rates and averages
-    total_with_text = len(papers)
+    # Calculate rates
+    processed_count = len(papers)
     
     for section_name in ["introduction", "methodology", "results", "conclusion"]:
         if overall[section_name]["total"] > 0:
-            overall[section_name]["rate"] = round(
-                overall[section_name]["found"] / overall[section_name]["total"] * 100, 1
-            )
-            overall[section_name]["avg_chars"] = round(
-                overall[section_name]["total_chars"] / max(overall[section_name]["found"], 1)
-            )
-    
-    # Calculate per-category rates
-    # Calculate header detection rates
-    for section_name in ["introduction", "methodology", "results", "conclusion"]:
+            overall[section_name]["rate"] = round(overall[section_name]["found"] / overall[section_name]["total"] * 100, 1)
+            overall[section_name]["avg_chars"] = round(overall[section_name]["total_chars"] / max(overall[section_name]["found"], 1))
         total = overall[section_name]["total"]
         header_count = header_detection[section_name]["found"]
         fallback_count = header_detection[section_name]["fallback"]
@@ -1543,49 +1490,77 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
             stats["avg_full_text_chars"] = round(stats["total_full_text_chars"] / stats["total"])
             stats["all_headers_rate"] = round(stats.get("all_headers", 0) / stats["total"] * 100, 1)
             for section_name in ["introduction", "methodology", "results", "conclusion"]:
-                stats[section_name]["rate"] = round(
-                    stats[section_name]["found"] / stats["total"] * 100, 1
-                )
-                stats[section_name]["header_rate"] = round(
-                    stats[section_name].get("header", 0) / stats["total"] * 100, 1
-                )
-                stats[section_name]["avg_chars"] = round(
-                    stats[section_name]["total_chars"] / max(stats[section_name]["found"], 1)
-                )
+                stats[section_name]["rate"] = round(stats[section_name]["found"] / stats["total"] * 100, 1)
+                stats[section_name]["header_rate"] = round(stats[section_name].get("header", 0) / stats["total"] * 100, 1)
+                stats[section_name]["avg_chars"] = round(stats[section_name]["total_chars"] / max(stats[section_name]["found"], 1))
     
-    # Calculate all headers found (no fallback used)
-    all_headers_found = sum(1 for cat_stats in by_category.values() for _ in range(cat_stats.get("all_headers", 0)))
-    
-    # Scale stats if we used sampling
-    processed_count = len(papers)
-    scale_factor = total_with_text / processed_count if processed_count > 0 else 1
-    
-    result = {
+    return {
         "total_papers": total_with_text + papers_without_text,
         "papers_with_text": total_with_text,
         "papers_without_text": papers_without_text,
         "text_coverage_rate": round(total_with_text / max(total_with_text + papers_without_text, 1) * 100, 1),
         "by_category": by_category,
         "overall": overall,
-        "all_sections_found": int(all_sections_found * scale_factor) if use_sampling else all_sections_found,
+        "all_sections_found": all_sections_found,
         "all_sections_rate": round(all_sections_found / max(processed_count, 1) * 100, 1),
-        "all_headers_found": int(sum(stats.get("all_headers", 0) for stats in by_category.values()) * scale_factor) if use_sampling else sum(stats.get("all_headers", 0) for stats in by_category.values()),
+        "all_headers_found": sum(stats.get("all_headers", 0) for stats in by_category.values()),
         "all_headers_rate": round(sum(stats.get("all_headers", 0) for stats in by_category.values()) / max(processed_count, 1) * 100, 1),
-        "no_sections_found": int(no_sections_found * scale_factor) if use_sampling else no_sections_found,
+        "no_sections_found": no_sections_found,
         "no_sections_rate": round(no_sections_found / max(processed_count, 1) * 100, 1),
         "avg_full_text_chars": round(total_chars / max(processed_count, 1)),
         "avg_extracted_chars": round(total_extracted_chars / max(processed_count, 1)),
         "extraction_ratio": round(total_extracted_chars / max(total_chars, 1) * 100, 2),
         "section_char_limit": char_limit,
         "header_detection": header_detection,
-        "sample_papers": sample_papers[:50],
         "is_sampled": use_sampling,
-        "sample_size": processed_count if use_sampling else None,
+        "sample_size": processed_count,
+        "warming_up": False,
     }
+
+
+@router.get("/extraction-stats", dependencies=[Depends(verify_admin)])
+async def get_extraction_stats(category: str = None, refresh: bool = False):
+    """
+    Get detailed statistics about PDF text extraction across all papers.
+    Returns warming_up status if cache is not ready yet.
+    """
+    now = _time.time()
     
-    # Update cache if not filtering by category
-    if not category:
-        _extraction_cache["data"] = result
-        _extraction_cache["timestamp"] = now
+    # Return cached data if available and fresh
+    if not category and not refresh and _extraction_cache["data"] and (now - _extraction_cache["timestamp"]) < _EXTRACTION_CACHE_TTL:
+        return _extraction_cache["data"]
     
-    return result
+    # If currently computing, return warming_up status immediately (non-blocking)
+    if _extraction_cache["computing"]:
+        if _extraction_cache["data"]:
+            return {**_extraction_cache["data"], "warming_up": True, "message": "Refreshing cache..."}
+        return {
+            "warming_up": True,
+            "message": "Computing extraction statistics, please wait...",
+            "total_papers": 0,
+            "papers_with_text": 0,
+            "papers_without_text": 0,
+        }
+    
+    # If no cache and this is NOT a refresh request, trigger background and return warming_up
+    if not _extraction_cache["data"] and not refresh:
+        asyncio.create_task(_compute_extraction_stats_bg(category))
+        return {
+            "warming_up": True,
+            "message": "Computing extraction statistics, please wait...",
+            "total_papers": 0,
+            "papers_with_text": 0,
+            "papers_without_text": 0,
+        }
+    
+    # Compute synchronously (for refresh=True or startup prewarm)
+    _extraction_cache["computing"] = True
+    try:
+        result = await _compute_extraction_stats_impl(category)
+        if not category:
+            _extraction_cache["data"] = result
+            _extraction_cache["timestamp"] = now
+            _extraction_cache["warming_up"] = False
+        return result
+    finally:
+        _extraction_cache["computing"] = False
