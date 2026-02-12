@@ -184,7 +184,27 @@ async def startup():
     from routers.leaderboard import start_cache_bg
     start_cache_bg()
 
+    # Pre-warm extraction stats cache in background (expensive computation)
+    import asyncio
+    asyncio.create_task(_prewarm_extraction_cache())
+
     logger.info("PaperSumo Leaderboard started")
+
+
+async def _prewarm_extraction_cache():
+    """Pre-warm the extraction stats cache in background to avoid slow first load."""
+    import time as _t
+    await asyncio.sleep(5)  # Wait for other startup tasks
+    try:
+        from routers.admin import get_extraction_stats, _extraction_cache
+        # Only prewarm if cache is empty
+        if not _extraction_cache.get("data"):
+            logger.info("Pre-warming extraction stats cache...")
+            # Import the function and call it directly
+            await get_extraction_stats(category=None, refresh=False)
+            logger.info("Extraction stats cache warmed")
+    except Exception as e:
+        logger.warning(f"Extraction cache prewarm failed: {e}")
 
 
 @app.on_event("shutdown")
