@@ -327,7 +327,8 @@ export default function ValidationPage() {
             title="Experiment: Pairwise-Derived Human Rankings"
             icon={<Users className="h-4 w-4 text-accent" />}
             description={`Extracts head-to-head preferences from ${pairResults.experts_contributing} experts who rated multiple papers. If Expert A rated Paper X higher than Paper Y, that's one human comparison. Both human and AI rankings use Bradley-Terry on pairwise data.`}
-            correlation={{ ...pairResults.correlation, agreement_rate: pairResults.pairwise_agreement.agreement_rate }}
+            correlation={pairResults.correlation}
+            pairwiseAgreement={pairResults.pairwise_agreement}
             interpretation={pairResults.interpretation}
             stats={[
               `${pairResults.papers_analyzed} papers`,
