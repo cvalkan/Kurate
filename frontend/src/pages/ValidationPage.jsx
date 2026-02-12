@@ -348,7 +348,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
 
 function DatasetView({ ds, isAdmin }) {
   const [tab, setTab] = useState("standard");
-  const hasMultiModel = ds.dataset_id === "iclr-protein"; // extend as needed
+  const hasMultiModel = true; // all datasets can have multi-model data
 
   const tabs = [
     { id: "standard", label: "Ranking Correlation", icon: BarChart3 },
