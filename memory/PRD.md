@@ -86,6 +86,8 @@ PaperSumo is a web platform for ranking academic papers using pairwise compariso
 - `POST /api/admin/login` - Admin login → returns session token
 - `GET /api/admin/status`, `/progress`, `/stats` - Admin polling (cached)
 - `GET /api/admin/extraction-stats` - PDF extraction statistics (5-min cache)
+- `POST /api/admin/generate-summaries` - Trigger AI impact summary generation
+- `GET /api/admin/summary-stats` - AI impact summary coverage statistics
 
 ## Extraction Algorithm Details
 
