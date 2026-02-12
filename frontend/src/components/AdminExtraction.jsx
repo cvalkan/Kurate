@@ -13,6 +13,7 @@ function getAdminHeaders() {
 export function AdminExtraction() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [warmingUp, setWarmingUp] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchStats = async () => {
@@ -23,6 +24,16 @@ export function AdminExtraction() {
         headers: getAdminHeaders(),
         timeout: 60000, // 60s timeout for slow initial load
       });
+      // Check for warming_up status
+      if (res.data.warming_up) {
+        setWarmingUp(true);
+        setStats(null);
+        setLoading(false);
+        // Retry after 3 seconds
+        setTimeout(() => fetchStats(), 3000);
+        return;
+      }
+      setWarmingUp(false);
       setStats(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || err.message || "Failed to load extraction stats");
@@ -35,13 +46,16 @@ export function AdminExtraction() {
     fetchStats();
   }, []);
 
-  if (loading) {
+  if (loading || warmingUp) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           <span className="text-sm text-muted-foreground">
-            Analyzing {416} papers... This may take 10-15 seconds on first load.
+            {warmingUp 
+              ? "Warming up extraction stats cache... This only happens once after deployment."
+              : "Analyzing papers... This may take a few seconds on first load."
+            }
           </span>
         </div>
         <div className="grid grid-cols-4 gap-4">
