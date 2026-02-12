@@ -183,7 +183,7 @@ async def _run_validation_tournament(max_pairs: int, parallel: int):
             tasks = [
                 compare_papers(
                     paper_lookup[p1], paper_lookup[p2],
-                    prompt_config, abstract_only=True
+                    prompt_config, abstract_only=not paper_lookup[p1].get("full_text") or not paper_lookup[p2].get("full_text")
                 )
                 for p1, p2 in presented
             ]
