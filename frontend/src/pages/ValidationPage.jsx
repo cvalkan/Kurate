@@ -242,7 +242,7 @@ export default function ValidationPage() {
       {status && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <div className="p-3 border border-border rounded-lg" data-testid="stat-papers">
-            <div className="text-xs text-muted-foreground">H1 Papers</div>
+            <div className="text-xs text-muted-foreground">Papers</div>
             <div className="text-xl font-semibold">{status.papers_imported}</div>
             <div className="text-[10px] text-muted-foreground">{status.papers_with_full_text || 0} with full text</div>
           </div>
