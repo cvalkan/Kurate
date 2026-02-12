@@ -1,27 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import { FlaskConical, Download, Play, RotateCcw, TrendingUp, TrendingDown, Minus, AlertCircle, Users } from "lucide-react";
+import { FlaskConical, Download, Play, RotateCcw, TrendingUp, TrendingDown, Minus, AlertCircle, Users, ChevronDown } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
+function getAdminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
 
-function getAdminHeaders() {
-  return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" };
-}
+// ─── Shared Components ───────────────────────────────────────────────────────
 
 function CorrelationBadge({ value, label }) {
   const abs = Math.abs(value);
-  let color = "text-muted-foreground";
-  let bg = "bg-secondary/50";
-  if (abs >= 0.7) { color = "text-green-700"; bg = "bg-green-50"; }
-  else if (abs >= 0.4) { color = "text-amber-700"; bg = "bg-amber-50"; }
-  else if (abs >= 0.2) { color = "text-orange-700"; bg = "bg-orange-50"; }
+  const color = abs >= 0.7 ? "text-green-700" : abs >= 0.4 ? "text-amber-700" : abs >= 0.2 ? "text-orange-700" : "text-muted-foreground";
+  const bg = abs >= 0.7 ? "bg-green-50" : abs >= 0.4 ? "bg-amber-50" : abs >= 0.2 ? "bg-orange-50" : "bg-secondary/50";
   return (
-    <div className={`p-4 rounded-lg border border-border ${bg}`} data-testid={`correlation-${label.toLowerCase().replace(/[^a-z]/g, '-')}`}>
-      <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <div className={`text-2xl font-semibold font-mono ${color}`}>
-        {value >= 0 ? "+" : ""}{value.toFixed(3)}
-      </div>
+    <div className={`p-3 rounded-lg border border-border ${bg}`}>
+      <div className="text-[10px] text-muted-foreground mb-0.5">{label}</div>
+      <div className={`text-xl font-semibold font-mono ${color}`}>{value >= 0 ? "+" : ""}{value.toFixed(3)}</div>
     </div>
   );
 }
@@ -32,41 +26,216 @@ function RankDelta({ delta }) {
   return <span className="text-green-600 flex items-center gap-0.5"><TrendingUp className="h-3 w-3" /> {delta.toFixed(0)}</span>;
 }
 
-// ─── Experiment Section ──────────────────────────────────────────────────────
+// ─── Dataset Panel ───────────────────────────────────────────────────────────
 
-function ExperimentSection({ title, icon, description, correlation, interpretation, stats, children }) {
+function DatasetPanel({ ds, isAdmin }) {
+  const [status, setStatus] = useState(null);
+  const [pairwise, setPairwise] = useState(null);
+  const [irt, setIrt] = useState(null);
+  const [agreement, setAgreement] = useState(null);
+  const [expanded, setExpanded] = useState(true);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [s, p, i, a] = await Promise.all([
+        axios.get(`${API}/api/validation/status`, { params: { dataset_id: ds.dataset_id } }),
+        axios.get(`${API}/api/validation/pairwise-results`, { params: { dataset_id: ds.dataset_id } }),
+        axios.get(`${API}/api/validation/irt-results`, { params: { dataset_id: ds.dataset_id } }),
+        axios.get(`${API}/api/validation/agreement-analysis`, { params: { dataset_id: ds.dataset_id } }),
+      ]);
+      setStatus(s.data);
+      if (p.data.status === "ok") setPairwise(p.data);
+      if (i.data.status === "ok") setIrt(i.data);
+      if (a.data.status === "ok") setAgreement(a.data);
+    } catch (e) { console.error(e); }
+  }, [ds.dataset_id]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (!status?.tournament_running) return;
+    const interval = setInterval(fetchAll, 5000);
+    return () => clearInterval(interval);
+  }, [status?.tournament_running, fetchAll]);
+
+  const runTournament = async () => {
+    try {
+      await axios.post(`${API}/api/validation/run-tournament`,
+        { dataset_id: ds.dataset_id, num_matches: 500, parallel: 5 },
+        { headers: getAdminHeaders() });
+      fetchAll();
+    } catch (e) { console.error(e); }
+  };
+
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <div className="px-4 py-3 bg-secondary/20 border-b border-border">
-        <div className="flex items-center gap-2">
-          {icon}
-          <h2 className="font-heading text-base font-medium">{title}</h2>
+    <div className="border border-border rounded-lg overflow-hidden" data-testid={`dataset-${ds.dataset_id}`}>
+      {/* Header — always visible */}
+      <button className="w-full px-4 py-3 bg-secondary/20 border-b border-border flex items-center justify-between hover:bg-secondary/30 transition-colors" onClick={() => setExpanded(!expanded)}>
+        <div className="text-left">
+          <h2 className="font-heading text-base font-medium">{ds.name}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{ds.description || ds.source}</p>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">{description}</p>
-      </div>
-      <div className="p-4 space-y-4">
-        {correlation && (
-          <div className="space-y-3">
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rank Correlation</div>
-            <div className="grid grid-cols-3 gap-3">
-              <CorrelationBadge value={correlation.spearman_rho} label="Spearman ρ" />
-              <CorrelationBadge value={correlation.kendall_tau} label="Kendall τ" />
-              <CorrelationBadge value={correlation.pearson_r} label="Pearson r" />
+        <div className="flex items-center gap-4">
+          {/* Summary metrics inline */}
+          {pairwise && (
+            <div className="hidden md:flex items-center gap-3 text-xs">
+              <span className="font-mono">ρ<sub>pw</sub> = <strong className={pairwise.correlation.spearman_rho >= 0.4 ? "text-green-600" : "text-muted-foreground"}>{pairwise.correlation.spearman_rho.toFixed(2)}</strong></span>
+              <span className="font-mono">ρ<sub>irt</sub> = <strong className={irt?.correlation?.irt_score_vs_ai?.spearman_rho >= 0.4 ? "text-green-600" : "text-muted-foreground"}>{irt?.correlation?.irt_score_vs_ai?.spearman_rho?.toFixed(2) || "—"}</strong></span>
+              {agreement && <span>AI-Expert: <strong className={agreement.ai_expert.rate > 60 ? "text-green-600" : "text-amber-600"}>{agreement.ai_expert.rate}%</strong></span>}
             </div>
-          </div>
-        )}
-        {interpretation && (
-          <div className="p-3 border border-border rounded-lg bg-background text-sm text-muted-foreground">
-            {interpretation}
-          </div>
-        )}
-        {stats && (
-          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            {stats.map((s, i) => <span key={i}>{s}</span>)}
-          </div>
-        )}
-        {children}
+          )}
+          <span className="text-xs text-muted-foreground">{ds.papers} papers · {ds.matches} matches</span>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="p-4 space-y-5">
+          {/* Status row */}
+          {status && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
+              {[
+                ["Papers", status.papers_imported, `${status.papers_with_full_text} full text`],
+                ["AI Matches", status.matches_completed, `${status.coverage_pct}% coverage`],
+                ["Extraction", status.matches_with_extraction, `${status.matches_abstract_only} abstract-only`],
+                ["Avg/Paper", status.avg_matches_per_paper, `${status.min_matches_per_paper}–${status.max_matches_per_paper}`],
+                ["Tournament", status.tournament_running ? "Running" : "Complete", status.tournament_running ? `${status.tournament_progress.completed_matches}/${status.tournament_progress.total_matches}` : ""],
+              ].map(([label, val, sub], i) => (
+                <div key={i} className="p-2 border border-border/50 rounded text-xs">
+                  <div className="text-muted-foreground">{label}</div>
+                  <div className={`font-semibold ${val === "Running" ? "text-accent" : ""}`}>{val}</div>
+                  {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Progress bar */}
+          {status?.tournament_running && (
+            <div className="border border-accent/30 rounded p-3 bg-accent/5">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-3 w-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-medium">Tournament in progress</span>
+              </div>
+              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div className="h-full bg-accent transition-all" style={{ width: `${(status.tournament_progress.completed_matches / Math.max(status.tournament_progress.total_matches, 1)) * 100}%` }} />
+              </div>
+            </div>
+          )}
+
+          {isAdmin && !status?.tournament_running && status?.matches_completed === 0 && (
+            <Button size="sm" onClick={runTournament} className="gap-1.5">
+              <Play className="h-3.5 w-3.5" /> Run Tournament (500 matches)
+            </Button>
+          )}
+
+          {/* Agreement */}
+          {agreement && (
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ["Expert-Expert", agreement.expert_expert.rate, `${agreement.expert_expert.agree}/${agreement.expert_expert.total}`, agreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600"],
+                ["AI-Expert", agreement.ai_expert.rate, `${agreement.ai_expert.agree}/${agreement.ai_expert.total}`, agreement.ai_expert.rate > agreement.expert_expert.rate ? "text-green-600" : "text-amber-600"],
+                ["AI-Majority", agreement.ai_majority.rate, `${agreement.ai_majority.agree}/${agreement.ai_majority.total}`, "text-amber-600"],
+              ].map(([label, rate, sub, color], i) => (
+                <div key={i} className="p-3 border border-border rounded text-center">
+                  <div className="text-[10px] text-muted-foreground">{label}</div>
+                  <div className={`text-xl font-semibold font-mono ${color}`}>{rate}%</div>
+                  <div className="text-[10px] text-muted-foreground">{sub} pairs</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Two experiments side by side */}
+          {(pairwise || irt) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Pairwise BT */}
+              {pairwise && (
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+                    <h3 className="text-xs font-medium flex items-center gap-1.5">
+                      <Users className="h-3 w-3" /> Pairwise BT (no severity correction)
+                    </h3>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <CorrelationBadge value={pairwise.correlation.spearman_rho} label="Spearman ρ" />
+                      <CorrelationBadge value={pairwise.correlation.kendall_tau} label="Kendall τ" />
+                      <CorrelationBadge value={pairwise.correlation.pearson_r} label="Pearson r" />
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {pairwise.papers_analyzed} papers · {pairwise.human_matches_derived} human pairs · {pairwise.ai_matches} AI matches
+                    </div>
+                    <RankingTable rows={pairwise.comparison} mode="pairwise" />
+                  </div>
+                </div>
+              )}
+
+              {/* IRT Direct Score */}
+              {irt && (
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+                    <h3 className="text-xs font-medium flex items-center gap-1.5">
+                      <FlaskConical className="h-3 w-3" /> IRT Score (severity-adjusted)
+                    </h3>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <CorrelationBadge value={irt.correlation.irt_score_vs_ai.spearman_rho} label="Spearman ρ" />
+                      <CorrelationBadge value={irt.correlation.irt_score_vs_ai.kendall_tau} label="Kendall τ" />
+                      <CorrelationBadge value={irt.correlation.irt_score_vs_ai.pearson_r} label="Pearson r" />
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span>{irt.improvement.distinct_scores_raw}→{irt.improvement.distinct_scores_irt} distinct scores</span>
+                      <span>·</span>
+                      <span>Δρ = {irt.improvement.delta >= 0 ? "+" : ""}{irt.improvement.delta.toFixed(3)}</span>
+                    </div>
+                    <RankingTable rows={irt.comparison} mode="irt" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RankingTable({ rows, mode }) {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? rows : rows.slice(0, 10);
+  const isPw = mode === "pairwise";
+
+  return (
+    <div className="border border-border/50 rounded overflow-hidden">
+      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+        <table className="w-full text-[11px]">
+          <thead className="sticky top-0 bg-background">
+            <tr className="border-b border-border text-[10px]">
+              <th className="text-left px-2 py-1.5 font-medium">Paper</th>
+              <th className="text-right px-1.5 py-1.5 font-medium">{isPw ? "H Rank" : "IRT"}</th>
+              <th className="text-right px-1.5 py-1.5 font-medium">AI</th>
+              <th className="text-right px-1.5 py-1.5 font-medium">Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(r => (
+              <tr key={r.id} className="border-b border-border/20 hover:bg-secondary/10">
+                <td className="px-2 py-1 max-w-[180px] truncate" title={r.title}>{r.title}</td>
+                <td className="text-right px-1.5 py-1 font-mono">{isPw ? r.human_rank : r.irt_rank}</td>
+                <td className="text-right px-1.5 py-1 font-mono">{r.ai_rank}</td>
+                <td className="text-right px-1.5 py-1"><RankDelta delta={r.rank_delta} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+      {rows.length > 10 && (
+        <button onClick={() => setShowAll(!showAll)} className="w-full py-1.5 text-[10px] text-muted-foreground hover:bg-secondary/20 border-t border-border/50">
+          {showAll ? "Show less" : `Show all ${rows.length} papers`}
+        </button>
+      )}
     </div>
   );
 }
@@ -74,354 +243,64 @@ function ExperimentSection({ title, icon, description, correlation, interpretati
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ValidationPage() {
-  const [status, setStatus] = useState(null);
-  const [pairResults, setPairResults] = useState(null);
-  const [irtResults, setIrtResults] = useState(null);
-  const [agreementData, setAgreementData] = useState(null);
-  const [loading, setLoading] = useState({ import: false, tournament: false, reset: false });
-  const [matchCount, setMatchCount] = useState(100);
+  const [datasets, setDatasets] = useState([]);
+  const [loading, setLoading] = useState({ import: false });
   const isAdmin = !!sessionStorage.getItem("admin_token");
 
-  const fetchStatus = useCallback(async () => {
-    try { setStatus((await axios.get(`${API}/api/validation/status`)).data); } catch (e) { console.error(e); }
-  }, []);
-
-  const fetchResults = useCallback(async () => {
-    try {
-      const [pair, irt, agree] = await Promise.all([
-        axios.get(`${API}/api/validation/pairwise-results`),
-        axios.get(`${API}/api/validation/irt-results`),
-        axios.get(`${API}/api/validation/agreement-analysis`),
-      ]);
-      if (pair.data.status === "ok") setPairResults(pair.data);
-      if (irt.data.status === "ok") setIrtResults(irt.data);
-      if (agree.data.status === "ok") setAgreementData(agree.data);
-    } catch (e) { console.error(e); }
-  }, []);
-
-  useEffect(() => { fetchStatus(); fetchResults(); }, [fetchStatus, fetchResults]);
-
-  useEffect(() => {
-    if (!status?.tournament_running) return;
-    const interval = setInterval(() => { fetchStatus(); fetchResults(); }, 5000);
-    return () => clearInterval(interval);
-  }, [status?.tournament_running, fetchStatus, fetchResults]);
-
-  const importPapers = async () => {
-    setLoading(l => ({ ...l, import: true }));
-    try { await axios.post(`${API}/api/validation/import`, {}, { headers: getAdminHeaders() }); fetchStatus(); }
+  const fetchDatasets = useCallback(async () => {
+    try { setDatasets((await axios.get(`${API}/api/validation/datasets`)).data.datasets || []); }
     catch (e) { console.error(e); }
-    finally { setLoading(l => ({ ...l, import: false })); }
-  };
+  }, []);
 
-  const runTournament = async () => {
-    setLoading(l => ({ ...l, tournament: true }));
-    try {
-      await axios.post(`${API}/api/validation/run-tournament`, { num_matches: matchCount, parallel: 3 }, { headers: getAdminHeaders() });
-      fetchStatus();
-    } catch (e) { console.error(e); }
-    finally { setLoading(l => ({ ...l, tournament: false })); }
-  };
-
-  const resetAll = async () => {
-    if (!window.confirm("Delete all validation papers and matches?")) return;
-    setLoading(l => ({ ...l, reset: true }));
-    try {
-      await axios.post(`${API}/api/validation/reset`, {}, { headers: getAdminHeaders() });
-      setAvgResults(null); setPairResults(null); setIrtResults(null); fetchStatus();
-    } catch (e) { console.error(e); }
-    finally { setLoading(l => ({ ...l, reset: false })); }
-  };
+  useEffect(() => { fetchDatasets(); const i = setInterval(fetchDatasets, 15000); return () => clearInterval(i); }, [fetchDatasets]);
 
   return (
-    <div className="container mx-auto px-4 md:px-6 max-w-5xl py-6 md:py-10">
-      {/* Header */}
-      <div className="mb-8">
+    <div className="container mx-auto px-4 md:px-6 max-w-6xl py-6 md:py-10">
+      <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <FlaskConical className="h-5 w-5 text-accent" />
           <h1 className="font-heading text-2xl font-semibold" data-testid="validation-title">Human vs AI Validation</h1>
         </div>
-        <p className="text-sm text-muted-foreground max-w-2xl">
-          Does PaperSumo's AI tournament agree with human experts? We import {status?.papers_imported || 73} ICLR
-          papers with peer review scores from OpenReview and compare AI pairwise rankings against expert reviewer judgments
-          using full-text extraction.
+        <p className="text-sm text-muted-foreground max-w-3xl">
+          Does PaperSumo's AI tournament agree with human peer reviewers? Each dataset below imports real papers with
+          reviewer scores, runs an independent AI tournament using full-text extraction, and measures rank correlation.
         </p>
       </div>
 
-      {/* Status cards */}
-      {status && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <div className="p-3 border border-border rounded-lg" data-testid="stat-papers">
-            <div className="text-xs text-muted-foreground">Papers</div>
-            <div className="text-xl font-semibold">{status.papers_imported}</div>
-            <div className="text-[10px] text-muted-foreground">{status.papers_with_full_text || 0} with full text</div>
-          </div>
-          <div className="p-3 border border-border rounded-lg" data-testid="stat-matches">
-            <div className="text-xs text-muted-foreground">AI Matches</div>
-            <div className="text-xl font-semibold">{status.matches_completed}</div>
-            <div className="text-[10px] text-muted-foreground">{status.coverage_pct}% of {status.total_possible_pairs} pairs</div>
-          </div>
-          <div className="p-3 border border-border rounded-lg" data-testid="stat-extraction">
-            <div className="text-xs text-muted-foreground">Full Text Used</div>
-            <div className="text-xl font-semibold">{status.matches_with_extraction || 0}</div>
-            <div className="text-[10px] text-muted-foreground">{status.matches_abstract_only || 0} abstract-only</div>
-          </div>
-          <div className="p-3 border border-border rounded-lg" data-testid="stat-avg-matches">
-            <div className="text-xs text-muted-foreground">Avg/Paper</div>
-            <div className="text-xl font-semibold">{status.avg_matches_per_paper}</div>
-            <div className="text-[10px] text-muted-foreground">min {status.min_matches_per_paper} / max {status.max_matches_per_paper}</div>
-          </div>
-          <div className="p-3 border border-border rounded-lg" data-testid="stat-tournament">
-            <div className="text-xs text-muted-foreground">Tournament</div>
-            <div className="text-xl font-semibold">
-              {status.tournament_running ? <span className="text-accent">Running</span>
-                : status.matches_completed > 0 ? "Complete" : "Not started"}
-            </div>
-            {status.tournament_running && (
-              <div className="text-[10px] text-muted-foreground">
-                {status.tournament_progress.completed_matches}/{status.tournament_progress.total_matches}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Admin controls */}
+      {/* Admin import controls */}
       {isAdmin && (
-        <div className="border border-border rounded-lg p-4 mb-6 bg-secondary/10" data-testid="admin-controls">
-          <h3 className="text-sm font-medium mb-3">Controls</h3>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button size="sm" variant="outline" onClick={importPapers} disabled={loading.import} className="gap-1.5" data-testid="btn-import">
-              <Download className="h-3.5 w-3.5" /> {loading.import ? "Importing..." : "Import H1 Papers"}
-            </Button>
-            <div className="flex items-center gap-1.5">
-              <input type="number" min={10} max={500} value={matchCount}
-                onChange={e => setMatchCount(Math.min(500, Math.max(10, Number(e.target.value))))}
-                className="w-16 h-8 text-xs border border-border rounded px-2 bg-background" data-testid="input-match-count" />
-              <Button size="sm" onClick={runTournament}
-                disabled={loading.tournament || status?.tournament_running || !status?.papers_imported}
-                className="gap-1.5" data-testid="btn-run-tournament">
-                <Play className="h-3.5 w-3.5" /> {status?.tournament_running ? "Running..." : "Run Tournament"}
-              </Button>
-            </div>
-            <Button size="sm" variant="ghost" onClick={resetAll} disabled={loading.reset || status?.tournament_running}
-              className="gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 ml-auto" data-testid="btn-reset">
-              <RotateCcw className="h-3.5 w-3.5" /> Reset
+        <div className="border border-border rounded-lg p-3 mb-6 bg-secondary/10" data-testid="admin-controls">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Admin:</span>
+            Import datasets via API POST /api/validation/import-iclr
+            <Button size="sm" variant="ghost" className="ml-auto text-xs gap-1" onClick={fetchDatasets}>
+              <RotateCcw className="h-3 w-3" /> Refresh
             </Button>
           </div>
         </div>
       )}
 
-      {/* Tournament progress */}
-      {status?.tournament_running && (
-        <div className="border border-accent/30 rounded-lg p-4 mb-6 bg-accent/5">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-4 w-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm font-medium">Tournament in progress</span>
-          </div>
-          <div className="h-2 bg-secondary rounded-full overflow-hidden">
-            <div className="h-full bg-accent transition-all duration-500"
-              style={{ width: `${(status.tournament_progress.completed_matches / Math.max(status.tournament_progress.total_matches, 1)) * 100}%` }} />
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {status.tournament_progress.completed_matches} / {status.tournament_progress.total_matches} matches
-          </div>
-        </div>
-      )}
-
-      {/* No data */}
-      {!pairResults && !irtResults && !status?.tournament_running && (
-        <div className="border border-border rounded-lg p-8 text-center mb-6">
+      {datasets.length === 0 ? (
+        <div className="border border-border rounded-lg p-8 text-center">
           <AlertCircle className="h-8 w-8 mx-auto mb-3 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">
-            {!status?.papers_imported ? "No papers imported yet." : "No tournament results yet. Run the tournament."}
-          </p>
+          <p className="text-sm text-muted-foreground">No validation datasets yet.</p>
         </div>
-      )}
-
-      {/* ── Key Finding: Agreement Analysis ── */}
-      {agreementData && (
-        <div className="mb-6 border-2 border-accent/20 rounded-lg overflow-hidden" data-testid="agreement-analysis">
-          <div className="px-4 py-3 bg-accent/5 border-b border-accent/20">
-            <h2 className="font-heading text-base font-medium">Key Finding: AI vs Expert Agreement</h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              How does AI's pairwise agreement with human experts compare to experts' agreement with each other?
-            </p>
-          </div>
-          <div className="p-4 space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-4 rounded-lg border border-border bg-background text-center" data-testid="ee-agreement">
-                <div className="text-xs text-muted-foreground mb-1">Expert-Expert</div>
-                <div className="text-2xl font-semibold font-mono text-red-600">{agreementData.expert_expert.rate}%</div>
-                <div className="text-[10px] text-muted-foreground">{agreementData.expert_expert.agree}/{agreementData.expert_expert.total} pairs</div>
-              </div>
-              <div className="p-4 rounded-lg border border-border bg-background text-center" data-testid="ae-agreement">
-                <div className="text-xs text-muted-foreground mb-1">AI-Expert</div>
-                <div className={`text-2xl font-semibold font-mono ${agreementData.ai_expert.rate > agreementData.expert_expert.rate ? "text-green-600" : "text-amber-600"}`}>
-                  {agreementData.ai_expert.rate}%
-                </div>
-                <div className="text-[10px] text-muted-foreground">{agreementData.ai_expert.agree}/{agreementData.ai_expert.total} pairs</div>
-              </div>
-              <div className="p-4 rounded-lg border border-border bg-background text-center" data-testid="am-agreement">
-                <div className="text-xs text-muted-foreground mb-1">AI-Majority</div>
-                <div className="text-2xl font-semibold font-mono text-amber-600">{agreementData.ai_majority.rate}%</div>
-                <div className="text-[10px] text-muted-foreground">{agreementData.ai_majority.agree}/{agreementData.ai_majority.total} pairs</div>
-              </div>
-            </div>
-            <div className="p-3 border border-border rounded-lg bg-background text-sm text-muted-foreground">
-              {agreementData.interpretation}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Experiment 1: Pairwise BT Ranking (no IRT) ── */}
-      {pairResults && (
-        <div className="mb-6">
-          <ExperimentSection
-            title="Pairwise Ranking (no severity correction)"
-            icon={<Users className="h-4 w-4 text-accent" />}
-            description={`Derives head-to-head preferences from ${pairResults.experts_contributing} reviewers who scored multiple papers. If Reviewer A scored Paper X higher than Paper Y, that's one human match. Both human and AI sides ranked via Bradley-Terry. Pairwise extraction implicitly cancels reviewer severity bias.`}
-            correlation={pairResults.correlation}
-            interpretation={pairResults.interpretation}
-            stats={[
-              `${pairResults.papers_analyzed} papers`,
-              `${pairResults.human_matches_derived} human pairs (${pairResults.human_matches_ties_excluded} ties excluded)`,
-              `${pairResults.ai_matches} AI matches`,
-            ]}
-          >
-            <div className="border border-border rounded-lg overflow-hidden" data-testid="ranking-table-pairwise">
-              <div className="px-4 py-3 bg-secondary/30 border-b border-border">
-                <h3 className="text-sm font-medium">Human (Pairwise BT) vs AI Ranking</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Human ranking from Bradley-Terry on reviewer-derived pairwise matches. Delta = AI rank − Human rank.</p>
-              </div>
-              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-background">
-                    <tr className="border-b border-border text-xs">
-                      <th className="text-left px-3 py-2 font-medium">Paper</th>
-                      <th className="text-right px-2 py-2 font-medium">H Rank</th>
-                      <th className="text-right px-2 py-2 font-medium">H Score</th>
-                      <th className="text-right px-2 py-2 font-medium">H Win%</th>
-                      <th className="text-right px-2 py-2 font-medium">AI Rank</th>
-                      <th className="text-right px-2 py-2 font-medium">AI Score</th>
-                      <th className="text-right px-2 py-2 font-medium">AI Win%</th>
-                      <th className="text-right px-3 py-2 font-medium">Delta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pairResults.comparison.map((row) => (
-                      <tr key={row.id} className="border-b border-border/30 hover:bg-secondary/10">
-                        <td className="px-3 py-2 max-w-[250px]">
-                          <div className="truncate text-xs font-medium" title={row.title}>{row.title}</div>
-                        </td>
-                        <td className="text-right px-2 py-2 font-mono text-xs">{row.human_rank}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.human_score}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.human_win_rate}%</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs">{row.ai_rank}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_score}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_win_rate}%</td>
-                        <td className="text-right px-3 py-2 text-xs"><RankDelta delta={row.rank_delta} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </ExperimentSection>
-        </div>
-      )}
-
-      {/* ── Experiment 2: IRT Score Ranking vs AI Tournament ── */}
-      {irtResults && (
-        <div className="mb-6">
-          <ExperimentSection
-            title="IRT Direct Score Ranking (explicit severity correction)"
-            icon={<FlaskConical className="h-4 w-4 text-accent" />}
-            description={`Each reviewer's scores are z-scored against their personal mean and spread, removing severity bias. Averaged z-scores produce a continuous quality estimate per paper (${irtResults.improvement.distinct_scores_irt} distinct values vs ${irtResults.improvement.distinct_scores_raw} from raw averages). This IRT ranking is compared against the AI's Bradley-Terry tournament ranking.`}
-            correlation={irtResults.correlation.irt_score_vs_ai}
-            interpretation={irtResults.interpretation}
-            stats={[
-              `${irtResults.papers_analyzed} papers`,
-              `${irtResults.experts_analyzed} reviewers`,
-              `${irtResults.ai_matches} AI matches (full-text extraction)`,
-            ]}
-          >
-            {/* Comparison: Raw vs IRT */}
-            <div className="grid grid-cols-3 gap-3 mb-2">
-              <div className="p-3 border border-border rounded-lg bg-background text-center">
-                <div className="text-[10px] text-muted-foreground">Raw Avg vs AI</div>
-                <div className="text-lg font-mono font-semibold text-muted-foreground">{irtResults.correlation.raw_avg_vs_ai.spearman_rho.toFixed(3)}</div>
-              </div>
-              <div className="p-3 border border-border rounded-lg bg-background text-center">
-                <div className="text-[10px] text-muted-foreground">IRT Score vs AI</div>
-                <div className="text-lg font-mono font-semibold">{irtResults.correlation.irt_score_vs_ai.spearman_rho.toFixed(3)}</div>
-              </div>
-              <div className="p-3 border border-border rounded-lg bg-background text-center">
-                <div className="text-[10px] text-muted-foreground">Improvement</div>
-                <div className={`text-lg font-mono font-semibold ${irtResults.improvement.delta > 0.02 ? "text-green-600" : irtResults.improvement.delta < -0.02 ? "text-red-600" : "text-muted-foreground"}`}>
-                  {irtResults.improvement.delta >= 0 ? "+" : ""}{irtResults.improvement.delta.toFixed(3)}
-                </div>
-              </div>
-            </div>
-
-            {/* Ranking table */}
-            <div className="border border-border rounded-lg overflow-hidden" data-testid="ranking-table-irt">
-              <div className="px-4 py-3 bg-secondary/30 border-b border-border">
-                <h3 className="text-sm font-medium">Human (IRT) vs AI Ranking</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Sorted by IRT score. Delta = AI rank − IRT rank (negative = AI ranked higher).</p>
-              </div>
-              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-background">
-                    <tr className="border-b border-border text-xs">
-                      <th className="text-left px-3 py-2 font-medium">Paper</th>
-                      <th className="text-right px-2 py-2 font-medium">IRT Score</th>
-                      <th className="text-right px-2 py-2 font-medium">Raw Avg</th>
-                      <th className="text-right px-2 py-2 font-medium">IRT Rank</th>
-                      <th className="text-right px-2 py-2 font-medium">AI Rank</th>
-                      <th className="text-right px-2 py-2 font-medium">AI Score</th>
-                      <th className="text-right px-2 py-2 font-medium">AI Win%</th>
-                      <th className="text-right px-3 py-2 font-medium">Delta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {irtResults.comparison.map((row) => (
-                      <tr key={row.id} className="border-b border-border/30 hover:bg-secondary/10">
-                        <td className="px-3 py-2 max-w-[250px]">
-                          <div className="truncate text-xs font-medium" title={row.title}>{row.title}</div>
-                          <div className="text-[10px] text-muted-foreground">{row.n_ratings} reviews</div>
-                        </td>
-                        <td className="text-right px-2 py-2">
-                          <span className={`font-mono text-xs font-medium ${row.irt_score >= 0.3 ? "text-green-600" : row.irt_score <= -0.3 ? "text-red-600" : "text-muted-foreground"}`}>
-                            {row.irt_score >= 0 ? "+" : ""}{row.irt_score.toFixed(3)}
-                          </span>
-                        </td>
-                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.raw_mean.toFixed(1)}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs">{row.irt_rank}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs">{row.ai_rank}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_score}</td>
-                        <td className="text-right px-2 py-2 font-mono text-xs text-muted-foreground">{row.ai_win_rate}%</td>
-                        <td className="text-right px-3 py-2 text-xs"><RankDelta delta={row.rank_delta} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </ExperimentSection>
+      ) : (
+        <div className="space-y-4">
+          {datasets.map(ds => (
+            <DatasetPanel key={ds.dataset_id} ds={ds} isAdmin={isAdmin} />
+          ))}
         </div>
       )}
 
       {/* Methodology */}
-      <div className="border border-border rounded-lg p-4 bg-secondary/10">
+      <div className="border border-border rounded-lg p-4 mt-6 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
-        <ul className="text-xs text-muted-foreground space-y-1.5">
-          <li><strong>Data:</strong> 73 ICLR 2024-2025 LLM papers with 4+ peer reviews each, from OpenReview (berenslab/iclr-dataset). Full PDFs downloaded for section extraction.</li>
-          <li><strong>Human ranking (IRT):</strong> Each reviewer's scores are z-scored against their personal mean and std, removing severity bias. Paper quality = average z-score across reviewers. This produces a continuous scale with {irtResults?.improvement.distinct_scores_irt || "~60"} distinct values.</li>
-          <li><strong>AI ranking:</strong> Pairwise comparisons using full-text extraction (Introduction, Methodology, Results, Conclusion) with round-robin GPT-5.2, Claude Opus 4.5, Gemini 3 Pro. Ranked via Bradley-Terry + Elo.</li>
-          <li><strong>Agreement analysis:</strong> Expert-Expert = how often two reviewers agree on which paper is better. AI-Expert = how often AI agrees with an individual reviewer's pairwise preference. AI-Majority = how often AI agrees with the reviewer consensus.</li>
-          <li><strong>Spearman ρ / Kendall τ:</strong> Rank correlation between IRT score ranking and AI tournament ranking. +1 = perfect agreement.</li>
+        <ul className="text-xs text-muted-foreground space-y-1">
+          <li><strong>Data:</strong> ICLR papers with 4+ peer reviews, sourced from OpenReview (berenslab/iclr-dataset). Full PDFs downloaded for section extraction.</li>
+          <li><strong>Pairwise BT:</strong> Derives head-to-head matches from reviewers who scored multiple papers. Both sides ranked via Bradley-Terry. Implicitly cancels severity bias.</li>
+          <li><strong>IRT Score:</strong> Z-scores each reviewer's ratings against their personal mean/std, averages per paper. Explicitly removes severity bias. Produces finer-grained scores.</li>
+          <li><strong>Agreement:</strong> Expert-Expert = reviewer pairwise agreement rate. AI-Expert = AI vs individual reviewer. AI-Majority = AI vs reviewer consensus.</li>
         </ul>
       </div>
     </div>
