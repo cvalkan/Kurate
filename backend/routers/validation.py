@@ -566,6 +566,35 @@ async def get_pairwise_validation_results():
     agreements = sum(1 for pair in overlapping_pairs if human_majority[pair] == ai_pair_winners[pair])
     pairwise_agreement = round(agreements / max(len(overlapping_pairs), 1) * 100, 1)
 
+    # ── Step 6: Ranking concordance on overlapping pairs ──
+    # Does the BT ranking ORDER agree on these same pairs?
+    h_rank = {e["id"]: e["rank"] for e in human_leaderboard}
+    a_rank = {e["id"]: e["rank"] for e in ai_leaderboard}
+    concordant = 0
+    discordant = 0
+    for pair in overlapping_pairs:
+        p1, p2 = pair
+        h_order = 1 if h_rank.get(p1, 999) < h_rank.get(p2, 999) else -1
+        a_order = 1 if a_rank.get(p1, 999) < a_rank.get(p2, 999) else -1
+        if h_order == a_order:
+            concordant += 1
+        else:
+            discordant += 1
+
+    ranking_concordance = round(concordant / max(concordant + discordant, 1) * 100, 1)
+
+    # BT vs own match consistency (how often BT ranking reverses a direct win)
+    h_bt_reversals = sum(
+        1 for pair in overlapping_pairs
+        if h_rank.get(human_majority[pair], 999) > h_rank.get(
+            pair[0] if human_majority[pair] == pair[1] else pair[1], 999)
+    )
+    a_bt_reversals = sum(
+        1 for pair in overlapping_pairs
+        if a_rank.get(ai_pair_winners[pair], 999) > a_rank.get(
+            pair[0] if ai_pair_winners[pair] == pair[1] else pair[1], 999)
+    )
+
     # Model usage
     model_counts = defaultdict(int)
     for m in ai_matches:
@@ -593,8 +622,17 @@ async def get_pairwise_validation_results():
             "overlapping_pairs": len(overlapping_pairs),
             "agreements": agreements,
             "agreement_rate": pairwise_agreement,
+            "ranking_concordance": ranking_concordance,
+            "concordant_pairs": concordant,
+            "discordant_pairs": discordant,
         },
-        "interpretation": _interpret_pairwise(spearman_rho, spearman_p, pairwise_agreement, len(common_papers), len(overlapping_pairs)),
+        "bt_consistency": {
+            "human_reversals": h_bt_reversals,
+            "human_reversal_rate": round(h_bt_reversals / max(len(overlapping_pairs), 1) * 100, 1),
+            "ai_reversals": a_bt_reversals,
+            "ai_reversal_rate": round(a_bt_reversals / max(len(overlapping_pairs), 1) * 100, 1),
+        },
+        "interpretation": _interpret_pairwise(spearman_rho, spearman_p, pairwise_agreement, ranking_concordance, len(common_papers), len(overlapping_pairs)),
         "comparison": comparison,
         "expert_stats": dict(sorted(expert_stats.items(), key=lambda x: -x[1]["pairs_derived"])),
         "model_usage": dict(model_counts),
