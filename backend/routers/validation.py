@@ -190,10 +190,12 @@ async def _run_validation_tournament(max_pairs: int, parallel: int):
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             for (p1_id, p2_id), result in zip(presented, results):
+                used_extraction = bool(paper_lookup[p1_id].get("full_text") and paper_lookup[p2_id].get("full_text"))
                 match_doc = {
                     "id": str(uuid.uuid4()),
                     "paper1_id": p1_id,
                     "paper2_id": p2_id,
+                    "used_extraction": used_extraction,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
                 if isinstance(result, Exception):
