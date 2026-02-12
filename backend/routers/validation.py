@@ -479,9 +479,19 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0):
         all_model_keys = {f"{m['provider']}:{m['model']}" for m in TOURNAMENT_MODELS}
 
         # Build tasks: for each pair, run missing models
-        work = []  # (p1_id, p2_id, model_info)
+        # If max_pairs is set, only fill in up to that many pairs
+        pairs_needing_work = []
         for pair, done_keys in pair_models.items():
             missing = all_model_keys - set(done_keys)
+            if missing:
+                pairs_needing_work.append((pair, missing))
+
+        if max_pairs > 0:
+            random.shuffle(pairs_needing_work)
+            pairs_needing_work = pairs_needing_work[:max_pairs]
+
+        work = []  # (p1_id, p2_id, model_info)
+        for pair, missing in pairs_needing_work:
             for mk in missing:
                 provider, model = mk.split(":", 1)
                 mi = {"provider": provider, "model": model}
