@@ -22,6 +22,7 @@ export default function LeaderboardPage() {
   const [category, setCategory] = useState(searchParams.get("cat") || "");
   const [period, setPeriod] = useState(searchParams.get("period") || "week");
   const [loading, setLoading] = useState(true);
+  const [warmingUp, setWarmingUp] = useState(false);
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
   const [isRanking, setIsRanking] = useState(false);
