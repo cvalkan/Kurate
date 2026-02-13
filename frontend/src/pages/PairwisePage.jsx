@@ -36,6 +36,7 @@ export default function PairwisePage() {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [numPairs, setNumPairs] = useState(20);
+  const [isStarting, setIsStarting] = useState(false);
   const isAdmin = !!sessionStorage.getItem("admin_token");
 
   const fetchAll = useCallback(async () => {
@@ -46,33 +47,41 @@ export default function PairwisePage() {
       ]);
       setStatus(s.data);
       if (r.data.status === "ok") setResults(r.data);
+      // Clear starting state once backend confirms running
+      if (s.data?.fetching || s.data?.tournament_running) {
+        setIsStarting(false);
+      }
     } catch (e) { console.error(e); }
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
-    if (!status?.fetching && !status?.tournament_running) return;
-    const iv = setInterval(fetchAll, 5000);
+    // Poll faster when running or starting
+    if (!status?.fetching && !status?.tournament_running && !isStarting) return;
+    const iv = setInterval(fetchAll, isStarting ? 1000 : 2000);
     return () => clearInterval(iv);
-  }, [status?.fetching, status?.tournament_running, fetchAll]);
+  }, [status?.fetching, status?.tournament_running, isStarting, fetchAll]);
 
   const fetchAndRun = async () => {
+    setIsStarting(true);
     try {
-      toast.info(`Starting fetch & evaluation for ${numPairs} pairs...`);
       const res = await axios.post(`${API}/api/pairwise/fetch-and-run`,
         { source: "qeios", num_pairs: numPairs },
         { headers: adminHeaders() });
       if (res.data.status === "started") {
-        toast.success(`Started! Fetching ${numPairs} pairs from Qeios...`);
+        toast.success(`Started! Scanning Crossref for reviewers...`);
       } else if (res.data.status === "already_running") {
-        toast.warning("A fetch/evaluation is already running");
+        toast.warning("Already running");
+        setIsStarting(false);
       } else {
         toast.error(res.data.message || "Unknown error");
+        setIsStarting(false);
       }
       fetchAll();
     } catch (e) {
       console.error(e);
       toast.error(e.response?.data?.detail || e.message || "Failed to start");
+      setIsStarting(false);
     }
   };
 
@@ -80,6 +89,7 @@ export default function PairwisePage() {
     try {
       await axios.post(`${API}/api/pairwise/stop-tournament`, {}, { headers: adminHeaders() });
       toast.info("Stopped");
+      setIsStarting(false);
       fetchAll();
     } catch (e) {
       console.error(e);
@@ -87,7 +97,7 @@ export default function PairwisePage() {
     }
   };
 
-  const running = status?.fetching || status?.tournament_running;
+  const running = status?.fetching || status?.tournament_running || isStarting;
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-5xl py-6 md:py-10">
