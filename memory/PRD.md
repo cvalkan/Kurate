@@ -71,6 +71,7 @@ frontend/src/
 - [x] Fixed SciPost Pairwise KeyError bug (escaped curly braces in prompt template, Feb 13 2026)
 - [x] Added separate SciPost Pairwise modes: Abstract and Extract (PDF download + section extraction)
 - [x] Added “Performance by Model” chart to SciPost Pairwise results
+- [x] Added “Agreement by Score Gap” charts for SciPost Pairwise (Abstract + Extract)
 
 ## Backlog
 - [ ] (P1) Add "View Prompts" modal to Qeios Pairwise page (feature parity with SciPost)
