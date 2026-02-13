@@ -226,17 +226,20 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
                     Object.values(results.by_dimension || {}).forEach(d =>
                       Object.keys(d.by_model || {}).forEach(m => allModels.add(m))
                     );
-                    return [...allModels].map(mk => (
-                      <tr key={mk} className="border-b border-border/30">
-                        <td className="py-2 px-2 font-medium" data-testid={`pw-model-name-${mode}-${mk}`}>{shortModel(mk)}</td>
-                        {DIMENSIONS.map(dim => {
-                          const s = results.by_dimension?.[dim]?.by_model?.[mk];
-                          if (!s) return <td key={dim} className="text-center text-muted-foreground">—</td>;
-                          const clr = s.rate >= 70 ? "text-green-600" : s.rate >= 50 ? "text-amber-600" : "text-red-600";
-                          return <td key={dim} className={`text-center font-mono ${clr}`} data-testid={`pw-model-rate-${mode}-${mk}-${dim}`}>{s.rate}%</td>;
-                        })}
-                      </tr>
-                    ));
+                    return [...allModels].map(mk => {
+                      const safeMk = safeTestId(mk);
+                      return (
+                        <tr key={mk} className="border-b border-border/30">
+                          <td className="py-2 px-2 font-medium" data-testid={`pw-model-name-${mode}-${safeMk}`}>{shortModel(mk)}</td>
+                          {DIMENSIONS.map(dim => {
+                            const s = results.by_dimension?.[dim]?.by_model?.[mk];
+                            if (!s) return <td key={dim} className="text-center text-muted-foreground">—</td>;
+                            const clr = s.rate >= 70 ? "text-green-600" : s.rate >= 50 ? "text-amber-600" : "text-red-600";
+                            return <td key={dim} className={`text-center font-mono ${clr}`} data-testid={`pw-model-rate-${mode}-${safeMk}-${dim}`}>{s.rate}%</td>;
+                          })}
+                        </tr>
+                      );
+                    });
                   })()}
                 </tbody>
               </table>
