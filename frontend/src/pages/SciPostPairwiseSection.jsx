@@ -52,14 +52,14 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
   const fetchAll = useCallback(async () => {
     try {
       const [s, r] = await Promise.all([
-        axios.get(`${API}/api/scipost/pairwise/status`),
-        axios.get(`${API}/api/scipost/pairwise/results`),
+        axios.get(`${API}/api/scipost/${pairwisePath}/status`),
+        axios.get(`${API}/api/scipost/${pairwisePath}/results`),
       ]);
       setStatus(s.data);
       if (r.data.status === "ok") setResults(r.data);
       if (s.data?.fetching || s.data?.running) setIsStarting(false);
     } catch (e) { console.error(e); }
-  }, []);
+  }, [pairwisePath]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
