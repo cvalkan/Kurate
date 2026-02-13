@@ -191,7 +191,7 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
                 const d = results.by_dimension?.[dim];
                 if (!d) return null;
                 return (
-                  <div key={dim} className={`p-3 rounded-lg border ${DIM_COLORS[dim]}`} data-testid={`pw-dim-${dim}`}>
+                  <div key={dim} className={`p-3 rounded-lg border ${DIM_COLORS[dim]}`} data-testid={`pw-dim-${dim}-${mode}`}>
                     <div className="text-xs font-medium mb-1 capitalize">{dim}</div>
                     <div className="text-2xl font-bold font-mono">{d.majority.rate}%</div>
                     <div className="text-[10px] text-muted-foreground">
