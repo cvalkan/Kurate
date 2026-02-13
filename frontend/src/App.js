@@ -13,6 +13,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import ValidationPage from "@/pages/ValidationPage";
 import PairwisePage from "@/pages/PairwisePage";
+import SciPostPage from "@/pages/SciPostPage";
 import Navbar from "@/components/Navbar";
 
 function AppRouter() {
