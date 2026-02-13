@@ -186,19 +186,8 @@ export default function SciPostPage({ embedded = false }) {
 
   const running = status?.fetching || status?.running || isStarting;
 
-  return (
-    <div className="container mx-auto px-4 md:px-6 max-w-5xl py-6 md:py-10">
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <Beaker className="h-5 w-5 text-accent" />
-          <h1 className="font-heading text-2xl font-semibold" data-testid="scipost-title">SciPost Dimension Analysis</h1>
-        </div>
-        <p className="text-sm text-muted-foreground max-w-3xl">
-          Physics papers from SciPost with structured referee ratings.
-          AI rates each paper on <strong>validity</strong>, <strong>significance</strong>, <strong>originality</strong>, and <strong>clarity</strong> — then we compare against human referee scores.
-        </p>
-      </div>
-
+  const content = (
+    <>
       {/* Admin controls */}
       {isAdmin && (
         <div className="border border-border rounded-lg p-4 mb-6 bg-secondary/10 space-y-3" data-testid="admin-controls">
