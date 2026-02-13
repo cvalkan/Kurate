@@ -146,7 +146,7 @@ export default function ValidationHubPage() {
           {selected === "pw-qeios" && <PairwisePage embedded />}
           {selected === "pw-scipost" && <SciPostPairwiseSection />}
           {selected === "si-scipost" && <SciPostPage embedded />}
-          {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} />}
+          {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
     </div>
