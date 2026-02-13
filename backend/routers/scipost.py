@@ -174,6 +174,9 @@ async def _fetch_submission_details(session: aiohttp.ClientSession, submission_i
                         # Use earlier version's reports but current version's title/abstract
                         data["reports"] = alt_data["reports"]
                         break
+
+    if not data.get("pdf_url"):
+        data["pdf_url"] = f"https://scipost.org/submissions/{submission_id}/pdf"
     
     # Only return if we have title, abstract, and at least one report with ratings
     if data.get("title") and data.get("abstract") and data.get("reports"):
