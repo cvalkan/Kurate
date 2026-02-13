@@ -736,17 +736,45 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstrac
                 for p in results:
                     if p and p.get("reports"):
                         papers.append(p)
-                _pw_state["progress"]["papers_found"] = len(papers)
+                state["progress"]["papers_found"] = len(papers)
                 await asyncio.sleep(0.5)
 
         if len(papers) < 2:
             logger.warning("SciPost pairwise: not enough papers")
             return
 
-        _pw_state["progress"]["phase"] = "evaluating"
-        _pw_state["fetching"] = False
+        if use_extraction:
+            state["progress"]["phase"] = "extracting_pdfs"
+            extracted = 0
+            for i in range(0, len(papers), 3):
+                if not state["running"]:
+                    break
+                batch = papers[i:i + 3]
+                tasks = []
+                for paper in batch:
+                    pdf_url = paper.get("pdf_url")
+                    if pdf_url:
+                        tasks.append(download_and_extract_pdf(pdf_url))
+                    else:
+                        tasks.append(asyncio.sleep(0, result=None))
+                results = await asyncio.gather(*tasks)
+                for paper, full_text in zip(batch, results):
+                    if full_text and len(full_text) > 500:
+                        paper["full_text"] = full_text
+                        paper["categories"] = [paper.get("field", "Physics")]
+                        extracted += 1
+                state["progress"]["pdfs_done"] = extracted
+                await asyncio.sleep(0.6)
 
-        logger.info(f"SciPost pairwise: {len(papers)} papers fetched, creating pairs for {dimensions}")
+            papers = [p for p in papers if p.get("full_text")]
+            if len(papers) < 2:
+                logger.warning("SciPost pairwise extract: not enough papers with extracted text")
+                return
+
+        state["progress"]["phase"] = "evaluating"
+        state["fetching"] = False
+
+        logger.info(f"SciPost pairwise [{mode}]: {len(papers)} papers fetched, creating pairs for {dimensions}")
 
         # Phase 2: For each dimension, create pairs using combinations and evaluate
         from itertools import combinations
