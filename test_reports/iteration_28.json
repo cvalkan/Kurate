@@ -1,0 +1,122 @@
+{
+  "summary": "Iteration 28 - SciPost Dimension Analysis improvements testing. All 15 backend API tests passed. Frontend UI verified with all new features working: Referee column in samples table, View LLM Prompts modal with dimension tabs, info tooltips on section headers, and 'Why papers repeat' explanation.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "GET /api/scipost/status returns 200",
+      "Status has required fields (total_comparisons, ai_completed, ai_failed, ai_pending, by_dimension)",
+      "GET /api/scipost/results returns 200",
+      "Results returns status=ok",
+      "Results has total_comparisons > 0 (206 comparisons)",
+      "Results has 'prompts' field for View LLM Prompts feature",
+      "Prompts has 'template' key with full prompt structure",
+      "Prompts has 'dimension_tasks' for all 4 dimensions (validity, significance, originality, clarity)",
+      "Prompts has 'system' key with system prompt",
+      "Samples have 'referee' field (e.g., 'Referee_2')",
+      "Samples have 'submission_id' field",
+      "Samples have valid 'dimension' field",
+      "Same paper appears with multiple referees (explains why papers repeat)",
+      "by_dimension has stats for all 4 dimensions with close_rate, mae, total",
+      "model_overall has per-model accuracy with close_rate and total"
+    ],
+    "frontend": [
+      "SciPost page loads with title 'SciPost Dimension Analysis'",
+      "Status cards show 206 Total Comparisons, 206 AI Completed",
+      "View LLM Prompts button visible and clickable",
+      "Sample Comparisons table visible with Referee column header",
+      "Referee values display in table rows (Referee_1, Referee_2)",
+      "'Why do papers repeat?' info text visible in samples header",
+      "'Agreement by Dimension' section visible with info icon",
+      "'Model Performance (All Dimensions)' section visible with info icon",
+      "Prompt modal opens with 4 dimension tabs (validity, significance, originality, clarity)",
+      "Prompt modal shows 'Dimension Task' section",
+      "Prompt modal shows 'System Prompt' section",
+      "Prompt modal shows 'Full Prompt Sent to Model' section",
+      "Dimension tabs switch correctly when clicked",
+      "Modal closes properly with X button",
+      "Methodology section has 'Why papers repeat:' explanation",
+      "Info tooltip shows on hover over Agreement section (verified via screenshot)"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_scipost_improvements.py",
+    "/app/test_reports/pytest/scipost_improvements_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Backend correctly returns 'prompts' field with template, dimension_tasks, and system keys",
+    "Samples include 'referee' and 'submission_id' fields as required",
+    "Frontend Tooltip component implemented correctly with hover-triggered visibility",
+    "PromptModal component properly displays all prompt details with switchable dimension tabs",
+    "data-testid attributes properly implemented for key elements (view-prompts-btn, prompt-tab-*, dim-card-*, sample-row-*, referee-*)",
+    "Methodology section updated with 'Why papers repeat' explanation"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_scipost_improvements.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (16/16 UI verifications passed)"
+  },
+
+  "test_credentials": {
+    "admin_password": "papersumo2025",
+    "admin_login_endpoint": "POST /api/admin/login"
+  },
+
+  "seed_data_creation": "None - tested with existing SciPost comparison data (206 comparisons across 4 dimensions)",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 28 verified the SciPost Dimension Analysis improvements. The /api/scipost/results endpoint now returns: (1) 'prompts' field with template, dimension_tasks for all 4 dimensions, and system prompt; (2) samples include 'referee' and 'submission_id' fields. UI features verified: View LLM Prompts modal with dimension tabs, Referee column in samples table, info tooltips on section headers, 'Why papers repeat?' explanation. Currently 206 comparisons in database (may grow as background process is running).",
+
+  "verified_features": {
+    "referee_column": {
+      "status": "WORKING",
+      "description": "Referee column displays in Sample Comparisons table",
+      "sample_values": ["Referee_1", "Referee_2"]
+    },
+    "view_llm_prompts": {
+      "status": "WORKING",
+      "description": "Button opens modal with dimension tabs showing prompts used",
+      "modal_sections": ["Dimension Task", "System Prompt", "Full Prompt Sent to Model"],
+      "dimension_tabs": ["validity", "significance", "originality", "clarity"]
+    },
+    "tooltips": {
+      "status": "WORKING",
+      "description": "Info tooltips on hover next to section headers",
+      "tooltip_locations": ["Agreement by Dimension", "Model Performance (All Dimensions)", "Why do papers repeat?"]
+    },
+    "prompts_api": {
+      "status": "WORKING",
+      "endpoint": "GET /api/scipost/results",
+      "prompts_structure": {
+        "template": "Full prompt template with placeholders",
+        "dimension_tasks": "Object with tasks for validity, significance, originality, clarity",
+        "system": "You are a scientific paper reviewer. Respond only with valid JSON."
+      }
+    },
+    "methodology_explanation": {
+      "status": "WORKING",
+      "description": "Methodology section includes 'Why papers repeat' explanation"
+    }
+  }
+}
