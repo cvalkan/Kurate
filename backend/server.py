@@ -243,7 +243,7 @@ async def _prewarm_validation_cache():
                 seed_dir = Path("/app/backend/data/validation_seed")
             if seed_dir.exists():
                 logger.info("Auto-seeding validation data from bundled files...")
-                for coll_name in ["validation_datasets", "validation_papers", "validation_matches"]:
+                for coll_name in ["validation_datasets", "validation_papers", "validation_matches", "pairwise_comparisons"]:
                     path = seed_dir / f"{coll_name}.json"
                     if path.exists():
                         with open(path) as f:
