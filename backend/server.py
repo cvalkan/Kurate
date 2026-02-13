@@ -130,6 +130,10 @@ async def startup():
         await db.validation_matches.create_index("id", unique=True)
         await db.validation_matches.create_index([("completed", 1), ("failed", 1)])
         await db.validation_matches.create_index([("dataset_id", 1), ("completed", 1), ("failed", 1)])
+        # Pairwise comparison indexes
+        await db.pairwise_comparisons.create_index("id", unique=True)
+        await db.pairwise_comparisons.create_index([("reviewer", 1), ("source", 1)])
+        await db.pairwise_comparisons.create_index("domain")
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
