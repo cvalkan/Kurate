@@ -209,7 +209,7 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
               <BarChart3 className="h-4 w-4" /> Model Agreement by Dimension
             </h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" data-testid="pw-model-dim-table">
+              <table className="w-full text-xs" data-testid={`pw-model-dim-table-${mode}`}>
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left py-2 px-2">Model</th>
@@ -224,12 +224,12 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
                     );
                     return [...allModels].map(mk => (
                       <tr key={mk} className="border-b border-border/30">
-                        <td className="py-2 px-2 font-medium">{shortModel(mk)}</td>
+                        <td className="py-2 px-2 font-medium" data-testid={`pw-model-name-${mode}-${mk}`}>{shortModel(mk)}</td>
                         {DIMENSIONS.map(dim => {
                           const s = results.by_dimension?.[dim]?.by_model?.[mk];
                           if (!s) return <td key={dim} className="text-center text-muted-foreground">—</td>;
                           const clr = s.rate >= 70 ? "text-green-600" : s.rate >= 50 ? "text-amber-600" : "text-red-600";
-                          return <td key={dim} className={`text-center font-mono ${clr}`}>{s.rate}%</td>;
+                          return <td key={dim} className={`text-center font-mono ${clr}`} data-testid={`pw-model-rate-${mode}-${mk}-${dim}`}>{s.rate}%</td>;
                         })}
                       </tr>
                     ));
