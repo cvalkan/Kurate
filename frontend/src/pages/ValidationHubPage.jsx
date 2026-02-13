@@ -18,7 +18,8 @@ const STATIC_SECTIONS = [
     description: "Head-to-head: AI picks which paper is better, compared with human verdict",
     items: [
       { id: "pw-qeios", label: "Qeios" },
-      { id: "pw-scipost", label: "SciPost" },
+      { id: "pw-scipost-abstract", label: "SciPost (Abstract)" },
+      { id: "pw-scipost-extract", label: "SciPost (Extract)" },
     ],
   },
   {
@@ -73,7 +74,8 @@ export default function ValidationHubPage() {
   // Section descriptions for the content header
   const sectionMeta = {
     "pw-qeios": { title: "Pairwise — Qeios", desc: "Unbiased head-to-head: 1 pair per Qeios reviewer, 3 AI models, majority-vote agreement." },
-    "pw-scipost": { title: "Pairwise — SciPost", desc: "Per-dimension head-to-head: pairs of SciPost physics papers compared on validity, significance, originality, clarity." },
+    "pw-scipost-abstract": { title: "Pairwise — SciPost (Abstract)", desc: "Per-dimension head-to-head using abstracts only, comparing validity, significance, originality, clarity." },
+    "pw-scipost-extract": { title: "Pairwise — SciPost (Extract)", desc: "Per-dimension head-to-head using PDF-extracted sections for deeper comparisons." },
     "si-scipost": { title: "Single-item — SciPost", desc: "AI rates each paper on 4 dimensions (1-6 scale), compared against human referee ratings." },
   };
   if (activeDataset) {
@@ -144,7 +146,8 @@ export default function ValidationHubPage() {
 
           {/* Section content */}
           {selected === "pw-qeios" && <PairwisePage embedded />}
-          {selected === "pw-scipost" && <SciPostPairwiseSection />}
+          {selected === "pw-scipost-abstract" && <SciPostPairwiseSection mode="abstract" />}
+          {selected === "pw-scipost-extract" && <SciPostPairwiseSection mode="extract" />}
           {selected === "si-scipost" && <SciPostPage embedded />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
