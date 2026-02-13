@@ -40,12 +40,14 @@ function Badge({ rate, label, sub, testId }) {
   );
 }
 
-export default function SciPostPairwiseSection() {
+export default function SciPostPairwiseSection({ mode = "abstract" }) {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [numPairs, setNumPairs] = useState(8);
   const [isStarting, setIsStarting] = useState(false);
   const isAdmin = !!sessionStorage.getItem("admin_token");
+  const pairwisePath = mode === "extract" ? "pairwise-extract" : "pairwise";
+  const modeLabel = mode === "extract" ? "Extract" : "Abstract";
 
   const fetchAll = useCallback(async () => {
     try {
