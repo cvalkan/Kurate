@@ -32,7 +32,7 @@ function Badge({ rate, label, sub }) {
   );
 }
 
-export default function PairwisePage() {
+export default function PairwisePage({ embedded = false }) {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [numPairs, setNumPairs] = useState(20);
@@ -99,18 +99,8 @@ export default function PairwisePage() {
 
   const running = status?.fetching || status?.tournament_running || isStarting;
 
-  return (
-    <div className="container mx-auto px-4 md:px-6 max-w-5xl py-6 md:py-10">
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <GitCompare className="h-5 w-5 text-accent" />
-          <h1 className="font-heading text-2xl font-semibold" data-testid="pairwise-title">Pairwise Expert Comparison</h1>
-        </div>
-        <p className="text-sm text-muted-foreground max-w-3xl">
-          Unbiased head-to-head: fetch real reviewer pairs (1 per reviewer, no ties),
-          evaluate with all 3 AI models, measure agreement. No ranking — direct comparison.
-        </p>
-      </div>
+  const content = (
+    <>
 
       {/* Admin controls */}
       {isAdmin && (
@@ -308,12 +298,30 @@ export default function PairwisePage() {
       <div className="border border-border rounded-lg p-4 mt-6 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li><strong>Pair selection:</strong> For each Qeios reviewer who rated ≥2 papers, pick exactly 1 pair (no ties). One pair per reviewer ensures independence.</li>
+          <li><strong>Pair selection:</strong> For each Qeios reviewer who rated 2+ papers, pick exactly 1 pair (no ties). One pair per reviewer ensures independence.</li>
           <li><strong>Full text:</strong> Both papers fetched with full body text. AI uses section extraction where available, else abstract.</li>
           <li><strong>3-model evaluation:</strong> Every pair evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro. Presentation order randomized per model.</li>
           <li><strong>Agreement:</strong> Per-model and majority-vote agreement with human expert. Broken down by domain, score gap, and text type.</li>
         </ul>
       </div>
+    </>
+  );
+
+  if (embedded) return <div className="space-y-5">{content}</div>;
+
+  return (
+    <div className="container mx-auto px-4 md:px-6 max-w-5xl py-6 md:py-10">
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <GitCompare className="h-5 w-5 text-accent" />
+          <h1 className="font-heading text-2xl font-semibold" data-testid="pairwise-title">Pairwise Expert Comparison</h1>
+        </div>
+        <p className="text-sm text-muted-foreground max-w-3xl">
+          Unbiased head-to-head: fetch real reviewer pairs (1 per reviewer, no ties),
+          evaluate with all 3 AI models, measure agreement. No ranking — direct comparison.
+        </p>
+      </div>
+      {content}
     </div>
   );
 }
