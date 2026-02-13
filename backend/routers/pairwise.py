@@ -1,0 +1,487 @@
+"""
+Pairwise Expert Comparison — Unbiased human vs AI agreement testing.
+
+Fetches real reviewer pairs from Qeios (1 pair per reviewer, no ties),
+runs AI on the exact same pairs, and measures agreement rate.
+"""
+import asyncio
+import uuid
+import re
+import random
+import time as _time
+import requests
+from datetime import datetime, timezone
+from collections import defaultdict, Counter
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+from typing import Optional
+
+from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TOURNAMENT_MODELS
+from core.auth import verify_admin
+from services.llm import compare_papers
+
+router = APIRouter(prefix="/api/pairwise")
+
+_state = {"fetching": False, "tournament_running": False, "progress": {}}
+
+CROSSREF_HEADERS = {"User-Agent": "PaperSumo/1.0 (mailto:test@example.com)"}
+
+
+# ─── Helpers ───────────────────────────────────────────────────────────────────
+
+def _extract_qeios_page(qeios_id: str) -> dict:
+    """Extract title, abstract, full text from a Qeios page."""
+    r = requests.get(f"https://www.qeios.com/read/{qeios_id}", timeout=15)
+    html = r.text
+    result = {}
+
+    # domain_name
+    idx = html.find('"domain_name"')
+    if idx >= 0:
+        m = re.search(r':\s*"([^"]+)"', html[idx + 13:idx + 100])
+        if m:
+            result["domain"] = m.group(1)
+
+    # title
+    idx = html.find('"title"')
+    if idx >= 0:
+        m = re.search(r':\s*"((?:[^"\\]|\\.)+)"', html[idx + 7:idx + 500])
+        if m:
+            raw = m.group(1).replace('\\"', '"').replace('\\/', '/')
+            result["title"] = re.sub(r'<[^>]+>', '', raw).strip()
+
+    # abstract
+    idx = html.find('"abstract"')
+    if idx >= 0:
+        m = re.search(r':\s*"((?:[^"\\]|\\.)+)"', html[idx + 10:idx + 10000])
+        if m:
+            raw = m.group(1).replace('\\"', '"').replace('\\/', '/')
+            result["abstract"] = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', raw)).strip()
+
+    # body (full text)
+    idx = html.find('"body":')
+    if idx >= 0:
+        start = html.find('"', idx + 7)
+        if start >= 0:
+            start += 1
+            pos = start
+            while pos < len(html) and pos < start + 200000:
+                if html[pos] == '"' and html[pos - 1] != '\\':
+                    break
+                pos += 1
+            raw = html[start:pos].replace('\\"', '"').replace('\\/', '/').replace('\\n', ' ')
+            text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', raw)).strip()
+            if len(text) > 500:
+                result["full_text"] = text
+
+    return result
+
+
+def _get_review_rating(review_qeios_id: str) -> Optional[float]:
+    r = requests.get(f"https://www.qeios.com/read/{review_qeios_id}", timeout=10)
+    m = re.search(r'"borne_rating"\s*:\s*(\d+(?:\.\d+)?)', r.text)
+    return float(m.group(1)) if m else None
+
+
+# ─── Status ────────────────────────────────────────────────────────────────────
+
+@router.get("/status")
+async def get_status():
+    total = await db.pairwise_comparisons.count_documents({})
+    with_ai = await db.pairwise_comparisons.count_documents({"ai_completed": True})
+    failed = await db.pairwise_comparisons.count_documents({"ai_failed": True})
+
+    domains = {}
+    pipeline = [{"$group": {"_id": "$domain", "count": {"$sum": 1}}}]
+    async for r in db.pairwise_comparisons.aggregate(pipeline):
+        domains[r["_id"] or "Unknown"] = r["count"]
+
+    return {
+        "total_pairs": total,
+        "ai_completed": with_ai,
+        "ai_failed": failed,
+        "ai_pending": total - with_ai - failed,
+        "domains": domains,
+        "fetching": _state["fetching"],
+        "tournament_running": _state["tournament_running"],
+        "progress": _state["progress"],
+    }
+
+
+# ─── Fetch Pairs ───────────────────────────────────────────────────────────────
+
+class FetchPairsRequest(BaseModel):
+    source: str = "qeios"
+    num_pairs: int = 50
+
+
+@router.post("/fetch-pairs", dependencies=[Depends(verify_admin)])
+async def fetch_pairs(body: FetchPairsRequest):
+    if _state["fetching"]:
+        return {"status": "already_fetching"}
+
+    if body.source != "qeios":
+        return {"status": "error", "message": f"Unknown source: {body.source}"}
+
+    asyncio.create_task(_fetch_qeios_pairs(body.num_pairs))
+    return {"status": "started", "num_pairs": body.num_pairs}
+
+
+async def _fetch_qeios_pairs(num_pairs: int):
+    _state["fetching"] = True
+    _state["progress"] = {"phase": "scanning", "found": 0, "target": num_pairs}
+
+    try:
+        # Phase 1: Build reviewer→paper graph from Crossref
+        logger.info(f"Pairwise fetch: scanning Crossref for Qeios reviews...")
+        reviewer_reviews = defaultdict(list)  # reviewer -> [(paper_doi, review_doi, paper_doi)]
+        total = 0
+        cursor = "*"
+
+        for page in range(20):
+            try:
+                r = requests.get(
+                    f"https://api.crossref.org/works?filter=type:peer-review&query.publisher-name=Qeios&rows=1000&cursor={cursor}",
+                    headers=CROSSREF_HEADERS, timeout=20,
+                )
+                d = r.json()
+                items = d.get("message", {}).get("items", [])
+                cursor = d.get("message", {}).get("next-cursor", "")
+                total += len(items)
+                for item in items:
+                    paper_doi = None
+                    for ref in item.get("relation", {}).get("is-review-of", []):
+                        if ref.get("id-type") == "doi":
+                            paper_doi = ref["id"]
+                    reviewer = None
+                    for a in item.get("author", []):
+                        name = f"{a.get('given', '')} {a.get('family', '')}".strip()
+                        if name:
+                            reviewer = name
+                            break
+                    review_doi = item.get("DOI", "")
+                    if paper_doi and reviewer and review_doi:
+                        reviewer_reviews[reviewer].append((paper_doi, review_doi))
+                if not items or not cursor:
+                    break
+                _time.sleep(0.8)
+            except Exception:
+                break
+
+        # Filter to reviewers with ≥2 papers
+        eligible = {r: ps for r, ps in reviewer_reviews.items() if len(ps) >= 2}
+        logger.info(f"Pairwise fetch: {total} reviews, {len(eligible)} eligible reviewers")
+        _state["progress"]["phase"] = "fetching ratings"
+
+        # Phase 2: For each reviewer, fetch ratings for 2 papers, derive winner
+        # Already used reviewers from DB
+        existing_reviewers = set()
+        async for doc in db.pairwise_comparisons.find({}, {"_id": 0, "reviewer": 1}):
+            existing_reviewers.add(doc["reviewer"])
+
+        reviewers = list(eligible.items())
+        random.shuffle(reviewers)
+        pairs_created = 0
+
+        for reviewer, papers in reviewers:
+            if pairs_created >= num_pairs:
+                break
+            if reviewer in existing_reviewers:
+                continue
+
+            # Pick 2 random papers from this reviewer
+            random.shuffle(papers)
+            pair_papers = papers[:2]
+
+            try:
+                # Fetch ratings
+                ratings = []
+                for paper_doi, review_doi in pair_papers:
+                    rev_qid = review_doi.split("/")[-1].upper()
+                    rating = _get_review_rating(rev_qid)
+                    if rating is not None:
+                        ratings.append((paper_doi, review_doi, rating))
+                    _time.sleep(0.3)
+
+                if len(ratings) < 2:
+                    continue
+
+                # Check for tie
+                if ratings[0][2] == ratings[1][2]:
+                    continue  # Skip ties
+
+                # Determine winner
+                if ratings[0][2] > ratings[1][2]:
+                    human_winner = "paper1"
+                else:
+                    human_winner = "paper2"
+
+                # Fetch full paper data
+                paper_data = []
+                for paper_doi, review_doi, rating in ratings:
+                    qeios_id = paper_doi.split("/")[-1].upper()
+                    page = _extract_qeios_page(qeios_id)
+                    if not page.get("title") or not page.get("abstract"):
+                        break
+                    paper_data.append({
+                        "doi": paper_doi,
+                        "qeios_id": qeios_id,
+                        "title": page.get("title", ""),
+                        "abstract": page.get("abstract", ""),
+                        "full_text": page.get("full_text"),
+                        "domain": page.get("domain", "Unknown"),
+                        "rating": rating,
+                    })
+                    _time.sleep(0.4)
+
+                if len(paper_data) < 2:
+                    continue
+
+                # Use the domain of the first paper
+                domain = paper_data[0]["domain"]
+
+                doc = {
+                    "id": str(uuid.uuid4()),
+                    "source": "qeios",
+                    "reviewer": reviewer,
+                    "domain": domain,
+                    "paper1": paper_data[0],
+                    "paper2": paper_data[1],
+                    "human_winner": human_winner,
+                    "human_score1": ratings[0][2],
+                    "human_score2": ratings[1][2],
+                    "ai_completed": False,
+                    "ai_failed": False,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+
+                await db.pairwise_comparisons.update_one(
+                    {"reviewer": reviewer, "source": "qeios"},
+                    {"$set": doc}, upsert=True,
+                )
+                pairs_created += 1
+                existing_reviewers.add(reviewer)
+                _state["progress"]["found"] = pairs_created
+
+                has_ft = "FT" if paper_data[0].get("full_text") and paper_data[1].get("full_text") else "AB"
+                logger.info(f"Pairwise [{pairs_created}/{num_pairs}] {has_ft} | {domain} | {reviewer[:20]}")
+
+            except Exception as e:
+                logger.warning(f"Pairwise fetch error for {reviewer}: {e}")
+                continue
+
+        logger.info(f"Pairwise fetch complete: {pairs_created} pairs created")
+    except Exception as e:
+        logger.error(f"Pairwise fetch error: {e}")
+    finally:
+        _state["fetching"] = False
+        _state["progress"] = {"phase": "done", "found": pairs_created if 'pairs_created' in dir() else 0}
+
+
+# ─── Tournament ────────────────────────────────────────────────────────────────
+
+class RunTournamentRequest(BaseModel):
+    parallel: int = 10
+
+
+@router.post("/run-tournament", dependencies=[Depends(verify_admin)])
+async def run_tournament(body: RunTournamentRequest):
+    if _state["tournament_running"]:
+        return {"status": "already_running"}
+
+    pending = await db.pairwise_comparisons.count_documents({"ai_completed": False, "ai_failed": {"$ne": True}})
+    if pending == 0:
+        return {"status": "error", "message": "No pending pairs to evaluate"}
+
+    asyncio.create_task(_run_pairwise_tournament(min(max(body.parallel, 1), 30)))
+    return {"status": "started", "pending_pairs": pending}
+
+
+@router.post("/stop-tournament", dependencies=[Depends(verify_admin)])
+async def stop_tournament():
+    _state["tournament_running"] = False
+    return {"status": "stopped"}
+
+
+async def _run_pairwise_tournament(parallel: int):
+    _state["tournament_running"] = True
+    _state["progress"] = {"phase": "running", "completed": 0, "total": 0}
+
+    try:
+        pending = await db.pairwise_comparisons.find(
+            {"ai_completed": False, "ai_failed": {"$ne": True}},
+            {"_id": 0},
+        ).to_list(10000)
+
+        _state["progress"]["total"] = len(pending)
+        prompt_config = DEFAULT_EVALUATION_PROMPT
+        completed = 0
+
+        for i in range(0, len(pending), parallel):
+            if not _state["tournament_running"]:
+                logger.info("Pairwise tournament stopped by user")
+                break
+
+            batch = pending[i:i + parallel]
+
+            # Build paper dicts for compare_papers
+            tasks = []
+            for pair in batch:
+                p1 = pair["paper1"]
+                p2 = pair["paper2"]
+                # Randomly swap presentation order
+                if random.random() < 0.5:
+                    tasks.append((pair, p2, p1, True))  # swapped
+                else:
+                    tasks.append((pair, p1, p2, False))
+
+            coros = [
+                compare_papers(
+                    {"title": p1["title"], "abstract": p1["abstract"], "full_text": p1.get("full_text")},
+                    {"title": p2["title"], "abstract": p2["abstract"], "full_text": p2.get("full_text")},
+                    prompt_config,
+                    abstract_only=not (p1.get("full_text") and p2.get("full_text")),
+                )
+                for _, p1, p2, _ in tasks
+            ]
+            results = await asyncio.gather(*coros, return_exceptions=True)
+
+            for (pair, p1, p2, swapped), result in zip(tasks, results):
+                update = {}
+                if isinstance(result, Exception):
+                    update = {"ai_failed": True, "ai_error": str(result)[:200]}
+                else:
+                    winner_key = result.get("winner", "paper1")
+                    # Unswap if needed
+                    if swapped:
+                        ai_winner = "paper2" if winner_key == "paper1" else "paper1"
+                    else:
+                        ai_winner = winner_key
+
+                    update = {
+                        "ai_completed": True,
+                        "ai_failed": False,
+                        "ai_winner": ai_winner,
+                        "ai_reasoning": result.get("reasoning", ""),
+                        "ai_model": result.get("model_used", {}),
+                        "used_full_text": bool(p1.get("full_text") and p2.get("full_text")),
+                    }
+                    completed += 1
+
+                await db.pairwise_comparisons.update_one(
+                    {"id": pair["id"]}, {"$set": update}
+                )
+                _state["progress"]["completed"] = completed
+
+            await asyncio.sleep(0.2)
+
+        logger.info(f"Pairwise tournament: {completed}/{len(pending)} completed")
+    except Exception as e:
+        logger.error(f"Pairwise tournament error: {e}")
+    finally:
+        _state["tournament_running"] = False
+
+
+# ─── Results ───────────────────────────────────────────────────────────────────
+
+@router.get("/results")
+async def get_results():
+    pairs = await db.pairwise_comparisons.find(
+        {"ai_completed": True},
+        {"_id": 0, "id": 1, "domain": 1, "reviewer": 1, "human_winner": 1,
+         "ai_winner": 1, "human_score1": 1, "human_score2": 1,
+         "paper1.title": 1, "paper2.title": 1, "paper1.domain": 1,
+         "used_full_text": 1, "ai_model": 1},
+    ).to_list(10000)
+
+    if not pairs:
+        return {"status": "no_data", "total": 0}
+
+    # Overall agreement
+    agree = sum(1 for p in pairs if p["human_winner"] == p["ai_winner"])
+    total = len(pairs)
+
+    # By domain
+    domain_stats = defaultdict(lambda: {"agree": 0, "total": 0})
+    for p in pairs:
+        d = p.get("domain") or "Unknown"
+        domain_stats[d]["total"] += 1
+        if p["human_winner"] == p["ai_winner"]:
+            domain_stats[d]["agree"] += 1
+
+    domain_results = {
+        d: {"agree": s["agree"], "total": s["total"],
+            "rate": round(s["agree"] / max(s["total"], 1) * 100, 1)}
+        for d, s in sorted(domain_stats.items(), key=lambda x: -x[1]["total"])
+    }
+
+    # By model
+    model_stats = defaultdict(lambda: {"agree": 0, "total": 0})
+    for p in pairs:
+        mk = p.get("ai_model", {})
+        model_key = f"{mk.get('provider', '?')}:{mk.get('model', '?')}"
+        model_stats[model_key]["total"] += 1
+        if p["human_winner"] == p["ai_winner"]:
+            model_stats[model_key]["agree"] += 1
+
+    model_results = {
+        m: {"agree": s["agree"], "total": s["total"],
+            "rate": round(s["agree"] / max(s["total"], 1) * 100, 1)}
+        for m, s in sorted(model_stats.items(), key=lambda x: -x[1]["total"])
+    }
+
+    # By score gap (how different were the human scores)
+    gap_stats = defaultdict(lambda: {"agree": 0, "total": 0})
+    for p in pairs:
+        gap = abs(p["human_score1"] - p["human_score2"])
+        gap_label = f"{gap:.0f}" if gap == int(gap) else f"{gap:.1f}"
+        gap_stats[gap_label]["total"] += 1
+        if p["human_winner"] == p["ai_winner"]:
+            gap_stats[gap_label]["agree"] += 1
+
+    gap_results = {
+        g: {"agree": s["agree"], "total": s["total"],
+            "rate": round(s["agree"] / max(s["total"], 1) * 100, 1)}
+        for g, s in sorted(gap_stats.items(), key=lambda x: float(x[0]))
+    }
+
+    # Full text vs abstract
+    ft_agree = sum(1 for p in pairs if p.get("used_full_text") and p["human_winner"] == p["ai_winner"])
+    ft_total = sum(1 for p in pairs if p.get("used_full_text"))
+    ab_agree = sum(1 for p in pairs if not p.get("used_full_text") and p["human_winner"] == p["ai_winner"])
+    ab_total = sum(1 for p in pairs if not p.get("used_full_text"))
+
+    # Sample pairs for display
+    sample = [{
+        "paper1_title": p["paper1"]["title"][:60],
+        "paper2_title": p["paper2"]["title"][:60],
+        "domain": p.get("domain", "?"),
+        "human_winner": p["human_winner"],
+        "ai_winner": p["ai_winner"],
+        "agree": p["human_winner"] == p["ai_winner"],
+        "score_gap": abs(p["human_score1"] - p["human_score2"]),
+    } for p in pairs[:50]]
+
+    return {
+        "status": "ok",
+        "total_pairs": total,
+        "overall_agreement": {"agree": agree, "total": total, "rate": round(agree / max(total, 1) * 100, 1)},
+        "by_domain": domain_results,
+        "by_model": model_results,
+        "by_score_gap": gap_results,
+        "full_text_vs_abstract": {
+            "full_text": {"agree": ft_agree, "total": ft_total, "rate": round(ft_agree / max(ft_total, 1) * 100, 1)},
+            "abstract_only": {"agree": ab_agree, "total": ab_total, "rate": round(ab_agree / max(ab_total, 1) * 100, 1)},
+        },
+        "sample_pairs": sample,
+    }
+
+
+# ─── Reset ─────────────────────────────────────────────────────────────────────
+
+@router.post("/reset", dependencies=[Depends(verify_admin)])
+async def reset_pairs():
+    if _state["tournament_running"] or _state["fetching"]:
+        return {"status": "error", "message": "Cannot reset while running"}
+    r = await db.pairwise_comparisons.delete_many({})
+    return {"status": "ok", "deleted": r.deleted_count}
