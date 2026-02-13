@@ -635,11 +635,12 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list):
             random.shuffle(submission_ids)
 
             papers = []
-            need = max(num_pairs_per_dim * 4, 30)
-            for i in range(0, min(len(submission_ids), need * 2), 6):
+            # Fetch aggressively — we need many papers to create enough pairs
+            need = max(num_pairs_per_dim * 4, 60)
+            for i in range(0, min(len(submission_ids), need * 3), 8):
                 if len(papers) >= need:
                     break
-                batch = submission_ids[i:i + 6]
+                batch = submission_ids[i:i + 8]
                 tasks = [_fetch_submission_details(session, sid) for sid in batch]
                 results = await asyncio.gather(*tasks)
                 for p in results:
@@ -655,7 +656,11 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list):
         _pw_state["progress"]["phase"] = "evaluating"
         _pw_state["fetching"] = False
 
-        # Phase 2: For each dimension, create pairs and evaluate
+        logger.info(f"SciPost pairwise: {len(papers)} papers fetched, creating pairs for {dimensions}")
+
+        # Phase 2: For each dimension, create pairs using combinations and evaluate
+        from itertools import combinations
+
         for dim in dimensions:
             if not _pw_state["running"]:
                 break
@@ -673,19 +678,20 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list):
                     paper_scores.append((paper, avg))
 
             if len(paper_scores) < 2:
+                logger.warning(f"SciPost pairwise: not enough papers with {dim} ratings ({len(paper_scores)})")
                 continue
 
-            # Create pairs — each paper used at most once
-            random.shuffle(paper_scores)
-            dim_pairs = []
-            for i in range(0, len(paper_scores) - 1, 2):
-                if len(dim_pairs) >= num_pairs_per_dim:
-                    break
-                p1, s1 = paper_scores[i]
-                p2, s2 = paper_scores[i + 1]
-                if abs(s1 - s2) < 0.3:
-                    continue  # skip near-ties
-                dim_pairs.append((p1, s1, p2, s2))
+            # Generate ALL valid pairs using combinations, filter near-ties
+            all_pairs = []
+            for (p1, s1), (p2, s2) in combinations(paper_scores, 2):
+                if abs(s1 - s2) >= 0.3:  # skip near-ties
+                    all_pairs.append((p1, s1, p2, s2))
+
+            # Shuffle and take up to num_pairs_per_dim
+            random.shuffle(all_pairs)
+            dim_pairs = all_pairs[:num_pairs_per_dim]
+
+            logger.info(f"SciPost pairwise [{dim}]: {len(paper_scores)} papers -> {len(all_pairs)} valid combos -> {len(dim_pairs)} pairs selected")
 
             # Evaluate each pair with all 3 models
             task_text = DIMENSION_PW_TASKS.get(dim, f"Which paper is better on {dim}?")
