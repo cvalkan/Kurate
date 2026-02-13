@@ -346,7 +346,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
 
 // ─── Dataset Detail View ────────────────────────────────────────────────────
 
-function DatasetView({ ds, isAdmin }) {
+export function DatasetView({ ds, isAdmin }) {
   const [tab, setTab] = useState("standard");
   const hasMultiModel = true; // all datasets can have multi-model data
 
