@@ -58,11 +58,22 @@ export default function PairwisePage() {
 
   const fetchAndRun = async () => {
     try {
-      await axios.post(`${API}/api/pairwise/fetch-and-run`,
+      toast.info(`Starting fetch & evaluation for ${numPairs} pairs...`);
+      const res = await axios.post(`${API}/api/pairwise/fetch-and-run`,
         { source: "qeios", num_pairs: numPairs },
         { headers: adminHeaders() });
+      if (res.data.status === "started") {
+        toast.success(`Started! Fetching ${numPairs} pairs from Qeios...`);
+      } else if (res.data.status === "already_running") {
+        toast.warning("A fetch/evaluation is already running");
+      } else {
+        toast.error(res.data.message || "Unknown error");
+      }
       fetchAll();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      toast.error(e.response?.data?.detail || e.message || "Failed to start");
+    }
   };
 
   const stop = async () => {
