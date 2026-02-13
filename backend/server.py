@@ -79,6 +79,7 @@ app.include_router(auth_router)
 app.include_router(suggestions_router)
 app.include_router(validation_router)
 app.include_router(pairwise_router)
+app.include_router(scipost_router)
 
 app.add_middleware(
     CORSMiddleware,
