@@ -490,44 +490,51 @@ async def _fetch_and_run_qeios(num_pairs: int):
     _state["progress"] = {"phase": "scanning", "pairs_fetched": 0, "pairs_evaluated": 0, "target": num_pairs}
 
     try:
-        # Phase 1: Build reviewer graph from Crossref (still sequential due to API limits)
-        logger.info("Pairwise fetch+run: scanning Crossref...")
-        reviewer_reviews = defaultdict(list)
-        total = 0
-        cursor = "*"
+        # Phase 1: Get reviewer graph (use cache if available)
+        now = _time.time()
+        if _crossref_cache["data"] and (now - _crossref_cache["ts"]) < _crossref_cache["ttl"]:
+            logger.info("Pairwise: using cached Crossref data")
+            eligible = _crossref_cache["data"]
+        else:
+            logger.info("Pairwise fetch+run: scanning Crossref...")
+            reviewer_reviews = defaultdict(list)
+            total = 0
+            cursor = "*"
 
-        for page in range(20):
-            try:
-                r = requests.get(
-                    f"https://api.crossref.org/works?filter=type:peer-review&query.publisher-name=Qeios&rows=1000&cursor={cursor}",
-                    headers=CROSSREF_HEADERS, timeout=20,
-                )
-                d = r.json()
-                items = d.get("message", {}).get("items", [])
-                cursor = d.get("message", {}).get("next-cursor", "")
-                total += len(items)
-                for item in items:
-                    paper_doi = None
-                    for ref in item.get("relation", {}).get("is-review-of", []):
-                        if ref.get("id-type") == "doi":
-                            paper_doi = ref["id"]
-                    reviewer = None
-                    for a in item.get("author", []):
-                        name = f"{a.get('given', '')} {a.get('family', '')}".strip()
-                        if name:
-                            reviewer = name
-                            break
-                    review_doi = item.get("DOI", "")
-                    if paper_doi and reviewer and review_doi:
-                        reviewer_reviews[reviewer].append((paper_doi, review_doi))
-                if not items or not cursor:
+            for page in range(15):  # Reduced from 20
+                try:
+                    r = requests.get(
+                        f"https://api.crossref.org/works?filter=type:peer-review&query.publisher-name=Qeios&rows=1000&cursor={cursor}",
+                        headers=CROSSREF_HEADERS, timeout=20,
+                    )
+                    d = r.json()
+                    items = d.get("message", {}).get("items", [])
+                    cursor = d.get("message", {}).get("next-cursor", "")
+                    total += len(items)
+                    for item in items:
+                        paper_doi = None
+                        for ref in item.get("relation", {}).get("is-review-of", []):
+                            if ref.get("id-type") == "doi":
+                                paper_doi = ref["id"]
+                        reviewer = None
+                        for a in item.get("author", []):
+                            name = f"{a.get('given', '')} {a.get('family', '')}".strip()
+                            if name:
+                                reviewer = name
+                                break
+                        review_doi = item.get("DOI", "")
+                        if paper_doi and reviewer and review_doi:
+                            reviewer_reviews[reviewer].append((paper_doi, review_doi))
+                    if not items or not cursor:
+                        break
+                    _time.sleep(0.3)  # Reduced from 0.5
+                except Exception:
                     break
-                _time.sleep(0.5)  # Reduced from 0.8
-            except Exception:
-                break
 
-        eligible = {r: ps for r, ps in reviewer_reviews.items() if len(ps) >= 2}
-        logger.info(f"Pairwise: {total} reviews, {len(eligible)} eligible reviewers")
+            eligible = {r: ps for r, ps in reviewer_reviews.items() if len(ps) >= 2}
+            _crossref_cache["data"] = eligible
+            _crossref_cache["ts"] = now
+            logger.info(f"Pairwise: {total} reviews, {len(eligible)} eligible reviewers (cached)")
 
         # Already used reviewers
         existing_reviewers = set()
@@ -538,7 +545,7 @@ async def _fetch_and_run_qeios(num_pairs: int):
         reviewers = [(r, ps) for r, ps in eligible.items() if r not in existing_reviewers]
         random.shuffle(reviewers)
         
-        _state["progress"]["phase"] = "fetching & evaluating (parallel)"
+        _state["progress"]["phase"] = "fetching & evaluating"
         pairs_done = 0
         prompt_config = DEFAULT_EVALUATION_PROMPT
 
@@ -562,7 +569,7 @@ async def _fetch_and_run_qeios(num_pairs: int):
                 if not valid_pairs:
                     continue
                 
-                # Batch evaluate with AI (process PARALLEL_EVALS at a time)
+                # Evaluate ALL valid pairs in parallel (up to PARALLEL_EVALS at a time)
                 for j in range(0, len(valid_pairs), PARALLEL_EVALS):
                     if pairs_done >= num_pairs or not _state["tournament_running"]:
                         break
