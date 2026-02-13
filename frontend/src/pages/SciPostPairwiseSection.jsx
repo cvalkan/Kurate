@@ -241,12 +241,12 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
 
           {/* Inter-model agreement */}
           {results.inter_model && Object.keys(results.inter_model).length > 0 && (
-            <div className="border border-border rounded-lg p-4">
+            <div className="border border-border rounded-lg p-4" data-testid={`pw-inter-model-${mode}`}>
               <h2 className="text-sm font-medium mb-3">Inter-Model Agreement</h2>
               <div className="grid grid-cols-3 gap-2">
-                {Object.entries(results.inter_model).map(([k, s]) => {
+                {Object.entries(results.inter_model).map(([k, s], i) => {
                   const [m1, m2] = k.split(" vs ");
-                  return <Badge key={k} rate={s.rate} label={`${shortModel(m1)} vs ${shortModel(m2)}`} sub={`${s.agree}/${s.total}`} />;
+                  return <Badge key={k} rate={s.rate} label={`${shortModel(m1)} vs ${shortModel(m2)}`} sub={`${s.agree}/${s.total}`} testId={`pw-inter-model-badge-${mode}-${i}`} />;
                 })}
               </div>
             </div>
