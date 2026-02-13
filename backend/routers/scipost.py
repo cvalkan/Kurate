@@ -687,7 +687,7 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list):
                     "Paper 2: \"{paper2_title}\"\n{paper2_content}\n\n"
                     f"{task_text}\n\n"
                     "You MUST pick exactly one winner. Respond with JSON only:\n"
-                    "{\"winner\": \"paper1\" or \"paper2\", \"reasoning\": \"brief explanation\"}"
+                    "{{\"winner\": \"paper1\" or \"paper2\", \"reasoning\": \"brief explanation\"}}"
                 ),
             }
 
