@@ -112,16 +112,24 @@ async def _fetch_scipost_submissions(session: aiohttp.ClientSession, num_pages: 
     """Fetch list of SciPost submissions with reports."""
     submissions = []
     
-    # Fetch multiple pages of submissions
-    base_url = "https://scipost.org/submissions/"
-    specialties = ["phys-qp", "phys-sm", "phys-mp", "phys-he"]  # Quantum, Statistical, Mathematical, High Energy
+    # Fetch submissions across different categories that are likely to have reports
+    # Focus on published/accepted submissions as they have complete reports
+    urls = [
+        "https://scipost.org/submissions/?field=physics&status=published",
+        "https://scipost.org/submissions/?field=physics&status=resubmission_incoming",
+        "https://scipost.org/submissions/?specialty=phys-qp",
+        "https://scipost.org/submissions/?specialty=phys-sm",
+        "https://scipost.org/submissions/?specialty=phys-he",
+    ]
     
-    for specialty in specialties:
-        url = f"{base_url}?specialty={specialty}"
-        html = await _fetch_url(session, url)
-        sub_ids = _parse_scipost_submission_list(html)
-        submissions.extend(sub_ids)
-        await asyncio.sleep(0.3)
+    for url in urls:
+        try:
+            html = await _fetch_url(session, url)
+            sub_ids = _parse_scipost_submission_list(html)
+            submissions.extend(sub_ids)
+            await asyncio.sleep(0.3)
+        except Exception as e:
+            logger.debug(f"SciPost fetch error for {url}: {e}")
     
     return list(set(submissions))
 
