@@ -338,6 +338,212 @@ async def import_peerread_dataset(body: ImportPeerReadRequest):
 
 
 
+class ImportF1000Request(BaseModel):
+    dataset_id: str
+    name: str
+    description: str = ""
+    min_reviews: int = 2
+    max_papers: int = 80
+    start_offset: int = 0
+    scan_pages: int = 2000
+
+
+@router.post("/import-f1000", dependencies=[Depends(verify_admin)])
+async def import_f1000_dataset(body: ImportF1000Request):
+    """Import papers from F1000Research with structured peer review scores."""
+    import xml.etree.ElementTree as ET
+
+    SCORE_MAP = {"approve": 3, "approve-with-reservations": 2, "reject": 1}
+
+    # Phase 1: Collect DOIs
+    all_dois = []
+    for page in range(body.start_offset, body.start_offset + body.scan_pages, 50):
+        try:
+            r = requests.get(
+                f"https://f1000research.com/extapi/search?q=R_RP:*&rows=50&start={page}",
+                timeout=15,
+            )
+            root = ET.fromstring(r.text)
+            all_dois.extend([d.text for d in root.findall('.//doi')])
+            _time.sleep(0.4)
+        except Exception:
+            break
+
+    if not all_dois:
+        return {"status": "error", "message": "Failed to fetch DOIs from F1000Research"}
+
+    logger.info(f"F1000 import [{body.dataset_id}]: collected {len(all_dois)} DOIs, scanning...")
+
+    # Phase 2: Parse articles and collect those with good review data
+    candidates = []
+    for i, doi in enumerate(all_dois):
+        if len(candidates) >= body.max_papers * 3:
+            break
+        try:
+            r = requests.get(
+                f"https://f1000research.com/extapi/article/xml?doi={doi}",
+                timeout=15,
+            )
+            tree = ET.fromstring(r.content)
+
+            title_el = tree.find('.//article-title')
+            title = title_el.text if title_el is not None else None
+            if not title:
+                continue
+
+            # Abstract
+            abstract_el = tree.find('.//abstract')
+            abstract = ""
+            if abstract_el is not None:
+                abstract = " ".join(abstract_el.itertext()).strip()
+
+            # Authors
+            authors = []
+            for contrib in tree.findall('.//contrib[@contrib-type="author"]'):
+                sn = contrib.find('.//surname')
+                gn = contrib.find('.//given-names')
+                if sn is not None:
+                    authors.append({"name": f"{gn.text if gn is not None else ''} {sn.text}".strip()})
+
+            # Subjects
+            subjects = []
+            for s in tree.findall('.//subj-group/subj-group/subject'):
+                if s.text:
+                    subjects.append(s.text)
+
+            # Body text from JATS XML
+            body_parts = []
+            for sec in tree.findall('.//body//sec'):
+                for p in sec.findall('.//p'):
+                    text = " ".join(p.itertext()).strip()
+                    if text:
+                        body_parts.append(text)
+            full_text = " ".join(body_parts) if body_parts else None
+            if full_text and len(full_text) < 500:
+                full_text = None
+
+            # Reviews — collect all with recommendation
+            reviews = []
+            for sub in tree.findall('.//sub-article[@article-type="reviewer-report"]'):
+                for meta in sub.findall('.//custom-meta'):
+                    mn = meta.find('meta-name')
+                    mv = meta.find('meta-value')
+                    if mn is not None and 'recommend' in (mn.text or '').lower():
+                        rec = mv.text if mv is not None else None
+                        if rec and rec in SCORE_MAP:
+                            # Get reviewer name
+                            reviewer_name = "Anonymous"
+                            for c in sub.findall('.//contrib'):
+                                sn2 = c.find('.//surname')
+                                gn2 = c.find('.//given-names')
+                                if sn2 is not None:
+                                    reviewer_name = f"{gn2.text if gn2 is not None else ''} {sn2.text}".strip()
+                            reviews.append({
+                                "rating_value": float(SCORE_MAP[rec]),
+                                "rating_label": rec,
+                                "evaluator": reviewer_name,
+                                "source": "F1000Research",
+                            })
+
+            if len(reviews) >= body.min_reviews and abstract:
+                scores = [r["rating_value"] for r in reviews]
+                candidates.append({
+                    "doi": doi,
+                    "title": title,
+                    "abstract": abstract,
+                    "authors": authors,
+                    "subjects": subjects,
+                    "full_text": full_text,
+                    "reviews": reviews,
+                    "scores": scores,
+                    "avg_score": sum(scores) / len(scores),
+                    "has_reject": any(r["rating_label"] == "reject" for r in reviews),
+                    "mixed": len(set(r["rating_label"] for r in reviews)) > 1,
+                })
+
+            _time.sleep(0.6)
+        except Exception:
+            continue
+
+    if not candidates:
+        return {"status": "error", "message": "No suitable articles found"}
+
+    logger.info(f"F1000 import [{body.dataset_id}]: {len(candidates)} candidates found")
+
+    # Phase 3: Select papers with best score distribution
+    # Prioritize: papers with rejects, then mixed, then uniform
+    rejects = [c for c in candidates if c["has_reject"]]
+    mixed = [c for c in candidates if c["mixed"] and not c["has_reject"]]
+    uniform = [c for c in candidates if not c["mixed"]]
+
+    selected = []
+    # Take all rejects first (they're rare and valuable)
+    selected.extend(rejects[:body.max_papers // 3])
+    # Fill with mixed reviews
+    remaining = body.max_papers - len(selected)
+    selected.extend(mixed[:remaining * 2 // 3])
+    # Fill rest with uniform
+    remaining = body.max_papers - len(selected)
+    selected.extend(uniform[:remaining])
+    selected = selected[:body.max_papers]
+
+    # Phase 4: Import to DB
+    imported = 0
+    texts = 0
+    for p in selected:
+        doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": body.dataset_id,
+            "title": p["title"],
+            "abstract": p["abstract"],
+            "authors": p["authors"],
+            "f1000_doi": p["doi"],
+            "subjects": p["subjects"],
+            "h1_avg_rating": float(p["avg_score"]),
+            "h1_rating_count": len(p["reviews"]),
+            "evaluations": p["reviews"],
+            "scores": p["scores"],
+            "source": "f1000research",
+            "full_text": p["full_text"],
+        }
+        await db.validation_papers.update_one(
+            {"dataset_id": body.dataset_id, "f1000_doi": p["doi"]},
+            {"$set": doc}, upsert=True,
+        )
+        imported += 1
+        if p["full_text"]:
+            texts += 1
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": body.dataset_id},
+        {"$set": {
+            "dataset_id": body.dataset_id,
+            "name": body.name,
+            "description": body.description,
+            "source": "F1000Research",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+    score_dist = {"approve": 0, "approve-with-reservations": 0, "reject": 0}
+    for p in selected:
+        for r in p["reviews"]:
+            score_dist[r["rating_label"]] = score_dist.get(r["rating_label"], 0) + 1
+
+    return {
+        "status": "ok",
+        "dataset_id": body.dataset_id,
+        "imported": imported,
+        "with_full_text": texts,
+        "total_candidates": len(candidates),
+        "score_distribution": score_dist,
+        "papers_with_reject": sum(1 for p in selected if p["has_reject"]),
+        "papers_with_mixed": sum(1 for p in selected if p["mixed"]),
+    }
+
+
+
 # ─── Tournament ────────────────────────────────────────────────────────────────
 
 class TournamentRequest(BaseModel):
