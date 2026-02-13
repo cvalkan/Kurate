@@ -12,6 +12,11 @@ const API = process.env.REACT_APP_BACKEND_URL;
 function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
 
 const DIMENSIONS = ["validity", "significance", "originality", "clarity"];
+const GAP_LABELS = [
+  { key: "small", label: "Small (≤1.0)" },
+  { key: "medium", label: "Medium (1.0–2.0)" },
+  { key: "large", label: "Large (>2.0)" },
+];
 const DIM_COLORS = {
   validity: "text-blue-600 bg-blue-50 border-blue-200",
   significance: "text-purple-600 bg-purple-50 border-purple-200",
@@ -30,6 +35,29 @@ function shortModel(mk) {
 
 function safeTestId(value) {
   return value ? value.replace(/[^a-z0-9-]/gi, "-") : "unknown";
+}
+
+function aggregateGapStats(results) {
+  const totals = {
+    small: { agree: 0, total: 0 },
+    medium: { agree: 0, total: 0 },
+    large: { agree: 0, total: 0 },
+  };
+  Object.values(results?.by_dimension || {}).forEach(dim => {
+    const gaps = dim.by_gap || {};
+    Object.keys(totals).forEach(k => {
+      if (gaps[k]) {
+        totals[k].agree += gaps[k].agree || 0;
+        totals[k].total += gaps[k].total || 0;
+      }
+    });
+  });
+  Object.keys(totals).forEach(k => {
+    const t = totals[k].total || 0;
+    const a = totals[k].agree || 0;
+    totals[k].rate = t ? Math.round((a / t) * 1000) / 10 : 0;
+  });
+  return totals;
 }
 
 function Badge({ rate, label, sub, testId }) {
@@ -102,6 +130,9 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
   };
 
   const running = status?.fetching || status?.running || isStarting;
+
+  const gapStats = results ? aggregateGapStats(results) : null;
+  const hasGapData = gapStats && Object.values(gapStats).some(g => g.total > 0);
 
   return (
     <div className="space-y-5">
@@ -185,6 +216,32 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
                       </div>
                     </div>
                   ))}
+              </div>
+            </div>
+          )}
+
+          {/* Agreement by score gap */}
+          {hasGapData && (
+            <div className="border border-border rounded-lg p-4" data-testid={`pw-gap-chart-${mode}`}>
+              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                <BarChart3 className="h-4 w-4" /> Agreement by Score Gap ({modeLabel})
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {GAP_LABELS.map((gap, i) => {
+                  const g = gapStats[gap.key];
+                  return (
+                    <div key={gap.key} className="border border-border/60 rounded-lg p-3" data-testid={`pw-gap-card-${mode}-${gap.key}`}>
+                      <div className="text-xs font-medium mb-1">{gap.label}</div>
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-2">
+                        <span>{g.agree}/{g.total} pairs</span>
+                        <span className="font-mono">{g.rate}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-secondary/40 overflow-hidden" data-testid={`pw-gap-bar-${mode}-${i}`}>
+                        <div className="h-full bg-accent/70" style={{ width: `${g.rate}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
