@@ -68,16 +68,24 @@ def _parse_scipost_submission(html: str, submission_id: str) -> dict:
 
     # Extract PDF URL if available
     pdf_url = None
-    pdf_patterns = [
-        r'href="([^"]+\.pdf)"',
-        r'href="(/submissions/[^"]+/pdf)"',
-        r'href="(/downloads/[^"]+\.pdf)"',
-    ]
-    for pat in pdf_patterns:
-        match = re.search(pat, html, re.IGNORECASE)
-        if match:
-            pdf_url = match.group(1)
-            break
+
+    meta_match = re.search(r'citation_pdf_url"\s+content="([^"]+)"', html, re.IGNORECASE)
+    if meta_match:
+        pdf_url = meta_match.group(1)
+
+    if not pdf_url:
+        pdf_patterns = [
+            r'href="([^"]+\.pdf)"',
+            r'href="(/submissions/[^"]+/pdf)"',
+            r'href="(/preprints/[^"]+/)"',
+            r'href="(/downloads/[^"]+\.pdf)"',
+        ]
+        for pat in pdf_patterns:
+            match = re.search(pat, html, re.IGNORECASE)
+            if match:
+                pdf_url = match.group(1)
+                break
+
     if pdf_url:
         if pdf_url.startswith("/"):
             pdf_url = f"https://scipost.org{pdf_url}"
