@@ -390,6 +390,7 @@ function DatasetView({ ds, isAdmin }) {
 export default function ValidationPage() {
   const [datasets, setDatasets] = useState([]);
   const [selected, setSelected] = useState(null);
+  const initializedRef = useRef(false);
   const isAdmin = !!sessionStorage.getItem("admin_token");
 
   const fetchDatasets = useCallback(async () => {
@@ -397,7 +398,10 @@ export default function ValidationPage() {
       const r = await axios.get(`${API}/api/validation/datasets`);
       const ds = r.data.datasets || [];
       setDatasets(ds);
-      if (!selected && ds.length) setSelected(ds[0].dataset_id);
+      if (!initializedRef.current && ds.length) {
+        setSelected(ds[0].dataset_id);
+        initializedRef.current = true;
+      }
     } catch (e) { console.error(e); }
   }, []);
 
