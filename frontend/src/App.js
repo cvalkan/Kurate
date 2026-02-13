@@ -31,6 +31,7 @@ function AppRouter() {
           <Route path="/correlation" element={<CorrelationPage />} />
           <Route path="/methodology" element={<MethodologyPage />} />
           <Route path="/validation" element={<ValidationPage />} />
+          <Route path="/pairwise" element={<PairwisePage />} />
           <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/paper/:id" element={<PaperPage />} />
           <Route path="/admin" element={<AdminLoginPage />} />
