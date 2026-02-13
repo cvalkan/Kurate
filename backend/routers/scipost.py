@@ -616,44 +616,88 @@ class PairwiseFetchRequest(BaseModel):
 
 @router.post("/pairwise/fetch-and-run", dependencies=[Depends(verify_admin)])
 async def pw_fetch_and_run(body: PairwiseFetchRequest):
-    if _pw_state["fetching"] or _pw_state["running"]:
-        return {"status": "already_running"}
-    valid_dims = [d for d in body.dimensions if d in DIMENSIONS]
-    if not valid_dims:
-        return {"status": "error", "message": "Invalid dimensions"}
-    asyncio.create_task(_pw_run(body.num_pairs_per_dim, valid_dims))
-    return {"status": "started", "num_pairs_per_dim": body.num_pairs_per_dim, "dimensions": valid_dims}
+    return await _pw_start(body, mode="abstract")
+
+
+@router.post("/pairwise-extract/fetch-and-run", dependencies=[Depends(verify_admin)])
+async def pw_fetch_and_run_extract(body: PairwiseFetchRequest):
+    return await _pw_start(body, mode="extract")
 
 
 @router.get("/pairwise/status")
 async def pw_status():
-    total = await db.scipost_pairwise.count_documents({})
-    completed = await db.scipost_pairwise.count_documents({"ai_completed": True})
-    failed = await db.scipost_pairwise.count_documents({"ai_failed": True})
-    dim_counts = {}
-    async for r in db.scipost_pairwise.aggregate([{"$group": {"_id": "$dimension", "count": {"$sum": 1}}}]):
-        dim_counts[r["_id"]] = r["count"]
-    return {
-        "total_pairs": total, "ai_completed": completed, "ai_failed": failed,
-        "ai_pending": total - completed - failed, "by_dimension": dim_counts,
-        "fetching": _pw_state["fetching"], "running": _pw_state["running"],
-        "progress": _pw_state["progress"],
-    }
+    return await _pw_status(mode="abstract")
+
+
+@router.get("/pairwise-extract/status")
+async def pw_status_extract():
+    return await _pw_status(mode="extract")
 
 
 @router.post("/pairwise/stop", dependencies=[Depends(verify_admin)])
 async def pw_stop():
-    _pw_state["running"] = False
-    _pw_state["fetching"] = False
-    return {"status": "stopped"}
+    return await _pw_stop(mode="abstract")
+
+
+@router.post("/pairwise-extract/stop", dependencies=[Depends(verify_admin)])
+async def pw_stop_extract():
+    return await _pw_stop(mode="extract")
 
 
 @router.post("/pairwise/reset", dependencies=[Depends(verify_admin)])
 async def pw_reset():
-    if _pw_state["running"] or _pw_state["fetching"]:
+    return await _pw_reset(mode="abstract")
+
+
+@router.post("/pairwise-extract/reset", dependencies=[Depends(verify_admin)])
+async def pw_reset_extract():
+    return await _pw_reset(mode="extract")
+
+
+async def _pw_start(body: PairwiseFetchRequest, mode: str = "abstract"):
+    ctx = _get_pw_context(mode)
+    state = ctx["state"]
+    if state["fetching"] or state["running"]:
+        return {"status": "already_running"}
+    valid_dims = [d for d in body.dimensions if d in DIMENSIONS]
+    if not valid_dims:
+        return {"status": "error", "message": "Invalid dimensions"}
+    asyncio.create_task(_pw_run(body.num_pairs_per_dim, valid_dims, mode))
+    return {"status": "started", "num_pairs_per_dim": body.num_pairs_per_dim, "dimensions": valid_dims, "mode": mode}
+
+
+async def _pw_status(mode: str = "abstract"):
+    ctx = _get_pw_context(mode)
+    collection = ctx["collection"]
+    state = ctx["state"]
+    total = await collection.count_documents({})
+    completed = await collection.count_documents({"ai_completed": True})
+    failed = await collection.count_documents({"ai_failed": True})
+    dim_counts = {}
+    async for r in collection.aggregate([{"$group": {"_id": "$dimension", "count": {"$sum": 1}}}]):
+        dim_counts[r["_id"]] = r["count"]
+    return {
+        "total_pairs": total, "ai_completed": completed, "ai_failed": failed,
+        "ai_pending": total - completed - failed, "by_dimension": dim_counts,
+        "fetching": state["fetching"], "running": state["running"],
+        "progress": state["progress"], "mode": mode,
+    }
+
+
+async def _pw_stop(mode: str = "abstract"):
+    ctx = _get_pw_context(mode)
+    ctx["state"]["running"] = False
+    ctx["state"]["fetching"] = False
+    return {"status": "stopped", "mode": mode}
+
+
+async def _pw_reset(mode: str = "abstract"):
+    ctx = _get_pw_context(mode)
+    state = ctx["state"]
+    if state["running"] or state["fetching"]:
         return {"status": "error", "message": "Cannot reset while running"}
-    r = await db.scipost_pairwise.delete_many({})
-    return {"status": "ok", "deleted": r.deleted_count}
+    r = await ctx["collection"].delete_many({})
+    return {"status": "ok", "deleted": r.deleted_count, "mode": mode}
 
 
 async def _pw_run(num_pairs_per_dim: int, dimensions: list):
