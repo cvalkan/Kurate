@@ -250,6 +250,7 @@ async def _fetch_qeios_pairs(num_pairs: int):
                     "human_winner": human_winner,
                     "human_score1": ratings[0][2],
                     "human_score2": ratings[1][2],
+                    "ai_results": {},  # model_key -> {winner, reasoning}
                     "ai_completed": False,
                     "ai_failed": False,
                     "created_at": datetime.now(timezone.utc).isoformat(),
