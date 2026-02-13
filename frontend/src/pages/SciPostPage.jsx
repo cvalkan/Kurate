@@ -420,15 +420,33 @@ export default function SciPostPage({ embedded = false }) {
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
           <li><strong>Data source:</strong> SciPost Physics — open peer review with structured referee ratings.</li>
-          <li><strong>Dimensions:</strong> Validity, Significance, Originality, Clarity (each rated 1–6 by human referees).</li>
+          <li><strong>Dimensions:</strong> Validity, Significance, Originality, Clarity (each rated 1-6 by human referees).</li>
           <li><strong>AI evaluation:</strong> Each model rates the paper on each dimension using only title + abstract.</li>
-          <li><strong>Agreement metric:</strong> "Close" = AI within ±1 of human rating. MAE = average absolute difference.</li>
-          <li><strong>Why papers repeat:</strong> Each row = 1 referee × 1 dimension. A paper with 2 referees and 4 dimensions produces 8 rows.</li>
+          <li><strong>Agreement metric:</strong> "Close" = AI within +/-1 of human rating. MAE = average absolute difference.</li>
+          <li><strong>Why papers repeat:</strong> Each row = 1 referee x 1 dimension. A paper with 2 referees and 4 dimensions produces 8 rows.</li>
         </ul>
       </div>
 
       {/* Prompt modal */}
       {showPrompts && <PromptModal prompts={results?.prompts} onClose={() => setShowPrompts(false)} />}
+    </>
+  );
+
+  if (embedded) return <div className="space-y-5">{content}</div>;
+
+  return (
+    <div className="container mx-auto px-4 md:px-6 max-w-5xl py-6 md:py-10">
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Beaker className="h-5 w-5 text-accent" />
+          <h1 className="font-heading text-2xl font-semibold" data-testid="scipost-title">SciPost Dimension Analysis</h1>
+        </div>
+        <p className="text-sm text-muted-foreground max-w-3xl">
+          Physics papers from SciPost with structured referee ratings.
+          AI rates each paper on <strong>validity</strong>, <strong>significance</strong>, <strong>originality</strong>, and <strong>clarity</strong> — then we compare against human referee scores.
+        </p>
+      </div>
+      {content}
     </div>
   );
 }
