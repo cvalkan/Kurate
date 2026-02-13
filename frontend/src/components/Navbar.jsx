@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import { Trophy, Shield, BarChart3, BookOpen, LogIn, LogOut, User, Menu, X, FlaskConical } from "lucide-react";
+import { Trophy, Shield, BarChart3, BookOpen, LogIn, LogOut, User, Menu, X, FlaskConical, GitCompare } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthModal } from "@/components/AuthModal";
 
