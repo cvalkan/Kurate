@@ -666,15 +666,22 @@ async def pw_reset_extract():
 
 
 async def _pw_start(body: PairwiseFetchRequest, mode: str = "abstract"):
-    ctx = _get_pw_context(mode)
-    state = ctx["state"]
-    if state["fetching"] or state["running"]:
+    if _pw_state["fetching"] or _pw_state["running"] or _pw_extract_state["fetching"] or _pw_extract_state["running"]:
         return {"status": "already_running"}
     valid_dims = [d for d in body.dimensions if d in DIMENSIONS]
     if not valid_dims:
         return {"status": "error", "message": "Invalid dimensions"}
-    asyncio.create_task(_pw_run(body.num_pairs_per_dim, valid_dims, mode))
-    return {"status": "started", "num_pairs_per_dim": body.num_pairs_per_dim, "dimensions": valid_dims, "mode": mode}
+
+    await db.scipost_pairwise.delete_many({})
+    await db.scipost_pairwise_extract.delete_many({})
+
+    asyncio.create_task(_pw_run_synced(body.num_pairs_per_dim, valid_dims))
+    return {
+        "status": "started",
+        "num_pairs_per_dim": body.num_pairs_per_dim,
+        "dimensions": valid_dims,
+        "mode": "synced",
+    }
 
 
 async def _pw_status(mode: str = "abstract"):
@@ -703,30 +710,29 @@ async def _pw_stop(mode: str = "abstract"):
 
 
 async def _pw_reset(mode: str = "abstract"):
-    ctx = _get_pw_context(mode)
-    state = ctx["state"]
-    if state["running"] or state["fetching"]:
+    if _pw_state["running"] or _pw_state["fetching"] or _pw_extract_state["running"] or _pw_extract_state["fetching"]:
         return {"status": "error", "message": "Cannot reset while running"}
-    r = await ctx["collection"].delete_many({})
-    return {"status": "ok", "deleted": r.deleted_count, "mode": mode}
-
-
-async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstract"):
-    ctx = _get_pw_context(mode)
-    state = ctx["state"]
-    collection = ctx["collection"]
-    use_extraction = ctx["use_extraction"]
-
-    state["fetching"] = True
-    state["running"] = True
-    state["progress"] = {
-        "phase": "scanning",
-        "papers_found": 0,
-        "pairs_done": 0,
-        "target": num_pairs_per_dim * len(dimensions),
-        "mode": mode,
-        "pdfs_done": 0,
+    r1 = await db.scipost_pairwise.delete_many({})
+    r2 = await db.scipost_pairwise_extract.delete_many({})
+    return {
+        "status": "ok",
+        "deleted": r1.deleted_count + r2.deleted_count,
+        "mode": "synced",
     }
+
+
+async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
+    for st in (_pw_state, _pw_extract_state):
+        st["fetching"] = True
+        st["running"] = True
+        st["progress"] = {
+            "phase": "scanning",
+            "papers_found": 0,
+            "pairs_done": 0,
+            "target": num_pairs_per_dim * len(dimensions),
+            "mode": "synced",
+            "pdfs_done": 0,
+        }
     pairs_done = 0
 
     try:
