@@ -138,6 +138,9 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
   console.log(`[${mode}] Results:`, results ? 'present' : 'null');
   console.log(`[${mode}] Gap stats:`, gapStats);
   console.log(`[${mode}] Has gap data:`, hasGapData);
+  
+  // Temporary: Force gap chart to show if we have results
+  const forceShowGapChart = results && results.by_dimension;
 
   return (
     <div className="space-y-5">
