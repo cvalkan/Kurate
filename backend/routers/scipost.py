@@ -927,9 +927,19 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstrac
 
 @router.get("/pairwise/results")
 async def pw_results():
-    pairs = await db.scipost_pairwise.find({"ai_completed": True}, {"_id": 0}).to_list(10000)
+    return await _pw_results(mode="abstract")
+
+
+@router.get("/pairwise-extract/results")
+async def pw_results_extract():
+    return await _pw_results(mode="extract")
+
+
+async def _pw_results(mode: str = "abstract"):
+    ctx = _get_pw_context(mode)
+    pairs = await ctx["collection"].find({"ai_completed": True}, {"_id": 0}).to_list(10000)
     if not pairs:
-        return {"status": "no_data", "total": 0}
+        return {"status": "no_data", "total": 0, "mode": mode}
 
     total = len(pairs)
     dim_stats = defaultdict(lambda: {
@@ -937,6 +947,7 @@ async def pw_results():
         "models": defaultdict(lambda: {"agree": 0, "total": 0}),
         "gaps": defaultdict(lambda: {"agree": 0, "total": 0}),
     })
+    overall_models = defaultdict(lambda: {"agree": 0, "total": 0})
 
     for p in pairs:
         dim = p.get("dimension")
@@ -944,8 +955,10 @@ async def pw_results():
         for mk, res in p.get("ai_results", {}).items():
             if res.get("winner"):
                 dim_stats[dim]["models"][mk]["total"] += 1
+                overall_models[mk]["total"] += 1
                 if res["winner"] == hw:
                     dim_stats[dim]["models"][mk]["agree"] += 1
+                    overall_models[mk]["agree"] += 1
         if p.get("ai_majority"):
             dim_stats[dim]["maj_total"] += 1
             if p["ai_majority"] == hw:
@@ -1003,9 +1016,11 @@ async def pw_results():
 
     return {
         "status": "ok",
+        "mode": mode,
         "total_pairs": total,
         "overall_majority": {"agree": overall_agree, "total": overall_total, "rate": _rate(overall_agree, overall_total)},
         "by_dimension": dim_results,
+        "by_model_overall": {mk: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for mk, v in overall_models.items()},
         "inter_model": {k: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for k, v in inter_model.items()},
         "samples": samples,
     }
