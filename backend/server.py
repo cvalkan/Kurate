@@ -196,6 +196,7 @@ async def startup():
     # Pre-warm extraction stats cache in background (expensive computation)
     import asyncio
     asyncio.create_task(_prewarm_extraction_cache())
+    asyncio.create_task(_prewarm_validation_cache())
 
     logger.info("PaperSumo Leaderboard started")
 
