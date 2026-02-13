@@ -310,12 +310,13 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
         </div>
       ) : null}
 
-      <div className="border border-border rounded-lg p-4 bg-secondary/10">
+      <div className="border border-border rounded-lg p-4 bg-secondary/10" data-testid={`pw-methodology-${mode}`}>
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
           <li><strong>Source:</strong> SciPost Physics — open peer review with structured referee ratings per dimension.</li>
           <li><strong>Pair creation:</strong> For each dimension, papers are paired randomly. The human winner is the paper with the higher average referee rating on that dimension. Near-ties are excluded.</li>
           <li><strong>AI evaluation:</strong> Each pair evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro with a dimension-specific prompt. Presentation order randomized per model.</li>
+          <li><strong>Content:</strong> {mode === "extract" ? "PDFs are downloaded and key sections are extracted (intro/method/results/conclusion)." : "Abstract-only comparison (no PDF extraction)."}</li>
           <li><strong>Agreement:</strong> Majority vote and per-model agreement with the human verdict, broken down by dimension and score gap.</li>
         </ul>
       </div>
