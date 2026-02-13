@@ -73,33 +73,20 @@ def _parse_scipost_submission(html: str, submission_id: str) -> dict:
     else:
         result["field"] = "Physics"
     
-    # Find all referee reports with ratings
-    # Reports are in <div class="report" id="report_N">...</div>
-    report_pattern = r'<div class="report" id="report_(\d+)">(.*?)</div>\s*</div>\s*</div>\s*</div>'
-    report_matches = re.findall(report_pattern, html, re.DOTALL)
+    # Find all ratings divs with their content
+    # Each ratings div belongs to the previous report div
+    ratings_blocks = re.findall(r'<div class="ratings">\s*<ul>(.*?)</ul>\s*</div>', html, re.DOTALL)
     
-    for report_num, block in report_matches:
-        report = {"report_num": int(report_num)}
+    for idx, ratings_html in enumerate(ratings_blocks):
+        report = {"report_num": idx + 1, "referee": f"Referee_{idx + 1}"}
         
-        # Extract referee name
-        referee_match = re.search(r'Report #\d+ by\s*(.*?)\s*(?:\(|on\s+\d)', block)
-        if referee_match:
-            referee = referee_match.group(1).strip()
-            report["referee"] = referee if referee and "Anonymous" not in referee else f"Anonymous_{report_num}"
-        else:
-            report["referee"] = f"Referee_{report_num}"
+        for dim in DIMENSIONS + ["formatting", "grammar"]:
+            dim_match = re.search(rf'{dim}:\s*(\w+)', ratings_html, re.I)
+            if dim_match:
+                rating_text = dim_match.group(1).lower()
+                report[dim] = RATING_SCALE.get(rating_text, 0)
         
-        # Extract ratings from the ratings div
-        ratings_match = re.search(r'<div class="ratings">(.*?)</div>', block, re.DOTALL)
-        if ratings_match:
-            ratings_html = ratings_match.group(1)
-            for dim in DIMENSIONS + ["formatting", "grammar"]:
-                dim_match = re.search(rf'{dim}:\s*(\w+)', ratings_html, re.I)
-                if dim_match:
-                    rating_text = dim_match.group(1).lower()
-                    report[dim] = RATING_SCALE.get(rating_text, 0)
-        
-        # Only include reports with at least some ratings
+        # Only include reports with at least some dimension ratings
         if any(report.get(d) for d in DIMENSIONS):
             result["reports"].append(report)
     
