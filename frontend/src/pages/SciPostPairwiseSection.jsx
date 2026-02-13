@@ -28,6 +28,10 @@ function shortModel(mk) {
   return m;
 }
 
+function safeTestId(value) {
+  return value ? value.replace(/[^a-z0-9-]/gi, "-") : "unknown";
+}
+
 function Badge({ rate, label, sub, testId }) {
   const color = rate >= 70 ? "text-green-600" : rate >= 50 ? "text-amber-600" : "text-red-600";
   const bg = rate >= 70 ? "bg-green-50" : rate >= 50 ? "bg-amber-50" : "bg-red-50";
