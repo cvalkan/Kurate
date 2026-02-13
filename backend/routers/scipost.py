@@ -700,10 +700,22 @@ async def _pw_reset(mode: str = "abstract"):
     return {"status": "ok", "deleted": r.deleted_count, "mode": mode}
 
 
-async def _pw_run(num_pairs_per_dim: int, dimensions: list):
-    _pw_state["fetching"] = True
-    _pw_state["running"] = True
-    _pw_state["progress"] = {"phase": "scanning", "papers_found": 0, "pairs_done": 0, "target": num_pairs_per_dim * len(dimensions)}
+async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstract"):
+    ctx = _get_pw_context(mode)
+    state = ctx["state"]
+    collection = ctx["collection"]
+    use_extraction = ctx["use_extraction"]
+
+    state["fetching"] = True
+    state["running"] = True
+    state["progress"] = {
+        "phase": "scanning",
+        "papers_found": 0,
+        "pairs_done": 0,
+        "target": num_pairs_per_dim * len(dimensions),
+        "mode": mode,
+        "pdfs_done": 0,
+    }
     pairs_done = 0
 
     try:
