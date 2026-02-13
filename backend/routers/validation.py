@@ -1068,6 +1068,44 @@ async def reset_dataset(body: ResetRequest):
     return {"status": "ok", "papers_deleted": p.deleted_count, "matches_deleted": m.deleted_count}
 
 
+
+# ─── Seed ──────────────────────────────────────────────────────────────────────
+
+@router.post("/seed", dependencies=[Depends(verify_admin)])
+async def seed_validation_data():
+    """Load pre-computed validation data from bundled JSON files."""
+    from pathlib import Path
+    seed_dir = Path(__file__).parent.parent / "data" / "validation_seed"
+
+    if not seed_dir.exists():
+        return {"status": "error", "message": "Seed data not found"}
+
+    results = {}
+    for coll_name in ["validation_datasets", "validation_papers", "validation_matches"]:
+        path = seed_dir / f"{coll_name}.json"
+        if not path.exists():
+            results[coll_name] = "file missing"
+            continue
+
+        with open(path) as f:
+            docs = json.load(f)
+
+        if not docs:
+            results[coll_name] = "empty"
+            continue
+
+        coll = db[coll_name]
+        existing = await coll.count_documents({})
+        if existing > 0:
+            results[coll_name] = f"skipped ({existing} docs already exist)"
+            continue
+
+        await coll.insert_many(docs)
+        results[coll_name] = f"inserted {len(docs)} docs"
+
+    return {"status": "ok", "results": results}
+
+
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
 def _interp(rho, p_val, n, method):
