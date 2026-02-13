@@ -315,7 +315,7 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
           )}
         </div>
       ) : status?.total_pairs === 0 ? (
-        <div className="border border-border rounded-lg p-8 text-center">
+        <div className="border border-border rounded-lg p-8 text-center" data-testid={`pw-empty-state-${mode}`}>
           <AlertCircle className="h-8 w-8 mx-auto mb-3 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">No pairwise comparisons yet. Use admin controls to fetch and evaluate.</p>
         </div>
