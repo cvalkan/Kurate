@@ -487,9 +487,11 @@ async def get_results():
         if ai:
             ai_dist[round(ai)] += 1
     
-    # Sample comparisons
+    # Sample comparisons — include referee and submission_id
     samples = [{
         "paper_title": c.get("paper_title", "")[:60],
+        "submission_id": c.get("submission_id", ""),
+        "referee": c.get("referee", ""),
         "dimension": c.get("dimension"),
         "human_rating": c.get("human_rating"),
         "human_label": c.get("human_rating_label"),
@@ -497,6 +499,28 @@ async def get_results():
         "ai_ratings": {k: v.get("rating") for k, v in c.get("ai_results", {}).items()},
         "field": c.get("field"),
     } for c in comparisons[:50]]
+    
+    # Dimension prompts used for AI evaluation
+    dimension_prompts = {
+        "validity": "Rate the scientific VALIDITY of this paper's methodology and conclusions. Consider: Are the methods sound? Are conclusions supported by evidence? Are there logical flaws?",
+        "significance": "Rate the SIGNIFICANCE and potential impact of this paper. Consider: Does it address an important problem? Could it influence the field? Is the contribution substantial?",
+        "originality": "Rate the ORIGINALITY of this paper. Consider: Does it present novel ideas or methods? Is it incremental or transformative? Does it open new research directions?",
+        "clarity": "Rate the CLARITY of this paper's presentation. Consider: Is it well-written? Are concepts explained clearly? Is the structure logical? Can readers follow the arguments?",
+    }
+    prompt_template = (
+        "You are a scientific referee evaluating a physics paper.\n\n"
+        "PAPER TITLE: {title}\n\nABSTRACT: {abstract}\n\n"
+        "TASK: {task}\n\n"
+        "Rate this paper's {DIMENSION} on a scale of 1-6:\n"
+        "- 6 = Top (exceptional, among the best)\n"
+        "- 5 = High (very strong)\n"
+        "- 4 = Good (solid, meets standards)\n"
+        "- 3 = OK (acceptable but has issues)\n"
+        "- 2 = Low (significant problems)\n"
+        "- 1 = Poor (major flaws)\n\n"
+        'Respond with ONLY a JSON object:\n'
+        '{"rating": <1-6>, "reasoning": "<brief explanation in 1-2 sentences>"}'
+    )
     
     return {
         "status": "ok",
@@ -509,6 +533,11 @@ async def get_results():
             "ai": dict(ai_dist),
         },
         "samples": samples,
+        "prompts": {
+            "template": prompt_template,
+            "dimension_tasks": dimension_prompts,
+            "system": "You are a scientific paper reviewer. Respond only with valid JSON.",
+        },
     }
 
 
