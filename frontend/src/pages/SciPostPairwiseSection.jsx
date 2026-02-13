@@ -148,13 +148,38 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
       {results ? (
         <div className="space-y-5">
           {/* Overall majority */}
-          <div className="border border-border rounded-lg p-4">
+          <div className="border border-border rounded-lg p-4" data-testid={`pw-overall-majority-${mode}`}>
             <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
               <Layers className="h-4 w-4" /> Overall Majority Agreement (all dimensions)
             </h2>
             <Badge rate={results.overall_majority.rate} label="Majority vs Human"
-              sub={`${results.overall_majority.agree}/${results.overall_majority.total} pairs`} />
+              sub={`${results.overall_majority.agree}/${results.overall_majority.total} pairs`}
+              testId={`pw-overall-majority-badge-${mode}`} />
           </div>
+
+          {/* Performance by model */}
+          {results.by_model_overall && Object.keys(results.by_model_overall).length > 0 && (
+            <div className="border border-border rounded-lg p-4" data-testid={`pw-performance-model-${mode}`}>
+              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                <BarChart3 className="h-4 w-4" /> Performance by Model ({modeLabel})
+              </h2>
+              <div className="space-y-3">
+                {Object.entries(results.by_model_overall)
+                  .sort((a, b) => b[1].rate - a[1].rate)
+                  .map(([mk, s], i) => (
+                    <div key={mk} className="space-y-1" data-testid={`pw-performance-row-${mode}-${i}`}>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium">{shortModel(mk)}</span>
+                        <span className="font-mono text-muted-foreground">{s.agree}/{s.total} • {s.rate}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-secondary/40 overflow-hidden" data-testid={`pw-performance-bar-${mode}-${i}`}>
+                        <div className="h-full bg-accent/70" style={{ width: `${s.rate}%` }} />
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* Per-dimension breakdown */}
           <div className="border border-border rounded-lg p-4">
