@@ -28,11 +28,11 @@ function shortModel(mk) {
   return m;
 }
 
-function Badge({ rate, label, sub }) {
+function Badge({ rate, label, sub, testId }) {
   const color = rate >= 70 ? "text-green-600" : rate >= 50 ? "text-amber-600" : "text-red-600";
   const bg = rate >= 70 ? "bg-green-50" : rate >= 50 ? "bg-amber-50" : "bg-red-50";
   return (
-    <div className={`p-3 rounded-lg border border-border ${bg} text-center`}>
+    <div className={`p-3 rounded-lg border border-border ${bg} text-center`} data-testid={testId}>
       <div className="text-[10px] text-muted-foreground mb-0.5">{label}</div>
       <div className={`text-xl font-semibold font-mono ${color}`}>{rate}%</div>
       {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
