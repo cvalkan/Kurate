@@ -99,30 +99,31 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
     <div className="space-y-5">
       {/* Admin controls */}
       {isAdmin && (
-        <div className="border border-border rounded-lg p-4 bg-secondary/10 space-y-3" data-testid="pw-scipost-admin">
+        <div className="border border-border rounded-lg p-4 bg-secondary/10 space-y-3" data-testid={`pw-scipost-admin-${mode}`}>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <label className="text-xs text-muted-foreground whitespace-nowrap">Pairs per dimension:</label>
               <Input type="number" min={3} max={30} value={numPairs}
                 onChange={e => setNumPairs(parseInt(e.target.value) || 8)}
-                className="w-20 h-8 text-xs" data-testid="pw-scipost-num-input" disabled={running} />
+                className="w-20 h-8 text-xs" data-testid={`pw-scipost-num-input-${mode}`} disabled={running} />
             </div>
             {!running ? (
-              <Button size="sm" onClick={fetchAndRun} className="gap-1.5" data-testid="pw-scipost-run-btn">
+              <Button size="sm" onClick={fetchAndRun} className="gap-1.5" data-testid={`pw-scipost-run-btn-${mode}`}>
                 <Play className="h-3.5 w-3.5" /> Fetch & Evaluate
               </Button>
             ) : (
-              <Button size="sm" variant="destructive" onClick={stop} className="gap-1.5" data-testid="pw-scipost-stop-btn">
+              <Button size="sm" variant="destructive" onClick={stop} className="gap-1.5" data-testid={`pw-scipost-stop-btn-${mode}`}>
                 <Square className="h-3.5 w-3.5" /> Stop
               </Button>
             )}
           </div>
           {running && (
-            <div className="flex items-center gap-2 text-xs bg-accent/10 rounded px-3 py-2">
+            <div className="flex items-center gap-2 text-xs bg-accent/10 rounded px-3 py-2" data-testid={`pw-scipost-progress-${mode}`}>
               <Loader2 className="h-4 w-4 animate-spin text-accent" />
               <span className="font-medium">
                 {isStarting && !status?.fetching ? "Starting..." :
                   status?.progress?.phase === "scanning" ? `Scanning SciPost... ${status?.progress?.papers_found || 0} papers found` :
+                  status?.progress?.phase === "extracting_pdfs" ? `Extracting PDFs... ${status?.progress?.pdfs_done || 0} ready` :
                   `Evaluating: ${status?.progress?.pairs_done || 0} / ${status?.progress?.target || '?'} pairs`}
               </span>
             </div>
