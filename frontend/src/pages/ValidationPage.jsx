@@ -346,7 +346,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
 
 // ─── Dataset Detail View ────────────────────────────────────────────────────
 
-export function DatasetView({ ds, isAdmin }) {
+export function DatasetView({ ds, isAdmin, hideHeader = false }) {
   const [tab, setTab] = useState("standard");
   const hasMultiModel = true; // all datasets can have multi-model data
 
@@ -357,10 +357,12 @@ export function DatasetView({ ds, isAdmin }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="font-heading text-lg font-semibold" data-testid="dataset-title">{ds.name}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">{ds.description || ds.source}</p>
-      </div>
+      {!hideHeader && (
+        <div>
+          <h2 className="font-heading text-lg font-semibold" data-testid="dataset-title">{ds.name}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{ds.description || ds.source}</p>
+        </div>
+      )}
 
       {tabs.length > 1 && (
         <div className="flex gap-1 border-b border-border">
