@@ -11,9 +11,7 @@ import AdminPage from "@/pages/AdminPage";
 import PromptsPage from "@/pages/PromptsPage";
 import AuthCallback from "@/pages/AuthCallback";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
-import ValidationPage from "@/pages/ValidationPage";
-import PairwisePage from "@/pages/PairwisePage";
-import SciPostPage from "@/pages/SciPostPage";
+import ValidationHubPage from "@/pages/ValidationHubPage";
 import Navbar from "@/components/Navbar";
 
 function AppRouter() {
@@ -31,9 +29,7 @@ function AppRouter() {
           <Route path="/" element={<LeaderboardPage />} />
           <Route path="/correlation" element={<CorrelationPage />} />
           <Route path="/methodology" element={<MethodologyPage />} />
-          <Route path="/validation" element={<ValidationPage />} />
-          <Route path="/pairwise" element={<PairwisePage />} />
-          <Route path="/scipost" element={<SciPostPage />} />
+          <Route path="/validation" element={<ValidationHubPage />} />
           <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/paper/:id" element={<PaperPage />} />
           <Route path="/admin" element={<AdminLoginPage />} />
