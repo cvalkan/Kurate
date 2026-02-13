@@ -136,12 +136,30 @@ async def _fetch_scipost_submissions(session: aiohttp.ClientSession, num_pages: 
 
 async def _fetch_submission_details(session: aiohttp.ClientSession, submission_id: str) -> Optional[dict]:
     """Fetch and parse a single submission's details."""
+    # Try the given version first
     url = f"https://scipost.org/submissions/{submission_id}/"
     html = await _fetch_url(session, url)
     if not html:
         return None
     
     data = _parse_scipost_submission(html, submission_id)
+    
+    # If no reports found, try earlier versions (v1 if we got v2, etc.)
+    if not data.get("reports") and "v" in submission_id:
+        version_match = re.search(r'v(\d+)$', submission_id)
+        if version_match:
+            current_v = int(version_match.group(1))
+            # Try v1 through current-1
+            for v in range(1, current_v):
+                alt_id = re.sub(r'v\d+$', f'v{v}', submission_id)
+                alt_url = f"https://scipost.org/submissions/{alt_id}/"
+                alt_html = await _fetch_url(session, alt_url)
+                if alt_html:
+                    alt_data = _parse_scipost_submission(alt_html, alt_id)
+                    if alt_data.get("reports"):
+                        # Use earlier version's reports but current version's title/abstract
+                        data["reports"] = alt_data["reports"]
+                        break
     
     # Only return if we have title, abstract, and at least one report with ratings
     if data.get("title") and data.get("abstract") and data.get("reports"):
