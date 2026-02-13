@@ -223,6 +223,30 @@ async def _prewarm_extraction_cache():
         logger.warning(f"Extraction cache prewarm failed: {e}")
 
 
+async def _prewarm_validation_cache():
+    """Pre-warm validation endpoints by running the aggregation queries on startup."""
+    await asyncio.sleep(3)
+    try:
+        from routers.validation import router
+        import httpx
+
+        # Run the datasets aggregation to warm MongoDB query cache
+        pipeline = [
+            {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+        ]
+        async for _ in db.validation_papers.aggregate(pipeline):
+            pass
+        pipeline2 = [
+            {"$match": {"completed": True, "failed": {"$ne": True}}},
+            {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+        ]
+        async for _ in db.validation_matches.aggregate(pipeline2):
+            pass
+        logger.info("Validation cache pre-warmed")
+    except Exception as e:
+        logger.warning(f"Validation cache prewarm failed: {e}")
+
+
 @app.on_event("shutdown")
 async def shutdown():
     from core.config import client
