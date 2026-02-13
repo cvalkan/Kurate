@@ -1,0 +1,60 @@
+{
+  "summary": "Completed comprehensive testing of SciPost pairwise validation system with separate Abstract and Extract modes, including Performance by Model charts and backend endpoints",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": [],
+    "minor_issues": [
+      {
+        "endpoint": "/api/scipost/pairwise/status",
+        "issue": "Abstract mode unexpectedly includes mode field in response",
+        "impact": "Cosmetic - doesn't affect functionality",
+        "fix_priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "minor_issues": [
+      {
+        "component": "SciPostPairwiseSection",
+        "issue": "Status cards not displayed in extract mode when no data",
+        "affected_selectors": ["[data-testid^='pw-status-'][data-testid$='-extract']"],
+        "fix_priority": "LOW",
+        "note": "This is actually correct behavior - no status cards needed when no data exists"
+      }
+    ]
+  },
+  "passed_tests": [
+    "SciPost (Abstract) navigation and rendering",
+    "SciPost (Extract) navigation and rendering", 
+    "Performance by Model chart display in Abstract mode",
+    "Empty state display in Extract mode",
+    "Backend endpoints /api/scipost/pairwise/status and /api/scipost/pairwise/results",
+    "Backend endpoints /api/scipost/pairwise-extract/status and /api/scipost/pairwise-extract/results",
+    "Navigation between Abstract and Extract modes",
+    "Section title and description updates",
+    "Methodology section PDF extraction mentions",
+    "Overall majority agreement display",
+    "Agreement by dimension breakdown",
+    "Model performance rows and charts",
+    "Data-testid attributes for automated testing",
+    "Cross-navigation to other validation sections"
+  ],
+  "test_report_links": [
+    "/app/scipost_pairwise_test.py",
+    "/app/.screenshots/validation_hub_scipost_pairwise.png",
+    "/app/.screenshots/scipost_extract_mode.png"
+  ],
+  "action_item_for_main_agent": "",
+  "updated_files": [
+    "/app/scipost_pairwise_test.py"
+  ],
+  "success_percentage": {
+    "backend": "97% (28/29 tests passed - 1 minor cosmetic issue)",
+    "frontend": "100% (all UI components and interactions working correctly)"
+  },
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "true"
+}
