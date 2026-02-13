@@ -724,13 +724,14 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstrac
     try:
         # Phase 1: Fetch papers with reports
         async with aiohttp.ClientSession() as session:
-            submission_ids = await _fetch_scipost_submissions(session)
+            submission_ids = await _fetch_scipost_submissions(session, num_pages=8)
             random.shuffle(submission_ids)
 
             papers = []
             # Fetch aggressively — we need many papers to create enough pairs
             need = max(num_pairs_per_dim * 4, 60)
-            for i in range(0, min(len(submission_ids), need * 3), 8):
+            scan_limit = min(len(submission_ids), need * 6)
+            for i in range(0, scan_limit, 8):
                 if len(papers) >= need:
                     break
                 batch = submission_ids[i:i + 8]
