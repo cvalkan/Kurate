@@ -12,7 +12,7 @@ Build a system to validate AI's paper comparison capabilities against human peer
 
 ### Pairwise Comparison
 - **Qeios**: Head-to-head paper pairs from same reviewer, 3 AI models, majority-vote agreement (330 pairs)
-- **SciPost**: Per-dimension pairwise comparison (validity, significance, originality, clarity). Papers paired randomly per dimension, human winner from referee ratings, AI picks winner
+- **SciPost (Abstract + Extract)**: Per-dimension pairwise comparison (validity, significance, originality, clarity). Abstract-only mode plus PDF-extracted sections (intro/method/results/conclusion) using the tournament extraction algorithm
 
 ### Single-item Rating
 - **SciPost**: AI rates individual papers on 4 dimensions (1-6 scale), compared with human referee ratings (282 comparisons). Shows close-rate, MAE, per-model and per-dimension breakdown
@@ -55,6 +55,7 @@ frontend/src/
 - `pairwise_comparisons` — Qeios pairs
 - `scipost_comparisons` — SciPost single-item ratings
 - `scipost_pairwise` — SciPost per-dimension pairs (NEW)
+- `scipost_pairwise_extract` — SciPost per-dimension pairs using PDF extraction (NEW)
 - `validation_datasets`, `tournament_papers`, `tournament_matches` — Tournament data
 
 ## What's Been Implemented
@@ -68,6 +69,8 @@ frontend/src/
 - [x] Centralized LLM utilities (llm.py)
 - [x] Admin controls with progress feedback
 - [x] Fixed SciPost Pairwise KeyError bug (escaped curly braces in prompt template, Feb 13 2026)
+- [x] Added separate SciPost Pairwise modes: Abstract and Extract (PDF download + section extraction)
+- [x] Added “Performance by Model” chart to SciPost Pairwise results
 
 ## Backlog
 - [ ] (P1) Add "View Prompts" modal to Qeios Pairwise page (feature parity with SciPost)
