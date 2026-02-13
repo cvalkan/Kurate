@@ -91,6 +91,181 @@ def _get_review_rating(review_qeios_id: str) -> Optional[float]:
     return float(m.group(1)) if m else None
 
 
+def _parse_qeios_html(html: str) -> dict:
+    """Parse Qeios HTML to extract paper data."""
+    result = {}
+    pub_idx = html.find('publication = {')
+    if pub_idx < 0:
+        return result
+    pub_chunk = html[pub_idx:]
+
+    # domain_name
+    idx = pub_chunk.find('"domain_name"')
+    if idx >= 0:
+        m = re.search(r':\s*"([^"]+)"', pub_chunk[idx + 13:idx + 100])
+        if m:
+            result["domain"] = m.group(1)
+
+    # title
+    m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)+)"', pub_chunk[:500])
+    if m:
+        raw = m.group(1).replace('\\"', '"').replace('\\/', '/')
+        result["title"] = re.sub(r'<[^>]+>', '', raw).strip()
+
+    # abstract
+    idx = pub_chunk.find('"abstract"')
+    if idx >= 0:
+        m = re.search(r':\s*"((?:[^"\\]|\\.)+)"', pub_chunk[idx + 10:idx + 10000])
+        if m:
+            raw = m.group(1).replace('\\"', '"').replace('\\/', '/')
+            result["abstract"] = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', raw)).strip()
+
+    # body (full text)
+    idx = pub_chunk.find('"body":')
+    if idx >= 0:
+        start = pub_chunk.find('"', idx + 7)
+        if start >= 0:
+            start += 1
+            pos = start
+            while pos < len(pub_chunk) and pos < start + 200000:
+                if pub_chunk[pos] == '"' and pub_chunk[pos - 1] != '\\':
+                    break
+                pos += 1
+            raw = pub_chunk[start:pos].replace('\\"', '"').replace('\\/', '/').replace('\\n', ' ')
+            text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', raw)).strip()
+            if len(text) > 500:
+                result["full_text"] = text
+
+    return result
+
+
+def _parse_rating_html(html: str) -> Optional[float]:
+    """Parse rating from review HTML."""
+    m = re.search(r'"borne_rating"\s*:\s*(\d+(?:\.\d+)?)', html)
+    return float(m.group(1)) if m else None
+
+
+async def _fetch_url_async(session: aiohttp.ClientSession, url: str) -> str:
+    """Fetch URL asynchronously."""
+    try:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            return await resp.text()
+    except Exception:
+        return ""
+
+
+async def _fetch_pair_data_async(session: aiohttp.ClientSession, reviewer: str, papers: list) -> Optional[dict]:
+    """Fetch all data for a single pair asynchronously."""
+    try:
+        # Pick 2 random papers
+        pair_papers = random.sample(papers, min(2, len(papers)))
+        if len(pair_papers) < 2:
+            return None
+
+        # Fetch ratings for both reviews in parallel
+        rating_urls = [f"https://www.qeios.com/read/{doi.split('/')[-1].upper()}" for _, doi in pair_papers]
+        rating_htmls = await asyncio.gather(*[_fetch_url_async(session, url) for url in rating_urls])
+        
+        ratings = []
+        for (paper_doi, review_doi), html in zip(pair_papers, rating_htmls):
+            rating = _parse_rating_html(html)
+            if rating is not None:
+                ratings.append((paper_doi, review_doi, rating))
+
+        if len(ratings) < 2 or ratings[0][2] == ratings[1][2]:
+            return None  # Not enough or tie
+
+        human_winner = "paper1" if ratings[0][2] > ratings[1][2] else "paper2"
+
+        # Fetch paper data in parallel
+        paper_urls = [f"https://www.qeios.com/read/{doi.split('/')[-1].upper()}" for doi, _, _ in ratings]
+        paper_htmls = await asyncio.gather(*[_fetch_url_async(session, url) for url in paper_urls])
+
+        paper_data = []
+        for (paper_doi, review_doi, rating), html in zip(ratings, paper_htmls):
+            page = _parse_qeios_html(html)
+            if not page.get("title") or not page.get("abstract"):
+                return None
+            qeios_id = paper_doi.split("/")[-1].upper()
+            paper_data.append({
+                "doi": paper_doi, "qeios_id": qeios_id,
+                "title": page.get("title", ""), "abstract": page.get("abstract", ""),
+                "full_text": page.get("full_text"), "domain": page.get("domain", "Unknown"),
+                "rating": rating,
+            })
+
+        if len(paper_data) < 2:
+            return None
+
+        return {
+            "reviewer": reviewer,
+            "domain": paper_data[0]["domain"],
+            "paper1": paper_data[0],
+            "paper2": paper_data[1],
+            "human_winner": human_winner,
+            "human_score1": ratings[0][2],
+            "human_score2": ratings[1][2],
+        }
+    except Exception as e:
+        logger.debug(f"Fetch error for {reviewer}: {e}")
+        return None
+
+
+async def _evaluate_pair_async(pair_data: dict, prompt_config: dict) -> dict:
+    """Run AI evaluation on a single pair with all 3 models."""
+    p1_dict = {"title": pair_data["paper1"]["title"], "abstract": pair_data["paper1"]["abstract"], "full_text": pair_data["paper1"].get("full_text")}
+    p2_dict = {"title": pair_data["paper2"]["title"], "abstract": pair_data["paper2"]["abstract"], "full_text": pair_data["paper2"].get("full_text")}
+    abstract_only = not (pair_data["paper1"].get("full_text") and pair_data["paper2"].get("full_text"))
+
+    # Run all 3 models in parallel with random presentation order
+    model_tasks = []
+    for model_info in TOURNAMENT_MODELS:
+        if random.random() < 0.5:
+            model_tasks.append((model_info, p2_dict, p1_dict, True))
+        else:
+            model_tasks.append((model_info, p1_dict, p2_dict, False))
+
+    coros = [
+        compare_papers(pa, pb, prompt_config, abstract_only=abstract_only, model_override=mi)
+        for mi, pa, pb, _ in model_tasks
+    ]
+    results = await asyncio.gather(*coros, return_exceptions=True)
+
+    ai_results = {}
+    for (mi, _, _, swapped), result in zip(model_tasks, results):
+        mk = f"{mi['provider']}:{mi['model']}"
+        if isinstance(result, Exception):
+            ai_results[mk] = {"winner": None, "error": str(result)[:100]}
+        else:
+            winner_key = result.get("winner", "paper1")
+            if swapped:
+                ai_winner = "paper2" if winner_key == "paper1" else "paper1"
+            else:
+                ai_winner = winner_key
+            ai_results[mk] = {"winner": ai_winner, "reasoning": result.get("reasoning", "")}
+
+    # Majority vote
+    votes = [v["winner"] for v in ai_results.values() if v.get("winner")]
+    majority = None
+    if votes:
+        c = Counter(votes)
+        best, n = c.most_common(1)[0]
+        if n > len(votes) / 2:
+            majority = best
+
+    return {
+        **pair_data,
+        "id": str(uuid.uuid4()),
+        "source": "qeios",
+        "ai_results": ai_results,
+        "ai_majority": majority,
+        "ai_completed": True,
+        "ai_failed": False,
+        "used_full_text": not abstract_only,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 # ─── Status ────────────────────────────────────────────────────────────────────
 
 @router.get("/status")
