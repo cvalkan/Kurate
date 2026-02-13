@@ -72,6 +72,7 @@ frontend/src/
 - [x] Added separate SciPost Pairwise modes: Abstract and Extract (PDF download + section extraction)
 - [x] Added “Performance by Model” chart to SciPost Pairwise results
 - [x] Added “Agreement by Score Gap” charts for SciPost Pairwise (Abstract + Extract)
+- [x] Synced SciPost Pairwise Abstract + Extract runs to use identical paper pairs (paired once, evaluated twice)
 
 ## Backlog
 - [ ] (P1) Add "View Prompts" modal to Qeios Pairwise page (feature parity with SciPost)
