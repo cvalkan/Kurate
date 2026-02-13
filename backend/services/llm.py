@@ -632,3 +632,37 @@ async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: 
         logger.error(f"Summary generation failed for {paper.get('title', '')[:50]}: {e}")
 
     return None
+
+
+
+async def call_llm(prompt: str, system: str = "", model_override: dict = None) -> str:
+    """Generic LLM call that returns the raw text response.
+    
+    Args:
+        prompt: The user prompt
+        system: System message (optional)
+        model_override: Dict with 'provider' and 'model' keys to use specific model
+        
+    Returns:
+        Raw text response from the model
+    """
+    model_info = model_override or _pick_round_robin_model()
+    provider = model_info["provider"]
+    model = model_info["model"]
+    
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"call-{uuid.uuid4()}",
+        system_message=system or "You are a helpful assistant.",
+    ).with_model(provider, model)
+    
+    try:
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
+        )
+        return response.strip() if response else ""
+    except Exception as e:
+        logger.error(f"LLM call failed: {e}")
+        raise
