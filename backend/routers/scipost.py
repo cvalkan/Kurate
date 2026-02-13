@@ -780,7 +780,7 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstrac
         from itertools import combinations
 
         for dim in dimensions:
-            if not _pw_state["running"]:
+            if not state["running"]:
                 break
 
             # Compute average score per paper for this dimension
@@ -826,7 +826,7 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstrac
             }
 
             for p1, s1, p2, s2 in dim_pairs:
-                if not _pw_state["running"]:
+                if not state["running"]:
                     break
 
                 human_winner = "paper1" if s1 > s2 else "paper2"
@@ -880,18 +880,18 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstrac
                     "ai_completed": True, "ai_failed": False,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
-                await db.scipost_pairwise.insert_one(doc)
+                await collection.insert_one(doc)
                 pairs_done += 1
-                _pw_state["progress"]["pairs_done"] = pairs_done
+                state["progress"]["pairs_done"] = pairs_done
                 agrees = sum(1 for v in ai_results.values() if v.get("winner") == human_winner)
-                logger.info(f"SciPost pw [{pairs_done}] {dim}: {agrees}/3 agree | gap={abs(s1-s2):.1f}")
+                logger.info(f"SciPost pw [{mode}] [{pairs_done}] {dim}: {agrees}/3 agree | gap={abs(s1-s2):.1f}")
 
-        logger.info(f"SciPost pairwise complete: {pairs_done} pairs")
+        logger.info(f"SciPost pairwise [{mode}] complete: {pairs_done} pairs")
     except Exception as e:
         logger.error(f"SciPost pairwise error: {e}")
     finally:
-        _pw_state["fetching"] = False
-        _pw_state["running"] = False
+        state["fetching"] = False
+        state["running"] = False
 
 
 @router.get("/pairwise/results")
