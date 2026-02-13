@@ -680,7 +680,7 @@ async def _pw_status(mode: str = "abstract"):
         "total_pairs": total, "ai_completed": completed, "ai_failed": failed,
         "ai_pending": total - completed - failed, "by_dimension": dim_counts,
         "fetching": state["fetching"], "running": state["running"],
-        "progress": state["progress"], "mode": mode,
+        "progress": state["progress"],
     }
 
 
