@@ -736,6 +736,13 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
     pairs_done = 0
 
     try:
+        def _set_progress(key, value):
+            _pw_state["progress"][key] = value
+            _pw_extract_state["progress"][key] = value
+
+        def _is_running():
+            return _pw_state["running"] and _pw_extract_state["running"]
+
         # Phase 1: Fetch papers with reports
         async with aiohttp.ClientSession() as session:
             submission_ids = await _fetch_scipost_submissions(session, num_pages=10)
@@ -754,51 +761,51 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                 for p in results:
                     if p and p.get("reports"):
                         papers.append(p)
-                state["progress"]["papers_found"] = len(papers)
+                _set_progress("papers_found", len(papers))
                 await asyncio.sleep(0.5)
 
         if len(papers) < 2:
             logger.warning("SciPost pairwise: not enough papers")
             return
 
-        if use_extraction:
-            state["progress"]["phase"] = "extracting_pdfs"
-            extracted = 0
-            for i in range(0, len(papers), 3):
-                if not state["running"]:
-                    break
-                batch = papers[i:i + 3]
-                tasks = []
-                for paper in batch:
-                    pdf_url = paper.get("pdf_url")
-                    if pdf_url:
-                        tasks.append(download_and_extract_pdf(pdf_url))
-                    else:
-                        tasks.append(asyncio.sleep(0, result=None))
-                results = await asyncio.gather(*tasks)
-                for paper, full_text in zip(batch, results):
-                    if full_text and len(full_text) > 500:
-                        paper["full_text"] = full_text
-                        paper["categories"] = [paper.get("field", "Physics")]
-                        extracted += 1
-                state["progress"]["pdfs_done"] = extracted
-                await asyncio.sleep(0.6)
+        _set_progress("phase", "extracting_pdfs")
+        extracted = 0
+        for i in range(0, len(papers), 3):
+            if not _is_running():
+                break
+            batch = papers[i:i + 3]
+            tasks = []
+            for paper in batch:
+                pdf_url = paper.get("pdf_url")
+                if pdf_url:
+                    tasks.append(download_and_extract_pdf(pdf_url))
+                else:
+                    tasks.append(asyncio.sleep(0, result=None))
+            results = await asyncio.gather(*tasks)
+            for paper, full_text in zip(batch, results):
+                if full_text and len(full_text) > 500:
+                    paper["full_text"] = full_text
+                    paper["categories"] = [paper.get("field", "Physics")]
+                    extracted += 1
+            _set_progress("pdfs_done", extracted)
+            await asyncio.sleep(0.6)
 
-            papers = [p for p in papers if p.get("full_text")]
-            if len(papers) < 2:
-                logger.warning("SciPost pairwise extract: not enough papers with extracted text")
-                return
+        papers = [p for p in papers if p.get("full_text")]
+        if len(papers) < 2:
+            logger.warning("SciPost pairwise extract: not enough papers with extracted text")
+            return
 
-        state["progress"]["phase"] = "evaluating"
-        state["fetching"] = False
+        _set_progress("phase", "evaluating")
+        _pw_state["fetching"] = False
+        _pw_extract_state["fetching"] = False
 
-        logger.info(f"SciPost pairwise [{mode}]: {len(papers)} papers fetched, creating pairs for {dimensions}")
+        logger.info(f"SciPost pairwise [synced]: {len(papers)} papers fetched, creating pairs for {dimensions}")
 
         # Phase 2: For each dimension, create pairs using combinations and evaluate
         from itertools import combinations
 
         for dim in dimensions:
-            if not state["running"]:
+            if not _is_running():
                 break
 
             # Compute average score per paper for this dimension
@@ -844,103 +851,127 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
             }
 
             for p1, s1, p2, s2 in dim_pairs:
-                if not state["running"]:
+                if not _is_running():
                     break
 
                 human_winner = "paper1" if s1 > s2 else "paper2"
+                pair_id = str(uuid.uuid4())
 
                 # Run all 3 models in parallel with random swap
-                ai_results = {}
                 model_tasks = []
                 for mi in TOURNAMENT_MODELS:
                     swapped = random.random() < 0.5
                     model_tasks.append((mi, swapped))
 
-                coros = []
-                for mi, swapped in model_tasks:
-                    if swapped:
-                        a, b = p2, p1
-                    else:
-                        a, b = p1, p2
-                    paper_a = {
-                        "title": a.get("title", ""),
-                        "abstract": a.get("abstract", ""),
-                        "full_text": a.get("full_text"),
-                        "categories": a.get("categories") or [a.get("field", "Physics")],
+                def _build_payload(paper):
+                    return {
+                        "title": paper.get("title", ""),
+                        "abstract": paper.get("abstract", ""),
+                        "full_text": paper.get("full_text"),
+                        "categories": paper.get("categories") or [paper.get("field", "Physics")],
                     }
-                    paper_b = {
-                        "title": b.get("title", ""),
-                        "abstract": b.get("abstract", ""),
-                        "full_text": b.get("full_text"),
-                        "categories": b.get("categories") or [b.get("field", "Physics")],
-                    }
-                    coros.append(compare_papers(
-                        paper_a,
-                        paper_b,
-                        prompt_config,
-                        abstract_only=not use_extraction,
-                        model_override=mi,
-                    ))
-                responses = await asyncio.gather(*coros, return_exceptions=True)
 
-                for (mi, swapped), resp in zip(model_tasks, responses):
-                    mk = f"{mi['provider']}:{mi['model']}"
-                    if isinstance(resp, Exception):
-                        ai_results[mk] = {"winner": None, "error": str(resp)[:100]}
-                    else:
-                        w = resp.get("winner", "paper1")
+                async def _eval_mode(abstract_only: bool):
+                    coros = []
+                    for mi, swapped in model_tasks:
                         if swapped:
-                            w = "paper2" if w == "paper1" else "paper1"
-                        ai_results[mk] = {"winner": w, "reasoning": resp.get("reasoning", "")}
+                            a, b = p2, p1
+                        else:
+                            a, b = p1, p2
+                        coros.append(compare_papers(
+                            _build_payload(a),
+                            _build_payload(b),
+                            prompt_config,
+                            abstract_only=abstract_only,
+                            model_override=mi,
+                        ))
+                    responses = await asyncio.gather(*coros, return_exceptions=True)
 
-                # Majority vote
-                votes = [v["winner"] for v in ai_results.values() if v.get("winner")]
-                majority = None
-                if votes:
-                    c = Counter(votes)
-                    best, n = c.most_common(1)[0]
-                    if n > len(votes) / 2:
-                        majority = best
+                    ai_results = {}
+                    for (mi, swapped), resp in zip(model_tasks, responses):
+                        mk = f"{mi['provider']}:{mi['model']}"
+                        if isinstance(resp, Exception):
+                            ai_results[mk] = {"winner": None, "error": str(resp)[:100]}
+                        else:
+                            w = resp.get("winner", "paper1")
+                            if swapped:
+                                w = "paper2" if w == "paper1" else "paper1"
+                            ai_results[mk] = {"winner": w, "reasoning": resp.get("reasoning", "")}
 
-                doc = {
-                    "id": str(uuid.uuid4()),
+                    votes = [v["winner"] for v in ai_results.values() if v.get("winner")]
+                    majority = None
+                    if votes:
+                        c = Counter(votes)
+                        best, n = c.most_common(1)[0]
+                        if n > len(votes) / 2:
+                            majority = best
+                    return ai_results, majority
+
+                ai_results_extract, majority_extract = await _eval_mode(abstract_only=False)
+                ai_results_abs, majority_abs = await _eval_mode(abstract_only=True)
+
+                paper1_doc = {
+                    "submission_id": p1.get("submission_id", ""),
+                    "title": p1.get("title", ""),
+                    "abstract": p1.get("abstract", "")[:500],
+                    "human_score": round(s1, 2),
+                    "has_full_text": bool(p1.get("full_text")),
+                    "full_text_chars": len(p1.get("full_text", "")) if p1.get("full_text") else 0,
+                }
+                paper2_doc = {
+                    "submission_id": p2.get("submission_id", ""),
+                    "title": p2.get("title", ""),
+                    "abstract": p2.get("abstract", "")[:500],
+                    "human_score": round(s2, 2),
+                    "has_full_text": bool(p2.get("full_text")),
+                    "full_text_chars": len(p2.get("full_text", "")) if p2.get("full_text") else 0,
+                }
+
+                base_doc = {
+                    "pair_id": pair_id,
                     "source": "scipost",
                     "dimension": dim,
-                    "content_mode": mode,
-                    "used_extraction": use_extraction,
-                    "paper1": {
-                        "submission_id": p1.get("submission_id", ""),
-                        "title": p1.get("title", ""),
-                        "abstract": p1.get("abstract", "")[:500],
-                        "human_score": round(s1, 2),
-                        "has_full_text": bool(p1.get("full_text")),
-                        "full_text_chars": len(p1.get("full_text", "")) if p1.get("full_text") else 0,
-                    },
-                    "paper2": {
-                        "submission_id": p2.get("submission_id", ""),
-                        "title": p2.get("title", ""),
-                        "abstract": p2.get("abstract", "")[:500],
-                        "human_score": round(s2, 2),
-                        "has_full_text": bool(p2.get("full_text")),
-                        "full_text_chars": len(p2.get("full_text", "")) if p2.get("full_text") else 0,
-                    },
-                    "human_winner": human_winner, "score_gap": round(abs(s1 - s2), 2),
-                    "ai_results": ai_results, "ai_majority": majority,
-                    "ai_completed": True, "ai_failed": False,
+                    "paper1": paper1_doc,
+                    "paper2": paper2_doc,
+                    "human_winner": human_winner,
+                    "score_gap": round(abs(s1 - s2), 2),
+                    "ai_completed": True,
+                    "ai_failed": False,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
-                await collection.insert_one(doc)
-                pairs_done += 1
-                state["progress"]["pairs_done"] = pairs_done
-                agrees = sum(1 for v in ai_results.values() if v.get("winner") == human_winner)
-                logger.info(f"SciPost pw [{mode}] [{pairs_done}] {dim}: {agrees}/3 agree | gap={abs(s1-s2):.1f}")
 
-        logger.info(f"SciPost pairwise [{mode}] complete: {pairs_done} pairs")
+                doc_extract = {
+                    **base_doc,
+                    "id": str(uuid.uuid4()),
+                    "content_mode": "extract",
+                    "used_extraction": True,
+                    "ai_results": ai_results_extract,
+                    "ai_majority": majority_extract,
+                }
+                doc_abs = {
+                    **base_doc,
+                    "id": str(uuid.uuid4()),
+                    "content_mode": "abstract",
+                    "used_extraction": False,
+                    "ai_results": ai_results_abs,
+                    "ai_majority": majority_abs,
+                }
+
+                await db.scipost_pairwise_extract.insert_one(doc_extract)
+                await db.scipost_pairwise.insert_one(doc_abs)
+
+                pairs_done += 1
+                _set_progress("pairs_done", pairs_done)
+                agrees = sum(1 for v in ai_results_extract.values() if v.get("winner") == human_winner)
+                logger.info(f"SciPost pw [synced] [{pairs_done}] {dim}: {agrees}/3 agree | gap={abs(s1-s2):.1f}")
+
+        logger.info(f"SciPost pairwise [synced] complete: {pairs_done} pairs")
     except Exception as e:
         logger.error(f"SciPost pairwise error: {e}")
     finally:
-        state["fetching"] = False
-        state["running"] = False
+        for st in (_pw_state, _pw_extract_state):
+            st["fetching"] = False
+            st["running"] = False
 
 
 @router.get("/pairwise/results")
