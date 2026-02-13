@@ -583,6 +583,23 @@ async def reset():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _pw_state = {"fetching": False, "running": False, "progress": {}}
+_pw_extract_state = {"fetching": False, "running": False, "progress": {}}
+
+
+def _get_pw_context(mode: str = "abstract") -> dict:
+    if mode == "extract":
+        return {
+            "state": _pw_extract_state,
+            "collection": db.scipost_pairwise_extract,
+            "use_extraction": True,
+            "mode": "extract",
+        }
+    return {
+        "state": _pw_state,
+        "collection": db.scipost_pairwise,
+        "use_extraction": False,
+        "mode": "abstract",
+    }
 
 DIMENSION_PW_TASKS = {
     "validity": "Which paper demonstrates stronger scientific VALIDITY? Consider: soundness of methods, evidence supporting conclusions, logical consistency.",
