@@ -844,10 +844,24 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstrac
                         a, b = p2, p1
                     else:
                         a, b = p1, p2
+                    paper_a = {
+                        "title": a.get("title", ""),
+                        "abstract": a.get("abstract", ""),
+                        "full_text": a.get("full_text"),
+                        "categories": a.get("categories") or [a.get("field", "Physics")],
+                    }
+                    paper_b = {
+                        "title": b.get("title", ""),
+                        "abstract": b.get("abstract", ""),
+                        "full_text": b.get("full_text"),
+                        "categories": b.get("categories") or [b.get("field", "Physics")],
+                    }
                     coros.append(compare_papers(
-                        {"title": a.get("title", ""), "abstract": a.get("abstract", "")},
-                        {"title": b.get("title", ""), "abstract": b.get("abstract", "")},
-                        prompt_config, abstract_only=True, model_override=mi,
+                        paper_a,
+                        paper_b,
+                        prompt_config,
+                        abstract_only=not use_extraction,
+                        model_override=mi,
                     ))
                 responses = await asyncio.gather(*coros, return_exceptions=True)
 
