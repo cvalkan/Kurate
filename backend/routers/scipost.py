@@ -703,10 +703,10 @@ async def _pw_status(mode: str = "abstract"):
 
 
 async def _pw_stop(mode: str = "abstract"):
-    ctx = _get_pw_context(mode)
-    ctx["state"]["running"] = False
-    ctx["state"]["fetching"] = False
-    return {"status": "stopped", "mode": mode}
+    for st in (_pw_state, _pw_extract_state):
+        st["running"] = False
+        st["fetching"] = False
+    return {"status": "stopped", "mode": "synced"}
 
 
 async def _pw_reset(mode: str = "abstract"):
