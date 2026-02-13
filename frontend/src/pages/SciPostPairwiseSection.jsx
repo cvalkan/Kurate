@@ -1,0 +1,296 @@
+import { useState, useEffect, useCallback } from "react";
+import axios from "axios";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Play, Square, Loader2, AlertCircle, Layers,
+  CheckCircle, XCircle, BarChart3, Info, GitCompare,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const API = process.env.REACT_APP_BACKEND_URL;
+function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
+
+const DIMENSIONS = ["validity", "significance", "originality", "clarity"];
+const DIM_COLORS = {
+  validity: "text-blue-600 bg-blue-50 border-blue-200",
+  significance: "text-purple-600 bg-purple-50 border-purple-200",
+  originality: "text-amber-600 bg-amber-50 border-amber-200",
+  clarity: "text-green-600 bg-green-50 border-green-200",
+};
+
+function shortModel(mk) {
+  if (!mk) return "?";
+  const m = mk.split(":")[1] || mk;
+  if (m.includes("gpt-5")) return "GPT-5.2";
+  if (m.includes("claude-opus")) return "Claude Opus";
+  if (m.includes("gemini-3")) return "Gemini 3 Pro";
+  return m;
+}
+
+function Badge({ rate, label, sub }) {
+  const color = rate >= 70 ? "text-green-600" : rate >= 50 ? "text-amber-600" : "text-red-600";
+  const bg = rate >= 70 ? "bg-green-50" : rate >= 50 ? "bg-amber-50" : "bg-red-50";
+  return (
+    <div className={`p-3 rounded-lg border border-border ${bg} text-center`}>
+      <div className="text-[10px] text-muted-foreground mb-0.5">{label}</div>
+      <div className={`text-xl font-semibold font-mono ${color}`}>{rate}%</div>
+      {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
+    </div>
+  );
+}
+
+export default function SciPostPairwiseSection() {
+  const [status, setStatus] = useState(null);
+  const [results, setResults] = useState(null);
+  const [numPairs, setNumPairs] = useState(8);
+  const [isStarting, setIsStarting] = useState(false);
+  const isAdmin = !!sessionStorage.getItem("admin_token");
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [s, r] = await Promise.all([
+        axios.get(`${API}/api/scipost/pairwise/status`),
+        axios.get(`${API}/api/scipost/pairwise/results`),
+      ]);
+      setStatus(s.data);
+      if (r.data.status === "ok") setResults(r.data);
+      if (s.data?.fetching || s.data?.running) setIsStarting(false);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    if (!status?.fetching && !status?.running && !isStarting) return;
+    const iv = setInterval(fetchAll, isStarting ? 1000 : 2000);
+    return () => clearInterval(iv);
+  }, [status?.fetching, status?.running, isStarting, fetchAll]);
+
+  const fetchAndRun = async () => {
+    setIsStarting(true);
+    try {
+      const res = await axios.post(`${API}/api/scipost/pairwise/fetch-and-run`,
+        { num_pairs_per_dim: numPairs, dimensions: DIMENSIONS },
+        { headers: adminHeaders() });
+      if (res.data.status === "started") toast.success(`Started! ${numPairs} pairs per dimension...`);
+      else if (res.data.status === "already_running") { toast.warning("Already running"); setIsStarting(false); }
+      else { toast.error(res.data.message || "Error"); setIsStarting(false); }
+      fetchAll();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || e.message || "Failed");
+      setIsStarting(false);
+    }
+  };
+
+  const stop = async () => {
+    try {
+      await axios.post(`${API}/api/scipost/pairwise/stop`, {}, { headers: adminHeaders() });
+      toast.info("Stopped");
+      setIsStarting(false);
+      fetchAll();
+    } catch (e) { toast.error("Failed to stop"); }
+  };
+
+  const running = status?.fetching || status?.running || isStarting;
+
+  return (
+    <div className="space-y-5">
+      {/* Admin controls */}
+      {isAdmin && (
+        <div className="border border-border rounded-lg p-4 bg-secondary/10 space-y-3" data-testid="pw-scipost-admin">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">Pairs per dimension:</label>
+              <Input type="number" min={3} max={30} value={numPairs}
+                onChange={e => setNumPairs(parseInt(e.target.value) || 8)}
+                className="w-20 h-8 text-xs" data-testid="pw-scipost-num-input" disabled={running} />
+            </div>
+            {!running ? (
+              <Button size="sm" onClick={fetchAndRun} className="gap-1.5" data-testid="pw-scipost-run-btn">
+                <Play className="h-3.5 w-3.5" /> Fetch & Evaluate
+              </Button>
+            ) : (
+              <Button size="sm" variant="destructive" onClick={stop} className="gap-1.5" data-testid="pw-scipost-stop-btn">
+                <Square className="h-3.5 w-3.5" /> Stop
+              </Button>
+            )}
+          </div>
+          {running && (
+            <div className="flex items-center gap-2 text-xs bg-accent/10 rounded px-3 py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-accent" />
+              <span className="font-medium">
+                {isStarting && !status?.fetching ? "Starting..." :
+                  status?.progress?.phase === "scanning" ? `Scanning SciPost... ${status?.progress?.papers_found || 0} papers found` :
+                  `Evaluating: ${status?.progress?.pairs_done || 0} / ${status?.progress?.target || '?'} pairs`}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Status cards */}
+      {status && status.total_pairs > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+          {[["Total Pairs", status.total_pairs], ["AI Completed", status.ai_completed],
+            ["AI Pending", status.ai_pending], ["AI Failed", status.ai_failed]]
+            .map(([l, v], i) => (
+              <div key={i} className="p-2 border border-border/50 rounded text-xs">
+                <div className="text-muted-foreground">{l}</div>
+                <div className="font-semibold text-base">{v}</div>
+              </div>
+            ))}
+        </div>
+      )}
+
+      {results ? (
+        <div className="space-y-5">
+          {/* Overall majority */}
+          <div className="border border-border rounded-lg p-4">
+            <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+              <Layers className="h-4 w-4" /> Overall Majority Agreement (all dimensions)
+            </h2>
+            <Badge rate={results.overall_majority.rate} label="Majority vs Human"
+              sub={`${results.overall_majority.agree}/${results.overall_majority.total} pairs`} />
+          </div>
+
+          {/* Per-dimension breakdown */}
+          <div className="border border-border rounded-lg p-4">
+            <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+              <GitCompare className="h-4 w-4" /> Agreement by Dimension
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {DIMENSIONS.map(dim => {
+                const d = results.by_dimension?.[dim];
+                if (!d) return null;
+                return (
+                  <div key={dim} className={`p-3 rounded-lg border ${DIM_COLORS[dim]}`} data-testid={`pw-dim-${dim}`}>
+                    <div className="text-xs font-medium mb-1 capitalize">{dim}</div>
+                    <div className="text-2xl font-bold font-mono">{d.majority.rate}%</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {d.majority.agree}/{d.majority.total} pairs
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Per-dimension per-model */}
+          <div className="border border-border rounded-lg p-4">
+            <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+              <BarChart3 className="h-4 w-4" /> Model Agreement by Dimension
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs" data-testid="pw-model-dim-table">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 px-2">Model</th>
+                    {DIMENSIONS.map(d => <th key={d} className="text-center py-2 px-2 capitalize">{d}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const allModels = new Set();
+                    Object.values(results.by_dimension || {}).forEach(d =>
+                      Object.keys(d.by_model || {}).forEach(m => allModels.add(m))
+                    );
+                    return [...allModels].map(mk => (
+                      <tr key={mk} className="border-b border-border/30">
+                        <td className="py-2 px-2 font-medium">{shortModel(mk)}</td>
+                        {DIMENSIONS.map(dim => {
+                          const s = results.by_dimension?.[dim]?.by_model?.[mk];
+                          if (!s) return <td key={dim} className="text-center text-muted-foreground">—</td>;
+                          const clr = s.rate >= 70 ? "text-green-600" : s.rate >= 50 ? "text-amber-600" : "text-red-600";
+                          return <td key={dim} className={`text-center font-mono ${clr}`}>{s.rate}%</td>;
+                        })}
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Inter-model agreement */}
+          {results.inter_model && Object.keys(results.inter_model).length > 0 && (
+            <div className="border border-border rounded-lg p-4">
+              <h2 className="text-sm font-medium mb-3">Inter-Model Agreement</h2>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(results.inter_model).map(([k, s]) => {
+                  const [m1, m2] = k.split(" vs ");
+                  return <Badge key={k} rate={s.rate} label={`${shortModel(m1)} vs ${shortModel(m2)}`} sub={`${s.agree}/${s.total}`} />;
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Sample pairs */}
+          {results.samples?.length > 0 && (
+            <div className="border border-border rounded-lg overflow-hidden" data-testid="pw-samples-table">
+              <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+                <h2 className="text-xs font-medium">Sample Pairs</h2>
+              </div>
+              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+                <table className="w-full text-[11px]">
+                  <thead className="sticky top-0 bg-background">
+                    <tr className="border-b border-border text-[10px]">
+                      <th className="text-center px-1.5 py-1.5 font-medium">Dim</th>
+                      <th className="text-left px-2 py-1.5 font-medium">Paper 1</th>
+                      <th className="text-left px-2 py-1.5 font-medium">Paper 2</th>
+                      <th className="text-center px-1.5 py-1.5 font-medium">Gap</th>
+                      <th className="text-center px-1.5 py-1.5 font-medium">Models</th>
+                      <th className="text-center px-1.5 py-1.5 font-medium">Majority</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.samples.map((s, i) => (
+                      <tr key={i} className="border-b border-border/20 hover:bg-secondary/10">
+                        <td className={`text-center px-1.5 py-1 capitalize text-[10px] ${DIM_COLORS[s.dimension]?.split(' ')[0] || ''}`}>
+                          {s.dimension?.substring(0, 4)}
+                        </td>
+                        <td className="px-2 py-1 max-w-[180px] truncate" title={s.paper1_title}>
+                          <span className={s.human_winner === "paper1" ? "font-semibold" : ""}>{s.paper1_title}</span>
+                          <span className="text-[9px] text-muted-foreground ml-1">({s.human_score1})</span>
+                        </td>
+                        <td className="px-2 py-1 max-w-[180px] truncate" title={s.paper2_title}>
+                          <span className={s.human_winner === "paper2" ? "font-semibold" : ""}>{s.paper2_title}</span>
+                          <span className="text-[9px] text-muted-foreground ml-1">({s.human_score2})</span>
+                        </td>
+                        <td className="text-center px-1.5 py-1 font-mono">{s.score_gap}</td>
+                        <td className="text-center px-1.5 py-1 font-mono text-[10px]">
+                          <span className={s.models_agree >= 2 ? "text-green-600" : "text-red-500"}>
+                            {s.models_agree}/{s.models_total}
+                          </span>
+                        </td>
+                        <td className="text-center px-1.5 py-1">
+                          {s.majority_agree === true && <CheckCircle className="h-3.5 w-3.5 text-green-600 inline" />}
+                          {s.majority_agree === false && <XCircle className="h-3.5 w-3.5 text-red-500 inline" />}
+                          {s.majority_agree === null && <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : status?.total_pairs === 0 ? (
+        <div className="border border-border rounded-lg p-8 text-center">
+          <AlertCircle className="h-8 w-8 mx-auto mb-3 text-muted-foreground/30" />
+          <p className="text-sm text-muted-foreground">No pairwise comparisons yet. Use admin controls to fetch and evaluate.</p>
+        </div>
+      ) : null}
+
+      <div className="border border-border rounded-lg p-4 bg-secondary/10">
+        <h3 className="text-sm font-medium mb-2">Methodology</h3>
+        <ul className="text-xs text-muted-foreground space-y-1">
+          <li><strong>Source:</strong> SciPost Physics — open peer review with structured referee ratings per dimension.</li>
+          <li><strong>Pair creation:</strong> For each dimension, papers are paired randomly. The human winner is the paper with the higher average referee rating on that dimension. Near-ties are excluded.</li>
+          <li><strong>AI evaluation:</strong> Each pair evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro with a dimension-specific prompt. Presentation order randomized per model.</li>
+          <li><strong>Agreement:</strong> Majority vote and per-model agreement with the human verdict, broken down by dimension and score gap.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
