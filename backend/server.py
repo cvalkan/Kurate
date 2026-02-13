@@ -227,8 +227,25 @@ async def _prewarm_validation_cache():
     """Pre-warm validation endpoints by running the aggregation queries on startup."""
     await asyncio.sleep(3)
     try:
-        from routers.validation import router
-        import httpx
+        # Auto-seed validation data from bundled files if DB is empty
+        count = await db.validation_datasets.count_documents({})
+        if count == 0:
+            from pathlib import Path
+            import json as _json
+            seed_dir = Path(__file__).parent / "backend" / "data" / "validation_seed"
+            if not seed_dir.exists():
+                seed_dir = Path("/app/backend/data/validation_seed")
+            if seed_dir.exists():
+                logger.info("Auto-seeding validation data from bundled files...")
+                for coll_name in ["validation_datasets", "validation_papers", "validation_matches"]:
+                    path = seed_dir / f"{coll_name}.json"
+                    if path.exists():
+                        with open(path) as f:
+                            docs = _json.load(f)
+                        if docs:
+                            await db[coll_name].insert_many(docs)
+                            logger.info(f"  Seeded {coll_name}: {len(docs)} docs")
+                logger.info("Validation data seeded successfully")
 
         # Run the datasets aggregation to warm MongoDB query cache
         pipeline = [
