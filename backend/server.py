@@ -12,6 +12,7 @@ from routers.auth import router as auth_router
 from routers.suggestions import router as suggestions_router
 from routers.validation import router as validation_router
 from routers.pairwise import router as pairwise_router
+from routers.scipost import router as scipost_router
 from services.scheduler import start_scheduler
 
 app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
