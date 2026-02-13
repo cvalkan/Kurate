@@ -724,7 +724,7 @@ async def _pw_run(num_pairs_per_dim: int, dimensions: list, mode: str = "abstrac
     try:
         # Phase 1: Fetch papers with reports
         async with aiohttp.ClientSession() as session:
-            submission_ids = await _fetch_scipost_submissions(session, num_pages=8)
+            submission_ids = await _fetch_scipost_submissions(session, num_pages=10)
             random.shuffle(submission_ids)
 
             papers = []
