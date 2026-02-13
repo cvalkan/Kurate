@@ -62,13 +62,15 @@ frontend/src/
 - [x] Tournament validation (ICLR LLM, ICLR Protein, PeerRead ACL)
 - [x] Qeios pairwise comparison (optimized with async + caching)
 - [x] SciPost single-item dimension analysis (with prompts modal, referee column, tooltips)
-- [x] SciPost pairwise per-dimension comparison (backend complete, frontend ready)
+- [x] SciPost pairwise per-dimension comparison (backend + frontend working, verified Feb 2026)
 - [x] Unified Validation Hub with sidebar navigation
 - [x] Removed old /pairwise and /scipost routes
 - [x] Centralized LLM utilities (llm.py)
 - [x] Admin controls with progress feedback
+- [x] Fixed SciPost Pairwise KeyError bug (escaped curly braces in prompt template, Feb 13 2026)
 
 ## Backlog
+- [ ] (P1) Add "View Prompts" modal to Qeios Pairwise page (feature parity with SciPost)
 - [ ] (P1) F1000Prime dataset integration
 - [ ] (P2) HTTP security headers for production
 - [ ] (P2) Regenerate old AI impact summaries with model badge
