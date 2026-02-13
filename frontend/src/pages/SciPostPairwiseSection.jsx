@@ -67,6 +67,10 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
+    setResults(null);
+    setStatus(null);
+  }, [mode]);
+  useEffect(() => {
     if (!status?.fetching && !status?.running && !isStarting) return;
     const iv = setInterval(fetchAll, isStarting ? 1000 : 2000);
     return () => clearInterval(iv);
