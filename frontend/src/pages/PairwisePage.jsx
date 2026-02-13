@@ -79,8 +79,12 @@ export default function PairwisePage() {
   const stop = async () => {
     try {
       await axios.post(`${API}/api/pairwise/stop-tournament`, {}, { headers: adminHeaders() });
+      toast.info("Stopped");
       fetchAll();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      toast.error(e.response?.data?.detail || "Failed to stop");
+    }
   };
 
   const running = status?.fetching || status?.tournament_running;
