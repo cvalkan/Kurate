@@ -10,6 +10,7 @@ import re
 import random
 import time as _time
 import requests
+import aiohttp
 from datetime import datetime, timezone
 from collections import defaultdict, Counter
 from fastapi import APIRouter, Depends, Query
@@ -25,6 +26,9 @@ router = APIRouter(prefix="/api/pairwise")
 _state = {"fetching": False, "tournament_running": False, "progress": {}}
 
 CROSSREF_HEADERS = {"User-Agent": "PaperSumo/1.0 (mailto:test@example.com)"}
+# Parallelism settings
+PARALLEL_FETCHES = 5  # Number of pairs to fetch data for simultaneously
+PARALLEL_EVALS = 3    # Number of pairs to evaluate with AI simultaneously
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
