@@ -133,6 +133,11 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
 
   const gapStats = results ? aggregateGapStats(results) : null;
   const hasGapData = gapStats && Object.values(gapStats).some(g => g.total > 0);
+  
+  // Debug logging
+  console.log(`[${mode}] Results:`, results ? 'present' : 'null');
+  console.log(`[${mode}] Gap stats:`, gapStats);
+  console.log(`[${mode}] Has gap data:`, hasGapData);
 
   return (
     <div className="space-y-5">
