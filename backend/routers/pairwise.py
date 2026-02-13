@@ -35,41 +35,45 @@ def _extract_qeios_page(qeios_id: str) -> dict:
     html = r.text
     result = {}
 
+    # Find the publication JSON blob
+    pub_idx = html.find('publication = {')
+    if pub_idx < 0:
+        return result
+    pub_chunk = html[pub_idx:]
+
     # domain_name
-    idx = html.find('"domain_name"')
+    idx = pub_chunk.find('"domain_name"')
     if idx >= 0:
-        m = re.search(r':\s*"([^"]+)"', html[idx + 13:idx + 100])
+        m = re.search(r':\s*"([^"]+)"', pub_chunk[idx + 13:idx + 100])
         if m:
             result["domain"] = m.group(1)
 
-    # title
-    idx = html.find('"title"')
-    if idx >= 0:
-        m = re.search(r':\s*"((?:[^"\\]|\\.)+)"', html[idx + 7:idx + 500])
-        if m:
-            raw = m.group(1).replace('\\"', '"').replace('\\/', '/')
-            result["title"] = re.sub(r'<[^>]+>', '', raw).strip()
+    # title — from the publication object
+    m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)+)"', pub_chunk[:500])
+    if m:
+        raw = m.group(1).replace('\\"', '"').replace('\\/', '/')
+        result["title"] = re.sub(r'<[^>]+>', '', raw).strip()
 
     # abstract
-    idx = html.find('"abstract"')
+    idx = pub_chunk.find('"abstract"')
     if idx >= 0:
-        m = re.search(r':\s*"((?:[^"\\]|\\.)+)"', html[idx + 10:idx + 10000])
+        m = re.search(r':\s*"((?:[^"\\]|\\.)+)"', pub_chunk[idx + 10:idx + 10000])
         if m:
             raw = m.group(1).replace('\\"', '"').replace('\\/', '/')
             result["abstract"] = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', raw)).strip()
 
     # body (full text)
-    idx = html.find('"body":')
+    idx = pub_chunk.find('"body":')
     if idx >= 0:
-        start = html.find('"', idx + 7)
+        start = pub_chunk.find('"', idx + 7)
         if start >= 0:
             start += 1
             pos = start
-            while pos < len(html) and pos < start + 200000:
-                if html[pos] == '"' and html[pos - 1] != '\\':
+            while pos < len(pub_chunk) and pos < start + 200000:
+                if pub_chunk[pos] == '"' and pub_chunk[pos - 1] != '\\':
                     break
                 pos += 1
-            raw = html[start:pos].replace('\\"', '"').replace('\\/', '/').replace('\\n', ' ')
+            raw = pub_chunk[start:pos].replace('\\"', '"').replace('\\/', '/').replace('\\n', ' ')
             text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', raw)).strip()
             if len(text) > 500:
                 result["full_text"] = text
