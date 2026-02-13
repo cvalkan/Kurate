@@ -124,8 +124,10 @@ async def startup():
         await db.admin_sessions.create_index("key", unique=True)
         # Validation experiment indexes
         await db.validation_papers.create_index("id", unique=True)
+        await db.validation_papers.create_index([("dataset_id", 1), ("id", 1)])
         await db.validation_matches.create_index("id", unique=True)
         await db.validation_matches.create_index([("completed", 1), ("failed", 1)])
+        await db.validation_matches.create_index([("dataset_id", 1), ("completed", 1), ("failed", 1)])
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
