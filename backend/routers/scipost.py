@@ -55,40 +55,39 @@ def _parse_scipost_submission(html: str, submission_id: str) -> dict:
     """Parse a SciPost submission page to extract paper info and referee reports."""
     result = {"submission_id": submission_id, "reports": []}
     
-    # Extract title
-    title_match = re.search(r'<h2[^>]*class="[^"]*highlight[^"]*"[^>]*>([^<]+)</h2>', html)
-    if not title_match:
-        title_match = re.search(r'<title>SciPost:\s*([^<]+)</title>', html)
+    # Extract title from <title> tag
+    title_match = re.search(r'<title>SciPost Submission:\s*([^<]+)</title>', html)
     if title_match:
         result["title"] = title_match.group(1).strip()
     
-    # Extract abstract
-    abstract_match = re.search(r'<div[^>]*class="[^"]*abstract[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
+    # Extract abstract - it's in a <p> tag after <h3 class="mt-4">Abstract</h3>
+    abstract_match = re.search(r'<h3[^>]*>Abstract</h3>\s*<p>([^<]+)</p>', html, re.DOTALL)
     if abstract_match:
-        abstract = re.sub(r'<[^>]+>', ' ', abstract_match.group(1))
-        result["abstract"] = re.sub(r'\s+', ' ', abstract).strip()
+        abstract = abstract_match.group(1).strip()
+        result["abstract"] = re.sub(r'\s+', ' ', abstract)
     
-    # Extract specialty/field
-    field_match = re.search(r'Specialty:\s*<[^>]*>([^<]+)<', html)
+    # Extract specialty/field from breadcrumb or elsewhere
+    field_match = re.search(r'Specialty:\s*([^<\n]+)', html)
     if field_match:
         result["field"] = field_match.group(1).strip()
     else:
         result["field"] = "Physics"
     
     # Find all referee reports with ratings
-    report_blocks = re.findall(
-        r'<div class="report"[^>]*id="report_(\d+)"[^>]*>(.*?)</div>\s*</div>\s*</div>\s*</div>',
-        html, re.DOTALL
-    )
+    # Reports are in <div class="report" id="report_N">...</div>
+    report_pattern = r'<div class="report" id="report_(\d+)">(.*?)</div>\s*</div>\s*</div>\s*</div>'
+    report_matches = re.findall(report_pattern, html, re.DOTALL)
     
-    for report_num, block in report_blocks:
+    for report_num, block in report_matches:
         report = {"report_num": int(report_num)}
         
-        # Extract referee name or Anonymous
+        # Extract referee name
         referee_match = re.search(r'Report #\d+ by\s*(.*?)\s*(?:\(|on\s+\d)', block)
         if referee_match:
             referee = referee_match.group(1).strip()
             report["referee"] = referee if referee and "Anonymous" not in referee else f"Anonymous_{report_num}"
+        else:
+            report["referee"] = f"Referee_{report_num}"
         
         # Extract ratings from the ratings div
         ratings_match = re.search(r'<div class="ratings">(.*?)</div>', block, re.DOTALL)
@@ -100,14 +99,11 @@ def _parse_scipost_submission(html: str, submission_id: str) -> dict:
                     rating_text = dim_match.group(1).lower()
                     report[dim] = RATING_SCALE.get(rating_text, 0)
         
-        # Extract recommendation
-        rec_match = re.search(r'Recommendation.*?<[^>]*>([^<]+)<', block, re.DOTALL)
-        if rec_match:
-            report["recommendation"] = rec_match.group(1).strip()
-        
         # Only include reports with at least some ratings
         if any(report.get(d) for d in DIMENSIONS):
             result["reports"].append(report)
+    
+    logger.debug(f"SciPost parse {submission_id}: title={bool(result.get('title'))}, abstract={bool(result.get('abstract'))}, reports={len(result.get('reports', []))}")
     
     return result
 
