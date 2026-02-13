@@ -1,0 +1,127 @@
+{
+  "summary": "Iteration 29 - Validation Hub restructure with SciPost pairwise comparison feature testing. All 11 backend API tests passed. Frontend testing verified all sidebar navigation items, section headers, and empty state handling for SciPost pairwise. Old /pairwise and /scipost routes correctly show blank pages (removed from router).",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": {
+    "backend": [
+      "GET /api/scipost/pairwise/status returns 200 with required fields (total_pairs, ai_completed, ai_failed, ai_pending, by_dimension, fetching, running, progress)",
+      "GET /api/scipost/pairwise/results returns status=no_data when collection is empty",
+      "GET /api/pairwise/status returns 200 with 330 Qeios pairs",
+      "GET /api/pairwise/results returns ok with majority_agreement data",
+      "GET /api/scipost/status returns 200 with comparison counts",
+      "GET /api/scipost/results returns ok with prompts field",
+      "GET /api/validation/datasets returns 3 datasets (ICLR LLMs, ICLR Protein Science, PeerRead ACL 2017)",
+      "GET /api/validation/pairwise-results returns correlation data for iclr-llm",
+      "GET /api/validation/irt-results returns IRT scores for iclr-llm",
+      "Validation API accessible (navbar link should work)",
+      "SciPost pairwise empty state returns no_data status"
+    ],
+    "frontend": [
+      "Validation hub page loads at /validation with title 'Validation'",
+      "Sidebar exists with data-testid='validation-sidebar'",
+      "Pairwise group has Qeios and SciPost items (nav-pw-qeios, nav-pw-scipost)",
+      "Single-item group has SciPost item (nav-si-scipost)",
+      "Tournament group has all 3 datasets dynamically loaded (nav-t-iclr-llm, nav-t-iclr-protein, nav-t-peerread_acl_2017)",
+      "Clicking Pairwise > Qeios shows section title 'Pairwise — Qeios' with 330 pairs stats",
+      "Clicking Pairwise > SciPost shows section title 'Pairwise — SciPost' with empty state message",
+      "Clicking Single-item > SciPost shows section title 'Single-item — SciPost' with 4 dimension cards (282 comparisons)",
+      "Clicking Tournament > ICLR LLMs shows section title 'Tournament — ICLR LLMs' with ranking correlation data",
+      "Tournament DatasetView does not show duplicate header (hideHeader prop working)",
+      "Old /pairwise route shows blank page (route removed)",
+      "Old /scipost route shows blank page (route removed)",
+      "Navbar shows 'Validation' link (visible in screenshots)"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_validation_hub.py",
+    "/app/test_reports/pytest/validation_hub_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "ValidationHubPage.jsx correctly implements unified hub with sidebar navigation",
+    "SciPostPairwiseSection.jsx correctly handles empty state with 'No pairwise comparisons yet' message",
+    "Backend /api/scipost/pairwise/* endpoints correctly added to scipost.py router",
+    "App.js routes updated - only /validation route active, old /pairwise and /scipost removed",
+    "Navbar.jsx simplified to only show Validation link (no separate Pairwise/SciPost links)",
+    "DatasetView component correctly uses hideHeader prop to avoid duplicate headers when embedded in hub",
+    "All data-testid attributes correctly implemented for testing"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_validation_hub.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (13/13 UI verifications passed)"
+  },
+
+  "test_credentials": {
+    "admin_password": "papersumo2025",
+    "admin_login_endpoint": "POST /api/admin/login"
+  },
+
+  "seed_data_creation": "None - tested with existing data (330 Qeios pairs, 282 SciPost comparisons, 0 SciPost pairwise pairs)",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 29 verified the Validation Hub restructure with new SciPost pairwise comparison feature. The unified /validation route provides a sidebar with 3 groups: (1) Pairwise (Qeios - 330 pairs, SciPost - empty), (2) Single-item (SciPost - 282 comparisons), (3) Tournament (ICLR LLMs - 73 papers, ICLR Protein - 46 papers, PeerRead ACL 2017 - 80 papers). Old /pairwise and /scipost routes removed. New endpoints: GET /api/scipost/pairwise/status, GET /api/scipost/pairwise/results. Admin-only POST endpoints for fetch-and-run, stop, reset.",
+
+  "verified_features": {
+    "validation_hub_page": {
+      "status": "WORKING",
+      "description": "Unified Validation hub with sidebar navigation",
+      "url": "/validation",
+      "sidebar_groups": {
+        "Pairwise": ["Qeios", "SciPost"],
+        "Single-item": ["SciPost"],
+        "Tournament": ["ICLR LLMs (73 papers)", "ICLR Protein Science (46 papers)", "PeerRead ACL 2017 (80 papers)"]
+      }
+    },
+    "scipost_pairwise_api": {
+      "status": "WORKING",
+      "endpoints": [
+        "GET /api/scipost/pairwise/status - returns status with total_pairs, ai_completed, etc.",
+        "GET /api/scipost/pairwise/results - returns no_data when empty, ok with analysis when data exists"
+      ],
+      "current_state": "Empty (0 pairs) - shows 'No pairwise comparisons yet' message"
+    },
+    "old_routes_removed": {
+      "status": "WORKING",
+      "/pairwise": "Shows blank page (route removed from App.js)",
+      "/scipost": "Shows blank page (route removed from App.js)"
+    },
+    "navbar_simplified": {
+      "status": "WORKING",
+      "description": "Only Validation link visible in navbar, no separate Pairwise or SciPost links"
+    },
+    "section_headers": {
+      "status": "WORKING",
+      "examples": [
+        "Pairwise — Qeios",
+        "Pairwise — SciPost", 
+        "Single-item — SciPost",
+        "Tournament — ICLR LLMs"
+      ]
+    },
+    "tournament_dataset_view": {
+      "status": "WORKING",
+      "description": "DatasetView component with hideHeader prop prevents duplicate headers when embedded in hub"
+    }
+  }
+}
