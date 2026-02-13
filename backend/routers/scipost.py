@@ -18,7 +18,7 @@ from typing import Optional, List
 
 from core.config import db, logger, TOURNAMENT_MODELS
 from core.auth import verify_admin
-from services.llm import call_llm, compare_papers
+from services.llm import call_llm, compare_papers, download_and_extract_pdf
 
 router = APIRouter(prefix="/api/scipost")
 
@@ -65,6 +65,23 @@ def _parse_scipost_submission(html: str, submission_id: str) -> dict:
     if abstract_match:
         abstract = abstract_match.group(1).strip()
         result["abstract"] = re.sub(r'\s+', ' ', abstract)
+
+    # Extract PDF URL if available
+    pdf_url = None
+    pdf_patterns = [
+        r'href="([^"]+\.pdf)"',
+        r'href="(/submissions/[^"]+/pdf)"',
+        r'href="(/downloads/[^"]+\.pdf)"',
+    ]
+    for pat in pdf_patterns:
+        match = re.search(pat, html, re.IGNORECASE)
+        if match:
+            pdf_url = match.group(1)
+            break
+    if pdf_url:
+        if pdf_url.startswith("/"):
+            pdf_url = f"https://scipost.org{pdf_url}"
+        result["pdf_url"] = pdf_url
     
     # Extract specialty/field from breadcrumb or elsewhere
     field_match = re.search(r'Specialty:\s*([^<\n]+)', html)
