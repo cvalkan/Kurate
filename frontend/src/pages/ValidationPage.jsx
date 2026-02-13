@@ -474,7 +474,7 @@ export default function ValidationPage() {
       <div className="border border-border rounded-lg p-4 mt-8 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li><strong>Data:</strong> Papers with peer reviews from ICLR OpenReview and PeerRead (ACL 2017). Full text used for section extraction where available.</li>
+          <li><strong>Data:</strong> Papers with peer reviews from ICLR OpenReview, PeerRead (ACL 2017), and F1000Research (biomedical). Full text used for section extraction where available.</li>
           <li><strong>Pairwise BT:</strong> Derives head-to-head matches from reviewers who scored multiple papers. Both sides ranked via Bradley-Terry. Implicitly cancels severity bias.</li>
           <li><strong>IRT Score:</strong> Z-scores each reviewer's ratings against their personal mean/std, averages per paper. Explicitly removes severity bias. Produces finer-grained scores.</li>
           <li><strong>Multi-Model:</strong> Each pair is evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro. Inter-model agreement and majority-vote accuracy are computed.</li>
