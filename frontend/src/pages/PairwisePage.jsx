@@ -122,6 +122,7 @@ export default function PairwisePage() {
                 type="number" min={5} max={200} value={numPairs}
                 onChange={e => setNumPairs(parseInt(e.target.value) || 20)}
                 className="w-20 h-8 text-xs" data-testid="num-pairs-input"
+                disabled={running}
               />
             </div>
             {!running ? (
@@ -135,10 +136,12 @@ export default function PairwisePage() {
             )}
           </div>
           {running && (
-            <div className="flex items-center gap-2 text-xs">
-              <Loader2 className="h-3 w-3 animate-spin text-accent" />
-              <span>
-                Fetched: {status?.progress?.pairs_fetched || 0} | Evaluated: {status?.progress?.pairs_evaluated || 0} / {status?.progress?.target || "?"}
+            <div className="flex items-center gap-2 text-xs bg-accent/10 rounded px-3 py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-accent" />
+              <span className="font-medium">
+                {isStarting && !status?.fetching ? "Starting..." : 
+                 status?.progress?.phase === "scanning" ? "Scanning Crossref for reviewers..." :
+                 `Fetched: ${status?.progress?.pairs_fetched || 0} | Evaluated: ${status?.progress?.pairs_evaluated || 0} / ${status?.progress?.target || numPairs}`}
               </span>
             </div>
           )}
