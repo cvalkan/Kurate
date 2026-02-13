@@ -588,41 +588,22 @@ async def _run_pairwise_tournament(parallel: int):
 async def get_results():
     pairs = await db.pairwise_comparisons.find(
         {"ai_completed": True},
-        {"_id": 0, "id": 1, "domain": 1, "reviewer": 1, "human_winner": 1,
-         "ai_winner": 1, "human_score1": 1, "human_score2": 1,
-         "paper1.title": 1, "paper2.title": 1, "paper1.domain": 1,
-         "used_full_text": 1, "ai_model": 1},
+        {"_id": 0},
     ).to_list(10000)
 
     if not pairs:
         return {"status": "no_data", "total": 0}
 
-    # Overall agreement
-    agree = sum(1 for p in pairs if p["human_winner"] == p["ai_winner"])
     total = len(pairs)
 
-    # By domain
-    domain_stats = defaultdict(lambda: {"agree": 0, "total": 0})
-    for p in pairs:
-        d = p.get("domain") or "Unknown"
-        domain_stats[d]["total"] += 1
-        if p["human_winner"] == p["ai_winner"]:
-            domain_stats[d]["agree"] += 1
-
-    domain_results = {
-        d: {"agree": s["agree"], "total": s["total"],
-            "rate": round(s["agree"] / max(s["total"], 1) * 100, 1)}
-        for d, s in sorted(domain_stats.items(), key=lambda x: -x[1]["total"])
-    }
-
-    # By model
+    # Per-model agreement
     model_stats = defaultdict(lambda: {"agree": 0, "total": 0})
     for p in pairs:
-        mk = p.get("ai_model", {})
-        model_key = f"{mk.get('provider', '?')}:{mk.get('model', '?')}"
-        model_stats[model_key]["total"] += 1
-        if p["human_winner"] == p["ai_winner"]:
-            model_stats[model_key]["agree"] += 1
+        for mk, res in p.get("ai_results", {}).items():
+            if res.get("winner"):
+                model_stats[mk]["total"] += 1
+                if res["winner"] == p["human_winner"]:
+                    model_stats[mk]["agree"] += 1
 
     model_results = {
         m: {"agree": s["agree"], "total": s["total"],
@@ -630,13 +611,34 @@ async def get_results():
         for m, s in sorted(model_stats.items(), key=lambda x: -x[1]["total"])
     }
 
-    # By score gap (how different were the human scores)
+    # Majority vote agreement
+    maj_agree = sum(1 for p in pairs if p.get("ai_majority") == p["human_winner"])
+    maj_total = sum(1 for p in pairs if p.get("ai_majority"))
+
+    # By domain (using majority vote)
+    domain_stats = defaultdict(lambda: {"agree": 0, "total": 0})
+    for p in pairs:
+        d = p.get("domain") or "Unknown"
+        if p.get("ai_majority"):
+            domain_stats[d]["total"] += 1
+            if p["ai_majority"] == p["human_winner"]:
+                domain_stats[d]["agree"] += 1
+
+    domain_results = {
+        d: {"agree": s["agree"], "total": s["total"],
+            "rate": round(s["agree"] / max(s["total"], 1) * 100, 1)}
+        for d, s in sorted(domain_stats.items(), key=lambda x: -x[1]["total"])
+    }
+
+    # By score gap
     gap_stats = defaultdict(lambda: {"agree": 0, "total": 0})
     for p in pairs:
+        if not p.get("ai_majority"):
+            continue
         gap = abs(p["human_score1"] - p["human_score2"])
         gap_label = f"{gap:.0f}" if gap == int(gap) else f"{gap:.1f}"
         gap_stats[gap_label]["total"] += 1
-        if p["human_winner"] == p["ai_winner"]:
+        if p["ai_majority"] == p["human_winner"]:
             gap_stats[gap_label]["agree"] += 1
 
     gap_results = {
@@ -646,32 +648,58 @@ async def get_results():
     }
 
     # Full text vs abstract
-    ft_agree = sum(1 for p in pairs if p.get("used_full_text") and p["human_winner"] == p["ai_winner"])
-    ft_total = sum(1 for p in pairs if p.get("used_full_text"))
-    ab_agree = sum(1 for p in pairs if not p.get("used_full_text") and p["human_winner"] == p["ai_winner"])
-    ab_total = sum(1 for p in pairs if not p.get("used_full_text"))
+    ft_pairs = [p for p in pairs if p.get("used_full_text") and p.get("ai_majority")]
+    ab_pairs = [p for p in pairs if not p.get("used_full_text") and p.get("ai_majority")]
+    ft_agree = sum(1 for p in ft_pairs if p["ai_majority"] == p["human_winner"])
+    ab_agree = sum(1 for p in ab_pairs if p["ai_majority"] == p["human_winner"])
 
-    # Sample pairs for display
+    # Inter-model agreement
+    inter_model = defaultdict(lambda: {"agree": 0, "total": 0})
+    models = sorted(model_stats.keys())
+    for p in pairs:
+        ar = p.get("ai_results", {})
+        for i, m1 in enumerate(models):
+            for m2 in models[i + 1:]:
+                w1 = ar.get(m1, {}).get("winner")
+                w2 = ar.get(m2, {}).get("winner")
+                if w1 and w2:
+                    key = f"{m1} vs {m2}"
+                    inter_model[key]["total"] += 1
+                    if w1 == w2:
+                        inter_model[key]["agree"] += 1
+
+    inter_model_results = {
+        k: {"agree": s["agree"], "total": s["total"],
+            "rate": round(s["agree"] / max(s["total"], 1) * 100, 1)}
+        for k, s in inter_model.items()
+    }
+
+    # Sample pairs table
     sample = [{
-        "paper1_title": p["paper1"]["title"][:60],
-        "paper2_title": p["paper2"]["title"][:60],
+        "paper1_title": p["paper1"]["title"],
+        "paper2_title": p["paper2"]["title"],
         "domain": p.get("domain", "?"),
         "human_winner": p["human_winner"],
-        "ai_winner": p["ai_winner"],
-        "agree": p["human_winner"] == p["ai_winner"],
+        "human_score1": p["human_score1"],
+        "human_score2": p["human_score2"],
+        "ai_majority": p.get("ai_majority"),
+        "majority_agree": p.get("ai_majority") == p["human_winner"] if p.get("ai_majority") else None,
+        "models_agree": sum(1 for v in p.get("ai_results", {}).values() if v.get("winner") == p["human_winner"]),
+        "models_total": sum(1 for v in p.get("ai_results", {}).values() if v.get("winner")),
         "score_gap": abs(p["human_score1"] - p["human_score2"]),
-    } for p in pairs[:50]]
+    } for p in pairs[:100]]
 
     return {
         "status": "ok",
         "total_pairs": total,
-        "overall_agreement": {"agree": agree, "total": total, "rate": round(agree / max(total, 1) * 100, 1)},
-        "by_domain": domain_results,
+        "majority_agreement": {"agree": maj_agree, "total": maj_total, "rate": round(maj_agree / max(maj_total, 1) * 100, 1)},
         "by_model": model_results,
+        "by_domain": domain_results,
         "by_score_gap": gap_results,
+        "inter_model": inter_model_results,
         "full_text_vs_abstract": {
-            "full_text": {"agree": ft_agree, "total": ft_total, "rate": round(ft_agree / max(ft_total, 1) * 100, 1)},
-            "abstract_only": {"agree": ab_agree, "total": ab_total, "rate": round(ab_agree / max(ab_total, 1) * 100, 1)},
+            "full_text": {"agree": ft_agree, "total": len(ft_pairs), "rate": round(ft_agree / max(len(ft_pairs), 1) * 100, 1)},
+            "abstract_only": {"agree": ab_agree, "total": len(ab_pairs), "rate": round(ab_agree / max(len(ab_pairs), 1) * 100, 1)},
         },
         "sample_pairs": sample,
     }
