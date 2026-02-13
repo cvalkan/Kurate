@@ -134,10 +134,10 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
       {/* Status cards */}
       {status && status.total_pairs > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-          {[["Total Pairs", status.total_pairs], ["AI Completed", status.ai_completed],
-            ["AI Pending", status.ai_pending], ["AI Failed", status.ai_failed]]
-            .map(([l, v], i) => (
-              <div key={i} className="p-2 border border-border/50 rounded text-xs">
+          {[["Total Pairs", status.total_pairs, "total"], ["AI Completed", status.ai_completed, "completed"],
+            ["AI Pending", status.ai_pending, "pending"], ["AI Failed", status.ai_failed, "failed"]]
+            .map(([l, v, key]) => (
+              <div key={key} className="p-2 border border-border/50 rounded text-xs" data-testid={`pw-status-${key}-${mode}`}>
                 <div className="text-muted-foreground">{l}</div>
                 <div className="font-semibold text-base">{v}</div>
               </div>
