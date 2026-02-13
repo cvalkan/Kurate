@@ -165,7 +165,7 @@ async def get_status():
     # Count by dimension
     dim_counts = {}
     for dim in DIMENSIONS:
-        dim_counts[dim] = await db.scipost_comparisons.count_documents({f"dimension": dim, "ai_completed": True})
+        dim_counts[dim] = await db.scipost_comparisons.count_documents({"dimension": dim, "ai_completed": True})
     
     return {
         "total_comparisons": total,
@@ -576,7 +576,7 @@ async def pw_fetch_and_run(body: PairwiseFetchRequest):
         return {"status": "already_running"}
     valid_dims = [d for d in body.dimensions if d in DIMENSIONS]
     if not valid_dims:
-        return {"status": "error", "message": f"Invalid dimensions"}
+        return {"status": "error", "message": "Invalid dimensions"}
     asyncio.create_task(_pw_run(body.num_pairs_per_dim, valid_dims))
     return {"status": "started", "num_pairs_per_dim": body.num_pairs_per_dim, "dimensions": valid_dims}
 
