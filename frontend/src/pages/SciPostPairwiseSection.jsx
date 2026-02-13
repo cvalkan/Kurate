@@ -221,7 +221,7 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
           )}
 
           {/* Agreement by score gap */}
-          {(hasGapData || forceShowGapChart) && (
+          {hasGapData && (
             <div className="border border-border rounded-lg p-4" data-testid={`pw-gap-chart-${mode}`}>
               <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
                 <BarChart3 className="h-4 w-4" /> Agreement by Score Gap ({modeLabel})
