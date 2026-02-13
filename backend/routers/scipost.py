@@ -184,7 +184,7 @@ async def _fetch_submission_details(session: aiohttp.ClientSession, submission_i
                         break
 
     if not data.get("pdf_url"):
-        data["pdf_url"] = f"https://scipost.org/submissions/{submission_id}/pdf"
+        data["pdf_url"] = f"https://scipost.org/preprints/{submission_id}/"
     
     # Only return if we have title, abstract, and at least one report with ratings
     if data.get("title") and data.get("abstract") and data.get("reports"):
