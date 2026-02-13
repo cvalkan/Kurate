@@ -254,7 +254,7 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
 
           {/* Sample pairs */}
           {results.samples?.length > 0 && (
-            <div className="border border-border rounded-lg overflow-hidden" data-testid="pw-samples-table">
+            <div className="border border-border rounded-lg overflow-hidden" data-testid={`pw-samples-table-${mode}`}>
               <div className="px-3 py-2 bg-secondary/10 border-b border-border">
                 <h2 className="text-xs font-medium">Sample Pairs</h2>
               </div>
