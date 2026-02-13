@@ -549,3 +549,298 @@ async def reset():
         return {"status": "error", "message": "Cannot reset while running"}
     r = await db.scipost_comparisons.delete_many({})
     return {"status": "ok", "deleted": r.deleted_count}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAIRWISE COMPARISON (per dimension) — head-to-head paper pairs
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_pw_state = {"fetching": False, "running": False, "progress": {}}
+
+DIMENSION_PW_TASKS = {
+    "validity": "Which paper demonstrates stronger scientific VALIDITY? Consider: soundness of methods, evidence supporting conclusions, logical consistency.",
+    "significance": "Which paper has greater SIGNIFICANCE and potential impact? Consider: importance of the problem, potential to influence the field, magnitude of contribution.",
+    "originality": "Which paper shows more ORIGINALITY? Consider: novelty of ideas or methods, whether it opens new research directions, transformative vs incremental.",
+    "clarity": "Which paper has better CLARITY of presentation? Consider: quality of writing, logical structure, how well concepts are explained.",
+}
+
+
+class PairwiseFetchRequest(BaseModel):
+    num_pairs_per_dim: int = 10
+    dimensions: List[str] = DIMENSIONS
+
+
+@router.post("/pairwise/fetch-and-run", dependencies=[Depends(verify_admin)])
+async def pw_fetch_and_run(body: PairwiseFetchRequest):
+    if _pw_state["fetching"] or _pw_state["running"]:
+        return {"status": "already_running"}
+    valid_dims = [d for d in body.dimensions if d in DIMENSIONS]
+    if not valid_dims:
+        return {"status": "error", "message": f"Invalid dimensions"}
+    asyncio.create_task(_pw_run(body.num_pairs_per_dim, valid_dims))
+    return {"status": "started", "num_pairs_per_dim": body.num_pairs_per_dim, "dimensions": valid_dims}
+
+
+@router.get("/pairwise/status")
+async def pw_status():
+    total = await db.scipost_pairwise.count_documents({})
+    completed = await db.scipost_pairwise.count_documents({"ai_completed": True})
+    failed = await db.scipost_pairwise.count_documents({"ai_failed": True})
+    dim_counts = {}
+    async for r in db.scipost_pairwise.aggregate([{"$group": {"_id": "$dimension", "count": {"$sum": 1}}}]):
+        dim_counts[r["_id"]] = r["count"]
+    return {
+        "total_pairs": total, "ai_completed": completed, "ai_failed": failed,
+        "ai_pending": total - completed - failed, "by_dimension": dim_counts,
+        "fetching": _pw_state["fetching"], "running": _pw_state["running"],
+        "progress": _pw_state["progress"],
+    }
+
+
+@router.post("/pairwise/stop", dependencies=[Depends(verify_admin)])
+async def pw_stop():
+    _pw_state["running"] = False
+    _pw_state["fetching"] = False
+    return {"status": "stopped"}
+
+
+@router.post("/pairwise/reset", dependencies=[Depends(verify_admin)])
+async def pw_reset():
+    if _pw_state["running"] or _pw_state["fetching"]:
+        return {"status": "error", "message": "Cannot reset while running"}
+    r = await db.scipost_pairwise.delete_many({})
+    return {"status": "ok", "deleted": r.deleted_count}
+
+
+async def _pw_run(num_pairs_per_dim: int, dimensions: list):
+    _pw_state["fetching"] = True
+    _pw_state["running"] = True
+    _pw_state["progress"] = {"phase": "scanning", "papers_found": 0, "pairs_done": 0, "target": num_pairs_per_dim * len(dimensions)}
+    pairs_done = 0
+
+    try:
+        # Phase 1: Fetch papers with reports
+        async with aiohttp.ClientSession() as session:
+            submission_ids = await _fetch_scipost_submissions(session)
+            random.shuffle(submission_ids)
+
+            papers = []
+            need = max(num_pairs_per_dim * 4, 30)
+            for i in range(0, min(len(submission_ids), need * 2), 6):
+                if len(papers) >= need:
+                    break
+                batch = submission_ids[i:i + 6]
+                tasks = [_fetch_submission_details(session, sid) for sid in batch]
+                results = await asyncio.gather(*tasks)
+                for p in results:
+                    if p and p.get("reports"):
+                        papers.append(p)
+                _pw_state["progress"]["papers_found"] = len(papers)
+                await asyncio.sleep(0.5)
+
+        if len(papers) < 2:
+            logger.warning("SciPost pairwise: not enough papers")
+            return
+
+        _pw_state["progress"]["phase"] = "evaluating"
+        _pw_state["fetching"] = False
+
+        # Phase 2: For each dimension, create pairs and evaluate
+        for dim in dimensions:
+            if not _pw_state["running"]:
+                break
+
+            # Compute average score per paper for this dimension
+            paper_scores = []
+            for paper in papers:
+                dim_ratings = []
+                for rpt in paper.get("reports", []):
+                    val = rpt.get(dim)
+                    if val and isinstance(val, (int, float)):
+                        dim_ratings.append(val)
+                if dim_ratings:
+                    avg = sum(dim_ratings) / len(dim_ratings)
+                    paper_scores.append((paper, avg))
+
+            if len(paper_scores) < 2:
+                continue
+
+            # Create pairs — each paper used at most once
+            random.shuffle(paper_scores)
+            dim_pairs = []
+            for i in range(0, len(paper_scores) - 1, 2):
+                if len(dim_pairs) >= num_pairs_per_dim:
+                    break
+                p1, s1 = paper_scores[i]
+                p2, s2 = paper_scores[i + 1]
+                if abs(s1 - s2) < 0.3:
+                    continue  # skip near-ties
+                dim_pairs.append((p1, s1, p2, s2))
+
+            # Evaluate each pair with all 3 models
+            task_text = DIMENSION_PW_TASKS.get(dim, f"Which paper is better on {dim}?")
+            prompt_config = {
+                "system_prompt": "You are a physics peer reviewer. Compare two papers on a specific dimension. You must pick exactly one winner. Respond with valid JSON only.",
+                "user_prompt": (
+                    f"Compare these two physics papers on their {dim.upper()}.\n\n"
+                    "Paper 1: \"{paper1_title}\"\n{paper1_content}\n\n"
+                    "Paper 2: \"{paper2_title}\"\n{paper2_content}\n\n"
+                    f"{task_text}\n\n"
+                    "You MUST pick exactly one winner. Respond with JSON only:\n"
+                    "{\"winner\": \"paper1\" or \"paper2\", \"reasoning\": \"brief explanation\"}"
+                ),
+            }
+
+            for p1, s1, p2, s2 in dim_pairs:
+                if not _pw_state["running"]:
+                    break
+
+                human_winner = "paper1" if s1 > s2 else "paper2"
+
+                # Run all 3 models in parallel with random swap
+                ai_results = {}
+                model_tasks = []
+                for mi in TOURNAMENT_MODELS:
+                    swapped = random.random() < 0.5
+                    model_tasks.append((mi, swapped))
+
+                coros = []
+                for mi, swapped in model_tasks:
+                    if swapped:
+                        a, b = p2, p1
+                    else:
+                        a, b = p1, p2
+                    coros.append(compare_papers(
+                        {"title": a.get("title", ""), "abstract": a.get("abstract", "")},
+                        {"title": b.get("title", ""), "abstract": b.get("abstract", "")},
+                        prompt_config, abstract_only=True, model_override=mi,
+                    ))
+                responses = await asyncio.gather(*coros, return_exceptions=True)
+
+                for (mi, swapped), resp in zip(model_tasks, responses):
+                    mk = f"{mi['provider']}:{mi['model']}"
+                    if isinstance(resp, Exception):
+                        ai_results[mk] = {"winner": None, "error": str(resp)[:100]}
+                    else:
+                        w = resp.get("winner", "paper1")
+                        if swapped:
+                            w = "paper2" if w == "paper1" else "paper1"
+                        ai_results[mk] = {"winner": w, "reasoning": resp.get("reasoning", "")}
+
+                # Majority vote
+                votes = [v["winner"] for v in ai_results.values() if v.get("winner")]
+                majority = None
+                if votes:
+                    c = Counter(votes)
+                    best, n = c.most_common(1)[0]
+                    if n > len(votes) / 2:
+                        majority = best
+
+                doc = {
+                    "id": str(uuid.uuid4()),
+                    "source": "scipost", "dimension": dim,
+                    "paper1": {"submission_id": p1.get("submission_id", ""), "title": p1.get("title", ""), "abstract": p1.get("abstract", "")[:500], "human_score": round(s1, 2)},
+                    "paper2": {"submission_id": p2.get("submission_id", ""), "title": p2.get("title", ""), "abstract": p2.get("abstract", "")[:500], "human_score": round(s2, 2)},
+                    "human_winner": human_winner, "score_gap": round(abs(s1 - s2), 2),
+                    "ai_results": ai_results, "ai_majority": majority,
+                    "ai_completed": True, "ai_failed": False,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                await db.scipost_pairwise.insert_one(doc)
+                pairs_done += 1
+                _pw_state["progress"]["pairs_done"] = pairs_done
+                agrees = sum(1 for v in ai_results.values() if v.get("winner") == human_winner)
+                logger.info(f"SciPost pw [{pairs_done}] {dim}: {agrees}/3 agree | gap={abs(s1-s2):.1f}")
+
+        logger.info(f"SciPost pairwise complete: {pairs_done} pairs")
+    except Exception as e:
+        logger.error(f"SciPost pairwise error: {e}")
+    finally:
+        _pw_state["fetching"] = False
+        _pw_state["running"] = False
+
+
+@router.get("/pairwise/results")
+async def pw_results():
+    pairs = await db.scipost_pairwise.find({"ai_completed": True}, {"_id": 0}).to_list(10000)
+    if not pairs:
+        return {"status": "no_data", "total": 0}
+
+    total = len(pairs)
+    dim_stats = defaultdict(lambda: {
+        "maj_agree": 0, "maj_total": 0,
+        "models": defaultdict(lambda: {"agree": 0, "total": 0}),
+        "gaps": defaultdict(lambda: {"agree": 0, "total": 0}),
+    })
+
+    for p in pairs:
+        dim = p.get("dimension")
+        hw = p.get("human_winner")
+        for mk, res in p.get("ai_results", {}).items():
+            if res.get("winner"):
+                dim_stats[dim]["models"][mk]["total"] += 1
+                if res["winner"] == hw:
+                    dim_stats[dim]["models"][mk]["agree"] += 1
+        if p.get("ai_majority"):
+            dim_stats[dim]["maj_total"] += 1
+            if p["ai_majority"] == hw:
+                dim_stats[dim]["maj_agree"] += 1
+        gap = p.get("score_gap", 0)
+        gap_label = "small" if gap <= 1 else "medium" if gap <= 2 else "large"
+        if p.get("ai_majority"):
+            dim_stats[dim]["gaps"][gap_label]["total"] += 1
+            if p["ai_majority"] == hw:
+                dim_stats[dim]["gaps"][gap_label]["agree"] += 1
+
+    def _rate(a, t):
+        return round(a / max(t, 1) * 100, 1)
+
+    dim_results = {}
+    for dim, s in dim_stats.items():
+        dim_results[dim] = {
+            "majority": {"agree": s["maj_agree"], "total": s["maj_total"], "rate": _rate(s["maj_agree"], s["maj_total"])},
+            "by_model": {mk: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for mk, v in s["models"].items()},
+            "by_gap": {g: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for g, v in sorted(s["gaps"].items())},
+        }
+
+    overall_agree = sum(s["maj_agree"] for s in dim_stats.values())
+    overall_total = sum(s["maj_total"] for s in dim_stats.values())
+
+    # Inter-model agreement
+    all_models = set()
+    for p in pairs:
+        all_models.update(p.get("ai_results", {}).keys())
+    models = sorted(all_models)
+    inter_model = defaultdict(lambda: {"agree": 0, "total": 0})
+    for p in pairs:
+        ar = p.get("ai_results", {})
+        for i, m1 in enumerate(models):
+            for m2 in models[i + 1:]:
+                w1, w2 = ar.get(m1, {}).get("winner"), ar.get(m2, {}).get("winner")
+                if w1 and w2:
+                    inter_model[f"{m1} vs {m2}"]["total"] += 1
+                    if w1 == w2:
+                        inter_model[f"{m1} vs {m2}"]["agree"] += 1
+
+    samples = [{
+        "dimension": p.get("dimension"),
+        "paper1_title": p["paper1"]["title"][:55],
+        "paper2_title": p["paper2"]["title"][:55],
+        "human_winner": p.get("human_winner"),
+        "human_score1": p["paper1"]["human_score"],
+        "human_score2": p["paper2"]["human_score"],
+        "ai_majority": p.get("ai_majority"),
+        "majority_agree": p.get("ai_majority") == p.get("human_winner") if p.get("ai_majority") else None,
+        "models_agree": sum(1 for v in p.get("ai_results", {}).values() if v.get("winner") == p["human_winner"]),
+        "models_total": sum(1 for v in p.get("ai_results", {}).values() if v.get("winner")),
+        "score_gap": p.get("score_gap"),
+    } for p in pairs[:80]]
+
+    return {
+        "status": "ok",
+        "total_pairs": total,
+        "overall_majority": {"agree": overall_agree, "total": overall_total, "rate": _rate(overall_agree, overall_total)},
+        "by_dimension": dim_results,
+        "inter_model": {k: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for k, v in inter_model.items()},
+        "samples": samples,
+    }
