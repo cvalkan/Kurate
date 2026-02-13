@@ -18,7 +18,7 @@ from typing import Optional, List
 
 from core.config import db, logger, TOURNAMENT_MODELS
 from core.auth import verify_admin
-from services.llm import call_llm
+from services.llm import call_llm, compare_papers
 
 router = APIRouter(prefix="/api/scipost")
 
