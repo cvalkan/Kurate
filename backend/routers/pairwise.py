@@ -27,8 +27,11 @@ _state = {"fetching": False, "tournament_running": False, "progress": {}}
 
 CROSSREF_HEADERS = {"User-Agent": "PaperSumo/1.0 (mailto:test@example.com)"}
 # Parallelism settings
-PARALLEL_FETCHES = 5  # Number of pairs to fetch data for simultaneously
-PARALLEL_EVALS = 3    # Number of pairs to evaluate with AI simultaneously
+PARALLEL_FETCHES = 8  # Number of pairs to fetch data for simultaneously
+PARALLEL_EVALS = 5    # Number of pairs to evaluate with AI simultaneously
+
+# Cache for Crossref reviewer data (avoids re-scanning)
+_crossref_cache = {"data": None, "ts": 0, "ttl": 300}  # 5 min TTL
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
