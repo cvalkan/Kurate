@@ -123,7 +123,7 @@ function PromptModal({ prompts, onClose }) {
   );
 }
 
-export default function SciPostPage() {
+export default function SciPostPage({ embedded = false }) {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [numPapers, setNumPapers] = useState(15);
