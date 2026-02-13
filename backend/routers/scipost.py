@@ -99,15 +99,25 @@ async def _fetch_scipost_submissions(session: aiohttp.ClientSession, num_pages: 
     """Fetch list of SciPost submissions with reports."""
     submissions = []
     
-    # Fetch submissions across different categories that are likely to have reports
-    # Focus on published/accepted submissions as they have complete reports
-    urls = [
+    # Fetch submissions across different categories and pages
+    # More URLs = larger paper pool for balanced dimension coverage
+    base_urls = [
         "https://scipost.org/submissions/?field=physics&status=published",
         "https://scipost.org/submissions/?field=physics&status=resubmission_incoming",
         "https://scipost.org/submissions/?specialty=phys-qp",
         "https://scipost.org/submissions/?specialty=phys-sm",
         "https://scipost.org/submissions/?specialty=phys-he",
+        "https://scipost.org/submissions/?specialty=phys-cm",
+        "https://scipost.org/submissions/?specialty=phys-ao",
+        "https://scipost.org/submissions/?specialty=phys-mp",
+        "https://scipost.org/submissions/?specialty=phys-np",
     ]
+    
+    # Also fetch additional pages for each key URL
+    urls = list(base_urls)
+    for page in range(2, num_pages + 1):
+        urls.append(f"https://scipost.org/submissions/?field=physics&status=published&page={page}")
+        urls.append(f"https://scipost.org/submissions/?field=physics&status=resubmission_incoming&page={page}")
     
     for url in urls:
         try:
