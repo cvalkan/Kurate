@@ -329,7 +329,14 @@ export default function QeiosPairwiseSection({ mode = "abstract" }) {
       ) : null}
 
       <div className="border border-border rounded-lg p-4 bg-secondary/10" data-testid={`pw-qeios-methodology-${mode}`}>
-        <h3 className="text-sm font-medium mb-2">Methodology</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium">Methodology</h3>
+          {results?.prompts && (
+            <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setShowPrompts(true)} data-testid={`pw-qeios-view-prompts-${mode}`}>
+              <FileText className="h-3 w-3" /> View Prompts
+            </Button>
+          )}
+        </div>
         <ul className="text-xs text-muted-foreground space-y-1">
           <li><strong>Source:</strong> Qeios — open peer review with star ratings. One pair per reviewer (no ties) for independence.</li>
           <li><strong>Pair sync:</strong> Abstract and Extract modes use identical paper pairs for head-to-head comparison.</li>
@@ -338,6 +345,35 @@ export default function QeiosPairwiseSection({ mode = "abstract" }) {
           <li><strong>Agreement:</strong> Majority vote and per-model agreement with the human verdict, by domain and score gap.</li>
         </ul>
       </div>
+
+      {/* Prompts modal */}
+      {showPrompts && results?.prompts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowPrompts(false)}>
+          <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4" onClick={e => e.stopPropagation()} data-testid={`pw-qeios-prompts-modal-${mode}`}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold">AI Comparison Prompts</h3>
+              <button onClick={() => setShowPrompts(false)} className="p-1 rounded hover:bg-secondary/30" data-testid="pw-qeios-prompts-close">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">System Prompt</div>
+                <pre className="text-xs bg-secondary/20 rounded p-3 whitespace-pre-wrap font-mono leading-relaxed">{results.prompts.system_prompt}</pre>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">User Prompt Template</div>
+                <pre className="text-xs bg-secondary/20 rounded p-3 whitespace-pre-wrap font-mono leading-relaxed">{results.prompts.user_prompt}</pre>
+              </div>
+              {results.prompts.content_note && (
+                <div className="text-xs text-muted-foreground bg-accent/5 rounded p-3 border border-accent/10">
+                  <strong>Note:</strong> {results.prompts.content_note}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
