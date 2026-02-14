@@ -6,6 +6,7 @@ import {
   Users, ChevronDown, ChevronRight, BarChart3, GitCompare,
   RotateCcw, Play, Layers,
 } from "lucide-react";
+import { ValidationConvergence } from "@/components/ConvergenceSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 function getAdminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
