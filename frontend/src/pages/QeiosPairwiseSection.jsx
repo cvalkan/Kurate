@@ -99,6 +99,22 @@ export default function QeiosPairwiseSection({ initialMode = "abstract" }) {
 
   return (
     <div className="space-y-5">
+      {/* Content mode toggle */}
+      <div className="flex gap-1 border border-border rounded-lg p-0.5 w-fit" data-testid="qeios-mode-toggle">
+        {[{ id: "abstract", label: "Abstract" }, { id: "extract", label: "Extract" }].map(m => (
+          <button
+            key={m.id}
+            onClick={() => setMode(m.id)}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              mode === m.id ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"
+            }`}
+            data-testid={`qeios-mode-${m.id}`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
       {/* Admin controls */}
       {isAdmin && (
         <div className="border border-border rounded-lg p-4 bg-secondary/10 space-y-3" data-testid={`pw-qeios-admin-${mode}`}>
