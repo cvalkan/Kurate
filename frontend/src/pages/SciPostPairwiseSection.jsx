@@ -72,7 +72,8 @@ function Badge({ rate, label, sub, testId }) {
   );
 }
 
-export default function SciPostPairwiseSection({ mode = "abstract" }) {
+export default function SciPostPairwiseSection({ initialMode = "abstract" }) {
+  const [mode, setMode] = useState(initialMode);
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [numPairs, setNumPairs] = useState(8);

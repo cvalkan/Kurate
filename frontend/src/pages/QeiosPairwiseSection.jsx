@@ -38,7 +38,8 @@ function Badge({ rate, label, sub, testId }) {
   );
 }
 
-export default function QeiosPairwiseSection({ mode = "abstract" }) {
+export default function QeiosPairwiseSection({ initialMode = "abstract" }) {
+  const [mode, setMode] = useState(initialMode);
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [numPairs, setNumPairs] = useState(20);
