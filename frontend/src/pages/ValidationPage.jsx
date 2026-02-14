@@ -298,13 +298,22 @@ function StandardStats({ datasetId, isAdmin }) {
 // ─── Multi-Model Stats ──────────────────────────────────────────────────────
 
 function MultiModelStats({ datasetId, isAdmin }) {
-  const [data, setData] = useState(null);
+  const [contentMode, setContentMode] = useState("extract");
+  const [dataByMode, setDataByMode] = useState({});
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
-      const r = await axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId } });
-      if (r.data.status === "ok") setData(r.data);
+      const [ext, abs, pdf] = await Promise.all([
+        axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: "extract" } }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: "abstract" } }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
+      ]);
+      const result = {};
+      if (ext.data.status === "ok") result.extract = ext.data;
+      if (abs.data.status === "ok") result.abstract = abs.data;
+      if (pdf.data.status === "ok") result.full_pdf = pdf.data;
+      setDataByMode(result);
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [datasetId]);
@@ -319,9 +328,13 @@ function MultiModelStats({ datasetId, isAdmin }) {
     } catch (e) { console.error(e); }
   };
 
+  const data = dataByMode[contentMode] || null;
+  const hasAnyData = Object.keys(dataByMode).length > 0;
+  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
+
   if (loading) return <div className="text-xs text-muted-foreground py-4 text-center">Loading multi-model data...</div>;
 
-  if (!data) {
+  if (!hasAnyData) {
     return (
       <div className="border border-border rounded-lg p-6 text-center space-y-3">
         <Layers className="h-6 w-6 mx-auto text-muted-foreground/40" />
@@ -335,13 +348,48 @@ function MultiModelStats({ datasetId, isAdmin }) {
     );
   }
 
-  const models = data.models || [];
+  const models = data?.models || [];
 
   return (
     <div className="space-y-5">
-      <div className="text-xs text-muted-foreground">
-        <strong>{data.pairs_with_all_models}</strong> pairs with all {models.length} model verdicts
+      {/* Content mode toggle */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="multimodel-content-mode-toggle">
+          {[
+            { id: "extract", label: "Extract (Full Text)" },
+            { id: "abstract", label: "Abstract Only" },
+            { id: "full_pdf", label: "Full PDF" },
+          ].map(m => (
+            <button
+              key={m.id}
+              onClick={() => setContentMode(m.id)}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                contentMode === m.id
+                  ? "bg-accent/10 text-accent"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid={`multimodel-mode-${m.id}`}
+            >
+              {m.label}
+              {dataByMode[m.id] && <span className="ml-1 text-[9px] opacity-50">({dataByMode[m.id].pairs_with_all_models})</span>}
+            </button>
+          ))}
+        </div>
+        {!data && (
+          <span className="text-xs text-muted-foreground italic">No {modeLabels[contentMode]?.toLowerCase()} multi-model data yet.</span>
+        )}
       </div>
+
+      {!data ? (
+        <div className="border border-border rounded-lg p-6 text-center space-y-3">
+          <Layers className="h-6 w-6 mx-auto text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">No multi-model data for {modeLabels[contentMode]} mode.</p>
+        </div>
+      ) : (
+        <>
+          <div className="text-xs text-muted-foreground">
+            <strong>{data.pairs_with_all_models}</strong> pairs with all {models.length} model verdicts ({modeLabels[contentMode]})
+          </div>
 
       {/* Inter-model pairwise agreement */}
       <div className="border border-border rounded-lg overflow-hidden">
