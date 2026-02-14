@@ -663,7 +663,7 @@ async def call_llm(prompt: str, system: str = "", model_override: dict = None) -
     try:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
-            None,
+            _llm_executor,
             lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
         )
         return response.strip() if response else ""
