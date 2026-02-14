@@ -698,9 +698,7 @@ async def _pw_status(mode: str = "abstract"):
         "progress": state["progress"],
     }
     
-    # Add mode field for extract mode to maintain consistency
-    if mode == "extract":
-        result["mode"] = "extract"
+    result["mode"] = mode
     
     return result
 
