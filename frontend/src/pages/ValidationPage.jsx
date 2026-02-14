@@ -269,7 +269,7 @@ function StandardStats({ datasetId, isAdmin }) {
                   <span>&middot;</span>
                   <span>&Delta;&rho; = {activeIrt.improvement.delta >= 0 ? "+" : ""}{activeIrt.improvement.delta.toFixed(3)}</span>
                 </div>
-                <RankingTable rows={irt.comparison} mode="irt" />
+                <RankingTable rows={activeIrt.comparison} mode="irt" />
               </div>
             </div>
           )}
