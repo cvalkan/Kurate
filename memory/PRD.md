@@ -87,3 +87,7 @@ frontend/src/
 - [ ] (P2) Full security scan review
 - [ ] (P3) Refactor data importers into backend/services/importers/
 - [ ] (P3) Break down pairwise.py (500+ lines) into smaller modules
+
+## Changelog
+- **Feb 14, 2026**: Reviewed synced & additive feature. Removed reset endpoints, consolidated Fetch & Evaluate button to Abstract tab only, removed debug console.logs, removed legacy cleanup code.
+- **Feb 13, 2026**: Added synced Abstract + Extract runs, additive data with dedup, gap charts, PDF extraction pipeline.
