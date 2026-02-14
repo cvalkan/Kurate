@@ -311,8 +311,8 @@ function MultiModelStats({ datasetId, isAdmin }) {
   const [loading, setLoading] = useState(true);
 
   const MODES = [
-    { id: "extract", label: "Extract (Full Text)" },
-    { id: "abstract", label: "Abstract Only" },
+    { id: "extract", label: "Extract" },
+    { id: "abstract", label: "Abstract" },
     { id: "full_pdf", label: "Full PDF" },
   ];
   const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
