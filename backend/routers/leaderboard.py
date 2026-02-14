@@ -931,16 +931,50 @@ async def get_convergence(
     gt_lb = compute_leaderboard(paper_dicts, all_matches)
     gt_rank = {e["id"]: e["rank"] for e in gt_lb}
     gt_score = {e["id"]: e["score"] for e in gt_lb}
+    n_papers = len(pid_set)
+    top_k_values = [k for k in [3, 5, 10, 20] if k < n_papers]
+    gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
 
     total = len(all_matches)
     steps = min(max(steps, 5), 40)
+
+    # Compute max avg matches/paper for integer x-axis
+    full_counts = defaultdict(int)
+    for m in all_matches:
+        full_counts[m["paper1_id"]] += 1
+        full_counts[m["paper2_id"]] += 1
+    active_pids = [pid for pid in pid_set if full_counts[pid] > 0]
+    max_avg = sum(full_counts[pid] for pid in active_pids) / max(len(active_pids), 1)
+
+    step_size = max(1, int(max_avg / steps))
+    if step_size >= 5:
+        step_size = (step_size // 5) * 5
+    x_targets = list(range(step_size, int(max_avg) + step_size, step_size))
+    if not x_targets or x_targets[-1] < max_avg * 0.95:
+        x_targets.append(int(max_avg) + 1)
+
     curve = []
+    for target_avg in x_targets:
+        lo, hi = 1, total
+        best_n = total
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            counts = defaultdict(int)
+            for m in all_matches[:mid]:
+                counts[m["paper1_id"]] += 1
+                counts[m["paper2_id"]] += 1
+            active = [pid for pid in pid_set if counts[pid] > 0]
+            if not active:
+                lo = mid + 1
+                continue
+            avg = sum(counts[pid] for pid in active) / len(active)
+            if avg < target_avg:
+                lo = mid + 1
+            else:
+                best_n = mid
+                hi = mid - 1
 
-    for step_i in range(1, steps + 1):
-        frac = step_i / steps
-        n = max(1, int(total * frac))
-        subset = all_matches[:n]
-
+        subset = all_matches[:best_n]
         paper_match_count = defaultdict(int)
         for m in subset:
             paper_match_count[m["paper1_id"]] += 1
@@ -964,21 +998,29 @@ async def get_convergence(
         kt, _ = scipy_stats.kendalltau([sub_rank[p] for p in common], [gt_rank[p] for p in common])
         pr, _ = scipy_stats.pearsonr([sub_score.get(p, 0) for p in common], [gt_score.get(p, 0) for p in common])
 
-        curve.append({
-            "fraction": round(frac, 3),
-            "matches": n,
-            "avg_matches_per_paper": round(avg_mpp, 1),
+        topk = {}
+        for k in top_k_values:
+            sub_topk = set(e["id"] for e in sub_lb if e["rank"] <= k)
+            overlap = len(sub_topk & gt_topk[k])
+            topk[f"top_{k}"] = round(overlap / k * 100, 1)
+
+        point = {
+            "matches": best_n,
+            "avg_matches_per_paper": round(avg_mpp),
             "papers_covered": len(active),
             "spearman": round(sp, 4),
             "kendall": round(kt, 4),
             "pearson": round(pr, 4),
-        })
+        }
+        point.update(topk)
+        curve.append(point)
 
     return {
         "status": "ok",
         "category": category,
         "total_matches": total,
-        "total_papers": len(pid_set),
+        "total_papers": n_papers,
+        "top_k_values": top_k_values,
         "curve": curve,
     }
 
