@@ -148,7 +148,8 @@ export default function ValidationHubPage() {
           )}
 
           {/* Section content */}
-          {selected === "pw-qeios" && <PairwisePage embedded />}
+          {selected === "pw-qeios-abstract" && <QeiosPairwiseSection mode="abstract" />}
+          {selected === "pw-qeios-extract" && <QeiosPairwiseSection mode="extract" />}
           {selected === "pw-scipost-abstract" && <SciPostPairwiseSection mode="abstract" />}
           {selected === "pw-scipost-extract" && <SciPostPairwiseSection mode="extract" />}
           {selected === "si-scipost" && <SciPostPage embedded />}
