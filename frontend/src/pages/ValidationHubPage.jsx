@@ -41,7 +41,7 @@ const STATIC_SECTIONS = [
 ];
 
 export default function ValidationHubPage() {
-  const [selected, setSelected] = useState("pw-qeios-abstract");
+  const [selected, setSelected] = useState("pw-qeios");
   const [datasets, setDatasets] = useState([]);
   const isAdmin = !!sessionStorage.getItem("admin_token");
 
@@ -54,8 +54,27 @@ export default function ValidationHubPage() {
 
   useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 
-  // Build sections with dynamic tournament items
+  // Datasets that have pairwise head-to-head data potential
+  const pairwiseDatasets = datasets.filter(ds =>
+    ["iclr-protein", "peerread_acl_2017"].includes(ds.dataset_id)
+  );
+
+  // Build sections with dynamic items
   const sections = STATIC_SECTIONS.map(s => {
+    if (s.group === "Pairwise") {
+      return {
+        ...s,
+        items: [
+          ...s.items,
+          ...pairwiseDatasets.map(ds => ({
+            id: `pw-h2h-${ds.dataset_id}`,
+            label: ds.name,
+            datasetId: ds.dataset_id,
+            sub: `${ds.papers} papers`,
+          })),
+        ],
+      };
+    }
     if (s.group === "Tournament") {
       return {
         ...s,
