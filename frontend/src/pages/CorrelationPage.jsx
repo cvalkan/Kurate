@@ -97,6 +97,12 @@ export default function CorrelationPage() {
         description='Full-text evaluation: "Which paper has higher scientific impact?"'
       />
 
+      {valDatasets.length > 0 && (
+        <div className="mb-6">
+          <ConvergenceSection datasets={valDatasets} />
+        </div>
+      )}
+
       <div className="space-y-3 mb-6">
         <div className="p-4 bg-secondary/30 border border-border rounded-lg text-sm">
           <h3 className="font-medium text-foreground mb-2">Understanding Clear-cut vs Contested pairs</h3>
