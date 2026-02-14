@@ -174,7 +174,7 @@ export default function ValidationHubPage() {
           {selected === "pw-scipost" && <SciPostPairwiseSection />}
           {selected.startsWith("pw-h2h-") && (() => {
             const ds = pairwiseDatasets.find(d => `pw-h2h-${d.dataset_id}` === selected);
-            return ds ? <PairwiseAgreementSection datasetId={ds.dataset_id} datasetName={ds.name} /> : null;
+            return ds ? <PairwiseAgreementSection key={ds.dataset_id} datasetId={ds.dataset_id} datasetName={ds.name} /> : null;
           })()}
           {selected === "si-scipost" && <SciPostPage embedded />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
