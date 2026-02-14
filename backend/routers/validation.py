@@ -1127,6 +1127,111 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
     }
 
 
+
+# ─── Convergence Analysis ──────────────────────────────────────────────────────
+
+@router.get("/convergence")
+async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None), steps: int = Query(20)):
+    """Analyze how ranking stability improves as more matches are added.
+    
+    Uses the final ranking (all matches) as ground truth and computes rank
+    correlation at progressive fractions of data.
+    """
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    if not papers:
+        return {"status": "no_data"}
+
+    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    match_filter.update(_build_content_mode_filter(content_mode))
+
+    all_matches = await db.validation_matches.find(
+        match_filter,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
+    ).to_list(100000)
+
+    if len(all_matches) < 10:
+        return {"status": "no_data"}
+
+    # Sort by created_at for chronological subsampling
+    all_matches.sort(key=lambda m: m.get("created_at", ""))
+
+    paper_ids = [p["id"] for p in papers]
+    pid_set = set(paper_ids)
+
+    # Ground truth: full ranking using all matches
+    gt_lb = compute_leaderboard(papers, all_matches)
+    gt_rank = {e["id"]: e["rank"] for e in gt_lb}
+    gt_score = {e["id"]: e["score"] for e in gt_lb}
+
+    # Progressive subsamples
+    steps = min(max(steps, 5), 40)
+    total = len(all_matches)
+    curve = []
+
+    for step_i in range(1, steps + 1):
+        frac = step_i / steps
+        n_matches = max(1, int(total * frac))
+        subset = all_matches[:n_matches]
+
+        # Count avg matches per paper in this subset
+        paper_match_count = defaultdict(int)
+        for m in subset:
+            if m["paper1_id"] in pid_set:
+                paper_match_count[m["paper1_id"]] += 1
+            if m["paper2_id"] in pid_set:
+                paper_match_count[m["paper2_id"]] += 1
+
+        papers_with_matches = [pid for pid in paper_ids if paper_match_count[pid] > 0]
+        if len(papers_with_matches) < 3:
+            continue
+
+        avg_matches = sum(paper_match_count[pid] for pid in papers_with_matches) / len(papers_with_matches)
+
+        # Compute BT ranking on subset
+        sub_lb = compute_leaderboard(papers, subset)
+        sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+
+        # Correlate with ground truth (only papers present in both)
+        common = [pid for pid in papers_with_matches if pid in gt_rank and pid in sub_rank]
+        if len(common) < 3:
+            continue
+
+        gt_r = [gt_rank[pid] for pid in common]
+        sub_r = [sub_rank[pid] for pid in common]
+        gt_s = [gt_score[pid] for pid in common]
+        sub_s = [e["score"] for e in sub_lb if e["id"] in set(common)]
+
+        sp, _ = scipy_stats.spearmanr(sub_r, gt_r)
+        kt, _ = scipy_stats.kendalltau(sub_r, gt_r)
+
+        # Pearson on scores
+        sub_score_map = {e["id"]: e["score"] for e in sub_lb}
+        pr, _ = scipy_stats.pearsonr(
+            [sub_score_map.get(pid, 0) for pid in common],
+            [gt_score.get(pid, 0) for pid in common],
+        )
+
+        curve.append({
+            "fraction": round(frac, 3),
+            "matches": n_matches,
+            "avg_matches_per_paper": round(avg_matches, 1),
+            "papers_covered": len(papers_with_matches),
+            "spearman": round(sp, 4),
+            "kendall": round(kt, 4),
+            "pearson": round(pr, 4),
+        })
+
+    return {
+        "status": "ok",
+        "dataset_id": dataset_id,
+        "content_mode": content_mode or "extract",
+        "total_matches": total,
+        "total_papers": len(paper_ids),
+        "curve": curve,
+    }
+
+
+
 # ─── Results: IRT Direct Score ─────────────────────────────────────────────────
 
 @router.get("/irt-results")
