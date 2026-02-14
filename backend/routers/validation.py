@@ -1446,6 +1446,124 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     }
 
 
+
+# ─── Targeted Pairwise Run ──────────────────────────────────────────────────
+
+class TargetedPairwiseRequest(BaseModel):
+    dataset_id: str
+    content_mode: str  # "abstract", "extract", or "full_pdf"
+    parallel: int = 30
+
+
+@router.post("/run-targeted-pairwise", dependencies=[Depends(verify_admin)])
+async def run_targeted_pairwise(body: TargetedPairwiseRequest):
+    """Run evaluations for pairs with expert majority data that are missing in a given content mode."""
+    state = _get_state(body.dataset_id)
+    if state["running"]:
+        return {"status": "already_running", **state}
+
+    papers = await db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0}).to_list(5000)
+    if not papers:
+        return {"status": "error", "message": "No papers found."}
+
+    # Build expert pair preferences to find pairs with expert majority
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+
+    expert_pair_prefs = defaultdict(list)
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                if ratings[a] != ratings[b]:
+                    key = tuple(sorted([a, b]))
+                    expert_pair_prefs[key].append((exp, a if ratings[a] > ratings[b] else b))
+
+    # Pairs with expert majority (2+ reviewers, clear majority)
+    target_pairs = set()
+    for pair, votes in expert_pair_prefs.items():
+        if len(votes) >= 2:
+            c = Counter(w for _, w in votes)
+            best, n = c.most_common(1)[0]
+            if n > len(votes) / 2:
+                target_pairs.add(pair)
+
+    # Find which pairs are already evaluated in this mode
+    match_filter = {"dataset_id": body.dataset_id, "completed": True, "failed": {"$ne": True}}
+    match_filter.update(_build_content_mode_filter(body.content_mode))
+    existing = await db.validation_matches.find(match_filter, {"_id": 0, "paper1_id": 1, "paper2_id": 1}).to_list(100000)
+    existing_pairs = {tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in existing}
+
+    missing = target_pairs - existing_pairs
+    if not missing:
+        return {"status": "complete", "message": f"All {len(target_pairs)} expert-majority pairs already evaluated in {body.content_mode} mode.", "target_pairs": len(target_pairs), "missing": 0}
+
+    asyncio.create_task(_run_targeted_pairwise(body.dataset_id, list(missing), body.content_mode, min(max(body.parallel, 1), 50)))
+    return {"status": "started", "dataset_id": body.dataset_id, "content_mode": body.content_mode, "target_pairs": len(target_pairs), "missing": len(missing)}
+
+
+async def _run_targeted_pairwise(dataset_id: str, pairs: list, content_mode: str, parallel: int):
+    state = _get_state(dataset_id)
+    state.update({"running": True, "completed_matches": 0, "total_matches": len(pairs), "current_pair": "Starting...", "started_at": _time.time()})
+
+    abstract_only = content_mode == "abstract"
+    try:
+        papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+        lookup = {p["id"]: p for p in papers}
+        prompt_config = DEFAULT_EVALUATION_PROMPT
+        completed = 0
+
+        for i in range(0, len(pairs), parallel):
+            batch = pairs[i:i + parallel]
+            presented = [(p2, p1) if random.random() < 0.5 else (p1, p2) for p1, p2 in batch]
+            state["current_pair"] = f"Batch {i // parallel + 1}/{(len(pairs) + parallel - 1) // parallel}"
+
+            tasks = [
+                compare_papers(lookup[p1], lookup[p2], prompt_config, content_mode=content_mode)
+                for p1, p2 in presented
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for (p1_id, p2_id), result in zip(presented, results):
+                used_ext = content_mode == "extract" and bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
+                doc = {
+                    "id": str(uuid.uuid4()), "dataset_id": dataset_id,
+                    "paper1_id": p1_id, "paper2_id": p2_id,
+                    "used_extraction": used_ext,
+                    "abstract_only": abstract_only,
+                    "content_mode": content_mode,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if isinstance(result, Exception):
+                    doc.update({"completed": False, "failed": True, "error": str(result)[:200]})
+                else:
+                    winner_key = result.get("winner", "paper1")
+                    doc.update({
+                        "winner_id": p1_id if winner_key == "paper1" else p2_id,
+                        "reasoning": result.get("reasoning", ""),
+                        "model_used": result.get("model_used", {}),
+                        "tokens": result.get("tokens", {}),
+                        "completed": True, "failed": False,
+                    })
+                    completed += 1
+
+                await db.validation_matches.insert_one(doc)
+                state["completed_matches"] = completed
+            await asyncio.sleep(0.2)
+
+        logger.info(f"Targeted pairwise [{dataset_id}] ({content_mode}): {completed}/{len(pairs)}")
+    except Exception as e:
+        logger.error(f"Targeted pairwise [{dataset_id}] error: {e}")
+    finally:
+        state["running"] = False
+
+
+
 # ─── Reset ─────────────────────────────────────────────────────────────────────
 
 class ResetRequest(BaseModel):
