@@ -289,6 +289,11 @@ async def _pw_results(mode: str):
         "by_gap": {g: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for g, v in sorted(gap_stats.items())},
         "inter_model": {k: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for k, v in inter_model.items()},
         "samples": samples,
+        "prompts": {
+            "system_prompt": DEFAULT_EVALUATION_PROMPT["system_prompt"],
+            "user_prompt": DEFAULT_EVALUATION_PROMPT["user_prompt"],
+            "content_note": "Abstract mode uses abstract only. Extract mode uses full body text with section extraction (intro/method/results/conclusion).",
+        },
     }
 
 
