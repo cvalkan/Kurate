@@ -8,6 +8,7 @@ import PairwisePage from "./PairwisePage";
 import SciPostPage from "./SciPostPage";
 import SciPostPairwiseSection from "./SciPostPairwiseSection";
 import QeiosPairwiseSection from "./QeiosPairwiseSection";
+import PairwiseAgreementSection from "./PairwiseAgreementSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -18,11 +19,10 @@ const STATIC_SECTIONS = [
     icon: GitCompare,
     description: "Head-to-head: AI picks which paper is better, compared with human verdict",
     items: [
-      { id: "pw-qeios-abstract", label: "Qeios (Abstract)" },
-      { id: "pw-qeios-extract", label: "Qeios (Extract)" },
-      { id: "pw-scipost-abstract", label: "SciPost (Abstract)" },
-      { id: "pw-scipost-extract", label: "SciPost (Extract)" },
+      { id: "pw-qeios", label: "Qeios" },
+      { id: "pw-scipost", label: "SciPost" },
     ],
+    dynamicItems: true,
   },
   {
     group: "Single-item",
