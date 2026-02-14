@@ -143,10 +143,16 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
           {mode === "abstract" ? (
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">Pairs per dimension:</label>
-                <Input type="number" min={3} max={30} value={numPairs}
+                <label className="text-xs text-muted-foreground whitespace-nowrap">Pairs/dim:</label>
+                <Input type="number" min={3} max={50} value={numPairs}
                   onChange={e => setNumPairs(parseInt(e.target.value) || 8)}
-                  className="w-20 h-8 text-xs" data-testid={`pw-scipost-num-input-${mode}`} disabled={running} />
+                  className="w-16 h-8 text-xs" data-testid={`pw-scipost-num-input-${mode}`} disabled={running} />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground whitespace-nowrap">Parallel agents:</label>
+                <Input type="number" min={1} max={15} value={parallelAgents}
+                  onChange={e => setParallelAgents(Math.min(15, Math.max(1, parseInt(e.target.value) || 5)))}
+                  className="w-16 h-8 text-xs" data-testid={`pw-scipost-agents-input-${mode}`} disabled={running} />
               </div>
               {!running ? (
                 <Button size="sm" onClick={fetchAndRun} className="gap-1.5" data-testid={`pw-scipost-run-btn-${mode}`}>
@@ -157,7 +163,9 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
                   <Square className="h-3.5 w-3.5" /> Stop
                 </Button>
               )}
-              <span className="text-[10px] text-muted-foreground italic">Runs both Abstract & Extract on the same papers. Data is additive.</span>
+              <span className="text-[10px] text-muted-foreground italic">
+                {parallelAgents} agents evaluate {parallelAgents * 6} LLM calls simultaneously. Data is additive.
+              </span>
             </div>
           ) : (
             <div className="flex items-center gap-3 flex-wrap">
