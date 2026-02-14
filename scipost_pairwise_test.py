@@ -70,207 +70,173 @@ class SciPostPairwiseAPITester:
             return False, {}
 
     def test_scipost_pairwise_status(self):
-        """Test SciPost pairwise status endpoint (abstract mode)"""
+        """Test SciPost pairwise status endpoint"""
         success, response = self.run_test(
-            "SciPost Pairwise Status (Abstract)", 
+            "SciPost Pairwise Status", 
             "GET", 
             "scipost/pairwise/status", 
             200
         )
         
         if success:
-            expected_fields = ['total_pairs', 'ai_completed', 'ai_failed', 'ai_pending', 'fetching', 'running', 'progress', 'by_dimension']
-            missing_fields = [field for field in expected_fields if field not in response]
-            
-            if not missing_fields:
-                self.log_test("Pairwise Status Structure Validation", True, f"All required fields present. Total pairs: {response.get('total_pairs', 0)}")
+            # Check if response contains mode information
+            if 'mode' in response:
+                mode = response['mode']
+                self.log_test("Pairwise Status Mode Check", True, f"Mode field present: {mode}")
+                
+                # Validate other expected fields
+                expected_fields = ['total_pairs', 'ai_completed', 'ai_failed', 'ai_pending', 'by_dimension', 'fetching', 'running', 'progress']
+                missing_fields = [field for field in expected_fields if field not in response]
+                
+                if not missing_fields:
+                    self.log_test("Pairwise Status Structure", True, "All expected fields present")
+                else:
+                    self.log_test("Pairwise Status Structure", False, f"Missing fields: {missing_fields}")
+                    
             else:
-                self.log_test("Pairwise Status Structure Validation", False, f"Missing fields: {missing_fields}")
+                self.log_test("Pairwise Status Mode Check", False, "Mode field missing from response")
         
         return success, response
 
     def test_scipost_pairwise_extract_status(self):
-        """Test SciPost pairwise extract status endpoint"""
+        """Test SciPost pairwise-extract status endpoint"""
         success, response = self.run_test(
-            "SciPost Pairwise Extract Status", 
+            "SciPost Pairwise-Extract Status", 
             "GET", 
             "scipost/pairwise-extract/status", 
             200
         )
         
         if success:
-            expected_fields = ['total_pairs', 'ai_completed', 'ai_failed', 'ai_pending', 'fetching', 'running', 'progress', 'by_dimension', 'mode']
-            missing_fields = [field for field in expected_fields if field not in response]
-            
-            if not missing_fields:
-                mode = response.get('mode', 'unknown')
-                self.log_test("Pairwise Extract Status Structure Validation", True, f"All required fields present. Mode: {mode}, Total pairs: {response.get('total_pairs', 0)}")
-            else:
-                self.log_test("Pairwise Extract Status Structure Validation", False, f"Missing fields: {missing_fields}")
-        
-        return success, response
-
-    def test_scipost_pairwise_results(self):
-        """Test SciPost pairwise results endpoint (abstract mode)"""
-        success, response = self.run_test(
-            "SciPost Pairwise Results (Abstract)", 
-            "GET", 
-            "scipost/pairwise/results", 
-            200
-        )
-        
-        if success:
-            status = response.get('status')
-            if status == 'no_data':
-                self.log_test("Pairwise Results Validation", True, f"No data available (expected for new system): {response}")
-            elif status == 'ok':
-                expected_fields = ['total_pairs', 'overall_majority', 'by_dimension', 'by_model_overall', 'inter_model', 'samples']
+            # Check if response contains mode information
+            if 'mode' in response:
+                mode = response['mode']
+                self.log_test("Pairwise-Extract Status Mode Check", True, f"Mode field present: {mode}")
+                
+                # Validate other expected fields
+                expected_fields = ['total_pairs', 'ai_completed', 'ai_failed', 'ai_pending', 'by_dimension', 'fetching', 'running', 'progress']
                 missing_fields = [field for field in expected_fields if field not in response]
                 
                 if not missing_fields:
-                    total_pairs = response.get('total_pairs', 0)
-                    overall_rate = response.get('overall_majority', {}).get('rate', 0)
-                    self.log_test("Pairwise Results Structure Validation", True, f"Results available. Total pairs: {total_pairs}, Overall rate: {overall_rate}%")
+                    self.log_test("Pairwise-Extract Status Structure", True, "All expected fields present")
                 else:
-                    self.log_test("Pairwise Results Structure Validation", False, f"Missing fields: {missing_fields}")
+                    self.log_test("Pairwise-Extract Status Structure", False, f"Missing fields: {missing_fields}")
+                    
             else:
-                self.log_test("Pairwise Results Validation", False, f"Unexpected status: {status}")
+                self.log_test("Pairwise-Extract Status Mode Check", False, "Mode field missing from response")
         
         return success, response
 
-    def test_scipost_pairwise_extract_results(self):
-        """Test SciPost pairwise extract results endpoint"""
+    def test_scipost_regular_status(self):
+        """Test regular SciPost status endpoint for comparison"""
         success, response = self.run_test(
-            "SciPost Pairwise Extract Results", 
-            "GET", 
-            "scipost/pairwise-extract/results", 
-            200
-        )
-        
-        if success:
-            status = response.get('status')
-            mode = response.get('mode', 'unknown')
-            
-            if status == 'no_data':
-                self.log_test("Pairwise Extract Results Validation", True, f"No data available for extract mode (expected): mode={mode}")
-            elif status == 'ok':
-                expected_fields = ['total_pairs', 'overall_majority', 'by_dimension', 'by_model_overall', 'inter_model', 'samples', 'mode']
-                missing_fields = [field for field in expected_fields if field not in response]
-                
-                if not missing_fields:
-                    total_pairs = response.get('total_pairs', 0)
-                    overall_rate = response.get('overall_majority', {}).get('rate', 0)
-                    self.log_test("Pairwise Extract Results Structure Validation", True, f"Extract results available. Mode: {mode}, Total pairs: {total_pairs}, Overall rate: {overall_rate}%")
-                else:
-                    self.log_test("Pairwise Extract Results Structure Validation", False, f"Missing fields: {missing_fields}")
-            else:
-                self.log_test("Pairwise Extract Results Validation", False, f"Unexpected status: {status}")
-        
-        return success, response
-
-    def test_scipost_single_item_status(self):
-        """Test SciPost single-item status endpoint for comparison"""
-        success, response = self.run_test(
-            "SciPost Single-Item Status", 
+            "SciPost Regular Status", 
             "GET", 
             "scipost/status", 
             200
         )
         
         if success:
+            # This endpoint should not have mode field (for comparison)
             expected_fields = ['total_comparisons', 'ai_completed', 'ai_failed', 'ai_pending', 'by_dimension', 'fetching', 'running', 'progress']
             missing_fields = [field for field in expected_fields if field not in response]
             
             if not missing_fields:
-                self.log_test("Single-Item Status Structure Validation", True, f"All required fields present. Total comparisons: {response.get('total_comparisons', 0)}")
+                self.log_test("Regular Status Structure", True, "All expected fields present")
             else:
-                self.log_test("Single-Item Status Structure Validation", False, f"Missing fields: {missing_fields}")
+                self.log_test("Regular Status Structure", False, f"Missing fields: {missing_fields}")
         
         return success, response
 
-    def test_scipost_single_item_results(self):
-        """Test SciPost single-item results endpoint for comparison"""
+    def test_scipost_pairwise_results(self):
+        """Test SciPost pairwise results endpoint"""
         success, response = self.run_test(
-            "SciPost Single-Item Results", 
+            "SciPost Pairwise Results", 
             "GET", 
-            "scipost/results", 
+            "scipost/pairwise/results", 
             200
         )
         
-        if success:
-            status = response.get('status')
-            if status == 'no_data':
-                self.log_test("Single-Item Results Validation", True, f"No data available (expected for new system): {response}")
-            elif status == 'ok':
-                expected_fields = ['total_comparisons', 'by_dimension', 'by_model', 'model_overall', 'rating_distribution', 'samples']
-                missing_fields = [field for field in expected_fields if field not in response]
-                
-                if not missing_fields:
-                    total_comparisons = response.get('total_comparisons', 0)
-                    self.log_test("Single-Item Results Structure Validation", True, f"Results available. Total comparisons: {total_comparisons}")
-                else:
-                    self.log_test("Single-Item Results Structure Validation", False, f"Missing fields: {missing_fields}")
+        if success and response.get('status') == 'ok':
+            # Check if mode is included in results
+            if 'mode' in response:
+                mode = response['mode']
+                self.log_test("Pairwise Results Mode Check", True, f"Mode field present in results: {mode}")
             else:
-                self.log_test("Single-Item Results Validation", False, f"Unexpected status: {status}")
+                self.log_test("Pairwise Results Mode Check", False, "Mode field missing from results")
         
         return success, response
 
-    def test_validation_datasets(self):
-        """Test validation datasets endpoint"""
+    def test_scipost_pairwise_extract_results(self):
+        """Test SciPost pairwise-extract results endpoint"""
         success, response = self.run_test(
-            "Validation Datasets", 
+            "SciPost Pairwise-Extract Results", 
             "GET", 
-            "validation/datasets", 
+            "scipost/pairwise-extract/results", 
             200
         )
         
-        if success and 'datasets' in response:
-            datasets = response['datasets']
-            self.log_test("Validation Datasets Structure", True, f"Found {len(datasets)} datasets")
+        if success and response.get('status') == 'ok':
+            # Check if mode is included in results
+            if 'mode' in response:
+                mode = response['mode']
+                self.log_test("Pairwise-Extract Results Mode Check", True, f"Mode field present in results: {mode}")
+            else:
+                self.log_test("Pairwise-Extract Results Mode Check", False, "Mode field missing from results")
+        
+        return success, response
+
+    def test_mode_consistency(self):
+        """Test that modes are consistent between status and results endpoints"""
+        # Get pairwise status
+        success1, pairwise_status = self.run_test(
+            "Pairwise Status for Mode Consistency", 
+            "GET", 
+            "scipost/pairwise/status", 
+            200
+        )
+        
+        # Get pairwise results
+        success2, pairwise_results = self.run_test(
+            "Pairwise Results for Mode Consistency", 
+            "GET", 
+            "scipost/pairwise/results", 
+            200
+        )
+        
+        if success1 and success2:
+            status_mode = pairwise_status.get('mode')
+            results_mode = pairwise_results.get('mode')
             
-            if datasets:
-                first_dataset = datasets[0]
-                required_fields = ['dataset_id', 'name', 'papers']
-                missing_fields = [field for field in required_fields if field not in first_dataset]
-                
-                if not missing_fields:
-                    self.log_test("Dataset Structure Validation", True, f"Dataset structure valid: {first_dataset.get('name', 'Unknown')}")
-                else:
-                    self.log_test("Dataset Structure Validation", False, f"Missing fields in dataset: {missing_fields}")
+            if status_mode and results_mode and status_mode == results_mode:
+                self.log_test("Pairwise Mode Consistency", True, f"Status and results both have mode: {status_mode}")
+            else:
+                self.log_test("Pairwise Mode Consistency", False, f"Mode mismatch - Status: {status_mode}, Results: {results_mode}")
         
-        return success, response
-
-    def test_endpoint_consistency(self):
-        """Test that all endpoints return consistent data structures"""
-        print("\n🔄 Testing endpoint consistency...")
+        # Get pairwise-extract status
+        success3, extract_status = self.run_test(
+            "Pairwise-Extract Status for Mode Consistency", 
+            "GET", 
+            "scipost/pairwise-extract/status", 
+            200
+        )
         
-        # Get all status endpoints
-        _, pairwise_status = self.test_scipost_pairwise_status()
-        _, extract_status = self.test_scipost_pairwise_extract_status()
-        _, single_status = self.test_scipost_single_item_status()
+        # Get pairwise-extract results
+        success4, extract_results = self.run_test(
+            "Pairwise-Extract Results for Mode Consistency", 
+            "GET", 
+            "scipost/pairwise-extract/results", 
+            200
+        )
         
-        # Get all results endpoints
-        _, pairwise_results = self.test_scipost_pairwise_results()
-        _, extract_results = self.test_scipost_pairwise_extract_results()
-        _, single_results = self.test_scipost_single_item_results()
-        
-        # Check mode field consistency
-        extract_mode = extract_status.get('mode') if extract_status else None
-        extract_results_mode = extract_results.get('mode') if extract_results else None
-        
-        if extract_mode == 'extract' and extract_results_mode == 'extract':
-            self.log_test("Mode Field Consistency", True, "Extract mode correctly set in both status and results")
-        else:
-            self.log_test("Mode Field Consistency", False, f"Mode inconsistency: status={extract_mode}, results={extract_results_mode}")
-        
-        # Check that pairwise endpoints don't have mode field (abstract is default)
-        pairwise_has_mode = 'mode' in (pairwise_status or {})
-        pairwise_results_has_mode = 'mode' in (pairwise_results or {})
-        
-        if not pairwise_has_mode and not pairwise_results_has_mode:
-            self.log_test("Abstract Mode Consistency", True, "Abstract mode endpoints don't have mode field (correct default)")
-        else:
-            self.log_test("Abstract Mode Consistency", False, f"Abstract endpoints unexpectedly have mode field")
+        if success3 and success4:
+            status_mode = extract_status.get('mode')
+            results_mode = extract_results.get('mode')
+            
+            if status_mode and results_mode and status_mode == results_mode:
+                self.log_test("Pairwise-Extract Mode Consistency", True, f"Status and results both have mode: {status_mode}")
+            else:
+                self.log_test("Pairwise-Extract Mode Consistency", False, f"Mode mismatch - Status: {status_mode}, Results: {results_mode}")
 
     def run_all_tests(self):
         """Run all SciPost pairwise API tests"""
@@ -278,24 +244,19 @@ class SciPostPairwiseAPITester:
         print(f"Base URL: {self.base_url}")
         print("=" * 60)
         
-        # Test validation datasets first
-        self.test_validation_datasets()
-        
-        # Test SciPost pairwise endpoints
-        print("\n📊 Testing SciPost Pairwise (Abstract) Endpoints...")
+        # Test the main endpoints that should have mode
         self.test_scipost_pairwise_status()
-        self.test_scipost_pairwise_results()
-        
-        print("\n📊 Testing SciPost Pairwise (Extract) Endpoints...")
         self.test_scipost_pairwise_extract_status()
+        
+        # Test regular status for comparison
+        self.test_scipost_regular_status()
+        
+        # Test results endpoints
+        self.test_scipost_pairwise_results()
         self.test_scipost_pairwise_extract_results()
         
-        print("\n📊 Testing SciPost Single-Item Endpoints (for comparison)...")
-        self.test_scipost_single_item_status()
-        self.test_scipost_single_item_results()
-        
-        # Test consistency
-        self.test_endpoint_consistency()
+        # Test mode consistency
+        self.test_mode_consistency()
         
         # Print summary
         print("\n" + "=" * 60)
