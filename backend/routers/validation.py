@@ -754,7 +754,7 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, co
             coros = [
                 compare_papers(
                     lookup[p1], lookup[p2], prompt_config,
-                    abstract_only=not (lookup[p1].get("full_text") and lookup[p2].get("full_text")),
+                    content_mode=content_mode,
                     model_override=mi,
                 )
                 for p1, p2, mi in tasks
@@ -762,11 +762,13 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, co
             results = await asyncio.gather(*coros, return_exceptions=True)
 
             for (p1_id, p2_id, mi), result in zip(tasks, results):
-                used_ext = bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
+                used_ext = content_mode == "extract" and bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
                 doc = {
                     "id": str(uuid.uuid4()), "dataset_id": dataset_id,
                     "paper1_id": p1_id, "paper2_id": p2_id,
                     "used_extraction": used_ext,
+                    "abstract_only": content_mode == "abstract",
+                    "content_mode": content_mode,
                     "model_used": mi,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
