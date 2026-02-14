@@ -249,98 +249,11 @@ function StandardStats({ datasetId, isAdmin }) {
         </div>
       )}
 
-      {/* Cross-Mode Head-to-Head Comparison */}
-      {crossMode && crossMode.common_pairs > 0 && (
-        <div className="border border-border rounded-lg overflow-hidden" data-testid="cross-mode-comparison">
-          <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-            <h3 className="text-xs font-medium flex items-center gap-1.5">
-              <Scale className="h-3 w-3" /> Head-to-Head: Same {crossMode.common_pairs} Pairs Across All Modes
-            </h3>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              Apples-to-apples comparison — agreement rates computed on the exact same set of paper pairs
-            </div>
-          </div>
-          <div className="p-3 space-y-3">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-1.5 pr-3 text-muted-foreground font-medium">Content Mode</th>
-                    <th className="text-center py-1.5 px-3 text-muted-foreground font-medium">AI-Expert</th>
-                    <th className="text-center py-1.5 px-3 text-muted-foreground font-medium">AI-Majority</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 pr-3 text-muted-foreground italic">Expert-Expert</td>
-                    <td className="text-center py-1.5 px-3 font-mono font-semibold text-green-600">{crossMode.expert_expert.rate}%</td>
-                    <td className="text-center py-1.5 px-3 text-[10px] text-muted-foreground">baseline</td>
-                  </tr>
-                  {crossMode.modes_compared.map(mode => {
-                    const stats = crossMode.by_mode[mode];
-                    const mLabel = { extract: "Extract (Full Text)", abstract: "Abstract Only", full_pdf: "Full PDF" }[mode] || mode;
-                    const best_ae = Math.max(...crossMode.modes_compared.map(m => crossMode.by_mode[m].ai_expert.rate));
-                    const best_am = Math.max(...crossMode.modes_compared.map(m => crossMode.by_mode[m].ai_majority.rate));
-                    const ae_color = stats.ai_expert.rate === best_ae ? "text-green-600 font-bold" : stats.ai_expert.rate >= crossMode.expert_expert.rate * 0.9 ? "text-amber-600" : "text-red-500";
-                    const am_color = stats.ai_majority.rate === best_am ? "text-green-600 font-bold" : "text-amber-600";
-                    return (
-                      <tr key={mode} className="border-b border-border/50 last:border-0">
-                        <td className="py-1.5 pr-3 font-medium">{mLabel}</td>
-                        <td className={`text-center py-1.5 px-3 font-mono font-semibold ${ae_color}`}>
-                          {stats.ai_expert.rate}%
-                          <span className="text-[9px] text-muted-foreground ml-1">({stats.ai_expert.agree}/{stats.ai_expert.total})</span>
-                        </td>
-                        <td className={`text-center py-1.5 px-3 font-mono font-semibold ${am_color}`}>
-                          {stats.ai_majority.rate}%
-                          <span className="text-[9px] text-muted-foreground ml-1">({stats.ai_majority.agree}/{stats.ai_majority.total})</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {/* Mode disagreement transparency */}
-            {crossMode.mode_disagreements && Object.keys(crossMode.mode_disagreements).length > 0 && (
-              <div className="border-t border-border/50 pt-2" data-testid="mode-disagreements">
-                <div className="text-[10px] text-muted-foreground font-medium mb-1">AI picks differ between modes on:</div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                  {Object.entries(crossMode.mode_disagreements).map(([key, d]) => {
-                    const labels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
-                    const [m1, , m2] = key.split("_");
-                    const l1 = labels[m1] || m1;
-                    const l2 = labels[`${m2}${key.includes("full_pdf") ? "_pdf" : ""}`] || key.split("_vs_").pop().replace("full_pdf","Full PDF");
-                    const pairLabel = key.split("_vs_").map(k => labels[k] || k).join(" vs ");
-                    return (
-                      <span key={key} className="text-[10px] font-mono">
-                        <span className="text-muted-foreground">{pairLabel}:</span>{" "}
-                        <span className={d.differ_pct > 30 ? "text-amber-600" : "text-foreground"}>{d.differ}/{d.total} pairs ({d.differ_pct}%)</span>
-                      </span>
-                    );
-                  })}
-                </div>
-                {(() => {
-                  const modes = crossMode.modes_compared;
-                  const identicalModes = [];
-                  for (let i = 0; i < modes.length; i++) {
-                    for (let j = i + 1; j < modes.length; j++) {
-                      const s1 = crossMode.by_mode[modes[i]], s2 = crossMode.by_mode[modes[j]];
-                      if (s1.ai_expert.agree === s2.ai_expert.agree && s1.ai_majority.agree === s2.ai_majority.agree) {
-                        const labels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
-                        identicalModes.push(`${labels[modes[i]]} & ${labels[modes[j]]}`);
-                      }
-                    }
-                  }
-                  if (identicalModes.length === 0) return null;
-                  return (
-                    <div className="mt-1.5 text-[10px] text-muted-foreground bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1" data-testid="coincidence-note">
-                      Note: {identicalModes.join(", ")} show identical agreement rates. The AI picks are different (see disagreement counts above), but the agreements with experts happen to cancel out — a statistical coincidence, not a data error.
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
+      {/* Note about non-comparable sets */}
+      {activeAgreement && (
+        <div className="text-[10px] text-muted-foreground bg-secondary/10 border border-border/50 rounded px-3 py-2 flex items-start gap-1.5" data-testid="non-comparable-note">
+          <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>Agreement rates above are based on different sets of matches per content mode and are not directly comparable across Extract, Abstract, and Full PDF. For a fair comparison on the same paper pairs, see the Pairwise section.</span>
         </div>
       )}
 
