@@ -229,25 +229,25 @@ function StandardStats({ datasetId, isAdmin }) {
       )}
 
       {/* Two experiments side by side */}
-      {(pairwise || irt) && (
+      {(activePairwise || activeIrt) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {pairwise && (
+          {activePairwise && (
             <div className="border border-border rounded-lg overflow-hidden">
               <div className="px-3 py-2 bg-secondary/10 border-b border-border">
                 <h3 className="text-xs font-medium flex items-center gap-1.5">
-                  <Users className="h-3 w-3" /> Pairwise BT (no severity correction)
+                  <Users className="h-3 w-3" /> Pairwise BT — {modeLabel}
                 </h3>
               </div>
               <div className="p-3 space-y-2">
                 <div className="grid grid-cols-3 gap-2">
-                  <CorrelationBadge value={pairwise.correlation.spearman_rho} label="Spearman &rho;" />
-                  <CorrelationBadge value={pairwise.correlation.kendall_tau} label="Kendall &tau;" />
-                  <CorrelationBadge value={pairwise.correlation.pearson_r} label="Pearson r" />
+                  <CorrelationBadge value={activePairwise.correlation.spearman_rho} label="Spearman &rho;" />
+                  <CorrelationBadge value={activePairwise.correlation.kendall_tau} label="Kendall &tau;" />
+                  <CorrelationBadge value={activePairwise.correlation.pearson_r} label="Pearson r" />
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  {pairwise.papers_analyzed} papers &middot; {pairwise.human_matches_derived} human pairs &middot; {pairwise.ai_matches} AI matches
+                  {activePairwise.papers_analyzed} papers &middot; {activePairwise.human_matches_derived} human pairs &middot; {activePairwise.ai_matches} AI matches
                 </div>
-                <RankingTable rows={pairwise.comparison} mode="pairwise" />
+                <RankingTable rows={activePairwise.comparison} mode="pairwise" />
               </div>
             </div>
           )}
