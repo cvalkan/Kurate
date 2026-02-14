@@ -78,6 +78,7 @@ frontend/src/
 - [x] Unified "Fetch & Evaluate (Synced)" button on Abstract tab only; Extract tab shows guidance message
 - [x] Cleaned up debug console.log statements from SciPost pairwise frontend
 - [x] Parallel evaluation with configurable agents (default 5) — ~10x speedup via semaphore-limited concurrent workers, simultaneous abstract+extract eval, larger PDF/fetch batch sizes
+- [x] Qeios synced pairwise: Abstract vs Extract modes with identical paper pairs, parallel agents, additive data, dedup by reviewer
 
 ## Backlog
 - [ ] (P1) Add "View Prompts" modal to Qeios Pairwise page (feature parity with SciPost)
