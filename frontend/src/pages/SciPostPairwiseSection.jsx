@@ -300,12 +300,27 @@ export default function SciPostPairwiseSection({ initialMode = "abstract" }) {
             </div>
           )}
 
-          {/* Per-dimension breakdown */}
+          {/* Per-dimension breakdown - cards + chart */}
           <div className="border border-border rounded-lg p-4">
             <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
               <GitCompare className="h-4 w-4" /> Agreement by Dimension
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={DIMENSIONS.map(dim => {
+                const d = results.by_dimension?.[dim];
+                return d ? { name: dim.charAt(0).toUpperCase() + dim.slice(1), rate: d.majority.rate } : null;
+              }).filter(Boolean)} barCategoryGap="20%">
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                <Tooltip formatter={(v) => [`${v}%`, "Majority Agreement"]} contentStyle={{ fontSize: 12 }} />
+                <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
+                  {DIMENSIONS.map((dim, i) => (
+                    <Cell key={i} fill={DIM_COLORS[dim]?.includes("blue") ? "#3b82f6" : DIM_COLORS[dim]?.includes("purple") ? "#8b5cf6" : DIM_COLORS[dim]?.includes("amber") ? "#f59e0b" : "#22c55e"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
               {DIMENSIONS.map(dim => {
                 const d = results.by_dimension?.[dim];
                 if (!d) return null;
