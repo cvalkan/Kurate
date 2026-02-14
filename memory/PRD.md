@@ -54,10 +54,12 @@ frontend/src/
 ```
 
 ## DB Collections
-- `pairwise_comparisons` — Qeios pairs
+- `pairwise_comparisons` — Qeios pairs (legacy)
+- `qeios_pairwise_abstract` — Qeios synced abstract-only pairs (NEW)
+- `qeios_pairwise_extract` — Qeios synced full-text pairs (NEW)
 - `scipost_comparisons` — SciPost single-item ratings
-- `scipost_pairwise` — SciPost per-dimension pairs (NEW)
-- `scipost_pairwise_extract` — SciPost per-dimension pairs using PDF extraction (NEW)
+- `scipost_pairwise` — SciPost per-dimension pairs (abstract)
+- `scipost_pairwise_extract` — SciPost per-dimension pairs (extract)
 - `validation_datasets`, `tournament_papers`, `tournament_matches` — Tournament data
 
 ## What's Been Implemented
