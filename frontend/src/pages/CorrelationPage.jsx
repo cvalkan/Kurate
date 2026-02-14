@@ -3,6 +3,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { BarChart3 } from "lucide-react";
 import { CorrelationSection } from "@/components/CorrelationSection";
+import ConvergenceSection from "@/components/ConvergenceSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
