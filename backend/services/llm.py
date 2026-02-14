@@ -474,7 +474,19 @@ def _pick_round_robin_model() -> Dict[str, str]:
     return model
 
 
-async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None, model_override: dict = None) -> Dict:
+def _build_full_pdf_content(paper: dict, char_limit: int = 40000) -> str:
+    """Build paper content using the full PDF text (no section extraction)."""
+    abstract = paper.get("abstract", "")
+    full_text = paper.get("full_text", "")
+    if full_text:
+        content = f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text[:char_limit]}"
+        if len(full_text) > char_limit:
+            content += "\n[...remainder truncated...]"
+        return content
+    return f"Abstract: {abstract[:1500]}"
+
+
+async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None, model_override: dict = None, content_mode: str = None) -> Dict:
     if prompt_config is None:
         prompt_config = DEFAULT_EVALUATION_PROMPT
 
@@ -489,9 +501,16 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     if char_limit is None:
         char_limit = await _get_section_char_limit()
 
-    if abstract_only:
+    # Resolve content_mode from legacy abstract_only flag
+    if content_mode is None:
+        content_mode = "abstract" if abstract_only else "extract"
+
+    if content_mode == "abstract":
         p1_content = f"Abstract: {paper1.get('abstract', '')[:1500]}"
         p2_content = f"Abstract: {paper2.get('abstract', '')[:1500]}"
+    elif content_mode == "full_pdf":
+        p1_content = _build_full_pdf_content(paper1)
+        p2_content = _build_full_pdf_content(paper2)
     else:
         p1_content = _build_paper_content(paper1, char_limit)
         p2_content = _build_paper_content(paper2, char_limit)
