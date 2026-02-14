@@ -573,9 +573,11 @@ async def run_tournament(body: TournamentRequest):
     return {"status": "started", "dataset_id": body.dataset_id, "num_matches": body.num_matches, "content_mode": content_mode}
 
 
-async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, abstract_only: bool = False):
+async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, content_mode: str = "extract"):
     state = _get_state(dataset_id)
     state.update({"running": True, "completed_matches": 0, "total_matches": max_pairs, "current_pair": "Loading...", "started_at": _time.time()})
+
+    abstract_only = content_mode == "abstract"
 
     try:
         papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
@@ -584,10 +586,13 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, abstra
 
         # Dedup: only check matches of the same mode
         match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-        if abstract_only:
+        if content_mode == "abstract":
             match_filter["abstract_only"] = True
+        elif content_mode == "full_pdf":
+            match_filter["content_mode"] = "full_pdf"
         else:
             match_filter["abstract_only"] = {"$ne": True}
+            match_filter["content_mode"] = {"$ne": "full_pdf"}
 
         existing = await db.validation_matches.find(
             match_filter,
@@ -608,7 +613,6 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, abstra
         state["total_matches"] = len(pairs)
         prompt_config = DEFAULT_EVALUATION_PROMPT
         completed = 0
-        mode_label = "abstract" if abstract_only else "extract"
 
         for i in range(0, len(pairs), parallel):
             batch = pairs[i:i + parallel]
@@ -617,18 +621,19 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, abstra
 
             tasks = [
                 compare_papers(lookup[p1], lookup[p2], prompt_config,
-                               abstract_only=abstract_only or not (lookup[p1].get("full_text") and lookup[p2].get("full_text")))
+                               content_mode=content_mode)
                 for p1, p2 in presented
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             for (p1_id, p2_id), result in zip(presented, results):
-                used_ext = not abstract_only and bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
+                used_ext = content_mode == "extract" and bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
                 doc = {
                     "id": str(uuid.uuid4()), "dataset_id": dataset_id,
                     "paper1_id": p1_id, "paper2_id": p2_id,
                     "used_extraction": used_ext,
                     "abstract_only": abstract_only,
+                    "content_mode": content_mode,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
                 if isinstance(result, Exception):
@@ -648,7 +653,7 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, abstra
                 state["completed_matches"] = completed
             await asyncio.sleep(0.2)
 
-        logger.info(f"Validation tournament [{dataset_id}] ({mode_label}): {completed}/{len(pairs)}")
+        logger.info(f"Validation tournament [{dataset_id}] ({content_mode}): {completed}/{len(pairs)}")
     except Exception as e:
         logger.error(f"Validation tournament [{dataset_id}] error: {e}")
     finally:
