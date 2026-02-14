@@ -5,10 +5,14 @@ import uuid
 import random
 import httpx
 import io
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional
 from PyPDF2 import PdfReader
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_PROMPT, logger
+
+# Dedicated thread pool for LLM calls — default pool (8 threads) bottlenecks parallel evals
+_llm_executor = ThreadPoolExecutor(max_workers=100, thread_name_prefix="llm")
 
 
 async def download_and_extract_pdf(pdf_url: str) -> Optional[str]:
