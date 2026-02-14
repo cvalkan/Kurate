@@ -7,6 +7,7 @@ import {
   CheckCircle, XCircle, BarChart3, GitCompare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
