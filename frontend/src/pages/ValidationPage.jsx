@@ -99,7 +99,7 @@ function StandardStats({ datasetId, isAdmin }) {
   const [pairwise, setPairwise] = useState(null);
   const [irt, setIrt] = useState(null);
   const [agreement, setAgreement] = useState(null);
-  const [contentMode, setContentMode] = useState("extract");
+  const [contentMode, setContentMode] = useState("abstract");
   const [absPairwise, setAbsPairwise] = useState(null);
   const [absIrt, setAbsIrt] = useState(null);
   const [absAgreement, setAbsAgreement] = useState(null);
