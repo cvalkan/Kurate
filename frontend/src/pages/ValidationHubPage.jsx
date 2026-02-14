@@ -41,7 +41,7 @@ const STATIC_SECTIONS = [
 ];
 
 export default function ValidationHubPage() {
-  const [selected, setSelected] = useState("pw-qeios");
+  const [selected, setSelected] = useState("pw-qeios-abstract");
   const [datasets, setDatasets] = useState([]);
   const isAdmin = !!sessionStorage.getItem("admin_token");
 
