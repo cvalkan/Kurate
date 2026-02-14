@@ -1392,8 +1392,16 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     if len(available_modes) < 2:
         return {"status": "insufficient_modes", "available": available_modes}
 
-    # Find the intersection of pairs across ALL available modes
-    common_pairs = set.intersection(*[set(mode_ai_pairs[m].keys()) for m in available_modes])
+    # Find common pairs using only modes with substantial data.
+    # A mode must have at least 50% of the largest mode's pairs to be "core".
+    max_pairs = max(len(mode_ai_pairs[m]) for m in available_modes)
+    core_modes = [m for m in available_modes if len(mode_ai_pairs[m]) >= max_pairs * 0.5]
+    overlay_modes = [m for m in available_modes if m not in core_modes]
+
+    if len(core_modes) < 2:
+        return {"status": "insufficient_modes", "available": available_modes}
+
+    common_pairs = set.intersection(*[set(mode_ai_pairs[m].keys()) for m in core_modes])
 
     # For each mode, compute agreement on the common pairs
     def _compute_agreement(ai_map, pair_set):
