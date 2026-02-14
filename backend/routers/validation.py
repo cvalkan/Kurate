@@ -1432,6 +1432,63 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     for mode in available_modes:
         results[mode] = _compute_agreement(mode_ai_pairs[mode], common_pairs)
 
+    # Per-model agreement breakdown
+    per_model = {}
+    all_model_keys = set()
+    for mode in available_modes:
+        for mk in mode_model_pairs.get(mode, {}):
+            all_model_keys.add(mk)
+
+    for mode in available_modes:
+        per_model[mode] = {}
+        for mk in all_model_keys:
+            model_map = mode_model_pairs.get(mode, {}).get(mk, {})
+            if model_map:
+                stats = _compute_agreement(model_map, common_pairs)
+                per_model[mode][mk] = stats
+
+    # AI majority (3-model vote) vs expert majority — needs pairs with all 3 models
+    ai_majority_vs_expert = {}
+    for mode in available_modes:
+        model_maps = mode_model_pairs.get(mode, {})
+        if len(model_maps) < 2:
+            continue
+        mk_list = list(model_maps.keys())
+        # Find pairs evaluated by all models in this mode
+        all_model_pairs = set.intersection(*[set(model_maps[mk].keys()) for mk in mk_list]) & common_pairs
+        if not all_model_pairs:
+            continue
+        # Compute 3-model majority vote
+        ai_maj_map = {}
+        for pair in all_model_pairs:
+            votes = Counter(model_maps[mk][pair] for mk in mk_list if pair in model_maps[mk])
+            if votes:
+                best, n = votes.most_common(1)[0]
+                ai_maj_map[pair] = best
+        # Agreement with expert majority
+        maj_overlap = set(ai_maj_map.keys()) & set(pair_majority.keys())
+        maj_agree = sum(1 for p in maj_overlap if ai_maj_map[p] == pair_majority[p])
+        # Agreement with individual experts
+        ae_agree = ae_total = 0
+        for exp, ratings in expert_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] == ratings[b]:
+                        continue
+                    pair = tuple(sorted([a, b]))
+                    if pair not in all_model_pairs or pair not in ai_maj_map:
+                        continue
+                    ae_total += 1
+                    if (a if ratings[a] > ratings[b] else b) == ai_maj_map[pair]:
+                        ae_agree += 1
+        ai_majority_vs_expert[mode] = {
+            "pairs_with_all_models": len(all_model_pairs),
+            "ai_majority_vs_expert": {"agree": ae_agree, "total": ae_total, "rate": round(ae_agree / max(ae_total, 1) * 100, 1)},
+            "ai_majority_vs_expert_majority": {"agree": maj_agree, "total": len(maj_overlap), "rate": round(maj_agree / max(len(maj_overlap), 1) * 100, 1)},
+        }
+
     # Compute pairwise mode disagreement stats for transparency
     mode_disagreements = {}
     for i, m1 in enumerate(available_modes):
