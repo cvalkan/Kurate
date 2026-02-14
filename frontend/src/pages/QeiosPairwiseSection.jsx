@@ -7,14 +7,13 @@ import {
   CheckCircle, XCircle, BarChart3, GitCompare, FileText, X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
 
 const GAP_LABELS = [
-  { key: "small", label: "Small (≤1 star)" },
-  { key: "medium", label: "Medium (1–2 stars)" },
+  { key: "small", label: "Small (\u22641 star)" },
+  { key: "medium", label: "Medium (1\u20132 stars)" },
   { key: "large", label: "Large (>2 stars)" },
 ];
 
@@ -27,49 +26,130 @@ function shortModel(mk) {
   return m;
 }
 
-function Badge({ rate, label, sub, testId }) {
-  const color = rate >= 70 ? "text-green-600" : rate >= 50 ? "text-amber-600" : "text-red-600";
-  const bg = rate >= 70 ? "bg-green-50" : rate >= 50 ? "bg-amber-50" : "bg-red-50";
+function HBar({ rate, label, sub, color = "bg-blue-400/70" }) {
+  const textColor = rate >= 70 ? "text-green-700" : rate >= 50 ? "text-amber-700" : "text-red-700";
   return (
-    <div className={`p-3 rounded-lg border border-border ${bg} text-center`} data-testid={testId}>
-      <div className="text-[10px] text-muted-foreground mb-0.5">{label}</div>
-      <div className={`text-xl font-semibold font-mono ${color}`}>{rate}%</div>
+    <div className="space-y-1">
+      {label && <div className="text-[10px] text-muted-foreground">{label}</div>}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-2.5 rounded-full bg-secondary/40 overflow-hidden">
+          <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(rate, 100)}%` }} />
+        </div>
+        <span className={`text-xs font-mono font-semibold min-w-[40px] text-right ${textColor}`}>{rate}%</span>
+      </div>
       {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
     </div>
   );
 }
 
-export default function QeiosPairwiseSection({ initialMode = "abstract" }) {
-  const [mode, setMode] = useState(initialMode);
-  const [status, setStatus] = useState(null);
-  const [results, setResults] = useState(null);
+function ModeColumn({ mode, modeLabel, results, status }) {
+  if (!results && (!status || status.total_pairs === 0)) {
+    return (
+      <div className="text-center py-8">
+        <AlertCircle className="h-6 w-6 mx-auto mb-2 text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground">No {modeLabel} data yet</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Status */}
+      {status && status.total_pairs > 0 && (
+        <div className="flex gap-2 text-center">
+          {[["Pairs", status.total_pairs], ["Done", status.ai_completed]].map(([l, v]) => (
+            <div key={l} className="flex-1 p-1.5 border border-border/50 rounded text-[10px]">
+              <div className="text-muted-foreground">{l}</div>
+              <div className="font-semibold">{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {results && (
+        <>
+          {/* Overall majority */}
+          <div className="p-3 rounded-lg border border-border bg-secondary/5" data-testid={`pw-qeios-overall-${mode}`}>
+            <div className="text-[10px] text-muted-foreground mb-1">Majority vs Human</div>
+            <div className={`text-2xl font-bold font-mono ${results.overall_majority.rate >= 60 ? "text-green-700" : "text-amber-700"}`}>
+              {results.overall_majority.rate}%
+            </div>
+            <div className="text-[10px] text-muted-foreground">{results.overall_majority.agree}/{results.overall_majority.total} pairs</div>
+          </div>
+
+          {/* Per model */}
+          {results.by_model_overall && (
+            <div className="space-y-2" data-testid={`pw-qeios-models-${mode}`}>
+              <div className="text-xs font-medium">Model Agreement</div>
+              {Object.entries(results.by_model_overall)
+                .sort((a, b) => b[1].rate - a[1].rate)
+                .map(([mk, s]) => (
+                  <HBar key={mk} rate={s.rate} label={shortModel(mk)} sub={`${s.agree}/${s.total}`} />
+                ))}
+            </div>
+          )}
+
+          {/* Score gap */}
+          {results.by_gap && Object.values(results.by_gap).some(g => g.total > 0) && (
+            <div className="space-y-2" data-testid={`pw-qeios-gap-${mode}`}>
+              <div className="text-xs font-medium">By Score Gap</div>
+              {GAP_LABELS.map(gap => {
+                const g = results.by_gap?.[gap.key];
+                if (!g || g.total === 0) return null;
+                return <HBar key={gap.key} rate={g.rate} label={gap.label} sub={`${g.agree}/${g.total}`} />;
+              })}
+            </div>
+          )}
+
+          {/* Inter-model */}
+          {results.inter_model && Object.keys(results.inter_model).length > 0 && (
+            <div className="space-y-2" data-testid={`pw-qeios-inter-${mode}`}>
+              <div className="text-xs font-medium">Inter-Model</div>
+              {Object.entries(results.inter_model).map(([k, s]) => {
+                const [m1, m2] = k.split(" vs ");
+                return <HBar key={k} rate={s.rate} label={`${shortModel(m1)} vs ${shortModel(m2)}`} sub={`${s.agree}/${s.total}`} color="bg-purple-400/70" />;
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function QeiosPairwiseSection() {
+  const [absStatus, setAbsStatus] = useState(null);
+  const [absResults, setAbsResults] = useState(null);
+  const [extStatus, setExtStatus] = useState(null);
+  const [extResults, setExtResults] = useState(null);
   const [numPairs, setNumPairs] = useState(20);
   const [parallelAgents, setParallelAgents] = useState(5);
   const [isStarting, setIsStarting] = useState(false);
   const [showPrompts, setShowPrompts] = useState(false);
   const isAdmin = !!sessionStorage.getItem("admin_token");
-  const pairwisePath = mode === "extract" ? "pairwise-extract" : "pairwise";
-  const modeLabel = mode === "extract" ? "Extract" : "Abstract";
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, r] = await Promise.all([
-        axios.get(`${API}/api/qeios/${pairwisePath}/status`),
-        axios.get(`${API}/api/qeios/${pairwisePath}/results`),
+      const [as, ar, es, er] = await Promise.all([
+        axios.get(`${API}/api/qeios/pairwise/status`),
+        axios.get(`${API}/api/qeios/pairwise/results`),
+        axios.get(`${API}/api/qeios/pairwise-extract/status`),
+        axios.get(`${API}/api/qeios/pairwise-extract/results`),
       ]);
-      setStatus(s.data);
-      if (r.data.status === "ok") setResults(r.data);
-      if (s.data?.fetching || s.data?.running) setIsStarting(false);
+      setAbsStatus(as.data);
+      if (ar.data.status === "ok") setAbsResults(ar.data);
+      setExtStatus(es.data);
+      if (er.data.status === "ok") setExtResults(er.data);
+      if (as.data?.fetching || as.data?.running) setIsStarting(false);
     } catch (e) { console.error(e); }
-  }, [pairwisePath]);
+  }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
-  useEffect(() => { setResults(null); setStatus(null); }, [mode]);
   useEffect(() => {
-    if (!status?.fetching && !status?.running && !isStarting) return;
+    if (!absStatus?.fetching && !absStatus?.running && !isStarting) return;
     const iv = setInterval(fetchAll, isStarting ? 1000 : 2000);
     return () => clearInterval(iv);
-  }, [status?.fetching, status?.running, isStarting, fetchAll]);
+  }, [absStatus?.fetching, absStatus?.running, isStarting, fetchAll]);
 
   const fetchAndRun = async () => {
     setIsStarting(true);
@@ -77,121 +157,69 @@ export default function QeiosPairwiseSection({ initialMode = "abstract" }) {
       const res = await axios.post(`${API}/api/qeios/pairwise/fetch-and-run`,
         { num_pairs: numPairs, parallel_agents: parallelAgents },
         { headers: adminHeaders() });
-      if (res.data.status === "started") toast.success(`Synced run started — ${parallelAgents} agents, ${numPairs} pairs`);
+      if (res.data.status === "started") toast.success(`Synced run started`);
       else if (res.data.status === "already_running") { toast.warning("Already running"); setIsStarting(false); }
       else { toast.error(res.data.message || "Error"); setIsStarting(false); }
       fetchAll();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || e.message || "Failed");
-      setIsStarting(false);
-    }
+    } catch (e) { toast.error(e.response?.data?.detail || e.message); setIsStarting(false); }
   };
 
   const stop = async () => {
     try {
       await axios.post(`${API}/api/qeios/pairwise/stop`, {}, { headers: adminHeaders() });
-      toast.info("Stopped");
-      setIsStarting(false);
-      fetchAll();
+      toast.info("Stopped"); setIsStarting(false); fetchAll();
     } catch (e) { toast.error("Failed to stop"); }
   };
 
-  const running = status?.fetching || status?.running || isStarting;
+  const running = absStatus?.fetching || absStatus?.running || isStarting;
+  const prompts = absResults?.prompts || extResults?.prompts;
 
   return (
     <div className="space-y-5">
-      {/* Content mode toggle */}
-      <div className="flex gap-1 border border-border rounded-lg p-0.5 w-fit" data-testid="qeios-mode-toggle">
-        {[{ id: "abstract", label: "Abstract" }, { id: "extract", label: "Extract" }].map(m => (
-          <button
-            key={m.id}
-            onClick={() => setMode(m.id)}
-            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-              mode === m.id ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"
-            }`}
-            data-testid={`qeios-mode-${m.id}`}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-
       {/* Admin controls */}
       {isAdmin && (
-        <div className="border border-border rounded-lg p-4 bg-secondary/10 space-y-3" data-testid={`pw-qeios-admin-${mode}`}>
-          {mode === "abstract" ? (
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">Pairs:</label>
-                <Input type="number" min={5} max={100} value={numPairs}
-                  onChange={e => setNumPairs(parseInt(e.target.value) || 20)}
-                  className="w-16 h-8 text-xs" data-testid="pw-qeios-num-input" disabled={running} />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">Parallel agents:</label>
-                <Input type="number" min={1} max={15} value={parallelAgents}
-                  onChange={e => setParallelAgents(Math.min(15, Math.max(1, parseInt(e.target.value) || 5)))}
-                  className="w-16 h-8 text-xs" data-testid="pw-qeios-agents-input" disabled={running} />
-              </div>
-              {!running ? (
-                <Button size="sm" onClick={fetchAndRun} className="gap-1.5" data-testid="pw-qeios-run-btn">
-                  <Play className="h-3.5 w-3.5" /> Fetch & Evaluate (Synced)
-                </Button>
-              ) : (
-                <Button size="sm" variant="destructive" onClick={stop} className="gap-1.5" data-testid="pw-qeios-stop-btn">
-                  <Square className="h-3.5 w-3.5" /> Stop
-                </Button>
-              )}
-              <span className="text-[10px] text-muted-foreground italic">
-                {parallelAgents} agents evaluate {parallelAgents * 6} LLM calls simultaneously. Data is additive.
-              </span>
+        <div className="border border-border rounded-lg p-4 bg-secondary/10 space-y-3" data-testid="pw-qeios-admin">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground">Pairs:</label>
+              <Input type="number" min={5} max={100} value={numPairs}
+                onChange={e => setNumPairs(parseInt(e.target.value) || 20)}
+                className="w-16 h-8 text-xs" disabled={running} data-testid="pw-qeios-num-input" />
             </div>
-          ) : (
-            <div className="flex items-center gap-3 flex-wrap">
-              {running && (
-                <Button size="sm" variant="destructive" onClick={stop} className="gap-1.5" data-testid="pw-qeios-stop-btn-extract">
-                  <Square className="h-3.5 w-3.5" /> Stop
-                </Button>
-              )}
-              <span className="text-xs text-muted-foreground">
-                Use the <strong>Abstract</strong> mode to start a synced evaluation — both modes share the same paper pairs.
-              </span>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground">Agents:</label>
+              <Input type="number" min={1} max={15} value={parallelAgents}
+                onChange={e => setParallelAgents(Math.min(15, Math.max(1, parseInt(e.target.value) || 5)))}
+                className="w-16 h-8 text-xs" disabled={running} data-testid="pw-qeios-agents-input" />
             </div>
-          )}
+            {!running ? (
+              <Button size="sm" onClick={fetchAndRun} className="gap-1.5" data-testid="pw-qeios-run-btn">
+                <Play className="h-3.5 w-3.5" /> Fetch & Evaluate
+              </Button>
+            ) : (
+              <Button size="sm" variant="destructive" onClick={stop} className="gap-1.5" data-testid="pw-qeios-stop-btn">
+                <Square className="h-3.5 w-3.5" /> Stop
+              </Button>
+            )}
+          </div>
           {running && (
-            <div className="flex items-center gap-2 text-xs bg-accent/10 rounded px-3 py-2" data-testid={`pw-qeios-progress-${mode}`}>
+            <div className="flex items-center gap-2 text-xs bg-accent/10 rounded px-3 py-2" data-testid="pw-qeios-progress">
               <Loader2 className="h-4 w-4 animate-spin text-accent" />
               <span className="font-medium">
-                {isStarting && !status?.fetching ? "Starting synced run..." :
-                  status?.progress?.phase === "scanning" ? "Scanning Crossref for reviewers..." :
-                  status?.progress?.phase === "fetching" ? `Fetching pairs... ${status?.progress?.pairs_fetched || 0} ready` :
-                  `Evaluating: ${status?.progress?.pairs_done || 0}/${status?.progress?.target || '?'} done`}
-                {status?.progress?.phase === "evaluating" && status?.progress?.pairs_in_flight > 0 &&
-                  ` (${status.progress.pairs_in_flight} in-flight)`}
+                {isStarting && !absStatus?.fetching ? "Starting synced run..." :
+                  absStatus?.progress?.phase === "scanning" ? "Scanning Crossref..." :
+                  absStatus?.progress?.phase === "fetching" ? `Fetching pairs... ${absStatus?.progress?.pairs_fetched || 0}` :
+                  `Evaluating: ${absStatus?.progress?.pairs_done || 0}/${absStatus?.progress?.target || '?'}`}
               </span>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Status cards */}
-      {status && status.total_pairs > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-          {[["Total Pairs", status.total_pairs, "total"], ["AI Completed", status.ai_completed, "completed"],
-            ["AI Pending", status.ai_pending, "pending"], ["AI Failed", status.ai_failed, "failed"]]
-            .map(([l, v, key]) => (
-              <div key={key} className="p-2 border border-border/50 rounded text-xs" data-testid={`pw-qeios-status-${key}-${mode}`}>
-                <div className="text-muted-foreground">{l}</div>
-                <div className="font-semibold text-base">{v}</div>
-              </div>
-            ))}
         </div>
       )}
 
       {/* Domain breakdown */}
-      {status?.by_domain && Object.keys(status.by_domain).length > 0 && (
+      {absStatus?.by_domain && Object.keys(absStatus.by_domain).length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {Object.entries(status.by_domain).sort((a, b) => b[1] - a[1]).map(([d, c]) => (
+          {Object.entries(absStatus.by_domain).sort((a, b) => b[1] - a[1]).map(([d, c]) => (
             <div key={d} className="p-2 border border-border/50 rounded text-xs text-center">
               <div className="text-muted-foreground">{d}</div>
               <div className="font-semibold">{c} pairs</div>
@@ -200,185 +228,91 @@ export default function QeiosPairwiseSection({ initialMode = "abstract" }) {
         </div>
       )}
 
-      {results ? (
-        <div className="space-y-5">
-          {/* Overall majority */}
-          <div className="border border-border rounded-lg p-4" data-testid={`pw-qeios-overall-${mode}`}>
-            <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-              <Layers className="h-4 w-4" /> Overall Majority Agreement ({modeLabel})
-            </h2>
-            <Badge rate={results.overall_majority.rate} label="Majority vs Human"
-              sub={`${results.overall_majority.agree}/${results.overall_majority.total} pairs`}
-              testId={`pw-qeios-majority-badge-${mode}`} />
+      {/* Side-by-side Abstract | Extract */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-testid="pw-qeios-comparison">
+        <div className="border border-border rounded-lg p-4">
+          <h3 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5" /> Abstract
+          </h3>
+          <ModeColumn mode="abstract" modeLabel="Abstract" results={absResults} status={absStatus} />
+        </div>
+        <div className="border border-border rounded-lg p-4">
+          <h3 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5" /> Extract
+          </h3>
+          <ModeColumn mode="extract" modeLabel="Extract" results={extResults} status={extStatus} />
+        </div>
+      </div>
+
+      {/* Sample pairs table - show from whichever mode has data */}
+      {(absResults?.samples?.length > 0 || extResults?.samples?.length > 0) && (
+        <div className="border border-border rounded-lg overflow-hidden" data-testid="pw-qeios-samples">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+            <h2 className="text-xs font-medium">Sample Pairs</h2>
           </div>
-
-          {/* Performance by model - bar chart */}
-          {results.by_model_overall && Object.keys(results.by_model_overall).length > 0 && (
-            <div className="border border-border rounded-lg p-4" data-testid={`pw-qeios-model-${mode}`}>
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <BarChart3 className="h-4 w-4" /> Model Agreement ({modeLabel})
-              </h2>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={[
-                  { name: "Majority", rate: results.overall_majority.rate, fill: "#6366f1" },
-                  ...Object.entries(results.by_model_overall)
-                    .sort((a, b) => b[1].rate - a[1].rate)
-                    .map(([mk, s], i) => ({
-                      name: shortModel(mk),
-                      rate: s.rate,
-                      fill: ["#3b82f6", "#8b5cf6", "#f59e0b"][i] || "#94a3b8",
-                    })),
-                ]} barCategoryGap="20%">
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
-                  <Tooltip formatter={(v) => [`${v}%`, "Agreement"]} contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
-                    {[
-                      { fill: "#6366f1" },
-                      ...Object.entries(results.by_model_overall).map((_, i) => ({
-                        fill: ["#3b82f6", "#8b5cf6", "#f59e0b"][i] || "#94a3b8",
-                      })),
-                    ].map((entry, i) => (
-                      <Cell key={i} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Agreement by score gap */}
-          {results.by_gap && Object.values(results.by_gap).some(g => g.total > 0) && (
-            <div className="border border-border rounded-lg p-4" data-testid={`pw-qeios-gap-${mode}`}>
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <BarChart3 className="h-4 w-4" /> Agreement by Score Gap ({modeLabel})
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {GAP_LABELS.map(gap => {
-                  const g = results.by_gap?.[gap.key];
-                  if (!g || g.total === 0) return null;
-                  return (
-                    <div key={gap.key} className="border border-border/60 rounded-lg p-3" data-testid={`pw-qeios-gap-card-${mode}-${gap.key}`}>
-                      <div className="text-xs font-medium mb-1">{gap.label}</div>
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-2">
-                        <span>{g.agree}/{g.total} pairs</span>
-                        <span className="font-mono">{g.rate}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-secondary/40 overflow-hidden">
-                        <div className="h-full bg-accent/70" style={{ width: `${g.rate}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* By domain */}
-          {results.by_domain && Object.keys(results.by_domain).length > 0 && (
-            <div className="border border-border rounded-lg p-4" data-testid={`pw-qeios-domain-${mode}`}>
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <GitCompare className="h-4 w-4" /> Agreement by Domain
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {Object.entries(results.by_domain).map(([d, s]) => (
-                  <Badge key={d} rate={s.rate} label={d} sub={`${s.agree}/${s.total}`} />
+          <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+            <table className="w-full text-[11px]">
+              <thead className="sticky top-0 bg-background">
+                <tr className="border-b border-border text-[10px]">
+                  <th className="text-left px-2 py-1.5 font-medium">Paper 1</th>
+                  <th className="text-left px-2 py-1.5 font-medium">Paper 2</th>
+                  <th className="text-center px-1.5 py-1.5 font-medium">Domain</th>
+                  <th className="text-center px-1.5 py-1.5 font-medium">Gap</th>
+                  <th className="text-center px-1.5 py-1.5 font-medium">Models</th>
+                  <th className="text-center px-1.5 py-1.5 font-medium">Majority</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(absResults?.samples || extResults?.samples || []).map((s, i) => (
+                  <tr key={i} className="border-b border-border/20 hover:bg-secondary/10">
+                    <td className="px-2 py-1 max-w-[180px] truncate" title={s.paper1_title}>
+                      <span className={s.human_winner === "paper1" ? "font-semibold" : ""}>{s.paper1_title}</span>
+                      <span className="text-[9px] text-muted-foreground ml-1">({s.human_score1})</span>
+                    </td>
+                    <td className="px-2 py-1 max-w-[180px] truncate" title={s.paper2_title}>
+                      <span className={s.human_winner === "paper2" ? "font-semibold" : ""}>{s.paper2_title}</span>
+                      <span className="text-[9px] text-muted-foreground ml-1">({s.human_score2})</span>
+                    </td>
+                    <td className="text-center px-1.5 py-1 text-[10px] text-muted-foreground">{(s.domain || "").split(" ")[0]}</td>
+                    <td className="text-center px-1.5 py-1 font-mono">{s.score_gap}</td>
+                    <td className="text-center px-1.5 py-1 font-mono text-[10px]">
+                      <span className={s.models_agree >= 2 ? "text-green-600" : "text-red-500"}>{s.models_agree}/{s.models_total}</span>
+                    </td>
+                    <td className="text-center px-1.5 py-1">
+                      {s.majority_agree === true && <CheckCircle className="h-3.5 w-3.5 text-green-600 inline" />}
+                      {s.majority_agree === false && <XCircle className="h-3.5 w-3.5 text-red-500 inline" />}
+                      {s.majority_agree === null && <span className="text-muted-foreground">-</span>}
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* Inter-model agreement */}
-          {results.inter_model && Object.keys(results.inter_model).length > 0 && (
-            <div className="border border-border rounded-lg p-4" data-testid={`pw-qeios-inter-${mode}`}>
-              <h2 className="text-sm font-medium mb-3">Inter-Model Agreement</h2>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(results.inter_model).map(([k, s]) => {
-                  const [m1, m2] = k.split(" vs ");
-                  return <Badge key={k} rate={s.rate} label={`${shortModel(m1)} vs ${shortModel(m2)}`} sub={`${s.agree}/${s.total}`} />;
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Sample pairs */}
-          {results.samples?.length > 0 && (
-            <div className="border border-border rounded-lg overflow-hidden" data-testid={`pw-qeios-samples-${mode}`}>
-              <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-                <h2 className="text-xs font-medium">Sample Pairs</h2>
-              </div>
-              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
-                <table className="w-full text-[11px]">
-                  <thead className="sticky top-0 bg-background">
-                    <tr className="border-b border-border text-[10px]">
-                      <th className="text-left px-2 py-1.5 font-medium">Paper 1</th>
-                      <th className="text-left px-2 py-1.5 font-medium">Paper 2</th>
-                      <th className="text-center px-1.5 py-1.5 font-medium">Domain</th>
-                      <th className="text-center px-1.5 py-1.5 font-medium">Gap</th>
-                      <th className="text-center px-1.5 py-1.5 font-medium">Models</th>
-                      <th className="text-center px-1.5 py-1.5 font-medium">Majority</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.samples.map((s, i) => (
-                      <tr key={i} className="border-b border-border/20 hover:bg-secondary/10">
-                        <td className="px-2 py-1 max-w-[180px] truncate" title={s.paper1_title}>
-                          <span className={s.human_winner === "paper1" ? "font-semibold" : ""}>{s.paper1_title}</span>
-                          <span className="text-[9px] text-muted-foreground ml-1">({s.human_score1})</span>
-                        </td>
-                        <td className="px-2 py-1 max-w-[180px] truncate" title={s.paper2_title}>
-                          <span className={s.human_winner === "paper2" ? "font-semibold" : ""}>{s.paper2_title}</span>
-                          <span className="text-[9px] text-muted-foreground ml-1">({s.human_score2})</span>
-                        </td>
-                        <td className="text-center px-1.5 py-1 text-[10px] text-muted-foreground">{(s.domain || "").split(" ")[0]}</td>
-                        <td className="text-center px-1.5 py-1 font-mono">{s.score_gap}</td>
-                        <td className="text-center px-1.5 py-1 font-mono text-[10px]">
-                          <span className={s.models_agree >= 2 ? "text-green-600" : "text-red-500"}>
-                            {s.models_agree}/{s.models_total}
-                          </span>
-                        </td>
-                        <td className="text-center px-1.5 py-1">
-                          {s.majority_agree === true && <CheckCircle className="h-3.5 w-3.5 text-green-600 inline" />}
-                          {s.majority_agree === false && <XCircle className="h-3.5 w-3.5 text-red-500 inline" />}
-                          {s.majority_agree === null && <span className="text-muted-foreground">-</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      ) : status?.total_pairs === 0 ? (
-        <div className="border border-border rounded-lg p-8 text-center" data-testid={`pw-qeios-empty-${mode}`}>
-          <AlertCircle className="h-8 w-8 mx-auto mb-3 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">No pairwise comparisons yet. Use admin controls to fetch and evaluate.</p>
-        </div>
-      ) : null}
+      )}
 
-      <div className="border border-border rounded-lg p-4 bg-secondary/10" data-testid={`pw-qeios-methodology-${mode}`}>
+      {/* Methodology */}
+      <div className="border border-border rounded-lg p-4 bg-secondary/10" data-testid="pw-qeios-methodology">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium">Methodology</h3>
-          {results?.prompts && (
-            <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setShowPrompts(true)} data-testid={`pw-qeios-view-prompts-${mode}`}>
+          {prompts && (
+            <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setShowPrompts(true)} data-testid="pw-qeios-view-prompts">
               <FileText className="h-3 w-3" /> View Prompts
             </Button>
           )}
         </div>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li><strong>Source:</strong> Qeios — open peer review with star ratings. One pair per reviewer (no ties) for independence.</li>
-          <li><strong>Pair sync:</strong> Abstract and Extract modes use identical paper pairs for head-to-head comparison.</li>
-          <li><strong>AI evaluation:</strong> Each pair evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro. Presentation order randomized per model.</li>
-          <li><strong>Content:</strong> {mode === "extract" ? "Full body text extracted from Qeios HTML, processed with section extraction algorithm." : "Abstract-only comparison (no full text)."}</li>
-          <li><strong>Agreement:</strong> Majority vote and per-model agreement with the human verdict, by domain and score gap.</li>
+          <li><strong>Source:</strong> Qeios — open peer review with star ratings. One pair per reviewer (no ties).</li>
+          <li><strong>Pair sync:</strong> Abstract and Extract modes use identical paper pairs.</li>
+          <li><strong>AI evaluation:</strong> Each pair evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro.</li>
+          <li><strong>Agreement:</strong> Majority vote and per-model agreement with the human verdict.</li>
         </ul>
       </div>
 
       {/* Prompts modal */}
-      {showPrompts && results?.prompts && (
+      {showPrompts && prompts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowPrompts(false)}>
-          <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4" onClick={e => e.stopPropagation()} data-testid={`pw-qeios-prompts-modal-${mode}`}>
+          <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4" onClick={e => e.stopPropagation()} data-testid="pw-qeios-prompts-modal">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <h3 className="text-sm font-semibold">AI Comparison Prompts</h3>
               <button onClick={() => setShowPrompts(false)} className="p-1 rounded hover:bg-secondary/30" data-testid="pw-qeios-prompts-close">
@@ -388,17 +322,12 @@ export default function QeiosPairwiseSection({ initialMode = "abstract" }) {
             <div className="p-4 space-y-4">
               <div>
                 <div className="text-xs font-medium text-muted-foreground mb-1">System Prompt</div>
-                <pre className="text-xs bg-secondary/20 rounded p-3 whitespace-pre-wrap font-mono leading-relaxed">{results.prompts.system_prompt}</pre>
+                <pre className="text-xs bg-secondary/20 rounded p-3 whitespace-pre-wrap font-mono leading-relaxed">{prompts.system_prompt}</pre>
               </div>
               <div>
                 <div className="text-xs font-medium text-muted-foreground mb-1">User Prompt Template</div>
-                <pre className="text-xs bg-secondary/20 rounded p-3 whitespace-pre-wrap font-mono leading-relaxed">{results.prompts.user_prompt}</pre>
+                <pre className="text-xs bg-secondary/20 rounded p-3 whitespace-pre-wrap font-mono leading-relaxed">{prompts.user_prompt}</pre>
               </div>
-              {results.prompts.content_note && (
-                <div className="text-xs text-muted-foreground bg-accent/5 rounded p-3 border border-accent/10">
-                  <strong>Note:</strong> {results.prompts.content_note}
-                </div>
-              )}
             </div>
           </div>
         </div>
