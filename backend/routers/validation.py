@@ -792,13 +792,17 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0):
 # ─── Multi-Model Analysis ─────────────────────────────────────────────────────
 
 @router.get("/multimodel-results")
-async def get_multimodel_results(dataset_id: str = Query(...)):
+async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None)):
     """Inter-model agreement + majority-vote vs expert analysis."""
     from core.config import TOURNAMENT_MODELS
 
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+
+    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    match_filter.update(_build_content_mode_filter(content_mode))
+
     matches = await db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}},
+        match_filter,
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
     ).to_list(100000)
 
