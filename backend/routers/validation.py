@@ -1267,6 +1267,7 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
                 if winners[i] == winners[j]: ee_agree += 1
 
     # AI vs individual expert
+    ae_agree = ae_total = 0
     for exp, ratings in expert_ratings.items():
         pids = list(ratings.keys())
         for i in range(len(pids)):
