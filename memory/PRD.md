@@ -74,6 +74,9 @@ frontend/src/
 - [x] Added “Agreement by Score Gap” charts for SciPost Pairwise (Abstract + Extract)
 - [x] Synced SciPost Pairwise Abstract + Extract runs to use identical paper pairs (paired once, evaluated twice)
 - [x] SciPost Pairwise runs are additive with de-duplication via pair keys
+- [x] Removed reset endpoints for SciPost pairwise (data cannot be accidentally wiped)
+- [x] Unified "Fetch & Evaluate (Synced)" button on Abstract tab only; Extract tab shows guidance message
+- [x] Cleaned up debug console.log statements from SciPost pairwise frontend
 
 ## Backlog
 - [ ] (P1) Add "View Prompts" modal to Qeios Pairwise page (feature parity with SciPost)
