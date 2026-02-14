@@ -18,7 +18,8 @@ const STATIC_SECTIONS = [
     icon: GitCompare,
     description: "Head-to-head: AI picks which paper is better, compared with human verdict",
     items: [
-      { id: "pw-qeios", label: "Qeios" },
+      { id: "pw-qeios-abstract", label: "Qeios (Abstract)" },
+      { id: "pw-qeios-extract", label: "Qeios (Extract)" },
       { id: "pw-scipost-abstract", label: "SciPost (Abstract)" },
       { id: "pw-scipost-extract", label: "SciPost (Extract)" },
     ],
