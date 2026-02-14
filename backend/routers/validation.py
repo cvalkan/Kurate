@@ -1018,8 +1018,19 @@ async def get_status(dataset_id: str = Query(...)):
 
 # ─── Results: Pairwise BT ─────────────────────────────────────────────────────
 
+def _build_content_mode_filter(content_mode: Optional[str] = None, abstract_only: Optional[bool] = None) -> dict:
+    """Build a MongoDB match filter for content_mode, with backward compatibility."""
+    if content_mode == "full_pdf":
+        return {"content_mode": "full_pdf"}
+    elif content_mode == "abstract" or abstract_only is True:
+        return {"abstract_only": True}
+    elif content_mode == "extract" or abstract_only is False:
+        return {"abstract_only": {"$ne": True}, "content_mode": {"$ne": "full_pdf"}}
+    return {}
+
+
 @router.get("/pairwise-results")
-async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Optional[bool] = Query(None)):
+async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Optional[bool] = Query(None), content_mode: Optional[str] = Query(None)):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
