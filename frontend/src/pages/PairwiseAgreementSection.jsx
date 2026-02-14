@@ -57,6 +57,9 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
   const [loading, setLoading] = useState(true);
   const [runningMode, setRunningMode] = useState(null);
   const [tournamentStatus, setTournamentStatus] = useState(null);
+  const [showSummaries, setShowSummaries] = useState(false);
+  const [summaries, setSummaries] = useState(null);
+  const [selectedPaper, setSelectedPaper] = useState(null);
   const isAdmin = !!sessionStorage.getItem("admin_token");
 
   const fetchData = useCallback(async () => {
