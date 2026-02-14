@@ -1034,10 +1034,7 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    if abstract_only is True:
-        match_filter["abstract_only"] = True
-    elif abstract_only is False:
-        match_filter["abstract_only"] = {"$ne": True}
+    match_filter.update(_build_content_mode_filter(content_mode, abstract_only))
 
     ai_matches = await db.validation_matches.find(
         match_filter,
