@@ -103,20 +103,25 @@ function StandardStats({ datasetId, isAdmin }) {
   const [absPairwise, setAbsPairwise] = useState(null);
   const [absIrt, setAbsIrt] = useState(null);
   const [absAgreement, setAbsAgreement] = useState(null);
-  const [isRunningAbstract, setIsRunningAbstract] = useState(false);
+  const [pdfPairwise, setPdfPairwise] = useState(null);
+  const [pdfIrt, setPdfIrt] = useState(null);
+  const [pdfAgreement, setPdfAgreement] = useState(null);
+  const [isRunningTournament, setIsRunningTournament] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
       const params = { dataset_id: datasetId };
-      const absParams = { dataset_id: datasetId, abstract_only: true };
-      const [s, p, i, a, ap, ai, aa] = await Promise.all([
+      const [s, p, i, a, ap, ai, aa, pp, pi, pa] = await Promise.all([
         axios.get(`${API}/api/validation/status`, { params }),
-        axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, abstract_only: false } }),
-        axios.get(`${API}/api/validation/irt-results`, { params: { ...params, abstract_only: false } }),
-        axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, abstract_only: false } }),
-        axios.get(`${API}/api/validation/pairwise-results`, { params: absParams }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/irt-results`, { params: absParams }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/agreement-analysis`, { params: absParams }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: "extract" } }),
+        axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: "extract" } }),
+        axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: "extract" } }),
+        axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: "abstract" } }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: "abstract" } }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: "abstract" } }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
       ]);
       setStatus(s.data);
       if (p.data.status === "ok") setPairwise(p.data);
@@ -125,37 +130,40 @@ function StandardStats({ datasetId, isAdmin }) {
       if (ap.data.status === "ok") setAbsPairwise(ap.data);
       if (ai.data.status === "ok") setAbsIrt(ai.data);
       if (aa.data.status === "ok") setAbsAgreement(aa.data);
+      if (pp.data.status === "ok") setPdfPairwise(pp.data);
+      if (pi.data.status === "ok") setPdfIrt(pi.data);
+      if (pa.data.status === "ok") setPdfAgreement(pa.data);
     } catch (e) { console.error(e); }
   }, [datasetId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
-    if (!status?.tournament_running && !isRunningAbstract) return;
+    if (!status?.tournament_running && !isRunningTournament) return;
     const iv = setInterval(fetchAll, 5000);
     return () => clearInterval(iv);
-  }, [status?.tournament_running, isRunningAbstract, fetchAll]);
+  }, [status?.tournament_running, isRunningTournament, fetchAll]);
 
-  const runAbstractTournament = async () => {
-    setIsRunningAbstract(true);
+  const runTournament = async (mode) => {
+    setIsRunningTournament(true);
     try {
-      const res = await axios.post(`${API}/api/validation/run-tournament`,
-        { dataset_id: datasetId, num_matches: 500, parallel: 30, abstract_only: true },
+      await axios.post(`${API}/api/validation/run-tournament`,
+        { dataset_id: datasetId, num_matches: 500, parallel: 30, content_mode: mode },
         { headers: getAdminHeaders() });
-      if (res.data.status === "started") {
-        // toast would be nice but we don't import it here
-      }
       fetchAll();
     } catch (e) {
       console.error(e);
-      setIsRunningAbstract(false);
+      setIsRunningTournament(false);
     }
   };
 
-  const activePairwise = contentMode === "abstract" ? absPairwise : pairwise;
-  const activeIrt = contentMode === "abstract" ? absIrt : irt;
-  const activeAgreement = contentMode === "abstract" ? absAgreement : agreement;
+  const activePairwise = contentMode === "abstract" ? absPairwise : contentMode === "full_pdf" ? pdfPairwise : pairwise;
+  const activeIrt = contentMode === "abstract" ? absIrt : contentMode === "full_pdf" ? pdfIrt : irt;
+  const activeAgreement = contentMode === "abstract" ? absAgreement : contentMode === "full_pdf" ? pdfAgreement : agreement;
   const hasAbstractData = absPairwise || absIrt;
-  const modeLabel = contentMode === "abstract" ? "Abstract" : "Extract";
+  const hasPdfData = pdfPairwise || pdfIrt;
+  const hasActiveData = activePairwise || activeIrt;
+  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
+  const modeLabel = modeLabels[contentMode] || "Extract";
 
   return (
     <div className="space-y-5">
