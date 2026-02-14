@@ -666,6 +666,7 @@ class MultiModelRequest(BaseModel):
     dataset_id: str
     parallel: int = 30
     max_pairs: int = 0  # 0 = all pairs
+    content_mode: Optional[str] = None  # "abstract", "extract", "full_pdf"; None = extract (legacy)
 
 
 @router.post("/run-multimodel", dependencies=[Depends(verify_admin)])
@@ -675,11 +676,12 @@ async def run_multimodel_tournament(body: MultiModelRequest):
     if state["running"]:
         return {"status": "already_running", **state}
 
-    asyncio.create_task(_run_multimodel(body.dataset_id, min(max(body.parallel, 1), 50), body.max_pairs))
-    return {"status": "started", "dataset_id": body.dataset_id, "max_pairs": body.max_pairs}
+    content_mode = body.content_mode or "extract"
+    asyncio.create_task(_run_multimodel(body.dataset_id, min(max(body.parallel, 1), 50), body.max_pairs, content_mode))
+    return {"status": "started", "dataset_id": body.dataset_id, "max_pairs": body.max_pairs, "content_mode": content_mode}
 
 
-async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0):
+async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, content_mode: str = "extract"):
     from core.config import TOURNAMENT_MODELS
 
     state = _get_state(dataset_id)
@@ -689,9 +691,12 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0):
         papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
         lookup = {p["id"]: p for p in papers}
 
-        # Get all completed matches
+        # Get completed matches filtered by content_mode
+        match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+        match_filter.update(_build_content_mode_filter(content_mode))
+
         matches = await db.validation_matches.find(
-            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}},
+            match_filter,
             {"_id": 0},
         ).to_list(100000)
 
