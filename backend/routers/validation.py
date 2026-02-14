@@ -1314,6 +1314,125 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
     }
 
 
+
+# ─── Head-to-Head Cross-Mode Comparison ─────────────────────────────────────────
+
+@router.get("/cross-mode-agreement")
+async def get_cross_mode_agreement(dataset_id: str = Query(...)):
+    """
+    Compute AI-expert agreement on the EXACT SAME set of paper pairs across
+    all available content modes, enabling apples-to-apples comparison.
+    """
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    if not papers:
+        return {"status": "no_data"}
+
+    # Build expert ratings
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+
+    # Build expert pair preferences (which paper the expert thinks is better)
+    expert_pair_prefs = {}  # pair_key -> [(expert, winner_id)]
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                if ratings[a] == ratings[b]:
+                    continue
+                key = tuple(sorted([a, b]))
+                if key not in expert_pair_prefs:
+                    expert_pair_prefs[key] = []
+                expert_pair_prefs[key].append((exp, a if ratings[a] > ratings[b] else b))
+
+    # Expert majority vote
+    pair_majority = {}
+    for pair, votes in expert_pair_prefs.items():
+        if len(votes) < 2:
+            continue
+        c = Counter(w for _, w in votes)
+        best, n = c.most_common(1)[0]
+        if n > len(votes) / 2:
+            pair_majority[pair] = best
+
+    # Fetch AI winners per content mode
+    modes = ["extract", "abstract", "full_pdf"]
+    mode_ai_pairs = {}
+    for mode in modes:
+        match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+        match_filter.update(_build_content_mode_filter(mode))
+        matches = await db.validation_matches.find(
+            match_filter,
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ).to_list(100000)
+        if matches:
+            ai_map = {}
+            for m in matches:
+                ai_map[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
+            mode_ai_pairs[mode] = ai_map
+
+    available_modes = list(mode_ai_pairs.keys())
+    if len(available_modes) < 2:
+        return {"status": "insufficient_modes", "available": available_modes}
+
+    # Find the intersection of pairs across ALL available modes
+    common_pairs = set.intersection(*[set(mode_ai_pairs[m].keys()) for m in available_modes])
+
+    # For each mode, compute agreement on the common pairs
+    def _compute_agreement(ai_map, pair_set, expert_pair_prefs_dict, pair_majority_dict):
+        ae_agree = ae_total = 0
+        for exp, ratings in expert_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] == ratings[b]:
+                        continue
+                    pair = tuple(sorted([a, b]))
+                    if pair not in pair_set or pair not in ai_map:
+                        continue
+                    ae_total += 1
+                    if (a if ratings[a] > ratings[b] else b) == ai_map[pair]:
+                        ae_agree += 1
+
+        maj_overlap = pair_set & set(pair_majority_dict.keys()) & set(ai_map.keys())
+        maj_agree = sum(1 for p in maj_overlap if ai_map[p] == pair_majority_dict[p])
+
+        return {
+            "ai_expert": {"agree": ae_agree, "total": ae_total, "rate": round(ae_agree / max(ae_total, 1) * 100, 1)},
+            "ai_majority": {"agree": maj_agree, "total": len(maj_overlap), "rate": round(maj_agree / max(len(maj_overlap), 1) * 100, 1)},
+        }
+
+    # Expert-expert agreement on common pairs only
+    ee_agree = ee_total = 0
+    for pair in common_pairs:
+        votes = expert_pair_prefs.get(pair, [])
+        if len(votes) < 2:
+            continue
+        winners = [w for _, w in votes]
+        for i in range(len(winners)):
+            for j in range(i + 1, len(winners)):
+                ee_total += 1
+                if winners[i] == winners[j]:
+                    ee_agree += 1
+
+    results = {}
+    for mode in available_modes:
+        results[mode] = _compute_agreement(mode_ai_pairs[mode], common_pairs, expert_pair_prefs, pair_majority)
+
+    return {
+        "status": "ok",
+        "common_pairs": len(common_pairs),
+        "modes_compared": available_modes,
+        "expert_expert": {"agree": ee_agree, "total": ee_total, "rate": round(ee_agree / max(ee_total, 1) * 100, 1)},
+        "by_mode": results,
+    }
+
+
 # ─── Reset ─────────────────────────────────────────────────────────────────────
 
 class ResetRequest(BaseModel):
