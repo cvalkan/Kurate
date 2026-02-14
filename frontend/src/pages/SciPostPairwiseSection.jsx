@@ -186,7 +186,9 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
                 {isStarting && !status?.fetching ? "Starting synced run..." :
                   status?.progress?.phase === "scanning" ? `Scanning SciPost... ${status?.progress?.papers_found || 0} papers found` :
                   status?.progress?.phase === "extracting_pdfs" ? `Extracting PDFs... ${status?.progress?.pdfs_done || 0} ready` :
-                  `Evaluating (both modes): ${status?.progress?.pairs_done || 0} / ${status?.progress?.target || '?'} pairs`}
+                  `Evaluating: ${status?.progress?.pairs_done || 0}/${status?.progress?.target || '?'} done`}
+                {status?.progress?.phase === "evaluating" && status?.progress?.pairs_in_flight > 0 &&
+                  ` (${status.progress.pairs_in_flight} in-flight, ${status.progress.parallel_agents || '?'} agents)`}
               </span>
             </div>
           )}
