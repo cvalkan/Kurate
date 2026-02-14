@@ -1006,10 +1006,17 @@ async def get_status(dataset_id: str = Query(...)):
 # ─── Results: Pairwise BT ─────────────────────────────────────────────────────
 
 @router.get("/pairwise-results")
-async def get_pairwise_results(dataset_id: str = Query(...)):
+async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Optional[bool] = Query(None)):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+
+    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    if abstract_only is True:
+        match_filter["abstract_only"] = True
+    elif abstract_only is False:
+        match_filter["abstract_only"] = {"$ne": True}
+
     ai_matches = await db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}},
+        match_filter,
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
     ).to_list(100000)
 
