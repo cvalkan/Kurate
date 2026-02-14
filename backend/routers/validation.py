@@ -964,6 +964,7 @@ async def get_status(dataset_id: str = Query(...)):
     n = await db.validation_papers.count_documents({"dataset_id": dataset_id})
     m = await db.validation_matches.count_documents({"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}})
     m_ext = await db.validation_matches.count_documents({"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, "used_extraction": True})
+    m_abs_only = await db.validation_matches.count_documents({"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, "abstract_only": True})
     failed = await db.validation_matches.count_documents({"dataset_id": dataset_id, "failed": True})
     total_pairs = n * (n - 1) // 2 if n > 1 else 0
     with_text = await db.validation_papers.count_documents({"dataset_id": dataset_id, "full_text": {"$exists": True, "$ne": None, "$ne": ""}})
