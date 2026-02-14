@@ -827,11 +827,43 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                 if abs(s1 - s2) >= 0.3:  # skip near-ties
                     all_pairs.append((p1, s1, p2, s2))
 
-            # Shuffle and take up to num_pairs_per_dim
-            random.shuffle(all_pairs)
-            dim_pairs = all_pairs[:num_pairs_per_dim]
+            # Deduplicate against existing pairs
+            existing_keys = set()
+            existing_docs = await db.scipost_pairwise_extract.find(
+                {"dimension": dim},
+                {"_id": 0, "pair_key": 1, "paper1.submission_id": 1, "paper2.submission_id": 1},
+            ).to_list(200000)
+            for doc in existing_docs:
+                key = doc.get("pair_key")
+                if not key:
+                    p1_id = doc.get("paper1", {}).get("submission_id", "")
+                    p2_id = doc.get("paper2", {}).get("submission_id", "")
+                    if p1_id and p2_id:
+                        a, b = sorted([p1_id, p2_id])
+                        key = f"{dim}:{a}:{b}"
+                if key:
+                    existing_keys.add(key)
 
-            logger.info(f"SciPost pairwise [{dim}]: {len(paper_scores)} papers -> {len(all_pairs)} valid combos -> {len(dim_pairs)} pairs selected")
+            def _pair_key(a, b):
+                a_id = a.get("submission_id", "")
+                b_id = b.get("submission_id", "")
+                x, y = sorted([a_id, b_id])
+                return f"{dim}:{x}:{y}"
+
+            available_pairs = []
+            for p1, s1, p2, s2 in all_pairs:
+                key = _pair_key(p1, p2)
+                if key in existing_keys:
+                    continue
+                available_pairs.append((p1, s1, p2, s2, key))
+
+            # Shuffle and take up to num_pairs_per_dim
+            random.shuffle(available_pairs)
+            dim_pairs = available_pairs[:num_pairs_per_dim]
+
+            logger.info(
+                f"SciPost pairwise [{dim}]: {len(paper_scores)} papers -> {len(all_pairs)} valid combos -> {len(available_pairs)} new pairs -> {len(dim_pairs)} selected"
+            )
 
             # Evaluate each pair with all 3 models
             task_text = DIMENSION_PW_TASKS.get(dim, f"Which paper is better on {dim}?")
