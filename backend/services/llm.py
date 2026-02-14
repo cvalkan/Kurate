@@ -624,7 +624,7 @@ async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: 
     try:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
-            None,
+            _llm_executor,
             lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
         )
         if response and response.strip():
