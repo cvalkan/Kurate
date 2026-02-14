@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { Scale, BarChart3, AlertCircle, Play, Info, Loader2, Users } from "lucide-react";
+import { Scale, BarChart3, AlertCircle, Play, Info, Loader2, Users, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { toast } from "sonner";
