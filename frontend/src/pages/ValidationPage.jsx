@@ -123,10 +123,6 @@ function StandardStats({ datasetId, isAdmin }) {
         axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
         axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
       ]);
-      // Fetch cross-mode in parallel but separately (non-blocking)
-      axios.get(`${API}/api/validation/cross-mode-agreement`, { params }).then(r => {
-        if (r.data.status === "ok") setCrossMode(r.data);
-      }).catch(() => {});
       setStatus(s.data);
       if (p.data.status === "ok") setPairwise(p.data);
       if (i.data.status === "ok") setIrt(i.data);
