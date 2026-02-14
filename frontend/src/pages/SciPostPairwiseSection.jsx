@@ -192,7 +192,7 @@ export default function SciPostPairwiseSection({ initialMode = "abstract" }) {
                 </Button>
               ) : null}
               <span className="text-xs text-muted-foreground">
-                Use the <strong>SciPost (Abstract)</strong> tab to start a synced evaluation — both modes share the same paper pairs.
+                Use the <strong>Abstract</strong> mode to start a synced evaluation — both modes share the same paper pairs.
               </span>
             </div>
           )}

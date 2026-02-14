@@ -153,7 +153,7 @@ export default function QeiosPairwiseSection({ initialMode = "abstract" }) {
                 </Button>
               )}
               <span className="text-xs text-muted-foreground">
-                Use the <strong>Qeios (Abstract)</strong> tab to start a synced evaluation — both modes share the same paper pairs.
+                Use the <strong>Abstract</strong> mode to start a synced evaluation — both modes share the same paper pairs.
               </span>
             </div>
           )}
