@@ -1759,6 +1759,29 @@ async def get_impact_summary_status(dataset_id: str = Query(...)):
     }
 
 
+
+@router.get("/paper-summaries")
+async def get_paper_summaries(dataset_id: str = Query(...)):
+    """Get AI impact summaries for all papers in a dataset."""
+    papers = await db.validation_papers.find(
+        {"dataset_id": dataset_id},
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "ai_impact_summary": 1, "ai_impact_summary_model": 1, "ai_impact_summary_words": 1},
+    ).to_list(5000)
+    result = []
+    for p in papers:
+        result.append({
+            "id": p["id"],
+            "title": p.get("title", ""),
+            "abstract": p.get("abstract", "")[:500],
+            "has_summary": bool(p.get("ai_impact_summary")),
+            "summary": p.get("ai_impact_summary", ""),
+            "summary_model": p.get("ai_impact_summary_model", {}),
+            "summary_words": p.get("ai_impact_summary_words", 0),
+        })
+    return {"papers": sorted(result, key=lambda x: x["title"]), "total": len(result), "with_summary": sum(1 for p in result if p["has_summary"])}
+
+
+
 # ─── Targeted Pairwise Run ──────────────────────────────────────────────────
 
 class TargetedPairwiseRequest(BaseModel):
