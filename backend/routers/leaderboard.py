@@ -882,3 +882,103 @@ async def get_model_correlation(
         "category": category,
         "mode": mode,
     }
+
+
+
+@router.get("/convergence")
+async def get_convergence(
+    category: Optional[str] = Query(None),
+    steps: int = Query(20),
+):
+    """Convergence analysis: how ranking stability improves as matches accumulate.
+    Uses the final ranking (all matches) as ground truth.
+    """
+    from scipy import stats as scipy_stats
+    from collections import defaultdict
+
+    # Get papers
+    paper_query = {}
+    if category:
+        paper_query["categories.0"] = category
+    papers = await db.papers.find(paper_query, {"_id": 0, "id": 1, "title": 1}).to_list(10000)
+    if len(papers) < 5:
+        return {"status": "no_data"}
+
+    pid_set = {p["id"] for p in papers}
+
+    # Get all standard matches, sorted by creation time
+    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    if category:
+        # Filter matches to only those between papers in this category
+        match_query["paper1_id"] = {"$in": list(pid_set)}
+
+    all_matches = await db.matches.find(
+        match_query,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
+    ).to_list(200000)
+
+    # Filter to matches where both papers are in the category
+    all_matches = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
+
+    if len(all_matches) < 20:
+        return {"status": "no_data"}
+
+    # Sort chronologically
+    all_matches.sort(key=lambda m: m.get("created_at", ""))
+
+    # Ground truth ranking
+    paper_dicts = [{"id": p["id"], "title": p.get("title", "")} for p in papers]
+    gt_lb = compute_leaderboard(paper_dicts, all_matches)
+    gt_rank = {e["id"]: e["rank"] for e in gt_lb}
+    gt_score = {e["id"]: e["score"] for e in gt_lb}
+
+    total = len(all_matches)
+    steps = min(max(steps, 5), 40)
+    curve = []
+
+    for step_i in range(1, steps + 1):
+        frac = step_i / steps
+        n = max(1, int(total * frac))
+        subset = all_matches[:n]
+
+        paper_match_count = defaultdict(int)
+        for m in subset:
+            paper_match_count[m["paper1_id"]] += 1
+            paper_match_count[m["paper2_id"]] += 1
+
+        active = [pid for pid in pid_set if paper_match_count[pid] > 0]
+        if len(active) < 5:
+            continue
+
+        avg_mpp = sum(paper_match_count[pid] for pid in active) / len(active)
+
+        sub_lb = compute_leaderboard(paper_dicts, subset)
+        sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+        sub_score = {e["id"]: e["score"] for e in sub_lb}
+
+        common = [pid for pid in active if pid in gt_rank and pid in sub_rank]
+        if len(common) < 5:
+            continue
+
+        sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common], [gt_rank[p] for p in common])
+        kt, _ = scipy_stats.kendalltau([sub_rank[p] for p in common], [gt_rank[p] for p in common])
+        pr, _ = scipy_stats.pearsonr([sub_score.get(p, 0) for p in common], [gt_score.get(p, 0) for p in common])
+
+        curve.append({
+            "fraction": round(frac, 3),
+            "matches": n,
+            "avg_matches_per_paper": round(avg_mpp, 1),
+            "papers_covered": len(active),
+            "spearman": round(sp, 4),
+            "kendall": round(kt, 4),
+            "pearson": round(pr, 4),
+        })
+
+    return {
+        "status": "ok",
+        "category": category,
+        "total_matches": total,
+        "total_papers": len(pid_set),
+        "curve": curve,
+    }
+
