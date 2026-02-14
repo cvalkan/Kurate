@@ -206,17 +206,12 @@ function StandardStats({ datasetId, isAdmin }) {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && contentMode === "abstract" && !hasAbstractData && !status?.tournament_running && (
-            <Button size="sm" className="gap-1.5 text-xs" onClick={() => runTournament("abstract")} disabled={isRunningTournament} data-testid="run-abstract-btn">
-              <Play className="h-3 w-3" /> Run Abstract Tournament
+          {isAdmin && !hasActiveData && contentMode !== "extract" && !status?.tournament_running && (
+            <Button size="sm" className="gap-1.5 text-xs" onClick={() => runTournament(contentMode)} disabled={isRunningTournament} data-testid={`run-${contentMode}-btn`}>
+              <Play className="h-3 w-3" /> Run {modeLabel} Tournament
             </Button>
           )}
-          {isAdmin && contentMode === "full_pdf" && !hasPdfData && !status?.tournament_running && (
-            <Button size="sm" className="gap-1.5 text-xs" onClick={() => runTournament("full_pdf")} disabled={isRunningTournament} data-testid="run-fullpdf-btn">
-              <Play className="h-3 w-3" /> Run Full PDF Tournament
-            </Button>
-          )}
-          {!hasActiveData && contentMode !== "extract" && (
+          {!hasActiveData && (
             <span className="text-xs text-muted-foreground italic">No {modeLabel.toLowerCase()} tournament data yet.</span>
           )}
         </div>
