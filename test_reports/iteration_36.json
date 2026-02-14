@@ -1,0 +1,36 @@
+{
+  "summary": "Completed testing of SciPost pairwise runs additive feature with mode synchronization. All backend endpoints respond correctly with mode information, and frontend SciPost Abstract/Extract pages show no regressions.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "SciPost Pairwise Status endpoint returns mode field (abstract)",
+    "SciPost Pairwise-Extract Status endpoint returns mode field (extract)",
+    "SciPost Regular Status endpoint structure validation",
+    "SciPost Pairwise Results endpoint includes mode information",
+    "SciPost Pairwise-Extract Results endpoint includes mode information",
+    "Mode consistency between status and results endpoints",
+    "SciPost Abstract page navigation and loading",
+    "SciPost Extract page navigation and loading",
+    "SciPost Single-item page navigation and loading",
+    "Status cards display correctly with existing data",
+    "Methodology sections present with sync information",
+    "Navigation between SciPost sections works correctly",
+    "No JavaScript errors on frontend pages"
+  ],
+  "test_report_links": ["/app/scipost_pairwise_test.py"],
+  "success_percentage": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "95% (13/14 tests passed - minor embedded component title issue)"
+  },
+  "updated_files": ["/app/scipost_pairwise_test.py"],
+  "action_item_for_main_agent": "",
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "true"
+}
