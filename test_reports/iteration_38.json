@@ -1,0 +1,73 @@
+{
+  "summary": "Tested Validation page restructure: sidebar shows correct sections, Qeios/SciPost have Abstract/Extract toggles, ICLR Protein and PeerRead under Pairwise show bar charts and h2h tables, Tournament pages have non-comparable note, no coincidence note anywhere, Extract label correct.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Sidebar shows Pairwise: Qeios, SciPost, ICLR Protein Science, PeerRead ACL 2017",
+    "Sidebar shows Single-item: SciPost",
+    "Sidebar shows Tournament: ICLR LLMs, ICLR Protein Science, PeerRead ACL 2017",
+    "Qeios page has Abstract/Extract toggle that switches modes correctly",
+    "SciPost pairwise page has Abstract/Extract toggle that switches modes correctly",
+    "ICLR Protein Science under Pairwise shows bar charts (Agreement Rate by Content Mode)",
+    "ICLR Protein Science under Pairwise shows Head-to-Head comparison table (111 pairs)",
+    "ICLR Protein Science under Pairwise shows AI Pick Overlap Between Modes chart",
+    "PeerRead ACL 2017 under Pairwise shows bar charts and h2h comparison (27 pairs)",
+    "Tournament ICLR Protein page does NOT have cross-mode head-to-head section",
+    "Tournament ICLR Protein page has non-comparable note about different match sets",
+    "Content mode toggle shows 'Extract' not 'Extract (Full Text)'",
+    "No coincidence note appears anywhere (removed as requested)",
+    "GET /api/validation/cross-mode-agreement?dataset_id=iclr-protein returns mode_disagreements field"
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Validation page restructure complete. Sidebar now organized into Pairwise (Qeios, SciPost, ICLR Protein, PeerRead), Single-item (SciPost), Tournament (ICLR LLMs, ICLR Protein, PeerRead). Qeios/SciPost have internal Abstract/Extract toggles. ICLR/PeerRead under Pairwise use PairwiseAgreementSection.jsx with recharts bar charts. Tournament pages have non-comparable note. 'Extract (Full Text)' renamed to 'Extract'. No coincidence notes.",
+  "features_verified": {
+    "sidebar_structure": {
+      "pairwise": ["Qeios", "SciPost", "ICLR Protein Science (46 papers)", "PeerRead ACL 2017 (80 papers)"],
+      "single_item": ["SciPost"],
+      "tournament": ["ICLR LLMs (73 papers)", "ICLR Protein Science (46 papers)", "PeerRead ACL 2017 (80 papers)"]
+    },
+    "qeios_toggle": {
+      "options": ["Abstract", "Extract"],
+      "data_testid": "qeios-mode-toggle"
+    },
+    "scipost_pairwise_toggle": {
+      "options": ["Abstract", "Extract"],
+      "data_testid": "scipost-pw-mode-toggle"
+    },
+    "iclr_protein_pairwise": {
+      "components": ["bar_chart", "h2h_table", "mode_disagreement_chart", "methodology_note"],
+      "common_pairs": 111
+    },
+    "peerread_pairwise": {
+      "components": ["bar_chart", "h2h_table", "mode_disagreement_chart"],
+      "common_pairs": 27
+    },
+    "tournament_non_comparable_note": "Agreement rates above are based on different sets of matches per content mode and are not directly comparable...",
+    "extract_label": "Shows 'Extract' not 'Extract (Full Text)'",
+    "coincidence_note_removed": true,
+    "backend_mode_disagreements": {
+      "iclr_protein": {
+        "extract_vs_abstract": {"differ": 26, "total": 111, "differ_pct": 23.4},
+        "extract_vs_full_pdf": {"differ": 24, "total": 111, "differ_pct": 21.6},
+        "abstract_vs_full_pdf": {"differ": 26, "total": 111, "differ_pct": 23.4}
+      }
+    }
+  }
+}
