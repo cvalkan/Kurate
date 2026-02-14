@@ -623,6 +623,7 @@ DIMENSION_PW_TASKS = {
 class PairwiseFetchRequest(BaseModel):
     num_pairs_per_dim: int = 10
     dimensions: List[str] = DIMENSIONS
+    parallel_agents: int = 5
 
 
 @router.post("/pairwise/fetch-and-run", dependencies=[Depends(verify_admin)])
