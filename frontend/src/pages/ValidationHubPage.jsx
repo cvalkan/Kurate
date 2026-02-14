@@ -172,10 +172,12 @@ export default function ValidationHubPage() {
           )}
 
           {/* Section content */}
-          {selected === "pw-qeios-abstract" && <QeiosPairwiseSection mode="abstract" />}
-          {selected === "pw-qeios-extract" && <QeiosPairwiseSection mode="extract" />}
-          {selected === "pw-scipost-abstract" && <SciPostPairwiseSection mode="abstract" />}
-          {selected === "pw-scipost-extract" && <SciPostPairwiseSection mode="extract" />}
+          {selected === "pw-qeios" && <QeiosPairwiseSection />}
+          {selected === "pw-scipost" && <SciPostPairwiseSection />}
+          {selected.startsWith("pw-h2h-") && (() => {
+            const ds = pairwiseDatasets.find(d => `pw-h2h-${d.dataset_id}` === selected);
+            return ds ? <PairwiseAgreementSection datasetId={ds.dataset_id} datasetName={ds.name} /> : null;
+          })()}
           {selected === "si-scipost" && <SciPostPage embedded />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
