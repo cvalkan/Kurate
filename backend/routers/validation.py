@@ -1513,10 +1513,10 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
             "ai_majority_vs_expert_majority": {"agree": maj_agree, "total": len(maj_overlap), "rate": round(maj_agree / max(len(maj_overlap), 1) * 100, 1)},
         }
 
-    # Compute pairwise mode disagreement stats for transparency
+    # Compute pairwise mode disagreement stats — only between core modes
     mode_disagreements = {}
-    for i, m1 in enumerate(available_modes):
-        for m2 in available_modes[i + 1:]:
+    for i, m1 in enumerate(core_modes):
+        for m2 in core_modes[i + 1:]:
             diff_count = sum(1 for p in common_pairs if mode_ai_pairs[m1][p] != mode_ai_pairs[m2][p])
             mode_disagreements[f"{m1}_vs_{m2}"] = {
                 "differ": diff_count,
@@ -1525,10 +1525,13 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
                 "differ_pct": round(diff_count / max(len(common_pairs), 1) * 100, 1),
             }
 
+    # modes_compared = modes that have results
+    modes_with_results = [m for m in available_modes if m in results]
+
     return {
         "status": "ok",
         "common_pairs": len(common_pairs),
-        "modes_compared": available_modes,
+        "modes_compared": modes_with_results,
         "expert_expert": {"agree": ee_agree, "total": ee_total, "rate": round(ee_agree / max(ee_total, 1) * 100, 1)},
         "by_mode": results,
         "per_model": per_model,
