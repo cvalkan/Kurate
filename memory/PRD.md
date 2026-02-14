@@ -90,6 +90,6 @@ frontend/src/
 - [ ] (P3) Break down pairwise.py (500+ lines) into smaller modules
 
 ## Changelog
-- **Feb 14, 2026**: Parallel evaluation with configurable agents (1-15). Abstract + Extract evals run simultaneously per pair. Paper fetch batch 8→15, PDF extraction batch 3→8. All pairs across all dimensions evaluated concurrently via semaphore. ~10x speedup on evaluation phase.
+- **Feb 14, 2026**: Parallel evaluation with configurable agents (1-15). Abstract + Extract evals run simultaneously per pair. Paper fetch batch 8→15, PDF extraction batch 3→8. All pairs across all dimensions evaluated concurrently via semaphore. Fixed thread pool bottleneck (default 8 threads → dedicated 100-thread pool for LLM calls). Measured: 43x speedup (0.7s/pair vs ~30s sequential).
 - **Feb 14, 2026**: Reviewed synced & additive feature. Removed reset endpoints, consolidated Fetch & Evaluate button to Abstract tab only, removed debug console.logs, removed legacy cleanup code.
 - **Feb 13, 2026**: Added synced Abstract + Extract runs, additive data with dedup, gap charts, PDF extraction pipeline.
