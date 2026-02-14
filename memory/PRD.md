@@ -33,17 +33,19 @@ Build a system to validate AI's paper comparison capabilities against human peer
 backend/
   routers/
     scipost.py       — SciPost single-item + pairwise endpoints
-    pairwise.py      — Qeios pairwise endpoints
+    pairwise.py      — Qeios pairwise endpoints (legacy)
+    qeios.py         — Qeios synced pairwise (abstract vs extract)
     validation.py    — Tournament validation endpoints
     admin.py         — Admin endpoints
-  services/llm.py    — Centralized LLM call helpers
+  services/llm.py    — Centralized LLM call helpers (100-thread pool)
   core/config.py     — Config, models, DB
 
 frontend/src/
   pages/
-    ValidationHubPage.jsx      — Unified hub with sidebar
+    ValidationHubPage.jsx       — Unified hub with sidebar
+    QeiosPairwiseSection.jsx    — Qeios pairwise abstract/extract
     SciPostPairwiseSection.jsx  — SciPost pairwise per-dimension
-    PairwisePage.jsx            — Qeios pairwise (embedded mode)
+    PairwisePage.jsx            — Qeios pairwise legacy (embedded mode)
     SciPostPage.jsx             — SciPost single-item (embedded mode)
     ValidationPage.jsx          — Tournament DatasetView (exported)
   components/
