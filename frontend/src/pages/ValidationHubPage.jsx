@@ -75,7 +75,8 @@ export default function ValidationHubPage() {
 
   // Section descriptions for the content header
   const sectionMeta = {
-    "pw-qeios": { title: "Pairwise — Qeios", desc: "Unbiased head-to-head: 1 pair per Qeios reviewer, 3 AI models, majority-vote agreement." },
+    "pw-qeios-abstract": { title: "Pairwise — Qeios (Abstract)", desc: "Head-to-head using abstracts only, 3 AI models, majority-vote agreement with human expert." },
+    "pw-qeios-extract": { title: "Pairwise — Qeios (Extract)", desc: "Head-to-head using full body text extracted from Qeios for deeper comparisons." },
     "pw-scipost-abstract": { title: "Pairwise — SciPost (Abstract)", desc: "Per-dimension head-to-head using abstracts only, comparing validity, significance, originality, clarity." },
     "pw-scipost-extract": { title: "Pairwise — SciPost (Extract)", desc: "Per-dimension head-to-head using PDF-extracted sections for deeper comparisons." },
     "si-scipost": { title: "Single-item — SciPost", desc: "AI rates each paper on 4 dimensions (1-6 scale), compared against human referee ratings." },
