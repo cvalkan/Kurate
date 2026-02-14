@@ -105,6 +105,7 @@ function StandardStats({ datasetId, isAdmin }) {
     { id: "extract", label: "Extract" },
     { id: "full_pdf", label: "Full PDF" },
     { id: "ai_summary", label: "AI Summary" },
+    { id: "abstract_plus_summary", label: "Abstract + Summary" },
   ];
 
   const fetchAll = useCallback(async () => {
