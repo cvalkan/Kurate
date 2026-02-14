@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   FlaskConical, TrendingUp, TrendingDown, Minus, AlertCircle,
   Users, ChevronDown, ChevronRight, BarChart3, GitCompare,
-  RotateCcw, Play, Layers, Scale,
+  RotateCcw, Play, Layers,
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
