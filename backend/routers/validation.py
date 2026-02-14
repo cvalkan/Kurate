@@ -1517,6 +1517,93 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
 
 
 
+
+# ─── AI Impact Summary Generation ────────────────────────────────────────────
+
+class GenerateSummariesRequest(BaseModel):
+    dataset_id: str
+    parallel: int = 5
+    model_provider: str = "anthropic"
+    model_name: str = "claude-opus-4-5-20251101"
+
+
+@router.post("/generate-impact-summaries", dependencies=[Depends(verify_admin)])
+async def generate_impact_summaries(body: GenerateSummariesRequest):
+    """Generate AI impact assessments for all papers in a dataset using their full text."""
+    from services.llm import generate_precomparison_impact_summary
+
+    state = _get_state(body.dataset_id)
+    if state["running"]:
+        return {"status": "already_running", **state}
+
+    papers = await db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0}).to_list(5000)
+    if not papers:
+        return {"status": "error", "message": "No papers found."}
+
+    # Find papers missing summaries
+    missing = [p for p in papers if not p.get("ai_impact_summary")]
+    if not missing:
+        has_summary = sum(1 for p in papers if p.get("ai_impact_summary"))
+        return {"status": "complete", "message": f"All {has_summary} papers already have impact summaries.", "total": len(papers), "missing": 0}
+
+    model_info = {"provider": body.model_provider, "model": body.model_name}
+    asyncio.create_task(_generate_summaries(body.dataset_id, missing, model_info, min(max(body.parallel, 1), 15)))
+    return {"status": "started", "dataset_id": body.dataset_id, "total_papers": len(papers), "missing": len(missing), "model": model_info}
+
+
+async def _generate_summaries(dataset_id: str, papers: list, model_info: dict, parallel: int):
+    from services.llm import generate_precomparison_impact_summary
+
+    state = _get_state(dataset_id)
+    state.update({"running": True, "completed_matches": 0, "total_matches": len(papers), "current_pair": "Generating summaries...", "started_at": _time.time()})
+
+    completed = 0
+    try:
+        for i in range(0, len(papers), parallel):
+            batch = papers[i:i + parallel]
+            state["current_pair"] = f"Summary batch {i // parallel + 1}/{(len(papers) + parallel - 1) // parallel}"
+
+            tasks = [generate_precomparison_impact_summary(p, model_override=model_info) for p in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for paper, result in zip(batch, results):
+                if isinstance(result, Exception):
+                    logger.error(f"Summary failed for {paper.get('title', '')[:50]}: {result}")
+                elif result and result.get("summary"):
+                    await db.validation_papers.update_one(
+                        {"dataset_id": dataset_id, "id": paper["id"]},
+                        {"$set": {
+                            "ai_impact_summary": result["summary"],
+                            "ai_impact_summary_model": result["model_used"],
+                            "ai_impact_summary_words": result.get("word_count", 0),
+                        }},
+                    )
+                    completed += 1
+                state["completed_matches"] = completed
+            await asyncio.sleep(0.5)
+
+        logger.info(f"Impact summaries [{dataset_id}]: {completed}/{len(papers)} generated")
+    except Exception as e:
+        logger.error(f"Impact summary generation [{dataset_id}] error: {e}")
+    finally:
+        state["running"] = False
+
+
+@router.get("/impact-summary-status")
+async def get_impact_summary_status(dataset_id: str = Query(...)):
+    """Check how many papers have AI impact summaries."""
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0, "id": 1, "title": 1, "ai_impact_summary": 1, "ai_impact_summary_model": 1, "ai_impact_summary_words": 1}).to_list(5000)
+    with_summary = [p for p in papers if p.get("ai_impact_summary")]
+    avg_words = round(sum(p.get("ai_impact_summary_words", 0) for p in with_summary) / max(len(with_summary), 1))
+    return {
+        "total_papers": len(papers),
+        "with_summary": len(with_summary),
+        "without_summary": len(papers) - len(with_summary),
+        "avg_words": avg_words,
+        "model": with_summary[0].get("ai_impact_summary_model") if with_summary else None,
+    }
+
+
 # ─── Targeted Pairwise Run ──────────────────────────────────────────────────
 
 class TargetedPairwiseRequest(BaseModel):
