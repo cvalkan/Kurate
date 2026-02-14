@@ -993,6 +993,7 @@ async def get_status(dataset_id: str = Query(...)):
         "matches_completed": m,
         "matches_with_extraction": m_ext,
         "matches_abstract_only": m - m_ext,
+        "matches_abstract_tournament": m_abs_only,
         "matches_failed": failed,
         "total_possible_pairs": total_pairs,
         "coverage_pct": round(m / max(total_pairs, 1) * 100, 1),
