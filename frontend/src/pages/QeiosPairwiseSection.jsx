@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Play, Square, Loader2, AlertCircle, Layers,
-  CheckCircle, XCircle, BarChart3, GitCompare,
+  CheckCircle, XCircle, BarChart3, GitCompare, FileText, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
