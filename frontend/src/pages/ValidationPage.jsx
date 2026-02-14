@@ -106,7 +106,6 @@ function StandardStats({ datasetId, isAdmin }) {
   const [pdfPairwise, setPdfPairwise] = useState(null);
   const [pdfIrt, setPdfIrt] = useState(null);
   const [pdfAgreement, setPdfAgreement] = useState(null);
-  const [crossMode, setCrossMode] = useState(null);
   const [isRunningTournament, setIsRunningTournament] = useState(false);
 
   const fetchAll = useCallback(async () => {
