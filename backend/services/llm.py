@@ -588,6 +588,80 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
 
 
+IMPACT_ASSESSMENT_PROMPT = {
+    "system_prompt": """You are a scientific impact analyst. Your task is to write a detailed scientific impact assessment of a research paper. This assessment will later be used in a pairwise tournament to compare papers' scientific impact.
+
+Write up to 1000 words (can be shorter if the paper warrants it). Structure your assessment around:
+
+1. **Core Contribution**: What is the main novelty? What problem does it solve and how?
+2. **Methodological Rigor**: How sound is the approach? Are the experiments/proofs convincing?
+3. **Potential Impact**: What are the real-world applications? How broadly could this influence the field or adjacent fields?
+4. **Timeliness & Relevance**: Does this address a current bottleneck or emerging need?
+5. **Strengths & Limitations**: Key strengths that make this paper stand out, and notable weaknesses or gaps.
+
+Feel free to add any other observations you deem important for judging scientific impact (e.g., scalability, reproducibility, dataset contributions, theoretical insights, comparison to prior art).
+
+Be specific and analytical — avoid generic praise. Your assessment should give enough detail for another evaluator to judge this paper's impact without reading the full text.""",
+
+    "user_prompt": """Write a scientific impact assessment for the following paper:
+
+**Title:** {title}
+
+**Content:**
+{content}
+
+Write your impact assessment (up to 1000 words):""",
+}
+
+
+async def generate_precomparison_impact_summary(paper: dict, model_override: dict = None) -> Optional[Dict]:
+    """Generate a scientific impact assessment from the paper's full text, to be used as input for pairwise comparison.
+    
+    Uses the full PDF text as input. Returns dict with 'summary' and 'model_used', or None on failure.
+    """
+    model_info = model_override or {"provider": "anthropic", "model": "claude-opus-4-5-20251101"}
+    provider = model_info["provider"]
+    model = model_info["model"]
+
+    full_text = paper.get("full_text", "")
+    abstract = paper.get("abstract", "")
+    if full_text:
+        content = f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text[:40000]}"
+    elif abstract:
+        content = f"Abstract: {abstract[:3000]}"
+    else:
+        return None
+
+    prompt = IMPACT_ASSESSMENT_PROMPT["user_prompt"].format(
+        title=paper.get("title", "Untitled"),
+        content=content,
+    )
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"impact-{uuid.uuid4()}",
+        system_message=IMPACT_ASSESSMENT_PROMPT["system_prompt"],
+    ).with_model(provider, model)
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                _llm_executor,
+                lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
+            )
+            if response and response.strip():
+                return {"summary": response.strip(), "model_used": model_info, "char_count": len(response.strip()), "word_count": len(response.strip().split())}
+        except Exception as e:
+            logger.warning(f"Impact assessment attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)
+
+    logger.error(f"Impact assessment failed for {paper.get('title', '')[:50]}")
+    return None
+
+
 async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None, char_limit: int = None) -> Optional[Dict]:
     """Generate a scientific impact summary for a paper using its content and match logs.
     
