@@ -879,7 +879,7 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                 ),
             }
 
-            for p1, s1, p2, s2 in dim_pairs:
+            for p1, s1, p2, s2, pair_key in dim_pairs:
                 if not _is_running():
                     break
 
@@ -958,6 +958,7 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
 
                 base_doc = {
                     "pair_id": pair_id,
+                    "pair_key": pair_key,
                     "source": "scipost",
                     "dimension": dim,
                     "paper1": paper1_doc,
