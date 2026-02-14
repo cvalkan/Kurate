@@ -107,10 +107,10 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
   const fetchAndRun = async () => {
     setIsStarting(true);
     try {
-      const res = await axios.post(`${API}/api/scipost/${pairwisePath}/fetch-and-run`,
+      const res = await axios.post(`${API}/api/scipost/pairwise/fetch-and-run`,
         { num_pairs_per_dim: numPairs, dimensions: DIMENSIONS },
         { headers: adminHeaders() });
-      if (res.data.status === "started") toast.success(`Started! ${numPairs} pairs per dimension...`);
+      if (res.data.status === "started") toast.success(`Synced run started — evaluating both Abstract & Extract (${numPairs} pairs/dim)`);
       else if (res.data.status === "already_running") { toast.warning("Already running"); setIsStarting(false); }
       else { toast.error(res.data.message || "Error"); setIsStarting(false); }
       fetchAll();
@@ -122,7 +122,7 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
 
   const stop = async () => {
     try {
-      await axios.post(`${API}/api/scipost/${pairwisePath}/stop`, {}, { headers: adminHeaders() });
+      await axios.post(`${API}/api/scipost/pairwise/stop`, {}, { headers: adminHeaders() });
       toast.info("Stopped");
       setIsStarting(false);
       fetchAll();
