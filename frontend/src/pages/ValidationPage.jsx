@@ -304,15 +304,20 @@ function MultiModelStats({ datasetId, isAdmin }) {
     { id: "abstract", label: "Abstract" },
     { id: "extract", label: "Extract" },
     { id: "full_pdf", label: "Full PDF" },
+    { id: "ai_summary", label: "AI Summary" },
   ];
-  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
+  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF", ai_summary: "AI Summary" };
 
   const fetchData = useCallback(async () => {
     try {
-      const [ext, abs, pdf] = await Promise.all([
-        axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: "extract" } }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: "abstract" } }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
+      const responses = await Promise.all(
+        MODES.map(m => axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: m.id } }).catch(() => ({ data: {} })))
+      );
+      const result = {};
+      MODES.forEach((m, i) => {
+        if (responses[i].data.status === "ok") result[m.id] = responses[i].data;
+      });
+      setDataByMode(result);
       ]);
       const result = {};
       if (ext.data.status === "ok") result.extract = ext.data;
