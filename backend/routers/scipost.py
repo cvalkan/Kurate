@@ -655,16 +655,6 @@ async def pw_stop_extract():
     return await _pw_stop(mode="extract")
 
 
-@router.post("/pairwise/reset", dependencies=[Depends(verify_admin)])
-async def pw_reset():
-    return await _pw_reset(mode="abstract")
-
-
-@router.post("/pairwise-extract/reset", dependencies=[Depends(verify_admin)])
-async def pw_reset_extract():
-    return await _pw_reset(mode="extract")
-
-
 async def _pw_start(body: PairwiseFetchRequest, mode: str = "abstract"):
     if _pw_state["fetching"] or _pw_state["running"] or _pw_extract_state["fetching"] or _pw_extract_state["running"]:
         return {"status": "already_running"}
@@ -712,18 +702,6 @@ async def _pw_stop(mode: str = "abstract"):
         st["running"] = False
         st["fetching"] = False
     return {"status": "stopped", "mode": "synced"}
-
-
-async def _pw_reset(mode: str = "abstract"):
-    if _pw_state["running"] or _pw_state["fetching"] or _pw_extract_state["running"] or _pw_extract_state["fetching"]:
-        return {"status": "error", "message": "Cannot reset while running"}
-    r1 = await db.scipost_pairwise.delete_many({})
-    r2 = await db.scipost_pairwise_extract.delete_many({})
-    return {
-        "status": "ok",
-        "deleted": r1.deleted_count + r2.deleted_count,
-        "mode": "synced",
-    }
 
 
 async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
