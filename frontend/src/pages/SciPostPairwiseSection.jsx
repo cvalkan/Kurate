@@ -239,27 +239,38 @@ export default function SciPostPairwiseSection({ initialMode = "abstract" }) {
               testId={`pw-overall-majority-badge-${mode}`} />
           </div>
 
-          {/* Performance by model */}
+          {/* Performance by model - bar chart */}
           {results.by_model_overall && Object.keys(results.by_model_overall).length > 0 && (
             <div className="border border-border rounded-lg p-4" data-testid={`pw-performance-model-${mode}`}>
               <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <BarChart3 className="h-4 w-4" /> Performance by Model ({modeLabel})
+                <BarChart3 className="h-4 w-4" /> Model Agreement ({modeLabel})
               </h2>
-              <div className="space-y-3">
-                {Object.entries(results.by_model_overall)
-                  .sort((a, b) => b[1].rate - a[1].rate)
-                  .map(([mk, s], i) => (
-                    <div key={mk} className="space-y-1" data-testid={`pw-performance-row-${mode}-${i}`}>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium">{shortModel(mk)}</span>
-                        <span className="font-mono text-muted-foreground">{s.agree}/{s.total} • {s.rate}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-secondary/40 overflow-hidden" data-testid={`pw-performance-bar-${mode}-${i}`}>
-                        <div className="h-full bg-accent/70" style={{ width: `${s.rate}%` }} />
-                      </div>
-                    </div>
-                  ))}
-              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={[
+                  { name: "Majority", rate: results.overall_majority.rate, fill: "#6366f1" },
+                  ...Object.entries(results.by_model_overall)
+                    .sort((a, b) => b[1].rate - a[1].rate)
+                    .map(([mk, s], i) => ({
+                      name: shortModel(mk),
+                      rate: s.rate,
+                      fill: ["#3b82f6", "#8b5cf6", "#f59e0b"][i] || "#94a3b8",
+                    })),
+                ]} barCategoryGap="20%">
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                  <Tooltip formatter={(v) => [`${v}%`, "Agreement"]} contentStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
+                    {[
+                      { fill: "#6366f1" },
+                      ...Object.entries(results.by_model_overall).map((_, i) => ({
+                        fill: ["#3b82f6", "#8b5cf6", "#f59e0b"][i] || "#94a3b8",
+                      })),
+                    ].map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           )}
 
