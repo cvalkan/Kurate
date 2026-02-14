@@ -306,8 +306,9 @@ function MultiModelStats({ datasetId, isAdmin }) {
     { id: "extract", label: "Extract" },
     { id: "full_pdf", label: "Full PDF" },
     { id: "ai_summary", label: "AI Summary" },
+    { id: "abstract_plus_summary", label: "Abstract + Summary" },
   ];
-  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF", ai_summary: "AI Summary" };
+  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF", ai_summary: "AI Summary", abstract_plus_summary: "Abstract + Summary" };
 
   const fetchData = useCallback(async () => {
     try {
