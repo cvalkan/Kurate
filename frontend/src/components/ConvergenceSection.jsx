@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { TrendingUp, AlertCircle } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
+const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#22c55e"];
+const METRICS = [
+  { id: "spearman", label: "Spearman \u03C1" },
+  { id: "kendall", label: "Kendall \u03C4" },
+  { id: "pearson", label: "Pearson r" },
+];
 
-const MODE_LABELS = { abstract: "Abstract", extract: "Extract", full_pdf: "Full PDF", ai_summary: "AI Summary", abstract_plus_summary: "Abstract + Summary" };
-const DATASET_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#22c55e"];
-
-function CustomTooltip({ active, payload, label }) {
+function Tip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-background border border-border rounded px-3 py-2 shadow text-xs">
@@ -24,165 +27,139 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
-export default function ConvergenceSection({ datasets }) {
+/**
+ * Multi-dataset convergence for validation tournaments.
+ * Props: datasets = [{ dataset_id, name }]
+ */
+export function ValidationConvergence({ datasets }) {
   const [curves, setCurves] = useState({});
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState("spearman");
 
-  const fetchAll = useCallback(async () => {
+  useEffect(() => {
     if (!datasets?.length) return;
-    try {
-      const results = await Promise.all(
-        datasets.map(ds =>
-          axios.get(`${API}/api/validation/convergence`, {
-            params: { dataset_id: ds.dataset_id, content_mode: "extract", steps: 20 },
-          }).catch(() => ({ data: {} }))
-        )
-      );
-      const newCurves = {};
+    Promise.all(
+      datasets.map(ds =>
+        axios.get(`${API}/api/validation/convergence`, { params: { dataset_id: ds.dataset_id, content_mode: "extract", steps: 20 } }).catch(() => ({ data: {} }))
+      )
+    ).then(results => {
+      const c = {};
       datasets.forEach((ds, i) => {
-        if (results[i].data.status === "ok") {
-          newCurves[ds.dataset_id] = { ...results[i].data, name: ds.name };
-        }
+        if (results[i].data.status === "ok") c[ds.dataset_id] = { ...results[i].data, name: ds.name };
       });
-      setCurves(newCurves);
-    } catch (e) { console.error(e); }
-    setLoading(false);
+      setCurves(c);
+      setLoading(false);
+    });
   }, [datasets]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  if (loading || !Object.keys(curves).length) return null;
+  return <ConvergenceChart curves={curves} metric={metric} setMetric={setMetric} />;
+}
 
-  if (loading) return <div className="text-xs text-muted-foreground py-4 text-center">Loading convergence data...</div>;
-  if (!Object.keys(curves).length) return null;
+/**
+ * Single-category convergence for the main (leaderboard) tournament.
+ * Props: category = string | null
+ */
+export function LeaderboardConvergence({ category }) {
+  const [curve, setCurve] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [metric, setMetric] = useState("spearman");
 
-  // Merge all curves into a unified chart dataset
-  // Each dataset has different x-values, so we need to align them
+  useEffect(() => {
+    setLoading(true);
+    const params = { steps: 20 };
+    if (category) params.category = category;
+    axios.get(`${API}/api/convergence`, { params }).then(r => {
+      if (r.data.status === "ok") setCurve(r.data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [category]);
+
+  if (loading || !curve) return null;
+
+  const label = category ? curve.category : "All Categories";
+  const curves = { all: { ...curve, name: label } };
+  return <ConvergenceChart curves={curves} metric={metric} setMetric={setMetric} compact />;
+}
+
+/**
+ * Shared chart renderer.
+ */
+function ConvergenceChart({ curves, metric, setMetric, compact = false }) {
   const dsIds = Object.keys(curves);
 
-  // Build chart data: one entry per unique avg_matches_per_paper across all datasets
+  // Build recharts data
   const allPoints = [];
-  dsIds.forEach((did, di) => {
-    const c = curves[did];
-    c.curve.forEach(pt => {
-      allPoints.push({
-        x: pt.avg_matches_per_paper,
-        dataset: did,
-        name: c.name,
-        spearman: pt.spearman,
-        kendall: pt.kendall,
-        pearson: pt.pearson,
-        matches: pt.matches,
-        papers: pt.papers_covered,
-      });
+  dsIds.forEach(did => {
+    curves[did].curve.forEach(pt => {
+      allPoints.push({ x: pt.avg_matches_per_paper, dataset: did, ...pt });
     });
   });
 
-  // For recharts, we need rows keyed by x with columns per dataset
   const xValues = [...new Set(allPoints.map(p => p.x))].sort((a, b) => a - b);
   const chartData = xValues.map(x => {
     const row = { x };
     dsIds.forEach(did => {
       const pt = allPoints.find(p => p.x === x && p.dataset === did);
-      if (pt) {
-        row[`${did}_${metric}`] = pt[metric];
-      }
+      if (pt) row[`${did}_${metric}`] = pt[metric];
     });
     return row;
   });
 
-  const METRICS = [
-    { id: "spearman", label: "Spearman \u03C1" },
-    { id: "kendall", label: "Kendall \u03C4" },
-    { id: "pearson", label: "Pearson r" },
-  ];
-
   return (
-    <div className="space-y-4" data-testid="convergence-section">
+    <div className="space-y-3" data-testid="convergence-section">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+          <h2 className={`${compact ? "text-sm" : "text-lg"} font-semibold flex items-center gap-2`}>
             <TrendingUp className="h-4 w-4" /> Ranking Convergence
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            How many pairwise matches are needed for stable rankings? Ground truth = final ranking using all available matches.
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            How many matches for stable rankings? Ground truth = final ranking with all matches.
           </p>
         </div>
         <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="convergence-metric-toggle">
           {METRICS.map(m => (
-            <button
-              key={m.id}
-              onClick={() => setMetric(m.id)}
-              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
-                metric === m.id ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid={`convergence-metric-${m.id}`}
-            >
-              {m.label}
-            </button>
+            <button key={m.id} onClick={() => setMetric(m.id)}
+              className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${metric === m.id ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+              data-testid={`convergence-metric-${m.id}`}>{m.label}</button>
           ))}
         </div>
       </div>
 
-      <div className="border border-border rounded-lg p-4" data-testid="convergence-chart">
-        <ResponsiveContainer width="100%" height={300}>
+      <div className="border border-border rounded-lg p-3" data-testid="convergence-chart">
+        <ResponsiveContainer width="100%" height={compact ? 220 : 280}>
           <LineChart data={chartData}>
-            <XAxis
-              dataKey="x"
-              tick={{ fontSize: 11 }}
-              label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 11 }}
-            />
-            <YAxis
-              domain={[0, 1]}
-              tick={{ fontSize: 10 }}
-              tickFormatter={v => v.toFixed(1)}
-              label={{ value: METRICS.find(m => m.id === metric)?.label, angle: -90, position: "insideLeft", offset: 10, fontSize: 11 }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-            <ReferenceLine y={0.95} stroke="#22c55e" strokeDasharray="4 4" label={{ value: "0.95", position: "right", fontSize: 10, fill: "#22c55e" }} />
+            <XAxis dataKey="x" tick={{ fontSize: 10 }} label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
+            <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={v => v.toFixed(1)} label={{ value: METRICS.find(m => m.id === metric)?.label, angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
+            <Tooltip content={<Tip />} />
+            {dsIds.length > 1 && <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
+            <ReferenceLine y={0.95} stroke="#22c55e" strokeDasharray="4 4" label={{ value: "0.95", position: "right", fontSize: 9, fill: "#22c55e" }} />
             {dsIds.map((did, i) => (
-              <Line
-                key={did}
-                type="monotone"
-                dataKey={`${did}_${metric}`}
-                name={curves[did].name}
-                stroke={DATASET_COLORS[i % DATASET_COLORS.length]}
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                connectNulls
-              />
+              <Line key={did} type="monotone" dataKey={`${did}_${metric}`} name={curves[did].name}
+                stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
             ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Summary stats per dataset */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Summary cards */}
+      <div className={`grid gap-2 ${dsIds.length > 1 ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1"}`}>
         {dsIds.map((did, i) => {
           const c = curves[did];
           const first95 = c.curve.find(pt => pt.spearman >= 0.95);
           return (
-            <div key={did} className="border border-border rounded-lg p-3" data-testid={`convergence-summary-${did}`}>
-              <div className="text-xs font-medium mb-1" style={{ color: DATASET_COLORS[i % DATASET_COLORS.length] }}>
-                {c.name}
+            <div key={did} className="border border-border rounded-lg p-2.5 text-[10px]" data-testid={`convergence-summary-${did}`}>
+              <div className="font-medium text-xs mb-0.5" style={{ color: COLORS[i % COLORS.length] }}>{c.name}</div>
+              <div className="text-muted-foreground">
+                {c.total_papers} papers, {c.total_matches} matches &middot; {c.curve[c.curve.length - 1]?.avg_matches_per_paper} avg/paper
               </div>
-              <div className="text-[10px] text-muted-foreground space-y-0.5">
-                <div>{c.total_papers} papers, {c.total_matches} total matches</div>
-                <div>Final: {c.curve[c.curve.length - 1]?.avg_matches_per_paper} avg matches/paper</div>
-                {first95 && (
-                  <div className="font-medium text-foreground">
-                    Spearman \u03C1 {"\u2265"} 0.95 at ~{first95.avg_matches_per_paper} matches/paper
-                  </div>
-                )}
-              </div>
+              {first95 && <div className="font-medium text-foreground mt-0.5">Spearman &rho; &ge; 0.95 at ~{first95.avg_matches_per_paper} matches/paper</div>}
             </div>
           );
         })}
       </div>
-
-      <div className="text-[10px] text-muted-foreground bg-secondary/10 border border-border/50 rounded px-3 py-2">
-        Matches are added chronologically. At each point, a Bradley-Terry ranking is computed and correlated with the final (all-data) ranking. The 0.95 threshold (dashed green line) indicates when the ranking is effectively stable.
-      </div>
     </div>
   );
 }
+
+export default ValidationConvergence;
