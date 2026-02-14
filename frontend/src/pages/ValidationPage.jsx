@@ -190,11 +190,7 @@ function StandardStats({ datasetId, isAdmin }) {
       {/* Content mode toggle */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="content-mode-toggle">
-          {[
-            { id: "abstract", label: "Abstract" },
-            { id: "extract", label: "Extract" },
-            { id: "full_pdf", label: "Full PDF" },
-          ].map(m => (
+          {visibleModes.map(m => (
             <button
               key={m.id}
               onClick={() => setContentMode(m.id)}
