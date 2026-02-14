@@ -1363,7 +1363,7 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
             pair_majority[pair] = best
 
     # Fetch AI winners per content mode (and per-model data)
-    modes = ["abstract", "extract", "full_pdf"]
+    modes = ["abstract", "extract", "full_pdf", "ai_summary"]
     mode_ai_pairs = {}
     mode_model_pairs = {}  # mode -> model_key -> {pair: winner}
     for mode in modes:
