@@ -96,45 +96,43 @@ function shortModel(mk) {
 
 function StandardStats({ datasetId, isAdmin }) {
   const [status, setStatus] = useState(null);
-  const [pairwise, setPairwise] = useState(null);
-  const [irt, setIrt] = useState(null);
-  const [agreement, setAgreement] = useState(null);
   const [contentMode, setContentMode] = useState("abstract");
-  const [absPairwise, setAbsPairwise] = useState(null);
-  const [absIrt, setAbsIrt] = useState(null);
-  const [absAgreement, setAbsAgreement] = useState(null);
-  const [pdfPairwise, setPdfPairwise] = useState(null);
-  const [pdfIrt, setPdfIrt] = useState(null);
-  const [pdfAgreement, setPdfAgreement] = useState(null);
+  const [modeData, setModeData] = useState({});  // { mode: { pairwise, irt, agreement } }
   const [isRunningTournament, setIsRunningTournament] = useState(false);
+
+  const MODES = [
+    { id: "abstract", label: "Abstract" },
+    { id: "extract", label: "Extract" },
+    { id: "full_pdf", label: "Full PDF" },
+    { id: "ai_summary", label: "AI Summary" },
+  ];
 
   const fetchAll = useCallback(async () => {
     try {
       const params = { dataset_id: datasetId };
-      const [s, p, i, a, ap, ai, aa, pp, pi, pa] = await Promise.all([
+      const [s, ...modeResults] = await Promise.all([
         axios.get(`${API}/api/validation/status`, { params }),
-        axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: "extract" } }),
-        axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: "extract" } }),
-        axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: "extract" } }),
-        axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: "abstract" } }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: "abstract" } }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: "abstract" } }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
-        axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: "full_pdf" } }).catch(() => ({ data: {} })),
+        ...MODES.flatMap(m => [
+          axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
+          axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
+          axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
+        ]),
       ]);
       setStatus(s.data);
-      if (p.data.status === "ok") setPairwise(p.data);
-      if (i.data.status === "ok") setIrt(i.data);
-      if (a.data.status === "ok") setAgreement(a.data);
-      if (ap.data.status === "ok") setAbsPairwise(ap.data);
-      if (ai.data.status === "ok") setAbsIrt(ai.data);
-      if (aa.data.status === "ok") setAbsAgreement(aa.data);
-      if (pp.data.status === "ok") setPdfPairwise(pp.data);
-      if (pi.data.status === "ok") setPdfIrt(pi.data);
-      if (pa.data.status === "ok") setPdfAgreement(pa.data);
+      const newModeData = {};
+      MODES.forEach((m, idx) => {
+        const pw = modeResults[idx * 3];
+        const ir = modeResults[idx * 3 + 1];
+        const ag = modeResults[idx * 3 + 2];
+        newModeData[m.id] = {
+          pairwise: pw.data.status === "ok" ? pw.data : null,
+          irt: ir.data.status === "ok" ? ir.data : null,
+          agreement: ag.data.status === "ok" ? ag.data : null,
+        };
+      });
+      setModeData(newModeData);
     } catch (e) { console.error(e); }
-  }, [datasetId]);
+  }, [datasetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
@@ -156,14 +154,15 @@ function StandardStats({ datasetId, isAdmin }) {
     }
   };
 
-  const activePairwise = contentMode === "abstract" ? absPairwise : contentMode === "full_pdf" ? pdfPairwise : pairwise;
-  const activeIrt = contentMode === "abstract" ? absIrt : contentMode === "full_pdf" ? pdfIrt : irt;
-  const activeAgreement = contentMode === "abstract" ? absAgreement : contentMode === "full_pdf" ? pdfAgreement : agreement;
-  const hasAbstractData = absPairwise || absIrt;
-  const hasPdfData = pdfPairwise || pdfIrt;
+  const active = modeData[contentMode] || {};
+  const activePairwise = active.pairwise;
+  const activeIrt = active.irt;
+  const activeAgreement = active.agreement;
   const hasActiveData = activePairwise || activeIrt;
-  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
-  const modeLabel = modeLabels[contentMode] || "Extract";
+  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF", ai_summary: "AI Summary" };
+  const modeLabel = modeLabels[contentMode] || contentMode;
+  // Only show modes in toggle that have data or are the standard 3
+  const visibleModes = MODES.filter(m => m.id !== "ai_summary" || modeData[m.id]?.pairwise || modeData[m.id]?.irt);
 
   return (
     <div className="space-y-5">
