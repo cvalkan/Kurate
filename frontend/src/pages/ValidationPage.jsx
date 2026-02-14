@@ -298,9 +298,16 @@ function StandardStats({ datasetId, isAdmin }) {
 // ─── Multi-Model Stats ──────────────────────────────────────────────────────
 
 function MultiModelStats({ datasetId, isAdmin }) {
-  const [contentMode, setContentMode] = useState("extract");
+  const [contentMode, setContentMode] = useState(null);
   const [dataByMode, setDataByMode] = useState({});
   const [loading, setLoading] = useState(true);
+
+  const MODES = [
+    { id: "extract", label: "Extract (Full Text)" },
+    { id: "abstract", label: "Abstract Only" },
+    { id: "full_pdf", label: "Full PDF" },
+  ];
+  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
 
   const fetchData = useCallback(async () => {
     try {
@@ -320,6 +327,17 @@ function MultiModelStats({ datasetId, isAdmin }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Auto-select the first mode that has data
+  useEffect(() => {
+    if (loading) return;
+    const available = MODES.map(m => m.id).filter(id => dataByMode[id]);
+    if (available.length > 0 && (!contentMode || !dataByMode[contentMode])) {
+      setContentMode(available[0]);
+    } else if (available.length === 0 && !contentMode) {
+      setContentMode("extract");
+    }
+  }, [dataByMode, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const runMultiModel = async () => {
     try {
       await axios.post(`${API}/api/validation/run-multimodel`,
@@ -330,7 +348,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
 
   const data = dataByMode[contentMode] || null;
   const hasAnyData = Object.keys(dataByMode).length > 0;
-  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
+  const availableModes = MODES.filter(m => dataByMode[m.id]);
 
   if (loading) return <div className="text-xs text-muted-foreground py-4 text-center">Loading multi-model data...</div>;
 
@@ -352,43 +370,33 @@ function MultiModelStats({ datasetId, isAdmin }) {
 
   return (
     <div className="space-y-5">
-      {/* Content mode toggle */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="multimodel-content-mode-toggle">
-          {[
-            { id: "extract", label: "Extract (Full Text)" },
-            { id: "abstract", label: "Abstract Only" },
-            { id: "full_pdf", label: "Full PDF" },
-          ].map(m => (
-            <button
-              key={m.id}
-              onClick={() => setContentMode(m.id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                contentMode === m.id
-                  ? "bg-accent/10 text-accent"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid={`multimodel-mode-${m.id}`}
-            >
-              {m.label}
-              {dataByMode[m.id] && <span className="ml-1 text-[9px] opacity-50">({dataByMode[m.id].pairs_with_all_models})</span>}
-            </button>
-          ))}
+      {/* Content mode toggle — only show modes that have data */}
+      {availableModes.length > 1 && (
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="multimodel-content-mode-toggle">
+            {availableModes.map(m => (
+              <button
+                key={m.id}
+                onClick={() => setContentMode(m.id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                  contentMode === m.id
+                    ? "bg-accent/10 text-accent"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid={`multimodel-mode-${m.id}`}
+              >
+                {m.label}
+                <span className="ml-1 text-[9px] opacity-50">({dataByMode[m.id].pairs_with_all_models})</span>
+              </button>
+            ))}
+          </div>
         </div>
-        {!data && (
-          <span className="text-xs text-muted-foreground italic">No {modeLabels[contentMode]?.toLowerCase()} multi-model data yet.</span>
-        )}
-      </div>
+      )}
 
-      {!data ? (
-        <div className="border border-border rounded-lg p-6 text-center space-y-3">
-          <Layers className="h-6 w-6 mx-auto text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No multi-model data for {modeLabels[contentMode]} mode.</p>
-        </div>
-      ) : (
+      {data && (
         <>
           <div className="text-xs text-muted-foreground">
-            <strong>{data.pairs_with_all_models}</strong> pairs with all {models.length} model verdicts ({modeLabels[contentMode]})
+            <strong>{data.pairs_with_all_models}</strong> pairs with all {models.length} model verdicts{availableModes.length <= 1 ? ` (${modeLabels[contentMode] || "Extract"})` : ""}
           </div>
 
       {/* Inter-model pairwise agreement */}
