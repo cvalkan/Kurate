@@ -260,7 +260,7 @@ function StandardStats({ datasetId, isAdmin }) {
               Apples-to-apples comparison — agreement rates computed on the exact same set of paper pairs
             </div>
           </div>
-          <div className="p-3">
+          <div className="p-3 space-y-3">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -300,6 +300,46 @@ function StandardStats({ datasetId, isAdmin }) {
                 </tbody>
               </table>
             </div>
+            {/* Mode disagreement transparency */}
+            {crossMode.mode_disagreements && Object.keys(crossMode.mode_disagreements).length > 0 && (
+              <div className="border-t border-border/50 pt-2" data-testid="mode-disagreements">
+                <div className="text-[10px] text-muted-foreground font-medium mb-1">AI picks differ between modes on:</div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {Object.entries(crossMode.mode_disagreements).map(([key, d]) => {
+                    const labels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
+                    const [m1, , m2] = key.split("_");
+                    const l1 = labels[m1] || m1;
+                    const l2 = labels[`${m2}${key.includes("full_pdf") ? "_pdf" : ""}`] || key.split("_vs_").pop().replace("full_pdf","Full PDF");
+                    const pairLabel = key.split("_vs_").map(k => labels[k] || k).join(" vs ");
+                    return (
+                      <span key={key} className="text-[10px] font-mono">
+                        <span className="text-muted-foreground">{pairLabel}:</span>{" "}
+                        <span className={d.differ_pct > 30 ? "text-amber-600" : "text-foreground"}>{d.differ}/{d.total} pairs ({d.differ_pct}%)</span>
+                      </span>
+                    );
+                  })}
+                </div>
+                {(() => {
+                  const modes = crossMode.modes_compared;
+                  const identicalModes = [];
+                  for (let i = 0; i < modes.length; i++) {
+                    for (let j = i + 1; j < modes.length; j++) {
+                      const s1 = crossMode.by_mode[modes[i]], s2 = crossMode.by_mode[modes[j]];
+                      if (s1.ai_expert.agree === s2.ai_expert.agree && s1.ai_majority.agree === s2.ai_majority.agree) {
+                        const labels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF" };
+                        identicalModes.push(`${labels[modes[i]]} & ${labels[modes[j]]}`);
+                      }
+                    }
+                  }
+                  if (identicalModes.length === 0) return null;
+                  return (
+                    <div className="mt-1.5 text-[10px] text-muted-foreground bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1" data-testid="coincidence-note">
+                      Note: {identicalModes.join(", ")} show identical agreement rates. The AI picks are different (see disagreement counts above), but the agreements with experts happen to cancel out — a statistical coincidence, not a data error.
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
       )}
