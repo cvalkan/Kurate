@@ -551,6 +551,7 @@ class TournamentRequest(BaseModel):
     num_matches: int = 500
     parallel: int = 30
     abstract_only: bool = False
+    content_mode: Optional[str] = None  # "abstract", "extract", "full_pdf"
 
 
 @router.post("/run-tournament", dependencies=[Depends(verify_admin)])
@@ -563,8 +564,13 @@ async def run_tournament(body: TournamentRequest):
     if count < 2:
         return {"status": "error", "message": "Need at least 2 papers. Import first."}
 
-    asyncio.create_task(_run_tournament(body.dataset_id, min(max(body.num_matches, 1), 2000), min(max(body.parallel, 1), 50), body.abstract_only))
-    return {"status": "started", "dataset_id": body.dataset_id, "num_matches": body.num_matches, "abstract_only": body.abstract_only}
+    # Resolve content_mode from legacy abstract_only or new content_mode field
+    content_mode = body.content_mode
+    if content_mode is None:
+        content_mode = "abstract" if body.abstract_only else "extract"
+
+    asyncio.create_task(_run_tournament(body.dataset_id, min(max(body.num_matches, 1), 2000), min(max(body.parallel, 1), 50), content_mode=content_mode))
+    return {"status": "started", "dataset_id": body.dataset_id, "num_matches": body.num_matches, "content_mode": content_mode}
 
 
 async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, abstract_only: bool = False):
