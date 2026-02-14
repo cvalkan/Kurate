@@ -83,6 +83,8 @@ frontend/src/
 - [x] Cleaned up debug console.log statements from SciPost pairwise frontend
 - [x] Parallel evaluation with configurable agents (default 5) — ~10x speedup via semaphore-limited concurrent workers, simultaneous abstract+extract eval, larger PDF/fetch batch sizes
 - [x] Qeios synced pairwise: Abstract vs Extract modes with identical paper pairs, parallel agents, additive data, dedup by reviewer
+- [x] Tournament abstract-only mode: added `abstract_only` flag to tournament runs, separate match storage, results endpoints filter by mode, UI toggle between Extract/Abstract views
+- [x] Ran abstract-only tournaments for all 3 datasets (ICLR LLMs, ICLR Protein, PeerRead ACL)
 
 ## Backlog
 - [ ] (P1) Add "View Prompts" modal to Qeios Pairwise page (feature parity with SciPost)
