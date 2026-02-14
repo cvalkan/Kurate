@@ -1135,7 +1135,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
     """Analyze how ranking stability improves as more matches are added.
     
     Uses the final ranking (all matches) as ground truth and computes rank
-    correlation at progressive fractions of data.
+    correlation and top-k overlap at progressive fractions of data.
     """
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
     if not papers:
@@ -1152,34 +1152,63 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
     if len(all_matches) < 10:
         return {"status": "no_data"}
 
-    # Sort by created_at for chronological subsampling
     all_matches.sort(key=lambda m: m.get("created_at", ""))
 
     paper_ids = [p["id"] for p in papers]
     pid_set = set(paper_ids)
+    n_papers = len(paper_ids)
 
     # Ground truth: full ranking using all matches
     gt_lb = compute_leaderboard(papers, all_matches)
     gt_rank = {e["id"]: e["rank"] for e in gt_lb}
     gt_score = {e["id"]: e["score"] for e in gt_lb}
+    # Top-k ground truth sets
+    top_k_values = [k for k in [3, 5, 10] if k < n_papers]
+    gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
 
-    # Progressive subsamples
-    steps = min(max(steps, 5), 40)
+    # Compute max avg matches per paper
     total = len(all_matches)
+    full_counts = defaultdict(int)
+    for m in all_matches:
+        if m["paper1_id"] in pid_set: full_counts[m["paper1_id"]] += 1
+        if m["paper2_id"] in pid_set: full_counts[m["paper2_id"]] += 1
+    max_avg = sum(full_counts[pid] for pid in paper_ids if full_counts[pid] > 0) / max(sum(1 for pid in paper_ids if full_counts[pid] > 0), 1)
+
+    # Generate integer x-axis steps (0, 5, 10, 15, ...)
+    step_size = max(1, int(max_avg / steps))
+    if step_size >= 5:
+        step_size = (step_size // 5) * 5  # Round to nearest 5
+    x_targets = list(range(step_size, int(max_avg) + step_size, step_size))
+    if not x_targets or x_targets[-1] < max_avg * 0.95:
+        x_targets.append(int(max_avg) + 1)
+
     curve = []
+    for target_avg in x_targets:
+        # Binary search for the number of matches that gives ~target_avg matches/paper
+        lo, hi = 1, total
+        best_n = total
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            counts = defaultdict(int)
+            for m in all_matches[:mid]:
+                if m["paper1_id"] in pid_set: counts[m["paper1_id"]] += 1
+                if m["paper2_id"] in pid_set: counts[m["paper2_id"]] += 1
+            active = [pid for pid in paper_ids if counts[pid] > 0]
+            if not active:
+                lo = mid + 1
+                continue
+            avg = sum(counts[pid] for pid in active) / len(active)
+            if avg < target_avg:
+                lo = mid + 1
+            else:
+                best_n = mid
+                hi = mid - 1
 
-    for step_i in range(1, steps + 1):
-        frac = step_i / steps
-        n_matches = max(1, int(total * frac))
-        subset = all_matches[:n_matches]
-
-        # Count avg matches per paper in this subset
+        subset = all_matches[:best_n]
         paper_match_count = defaultdict(int)
         for m in subset:
-            if m["paper1_id"] in pid_set:
-                paper_match_count[m["paper1_id"]] += 1
-            if m["paper2_id"] in pid_set:
-                paper_match_count[m["paper2_id"]] += 1
+            if m["paper1_id"] in pid_set: paper_match_count[m["paper1_id"]] += 1
+            if m["paper2_id"] in pid_set: paper_match_count[m["paper2_id"]] += 1
 
         papers_with_matches = [pid for pid in paper_ids if paper_match_count[pid] > 0]
         if len(papers_with_matches) < 3:
@@ -1187,46 +1216,43 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
 
         avg_matches = sum(paper_match_count[pid] for pid in papers_with_matches) / len(papers_with_matches)
 
-        # Compute BT ranking on subset
         sub_lb = compute_leaderboard(papers, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
 
-        # Correlate with ground truth (only papers present in both)
         common = [pid for pid in papers_with_matches if pid in gt_rank and pid in sub_rank]
         if len(common) < 3:
             continue
 
-        gt_r = [gt_rank[pid] for pid in common]
-        sub_r = [sub_rank[pid] for pid in common]
-        gt_s = [gt_score[pid] for pid in common]
-        sub_s = [e["score"] for e in sub_lb if e["id"] in set(common)]
-
-        sp, _ = scipy_stats.spearmanr(sub_r, gt_r)
-        kt, _ = scipy_stats.kendalltau(sub_r, gt_r)
-
-        # Pearson on scores
+        sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common], [gt_rank[p] for p in common])
+        kt, _ = scipy_stats.kendalltau([sub_rank[p] for p in common], [gt_rank[p] for p in common])
         sub_score_map = {e["id"]: e["score"] for e in sub_lb}
-        pr, _ = scipy_stats.pearsonr(
-            [sub_score_map.get(pid, 0) for pid in common],
-            [gt_score.get(pid, 0) for pid in common],
-        )
+        pr, _ = scipy_stats.pearsonr([sub_score_map.get(p, 0) for p in common], [gt_score.get(p, 0) for p in common])
 
-        curve.append({
-            "fraction": round(frac, 3),
-            "matches": n_matches,
-            "avg_matches_per_paper": round(avg_matches, 1),
+        # Top-k overlap
+        topk = {}
+        for k in top_k_values:
+            sub_topk = set(e["id"] for e in sub_lb if e["rank"] <= k)
+            overlap = len(sub_topk & gt_topk[k])
+            topk[f"top_{k}"] = round(overlap / k * 100, 1)
+
+        point = {
+            "matches": best_n,
+            "avg_matches_per_paper": round(avg_matches),
             "papers_covered": len(papers_with_matches),
             "spearman": round(sp, 4),
             "kendall": round(kt, 4),
             "pearson": round(pr, 4),
-        })
+        }
+        point.update(topk)
+        curve.append(point)
 
     return {
         "status": "ok",
         "dataset_id": dataset_id,
         "content_mode": content_mode or "extract",
         "total_matches": total,
-        "total_papers": len(paper_ids),
+        "total_papers": n_papers,
+        "top_k_values": top_k_values,
         "curve": curve,
     }
 
