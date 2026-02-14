@@ -229,11 +229,11 @@ function StandardStats({ datasetId, isAdmin }) {
 
       {/* Agreement */}
       {activeAgreement && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {[
             ["Expert-Expert", activeAgreement.expert_expert.rate, `${activeAgreement.expert_expert.agree}/${activeAgreement.expert_expert.total}`, activeAgreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600"],
-            ["AI-Expert", activeAgreement.ai_expert.rate, `${activeAgreement.ai_expert.agree}/${activeAgreement.ai_expert.total}`, activeAgreement.ai_expert.rate > activeAgreement.expert_expert.rate ? "text-green-600" : "text-amber-600"],
-            ["AI-Majority", activeAgreement.ai_majority.rate, `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}`, "text-amber-600"],
+            ["AI vs Expert", activeAgreement.ai_expert.rate, `${activeAgreement.ai_expert.agree}/${activeAgreement.ai_expert.total}`, activeAgreement.ai_expert.rate > activeAgreement.expert_expert.rate ? "text-green-600" : "text-amber-600"],
+            ["AI vs Expert Majority", activeAgreement.ai_majority.rate, `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}`, "text-amber-600"],
           ].map(([label, rate, sub, color], i) => (
             <div key={i} className="p-3 border border-border rounded text-center" data-testid={`agreement-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
               <div className="text-[10px] text-muted-foreground">{label} ({modeLabel})</div>
