@@ -44,6 +44,7 @@ export default function QeiosPairwiseSection({ mode = "abstract" }) {
   const [numPairs, setNumPairs] = useState(20);
   const [parallelAgents, setParallelAgents] = useState(5);
   const [isStarting, setIsStarting] = useState(false);
+  const [showPrompts, setShowPrompts] = useState(false);
   const isAdmin = !!sessionStorage.getItem("admin_token");
   const pairwisePath = mode === "extract" ? "pairwise-extract" : "pairwise";
   const modeLabel = mode === "extract" ? "Extract" : "Abstract";
