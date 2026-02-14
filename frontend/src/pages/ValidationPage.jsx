@@ -470,6 +470,8 @@ function MultiModelStats({ datasetId, isAdmin }) {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
