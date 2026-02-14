@@ -1241,7 +1241,11 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
             name = ev.get("evaluator", "")
             if name: expert_ratings[name][p["id"]] = ev["rating_value"]
 
-    # Expert-expert pairwise agreement
+    # Expert-expert pairwise agreement — filtered to pairs where AI has data
+    ai_pair = {}
+    for m in ai_matches:
+        ai_pair[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
+
     pair_votes = defaultdict(list)
     for exp, ratings in expert_ratings.items():
         pids = list(ratings.keys())
@@ -1254,6 +1258,7 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
 
     ee_agree = ee_total = 0
     for pair, votes in pair_votes.items():
+        if pair not in ai_pair: continue
         if len(votes) < 2: continue
         winners = [w for _, w in votes]
         for i in range(len(winners)):
@@ -1262,11 +1267,6 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
                 if winners[i] == winners[j]: ee_agree += 1
 
     # AI vs individual expert
-    ai_pair = {}
-    for m in ai_matches:
-        ai_pair[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
-
-    ae_agree = ae_total = 0
     for exp, ratings in expert_ratings.items():
         pids = list(ratings.keys())
         for i in range(len(pids)):
