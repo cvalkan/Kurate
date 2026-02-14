@@ -189,11 +189,12 @@ function StandardStats({ datasetId, isAdmin }) {
       <ProgressBar status={status} />
 
       {/* Content mode toggle */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="content-mode-toggle">
           {[
             { id: "extract", label: "Extract (Full Text)" },
             { id: "abstract", label: "Abstract Only" },
+            { id: "full_pdf", label: "Full PDF" },
           ].map(m => (
             <button
               key={m.id}
@@ -209,14 +210,21 @@ function StandardStats({ datasetId, isAdmin }) {
             </button>
           ))}
         </div>
-        {isAdmin && contentMode === "abstract" && !hasAbstractData && !status?.tournament_running && (
-          <Button size="sm" className="gap-1.5 text-xs" onClick={runAbstractTournament} disabled={isRunningAbstract} data-testid="run-abstract-btn">
-            <Play className="h-3 w-3" /> Run Abstract Tournament
-          </Button>
-        )}
-        {contentMode === "abstract" && !hasAbstractData && (
-          <span className="text-xs text-muted-foreground italic">No abstract-only tournament data yet.</span>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && contentMode === "abstract" && !hasAbstractData && !status?.tournament_running && (
+            <Button size="sm" className="gap-1.5 text-xs" onClick={() => runTournament("abstract")} disabled={isRunningTournament} data-testid="run-abstract-btn">
+              <Play className="h-3 w-3" /> Run Abstract Tournament
+            </Button>
+          )}
+          {isAdmin && contentMode === "full_pdf" && !hasPdfData && !status?.tournament_running && (
+            <Button size="sm" className="gap-1.5 text-xs" onClick={() => runTournament("full_pdf")} disabled={isRunningTournament} data-testid="run-fullpdf-btn">
+              <Play className="h-3 w-3" /> Run Full PDF Tournament
+            </Button>
+          )}
+          {!hasActiveData && contentMode !== "extract" && (
+            <span className="text-xs text-muted-foreground italic">No {modeLabel.toLowerCase()} tournament data yet.</span>
+          )}
+        </div>
       </div>
 
       {/* Agreement */}
