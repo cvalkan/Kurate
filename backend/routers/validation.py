@@ -1359,21 +1359,29 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
         if n > len(votes) / 2:
             pair_majority[pair] = best
 
-    # Fetch AI winners per content mode
-    modes = ["extract", "abstract", "full_pdf"]
+    # Fetch AI winners per content mode (and per-model data)
+    modes = ["abstract", "extract", "full_pdf"]
     mode_ai_pairs = {}
+    mode_model_pairs = {}  # mode -> model_key -> {pair: winner}
     for mode in modes:
         match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
         match_filter.update(_build_content_mode_filter(mode))
         matches = await db.validation_matches.find(
             match_filter,
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
         ).to_list(100000)
         if matches:
             ai_map = {}
+            model_maps = defaultdict(dict)
             for m in matches:
-                ai_map[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
+                pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+                ai_map[pair] = m["winner_id"]
+                mu = m.get("model_used", {})
+                mk = f"{mu.get('provider', '')}:{mu.get('model', '')}" if mu else ""
+                if mk:
+                    model_maps[mk][pair] = m["winner_id"]
             mode_ai_pairs[mode] = ai_map
+            mode_model_pairs[mode] = dict(model_maps)
 
     available_modes = list(mode_ai_pairs.keys())
     if len(available_modes) < 2:
