@@ -251,23 +251,23 @@ function StandardStats({ datasetId, isAdmin }) {
               </div>
             </div>
           )}
-          {irt && (
+          {activeIrt && (
             <div className="border border-border rounded-lg overflow-hidden">
               <div className="px-3 py-2 bg-secondary/10 border-b border-border">
                 <h3 className="text-xs font-medium flex items-center gap-1.5">
-                  <FlaskConical className="h-3 w-3" /> IRT Score (severity-adjusted)
+                  <FlaskConical className="h-3 w-3" /> IRT Score — {modeLabel}
                 </h3>
               </div>
               <div className="p-3 space-y-2">
                 <div className="grid grid-cols-3 gap-2">
-                  <CorrelationBadge value={irt.correlation.irt_score_vs_ai.spearman_rho} label="Spearman &rho;" />
-                  <CorrelationBadge value={irt.correlation.irt_score_vs_ai.kendall_tau} label="Kendall &tau;" />
-                  <CorrelationBadge value={irt.correlation.irt_score_vs_ai.pearson_r} label="Pearson r" />
+                  <CorrelationBadge value={activeIrt.correlation.irt_score_vs_ai.spearman_rho} label="Spearman &rho;" />
+                  <CorrelationBadge value={activeIrt.correlation.irt_score_vs_ai.kendall_tau} label="Kendall &tau;" />
+                  <CorrelationBadge value={activeIrt.correlation.irt_score_vs_ai.pearson_r} label="Pearson r" />
                 </div>
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                  <span>{irt.improvement.distinct_scores_raw}&rarr;{irt.improvement.distinct_scores_irt} distinct scores</span>
+                  <span>{activeIrt.improvement.distinct_scores_raw}&rarr;{activeIrt.improvement.distinct_scores_irt} distinct scores</span>
                   <span>&middot;</span>
-                  <span>&Delta;&rho; = {irt.improvement.delta >= 0 ? "+" : ""}{irt.improvement.delta.toFixed(3)}</span>
+                  <span>&Delta;&rho; = {activeIrt.improvement.delta >= 0 ? "+" : ""}{activeIrt.improvement.delta.toFixed(3)}</span>
                 </div>
                 <RankingTable rows={irt.comparison} mode="irt" />
               </div>
