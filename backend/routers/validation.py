@@ -1507,6 +1507,8 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
         "modes_compared": available_modes,
         "expert_expert": {"agree": ee_agree, "total": ee_total, "rate": round(ee_agree / max(ee_total, 1) * 100, 1)},
         "by_mode": results,
+        "per_model": per_model,
+        "ai_majority_vs_expert": ai_majority_vs_expert,
         "mode_disagreements": mode_disagreements,
     }
 
