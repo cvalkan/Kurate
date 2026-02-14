@@ -989,7 +989,7 @@ async def get_status(dataset_id: str = Query(...)):
     m_abs_only = await db.validation_matches.count_documents({"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, "abstract_only": True})
     failed = await db.validation_matches.count_documents({"dataset_id": dataset_id, "failed": True})
     total_pairs = n * (n - 1) // 2 if n > 1 else 0
-    with_text = await db.validation_papers.count_documents({"dataset_id": dataset_id, "full_text": {"$exists": True, "$ne": None, "$ne": ""}})
+    with_text = await db.validation_papers.count_documents({"dataset_id": dataset_id, "full_text": {"$exists": True, "$nin": [None, ""]}})
 
     # Match distribution
     avg_m = min_m = max_m = 0
@@ -1383,7 +1383,7 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     common_pairs = set.intersection(*[set(mode_ai_pairs[m].keys()) for m in available_modes])
 
     # For each mode, compute agreement on the common pairs
-    def _compute_agreement(ai_map, pair_set, expert_pair_prefs_dict, pair_majority_dict):
+    def _compute_agreement(ai_map, pair_set):
         ae_agree = ae_total = 0
         for exp, ratings in expert_ratings.items():
             pids = list(ratings.keys())
@@ -1399,8 +1399,8 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
                     if (a if ratings[a] > ratings[b] else b) == ai_map[pair]:
                         ae_agree += 1
 
-        maj_overlap = pair_set & set(pair_majority_dict.keys()) & set(ai_map.keys())
-        maj_agree = sum(1 for p in maj_overlap if ai_map[p] == pair_majority_dict[p])
+        maj_overlap = pair_set & set(pair_majority.keys()) & set(ai_map.keys())
+        maj_agree = sum(1 for p in maj_overlap if ai_map[p] == pair_majority[p])
 
         return {
             "ai_expert": {"agree": ae_agree, "total": ae_total, "rate": round(ae_agree / max(ae_total, 1) * 100, 1)},
@@ -1422,7 +1422,19 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
 
     results = {}
     for mode in available_modes:
-        results[mode] = _compute_agreement(mode_ai_pairs[mode], common_pairs, expert_pair_prefs, pair_majority)
+        results[mode] = _compute_agreement(mode_ai_pairs[mode], common_pairs)
+
+    # Compute pairwise mode disagreement stats for transparency
+    mode_disagreements = {}
+    for i, m1 in enumerate(available_modes):
+        for m2 in available_modes[i + 1:]:
+            diff_count = sum(1 for p in common_pairs if mode_ai_pairs[m1][p] != mode_ai_pairs[m2][p])
+            mode_disagreements[f"{m1}_vs_{m2}"] = {
+                "differ": diff_count,
+                "agree": len(common_pairs) - diff_count,
+                "total": len(common_pairs),
+                "differ_pct": round(diff_count / max(len(common_pairs), 1) * 100, 1),
+            }
 
     return {
         "status": "ok",
@@ -1430,6 +1442,7 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
         "modes_compared": available_modes,
         "expert_expert": {"agree": ee_agree, "total": ee_total, "rate": round(ee_agree / max(ee_total, 1) * 100, 1)},
         "by_mode": results,
+        "mode_disagreements": mode_disagreements,
     }
 
 
