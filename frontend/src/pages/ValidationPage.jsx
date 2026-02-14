@@ -160,7 +160,7 @@ function StandardStats({ datasetId, isAdmin }) {
   const activeIrt = active.irt;
   const activeAgreement = active.agreement;
   const hasActiveData = activePairwise || activeIrt;
-  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF", ai_summary: "AI Summary" };
+  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF", ai_summary: "AI Summary", abstract_plus_summary: "Abstract + Summary" };
   const modeLabel = modeLabels[contentMode] || contentMode;
   // Only show modes in toggle that have data or are the standard 3
   const visibleModes = MODES.filter(m => m.id !== "ai_summary" || modeData[m.id]?.pairwise || modeData[m.id]?.irt);
