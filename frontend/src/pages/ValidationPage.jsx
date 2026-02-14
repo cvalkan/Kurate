@@ -249,6 +249,61 @@ function StandardStats({ datasetId, isAdmin }) {
         </div>
       )}
 
+      {/* Cross-Mode Head-to-Head Comparison */}
+      {crossMode && crossMode.common_pairs > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden" data-testid="cross-mode-comparison">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+            <h3 className="text-xs font-medium flex items-center gap-1.5">
+              <Scale className="h-3 w-3" /> Head-to-Head: Same {crossMode.common_pairs} Pairs Across All Modes
+            </h3>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              Apples-to-apples comparison — agreement rates computed on the exact same set of paper pairs
+            </div>
+          </div>
+          <div className="p-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-1.5 pr-3 text-muted-foreground font-medium">Content Mode</th>
+                    <th className="text-center py-1.5 px-3 text-muted-foreground font-medium">AI-Expert</th>
+                    <th className="text-center py-1.5 px-3 text-muted-foreground font-medium">AI-Majority</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 pr-3 text-muted-foreground italic">Expert-Expert</td>
+                    <td className="text-center py-1.5 px-3 font-mono font-semibold text-green-600">{crossMode.expert_expert.rate}%</td>
+                    <td className="text-center py-1.5 px-3 text-[10px] text-muted-foreground">baseline</td>
+                  </tr>
+                  {crossMode.modes_compared.map(mode => {
+                    const stats = crossMode.by_mode[mode];
+                    const mLabel = { extract: "Extract (Full Text)", abstract: "Abstract Only", full_pdf: "Full PDF" }[mode] || mode;
+                    const best_ae = Math.max(...crossMode.modes_compared.map(m => crossMode.by_mode[m].ai_expert.rate));
+                    const best_am = Math.max(...crossMode.modes_compared.map(m => crossMode.by_mode[m].ai_majority.rate));
+                    const ae_color = stats.ai_expert.rate === best_ae ? "text-green-600 font-bold" : stats.ai_expert.rate >= crossMode.expert_expert.rate * 0.9 ? "text-amber-600" : "text-red-500";
+                    const am_color = stats.ai_majority.rate === best_am ? "text-green-600 font-bold" : "text-amber-600";
+                    return (
+                      <tr key={mode} className="border-b border-border/50 last:border-0">
+                        <td className="py-1.5 pr-3 font-medium">{mLabel}</td>
+                        <td className={`text-center py-1.5 px-3 font-mono font-semibold ${ae_color}`}>
+                          {stats.ai_expert.rate}%
+                          <span className="text-[9px] text-muted-foreground ml-1">({stats.ai_expert.agree}/{stats.ai_expert.total})</span>
+                        </td>
+                        <td className={`text-center py-1.5 px-3 font-mono font-semibold ${am_color}`}>
+                          {stats.ai_majority.rate}%
+                          <span className="text-[9px] text-muted-foreground ml-1">({stats.ai_majority.agree}/{stats.ai_majority.total})</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Two experiments side by side */}
       {(activePairwise || activeIrt) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
