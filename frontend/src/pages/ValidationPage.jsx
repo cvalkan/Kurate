@@ -488,11 +488,11 @@ function MultiModelStats({ datasetId, isAdmin }) {
 
 export function DatasetView({ ds, isAdmin, hideHeader = false }) {
   const [tab, setTab] = useState("standard");
-  const hasMultiModel = true; // all datasets can have multi-model data
 
   const tabs = [
     { id: "standard", label: "Ranking Correlation", icon: BarChart3 },
-    ...(hasMultiModel ? [{ id: "multimodel", label: "Multi-Model Analysis", icon: Layers }] : []),
+    { id: "multimodel", label: "Multi-Model Analysis", icon: Layers },
+    { id: "convergence", label: "Convergence", icon: TrendingUp },
   ];
 
   return (
@@ -523,6 +523,7 @@ export function DatasetView({ ds, isAdmin, hideHeader = false }) {
 
       {tab === "standard" && <StandardStats datasetId={ds.dataset_id} isAdmin={isAdmin} />}
       {tab === "multimodel" && <MultiModelStats datasetId={ds.dataset_id} isAdmin={isAdmin} />}
+      {tab === "convergence" && <ValidationConvergence datasets={[ds]} />}
     </div>
   );
 }
