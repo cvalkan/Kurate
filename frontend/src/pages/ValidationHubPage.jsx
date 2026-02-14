@@ -54,10 +54,8 @@ export default function ValidationHubPage() {
 
   useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 
-  // Datasets that have pairwise head-to-head data potential
-  const pairwiseDatasets = datasets.filter(ds =>
-    ["iclr-protein", "peerread_acl_2017"].includes(ds.dataset_id)
-  );
+  // Datasets that have pairwise head-to-head data potential — all validation datasets
+  const pairwiseDatasets = datasets;
 
   // Build sections with dynamic items
   const sections = STATIC_SECTIONS.map(s => {
