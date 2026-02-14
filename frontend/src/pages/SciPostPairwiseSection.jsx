@@ -109,9 +109,9 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
     setIsStarting(true);
     try {
       const res = await axios.post(`${API}/api/scipost/pairwise/fetch-and-run`,
-        { num_pairs_per_dim: numPairs, dimensions: DIMENSIONS },
+        { num_pairs_per_dim: numPairs, dimensions: DIMENSIONS, parallel_agents: parallelAgents },
         { headers: adminHeaders() });
-      if (res.data.status === "started") toast.success(`Synced run started — evaluating both Abstract & Extract (${numPairs} pairs/dim)`);
+      if (res.data.status === "started") toast.success(`Synced run started — ${parallelAgents} parallel agents, ${numPairs} pairs/dim`);
       else if (res.data.status === "already_running") { toast.warning("Already running"); setIsStarting(false); }
       else { toast.error(res.data.message || "Error"); setIsStarting(false); }
       fetchAll();
