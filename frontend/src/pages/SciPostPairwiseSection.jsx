@@ -57,11 +57,6 @@ function aggregateGapStats(results) {
     const a = totals[k].agree || 0;
     totals[k].rate = t ? Math.round((a / t) * 1000) / 10 : 0;
   });
-  
-  // Debug: Log the aggregated stats
-  console.log('aggregateGapStats result:', totals);
-  console.log('Has gap data check:', Object.values(totals).some(g => g.total > 0));
-  
   return totals;
 }
 
