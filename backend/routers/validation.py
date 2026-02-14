@@ -1443,7 +1443,17 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
 
     results = {}
     for mode in available_modes:
-        results[mode] = _compute_agreement(mode_ai_pairs[mode], common_pairs)
+        # Core modes use common_pairs; overlay modes use their own intersection with common_pairs
+        if mode in core_modes:
+            results[mode] = _compute_agreement(mode_ai_pairs[mode], common_pairs)
+        else:
+            # Overlay: compute on the subset of common_pairs this mode has data for
+            overlay_pairs = common_pairs & set(mode_ai_pairs[mode].keys())
+            if overlay_pairs:
+                stats = _compute_agreement(mode_ai_pairs[mode], overlay_pairs)
+                stats["pairs_evaluated"] = len(overlay_pairs)
+                stats["pairs_total"] = len(common_pairs)
+                results[mode] = stats
 
     # Per-model agreement breakdown
     per_model = {}
