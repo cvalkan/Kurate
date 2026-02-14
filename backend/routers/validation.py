@@ -1463,11 +1463,12 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
             all_model_keys.add(mk)
 
     for mode in available_modes:
+        pair_set = common_pairs if mode in core_modes else (common_pairs & set(mode_ai_pairs.get(mode, {}).keys()))
         per_model[mode] = {}
         for mk in all_model_keys:
             model_map = mode_model_pairs.get(mode, {}).get(mk, {})
             if model_map:
-                stats = _compute_agreement(model_map, common_pairs)
+                stats = _compute_agreement(model_map, pair_set)
                 per_model[mode][mk] = stats
 
     # AI majority (3-model vote) vs expert majority — needs pairs with all 3 models
