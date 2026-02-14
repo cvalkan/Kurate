@@ -76,6 +76,7 @@ export default function SciPostPairwiseSection({ mode = "abstract" }) {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [numPairs, setNumPairs] = useState(8);
+  const [parallelAgents, setParallelAgents] = useState(5);
   const [isStarting, setIsStarting] = useState(false);
   const isAdmin = !!sessionStorage.getItem("admin_token");
   const pairwisePath = mode === "extract" ? "pairwise-extract" : "pairwise";
