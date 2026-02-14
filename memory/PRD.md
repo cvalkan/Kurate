@@ -11,35 +11,28 @@ Build a system to validate AI's paper comparison capabilities against human peer
 ## Validation Framework (Unified Hub at /validation)
 
 ### Pairwise Comparison
-- **Qeios**: Head-to-head paper pairs from same reviewer, 3 AI models, majority-vote agreement. Internal Abstract/Extract toggle.
-- **SciPost**: Per-dimension pairwise comparison (validity, significance, originality, clarity). Internal Abstract/Extract toggle.
-- **ICLR Protein Science**: Cross-mode head-to-head agreement analysis with bar charts (recharts). Uses `/api/validation/cross-mode-agreement` endpoint.
-- **PeerRead ACL 2017**: Cross-mode head-to-head agreement analysis with bar charts. Same endpoint.
+- **Qeios**: Head-to-head paper pairs, 3 AI models. Abstract & Extract shown side-by-side with horizontal CSS progress bars.
+- **SciPost**: Per-dimension pairwise (validity, significance, originality, clarity). Abstract & Extract side-by-side.
+- **ICLR Protein Science**: Cross-mode agreement analysis — 879 common pairs across Extract, Abstract, Full PDF. Bar charts + detailed table.
+- **PeerRead ACL 2017**: Cross-mode agreement — 1323 common pairs across all 3 input formats.
 
 ### Single-item Rating
 - **SciPost**: AI rates individual papers on 4 dimensions (1-6 scale)
 
 ### Tournament Ranking
 - **ICLR LLMs** (73 papers), **ICLR Protein Science** (46 papers), **PeerRead ACL 2017** (80 papers)
-- Full ranking correlation (Spearman, Kendall, Pearson) between AI tournament rankings and human peer-review rankings
-- **3 content modes**: Extract, Abstract, Full PDF
-- **Multi-Model Analysis**: Inter-model agreement, rank correlation, and majority vote vs expert
-- Non-comparable note on agreement stats (different match sets per mode)
-
-## Key Pages
-- `/` — Leaderboard
-- `/correlation` — Model Analysis
-- `/methodology` — Methodology
-- `/validation` — **Unified Validation Hub** with sidebar navigation
-- `/admin` — Admin controls
+- Full ranking correlation (Spearman, Kendall, Pearson)
+- 3 content modes: Extract, Abstract, Full PDF
+- Multi-Model Analysis
+- Non-comparable note on agreement stats
 
 ## Sidebar Structure
 ```
 PAIRWISE
-  Qeios (Abstract/Extract toggle)
-  SciPost (Abstract/Extract toggle)
-  ICLR Protein Science (head-to-head charts)
-  PeerRead ACL 2017 (head-to-head charts)
+  Qeios (Abstract + Extract side-by-side)
+  SciPost (Abstract + Extract side-by-side)
+  ICLR Protein Science (cross-mode charts)
+  PeerRead ACL 2017 (cross-mode charts)
 SINGLE-ITEM
   SciPost
 TOURNAMENT
@@ -48,48 +41,52 @@ TOURNAMENT
   PeerRead ACL 2017
 ```
 
-## DB Collections
-- `validation_datasets`, `validation_papers`, `validation_matches` — Tournament data
-  - `validation_matches` has `content_mode` field: "abstract", "extract", or "full_pdf"
-  - `abstract_only` field for backward compat with older matches
+## Key API Endpoints
+- `POST /api/validation/run-targeted-pairwise` — Run evaluations for expert-majority pairs missing in a given content mode
+- `GET /api/validation/cross-mode-agreement` — Agreement stats on shared pairs across all content modes
+- `POST /api/validation/run-tournament` — Run random tournament matches
+- `GET /api/validation/pairwise-results`, `irt-results`, `agreement-analysis` — Per-mode ranking data
 
 ## What's Been Implemented
 - [x] Leaderboard, Model Analysis, Methodology pages
 - [x] Tournament validation (ICLR LLM, ICLR Protein, PeerRead ACL)
-- [x] Qeios pairwise comparison with internal Abstract/Extract toggle
-- [x] SciPost pairwise and single-item per-dimension with internal Abstract/Extract toggle
+- [x] Qeios pairwise — Abstract & Extract side-by-side with CSS bars
+- [x] SciPost pairwise — Abstract & Extract side-by-side with CSS bars
+- [x] ICLR Protein pairwise — 879 pairs, 3 input formats, bar charts
+- [x] PeerRead pairwise — 1323 pairs, 3 input formats, bar charts
+- [x] Targeted pairwise endpoint for expert-majority pairs
 - [x] Unified Validation Hub with restructured sidebar
-- [x] Centralized LLM utilities (llm.py) with 100-thread pool
-- [x] 3-way content mode toggle (Extract / Abstract / Full PDF) on Ranking Correlation
-- [x] Content mode toggle on Multi-Model Analysis
-- [x] Full PDF tournament mode for ICLR Protein Science
-- [x] Multi-model fills for all datasets/modes
-- [x] "View Prompts" modal on Qeios page
-- [x] Cross-mode head-to-head moved to Pairwise section (ICLR Protein, PeerRead)
-- [x] Bar charts (recharts) on all Pairwise items
 - [x] Non-comparable note on Tournament agreement stats
-- [x] Renamed "Extract (Full Text)" to "Extract" throughout
-- [x] Removed coincidence note
-- [x] Fixed duplicate $ne key bug in tournament status endpoint
-- [x] Added mode_disagreements to cross-mode-agreement API response
+- [x] Neutral wording (no "apples-to-apples")
+- [x] "Extract" naming (not "Extract (Full Text)")
 
-## Multi-Model Data Status
-| Dataset | Extract | Abstract | Full PDF |
-|---------|---------|----------|----------|
-| ICLR Protein | 499 pairs | 497 pairs | 446 pairs |
-| ICLR LLMs | 494 pairs | 500 pairs | — |
-| PeerRead ACL | 499 pairs | 500 pairs | — |
+## Cross-Mode Pairwise Results
+### ICLR Protein Science (879 pairs)
+| Input Format | AI vs Expert | AI vs Majority |
+|---|---|---|
+| Full PDF | **78.2%** | **78.1%** |
+| Extract | 76.3% | 75.3% |
+| Abstract | 68.5% | 68.0% |
+| Expert-Expert | 85.5% | — |
+
+### PeerRead ACL 2017 (1323 pairs)
+| Input Format | AI vs Expert | AI vs Majority |
+|---|---|---|
+| Extract | **75.1%** | **75.1%** |
+| Full PDF | 74.6% | 74.5% |
+| Abstract | 73.8% | 74.0% |
+| Expert-Expert | 94.1% | — |
 
 ## Backlog
 - [ ] (P1) Add "View Prompts" modal to SciPost page
 - [ ] (P1) F1000Prime dataset integration
-- [ ] (P2) Run Full PDF tournaments for ICLR LLMs and PeerRead ACL
+- [ ] (P2) Run Full PDF tournaments for ICLR LLMs
 - [ ] (P2) HTTP security headers for production
 - [ ] (P2) Experiment with Gemini 3 Flash
 - [ ] (P3) Refactor business logic into backend/services layer
 
 ## Changelog
-- **Feb 14, 2026 (session 4)**: Major Validation page restructure. Merged Qeios Abstract/Extract into single item with internal toggle. Same for SciPost. Moved head-to-head comparisons to new Pairwise items (ICLR Protein, PeerRead) with recharts bar charts. Added non-comparable note to Tournament. Renamed "Extract (Full Text)" to "Extract". Removed coincidence note. Fixed duplicate $ne bug. Added mode_disagreements to API.
-- **Feb 14, 2026 (session 3b)**: Updated `run-multimodel` endpoint to support `content_mode` parameter. Generated multi-model data for all available dataset/mode combinations.
-- **Feb 14, 2026 (session 3a)**: Added 3-way content mode toggle (Extract/Abstract/Full PDF) to Ranking Correlation and Multi-Model Analysis. Implemented Full PDF mode in `compare_papers()`. Ran Full PDF tournament for ICLR Protein Science.
-- **Feb 14, 2026 (session 2)**: Qeios synced pairwise, parallel evaluation (40x+ speedup), abstract-only tournaments.
+- **Feb 14, 2026 (session 5)**: Qeios/SciPost now show Abstract & Extract side-by-side with horizontal CSS bars (no toggle). ICLR/PeerRead pairwise uses neutral wording ("AI vs Expert/Majority"). Created `run-targeted-pairwise` endpoint. Ran targeted evaluations for all expert-majority pairs: ICLR Protein (879 common pairs, 3 modes), PeerRead (1323 pairs, 3 modes).
+- **Feb 14, 2026 (session 4)**: Major Validation page restructure. Merged sidebar items. Moved head-to-head to Pairwise. Added non-comparable note. Renamed "Extract (Full Text)" to "Extract".
+- **Feb 14, 2026 (session 3)**: 3-way content mode toggle, Full PDF mode, multi-model data generation.
+- **Feb 14, 2026 (session 2)**: Qeios synced pairwise, parallel evaluation (40x+ speedup).
