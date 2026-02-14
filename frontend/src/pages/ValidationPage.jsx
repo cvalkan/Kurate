@@ -180,16 +180,47 @@ function StandardStats({ datasetId, isAdmin }) {
 
       <ProgressBar status={status} />
 
+      {/* Content mode toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="content-mode-toggle">
+          {[
+            { id: "extract", label: "Extract (Full Text)" },
+            { id: "abstract", label: "Abstract Only" },
+          ].map(m => (
+            <button
+              key={m.id}
+              onClick={() => setContentMode(m.id)}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                contentMode === m.id
+                  ? "bg-accent/10 text-accent"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid={`mode-${m.id}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {isAdmin && contentMode === "abstract" && !hasAbstractData && !status?.tournament_running && (
+          <Button size="sm" className="gap-1.5 text-xs" onClick={runAbstractTournament} disabled={isRunningAbstract} data-testid="run-abstract-btn">
+            <Play className="h-3 w-3" /> Run Abstract Tournament
+          </Button>
+        )}
+        {contentMode === "abstract" && !hasAbstractData && (
+          <span className="text-xs text-muted-foreground italic">No abstract-only tournament data yet.</span>
+        )}
+      </div>
+
       {/* Agreement */}
-      {agreement && (
+      {activeAgreement && (
         <div className="grid grid-cols-3 gap-2">
           {[
-            ["Expert-Expert", agreement.expert_expert.rate, `${agreement.expert_expert.agree}/${agreement.expert_expert.total}`, agreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600"],
-            ["AI-Expert", agreement.ai_expert.rate, `${agreement.ai_expert.agree}/${agreement.ai_expert.total}`, agreement.ai_expert.rate > agreement.expert_expert.rate ? "text-green-600" : "text-amber-600"],
-            ["AI-Majority", agreement.ai_majority.rate, `${agreement.ai_majority.agree}/${agreement.ai_majority.total}`, "text-amber-600"],
+            ["Expert-Expert", activeAgreement.expert_expert.rate, `${activeAgreement.expert_expert.agree}/${activeAgreement.expert_expert.total}`, activeAgreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600"],
+            ["AI-Expert", activeAgreement.ai_expert.rate, `${activeAgreement.ai_expert.agree}/${activeAgreement.ai_expert.total}`, activeAgreement.ai_expert.rate > activeAgreement.expert_expert.rate ? "text-green-600" : "text-amber-600"],
+            ["AI-Majority", activeAgreement.ai_majority.rate, `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}`, "text-amber-600"],
           ].map(([label, rate, sub, color], i) => (
             <div key={i} className="p-3 border border-border rounded text-center" data-testid={`agreement-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
-              <div className="text-[10px] text-muted-foreground">{label}</div>
+              <div className="text-[10px] text-muted-foreground">{label} ({modeLabel})</div>
               <div className={`text-xl font-semibold font-mono ${color}`}>{rate}%</div>
               <div className="text-[10px] text-muted-foreground">{sub} pairs</div>
             </div>
