@@ -1,0 +1,58 @@
+{
+  "summary": "Tested cross-mode-agreement endpoint enhancements and coincidence note UI feature. All backend endpoints return mode_disagreements field correctly. Frontend displays mode disagreement stats and coincidence note appropriately.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "GET /api/validation/cross-mode-agreement?dataset_id=iclr-protein returns mode_disagreements with extract_vs_abstract, extract_vs_full_pdf, abstract_vs_full_pdf",
+    "GET /api/validation/cross-mode-agreement?dataset_id=iclr-llm returns mode_disagreements with extract_vs_abstract",
+    "GET /api/validation/cross-mode-agreement?dataset_id=peerread_acl_2017 returns mode_disagreements for all 3 modes",
+    "GET /api/validation/status?dataset_id=iclr-protein returns with_text count (46) - duplicate $ne fix working",
+    "Frontend: ICLR Protein Science shows mode disagreement stats below Head-to-Head table",
+    "Frontend: ICLR Protein Science shows coincidence note when extract and abstract have identical rates (68.4% both)",
+    "Frontend: ICLR LLMs does NOT show coincidence note since extract (81.3%) and abstract (77.9%) rates differ",
+    "Mode disagreements display correct pair counts and percentages"
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Cross-mode-agreement endpoint now includes mode_disagreements field showing pairwise mode differences. ValidationPage.jsx shows this data below the Head-to-Head table and displays a coincidence note when two modes have identical agreement rates.",
+  "features_verified": {
+    "mode_disagreements_endpoint": {
+      "iclr_protein": {
+        "extract_vs_abstract": {"differ": 26, "total": 111, "differ_pct": 23.4},
+        "extract_vs_full_pdf": {"differ": 24, "total": 111, "differ_pct": 21.6},
+        "abstract_vs_full_pdf": {"differ": 26, "total": 111, "differ_pct": 23.4}
+      },
+      "iclr_llm": {
+        "extract_vs_abstract": {"differ": 28, "total": 165, "differ_pct": 17}
+      },
+      "peerread_acl_2017": {
+        "extract_vs_abstract": {"differ": 6, "total": 27, "differ_pct": 22.2},
+        "extract_vs_full_pdf": {"differ": 6, "total": 27, "differ_pct": 22.2},
+        "abstract_vs_full_pdf": {"differ": 8, "total": 27, "differ_pct": 29.6}
+      }
+    },
+    "coincidence_note_logic": {
+      "iclr_protein": "Shows note (Extract 68.4% = Abstract 68.4%)",
+      "iclr_llm": "No note (Extract 81.3% ≠ Abstract 77.9%)"
+    },
+    "status_endpoint_fix": {
+      "line_992_fix": "Changed duplicate $ne to $nin - endpoint returns papers_with_full_text: 46 correctly"
+    }
+  }
+}
