@@ -99,28 +99,63 @@ function StandardStats({ datasetId, isAdmin }) {
   const [pairwise, setPairwise] = useState(null);
   const [irt, setIrt] = useState(null);
   const [agreement, setAgreement] = useState(null);
+  const [contentMode, setContentMode] = useState("extract");
+  const [absPairwise, setAbsPairwise] = useState(null);
+  const [absIrt, setAbsIrt] = useState(null);
+  const [absAgreement, setAbsAgreement] = useState(null);
+  const [isRunningAbstract, setIsRunningAbstract] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, p, i, a] = await Promise.all([
-        axios.get(`${API}/api/validation/status`, { params: { dataset_id: datasetId } }),
-        axios.get(`${API}/api/validation/pairwise-results`, { params: { dataset_id: datasetId } }),
-        axios.get(`${API}/api/validation/irt-results`, { params: { dataset_id: datasetId } }),
-        axios.get(`${API}/api/validation/agreement-analysis`, { params: { dataset_id: datasetId } }),
+      const params = { dataset_id: datasetId };
+      const absParams = { dataset_id: datasetId, abstract_only: true };
+      const [s, p, i, a, ap, ai, aa] = await Promise.all([
+        axios.get(`${API}/api/validation/status`, { params }),
+        axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, abstract_only: false } }),
+        axios.get(`${API}/api/validation/irt-results`, { params: { ...params, abstract_only: false } }),
+        axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, abstract_only: false } }),
+        axios.get(`${API}/api/validation/pairwise-results`, { params: absParams }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/irt-results`, { params: absParams }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/agreement-analysis`, { params: absParams }).catch(() => ({ data: {} })),
       ]);
       setStatus(s.data);
       if (p.data.status === "ok") setPairwise(p.data);
       if (i.data.status === "ok") setIrt(i.data);
       if (a.data.status === "ok") setAgreement(a.data);
+      if (ap.data.status === "ok") setAbsPairwise(ap.data);
+      if (ai.data.status === "ok") setAbsIrt(ai.data);
+      if (aa.data.status === "ok") setAbsAgreement(aa.data);
     } catch (e) { console.error(e); }
   }, [datasetId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
-    if (!status?.tournament_running) return;
+    if (!status?.tournament_running && !isRunningAbstract) return;
     const iv = setInterval(fetchAll, 5000);
     return () => clearInterval(iv);
-  }, [status?.tournament_running, fetchAll]);
+  }, [status?.tournament_running, isRunningAbstract, fetchAll]);
+
+  const runAbstractTournament = async () => {
+    setIsRunningAbstract(true);
+    try {
+      const res = await axios.post(`${API}/api/validation/run-tournament`,
+        { dataset_id: datasetId, num_matches: 500, parallel: 30, abstract_only: true },
+        { headers: getAdminHeaders() });
+      if (res.data.status === "started") {
+        // toast would be nice but we don't import it here
+      }
+      fetchAll();
+    } catch (e) {
+      console.error(e);
+      setIsRunningAbstract(false);
+    }
+  };
+
+  const activePairwise = contentMode === "abstract" ? absPairwise : pairwise;
+  const activeIrt = contentMode === "abstract" ? absIrt : irt;
+  const activeAgreement = contentMode === "abstract" ? absAgreement : agreement;
+  const hasAbstractData = absPairwise || absIrt;
+  const modeLabel = contentMode === "abstract" ? "Abstract" : "Extract";
 
   return (
     <div className="space-y-5">
