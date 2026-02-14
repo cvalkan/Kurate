@@ -691,12 +691,18 @@ async def _pw_status(mode: str = "abstract"):
     dim_counts = {}
     async for r in collection.aggregate([{"$group": {"_id": "$dimension", "count": {"$sum": 1}}}]):
         dim_counts[r["_id"]] = r["count"]
-    return {
+    result = {
         "total_pairs": total, "ai_completed": completed, "ai_failed": failed,
         "ai_pending": total - completed - failed, "by_dimension": dim_counts,
         "fetching": state["fetching"], "running": state["running"],
         "progress": state["progress"],
     }
+    
+    # Add mode field for extract mode to maintain consistency
+    if mode == "extract":
+        result["mode"] = "extract"
+    
+    return result
 
 
 async def _pw_stop(mode: str = "abstract"):
