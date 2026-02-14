@@ -511,6 +511,9 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     elif content_mode == "full_pdf":
         p1_content = _build_full_pdf_content(paper1)
         p2_content = _build_full_pdf_content(paper2)
+    elif content_mode == "ai_summary":
+        p1_content = f"AI Impact Assessment:\n{paper1.get('ai_impact_summary', paper1.get('abstract', '')[:1500])}"
+        p2_content = f"AI Impact Assessment:\n{paper2.get('ai_impact_summary', paper2.get('abstract', '')[:1500])}"
     else:
         p1_content = _build_paper_content(paper1, char_limit)
         p2_content = _build_paper_content(paper2, char_limit)
