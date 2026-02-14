@@ -702,7 +702,7 @@ async def _pw_stop(mode: str = "abstract"):
     return {"status": "stopped", "mode": "synced"}
 
 
-async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
+async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list, parallel_agents: int = 5):
     for st in (_pw_state, _pw_extract_state):
         st["fetching"] = True
         st["running"] = True
@@ -710,11 +710,13 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
             "phase": "scanning",
             "papers_found": 0,
             "pairs_done": 0,
+            "pairs_in_flight": 0,
             "target": num_pairs_per_dim * len(dimensions),
             "mode": "synced",
             "pdfs_done": 0,
+            "parallel_agents": parallel_agents,
         }
-    pairs_done = 0
+    _pairs_done_counter = {"n": 0, "in_flight": 0}
 
     try:
         def _set_progress(key, value):
@@ -724,37 +726,37 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
         def _is_running():
             return _pw_state["running"] and _pw_extract_state["running"]
 
-        # Phase 1: Fetch papers with reports
+        # Phase 1: Fetch papers with reports — batch size 15 for speed
         async with aiohttp.ClientSession() as session:
             submission_ids = await _fetch_scipost_submissions(session, num_pages=10)
             random.shuffle(submission_ids)
 
             papers = []
-            # Fetch aggressively — we need many papers to create enough pairs
             need = max(num_pairs_per_dim * 4, 60)
             scan_limit = min(len(submission_ids), need * 6)
-            for i in range(0, scan_limit, 8):
+            for i in range(0, scan_limit, 15):
                 if len(papers) >= need:
                     break
-                batch = submission_ids[i:i + 8]
+                batch = submission_ids[i:i + 15]
                 tasks = [_fetch_submission_details(session, sid) for sid in batch]
                 results = await asyncio.gather(*tasks)
                 for p in results:
                     if p and p.get("reports"):
                         papers.append(p)
                 _set_progress("papers_found", len(papers))
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.3)
 
         if len(papers) < 2:
             logger.warning("SciPost pairwise: not enough papers")
             return
 
+        # Phase 2: Extract PDFs — batch size 8 for speed
         _set_progress("phase", "extracting_pdfs")
         extracted = 0
-        for i in range(0, len(papers), 3):
+        for i in range(0, len(papers), 8):
             if not _is_running():
                 break
-            batch = papers[i:i + 3]
+            batch = papers[i:i + 8]
             tasks = []
             for paper in batch:
                 pdf_url = paper.get("pdf_url")
@@ -769,7 +771,7 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                     paper["categories"] = [paper.get("field", "Physics")]
                     extracted += 1
             _set_progress("pdfs_done", extracted)
-            await asyncio.sleep(0.6)
+            await asyncio.sleep(0.3)
 
         papers = [p for p in papers if p.get("full_text")]
         if len(papers) < 2:
@@ -782,14 +784,15 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
 
         logger.info(f"SciPost pairwise [synced]: {len(papers)} papers fetched, creating pairs for {dimensions}")
 
-        # Phase 2: For each dimension, create pairs using combinations and evaluate
+        # Phase 3: Collect ALL pairs across ALL dimensions first
         from itertools import combinations
+
+        all_eval_tasks = []  # list of (p1, s1, p2, s2, pair_key, dim) tuples
 
         for dim in dimensions:
             if not _is_running():
                 break
 
-            # Compute average score per paper for this dimension
             paper_scores = []
             for paper in papers:
                 dim_ratings = []
@@ -805,13 +808,11 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                 logger.warning(f"SciPost pairwise: not enough papers with {dim} ratings ({len(paper_scores)})")
                 continue
 
-            # Generate ALL valid pairs using combinations, filter near-ties
             all_pairs = []
             for (p1, s1), (p2, s2) in combinations(paper_scores, 2):
-                if abs(s1 - s2) >= 0.3:  # skip near-ties
+                if abs(s1 - s2) >= 0.3:
                     all_pairs.append((p1, s1, p2, s2))
 
-            # Deduplicate against existing pairs
             existing_keys = set()
             existing_docs = await db.scipost_pairwise_extract.find(
                 {"dimension": dim},
@@ -841,36 +842,38 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                     continue
                 available_pairs.append((p1, s1, p2, s2, key))
 
-            # Shuffle and take up to num_pairs_per_dim
             random.shuffle(available_pairs)
             dim_pairs = available_pairs[:num_pairs_per_dim]
 
             logger.info(
-                f"SciPost pairwise [{dim}]: {len(paper_scores)} papers -> {len(all_pairs)} valid combos -> {len(available_pairs)} new pairs -> {len(dim_pairs)} selected"
+                f"SciPost pairwise [{dim}]: {len(paper_scores)} papers -> {len(all_pairs)} valid combos -> {len(available_pairs)} new -> {len(dim_pairs)} selected"
             )
 
-            # Evaluate each pair with all 3 models
-            task_text = DIMENSION_PW_TASKS.get(dim, f"Which paper is better on {dim}?")
-            prompt_config = {
-                "system_prompt": "You are a physics peer reviewer. Compare two papers on a specific dimension. You must pick exactly one winner. Respond with valid JSON only.",
-                "user_prompt": (
-                    f"Compare these two physics papers on their {dim.upper()}.\n\n"
-                    "Paper 1: \"{paper1_title}\"\n{paper1_content}\n\n"
-                    "Paper 2: \"{paper2_title}\"\n{paper2_content}\n\n"
-                    f"{task_text}\n\n"
-                    "You MUST pick exactly one winner. Respond with JSON only:\n"
-                    "{{\"winner\": \"paper1\" or \"paper2\", \"reasoning\": \"brief explanation\"}}"
-                ),
-            }
-
             for p1, s1, p2, s2, pair_key in dim_pairs:
+                all_eval_tasks.append((p1, s1, p2, s2, pair_key, dim))
+
+        total_pairs = len(all_eval_tasks)
+        _set_progress("target", total_pairs)
+        logger.info(f"SciPost pairwise [synced]: {total_pairs} pairs queued, {parallel_agents} parallel agents")
+
+        # Phase 4: Evaluate ALL pairs in parallel with semaphore
+        semaphore = asyncio.Semaphore(parallel_agents)
+
+        async def _evaluate_one_pair(p1, s1, p2, s2, pair_key, dim):
+            """Evaluate a single pair: both abstract and extract in parallel."""
+            if not _is_running():
+                return
+
+            async with semaphore:
                 if not _is_running():
-                    break
+                    return
+
+                _pairs_done_counter["in_flight"] += 1
+                _set_progress("pairs_in_flight", _pairs_done_counter["in_flight"])
 
                 human_winner = "paper1" if s1 > s2 else "paper2"
                 pair_id = str(uuid.uuid4())
 
-                # Run all 3 models in parallel with random swap
                 model_tasks = []
                 for mi in TOURNAMENT_MODELS:
                     swapped = random.random() < 0.5
@@ -883,6 +886,19 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                         "full_text": paper.get("full_text"),
                         "categories": paper.get("categories") or [paper.get("field", "Physics")],
                     }
+
+                task_text = DIMENSION_PW_TASKS.get(dim, f"Which paper is better on {dim}?")
+                prompt_config = {
+                    "system_prompt": "You are a physics peer reviewer. Compare two papers on a specific dimension. You must pick exactly one winner. Respond with valid JSON only.",
+                    "user_prompt": (
+                        f"Compare these two physics papers on their {dim.upper()}.\n\n"
+                        "Paper 1: \"{paper1_title}\"\n{paper1_content}\n\n"
+                        "Paper 2: \"{paper2_title}\"\n{paper2_content}\n\n"
+                        f"{task_text}\n\n"
+                        "You MUST pick exactly one winner. Respond with JSON only:\n"
+                        "{{\"winner\": \"paper1\" or \"paper2\", \"reasoning\": \"brief explanation\"}}"
+                    ),
+                }
 
                 async def _eval_mode(abstract_only: bool):
                     coros = []
@@ -920,8 +936,11 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                             majority = best
                     return ai_results, majority
 
-                ai_results_extract, majority_extract = await _eval_mode(abstract_only=False)
-                ai_results_abs, majority_abs = await _eval_mode(abstract_only=True)
+                # Run BOTH abstract and extract evaluations in parallel (6 LLM calls simultaneously)
+                (ai_results_extract, majority_extract), (ai_results_abs, majority_abs) = await asyncio.gather(
+                    _eval_mode(abstract_only=False),
+                    _eval_mode(abstract_only=True),
+                )
 
                 paper1_doc = {
                     "submission_id": p1.get("submission_id", ""),
@@ -974,12 +993,18 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list):
                 await db.scipost_pairwise_extract.insert_one(doc_extract)
                 await db.scipost_pairwise.insert_one(doc_abs)
 
-                pairs_done += 1
-                _set_progress("pairs_done", pairs_done)
+                _pairs_done_counter["n"] += 1
+                _pairs_done_counter["in_flight"] -= 1
+                _set_progress("pairs_done", _pairs_done_counter["n"])
+                _set_progress("pairs_in_flight", _pairs_done_counter["in_flight"])
                 agrees = sum(1 for v in ai_results_extract.values() if v.get("winner") == human_winner)
-                logger.info(f"SciPost pw [synced] [{pairs_done}] {dim}: {agrees}/3 agree | gap={abs(s1-s2):.1f}")
+                logger.info(f"SciPost pw [synced] [{_pairs_done_counter['n']}/{total_pairs}] {dim}: {agrees}/3 agree | gap={abs(s1-s2):.1f}")
 
-        logger.info(f"SciPost pairwise [synced] complete: {pairs_done} pairs")
+        # Launch all pair evaluations concurrently (semaphore limits actual parallelism)
+        coros = [_evaluate_one_pair(p1, s1, p2, s2, pk, dim) for p1, s1, p2, s2, pk, dim in all_eval_tasks]
+        await asyncio.gather(*coros)
+
+        logger.info(f"SciPost pairwise [synced] complete: {_pairs_done_counter['n']} pairs")
     except Exception as e:
         logger.error(f"SciPost pairwise error: {e}")
     finally:
