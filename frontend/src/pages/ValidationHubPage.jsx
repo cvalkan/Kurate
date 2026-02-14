@@ -7,6 +7,7 @@ import {
 import PairwisePage from "./PairwisePage";
 import SciPostPage from "./SciPostPage";
 import SciPostPairwiseSection from "./SciPostPairwiseSection";
+import QeiosPairwiseSection from "./QeiosPairwiseSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
