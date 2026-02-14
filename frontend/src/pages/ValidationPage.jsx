@@ -318,15 +318,9 @@ function MultiModelStats({ datasetId, isAdmin }) {
         if (responses[i].data.status === "ok") result[m.id] = responses[i].data;
       });
       setDataByMode(result);
-      ]);
-      const result = {};
-      if (ext.data.status === "ok") result.extract = ext.data;
-      if (abs.data.status === "ok") result.abstract = abs.data;
-      if (pdf.data.status === "ok") result.full_pdf = pdf.data;
-      setDataByMode(result);
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [datasetId]);
+  }, [datasetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
