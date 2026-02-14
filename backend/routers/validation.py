@@ -550,6 +550,7 @@ class TournamentRequest(BaseModel):
     dataset_id: str
     num_matches: int = 500
     parallel: int = 30
+    abstract_only: bool = False
 
 
 @router.post("/run-tournament", dependencies=[Depends(verify_admin)])
