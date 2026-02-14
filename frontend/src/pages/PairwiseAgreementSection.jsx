@@ -8,8 +8,8 @@ import { toast } from "sonner";
 const API = process.env.REACT_APP_BACKEND_URL;
 function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
 
-const MODE_ORDER = ["abstract", "extract", "full_pdf", "ai_summary"];
-const MODE_LABELS = { abstract: "Abstract", extract: "Extract", full_pdf: "Full PDF", ai_summary: "AI Summary" };
+const MODE_ORDER = ["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"];
+const MODE_LABELS = { abstract: "Abstract", extract: "Extract", full_pdf: "Full PDF", ai_summary: "AI Summary", abstract_plus_summary: "Abstract + Summary" };
 
 function shortModel(mk) {
   if (!mk) return "?";
