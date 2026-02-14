@@ -102,7 +102,7 @@ export default function ValidationHubPage() {
   pairwiseDatasets.forEach(ds => {
     sectionMeta[`pw-h2h-${ds.dataset_id}`] = {
       title: `Pairwise — ${ds.name}`,
-      desc: `Apples-to-apples: AI agreement rates computed on the same paper pairs across Abstract, Extract, and Full PDF modes.`,
+      desc: `How often do different input formats (Abstract, Extract, Full PDF) and AI models agree with human expert judgments?`,
     };
   });
   if (activeDataset) {
