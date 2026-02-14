@@ -663,11 +663,12 @@ async def _pw_start(body: PairwiseFetchRequest, mode: str = "abstract"):
     if not valid_dims:
         return {"status": "error", "message": "Invalid dimensions"}
 
-    asyncio.create_task(_pw_run_synced(body.num_pairs_per_dim, valid_dims))
+    asyncio.create_task(_pw_run_synced(body.num_pairs_per_dim, valid_dims, body.parallel_agents))
     return {
         "status": "started",
         "num_pairs_per_dim": body.num_pairs_per_dim,
         "dimensions": valid_dims,
+        "parallel_agents": body.parallel_agents,
         "mode": "synced",
     }
 
