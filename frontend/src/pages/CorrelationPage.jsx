@@ -12,7 +12,6 @@ export default function CorrelationPage() {
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
   const [category, setCategory] = useState("");
-  const [valDatasets, setValDatasets] = useState([]);
 
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
@@ -20,10 +19,6 @@ export default function CorrelationPage() {
       setCategories([{ id: "", name: "All Categories" }, ...cats]);
       setCategory("");
     }).catch(() => setCategory(""));
-    // Fetch validation datasets for convergence
-    axios.get(`${API}/api/validation/datasets`).then(res => {
-      setValDatasets(res.data.datasets || []);
-    }).catch(() => {});
   }, []);
 
   const fetchData = useCallback(async () => {
