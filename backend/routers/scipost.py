@@ -672,9 +672,6 @@ async def _pw_start(body: PairwiseFetchRequest, mode: str = "abstract"):
     if not valid_dims:
         return {"status": "error", "message": "Invalid dimensions"}
 
-    await db.scipost_pairwise.delete_many({})
-    await db.scipost_pairwise_extract.delete_many({})
-
     asyncio.create_task(_pw_run_synced(body.num_pairs_per_dim, valid_dims))
     return {
         "status": "started",
