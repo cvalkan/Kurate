@@ -29,6 +29,7 @@ _crossref_cache = {"data": None, "ts": 0, "ttl": 300}
 
 _pw_abs_state = {"fetching": False, "running": False, "progress": {}}
 _pw_ext_state = {"fetching": False, "running": False, "progress": {}}
+_pw_summary_state = {"fetching": False, "running": False, "progress": {}}
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
