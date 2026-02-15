@@ -333,7 +333,7 @@ async def pw_ext_stop():
 
 
 async def _stop():
-    for st in (_pw_abs_state, _pw_ext_state):
+    for st in (_pw_abs_state, _pw_ext_state, _pw_summary_state):
         st["running"] = False
         st["fetching"] = False
     return {"status": "stopped", "mode": "synced"}
