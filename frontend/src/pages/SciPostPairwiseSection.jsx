@@ -354,6 +354,23 @@ export default function SciPostPairwiseSection() {
             );
           })}
 
+          {/* Inter-model agreement — per mode */}
+          {availableModes.map(mode => {
+            const modeData = dataByMode[mode];
+            if (!modeData?.inter_model || !Object.keys(modeData.inter_model).length) return null;
+            return (
+              <div key={`inter-${mode}`} className="border border-border rounded-lg p-4" data-testid={`pw-scipost-inter-${mode}`}>
+                <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                  <GitCompare className="h-4 w-4" /> Inter-Model Agreement ({MODE_LABELS[mode]})
+                </h2>
+                {Object.entries(modeData.inter_model).map(([k, s]) => {
+                  const [m1, m2] = k.split(" vs ");
+                  return <HBar key={k} rate={s.rate} label={`${shortModel(m1)} vs ${shortModel(m2)}`} sub={`${s.agree}/${s.total}`} color="bg-purple-400/70" />;
+                })}
+              </div>
+            );
+          })}
+
           {/* Methodology */}
           <div className="border border-border rounded-lg p-4 bg-secondary/10">
             <h3 className="text-sm font-medium mb-2">Methodology</h3>
