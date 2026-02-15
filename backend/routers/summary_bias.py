@@ -1,0 +1,408 @@
+"""
+Summary Bias Experiment — Does the LLM that wrote the summary bias the judge?
+
+Pipeline:
+1. Generate AI impact summaries for papers in a category using all 3 LLMs
+2. Run N random matches x 9 configurations (3 judges x 3 summary sources)
+3. Analyze pairwise match-level agreement and bias patterns
+"""
+import asyncio
+import uuid
+import random
+import time as _time
+from datetime import datetime, timezone
+from collections import defaultdict, Counter
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+
+from core.config import db, logger, TOURNAMENT_MODELS, DEFAULT_EVALUATION_PROMPT
+from core.auth import verify_admin
+from services.llm import generate_precomparison_impact_summary, compare_papers
+
+router = APIRouter(prefix="/api/summary-bias")
+
+_state = {"phase": "idle", "progress": {}}
+
+MODEL_SHORT = {
+    "anthropic:claude-opus-4-5-20251101": "Claude Opus",
+    "gemini:gemini-3-pro-preview": "Gemini 3",
+    "openai:gpt-5.2": "GPT 5.2",
+}
+
+
+def _mk(m):
+    return f"{m['provider']}:{m['model']}"
+
+
+def _short(mk):
+    return MODEL_SHORT.get(mk, mk.split(":")[1] if ":" in mk else mk)
+
+
+# ─── Full Pipeline ───────────────────────────────────────────────────────
+
+class PipelineRequest(BaseModel):
+    category: str = "q-bio.BM"
+    num_matches: int = 200
+    parallel: int = 20
+
+
+@router.post("/run-pipeline", dependencies=[Depends(verify_admin)])
+async def run_pipeline(body: PipelineRequest):
+    if _state["phase"] != "idle":
+        return {"status": "already_running", "phase": _state["phase"], "progress": _state["progress"]}
+    asyncio.create_task(_full_pipeline(body.category, body.num_matches, body.parallel))
+    return {"status": "started", "category": body.category, "num_matches": body.num_matches}
+
+
+async def _full_pipeline(category: str, num_matches: int, parallel: int):
+    try:
+        # Phase 1: Generate summaries
+        await _do_generate_summaries(category, parallel)
+        # Phase 2: Run experiment
+        await _do_run_experiment(category, num_matches, parallel)
+    except Exception as e:
+        logger.error(f"Summary bias pipeline error: {e}")
+    finally:
+        _state["phase"] = "idle"
+        _state["progress"] = {}
+
+
+# ─── Phase 1: Generate Summaries ─────────────────────────────────────────
+
+async def _do_generate_summaries(category: str, parallel: int):
+    _state["phase"] = "generating_summaries"
+
+    papers = await db.papers.find(
+        {"categories": category},
+        {"_id": 0}
+    ).to_list(500)
+
+    total = len(papers) * len(TOURNAMENT_MODELS)
+    completed = 0
+    _state["progress"] = {"completed": 0, "total": total, "category": category}
+
+    sem = asyncio.Semaphore(parallel)
+
+    async def gen_one(paper, model_info):
+        nonlocal completed
+        mk = _mk(model_info)
+
+        existing = await db.summary_bias_summaries.find_one(
+            {"paper_id": paper["id"], "model_key": mk},
+            {"_id": 0, "summary_text": 1}
+        )
+        if existing and existing.get("summary_text"):
+            completed += 1
+            _state["progress"]["completed"] = completed
+            return
+
+        async with sem:
+            try:
+                result = await generate_precomparison_impact_summary(paper, model_override=model_info)
+                if result:
+                    await db.summary_bias_summaries.update_one(
+                        {"paper_id": paper["id"], "model_key": mk},
+                        {"$set": {
+                            "paper_id": paper["id"],
+                            "category": category,
+                            "model_key": mk,
+                            "provider": model_info["provider"],
+                            "model": model_info["model"],
+                            "summary_text": result["summary"],
+                            "word_count": result.get("word_count", 0),
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        }},
+                        upsert=True
+                    )
+                else:
+                    logger.warning(f"Summary gen failed: {paper['title'][:40]} / {mk}")
+            except Exception as e:
+                logger.warning(f"Summary gen error: {paper['title'][:40]} / {mk}: {e}")
+
+            completed += 1
+            _state["progress"]["completed"] = completed
+            if completed % 10 == 0:
+                logger.info(f"Summary bias summaries: {completed}/{total}")
+
+    tasks = [gen_one(p, m) for p in papers for m in TOURNAMENT_MODELS]
+    await asyncio.gather(*tasks)
+    logger.info(f"Summary bias: generated {completed} summaries for {len(papers)} papers")
+
+
+# ─── Phase 2: Run Experiment ─────────────────────────────────────────────
+
+async def _do_run_experiment(category: str, num_matches: int, parallel: int):
+    _state["phase"] = "running_experiment"
+
+    papers = await db.papers.find(
+        {"categories": category},
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1}
+    ).to_list(500)
+    paper_lookup = {p["id"]: p for p in papers}
+    paper_ids = set(paper_lookup.keys())
+
+    # Load all summaries into a lookup
+    summaries_raw = await db.summary_bias_summaries.find(
+        {"category": category},
+        {"_id": 0, "paper_id": 1, "model_key": 1, "summary_text": 1}
+    ).to_list(10000)
+    sum_lookup = {(s["paper_id"], s["model_key"]): s["summary_text"] for s in summaries_raw}
+
+    # Get existing matches for this category
+    existing_matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category},
+        {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+    ).to_list(100000)
+
+    # Filter to matches where both papers have all 3 summaries
+    model_keys = [_mk(m) for m in TOURNAMENT_MODELS]
+    valid = [
+        m for m in existing_matches
+        if m["paper1_id"] in paper_ids and m["paper2_id"] in paper_ids
+        and all((m["paper1_id"], mk) in sum_lookup and (m["paper2_id"], mk) in sum_lookup for mk in model_keys)
+    ]
+
+    selected = random.sample(valid, min(num_matches, len(valid))) if len(valid) > num_matches else valid
+    logger.info(f"Summary bias experiment: {len(selected)} matches selected from {len(valid)} valid")
+
+    # Build all 9 configs
+    configs = [(j, s) for j in TOURNAMENT_MODELS for s in TOURNAMENT_MODELS]
+    total_work = len(selected) * len(configs)
+    completed = 0
+    _state["progress"] = {"completed": 0, "total": total_work, "category": category}
+
+    # Check what's already done
+    done_set = set()
+    async for doc in db.summary_bias_matches.find(
+        {"category": category, "completed": True},
+        {"_id": 0, "original_match_id": 1, "judge_key": 1, "summary_key": 1}
+    ):
+        done_set.add((doc["original_match_id"], doc["judge_key"], doc["summary_key"]))
+
+    experiment_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+    sem = asyncio.Semaphore(parallel)
+    prompt_config = DEFAULT_EVALUATION_PROMPT
+
+    async def run_one(match, judge_model, summary_model):
+        nonlocal completed
+        jk = _mk(judge_model)
+        sk = _mk(summary_model)
+
+        if (match["id"], jk, sk) in done_set:
+            completed += 1
+            _state["progress"]["completed"] = completed
+            return
+
+        p1_id, p2_id = match["paper1_id"], match["paper2_id"]
+        p1 = {**paper_lookup[p1_id], "ai_impact_summary": sum_lookup.get((p1_id, sk), "")}
+        p2 = {**paper_lookup[p2_id], "ai_impact_summary": sum_lookup.get((p2_id, sk), "")}
+
+        swapped = random.random() < 0.5
+        pa, pb = (p2, p1) if swapped else (p1, p2)
+
+        async with sem:
+            doc = {
+                "id": str(uuid.uuid4()),
+                "experiment_id": experiment_id,
+                "category": category,
+                "original_match_id": match["id"],
+                "paper1_id": p1_id,
+                "paper2_id": p2_id,
+                "original_winner_id": match["winner_id"],
+                "judge_key": jk,
+                "summary_key": sk,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            try:
+                result = await compare_papers(
+                    pa, pb, prompt_config,
+                    content_mode="abstract_plus_summary",
+                    model_override=judge_model,
+                )
+                winner_key = result.get("winner", "paper1")
+                if swapped:
+                    winner_id = p2_id if winner_key == "paper1" else p1_id
+                else:
+                    winner_id = p1_id if winner_key == "paper1" else p2_id
+
+                doc.update({
+                    "winner_id": winner_id,
+                    "reasoning": result.get("reasoning", ""),
+                    "completed": True,
+                    "failed": False,
+                })
+            except Exception as e:
+                doc.update({"winner_id": None, "completed": False, "failed": True, "error": str(e)[:200]})
+
+            await db.summary_bias_matches.insert_one(doc)
+            completed += 1
+            _state["progress"]["completed"] = completed
+            if completed % 100 == 0:
+                logger.info(f"Summary bias experiment: {completed}/{total_work}")
+
+    work = [(m, j, s) for m in selected for j, s in configs]
+    random.shuffle(work)
+    await asyncio.gather(*(run_one(m, j, s) for m, j, s in work))
+    logger.info(f"Summary bias experiment complete: {completed}/{total_work}")
+
+
+# ─── Status ──────────────────────────────────────────────────────────────
+
+@router.get("/status")
+async def get_status(category: str = Query("q-bio.BM")):
+    summaries = await db.summary_bias_summaries.count_documents({"category": category})
+    matches_ok = await db.summary_bias_matches.count_documents({"category": category, "completed": True})
+    matches_fail = await db.summary_bias_matches.count_documents({"category": category, "failed": True})
+
+    pipeline = [
+        {"$match": {"category": category}},
+        {"$group": {"_id": "$model_key", "count": {"$sum": 1}}}
+    ]
+    per_model = {r["_id"]: r["count"] async for r in db.summary_bias_summaries.aggregate(pipeline)}
+
+    return {
+        "category": category,
+        "summaries_generated": summaries,
+        "summaries_per_model": per_model,
+        "matches_completed": matches_ok,
+        "matches_failed": matches_fail,
+        "phase": _state["phase"],
+        "progress": _state["progress"],
+    }
+
+
+# ─── Results ─────────────────────────────────────────────────────────────
+
+@router.get("/results")
+async def get_results(category: str = Query("q-bio.BM")):
+    matches = await db.summary_bias_matches.find(
+        {"category": category, "completed": True, "failed": {"$ne": True}},
+        {"_id": 0}
+    ).to_list(100000)
+
+    if not matches:
+        return {"status": "no_data"}
+
+    # Group by original_match_id -> {config_key: winner_id}
+    by_match = defaultdict(dict)
+    original_winners = {}
+    for m in matches:
+        ck = f"{m['judge_key']}|{m['summary_key']}"
+        by_match[m["original_match_id"]][ck] = m["winner_id"]
+        if m["original_match_id"] not in original_winners:
+            original_winners[m["original_match_id"]] = m.get("original_winner_id")
+
+    config_keys = sorted({ck for configs in by_match.values() for ck in configs})
+    full = {mid: c for mid, c in by_match.items() if len(c) >= len(config_keys)}
+
+    if len(full) < 5:
+        return {"status": "insufficient_data", "full_matches": len(full), "partial_matches": len(by_match)}
+
+    n = len(full)
+    judges = sorted({ck.split("|")[0] for ck in config_keys})
+    summarizers = sorted({ck.split("|")[1] for ck in config_keys})
+
+    # ── Consensus (majority vote across all 9 configs) ──
+    consensus = {}
+    for mid, configs in full.items():
+        c = Counter(configs.values())
+        best, cnt = c.most_common(1)[0]
+        if cnt > len(configs) / 2:
+            consensus[mid] = best
+
+    # ── Per-config: agreement with original + consensus ──
+    vs_original = {}
+    vs_consensus = {}
+    for ck in config_keys:
+        orig_agree = orig_total = cons_agree = cons_total = 0
+        for mid, configs in full.items():
+            if ck not in configs:
+                continue
+            if mid in original_winners and original_winners[mid]:
+                orig_total += 1
+                if configs[ck] == original_winners[mid]:
+                    orig_agree += 1
+            if mid in consensus:
+                cons_total += 1
+                if configs[ck] == consensus[mid]:
+                    cons_agree += 1
+        vs_original[ck] = round(orig_agree / max(orig_total, 1) * 100, 1)
+        vs_consensus[ck] = round(cons_agree / max(cons_total, 1) * 100, 1)
+
+    # ── 3x3 grids ──
+    def build_grid(data_map):
+        return [[data_map.get(f"{j}|{s}", 0) for s in summarizers] for j in judges]
+
+    grid_consensus = build_grid(vs_consensus)
+    grid_original = build_grid(vs_original)
+
+    # ── Pairwise inter-config agreement ──
+    pairwise = {}
+    for i, c1 in enumerate(config_keys):
+        for c2 in config_keys[i + 1:]:
+            agree = sum(1 for configs in full.values() if configs.get(c1) == configs.get(c2))
+            pairwise[f"{c1} vs {c2}"] = {"agree": agree, "total": n, "rate": round(agree / n * 100, 1)}
+
+    # ── Self-bias: does a judge agree more with its own summaries? ──
+    self_bias = {}
+    for j in judges:
+        own_ck = f"{j}|{j}"
+        own_rate = vs_consensus.get(own_ck, 0)
+        other_rates = [vs_consensus.get(f"{j}|{s}", 0) for s in summarizers if s != j]
+        avg_other = round(sum(other_rates) / max(len(other_rates), 1), 1)
+        self_bias[_short(j)] = {
+            "own_summary_rate": own_rate,
+            "other_summary_avg": avg_other,
+            "bias": round(own_rate - avg_other, 1),
+        }
+
+    # ── Judge consistency: given same summary, how often do judges agree? ──
+    judge_consistency = {}
+    for s in summarizers:
+        rates = []
+        for i, j1 in enumerate(judges):
+            for j2 in judges[i + 1:]:
+                ck1, ck2 = f"{j1}|{s}", f"{j2}|{s}"
+                agree = sum(1 for c in full.values() if c.get(ck1) == c.get(ck2))
+                rates.append(round(agree / n * 100, 1))
+        judge_consistency[_short(s)] = {
+            "avg_agreement": round(sum(rates) / max(len(rates), 1), 1),
+            "pairs": rates,
+        }
+
+    # ── Summary influence: given same judge, how often does summary choice change the outcome? ──
+    summary_influence = {}
+    for j in judges:
+        rates = []
+        for i, s1 in enumerate(summarizers):
+            for s2 in summarizers[i + 1:]:
+                ck1, ck2 = f"{j}|{s1}", f"{j}|{s2}"
+                agree = sum(1 for c in full.values() if c.get(ck1) == c.get(ck2))
+                rates.append(round(agree / n * 100, 1))
+        summary_influence[_short(j)] = {
+            "avg_consistency": round(sum(rates) / max(len(rates), 1), 1),
+            "pairs": rates,
+        }
+
+    # ── Full agreement (all 9 configs agree) ──
+    unanimous = sum(1 for c in full.values() if len(set(c.values())) == 1)
+
+    return {
+        "status": "ok",
+        "category": category,
+        "num_matches": n,
+        "total_evaluations": len(matches),
+        "judges": [_short(j) for j in judges],
+        "summarizers": [_short(s) for s in summarizers],
+        "judge_keys": judges,
+        "summarizer_keys": summarizers,
+        "grid_consensus": grid_consensus,
+        "grid_original": grid_original,
+        "self_bias": self_bias,
+        "judge_consistency": judge_consistency,
+        "summary_influence": summary_influence,
+        "unanimous_matches": unanimous,
+        "unanimous_rate": round(unanimous / n * 100, 1),
+        "consensus_matches": len(consensus),
+        "consensus_rate": round(len(consensus) / n * 100, 1),
+    }
