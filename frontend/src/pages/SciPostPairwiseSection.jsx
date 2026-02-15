@@ -323,10 +323,12 @@ export default function SciPostPairwiseSection() {
             );
           })}
 
-          {/* Score gap breakdown */}
-          {primaryData?.by_dimension && (() => {
+          {/* Score gap breakdown — per mode */}
+          {availableModes.map(mode => {
+            const modeData = dataByMode[mode];
+            if (!modeData?.by_dimension) return null;
             const totals = { small: { agree: 0, total: 0 }, medium: { agree: 0, total: 0 }, large: { agree: 0, total: 0 } };
-            Object.values(primaryData.by_dimension).forEach(dim => {
+            Object.values(modeData.by_dimension).forEach(dim => {
               Object.entries(dim.by_gap || {}).forEach(([k, v]) => {
                 if (totals[k]) { totals[k].agree += v.agree || 0; totals[k].total += v.total || 0; }
               });
@@ -334,9 +336,9 @@ export default function SciPostPairwiseSection() {
             const hasGap = Object.values(totals).some(g => g.total > 0);
             if (!hasGap) return null;
             return (
-              <div className="border border-border rounded-lg p-4" data-testid="pw-scipost-gap">
+              <div key={`gap-${mode}`} className="border border-border rounded-lg p-4" data-testid={`pw-scipost-gap-${mode}`}>
                 <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                  <BarChart3 className="h-4 w-4" /> By Score Gap ({MODE_LABELS[primaryMode]})
+                  <BarChart3 className="h-4 w-4" /> By Score Gap ({MODE_LABELS[mode]})
                 </h2>
                 {[
                   { key: "small", label: "Small (\u22641.0)" },
@@ -350,7 +352,7 @@ export default function SciPostPairwiseSection() {
                 })}
               </div>
             );
-          })()}
+          })}
 
           {/* Methodology */}
           <div className="border border-border rounded-lg p-4 bg-secondary/10">
