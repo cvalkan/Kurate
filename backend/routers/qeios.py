@@ -717,7 +717,7 @@ async def _pw_summary_pipeline(parallel_agents: int = 5):
             _pw_summary_state["progress"]["phase"] = "generating_summaries"
             _pw_summary_state["fetching"] = False
             summary_done = 0
-            semaphore = asyncio.Semaphore(3)  # conservative for LLM calls
+            semaphore = asyncio.Semaphore(8)  # 8 concurrent LLM calls for faster throughput
 
             async def _gen_summary(qid):
                 nonlocal summary_done
