@@ -257,29 +257,34 @@ export default function QeiosPairwiseSection() {
             </ResponsiveContainer>
           </div>
 
-          {/* Per-domain breakdown cards */}
-          {primaryData?.by_domain && domainList.length > 0 && (
-            <div className="border border-border rounded-lg p-4" data-testid="pw-qeios-domains">
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <Layers className="h-4 w-4" /> Agreement by Domain ({MODE_LABELS[primaryMode]})
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {domainList.map(dom => {
-                  const d = primaryData.by_domain[dom];
-                  if (!d) return null;
-                  const rate = d.majority.rate;
-                  const color = rate >= 70 ? "text-green-700" : rate >= 50 ? "text-amber-700" : "text-red-700";
-                  return (
-                    <div key={dom} className="p-3 border border-border rounded-lg text-center" data-testid={`domain-${dom.replace(/\s+/g, "-").toLowerCase()}`}>
-                      <div className="text-[10px] text-muted-foreground mb-1">{dom}</div>
-                      <div className={`text-xl font-bold font-mono ${color}`}>{rate}%</div>
-                      <div className="text-[10px] text-muted-foreground">{d.majority.agree}/{d.majority.total}</div>
-                    </div>
-                  );
-                })}
+          {/* Per-domain breakdown cards — per mode */}
+          {availableModes.map(mode => {
+            const modeData = dataByMode[mode];
+            const modeDomains = modeData?.by_domain ? Object.keys(modeData.by_domain).filter(d => d !== "Unknown") : [];
+            if (!modeDomains.length) return null;
+            return (
+              <div key={`dom-${mode}`} className="border border-border rounded-lg p-4" data-testid={`pw-qeios-domains-${mode}`}>
+                <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                  <Layers className="h-4 w-4" /> Agreement by Domain ({MODE_LABELS[mode]})
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {modeDomains.map(dom => {
+                    const d = modeData.by_domain[dom];
+                    if (!d) return null;
+                    const rate = d.majority.rate;
+                    const color = rate >= 70 ? "text-green-700" : rate >= 50 ? "text-amber-700" : "text-red-700";
+                    return (
+                      <div key={dom} className="p-3 border border-border rounded-lg text-center">
+                        <div className="text-[10px] text-muted-foreground mb-1">{dom}</div>
+                        <div className={`text-xl font-bold font-mono ${color}`}>{rate}%</div>
+                        <div className="text-[10px] text-muted-foreground">{d.majority.agree}/{d.majority.total}</div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })}
 
           {/* Per-model agreement chart */}
           {modelList.length > 0 && (
