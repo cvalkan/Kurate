@@ -140,6 +140,12 @@ async def startup():
         await db.pairwise_comparisons.create_index("id", unique=True)
         await db.pairwise_comparisons.create_index([("reviewer", 1), ("source", 1)])
         await db.pairwise_comparisons.create_index("domain")
+        # Summary bias experiment indexes
+        await db.summary_bias_summaries.create_index([("paper_id", 1), ("model_key", 1)], unique=True)
+        await db.summary_bias_summaries.create_index("category")
+        await db.summary_bias_matches.create_index("id", unique=True)
+        await db.summary_bias_matches.create_index([("category", 1), ("completed", 1)])
+        await db.summary_bias_matches.create_index([("original_match_id", 1), ("judge_key", 1), ("summary_key", 1)])
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
