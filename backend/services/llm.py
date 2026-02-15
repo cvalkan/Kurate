@@ -521,6 +521,13 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
         p2_abs = paper2.get('abstract', '')[:1500]
         p2_sum = paper2.get('ai_impact_summary', '')
         p2_content = f"Abstract: {p2_abs}\n\nAI Impact Assessment:\n{p2_sum}" if p2_sum else f"Abstract: {p2_abs}"
+    elif content_mode == "abstract_plus_impact":
+        p1_abs = paper1.get('abstract', '')[:1500]
+        p1_imp = paper1.get('impact_statement', '')
+        p1_content = f"Abstract: {p1_abs}\n\nEditorial Impact Statement: {p1_imp}" if p1_imp else f"Abstract: {p1_abs}"
+        p2_abs = paper2.get('abstract', '')[:1500]
+        p2_imp = paper2.get('impact_statement', '')
+        p2_content = f"Abstract: {p2_abs}\n\nEditorial Impact Statement: {p2_imp}" if p2_imp else f"Abstract: {p2_abs}"
     else:
         p1_content = _build_paper_content(paper1, char_limit)
         p2_content = _build_paper_content(paper2, char_limit)
