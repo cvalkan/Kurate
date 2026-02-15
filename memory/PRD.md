@@ -64,6 +64,19 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - Added graph connectivity diagnostic to convergence API + frontend indicator
 
 ## Recent Changes (Feb 15, 2026)
+### Summary Bias Experiment (NEW)
+- Built full pipeline to test whether the LLM that wrote a summary biases the judge
+- Category: Biomolecules (q-bio.BM), 50 papers
+- Phase 1: Generated 150 AI impact summaries (50 papers × 3 models: Claude Opus, Gemini 3, GPT 5.2)
+- Phase 2: Ran 200 matches × 9 configurations (3 judges × 3 summary sources) = 1,800 evaluations
+- Results show mild self-bias: Claude Opus +4.5pp, GPT 5.2 +2.2pp, Gemini 3 -2.5pp
+- Claude summaries produce highest judge consistency (85.3% inter-judge agreement)
+- GPT 5.2 is most consistent judge (83.0% consistency across summary sources)
+- 47.5% of matches had all 9 configs agree unanimously
+- New collections: `summary_bias_summaries`, `summary_bias_matches`
+- Frontend: New "Experiments" section in Validation Hub with 3×3 heatmaps, self-bias cards, consistency bars
+
+### Previous session
 - Removed ResearchHub-100 (12 disconnected components, poor convergence)
 - Created `researchhub-62` dataset: ≥2 reviews per paper, connected, 62 papers, 918 AI matches
 - Created `researchhub-50` dataset: densest connected subset, 50 papers, 767 AI matches
@@ -82,6 +95,8 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - Per-dimension results (Abstract + Summary): Validity 62.9%, Significance 51%, Originality 50%, Clarity 42.5%
 
 ## Key Files
+- `backend/routers/summary_bias.py` — Summary bias experiment pipeline and results
+- `frontend/src/pages/SummaryBiasSection.jsx` — Summary bias results UI
 - `backend/routers/validation.py` — Core validation, convergence (now with graph connectivity + expert count)
 - `frontend/src/components/ConvergenceSection.jsx` — Convergence charts with connectivity + expert indicator
 - `backend/services/rh_scraper.py` — ResearchHub API scraper
