@@ -307,37 +307,42 @@ export default function QeiosPairwiseSection() {
             </div>
           )}
 
-          {/* Model x Domain table */}
-          {primaryData?.by_domain && domainList.length > 0 && (
-            <div className="border border-border rounded-lg p-4" data-testid="pw-qeios-domain-table">
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <BarChart3 className="h-4 w-4" /> Model x Domain ({MODE_LABELS[primaryMode]})
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-2 px-2">Model</th>
-                      {domainList.map(d => <th key={d} className="text-center py-2 px-2">{d}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modelList.map(mk => (
-                      <tr key={mk} className="border-b border-border/30">
-                        <td className="py-2 px-2 font-medium">{shortModel(mk)}</td>
-                        {domainList.map(dom => {
-                          const s = primaryData.by_domain[dom]?.by_model?.[mk];
-                          if (!s) return <td key={dom} className="text-center text-muted-foreground">&mdash;</td>;
-                          const clr = s.rate >= 70 ? "text-green-600" : s.rate >= 50 ? "text-amber-600" : "text-red-600";
-                          return <td key={dom} className={`text-center font-mono ${clr}`}>{s.rate}%</td>;
-                        })}
+          {/* Model x Domain table — per mode */}
+          {availableModes.map(mode => {
+            const modeData = dataByMode[mode];
+            const modeDomains = modeData?.by_domain ? Object.keys(modeData.by_domain).filter(d => d !== "Unknown") : [];
+            if (!modeDomains.length) return null;
+            return (
+              <div key={`tbl-${mode}`} className="border border-border rounded-lg p-4" data-testid={`pw-qeios-domain-table-${mode}`}>
+                <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                  <BarChart3 className="h-4 w-4" /> Model x Domain ({MODE_LABELS[mode]})
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 px-2">Model</th>
+                        {modeDomains.map(d => <th key={d} className="text-center py-2 px-2">{d}</th>)}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {modelList.map(mk => (
+                        <tr key={mk} className="border-b border-border/30">
+                          <td className="py-2 px-2 font-medium">{shortModel(mk)}</td>
+                          {modeDomains.map(dom => {
+                            const s = modeData.by_domain[dom]?.by_model?.[mk];
+                            if (!s) return <td key={dom} className="text-center text-muted-foreground">&mdash;</td>;
+                            const clr = s.rate >= 70 ? "text-green-600" : s.rate >= 50 ? "text-amber-600" : "text-red-600";
+                            return <td key={dom} className={`text-center font-mono ${clr}`}>{s.rate}%</td>;
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })}
 
           {/* Score gap breakdown */}
           {primaryData?.by_gap && Object.values(primaryData.by_gap).some(g => g.total > 0) && (
