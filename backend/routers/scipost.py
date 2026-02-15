@@ -595,6 +595,7 @@ async def reset():
 
 _pw_state = {"fetching": False, "running": False, "progress": {}}
 _pw_extract_state = {"fetching": False, "running": False, "progress": {}}
+_pw_summary_state = {"fetching": False, "running": False, "progress": {}}
 
 
 def _get_pw_context(mode: str = "abstract") -> dict:
@@ -604,6 +605,13 @@ def _get_pw_context(mode: str = "abstract") -> dict:
             "collection": db.scipost_pairwise_extract,
             "use_extraction": True,
             "mode": "extract",
+        }
+    if mode == "abstract_plus_summary":
+        return {
+            "state": _pw_summary_state,
+            "collection": db.scipost_pairwise_summary,
+            "use_extraction": False,
+            "mode": "abstract_plus_summary",
         }
     return {
         "state": _pw_state,
