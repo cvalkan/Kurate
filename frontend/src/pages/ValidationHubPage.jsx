@@ -187,6 +187,7 @@ export default function ValidationHubPage() {
             return ds ? <PairwiseAgreementSection key={ds.dataset_id} datasetId={ds.dataset_id} datasetName={ds.name} /> : null;
           })()}
           {selected === "si-scipost" && <SciPostPage embedded />}
+          {selected === "exp-summary-bias" && <SummaryBiasSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
