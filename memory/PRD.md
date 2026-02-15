@@ -74,6 +74,13 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - Rebuilt frontend with correct REACT_APP_BACKEND_URL (was serving stale build)
 - Previous: Expanded ResearchHub to 4 pairs/reviewer, human pairwise ground truth, score gap chart
 
+## SciPost Pairwise
+- Restructured to match other pairwise views (bar charts, dimension cards, per-model chart)
+- Added Abstract + Summary mode with full-text-based Claude Opus 4.5 AI impact summaries
+- 33 papers, 872 pairs per mode, 3 input formats (Abstract, Extract, Abstract + Summary)
+- Full text obtained via arXiv PDFs for all 33 papers
+- Per-dimension results (Abstract + Summary): Validity 62.9%, Significance 51%, Originality 50%, Clarity 42.5%
+
 ## Key Files
 - `backend/routers/validation.py` — Core validation, convergence (now with graph connectivity + expert count)
 - `frontend/src/components/ConvergenceSection.jsx` — Convergence charts with connectivity + expert indicator
