@@ -42,6 +42,17 @@ Build a comprehensive system for validating and comparing the performance of AI 
   - Convergence: ρ ~0.25 (lower than RH-50 due to sparser graph)
 - **Key insight**: ≥2 review constraint reduces graph density, weakening human ground truth ranking
 
+## eLife Neuroscience (New Dataset)
+- **100 papers**, all Neuroscience, from eLife's structured editorial assessments
+- **Significance score** as ground truth (useful→landmark, 4 active levels in subset)
+  - Strength excluded: measures methodological rigor unassessable from abstracts alone
+- 53 editors, fully connected graph, **31.6% density**, avg degree 31.3 (min 20)
+- **1,590 human discriminative pairs** from editor significance judgments
+- **Tournament results (1,499 AI matches, 30 avg/paper)**:
+  - Spearman ρ = 0.276, AI vs Expert: 64.9%
+  - Convergence: ρ rises from 0.17 → 0.28 (upward trend, limited by 4-level granularity)
+- **Key insight**: Coarse significance scale (only 4 levels) limits ranking precision — many papers share same label, weakening ground truth ranking compared to finer-grained review scores
+
 ## Graph Connectivity Analysis
 - **ResearchHub-100** had 12 disconnected components → flat convergence (ρ ≈ 0.2)
 - **ResearchHub-50** is fully connected → meaningful convergence to ρ ≈ 0.47
