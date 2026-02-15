@@ -1659,6 +1659,43 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     # modes_compared = modes that have results
     modes_with_results = [m for m in available_modes if m in results]
 
+    # Score gap breakdown: AI agreement rate by expert score difference
+    # Only meaningful for datasets with numeric scores (1-5 or similar)
+    score_gap = {}
+    paper_lookup = {p["id"]: p for p in papers}
+    for mode in modes_with_results:
+        ai_map = mode_ai_pairs.get(mode, {})
+        pair_set = common_pairs if mode in core_modes else (common_pairs & set(ai_map.keys()))
+        buckets = {}  # gap_label -> {agree, total}
+        for exp, ratings in expert_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    ra, rb = ratings[a], ratings[b]
+                    if ra == rb:
+                        continue
+                    pair = tuple(sorted([a, b]))
+                    if pair not in pair_set or pair not in ai_map:
+                        continue
+                    gap = abs(ra - rb)
+                    if gap <= 1:
+                        label = "small"
+                    elif gap <= 2:
+                        label = "medium"
+                    else:
+                        label = "large"
+                    if label not in buckets:
+                        buckets[label] = {"agree": 0, "total": 0}
+                    buckets[label]["total"] += 1
+                    expert_winner = a if ra > rb else b
+                    if ai_map[pair] == expert_winner:
+                        buckets[label]["agree"] += 1
+        for label in buckets:
+            buckets[label]["rate"] = round(buckets[label]["agree"] / max(buckets[label]["total"], 1) * 100, 1)
+        if buckets:
+            score_gap[mode] = buckets
+
     return {
         "status": "ok",
         "common_pairs": len(common_pairs),
@@ -1668,6 +1705,7 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
         "per_model": per_model,
         "ai_majority_vs_expert": ai_majority_vs_expert,
         "mode_disagreements": mode_disagreements,
+        "score_gap": score_gap,
     }
 
 
