@@ -170,6 +170,11 @@ async def pw_ext_status():
     return await _pw_status("extract")
 
 
+@router.get("/pairwise-summary/status")
+async def pw_summary_status():
+    return await _pw_status("abstract_plus_summary")
+
+
 async def _pw_status(mode: str):
     ctx = _get_ctx(mode)
     coll = ctx["collection"]
