@@ -344,19 +344,23 @@ export default function QeiosPairwiseSection() {
             );
           })}
 
-          {/* Score gap breakdown */}
-          {primaryData?.by_gap && Object.values(primaryData.by_gap).some(g => g.total > 0) && (
-            <div className="border border-border rounded-lg p-4" data-testid="pw-qeios-gap">
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <BarChart3 className="h-4 w-4" /> By Score Gap ({MODE_LABELS[primaryMode]})
-              </h2>
-              {GAP_LABELS.map(gap => {
-                const g = primaryData.by_gap?.[gap.key];
-                if (!g || g.total === 0) return null;
-                return <HBar key={gap.key} rate={g.rate} label={gap.label} sub={`${g.agree}/${g.total}`} />;
-              })}
-            </div>
-          )}
+          {/* Score gap breakdown — per mode */}
+          {availableModes.map(mode => {
+            const modeData = dataByMode[mode];
+            if (!modeData?.by_gap || !Object.values(modeData.by_gap).some(g => g.total > 0)) return null;
+            return (
+              <div key={`gap-${mode}`} className="border border-border rounded-lg p-4" data-testid={`pw-qeios-gap-${mode}`}>
+                <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                  <BarChart3 className="h-4 w-4" /> By Score Gap ({MODE_LABELS[mode]})
+                </h2>
+                {GAP_LABELS.map(gap => {
+                  const g = modeData.by_gap?.[gap.key];
+                  if (!g || g.total === 0) return null;
+                  return <HBar key={gap.key} rate={g.rate} label={gap.label} sub={`${g.agree}/${g.total}`} />;
+                })}
+              </div>
+            );
+          })}
 
           {/* Inter-model agreement */}
           {primaryData?.inter_model && Object.keys(primaryData.inter_model).length > 0 && (
