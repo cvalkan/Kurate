@@ -4,7 +4,7 @@ import { TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#22c55e"];
+const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#22c55e", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1"];
 const TOPK_COLORS = { top_3: "#ef4444", top_5: "#f59e0b", top_10: "#3b82f6", top_20: "#8b5cf6" };
 const METRICS = [
   { id: "spearman", label: "Spearman \u03C1" },
