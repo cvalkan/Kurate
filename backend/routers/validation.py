@@ -1301,6 +1301,12 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         "ground_truth": "human_pairwise",
         "top_k_values": top_k_values,
         "curve": curve,
+        "graph_connectivity": {
+            "components": len(h_components),
+            "largest_component": h_largest_component,
+            "component_sizes": h_component_sizes[:10],
+            "is_connected": len(h_components) == 1,
+        },
     }
 
 
