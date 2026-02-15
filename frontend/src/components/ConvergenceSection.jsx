@@ -40,7 +40,6 @@ export function ValidationConvergence({ datasets }) {
     { id: "extract", label: "Extract" },
     { id: "full_pdf", label: "Full PDF" },
     { id: "abstract_plus_summary", label: "Abstract + Summary" },
-    { id: "abstract_plus_impact", label: "Abstract + Impact" },
   ];
 
   useEffect(() => {
