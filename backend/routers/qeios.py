@@ -209,45 +209,57 @@ async def _pw_results(mode: str):
 
     total = len(pairs)
 
-    # Per-model agreement
-    model_stats = defaultdict(lambda: {"agree": 0, "total": 0})
-    overall_models = defaultdict(lambda: {"agree": 0, "total": 0})
-    for p in pairs:
-        hw = p.get("human_winner")
-        for mk, res in p.get("ai_results", {}).items():
-            if res.get("winner"):
-                model_stats[mk]["total"] += 1
-                overall_models[mk]["total"] += 1
-                if res["winner"] == hw:
-                    model_stats[mk]["agree"] += 1
-                    overall_models[mk]["agree"] += 1
-
     def _rate(a, t):
         return round(a / max(t, 1) * 100, 1)
 
-    # Majority vote
-    maj_agree = sum(1 for p in pairs if p.get("ai_majority") == p["human_winner"])
-    maj_total = sum(1 for p in pairs if p.get("ai_majority"))
+    # Per-domain stats (with per-model + per-gap breakdown, like SciPost by_dimension)
+    domain_stats = defaultdict(lambda: {
+        "maj_agree": 0, "maj_total": 0,
+        "models": defaultdict(lambda: {"agree": 0, "total": 0}),
+        "gaps": defaultdict(lambda: {"agree": 0, "total": 0}),
+    })
+    overall_models = defaultdict(lambda: {"agree": 0, "total": 0})
 
-    # By domain
-    domain_stats = defaultdict(lambda: {"agree": 0, "total": 0})
     for p in pairs:
         d = p.get("domain") or "Unknown"
+        hw = p.get("human_winner")
+        for mk, res in p.get("ai_results", {}).items():
+            if res.get("winner"):
+                domain_stats[d]["models"][mk]["total"] += 1
+                overall_models[mk]["total"] += 1
+                if res["winner"] == hw:
+                    domain_stats[d]["models"][mk]["agree"] += 1
+                    overall_models[mk]["agree"] += 1
         if p.get("ai_majority"):
-            domain_stats[d]["total"] += 1
-            if p["ai_majority"] == p["human_winner"]:
-                domain_stats[d]["agree"] += 1
-
-    # By score gap (small/medium/large bins)
-    gap_stats = defaultdict(lambda: {"agree": 0, "total": 0})
-    for p in pairs:
-        if not p.get("ai_majority"):
-            continue
+            domain_stats[d]["maj_total"] += 1
+            if p["ai_majority"] == hw:
+                domain_stats[d]["maj_agree"] += 1
         gap = p.get("score_gap", abs(p.get("human_score1", 0) - p.get("human_score2", 0)))
         gap_label = "small" if gap <= 1 else "medium" if gap <= 2 else "large"
-        gap_stats[gap_label]["total"] += 1
-        if p["ai_majority"] == p["human_winner"]:
-            gap_stats[gap_label]["agree"] += 1
+        if p.get("ai_majority"):
+            domain_stats[d]["gaps"][gap_label]["total"] += 1
+            if p["ai_majority"] == hw:
+                domain_stats[d]["gaps"][gap_label]["agree"] += 1
+
+    # Build structured by_domain (mirrors SciPost by_dimension)
+    by_domain = {}
+    for d, s in sorted(domain_stats.items(), key=lambda x: -x[1]["maj_total"]):
+        by_domain[d] = {
+            "majority": {"agree": s["maj_agree"], "total": s["maj_total"], "rate": _rate(s["maj_agree"], s["maj_total"])},
+            "by_model": {mk: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for mk, v in s["models"].items()},
+            "by_gap": {g: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for g, v in sorted(s["gaps"].items())},
+        }
+
+    # Overall majority
+    maj_agree = sum(s["maj_agree"] for s in domain_stats.values())
+    maj_total = sum(s["maj_total"] for s in domain_stats.values())
+
+    # Overall score gap (aggregated)
+    gap_totals = defaultdict(lambda: {"agree": 0, "total": 0})
+    for s in domain_stats.values():
+        for g, v in s["gaps"].items():
+            gap_totals[g]["agree"] += v["agree"]
+            gap_totals[g]["total"] += v["total"]
 
     # Inter-model agreement
     all_models = set()
@@ -285,8 +297,8 @@ async def _pw_results(mode: str):
         "total_pairs": total,
         "overall_majority": {"agree": maj_agree, "total": maj_total, "rate": _rate(maj_agree, maj_total)},
         "by_model_overall": {mk: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for mk, v in overall_models.items()},
-        "by_domain": {d: {"agree": s["agree"], "total": s["total"], "rate": _rate(s["agree"], s["total"])} for d, s in sorted(domain_stats.items(), key=lambda x: -x[1]["total"])},
-        "by_gap": {g: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for g, v in sorted(gap_stats.items())},
+        "by_domain": by_domain,
+        "by_gap": {g: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for g, v in sorted(gap_totals.items())},
         "inter_model": {k: {"agree": v["agree"], "total": v["total"], "rate": _rate(v["agree"], v["total"])} for k, v in inter_model.items()},
         "samples": samples,
         "prompts": {
