@@ -386,10 +386,14 @@ async def get_status(category: str = Query("q-bio.BM")):
 
 @router.get("/results")
 async def get_results(category: str = Query("q-bio.BM")):
-    matches = await db.summary_bias_matches.find(
+    all_docs = await db.summary_bias_matches.find(
         {"category": category, "completed": True, "failed": {"$ne": True}},
         {"_id": 0}
     ).to_list(100000)
+
+    # Separate summary experiment matches from full-pdf baseline
+    matches = [m for m in all_docs if m.get("summary_key") != "full_pdf"]
+    fullpdf_docs = [m for m in all_docs if m.get("summary_key") == "full_pdf"]
 
     if not matches:
         return {"status": "no_data"}
@@ -413,7 +417,24 @@ async def get_results(category: str = Query("q-bio.BM")):
     judges = sorted({ck.split("|")[0] for ck in config_keys})
     summarizers = sorted({ck.split("|")[1] for ck in config_keys})
 
-    # ── Consensus (majority vote across all 9 configs) ──
+    # ── Full-PDF baseline: per-judge winners ──
+    fullpdf_by_match = defaultdict(dict)  # original_match_id -> {judge_key: winner_id}
+    for m in fullpdf_docs:
+        fullpdf_by_match[m["original_match_id"]][m["judge_key"]] = m["winner_id"]
+
+    has_fullpdf = len(fullpdf_by_match) > 0
+
+    # Full-PDF majority vote (across 3 judges on full text)
+    fullpdf_majority = {}
+    for mid, jverdicts in fullpdf_by_match.items():
+        if mid not in full:
+            continue
+        c = Counter(jverdicts.values())
+        best, cnt = c.most_common(1)[0]
+        if cnt > len(jverdicts) / 2:
+            fullpdf_majority[mid] = best
+
+    # ── Consensus (majority vote across all 9 summary configs) ──
     consensus = {}
     for mid, configs in full.items():
         c = Counter(configs.values())
@@ -421,11 +442,15 @@ async def get_results(category: str = Query("q-bio.BM")):
         if cnt > len(configs) / 2:
             consensus[mid] = best
 
-    # ── Per-config: agreement with original + consensus ──
+    # ── Per-config: agreement with original + consensus + full-pdf ──
     vs_original = {}
     vs_consensus = {}
+    vs_fullpdf_same_judge = {}  # Agreement with the SAME judge's full-PDF verdict
+    vs_fullpdf_majority = {}   # Agreement with full-PDF majority vote
     for ck in config_keys:
         orig_agree = orig_total = cons_agree = cons_total = 0
+        fp_same_agree = fp_same_total = fp_maj_agree = fp_maj_total = 0
+        judge_key = ck.split("|")[0]
         for mid, configs in full.items():
             if ck not in configs:
                 continue
@@ -437,8 +462,21 @@ async def get_results(category: str = Query("q-bio.BM")):
                 cons_total += 1
                 if configs[ck] == consensus[mid]:
                     cons_agree += 1
+            # Same judge's full-PDF verdict
+            if mid in fullpdf_by_match and judge_key in fullpdf_by_match[mid]:
+                fp_same_total += 1
+                if configs[ck] == fullpdf_by_match[mid][judge_key]:
+                    fp_same_agree += 1
+            # Full-PDF majority
+            if mid in fullpdf_majority:
+                fp_maj_total += 1
+                if configs[ck] == fullpdf_majority[mid]:
+                    fp_maj_agree += 1
+
         vs_original[ck] = round(orig_agree / max(orig_total, 1) * 100, 1)
         vs_consensus[ck] = round(cons_agree / max(cons_total, 1) * 100, 1)
+        vs_fullpdf_same_judge[ck] = round(fp_same_agree / max(fp_same_total, 1) * 100, 1) if fp_same_total else None
+        vs_fullpdf_majority[ck] = round(fp_maj_agree / max(fp_maj_total, 1) * 100, 1) if fp_maj_total else None
 
     # ── 3x3 grids ──
     def build_grid(data_map):
@@ -446,6 +484,39 @@ async def get_results(category: str = Query("q-bio.BM")):
 
     grid_consensus = build_grid(vs_consensus)
     grid_original = build_grid(vs_original)
+    grid_fullpdf_same = build_grid(vs_fullpdf_same_judge) if has_fullpdf else None
+    grid_fullpdf_maj = build_grid(vs_fullpdf_majority) if has_fullpdf else None
+
+    # ── Full-PDF per-judge stats ──
+    fullpdf_stats = None
+    if has_fullpdf:
+        fullpdf_stats = {}
+        for j in judges:
+            jk = j
+            # Agreement between this judge's full-PDF verdict and original extract verdict
+            fp_vs_orig_agree = fp_vs_orig_total = 0
+            for mid in full:
+                if mid in fullpdf_by_match and jk in fullpdf_by_match[mid] and mid in original_winners and original_winners[mid]:
+                    fp_vs_orig_total += 1
+                    if fullpdf_by_match[mid][jk] == original_winners[mid]:
+                        fp_vs_orig_agree += 1
+            fullpdf_stats[_short(j)] = {
+                "matches": sum(1 for mid in full if mid in fullpdf_by_match and jk in fullpdf_by_match[mid]),
+                "vs_original": round(fp_vs_orig_agree / max(fp_vs_orig_total, 1) * 100, 1) if fp_vs_orig_total else None,
+            }
+        # Full-PDF inter-judge agreement
+        fp_inter = []
+        for i, j1 in enumerate(judges):
+            for j2 in judges[i + 1:]:
+                agree = total = 0
+                for mid in full:
+                    if mid in fullpdf_by_match and j1 in fullpdf_by_match[mid] and j2 in fullpdf_by_match[mid]:
+                        total += 1
+                        if fullpdf_by_match[mid][j1] == fullpdf_by_match[mid][j2]:
+                            agree += 1
+                if total:
+                    fp_inter.append(round(agree / total * 100, 1))
+        fullpdf_stats["_inter_judge_agreement"] = round(sum(fp_inter) / max(len(fp_inter), 1), 1) if fp_inter else None
 
     # ── Pairwise inter-config agreement ──
     pairwise = {}
@@ -509,6 +580,10 @@ async def get_results(category: str = Query("q-bio.BM")):
         "summarizer_keys": summarizers,
         "grid_consensus": grid_consensus,
         "grid_original": grid_original,
+        "grid_fullpdf_same_judge": grid_fullpdf_same,
+        "grid_fullpdf_majority": grid_fullpdf_maj,
+        "fullpdf_stats": fullpdf_stats,
+        "fullpdf_matches": len(fullpdf_by_match),
         "self_bias": self_bias,
         "judge_consistency": judge_consistency,
         "summary_influence": summary_influence,
