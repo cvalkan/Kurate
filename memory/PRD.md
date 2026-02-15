@@ -48,10 +48,13 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - Added graph connectivity diagnostic to convergence API + frontend indicator
 
 ## Recent Changes (Feb 15, 2026)
-- Created `researchhub-50` dataset: well-connected 50-paper subset via k-core decomposition
-- Ran 750-match tournament (30 matches/paper) on researchhub-50
+- Removed ResearchHub-100 (12 disconnected components, poor convergence)
+- Created `researchhub-62` dataset: ≥2 reviews per paper, connected, 62 papers, 918 AI matches
+- Created `researchhub-50` dataset: densest connected subset, 50 papers, 767 AI matches
+- Ran 30-match/paper tournaments on both new datasets
 - Added graph connectivity diagnostics to `/api/validation/convergence` endpoint
-- Frontend shows connectivity status (green = connected, amber = disconnected) in convergence summary
+- Added human evaluator count to convergence summary panel
+- Frontend shows connectivity status (green/amber) and expert count in convergence summary
 - Rebuilt frontend with correct REACT_APP_BACKEND_URL (was serving stale build)
 - Previous: Expanded ResearchHub to 4 pairs/reviewer, human pairwise ground truth, score gap chart
 
