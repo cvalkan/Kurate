@@ -325,12 +325,34 @@ export default function SummaryBiasSection() {
           />
 
           <HeatmapGrid
-            title="Agreement with Original Match Result"
+            title="Agreement with Original Match Result (Extract-based)"
             description="Each cell shows how often this configuration agrees with the original tournament match verdict (which used extracted sections, no summaries)."
             judges={results.judges}
             summarizers={results.summarizers}
             grid={results.grid_original}
           />
+
+          {results.grid_fullpdf_same_judge && (
+            <HeatmapGrid
+              title="Agreement with Same Judge on Full PDF"
+              description="Each cell shows how often the (judge, summary) verdict matches the same judge's verdict when reading the full paper PDF. This isolates summary quality by controlling for judge identity."
+              judges={results.judges}
+              summarizers={results.summarizers}
+              grid={results.grid_fullpdf_same_judge}
+            />
+          )}
+
+          {results.grid_fullpdf_majority && (
+            <HeatmapGrid
+              title="Agreement with Full-PDF Majority Vote"
+              description="Each cell shows agreement with the 3-judge majority vote on the full PDF. This is the strongest baseline — it reflects what judges conclude with all information available."
+              judges={results.judges}
+              summarizers={results.summarizers}
+              grid={results.grid_fullpdf_majority}
+            />
+          )}
+
+          {results.fullpdf_stats && <FullPdfStats stats={results.fullpdf_stats} />}
 
           <BiasCards selfBias={results.self_bias} />
 
