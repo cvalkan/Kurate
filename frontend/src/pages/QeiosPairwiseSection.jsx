@@ -12,7 +12,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } fro
 const API = process.env.REACT_APP_BACKEND_URL;
 function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
 
-const MODE_LABELS = { abstract: "Abstract", extract: "Extract" };
+const MODE_LABELS = { abstract: "Abstract", extract: "Extract", abstract_plus_summary: "Abstract + Summary" };
 const MODEL_COLORS = ["#3b82f6", "#f59e0b", "#8b5cf6"];
 const DOMAIN_COLORS = {
   "Social Sciences": "#3b82f6", "Physical Sciences": "#8b5cf6",
