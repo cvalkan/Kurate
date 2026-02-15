@@ -1819,7 +1819,9 @@ async def run_targeted_pairwise(body: TargetedPairwiseRequest):
                     key = tuple(sorted([a, b]))
                     expert_pair_prefs[key].append((exp, a if ratings[a] > ratings[b] else b))
 
-    # Pairs with expert majority (2+ reviewers, clear majority)
+    # Pairs with expert preference (at least 1 reviewer with a discriminative opinion)
+    # For datasets like ICLR where many reviewers overlap, we require 2+ votes (majority).
+    # For datasets like F1000Prime where evaluator overlap is sparse, 1 vote is sufficient.
     target_pairs = set()
     for pair, votes in expert_pair_prefs.items():
         if len(votes) >= 2:
@@ -1827,6 +1829,9 @@ async def run_targeted_pairwise(body: TargetedPairwiseRequest):
             best, n = c.most_common(1)[0]
             if n > len(votes) / 2:
                 target_pairs.add(pair)
+        elif len(votes) == 1:
+            # Single-evaluator preference — valid for sparse datasets like F1000Prime
+            target_pairs.add(pair)
 
     # Find which pairs are already evaluated in this mode
     match_filter = {"dataset_id": body.dataset_id, "completed": True, "failed": {"$ne": True}}
