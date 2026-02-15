@@ -132,8 +132,9 @@ export default function QeiosPairwiseSection() {
   const availableModes = Object.keys(dataByMode);
   const hasData = availableModes.length > 0;
 
-  // Primary mode: prefer extract (richer), fallback to abstract
-  const primaryMode = availableModes.includes("extract") ? "extract" : availableModes[0];
+  // Primary mode: prefer abstract_plus_summary (richest), then extract, fallback to abstract
+  const primaryMode = availableModes.includes("abstract_plus_summary") ? "abstract_plus_summary" :
+    availableModes.includes("extract") ? "extract" : availableModes[0];
   const primaryData = dataByMode[primaryMode];
 
   // Collect all models across modes
