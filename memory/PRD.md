@@ -3,43 +3,41 @@
 ## Original Problem Statement
 Build a comprehensive system for validating and comparing the performance of AI models on scientific papers.
 
-## Core Features
-- **Validation Hub** with Pairwise, Single-item, and Tournament sections
-- **Datasets**: ICLR Protein Science, ICLR LLMs, PeerRead ACL 2017, Qeios, SciPost, F1000Prime Alzheimer's, **ResearchHub**
-- **Content Modes**: Abstract, Extract, Full PDF, AI Summary, Abstract + Summary
-- **AI Summary Feature**: LLM-generated impact assessments
-- **Convergence Analysis**: Rank correlation and top-k overlap charts
+## Datasets
+- ICLR Protein Science (46 papers), ICLR LLMs (73), PeerRead ACL 2017 (80), Qeios, SciPost
+- F1000Prime Alzheimer's (54 papers)
+- **ResearchHub (994 papers)** — largest pairwise validation dataset
+
+## Key Results: ResearchHub (2076 pairs, 994 papers)
+| Metric | Abstract | Abstract + Summary |
+|--------|----------|-------------------|
+| **Aggregate AI vs Expert** | **67.2%** | **67.9%** |
+| GPT-5.2 | 68.2% | 67.8% |
+| Claude Opus 4.5 | 68.1% | 67.7% |
+| Gemini 3 Pro | 65.2% | 68.0% |
+
+### By Score Gap (Abstract + Summary)
+| Gap | Agreement | N |
+|-----|-----------|---|
+| Small (1pt) | 63.8% | 1559 |
+| Medium (2pts) | 77.4% | 420 |
+| Large (3+pts) | **90.9%** | 99 |
+
+## Recent Changes (Feb 15, 2026)
+- Expanded ResearchHub to 4 pairs/reviewer (742 pairs from 168 reviewers)
+- Changed convergence analysis to use human pairwise ground truth (not internal consistency)
+- Added "AI Agreement by Expert Score Gap" chart
+- Fixed per-model chart fallback for single-evaluator datasets
 
 ## Key Files
-- `backend/routers/validation.py` — Core validation, F1000/RH endpoints
-- `backend/services/f1000_scraper.py` — F1000Prime scraper
-- `backend/services/f1000_rescrape.py` — F1000 multi-evaluator fix
-- `frontend/src/pages/PairwiseAgreementSection.jsx` — Pairwise comparison UI
-
-## ResearchHub Dataset (NEW — Feb 15, 2026)
-- **168 discriminative pairwise preferences** from 168 independent reviewers (1 random pair per reviewer)
-- **325 unique papers**, 315 with abstracts, 312 with AI summaries
-- **1-5 review scale** (score distribution: 1=12, 2=33, 3=121, 4=136, 5=34)
-- Source: ResearchHub leaderboard API + contributions API
-
-### ResearchHub Pairwise Results (162 common pairs)
-| Model | Abstract | Abstract + Summary |
-|-------|----------|-------------------|
-| GPT-5.2 | **69.6%** | **71.4%** |
-| Claude Opus 4.5 | 60.4% | 69.8% |
-| Gemini 3 Pro | 66.0% | 62.3% |
-| **Aggregate** | **65.4%** | **67.9%** |
-
-- AI Pick Consistency across modes: **88.9%**
-- Abstract+Summary improves overall by +2.5% (65.4→67.9)
-- Claude Opus benefits most from summaries (+9.4%), Gemini degrades (-3.7%)
+- `backend/routers/validation.py` — Core validation, convergence (now human ground truth)
+- `frontend/src/pages/PairwiseAgreementSection.jsx` — Score gap chart, per-model fix
 
 ## Pending
 - P1: Resume ICLR LLMs multi-model runs
-- P1: Add "View Prompts" modal to SciPost
+- P1: Run multimodel for ResearchHub (AI Consensus metric)
 
 ## Backlog
-- Run multimodel evaluation for ResearchHub (AI Consensus metric)
-- Expand F1000 dataset (currently IP-blocked)
+- Add "View Prompts" modal to SciPost
 - Explore eLife as complementary dataset
 - Refactor data processing into services layer
