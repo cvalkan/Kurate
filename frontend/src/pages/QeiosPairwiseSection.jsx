@@ -362,18 +362,22 @@ export default function QeiosPairwiseSection() {
             );
           })}
 
-          {/* Inter-model agreement */}
-          {primaryData?.inter_model && Object.keys(primaryData.inter_model).length > 0 && (
-            <div className="border border-border rounded-lg p-4" data-testid="pw-qeios-inter">
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <GitCompare className="h-4 w-4" /> Inter-Model Agreement ({MODE_LABELS[primaryMode]})
-              </h2>
-              {Object.entries(primaryData.inter_model).map(([k, s]) => {
-                const [m1, m2] = k.split(" vs ");
-                return <HBar key={k} rate={s.rate} label={`${shortModel(m1)} vs ${shortModel(m2)}`} sub={`${s.agree}/${s.total}`} color="bg-purple-400/70" />;
-              })}
-            </div>
-          )}
+          {/* Inter-model agreement — per mode */}
+          {availableModes.map(mode => {
+            const modeData = dataByMode[mode];
+            if (!modeData?.inter_model || !Object.keys(modeData.inter_model).length) return null;
+            return (
+              <div key={`inter-${mode}`} className="border border-border rounded-lg p-4" data-testid={`pw-qeios-inter-${mode}`}>
+                <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                  <GitCompare className="h-4 w-4" /> Inter-Model Agreement ({MODE_LABELS[mode]})
+                </h2>
+                {Object.entries(modeData.inter_model).map(([k, s]) => {
+                  const [m1, m2] = k.split(" vs ");
+                  return <HBar key={k} rate={s.rate} label={`${shortModel(m1)} vs ${shortModel(m2)}`} sub={`${s.agree}/${s.total}`} color="bg-purple-400/70" />;
+                })}
+              </div>
+            );
+          })}
 
           {/* Sample pairs table */}
           {primaryData?.samples?.length > 0 && (
