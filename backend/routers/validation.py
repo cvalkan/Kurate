@@ -1983,3 +1983,14 @@ async def scrape_f1000_status():
     from services.f1000_scraper import get_state
     return get_state()
 
+
+@router.post("/enrich-f1000", dependencies=[Depends(verify_admin)])
+async def enrich_f1000():
+    """Enrich F1000 papers with abstracts from Semantic Scholar."""
+    from services.f1000_scraper import enrich_papers_from_semantic_scholar, get_state
+    state = get_state()
+    if state["running"]:
+        return {"status": "already_running", **state}
+    asyncio.create_task(enrich_papers_from_semantic_scholar(db))
+    return {"status": "started"}
+
