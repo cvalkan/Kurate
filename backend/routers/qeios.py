@@ -604,3 +604,259 @@ async def _synced_run(num_pairs: int, parallel_agents: int):
         for st in (_pw_abs_state, _pw_ext_state):
             st["fetching"] = False
             st["running"] = False
+
+
+
+# ─── Abstract + Summary Pipeline ───────────────────────────────────────────────
+
+class SummaryRunRequest(BaseModel):
+    parallel_agents: int = 5
+
+
+@router.post("/pairwise-summary/run", dependencies=[Depends(verify_admin)])
+async def pw_run_summary(body: SummaryRunRequest):
+    """Full pipeline: fetch full text, generate AI summaries, run abstract+summary evaluations."""
+    if _pw_summary_state["running"]:
+        return {"status": "already_running"}
+    asyncio.create_task(_pw_summary_pipeline(body.parallel_agents))
+    return {"status": "started", "mode": "abstract_plus_summary"}
+
+
+@router.get("/paper-data/stats")
+async def paper_data_stats():
+    """Get stats on fetched paper data and summaries."""
+    total = await db.qeios_paper_data.count_documents({})
+    with_text = await db.qeios_paper_data.count_documents({"full_text": {"$exists": True, "$ne": ""}})
+    with_summary = await db.qeios_paper_data.count_documents({"ai_impact_summary": {"$exists": True, "$ne": ""}})
+    return {"total": total, "with_full_text": with_text, "with_summary": with_summary}
+
+
+async def _pw_summary_pipeline(parallel_agents: int = 5):
+    """Three-phase pipeline: fetch text → generate summaries → evaluate pairs."""
+    _pw_summary_state.update({
+        "running": True, "fetching": True,
+        "progress": {"phase": "collecting_papers", "papers_total": 0, "text_fetched": 0, "summaries_done": 0, "pairs_done": 0, "target": 0},
+    })
+
+    try:
+        # Phase 0: Collect unique papers from existing abstract pairs
+        paper_map = {}
+        async for doc in db.qeios_pairwise_abstract.find({"ai_completed": True}, {"_id": 0, "paper1": 1, "paper2": 1}):
+            for key in ("paper1", "paper2"):
+                p = doc.get(key, {})
+                qid = p.get("qeios_id")
+                if qid and qid not in paper_map:
+                    paper_map[qid] = {
+                        "qeios_id": qid,
+                        "doi": p.get("doi", ""),
+                        "title": p.get("title", ""),
+                        "abstract": p.get("abstract", ""),
+                    }
+
+        _pw_summary_state["progress"]["papers_total"] = len(paper_map)
+        logger.info(f"Qeios summary: {len(paper_map)} unique papers from existing pairs")
+
+        # Phase 1: Check which papers already have data cached
+        existing_data = {}
+        async for doc in db.qeios_paper_data.find({}, {"_id": 0}):
+            existing_data[doc["qeios_id"]] = doc
+
+        need_text = [qid for qid in paper_map if qid not in existing_data or not existing_data[qid].get("full_text")]
+        need_summary = [qid for qid in paper_map if qid not in existing_data or not existing_data[qid].get("ai_impact_summary")]
+
+        logger.info(f"Qeios summary: {len(need_text)} need text, {len(need_summary)} need summary, {len(existing_data)} cached")
+
+        # Phase 1: Fetch full text from Qeios pages
+        if need_text:
+            _pw_summary_state["progress"]["phase"] = "fetching_text"
+            text_fetched = 0
+
+            async with aiohttp.ClientSession() as session:
+                for i in range(0, len(need_text), 10):
+                    if not _pw_summary_state["running"]:
+                        break
+                    batch = need_text[i:i + 10]
+                    tasks = [_fetch_url(session, f"https://www.qeios.com/read/{qid}") for qid in batch]
+                    htmls = await asyncio.gather(*tasks)
+
+                    for qid, html in zip(batch, htmls):
+                        if not html:
+                            continue
+                        parsed = _parse_qeios_html(html)
+                        full_text = parsed.get("full_text", "")
+                        if full_text and len(full_text) > 500:
+                            paper_info = paper_map[qid]
+                            doc = {
+                                "qeios_id": qid,
+                                "doi": paper_info.get("doi", ""),
+                                "title": parsed.get("title") or paper_info.get("title", ""),
+                                "abstract": parsed.get("abstract") or paper_info.get("abstract", ""),
+                                "full_text": full_text,
+                                "full_text_chars": len(full_text),
+                                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                            }
+                            # Preserve existing summary if any
+                            if qid in existing_data and existing_data[qid].get("ai_impact_summary"):
+                                doc["ai_impact_summary"] = existing_data[qid]["ai_impact_summary"]
+
+                            await db.qeios_paper_data.update_one(
+                                {"qeios_id": qid}, {"$set": doc}, upsert=True,
+                            )
+                            existing_data[qid] = doc
+                            text_fetched += 1
+
+                    _pw_summary_state["progress"]["text_fetched"] = text_fetched
+                    await asyncio.sleep(0.5)
+
+            logger.info(f"Qeios summary: fetched text for {text_fetched} papers")
+
+        # Phase 2: Generate AI impact summaries
+        need_summary = [qid for qid in paper_map if qid in existing_data and existing_data[qid].get("full_text") and not existing_data[qid].get("ai_impact_summary")]
+
+        if need_summary:
+            _pw_summary_state["progress"]["phase"] = "generating_summaries"
+            _pw_summary_state["fetching"] = False
+            summary_done = 0
+            semaphore = asyncio.Semaphore(3)  # conservative for LLM calls
+
+            async def _gen_summary(qid):
+                nonlocal summary_done
+                async with semaphore:
+                    if not _pw_summary_state["running"]:
+                        return
+                    paper_data = existing_data[qid]
+                    result = await generate_precomparison_impact_summary({
+                        "title": paper_data.get("title", ""),
+                        "abstract": paper_data.get("abstract", ""),
+                        "full_text": paper_data.get("full_text", ""),
+                    })
+                    if result and result.get("summary"):
+                        await db.qeios_paper_data.update_one(
+                            {"qeios_id": qid},
+                            {"$set": {"ai_impact_summary": result["summary"], "summary_model": str(result.get("model_used", ""))}},
+                        )
+                        existing_data[qid]["ai_impact_summary"] = result["summary"]
+                        summary_done += 1
+                        _pw_summary_state["progress"]["summaries_done"] = summary_done
+                        if summary_done % 10 == 0:
+                            logger.info(f"Qeios summary: {summary_done}/{len(need_summary)} summaries generated")
+
+            await asyncio.gather(*[_gen_summary(qid) for qid in need_summary])
+            logger.info(f"Qeios summary: generated {summary_done} AI impact summaries")
+
+        # Phase 3: Run pairwise evaluation with abstract + summary
+        _pw_summary_state["progress"]["phase"] = "evaluating"
+        _pw_summary_state["fetching"] = False
+
+        # Get existing abstract pairs as template
+        existing_pairs = await db.qeios_pairwise_abstract.find({"ai_completed": True}, {"_id": 0}).to_list(10000)
+        if not existing_pairs:
+            logger.warning("Qeios summary: no abstract pairs to re-evaluate")
+            return
+
+        # Check which pairs already evaluated in summary collection
+        done_keys = set()
+        async for doc in db.qeios_pairwise_summary.find({}, {"_id": 0, "pair_key": 1}):
+            done_keys.add(doc.get("pair_key"))
+
+        todo = [p for p in existing_pairs if p.get("pair_key") not in done_keys]
+        _pw_summary_state["progress"]["target"] = len(todo)
+        logger.info(f"Qeios summary: {len(todo)} pairs to evaluate ({len(done_keys)} already done)")
+
+        if not todo:
+            logger.info("Qeios summary: all pairs already evaluated")
+            return
+
+        eval_semaphore = asyncio.Semaphore(parallel_agents)
+        counter = {"n": 0}
+
+        async def _eval_pair(pair):
+            async with eval_semaphore:
+                if not _pw_summary_state["running"]:
+                    return
+
+                p1_qid = pair["paper1"].get("qeios_id", "")
+                p2_qid = pair["paper2"].get("qeios_id", "")
+                p1_data = existing_data.get(p1_qid, {})
+                p2_data = existing_data.get(p2_qid, {})
+
+                def _build(paper_doc, cached_doc):
+                    return {
+                        "title": paper_doc.get("title", ""),
+                        "abstract": cached_doc.get("abstract") or paper_doc.get("abstract", ""),
+                        "ai_impact_summary": cached_doc.get("ai_impact_summary", ""),
+                        "categories": [pair.get("domain", "Unknown")],
+                    }
+
+                model_tasks = []
+                coros = []
+                for mi in TOURNAMENT_MODELS:
+                    swapped = random.random() < 0.5
+                    model_tasks.append((mi, swapped))
+                    a, b = (pair["paper2"], pair["paper1"]) if swapped else (pair["paper1"], pair["paper2"])
+                    a_data = existing_data.get(a.get("qeios_id", ""), {})
+                    b_data = existing_data.get(b.get("qeios_id", ""), {})
+                    coros.append(compare_papers(
+                        _build(a, a_data), _build(b, b_data),
+                        DEFAULT_EVALUATION_PROMPT,
+                        content_mode="abstract_plus_summary",
+                        model_override=mi,
+                    ))
+
+                responses = await asyncio.gather(*coros, return_exceptions=True)
+                ai_results = {}
+                for (mi, swapped), resp in zip(model_tasks, responses):
+                    mk = f"{mi['provider']}:{mi['model']}"
+                    if isinstance(resp, Exception):
+                        ai_results[mk] = {"winner": None, "error": str(resp)[:100]}
+                    else:
+                        w = resp.get("winner", "paper1")
+                        if swapped:
+                            w = "paper2" if w == "paper1" else "paper1"
+                        ai_results[mk] = {"winner": w, "reasoning": resp.get("reasoning", "")}
+
+                votes = [v["winner"] for v in ai_results.values() if v.get("winner")]
+                majority = None
+                if votes:
+                    c = Counter(votes)
+                    best, n = c.most_common(1)[0]
+                    if n > len(votes) / 2:
+                        majority = best
+
+                doc = {
+                    "id": str(uuid.uuid4()),
+                    "pair_id": pair.get("pair_id", str(uuid.uuid4())),
+                    "pair_key": pair.get("pair_key"),
+                    "source": "qeios",
+                    "reviewer": pair.get("reviewer", ""),
+                    "domain": pair.get("domain", "Unknown"),
+                    "paper1": pair["paper1"],
+                    "paper2": pair["paper2"],
+                    "human_winner": pair.get("human_winner"),
+                    "human_score1": pair.get("human_score1"),
+                    "human_score2": pair.get("human_score2"),
+                    "score_gap": pair.get("score_gap", 0),
+                    "content_mode": "abstract_plus_summary",
+                    "ai_results": ai_results,
+                    "ai_majority": majority,
+                    "ai_completed": True,
+                    "ai_failed": False,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                await db.qeios_pairwise_summary.insert_one(doc)
+                counter["n"] += 1
+                _pw_summary_state["progress"]["pairs_done"] = counter["n"]
+
+                if counter["n"] % 25 == 0:
+                    logger.info(f"Qeios summary eval: {counter['n']}/{len(todo)} pairs done")
+
+        await asyncio.gather(*[_eval_pair(p) for p in todo])
+        logger.info(f"Qeios summary pipeline complete: {counter['n']} pairs evaluated")
+
+    except Exception as e:
+        logger.error(f"Qeios summary pipeline error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        _pw_summary_state["running"] = False
+        _pw_summary_state["fetching"] = False
