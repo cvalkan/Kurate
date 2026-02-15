@@ -44,7 +44,8 @@ const STATIC_SECTIONS = [
     icon: FlaskRound,
     description: "Controlled experiments testing AI evaluation robustness",
     items: [
-      { id: "exp-summary-bias", label: "Summary Bias", sub: "Biomolecules" },
+      { id: "exp-summary-bias", label: "Summary Bias", sub: "Biomolecules", category: "q-bio.BM" },
+      { id: "exp-summary-bias-econ", label: "Summary Bias", sub: "Economics", category: "econ.GN" },
     ],
   },
 ];
