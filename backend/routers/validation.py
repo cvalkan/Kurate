@@ -1139,6 +1139,9 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
     Uses human expert pairwise preferences (derived from review scores) as ground truth.
     Subsamples AI matches to measure convergence toward human ranking.
     """
+    settings = await get_settings()
+    top_k_focus = settings.get("top_k_focus", 10)
+
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
     if not papers:
         return {"status": "no_data"}
