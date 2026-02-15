@@ -83,7 +83,6 @@ Build a comprehensive system for validating and comparing the performance of AI 
 
 ## Pending
 - P1: Resume ICLR LLMs multi-model runs
-- P1: Run multimodel for ResearchHub (AI Consensus metric)
 - P1: Add "View Prompts" modal to SciPost
 
 ## Backlog
