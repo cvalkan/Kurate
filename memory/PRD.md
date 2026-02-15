@@ -64,17 +64,16 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - Added graph connectivity diagnostic to convergence API + frontend indicator
 
 ## Recent Changes (Feb 15, 2026)
-### Summary Bias Experiment (NEW)
+### Summary Bias Experiment
 - Built full pipeline to test whether the LLM that wrote a summary biases the judge
-- Category: Biomolecules (q-bio.BM), 50 papers
-- Phase 1: Generated 150 AI impact summaries (50 papers × 3 models: Claude Opus, Gemini 3, GPT 5.2)
-- Phase 2: Ran 200 matches × 9 configurations (3 judges × 3 summary sources) = 1,800 evaluations
-- Results show mild self-bias: Claude Opus +4.5pp, GPT 5.2 +2.2pp, Gemini 3 -2.5pp
-- Claude summaries produce highest judge consistency (85.3% inter-judge agreement)
-- GPT 5.2 is most consistent judge (83.0% consistency across summary sources)
-- 47.5% of matches had all 9 configs agree unanimously
+- **Biomolecules (q-bio.BM)**: 50 papers, 150 summaries, 1800 evaluations, 600 full-PDF baseline
+- **Economics (econ.GN)**: 51 papers, 153 summaries, 1799 evaluations, 600 full-PDF baseline
+- Key finding: Against full-PDF baseline, all 3 summary models perform within ~2pp (79-82%)
+- Claude summaries produce highest inter-judge consistency in both categories (83-85%)
+- GPT 5.2 shows strongest self-consistency (84-88% own summary vs own full-PDF)
+- Self-bias is mild for Claude (~0-4.5pp), but GPT 5.2 shows +10.3pp in Economics
 - New collections: `summary_bias_summaries`, `summary_bias_matches`
-- Frontend: New "Experiments" section in Validation Hub with 3×3 heatmaps, self-bias cards, consistency bars
+- Frontend: "Experiments" section with per-category views, 3×3 heatmaps, self-bias cards, consistency bars
 
 ### Previous session
 - Removed ResearchHub-100 (12 disconnected components, poor convergence)
