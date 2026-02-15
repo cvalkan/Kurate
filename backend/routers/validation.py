@@ -1175,6 +1175,30 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
     if len(h_ids) < 3 or not human_matches:
         return {"status": "no_data", "message": "Insufficient human pairwise data"}
 
+    # Compute graph connectivity of human preference data
+    h_adj = defaultdict(set)
+    for m in human_matches:
+        h_adj[m["paper1_id"]].add(m["paper2_id"])
+        h_adj[m["paper2_id"]].add(m["paper1_id"])
+    h_visited = set()
+    h_components = []
+    for pid in h_ids:
+        if pid in h_visited:
+            continue
+        queue = [pid]
+        h_visited.add(pid)
+        comp = []
+        while queue:
+            node = queue.pop(0)
+            comp.append(node)
+            for nb in h_adj[node]:
+                if nb not in h_visited:
+                    h_visited.add(nb)
+                    queue.append(nb)
+        h_components.append(comp)
+    h_component_sizes = sorted([len(c) for c in h_components], reverse=True)
+    h_largest_component = len(h_component_sizes[0]) if h_component_sizes else 0
+
     # Ground truth: human ranking from expert pairwise preferences
     h_papers = [p for p in papers if p["id"] in h_ids]
     gt_lb = compute_leaderboard(h_papers, human_matches)
