@@ -253,27 +253,36 @@ function FullPdfStats({ stats }) {
   );
 }
 
-export default function SummaryBiasSection() {
+const CATEGORY_LABELS = {
+  "q-bio.BM": "Biomolecules",
+  "econ.GN": "Economics",
+};
+
+export default function SummaryBiasSection({ category = "q-bio.BM" }) {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
+  const catLabel = CATEGORY_LABELS[category] || category;
 
   const fetchData = useCallback(async () => {
     try {
       const [sRes, rRes] = await Promise.all([
-        axios.get(`${API}/api/summary-bias/status?category=q-bio.BM`),
-        axios.get(`${API}/api/summary-bias/results?category=q-bio.BM`),
+        axios.get(`${API}/api/summary-bias/status?category=${category}`),
+        axios.get(`${API}/api/summary-bias/results?category=${category}`),
       ]);
       setStatus(sRes.data);
       if (rRes.data.status === "ok") setResults(rRes.data);
+      else setResults(null);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [category]);
 
   useEffect(() => {
+    setLoading(true);
+    setResults(null);
     fetchData();
     const iv = setInterval(fetchData, 8000);
     return () => clearInterval(iv);
