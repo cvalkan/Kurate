@@ -1132,10 +1132,10 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
 
 @router.get("/convergence")
 async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None), steps: int = Query(20)):
-    """Analyze how ranking stability improves as more matches are added.
+    """Analyze how AI ranking correlation with HUMAN ground truth improves as more matches are added.
     
-    Uses the final ranking (all matches) as ground truth and computes rank
-    correlation and top-k overlap at progressive fractions of data.
+    Uses human expert pairwise preferences (derived from review scores) as ground truth.
+    Subsamples AI matches to measure convergence toward human ranking.
     """
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
     if not papers:
@@ -1154,17 +1154,38 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
 
     all_matches.sort(key=lambda m: m.get("created_at", ""))
 
+    # Derive human ground truth from expert ratings
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+
+    human_matches = []
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                if ratings[a] != ratings[b]:
+                    human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
+
+    h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
+    if len(h_ids) < 3 or not human_matches:
+        return {"status": "no_data", "message": "Insufficient human pairwise data"}
+
+    # Ground truth: human ranking from expert pairwise preferences
+    h_papers = [p for p in papers if p["id"] in h_ids]
+    gt_lb = compute_leaderboard(h_papers, human_matches)
+    gt_rank = {e["id"]: e["rank"] for e in gt_lb}
+    gt_score = {e["id"]: e["score"] for e in gt_lb}
+    top_k_values = [k for k in [3, 5, 10] if k < len(h_ids)]
+    gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
+
     paper_ids = [p["id"] for p in papers]
     pid_set = set(paper_ids)
     n_papers = len(paper_ids)
-
-    # Ground truth: full ranking using all matches
-    gt_lb = compute_leaderboard(papers, all_matches)
-    gt_rank = {e["id"]: e["rank"] for e in gt_lb}
-    gt_score = {e["id"]: e["score"] for e in gt_lb}
-    # Top-k ground truth sets
-    top_k_values = [k for k in [3, 5, 10] if k < n_papers]
-    gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
 
     # Compute max avg matches per paper
     total = len(all_matches)
@@ -1174,17 +1195,16 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         if m["paper2_id"] in pid_set: full_counts[m["paper2_id"]] += 1
     max_avg = sum(full_counts[pid] for pid in paper_ids if full_counts[pid] > 0) / max(sum(1 for pid in paper_ids if full_counts[pid] > 0), 1)
 
-    # Generate integer x-axis steps (0, 5, 10, 15, ...)
+    # Generate integer x-axis steps
     step_size = max(1, int(max_avg / steps))
     if step_size >= 5:
-        step_size = (step_size // 5) * 5  # Round to nearest 5
+        step_size = (step_size // 5) * 5
     x_targets = list(range(step_size, int(max_avg) + step_size, step_size))
     if not x_targets or x_targets[-1] < max_avg * 0.95:
         x_targets.append(int(max_avg) + 1)
 
     curve = []
     for target_avg in x_targets:
-        # Binary search for the number of matches that gives ~target_avg matches/paper
         lo, hi = 1, total
         best_n = total
         while lo <= hi:
@@ -1219,6 +1239,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         sub_lb = compute_leaderboard(papers, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
 
+        # Correlate AI subsampled ranking with HUMAN ground truth
         common = [pid for pid in papers_with_matches if pid in gt_rank and pid in sub_rank]
         if len(common) < 3:
             continue
@@ -1228,7 +1249,6 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         sub_score_map = {e["id"]: e["score"] for e in sub_lb}
         pr, _ = scipy_stats.pearsonr([sub_score_map.get(p, 0) for p in common], [gt_score.get(p, 0) for p in common])
 
-        # Top-k overlap
         topk = {}
         for k in top_k_values:
             sub_topk = set(e["id"] for e in sub_lb if e["rank"] <= k)
@@ -1239,9 +1259,9 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
             "matches": best_n,
             "avg_matches_per_paper": round(avg_matches),
             "papers_covered": len(papers_with_matches),
-            "spearman": round(sp, 4),
-            "kendall": round(kt, 4),
-            "pearson": round(pr, 4),
+            "spearman": round(sp, 4) if not np.isnan(sp) else 0,
+            "kendall": round(kt, 4) if not np.isnan(kt) else 0,
+            "pearson": round(pr, 4) if not np.isnan(pr) else 0,
         }
         point.update(topk)
         curve.append(point)
@@ -1252,6 +1272,9 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         "content_mode": content_mode or "extract",
         "total_matches": total,
         "total_papers": n_papers,
+        "human_matches": len(human_matches),
+        "human_papers": len(h_ids),
+        "ground_truth": "human_pairwise",
         "top_k_values": top_k_values,
         "curve": curve,
     }
