@@ -238,29 +238,33 @@ export default function SciPostPairwiseSection() {
             </ResponsiveContainer>
           </div>
 
-          {/* Per-dimension breakdown */}
-          {primaryData?.by_dimension && (
-            <div className="border border-border rounded-lg p-4" data-testid="pw-scipost-dimensions">
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <Layers className="h-4 w-4" /> Agreement by Dimension ({MODE_LABELS[primaryMode]})
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {DIMENSIONS.map(dim => {
-                  const d = primaryData.by_dimension[dim];
-                  if (!d) return null;
-                  const rate = d.majority.rate;
-                  const color = rate >= 70 ? "text-green-700" : rate >= 50 ? "text-amber-700" : "text-red-700";
-                  return (
-                    <div key={dim} className="p-3 border border-border rounded-lg text-center" data-testid={`dim-${dim}`}>
-                      <div className="text-[10px] text-muted-foreground capitalize mb-1">{dim}</div>
-                      <div className={`text-xl font-bold font-mono ${color}`}>{rate}%</div>
-                      <div className="text-[10px] text-muted-foreground">{d.majority.agree}/{d.majority.total}</div>
-                    </div>
-                  );
-                })}
+          {/* Per-dimension breakdown — per mode */}
+          {availableModes.map(mode => {
+            const modeData = dataByMode[mode];
+            if (!modeData?.by_dimension) return null;
+            return (
+              <div key={`dim-${mode}`} className="border border-border rounded-lg p-4" data-testid={`pw-scipost-dimensions-${mode}`}>
+                <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                  <Layers className="h-4 w-4" /> Agreement by Dimension ({MODE_LABELS[mode]})
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {DIMENSIONS.map(dim => {
+                    const d = modeData.by_dimension[dim];
+                    if (!d) return null;
+                    const rate = d.majority.rate;
+                    const color = rate >= 70 ? "text-green-700" : rate >= 50 ? "text-amber-700" : "text-red-700";
+                    return (
+                      <div key={dim} className="p-3 border border-border rounded-lg text-center">
+                        <div className="text-[10px] text-muted-foreground capitalize mb-1">{dim}</div>
+                        <div className={`text-xl font-bold font-mono ${color}`}>{rate}%</div>
+                        <div className="text-[10px] text-muted-foreground">{d.majority.agree}/{d.majority.total}</div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })}
 
           {/* Per-model agreement chart */}
           {modelList.length > 0 && (
