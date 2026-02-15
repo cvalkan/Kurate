@@ -230,7 +230,7 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
         <div className="border border-border rounded-lg overflow-hidden" data-testid="pw-model-chart">
           <div className="px-3 py-2 bg-secondary/10 border-b border-border">
             <h3 className="text-xs font-medium flex items-center gap-1.5">
-              <Users className="h-3 w-3" /> Per-Model Agreement with Expert Majority
+              <Users className="h-3 w-3" /> Per-Model Agreement with {modelMetricLabel}
             </h3>
             <div className="text-[10px] text-muted-foreground mt-0.5">How each LLM performs by input format</div>
           </div>
