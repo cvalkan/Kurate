@@ -1,0 +1,86 @@
+{
+  "summary": "Tested Summary Bias Experiment pipeline - all backend APIs and frontend UI components working correctly. 150 summaries (50 papers × 3 models), 1800 evaluations (200 matches × 9 configs) completed. All data-testid elements render correctly with proper data.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "GET /api/summary-bias/status?category=q-bio.BM returns 200 with summaries_generated=150, matches_completed=1800",
+    "GET /api/summary-bias/results?category=q-bio.BM returns status=ok with all required fields",
+    "Results contain grid_consensus (3x3 array), grid_original (3x3 array)",
+    "Results contain judges array with 3 items: Claude Opus, Gemini 3, GPT 5.2",
+    "Results contain summarizers array with 3 items: Claude Opus, Gemini 3, GPT 5.2",
+    "Results contain self_bias with own_summary_rate, other_summary_avg, bias for each model",
+    "Results contain judge_consistency and summary_influence with correct structure",
+    "Sidebar shows Experiments section with Summary Bias item (data-testid='nav-exp-summary-bias')",
+    "Clicking Summary Bias shows SummaryBiasSection component (data-testid='summary-bias-section')",
+    "Summary stats show 200 matches, 1800 evaluations (data-testid='summary-stats')",
+    "Two heatmap grids render (data-testid='heatmap-grid') - consensus and original match results",
+    "Self-bias cards render for all 3 models with correct data (data-testid='bias-card-*')",
+    "Judge consistency section shows bars for all 3 models (data-testid='judge-consistency')",
+    "Summary influence section shows bars for all 3 models (data-testid='summary-influence')",
+    "Experiment description box explains the 3 judges × 3 summary sources methodology"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_summary_bias.py",
+    "/app/test_reports/pytest/summary_bias_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_summary_bias.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None - pipeline already completed with 150 summaries and 1800 match evaluations in MongoDB",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Summary Bias Experiment feature complete. Backend router at /api/summary-bias with status and results endpoints. Frontend component SummaryBiasSection.jsx renders under Experiments section in ValidationHubPage sidebar. Data-testids: nav-exp-summary-bias, summary-bias-section, heatmap-grid, self-bias-section, bias-card-{Model}, judge-consistency, summary-influence, summary-stats. Pipeline data: q-bio.BM category, 50 papers, 150 summaries (3 models), 200 matches, 1800 evaluations (9 configs each).",
+  "features_verified": {
+    "backend_status_endpoint": {
+      "url": "/api/summary-bias/status?category=q-bio.BM",
+      "response": {
+        "summaries_generated": 150,
+        "summaries_per_model": {
+          "anthropic:claude-opus-4-5-20251101": 50,
+          "gemini:gemini-3-pro-preview": 50,
+          "openai:gpt-5.2": 50
+        },
+        "matches_completed": 1800,
+        "matches_failed": 0,
+        "phase": "idle"
+      }
+    },
+    "backend_results_endpoint": {
+      "url": "/api/summary-bias/results?category=q-bio.BM",
+      "status": "ok",
+      "num_matches": 200,
+      "total_evaluations": 1800,
+      "judges": ["Claude Opus", "Gemini 3", "GPT 5.2"],
+      "summarizers": ["Claude Opus", "Gemini 3", "GPT 5.2"],
+      "grid_consensus": "3x3 array with values 82.0-91.5%",
+      "grid_original": "3x3 array with values 61.0-71.5%",
+      "self_bias": {
+        "Claude Opus": "+4.5pp",
+        "Gemini 3": "-2.5pp",
+        "GPT 5.2": "+2.2pp"
+      },
+      "unanimous_rate": "47.5%",
+      "consensus_rate": "100%"
+    },
+    "frontend_elements": {
+      "sidebar_nav": "Experiments section with Summary Bias (Biomolecules)",
+      "summary_stats": "200 matches, 1800 evaluations displayed",
+      "heatmap_grids": "2 grids - consensus and original match results",
+      "self_bias_cards": "3 cards for Claude Opus, Gemini 3, GPT 5.2",
+      "consistency_bars": "Judge Consistency and Summary Influence sections"
+    }
+  }
+}
