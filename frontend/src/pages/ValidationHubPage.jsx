@@ -39,6 +39,14 @@ const STATIC_SECTIONS = [
     description: "Full ranking correlation: AI tournament ranking vs human peer-review ranking",
     items: [], // populated dynamically
   },
+  {
+    group: "Experiments",
+    icon: FlaskRound,
+    description: "Controlled experiments testing AI evaluation robustness",
+    items: [
+      { id: "exp-summary-bias", label: "Summary Bias", sub: "Biomolecules" },
+    ],
+  },
 ];
 
 export default function ValidationHubPage() {
