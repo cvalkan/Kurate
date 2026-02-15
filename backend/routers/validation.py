@@ -1298,6 +1298,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         "total_papers": n_papers,
         "human_matches": len(human_matches),
         "human_papers": len(h_ids),
+        "human_evaluators": len(expert_ratings),
         "ground_truth": "human_pairwise",
         "top_k_values": top_k_values,
         "curve": curve,
