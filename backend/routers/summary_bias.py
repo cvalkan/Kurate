@@ -254,7 +254,13 @@ async def _do_run_experiment(category: str, num_matches: int, parallel: int):
 async def run_fullpdf_baseline(body: PipelineRequest):
     if _state["phase"] != "idle":
         return {"status": "already_running", "phase": _state["phase"], "progress": _state["progress"]}
-    asyncio.create_task(_do_run_fullpdf_baseline(body.category, body.parallel))
+    async def _standalone():
+        try:
+            await _do_run_fullpdf_baseline(body.category, body.parallel)
+        finally:
+            _state["phase"] = "idle"
+            _state["progress"] = {}
+    asyncio.create_task(_standalone())
     return {"status": "started", "category": body.category}
 
 
