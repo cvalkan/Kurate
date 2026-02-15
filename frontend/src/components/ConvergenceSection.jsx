@@ -141,7 +141,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
             <TrendingUp className="h-4 w-4" /> Ranking Convergence
           </h2>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            How many matches for stable rankings? Ground truth = final ranking with all matches.
+            How many matches for stable rankings? Ground truth = human expert pairwise preferences.
           </p>
         </div>
         <div className="flex items-center gap-2">
