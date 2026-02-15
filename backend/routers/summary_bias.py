@@ -351,8 +351,6 @@ async def _do_run_fullpdf_baseline(category: str, parallel: int):
     random.shuffle(work)
     await asyncio.gather(*(run_one(m, j) for m, j in work))
     logger.info(f"Summary bias fullpdf baseline complete: {completed}/{total_work}")
-    _state["phase"] = "idle"
-    _state["progress"] = {}
 
 
 # ─── Status ──────────────────────────────────────────────────────────────
