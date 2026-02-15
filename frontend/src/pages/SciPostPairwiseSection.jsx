@@ -287,37 +287,41 @@ export default function SciPostPairwiseSection() {
             </div>
           )}
 
-          {/* Model x Dimension table */}
-          {primaryData?.by_dimension && (
-            <div className="border border-border rounded-lg p-4" data-testid="pw-scipost-dim-table">
-              <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-                <BarChart3 className="h-4 w-4" /> Model x Dimension ({MODE_LABELS[primaryMode]})
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-2 px-2">Model</th>
-                      {DIMENSIONS.map(d => <th key={d} className="text-center py-2 px-2 capitalize">{d}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modelList.map(mk => (
-                      <tr key={mk} className="border-b border-border/30">
-                        <td className="py-2 px-2 font-medium">{shortModel(mk)}</td>
-                        {DIMENSIONS.map(dim => {
-                          const s = primaryData.by_dimension[dim]?.by_model?.[mk];
-                          if (!s) return <td key={dim} className="text-center text-muted-foreground">&mdash;</td>;
-                          const clr = s.rate >= 70 ? "text-green-600" : s.rate >= 50 ? "text-amber-600" : "text-red-600";
-                          return <td key={dim} className={`text-center font-mono ${clr}`}>{s.rate}%</td>;
-                        })}
+          {/* Model x Dimension table — per mode */}
+          {availableModes.map(mode => {
+            const modeData = dataByMode[mode];
+            if (!modeData?.by_dimension) return null;
+            return (
+              <div key={`tbl-${mode}`} className="border border-border rounded-lg p-4" data-testid={`pw-scipost-dim-table-${mode}`}>
+                <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+                  <BarChart3 className="h-4 w-4" /> Model x Dimension ({MODE_LABELS[mode]})
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 px-2">Model</th>
+                        {DIMENSIONS.map(d => <th key={d} className="text-center py-2 px-2 capitalize">{d}</th>)}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {modelList.map(mk => (
+                        <tr key={mk} className="border-b border-border/30">
+                          <td className="py-2 px-2 font-medium">{shortModel(mk)}</td>
+                          {DIMENSIONS.map(dim => {
+                            const s = modeData.by_dimension[dim]?.by_model?.[mk];
+                            if (!s) return <td key={dim} className="text-center text-muted-foreground">&mdash;</td>;
+                            const clr = s.rate >= 70 ? "text-green-600" : s.rate >= 50 ? "text-amber-600" : "text-red-600";
+                            return <td key={dim} className={`text-center font-mono ${clr}`}>{s.rate}%</td>;
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })}
 
           {/* Score gap breakdown */}
           {primaryData?.by_dimension && (() => {
