@@ -320,6 +320,11 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
         </div>
       )}
 
+      {/* Score Gap Breakdown */}
+      {data.score_gap && Object.keys(data.score_gap).length > 0 && (
+        <ScoreGapSection scoreGap={data.score_gap} modeLabels={MODE_LABELS} />
+      )}
+
       {/* View AI Summaries */}
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7" onClick={async () => {
