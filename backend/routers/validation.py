@@ -1961,3 +1961,25 @@ def _interp(rho, p_val, n, method):
     direction = "positive" if rho > 0 else "negative"
     sig = "statistically significant" if p_val < 0.05 else "not statistically significant"
     return f"Using {method} ranking ({n} papers): Spearman ρ = {rho:.3f} ({strength} {direction}, {sig}, p = {p_val:.4f})."
+
+
+# ─── F1000Prime Alzheimer's Scraper ─────────────────────────────────────────
+
+@router.post("/scrape-f1000", dependencies=[Depends(verify_admin)])
+async def scrape_f1000(target: int = 75):
+    """Scrape F1000Prime archive for Alzheimer's/neuroscience papers."""
+    from services.f1000_scraper import run_scraper, get_state
+    state = get_state()
+    if state["running"]:
+        return {"status": "already_running", **state}
+    # Run in background
+    asyncio.create_task(run_scraper(db, target_papers=target))
+    return {"status": "started", "target_papers": target}
+
+
+@router.get("/scrape-f1000/status")
+async def scrape_f1000_status():
+    """Get the current status of the F1000 scraper."""
+    from services.f1000_scraper import get_state
+    return get_state()
+
