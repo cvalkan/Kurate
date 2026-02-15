@@ -233,7 +233,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
             <div key={did} className="border border-border rounded-lg p-2.5 text-[10px]" data-testid={`convergence-summary-${did}`}>
               <div className="font-medium text-xs mb-0.5" style={{ color: COLORS[i % COLORS.length] }}>{c.name}</div>
               <div className="text-muted-foreground">
-                {c.total_papers} papers, {c.total_matches} AI matches{c.human_matches ? `, ${c.human_matches} human pairs` : ""}
+                {c.total_papers} papers, {c.total_matches} AI matches{c.human_matches ? `, ${c.human_matches} human pairs` : ""}{c.human_evaluators ? `, ${c.human_evaluators} experts` : ""}
               </div>
               {gc && (
                 <div className={`mt-0.5 ${gc.is_connected ? "text-green-600" : "text-amber-600"}`}>
