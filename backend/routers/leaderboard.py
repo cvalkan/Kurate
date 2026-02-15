@@ -936,7 +936,7 @@ async def get_convergence(
     gt_rank = {e["id"]: e["rank"] for e in gt_lb}
     gt_score = {e["id"]: e["score"] for e in gt_lb}
     n_papers = len(pid_set)
-    top_k_values = [k for k in [3, 5, 10, 20] if k < n_papers]
+    top_k_values = [top_k_focus] if top_k_focus < n_papers else [min(10, n_papers - 1)]
     gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
 
     total = len(all_matches)
