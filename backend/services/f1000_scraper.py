@@ -566,6 +566,260 @@ async def _select_and_save(db, all_articles: dict, target: int) -> dict:
     }
 
 
+async def expand_dataset(db, min_discriminative_pairs: int = 100) -> dict:
+    """
+    Expand the F1000 Alzheimer's dataset by graph-crawling related articles.
+
+    Strategy:
+    1. Load existing papers and build the evaluator set
+    2. For each existing paper, follow its related article links
+    3. For each new article, add it ONLY if an evaluator already exists in our set
+    4. New papers may bring evaluators that make previously orphaned papers useful
+    5. Continue until we have enough discriminative pairwise preferences
+    """
+    if _scraper_state["running"]:
+        return {"status": "already_running"}
+
+    _scraper_state.update({
+        "running": True, "phase": "Expanding dataset",
+        "articles_found": 0, "articles_scraped": 0,
+        "members_scraped": 0, "papers_saved": 0, "log": [],
+    })
+
+    try:
+        return await _expand_impl(db, min_discriminative_pairs)
+    finally:
+        _scraper_state["running"] = False
+
+
+async def _expand_impl(db, min_discriminative_pairs: int) -> dict:
+    dataset_id = "f1000-alzheimers"
+
+    # Load existing papers
+    existing = await db.validation_papers.find(
+        {"dataset_id": dataset_id}, {"_id": 0}
+    ).to_list(1000)
+    _log(f"Starting with {len(existing)} existing papers")
+
+    # Build evaluator -> {article_id: rating_value} and article_id set
+    evaluator_ratings = defaultdict(dict)  # evaluator -> {f1000_id: rating}
+    known_f1000_ids = set()
+    all_related_ids = set()  # IDs of related articles from existing papers
+
+    for p in existing:
+        fid = p.get("f1000_article_id", "")
+        known_f1000_ids.add(fid)
+        for ev in p.get("evaluations", []):
+            evaluator_ratings[ev["evaluator"]][fid] = ev["rating_value"]
+
+    # Count current discriminative pairs
+    def count_disc_pairs():
+        total, disc = 0, 0
+        for name, ratings in evaluator_ratings.items():
+            vals = list(ratings.values())
+            if len(vals) < 2:
+                continue
+            for i in range(len(vals)):
+                for j in range(i + 1, len(vals)):
+                    total += 1
+                    if vals[i] != vals[j]:
+                        disc += 1
+        return total, disc
+
+    total, disc = count_disc_pairs()
+    _log(f"Current: {total} pairs, {disc} discriminative")
+
+    if disc >= min_discriminative_pairs:
+        _log("Already have enough discriminative pairs!")
+        _scraper_state["phase"] = "Complete (no expansion needed)"
+        return {"status": "complete", "discriminative_pairs": disc, "total_pairs": total, "papers": len(existing)}
+
+    # Phase 1: Scrape existing papers for their related article IDs
+    _scraper_state["phase"] = "Phase 1: Gathering related article IDs"
+    scraped_ids = set()
+
+    async with httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True) as client:
+        for i, fid in enumerate(list(known_f1000_ids)):
+            if not fid:
+                continue
+            html = await _fetch(client, f"{BASE}/article/{fid}")
+            scraped_ids.add(fid)
+            if html:
+                parsed = _parse_article_page(html, fid)
+                if parsed:
+                    for rid in parsed.get("related_article_ids", []):
+                        if rid not in known_f1000_ids:
+                            all_related_ids.add(rid)
+            if (i + 1) % 10 == 0:
+                _log(f"Scanned {i+1}/{len(known_f1000_ids)} existing articles, found {len(all_related_ids)} related IDs")
+            await asyncio.sleep(0.3)
+
+        _log(f"Phase 1 complete: {len(all_related_ids)} candidate articles to check")
+
+        # Phase 2: Scrape related articles and add those with evaluator overlap
+        _scraper_state["phase"] = "Phase 2: Scraping related articles"
+        new_papers = []
+        checked = 0
+        queue = list(all_related_ids)
+        # Also add IDs from member profiles we haven't checked
+        for name, ratings in evaluator_ratings.items():
+            if len(ratings) >= 2:
+                # This evaluator is prolific, try to find more of their articles
+                for fid in ratings:
+                    if fid and fid not in scraped_ids:
+                        html = await _fetch(client, f"{BASE}/article/{fid}")
+                        scraped_ids.add(fid)
+                        if html:
+                            parsed = _parse_article_page(html, fid)
+                            if parsed:
+                                for rid in parsed.get("related_article_ids", []):
+                                    if rid not in known_f1000_ids and rid not in all_related_ids:
+                                        queue.append(rid)
+                                        all_related_ids.add(rid)
+                        await asyncio.sleep(0.3)
+
+        _log(f"Total candidate articles to scrape: {len(queue)}")
+
+        for fid in queue:
+            if fid in scraped_ids:
+                continue
+            scraped_ids.add(fid)
+            checked += 1
+
+            html = await _fetch(client, f"{BASE}/article/{fid}")
+            if not html:
+                continue
+
+            parsed = _parse_article_page(html, fid)
+            if not parsed or not parsed.get("evaluations"):
+                continue
+
+            # Check if ANY evaluator overlaps with our existing set
+            has_overlap = False
+            for ev in parsed["evaluations"]:
+                if ev["evaluator"] in evaluator_ratings:
+                    has_overlap = True
+                    break
+
+            if has_overlap:
+                new_papers.append(parsed)
+                known_f1000_ids.add(fid)
+                # Update evaluator set
+                for ev in parsed["evaluations"]:
+                    evaluator_ratings[ev["evaluator"]][fid] = ev["rating_value"]
+
+                # Also queue THIS article's related articles
+                for rid in parsed.get("related_article_ids", []):
+                    if rid not in scraped_ids and rid not in all_related_ids:
+                        queue.append(rid)
+                        all_related_ids.add(rid)
+
+                total, disc = count_disc_pairs()
+                _scraper_state["articles_found"] = len(new_papers)
+                if checked % 5 == 0:
+                    _log(f"Checked {checked}, added {len(new_papers)}, disc={disc}/{total}")
+
+                if disc >= min_discriminative_pairs:
+                    _log(f"Reached {disc} discriminative pairs! Stopping.")
+                    break
+            else:
+                # Check if this article introduces a NEW evaluator who also evaluated
+                # other articles in the queue (potential bridge)
+                for ev in parsed["evaluations"]:
+                    evaluator_ratings[ev["evaluator"]][fid] = ev["rating_value"]
+
+            _scraper_state["articles_scraped"] = checked
+            await asyncio.sleep(0.3)
+
+    # Phase 3: Save new papers and clean up
+    _scraper_state["phase"] = "Phase 3: Saving and cleaning"
+    _log(f"Saving {len(new_papers)} new papers...")
+
+    for art in new_papers:
+        evals = []
+        for ev in art.get("evaluations", []):
+            evals.append({
+                "rating_value": ev["rating_value"],
+                "evaluator": ev["evaluator"],
+                "source": "F1000Prime",
+                "rating_label": ev["rating"],
+                "date": ev.get("date"),
+            })
+        avg_rating = sum(e["rating_value"] for e in evals) / len(evals) if evals else 0
+
+        paper_doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": dataset_id,
+            "title": art["title"],
+            "abstract": art.get("abstract") or "",
+            "authors": art.get("authors", []),
+            "doi": art.get("doi"),
+            "pmid": art.get("pmid"),
+            "journal": art.get("journal"),
+            "year": art.get("year"),
+            "evaluations": evals,
+            "h1_avg_rating": round(avg_rating, 2),
+            "h1_rating_count": len(evals),
+            "classifications": art.get("classifications", []),
+            "source": "F1000Prime",
+            "f1000_article_id": art["article_id"],
+            "f1000_url": f"{BASE}/article/{art['article_id']}",
+            "label": art.get("year", ""),
+            "scores": [e["rating_value"] for e in evals],
+            "keywords": art.get("classifications", []),
+        }
+        await db.validation_papers.update_one(
+            {"dataset_id": dataset_id, "f1000_article_id": art["article_id"]},
+            {"$set": paper_doc},
+            upsert=True,
+        )
+
+    # Now remove papers whose ALL evaluators have only 1 paper
+    all_papers = await db.validation_papers.find(
+        {"dataset_id": dataset_id}, {"_id": 0}
+    ).to_list(1000)
+
+    ev_counts = defaultdict(int)
+    for p in all_papers:
+        for ev in p.get("evaluations", []):
+            ev_counts[ev["evaluator"]] += 1
+
+    orphans = []
+    for p in all_papers:
+        has_multi = any(ev_counts[ev["evaluator"]] >= 2 for ev in p.get("evaluations", []))
+        if not has_multi:
+            orphans.append(p["id"])
+
+    if orphans:
+        await db.validation_papers.delete_many({"id": {"$in": orphans}})
+        _log(f"Removed {len(orphans)} orphan papers (no overlapping evaluators)")
+
+    # Update dataset metadata
+    remaining = await db.validation_papers.count_documents({"dataset_id": dataset_id})
+    total, disc = count_disc_pairs()
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": dataset_id},
+        {"$set": {
+            "description": f"Alzheimer's & neuroscience papers from F1000Prime. {disc} discriminative pairwise preferences from expert ratings.",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+
+    _scraper_state["papers_saved"] = len(new_papers)
+    _scraper_state["phase"] = "Complete"
+    _log(f"Done! {remaining} papers, {total} total pairs, {disc} discriminative")
+
+    return {
+        "status": "complete",
+        "new_papers_added": len(new_papers),
+        "orphans_removed": len(orphans),
+        "total_papers": remaining,
+        "total_pairs": total,
+        "discriminative_pairs": disc,
+    }
+
+
 
 async def enrich_papers_from_semantic_scholar(db, dataset_id: str = "f1000-alzheimers") -> dict:
     """Fetch abstracts and metadata from Semantic Scholar for papers missing abstracts."""
