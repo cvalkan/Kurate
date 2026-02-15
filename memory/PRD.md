@@ -26,11 +26,21 @@ Build a comprehensive system for validating and comparing the performance of AI 
 ## ResearchHub-50 (Well-Connected Subset)
 - **50 papers**, single connected component, 115 discriminative human preference pairs, 24 evaluators
 - Extracted from the 3-core of the largest connected component in full ResearchHub dataset
-- Avg degree 5.0 in comparison graph
+- Graph density 9.39%, avg degree 4.6 (29 papers single-review, 21 with ≥2)
 - **Tournament results (767 AI matches, 30.7 avg/paper)**:
   - Spearman ρ = 0.440 (p=0.001), Kendall τ = 0.285, Pearson r = 0.443
   - AI vs Expert agreement: 74.3%
   - Convergence: ρ rises from 0.22 → 0.47 (clear upward trend)
+
+## ResearchHub-62 (≥2 Reviews Subset)
+- **62 papers**, every paper has ≥2 reviews, 94 discriminative human pairs, 55 evaluators
+- Extracted from largest connected component of ≥2-review papers only
+- Graph density 4.97%, avg degree 3.0, 35 pairs with ≥2 independent evaluators
+- **Tournament results (918 AI matches, 29.6 avg/paper)**:
+  - Spearman ρ = 0.266, Kendall τ = 0.176, Pearson r = 0.246
+  - AI vs Expert agreement: 71.7%
+  - Convergence: ρ ~0.25 (lower than RH-50 due to sparser graph)
+- **Key insight**: ≥2 review constraint reduces graph density, weakening human ground truth ranking
 
 ## Graph Connectivity Analysis
 - **ResearchHub-100** had 12 disconnected components → flat convergence (ρ ≈ 0.2)
