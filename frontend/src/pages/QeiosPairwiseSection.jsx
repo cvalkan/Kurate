@@ -77,6 +77,7 @@ export default function QeiosPairwiseSection() {
   const MODES = [
     { id: "abstract", statusUrl: "/api/qeios/pairwise/status", resultsUrl: "/api/qeios/pairwise/results" },
     { id: "extract", statusUrl: "/api/qeios/pairwise-extract/status", resultsUrl: "/api/qeios/pairwise-extract/results" },
+    { id: "abstract_plus_summary", statusUrl: "/api/qeios/pairwise-summary/status", resultsUrl: "/api/qeios/pairwise-summary/results" },
   ];
 
   const fetchAll = useCallback(async () => {
