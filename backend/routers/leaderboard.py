@@ -895,6 +895,10 @@ async def get_convergence(
     """
     from scipy import stats as scipy_stats
     from collections import defaultdict
+    from core.auth import get_settings
+
+    settings = await get_settings()
+    top_k_focus = settings.get("top_k_focus", 10)
 
     # Get papers
     paper_query = {}
