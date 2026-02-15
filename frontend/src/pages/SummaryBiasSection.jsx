@@ -195,14 +195,19 @@ function ProgressBar({ status }) {
 
 function SummaryStats({ data }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5" data-testid="summary-stats">
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5" data-testid="summary-stats">
       <div className="border border-border rounded-lg p-3 bg-secondary/5">
         <div className="text-[10px] text-muted-foreground">Matches Analyzed</div>
         <div className="text-xl font-semibold font-mono">{data.num_matches}</div>
       </div>
       <div className="border border-border rounded-lg p-3 bg-secondary/5">
-        <div className="text-[10px] text-muted-foreground">Total Evaluations</div>
+        <div className="text-[10px] text-muted-foreground">Summary Evaluations</div>
         <div className="text-xl font-semibold font-mono">{data.total_evaluations}</div>
+      </div>
+      <div className="border border-border rounded-lg p-3 bg-secondary/5">
+        <div className="text-[10px] text-muted-foreground">Full-PDF Baseline</div>
+        <div className="text-xl font-semibold font-mono">{data.fullpdf_matches || 0}</div>
+        <div className="text-[10px] text-muted-foreground">{data.fullpdf_matches ? `${data.fullpdf_matches} matches` : "not run"}</div>
       </div>
       <div className="border border-border rounded-lg p-3 bg-secondary/5">
         <div className="text-[10px] text-muted-foreground">Unanimous Agreement</div>
@@ -213,6 +218,36 @@ function SummaryStats({ data }) {
         <div className="text-[10px] text-muted-foreground">Consensus Rate</div>
         <div className="text-xl font-semibold font-mono">{data.consensus_rate}%</div>
         <div className="text-[10px] text-muted-foreground">{data.consensus_matches}/{data.num_matches} clear majority</div>
+      </div>
+    </div>
+  );
+}
+
+function FullPdfStats({ stats }) {
+  if (!stats) return null;
+  const interJudge = stats._inter_judge_agreement;
+  const models = Object.entries(stats).filter(([k]) => !k.startsWith("_"));
+  return (
+    <div className="border border-border rounded-lg p-4" data-testid="fullpdf-stats">
+      <h3 className="text-sm font-semibold mb-0.5">Full-PDF Baseline Stats</h3>
+      <p className="text-[10px] text-muted-foreground mb-3">
+        Each judge evaluated the same 200 matches using the full paper text (no summary). Inter-judge agreement on full PDF: <span className="font-mono font-semibold">{interJudge?.toFixed(1) ?? "—"}%</span>
+      </p>
+      <div className="grid grid-cols-3 gap-3">
+        {models.map(([model, data]) => (
+          <div key={model} className="border border-border/50 rounded-lg p-3 bg-secondary/5">
+            <div className="text-xs font-semibold mb-1">{model}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {data.matches} matches evaluated
+            </div>
+            {data.vs_original != null && (
+              <div className="text-[11px] mt-1">
+                <span className="text-muted-foreground">vs extract baseline: </span>
+                <span className="font-mono font-medium">{data.vs_original.toFixed(1)}%</span>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
