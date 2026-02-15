@@ -14,6 +14,7 @@ from routers.validation import router as validation_router
 from routers.pairwise import router as pairwise_router
 from routers.scipost import router as scipost_router
 from routers.qeios import router as qeios_router
+from routers.summary_bias import router as summary_bias_router
 from services.scheduler import start_scheduler
 
 app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
@@ -82,6 +83,7 @@ app.include_router(validation_router)
 app.include_router(pairwise_router)
 app.include_router(scipost_router)
 app.include_router(qeios_router)
+app.include_router(summary_bias_router)
 
 app.add_middleware(
     CORSMiddleware,
