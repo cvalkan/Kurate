@@ -1209,7 +1209,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
     gt_lb = compute_leaderboard(h_papers, human_matches)
     gt_rank = {e["id"]: e["rank"] for e in gt_lb}
     gt_score = {e["id"]: e["score"] for e in gt_lb}
-    top_k_values = [k for k in [3, 5, 10] if k < len(h_ids)]
+    top_k_values = [top_k_focus] if top_k_focus < len(h_ids) else [min(10, len(h_ids) - 1)]
     gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
 
     paper_ids = [p["id"] for p in papers]
