@@ -155,6 +155,8 @@ async def _fetch_pair_data(session: aiohttp.ClientSession, reviewer: str, papers
 def _get_ctx(mode: str):
     if mode == "extract":
         return {"state": _pw_ext_state, "collection": db.qeios_pairwise_extract}
+    if mode == "abstract_plus_summary":
+        return {"state": _pw_summary_state, "collection": db.qeios_pairwise_summary}
     return {"state": _pw_abs_state, "collection": db.qeios_pairwise_abstract}
 
 
