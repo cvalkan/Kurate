@@ -303,7 +303,7 @@ export default function SummaryBiasSection({ category = "q-bio.BM" }) {
       {/* Experiment description */}
       <div className="border border-border rounded-lg p-4 bg-secondary/5">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          <strong>Experiment:</strong> For each paper in the Biomolecules category, 3 AI impact summaries are generated
+          <strong>Experiment:</strong> For each paper in the {catLabel} category, 3 AI impact summaries are generated
           (one per LLM: Claude Opus, Gemini 3, GPT 5.2). Then 200 randomly selected matches are re-evaluated
           in all 9 configurations (3 judges x 3 summary sources = 1,800 evaluations).
           This reveals whether a judge is biased toward summaries written by its own model.
