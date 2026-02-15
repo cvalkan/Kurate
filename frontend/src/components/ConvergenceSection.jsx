@@ -35,15 +35,35 @@ export function ValidationConvergence({ datasets }) {
   const [metric, setMetric] = useState("spearman");
   const [showTopK, setShowTopK] = useState(false);
 
+  const CONTENT_MODES = [
+    { id: "abstract", label: "Abstract" },
+    { id: "extract", label: "Extract" },
+    { id: "full_pdf", label: "Full PDF" },
+    { id: "abstract_plus_summary", label: "Abstract + Summary" },
+  ];
+
   useEffect(() => {
     if (!datasets?.length) return;
-    Promise.all(
-      datasets.map(ds =>
-        axios.get(`${API}/api/validation/convergence`, { params: { dataset_id: ds.dataset_id, content_mode: "extract", steps: 20 } }).catch(() => ({ data: {} }))
-      )
-    ).then(results => {
+    // For each dataset, fetch convergence for ALL content modes
+    const fetches = [];
+    datasets.forEach(ds => {
+      CONTENT_MODES.forEach(mode => {
+        fetches.push(
+          axios.get(`${API}/api/validation/convergence`, {
+            params: { dataset_id: ds.dataset_id, content_mode: mode.id, steps: 20 }
+          }).then(r => ({ dsId: ds.dataset_id, dsName: ds.name, mode: mode.id, modeLabel: mode.label, data: r.data }))
+            .catch(() => null)
+        );
+      });
+    });
+    Promise.all(fetches).then(results => {
       const c = {};
-      datasets.forEach((ds, i) => { if (results[i].data.status === "ok") c[ds.dataset_id] = { ...results[i].data, name: ds.name }; });
+      for (const r of results) {
+        if (!r || r.data.status !== "ok" || !r.data.curve?.length) continue;
+        const key = datasets.length === 1 ? r.mode : `${r.dsId}__${r.mode}`;
+        const label = datasets.length === 1 ? r.modeLabel : `${r.dsName} (${r.modeLabel})`;
+        c[key] = { ...r.data, name: label };
+      }
       setCurves(c);
       setLoading(false);
     });
