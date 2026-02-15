@@ -775,9 +775,6 @@ async def _pw_summary_pipeline(parallel_agents: int = 5):
                 if not _pw_summary_state["running"]:
                     return
 
-                p1_qid = pair["paper1"].get("qeios_id", "")
-                p2_qid = pair["paper2"].get("qeios_id", "")
-
                 def _build(paper_doc, cached_doc):
                     return {
                         "title": paper_doc.get("title", ""),
