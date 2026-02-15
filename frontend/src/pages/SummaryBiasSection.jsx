@@ -175,6 +175,8 @@ function ProgressBar({ status }) {
   const pct = total ? Math.round((completed / total) * 100) : 0;
   const phaseLabel = status.phase === "generating_summaries"
     ? "Generating AI summaries (3 models)"
+    : status.phase === "running_fullpdf"
+    ? "Running full-PDF baseline (3 judges)"
     : "Running 9-config experiment";
 
   return (
