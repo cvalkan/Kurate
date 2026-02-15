@@ -396,6 +396,45 @@ function RunningIndicator({ runningMode, status }) {
   );
 }
 
+const GAP_META = {
+  small:  { label: "Small (1 pt)", color: "bg-amber-400/70" },
+  medium: { label: "Medium (2 pts)", color: "bg-blue-400/70" },
+  large:  { label: "Large (3+ pts)", color: "bg-green-400/70" },
+};
+const GAP_ORDER = ["small", "medium", "large"];
+
+function ScoreGapSection({ scoreGap, modeLabels }) {
+  // Merge all modes into one combined view
+  const modes = Object.keys(scoreGap);
+  if (!modes.length) return null;
+
+  return (
+    <div className="border border-border rounded-lg p-4" data-testid="pw-score-gap">
+      <h3 className="text-xs font-medium mb-1 flex items-center gap-1.5">
+        <BarChart3 className="h-3 w-3" /> AI Agreement by Expert Score Gap
+      </h3>
+      <div className="text-[10px] text-muted-foreground mb-3">Do AI models agree more with experts when the quality difference is obvious?</div>
+      <div className="space-y-4">
+        {modes.map(mode => {
+          const buckets = scoreGap[mode];
+          return (
+            <div key={mode}>
+              {modes.length > 1 && <div className="text-[10px] font-medium text-muted-foreground mb-1.5">{modeLabels[mode] || mode}</div>}
+              <div className="space-y-2">
+                {GAP_ORDER.filter(g => buckets[g]).map(gap => {
+                  const b = buckets[gap];
+                  const meta = GAP_META[gap];
+                  return <HBar key={gap} rate={b.rate} label={meta.label} sub={`${b.agree}/${b.total} pairs`} color={meta.color} />;
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MethodologyNote() {
   return (
     <div className="border border-border rounded-lg p-4 bg-secondary/10" data-testid="pw-agreement-methodology">
