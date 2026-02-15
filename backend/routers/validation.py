@@ -2005,3 +2005,17 @@ async def expand_f1000(min_pairs: int = 100):
     asyncio.create_task(expand_dataset(db, min_discriminative_pairs=min_pairs))
     return {"status": "started", "target_discriminative_pairs": min_pairs}
 
+
+@router.post("/rescrape-f1000-evals", dependencies=[Depends(verify_admin)])
+async def rescrape_f1000_evals():
+    """Re-scrape ALL evaluations for existing F1000 papers (captures multi-evaluator articles)."""
+    from services.f1000_rescrape import rescrape_all_evaluations
+    asyncio.create_task(_run_rescrape(db))
+    return {"status": "started"}
+
+
+async def _run_rescrape(database):
+    from services.f1000_rescrape import rescrape_all_evaluations
+    result = await rescrape_all_evaluations(database)
+    logger.info(f"F1000 rescrape complete: {result}")
+
