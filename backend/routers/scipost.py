@@ -654,6 +654,16 @@ async def pw_status_extract():
     return await _pw_status(mode="extract")
 
 
+@router.get("/pairwise-summary/status")
+async def pw_status_summary():
+    return await _pw_status(mode="abstract_plus_summary")
+
+
+@router.get("/pairwise-summary/results")
+async def pw_results_summary():
+    return await _pw_results(mode="abstract_plus_summary")
+
+
 @router.post("/pairwise/stop", dependencies=[Depends(verify_admin)])
 async def pw_stop():
     return await _pw_stop(mode="abstract")
