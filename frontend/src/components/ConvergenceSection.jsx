@@ -180,7 +180,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
                 label={{ value: METRICS.find(m => m.id === metric)?.label, angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
               <Tooltip content={<Tip />} />
               {dsIds.length > 1 && <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
-              <ReferenceLine y={0.95} stroke="#22c55e" strokeDasharray="4 4" />
+              {dsIds.length <= 1 && <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
               {dsIds.map((did, i) => (
                 <Line key={did} type="monotone" dataKey={`${did}_${metric}`} name={curves[did].name}
                   stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
