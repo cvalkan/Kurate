@@ -48,9 +48,14 @@ Build a comprehensive system for validating and comparing the performance of AI 
   - Strength excluded: measures methodological rigor unassessable from abstracts alone
 - 53 editors, fully connected graph, **31.6% density**, avg degree 31.3 (min 20)
 - **1,590 human discriminative pairs** from editor significance judgments
-- **Tournament results (1,499 AI matches, 30 avg/paper)**:
-  - Spearman ρ = 0.276, AI vs Expert: 64.9%
-  - Convergence: ρ rises from 0.17 → 0.28 (upward trend, limited by 4-level granularity)
+- **Tournament results**:
+
+  | Mode | Spearman ρ | AI vs Expert | Convergence peak |
+  |------|-----------|-------------|-----------------|
+  | Abstract only | 0.268 | 64.9% | 0.28 |
+  | **Abstract + AI Summary** | **0.404** | **69.6%** | **0.41** |
+  
+  Adding Claude Opus 4.5 impact summaries boosted correlation by +51% (0.27→0.40)
 - **Key insight**: Coarse significance scale (only 4 levels) limits ranking precision — many papers share same label, weakening ground truth ranking compared to finer-grained review scores
 
 ## Graph Connectivity Analysis
