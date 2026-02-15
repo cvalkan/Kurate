@@ -1031,6 +1031,141 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list, parallel_agen
             st["running"] = False
 
 
+
+@router.post("/pairwise-summary/run", dependencies=[Depends(verify_admin)])
+async def pw_run_summary(body: PairwiseFetchRequest):
+    """Run abstract+summary evaluations on existing SciPost pairs using AI impact summaries."""
+    if _pw_summary_state["running"]:
+        return {"status": "already_running"}
+    asyncio.create_task(_pw_run_summary_mode(body.parallel_agents))
+    return {"status": "started", "mode": "abstract_plus_summary"}
+
+
+async def _pw_run_summary_mode(parallel_agents: int = 5):
+    """Re-evaluate existing SciPost pairs using abstract + AI impact summary."""
+    _pw_summary_state.update({"running": True, "progress": {"phase": "evaluating", "pairs_done": 0, "target": 0}})
+
+    try:
+        # Load AI summaries from scipost_paper_data
+        summary_docs = await db.scipost_paper_data.find({}, {"_id": 0}).to_list(100)
+        summary_map = {d["submission_id"]: d for d in summary_docs}
+
+        # Get existing abstract pairs as template
+        existing = await db.scipost_pairwise.find({"ai_completed": True}, {"_id": 0}).to_list(10000)
+        if not existing:
+            logger.warning("SciPost summary: no abstract pairs to re-evaluate")
+            return
+
+        # Check which pairs already done in summary collection
+        done_keys = set()
+        async for doc in db.scipost_pairwise_summary.find({}, {"_id": 0, "pair_key": 1}):
+            done_keys.add(doc.get("pair_key"))
+
+        todo = [p for p in existing if p.get("pair_key") not in done_keys]
+        _pw_summary_state["progress"]["target"] = len(todo)
+        logger.info(f"SciPost summary: {len(todo)} pairs to evaluate ({len(done_keys)} already done)")
+
+        if not todo:
+            return
+
+        semaphore = asyncio.Semaphore(parallel_agents)
+        counter = {"n": 0}
+
+        async def _eval_pair(pair):
+            async with semaphore:
+                if not _pw_summary_state["running"]:
+                    return
+
+                p1_sid = pair["paper1"]["submission_id"]
+                p2_sid = pair["paper2"]["submission_id"]
+                p1_data = summary_map.get(p1_sid, {})
+                p2_data = summary_map.get(p2_sid, {})
+
+                def _build(paper_doc, summary_doc):
+                    return {
+                        "title": paper_doc.get("title", ""),
+                        "abstract": summary_doc.get("abstract") or paper_doc.get("abstract", ""),
+                        "ai_impact_summary": summary_doc.get("ai_impact_summary", ""),
+                        "categories": ["Physics"],
+                    }
+
+                dim = pair.get("dimension", "")
+                task_text = DIMENSION_PW_TASKS.get(dim, f"Which paper is better on {dim}?")
+                prompt_config = {
+                    "system_prompt": "You are a physics peer reviewer. Compare two papers on a specific dimension. You must pick exactly one winner. Respond with valid JSON only.",
+                    "user_prompt": (
+                        f"Compare these two physics papers on their {dim.upper()}.\n\n"
+                        "Paper 1: \"{paper1_title}\"\n{paper1_content}\n\n"
+                        "Paper 2: \"{paper2_title}\"\n{paper2_content}\n\n"
+                        f"{task_text}\n\n"
+                        "You MUST pick exactly one winner. Respond with JSON only:\n"
+                        "{{\"winner\": \"paper1\" or \"paper2\", \"reasoning\": \"brief explanation\"}}"
+                    ),
+                }
+
+                coros = []
+                model_tasks = []
+                for mi in TOURNAMENT_MODELS:
+                    swapped = random.random() < 0.5
+                    model_tasks.append((mi, swapped))
+                    a, b = (pair["paper2"], pair["paper1"]) if swapped else (pair["paper1"], pair["paper2"])
+                    a_sum = summary_map.get(a["submission_id"], {})
+                    b_sum = summary_map.get(b["submission_id"], {})
+                    coros.append(compare_papers(
+                        _build(a, a_sum), _build(b, b_sum), prompt_config,
+                        content_mode="abstract_plus_summary", model_override=mi,
+                    ))
+
+                responses = await asyncio.gather(*coros, return_exceptions=True)
+                ai_results = {}
+                for (mi, swapped), resp in zip(model_tasks, responses):
+                    mk = f"{mi['provider']}:{mi['model']}"
+                    if isinstance(resp, Exception):
+                        ai_results[mk] = {"winner": None, "error": str(resp)[:100]}
+                    else:
+                        w = resp.get("winner", "paper1")
+                        if swapped:
+                            w = "paper2" if w == "paper1" else "paper1"
+                        ai_results[mk] = {"winner": w, "reasoning": resp.get("reasoning", "")}
+
+                votes = [v["winner"] for v in ai_results.values() if v.get("winner")]
+                majority = None
+                if votes:
+                    c = Counter(votes)
+                    best, n = c.most_common(1)[0]
+                    if n > len(votes) / 2:
+                        majority = best
+
+                doc = {
+                    "id": str(uuid.uuid4()),
+                    "pair_id": pair.get("pair_id", str(uuid.uuid4())),
+                    "pair_key": pair.get("pair_key"),
+                    "source": "scipost",
+                    "dimension": dim,
+                    "paper1": pair["paper1"],
+                    "paper2": pair["paper2"],
+                    "human_winner": pair.get("human_winner"),
+                    "score_gap": pair.get("score_gap"),
+                    "content_mode": "abstract_plus_summary",
+                    "used_extraction": False,
+                    "ai_results": ai_results,
+                    "ai_majority": majority,
+                    "ai_completed": True,
+                    "ai_failed": False,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                await db.scipost_pairwise_summary.insert_one(doc)
+                counter["n"] += 1
+                _pw_summary_state["progress"]["pairs_done"] = counter["n"]
+
+        await asyncio.gather(*[_eval_pair(p) for p in todo])
+        logger.info(f"SciPost summary: {counter['n']} pairs evaluated")
+    except Exception as e:
+        logger.error(f"SciPost summary error: {e}")
+    finally:
+        _pw_summary_state["running"] = False
+
+
 @router.get("/pairwise/results")
 async def pw_results():
     return await _pw_results(mode="abstract")
