@@ -564,3 +564,109 @@ async def _select_and_save(db, all_articles: dict, target: int) -> dict:
         "derivable_pairs": total_pairs,
         "dataset_id": dataset_id,
     }
+
+
+
+async def enrich_papers_from_semantic_scholar(db, dataset_id: str = "f1000-alzheimers") -> dict:
+    """Fetch abstracts and metadata from Semantic Scholar for papers missing abstracts."""
+    if _scraper_state["running"]:
+        return {"status": "already_running"}
+
+    _scraper_state.update({"running": True, "phase": "Enriching via Semantic Scholar", "log": []})
+
+    try:
+        papers = await db.validation_papers.find(
+            {"dataset_id": dataset_id},
+            {"_id": 0, "id": 1, "doi": 1, "pmid": 1, "title": 1, "abstract": 1}
+        ).to_list(500)
+
+        _log(f"Enriching {len(papers)} papers from Semantic Scholar...")
+        enriched = 0
+        failed = 0
+
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            for i, p in enumerate(papers):
+                doi = p.get("doi")
+                pmid = p.get("pmid")
+                title = p.get("title", "")
+
+                # Skip f1000 DOIs (recommendation DOIs, not paper DOIs)
+                if doi and doi.startswith("10.3410/"):
+                    doi = None
+
+                paper_id = None
+                if doi:
+                    paper_id = f"DOI:{doi}"
+                elif pmid:
+                    paper_id = f"PMID:{pmid}"
+
+                if not paper_id:
+                    try:
+                        resp = await client.get(
+                            "https://api.semanticscholar.org/graph/v1/paper/search",
+                            params={"query": title[:100], "limit": 1, "fields": "abstract,venue,year,title,authors"}
+                        )
+                        if resp.status_code == 200:
+                            hits = resp.json().get("data", [])
+                            if hits:
+                                ss = hits[0]
+                                update = {}
+                                if ss.get("abstract"):
+                                    update["abstract"] = ss["abstract"]
+                                if ss.get("venue"):
+                                    update["journal"] = ss["venue"]
+                                if ss.get("year"):
+                                    update["year"] = str(ss["year"])
+                                    update["label"] = str(ss["year"])
+                                if ss.get("authors"):
+                                    update["authors"] = [a.get("name", "") for a in ss["authors"]]
+                                if update:
+                                    await db.validation_papers.update_one({"id": p["id"]}, {"$set": update})
+                                    enriched += 1
+                                else:
+                                    failed += 1
+                            else:
+                                failed += 1
+                    except Exception as e:
+                        failed += 1
+                    await asyncio.sleep(0.3)
+                    continue
+
+                try:
+                    resp = await client.get(
+                        f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}",
+                        params={"fields": "abstract,venue,year,title,authors"}
+                    )
+                    if resp.status_code == 200:
+                        ss = resp.json()
+                        update = {}
+                        if ss.get("abstract"):
+                            update["abstract"] = ss["abstract"]
+                        if ss.get("venue"):
+                            update["journal"] = ss["venue"]
+                        if ss.get("year"):
+                            update["year"] = str(ss["year"])
+                            update["label"] = str(ss["year"])
+                        if ss.get("authors"):
+                            update["authors"] = [a.get("name", "") for a in ss["authors"]]
+                        if update:
+                            await db.validation_papers.update_one({"id": p["id"]}, {"$set": update})
+                            enriched += 1
+                            _log(f"[{i+1}/{len(papers)}] Enriched: {title[:50]}")
+                        else:
+                            failed += 1
+                    elif resp.status_code == 429:
+                        _log("Rate limited, waiting 5s...")
+                        await asyncio.sleep(5)
+                        failed += 1
+                    else:
+                        failed += 1
+                except Exception as e:
+                    failed += 1
+                await asyncio.sleep(0.3)
+
+        _log(f"Enrichment complete: {enriched} enriched, {failed} failed")
+        _scraper_state["phase"] = "Enrichment complete"
+        return {"status": "complete", "enriched": enriched, "failed": failed, "total": len(papers)}
+    finally:
+        _scraper_state["running"] = False
