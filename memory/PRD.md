@@ -70,10 +70,11 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - Previous: Expanded ResearchHub to 4 pairs/reviewer, human pairwise ground truth, score gap chart
 
 ## Key Files
-- `backend/routers/validation.py` — Core validation, convergence (now with graph connectivity)
-- `frontend/src/components/ConvergenceSection.jsx` — Convergence charts with connectivity indicator
+- `backend/routers/validation.py` — Core validation, convergence (now with graph connectivity + expert count)
+- `frontend/src/components/ConvergenceSection.jsx` — Convergence charts with connectivity + expert indicator
 - `backend/services/rh_scraper.py` — ResearchHub API scraper
 - `frontend/src/pages/PairwiseAgreementSection.jsx` — Score gap chart, per-model fix
+- `/tmp/elife_neuro.json` — Cached eLife Neuroscience scan data (769 articles)
 
 ## Pending
 - P1: Resume ICLR LLMs multi-model runs
