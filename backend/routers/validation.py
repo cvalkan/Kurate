@@ -1994,3 +1994,14 @@ async def enrich_f1000():
     asyncio.create_task(enrich_papers_from_semantic_scholar(db))
     return {"status": "started"}
 
+
+@router.post("/expand-f1000", dependencies=[Depends(verify_admin)])
+async def expand_f1000(min_pairs: int = 100):
+    """Expand F1000 dataset by graph-crawling related articles for more evaluator overlap."""
+    from services.f1000_scraper import expand_dataset, get_state
+    state = get_state()
+    if state["running"]:
+        return {"status": "already_running", **state}
+    asyncio.create_task(expand_dataset(db, min_discriminative_pairs=min_pairs))
+    return {"status": "started", "target_discriminative_pairs": min_pairs}
+
