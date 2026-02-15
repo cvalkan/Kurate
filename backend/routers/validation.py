@@ -1197,7 +1197,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
                     queue.append(nb)
         h_components.append(comp)
     h_component_sizes = sorted([len(c) for c in h_components], reverse=True)
-    h_largest_component = len(h_component_sizes[0]) if h_component_sizes else 0
+    h_largest_component = h_component_sizes[0] if h_component_sizes else 0
 
     # Ground truth: human ranking from expert pairwise preferences
     h_papers = [p for p in papers if p["id"] in h_ids]
