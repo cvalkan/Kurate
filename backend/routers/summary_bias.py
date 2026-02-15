@@ -246,13 +246,122 @@ async def _do_run_experiment(category: str, num_matches: int, parallel: int):
     logger.info(f"Summary bias experiment complete: {completed}/{total_work}")
 
 
+# ─── Phase 3: Full PDF Baseline ──────────────────────────────────────────
+
+@router.post("/run-fullpdf-baseline", dependencies=[Depends(verify_admin)])
+async def run_fullpdf_baseline(body: PipelineRequest):
+    if _state["phase"] != "idle":
+        return {"status": "already_running", "phase": _state["phase"], "progress": _state["progress"]}
+    asyncio.create_task(_do_run_fullpdf_baseline(body.category, body.parallel))
+    return {"status": "started", "category": body.category}
+
+
+async def _do_run_fullpdf_baseline(category: str, parallel: int):
+    _state["phase"] = "running_fullpdf"
+
+    # Get the same matches used in the summary experiment
+    distinct_ids = await db.summary_bias_matches.distinct(
+        "original_match_id", {"category": category, "completed": True, "summary_key": {"$ne": "full_pdf"}}
+    )
+    if not distinct_ids:
+        logger.warning("Summary bias fullpdf: no experiment matches found")
+        _state["phase"] = "idle"
+        _state["progress"] = {}
+        return
+
+    original_matches = await db.matches.find(
+        {"id": {"$in": distinct_ids}},
+        {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+    ).to_list(1000)
+
+    # Need full_text for full_pdf mode
+    papers = await db.papers.find({"categories": category}, {"_id": 0}).to_list(500)
+    paper_lookup = {p["id"]: p for p in papers}
+
+    total_work = len(original_matches) * len(TOURNAMENT_MODELS)
+    completed = 0
+    _state["progress"] = {"completed": 0, "total": total_work, "category": category}
+
+    done_set = set()
+    async for doc in db.summary_bias_matches.find(
+        {"category": category, "summary_key": "full_pdf", "completed": True},
+        {"_id": 0, "original_match_id": 1, "judge_key": 1}
+    ):
+        done_set.add((doc["original_match_id"], doc["judge_key"]))
+
+    sem = asyncio.Semaphore(parallel)
+    prompt_config = DEFAULT_EVALUATION_PROMPT
+
+    async def run_one(match, judge_model):
+        nonlocal completed
+        jk = _mk(judge_model)
+
+        if (match["id"], jk) in done_set:
+            completed += 1
+            _state["progress"]["completed"] = completed
+            return
+
+        p1_id, p2_id = match["paper1_id"], match["paper2_id"]
+        if p1_id not in paper_lookup or p2_id not in paper_lookup:
+            completed += 1
+            _state["progress"]["completed"] = completed
+            return
+
+        p1, p2 = paper_lookup[p1_id], paper_lookup[p2_id]
+        swapped = random.random() < 0.5
+        pa, pb = (p2, p1) if swapped else (p1, p2)
+
+        async with sem:
+            doc = {
+                "id": str(uuid.uuid4()),
+                "experiment_id": "fullpdf_baseline",
+                "category": category,
+                "original_match_id": match["id"],
+                "paper1_id": p1_id,
+                "paper2_id": p2_id,
+                "original_winner_id": match["winner_id"],
+                "judge_key": jk,
+                "summary_key": "full_pdf",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            try:
+                result = await compare_papers(
+                    pa, pb, prompt_config,
+                    content_mode="full_pdf",
+                    model_override=judge_model,
+                )
+                winner_key = result.get("winner", "paper1")
+                if swapped:
+                    winner_id = p2_id if winner_key == "paper1" else p1_id
+                else:
+                    winner_id = p1_id if winner_key == "paper1" else p2_id
+                doc.update({"winner_id": winner_id, "reasoning": result.get("reasoning", ""), "completed": True, "failed": False})
+            except Exception as e:
+                doc.update({"winner_id": None, "completed": False, "failed": True, "error": str(e)[:200]})
+
+            await db.summary_bias_matches.insert_one(doc)
+            completed += 1
+            _state["progress"]["completed"] = completed
+            if completed % 50 == 0:
+                logger.info(f"Summary bias fullpdf: {completed}/{total_work}")
+
+    work = [(m, j) for m in original_matches for j in TOURNAMENT_MODELS]
+    random.shuffle(work)
+    await asyncio.gather(*(run_one(m, j) for m, j in work))
+    logger.info(f"Summary bias fullpdf baseline complete: {completed}/{total_work}")
+    _state["phase"] = "idle"
+    _state["progress"] = {}
+
+
 # ─── Status ──────────────────────────────────────────────────────────────
 
 @router.get("/status")
 async def get_status(category: str = Query("q-bio.BM")):
     summaries = await db.summary_bias_summaries.count_documents({"category": category})
-    matches_ok = await db.summary_bias_matches.count_documents({"category": category, "completed": True})
-    matches_fail = await db.summary_bias_matches.count_documents({"category": category, "failed": True})
+    matches_ok = await db.summary_bias_matches.count_documents({"category": category, "completed": True, "summary_key": {"$ne": "full_pdf"}})
+    matches_fail = await db.summary_bias_matches.count_documents({"category": category, "failed": True, "summary_key": {"$ne": "full_pdf"}})
+    fullpdf_ok = await db.summary_bias_matches.count_documents({"category": category, "completed": True, "summary_key": "full_pdf"})
+    fullpdf_fail = await db.summary_bias_matches.count_documents({"category": category, "failed": True, "summary_key": "full_pdf"})
 
     pipeline = [
         {"$match": {"category": category}},
@@ -266,6 +375,8 @@ async def get_status(category: str = Query("q-bio.BM")):
         "summaries_per_model": per_model,
         "matches_completed": matches_ok,
         "matches_failed": matches_fail,
+        "fullpdf_completed": fullpdf_ok,
+        "fullpdf_failed": fullpdf_fail,
         "phase": _state["phase"],
         "progress": _state["progress"],
     }
