@@ -29,11 +29,11 @@ print('User ID: ' + userId);
 ## Step 2: Test Backend API
 ```bash
 # Test auth endpoint
-curl -X GET "https://model-benchmark-lab.preview.emergentagent.com/api/auth/me" \
+curl -X GET "https://research-eval.preview.emergentagent.com/api/auth/me" \
   -H "Authorization: Bearer YOUR_SESSION_TOKEN"
 
 # Test suggestion creation
-curl -X POST "https://model-benchmark-lab.preview.emergentagent.com/api/suggestions" \
+curl -X POST "https://research-eval.preview.emergentagent.com/api/suggestions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_SESSION_TOKEN" \
   -d '{"type": "field", "text": "Add cs.ML Machine Learning"}'
@@ -51,5 +51,5 @@ await page.context.add_cookies([{
     "secure": True,
     "sameSite": "None"
 }]);
-await page.goto("https://model-benchmark-lab.preview.emergentagent.com");
+await page.goto("https://research-eval.preview.emergentagent.com");
 ```
