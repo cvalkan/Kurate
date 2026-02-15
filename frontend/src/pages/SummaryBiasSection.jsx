@@ -195,7 +195,7 @@ function ProgressBar({ status }) {
 
 function SummaryStats({ data }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5" data-testid="summary-stats">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5" data-testid="summary-stats">
       <div className="border border-border rounded-lg p-3 bg-secondary/5">
         <div className="text-[10px] text-muted-foreground">Matches Analyzed</div>
         <div className="text-xl font-semibold font-mono">{data.num_matches}</div>
@@ -203,21 +203,17 @@ function SummaryStats({ data }) {
       <div className="border border-border rounded-lg p-3 bg-secondary/5">
         <div className="text-[10px] text-muted-foreground">Summary Evaluations</div>
         <div className="text-xl font-semibold font-mono">{data.total_evaluations}</div>
+        <div className="text-[10px] text-muted-foreground">9 configs per match</div>
       </div>
       <div className="border border-border rounded-lg p-3 bg-secondary/5">
-        <div className="text-[10px] text-muted-foreground">Full-PDF Baseline</div>
-        <div className="text-xl font-semibold font-mono">{data.fullpdf_matches || 0}</div>
-        <div className="text-[10px] text-muted-foreground">{data.fullpdf_matches ? `${data.fullpdf_matches} matches` : "not run"}</div>
+        <div className="text-[10px] text-muted-foreground">Full-PDF Evaluations</div>
+        <div className="text-xl font-semibold font-mono">{(data.fullpdf_matches || 0) * 3}</div>
+        <div className="text-[10px] text-muted-foreground">3 judges per match</div>
       </div>
       <div className="border border-border rounded-lg p-3 bg-secondary/5">
-        <div className="text-[10px] text-muted-foreground">Unanimous Agreement</div>
+        <div className="text-[10px] text-muted-foreground">All 9 Configs Agree</div>
         <div className="text-xl font-semibold font-mono">{data.unanimous_rate}%</div>
         <div className="text-[10px] text-muted-foreground">{data.unanimous_matches}/{data.num_matches} matches</div>
-      </div>
-      <div className="border border-border rounded-lg p-3 bg-secondary/5">
-        <div className="text-[10px] text-muted-foreground">Consensus Rate</div>
-        <div className="text-xl font-semibold font-mono">{data.consensus_rate}%</div>
-        <div className="text-[10px] text-muted-foreground">{data.consensus_matches}/{data.num_matches} clear majority</div>
       </div>
     </div>
   );
