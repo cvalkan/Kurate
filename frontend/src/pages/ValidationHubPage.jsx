@@ -104,6 +104,7 @@ export default function ValidationHubPage() {
     "pw-qeios": { title: "Pairwise — Qeios", desc: "Head-to-head AI comparison using Qeios open peer review data. 3 AI models, majority-vote agreement with human expert." },
     "pw-scipost": { title: "Pairwise — SciPost", desc: "Per-dimension head-to-head comparison (validity, significance, originality, clarity) using SciPost peer review data." },
     "si-scipost": { title: "Single-item — SciPost", desc: "AI rates each paper on 4 dimensions (1-6 scale), compared against human referee ratings." },
+    "exp-summary-bias": { title: "Summary Bias Experiment", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
   };
   // Add H2H dataset metas
   pairwiseDatasets.forEach(ds => {
