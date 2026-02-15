@@ -199,26 +199,18 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
                 label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`}
-                label={{ value: "Top-K overlap with ground truth", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
+                label={{ value: `Top-${topKValues[0]} overlap with ground truth`, angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
               <Tooltip content={<Tip />} />
-              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+              {dsIds.length > 1 && <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
               <ReferenceLine y={100} stroke="#22c55e" strokeDasharray="4 4" />
-              {dsIds.length === 1 ? (
-                // Single dataset: show each k as a separate line
-                topKValues.map(k => (
-                  <Line key={k} type="monotone" dataKey={`${dsIds[0]}_top_${k}`} name={`Top ${k}`}
-                    stroke={TOPK_COLORS[`top_${k}`] || "#94a3b8"} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
-                ))
-              ) : (
-                // Multi dataset: show top-5 (or first available) per dataset
-                dsIds.map((did, i) => {
-                  const k = topKValues.find(v => v === 5) || topKValues[0];
-                  return (
-                    <Line key={did} type="monotone" dataKey={`${did}_top_${k}`} name={`${curves[did].name} (top ${k})`}
-                      stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
-                  );
-                })
-              )}
+              {dsIds.map((did, i) => {
+                const k = topKValues[0];
+                return (
+                  <Line key={did} type="monotone" dataKey={`${did}_top_${k}`}
+                    name={dsIds.length > 1 ? `${curves[did].name}` : `Top ${k}`}
+                    stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
         </div>
