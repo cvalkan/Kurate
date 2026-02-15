@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import {
-  FlaskConical, GitCompare, Beaker, Trophy, ChevronRight,
+  FlaskConical, GitCompare, Beaker, Trophy, ChevronRight, FlaskRound,
 } from "lucide-react";
 
 import PairwisePage from "./PairwisePage";
@@ -9,6 +9,7 @@ import SciPostPage from "./SciPostPage";
 import SciPostPairwiseSection from "./SciPostPairwiseSection";
 import QeiosPairwiseSection from "./QeiosPairwiseSection";
 import PairwiseAgreementSection from "./PairwiseAgreementSection";
+import SummaryBiasSection from "./SummaryBiasSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
