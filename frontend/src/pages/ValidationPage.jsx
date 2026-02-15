@@ -107,7 +107,6 @@ function StandardStats({ datasetId, isAdmin }) {
     { id: "full_pdf", label: "Full PDF" },
     { id: "ai_summary", label: "AI Summary" },
     { id: "abstract_plus_summary", label: "Abstract + Summary" },
-    { id: "abstract_plus_impact", label: "Abstract + Impact" },
   ];
 
   const fetchAll = useCallback(async () => {
