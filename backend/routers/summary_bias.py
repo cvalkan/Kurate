@@ -60,6 +60,8 @@ async def _full_pipeline(category: str, num_matches: int, parallel: int):
         await _do_generate_summaries(category, parallel)
         # Phase 2: Run experiment
         await _do_run_experiment(category, num_matches, parallel)
+        # Phase 3: Run full-PDF baseline
+        await _do_run_fullpdf_baseline(category, parallel)
     except Exception as e:
         logger.error(f"Summary bias pipeline error: {e}")
     finally:
