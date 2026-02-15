@@ -20,7 +20,7 @@ from typing import Optional, List
 
 from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TOURNAMENT_MODELS
 from core.auth import verify_admin
-from services.llm import compare_papers
+from services.llm import compare_papers, generate_precomparison_impact_summary
 
 router = APIRouter(prefix="/api/qeios")
 
