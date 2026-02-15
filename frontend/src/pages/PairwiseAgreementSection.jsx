@@ -142,11 +142,15 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
   sortedModes.forEach(m => { Object.keys(data.per_model?.[m] || {}).forEach(mk => allModels.add(mk)); });
   const modelList = [...allModels].sort();
 
+  // Use ai_majority when available, fall back to ai_expert for single-evaluator datasets (e.g. F1000)
+  const hasExpertMajority = data.expert_expert?.total > 0;
+  const modelMetricLabel = hasExpertMajority ? "Expert Majority" : "Expert";
+
   const modelChartData = sortedModes.map(mode => {
     const row = { name: MODE_LABELS[mode] };
     modelList.forEach(mk => {
       const s = data.per_model?.[mode]?.[mk];
-      if (s) row[shortModel(mk)] = s.ai_majority.rate;
+      if (s) row[shortModel(mk)] = hasExpertMajority ? s.ai_majority.rate : s.ai_expert.rate;
     });
     return row;
   });
