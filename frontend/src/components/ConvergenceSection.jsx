@@ -154,7 +154,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               </button>
               <button onClick={() => setShowTopK(true)}
                 className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${showTopK ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
-                Top-K Overlap
+                Top-{topKValues[0] || "K"} Overlap
               </button>
             </div>
           )}
