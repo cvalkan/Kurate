@@ -209,6 +209,11 @@ async def pw_ext_results():
     return await _pw_results("extract")
 
 
+@router.get("/pairwise-summary/results")
+async def pw_summary_results():
+    return await _pw_results("abstract_plus_summary")
+
+
 async def _pw_results(mode: str):
     ctx = _get_ctx(mode)
     pairs = await ctx["collection"].find({"ai_completed": True}, {"_id": 0}).to_list(10000)
