@@ -434,6 +434,86 @@ async def _download_pending_pdfs(category: str = None):
     return downloaded
 
 
+# Summary model mapping
+_SUMMARY_MODELS = {
+    "claude": {"provider": "anthropic", "model": "claude-opus-4-5-20251101"},
+    "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
+    "gpt": {"provider": "openai", "model": "gpt-5.2"},
+}
+_summary_rr_counter = 0
+
+
+def _pick_summary_source(setting: str) -> dict:
+    """Pick summary model based on admin setting."""
+    global _summary_rr_counter
+    if setting in _SUMMARY_MODELS:
+        return _SUMMARY_MODELS[setting]
+    # round_robin
+    models = list(_SUMMARY_MODELS.values())
+    model = models[_summary_rr_counter % len(models)]
+    _summary_rr_counter += 1
+    return model
+
+
+def _summary_model_key(model_info: dict) -> str:
+    return f"{model_info['provider']}:{model_info['model']}"
+
+
+async def _generate_paper_summaries(category: str = None):
+    """Generate AI impact summaries (3 models) for papers missing them."""
+    from core.config import TOURNAMENT_MODELS
+
+    settings = await get_settings()
+    parallel = settings.get("summary_parallel", 10)
+
+    query = {"pdf_link": {"$ne": None}}
+    if category:
+        query["categories.0"] = category
+    # Only papers with full_text
+    query["full_text"] = {"$ne": None}
+
+    papers = await db.papers.find(
+        query, {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
+    ).to_list(500)
+
+    cat_status = _get_cat_status(category) if category else None
+    sem = asyncio.Semaphore(parallel)
+    generated = 0
+
+    async def gen_one(paper, model_info):
+        nonlocal generated
+        mk = _summary_model_key(model_info)
+        # Check if already exists
+        existing = (paper.get("summaries") or {}).get(mk)
+        if existing:
+            return
+
+        async with sem:
+            result = await generate_precomparison_impact_summary(paper, model_override=model_info)
+            if result and result.get("summary"):
+                await db.papers.update_one(
+                    {"id": paper["id"]},
+                    {"$set": {f"summaries.{mk}": result["summary"]}},
+                )
+                generated += 1
+                if cat_status and generated % 5 == 0:
+                    cat_status["current_activity"] = f"Generating summaries... ({generated})"
+
+    tasks = []
+    for paper in papers:
+        for model_info in TOURNAMENT_MODELS:
+            tasks.append(gen_one(paper, model_info))
+
+    if tasks:
+        if cat_status:
+            cat_status["current_activity"] = f"Generating summaries for {len(papers)} papers..."
+        await asyncio.gather(*tasks)
+        logger.info(f"[{category}] Generated {generated} new AI summaries")
+
+    return generated
+
+
+
 async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO"):
     lock = _get_lock(category)
     if lock.locked():
