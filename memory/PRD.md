@@ -127,5 +127,4 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - Explore eLife as complementary dataset
 - Experiment with different LLMs (Gemini 3 Flash)
 - Refactor data processing into services layer
-- Add missing HTTP security headers
 - Full security scan review
