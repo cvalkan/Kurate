@@ -1,14 +1,19 @@
 """ChemRxiv paper fetcher.
 
 Uses a seed file for paper discovery (DOIs from web scraping) and the Cambridge
-Open Engage DOI API for full metadata + PDF URLs. The DOI API bypasses Cloudflare.
+Open Engage DOI API for full metadata + PDF URLs. Falls back to paperscraper's
+save_pdf for DOIs not in the Cambridge API.
 """
 import asyncio
 import json
+import os
+import io
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Optional
 import httpx
 from bs4 import BeautifulSoup
+from PyPDF2 import PdfReader
 from core.config import logger
 
 COE_DOI_API = "https://www.cambridge.org/engage/coe/public-api/v1/items/doi/"
