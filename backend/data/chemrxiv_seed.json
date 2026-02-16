@@ -843,5 +843,186 @@
     "categories": [
       "chemrxiv.IC"
     ]
+  },
+  {
+    "title": "Dynamic Modulation of the Diradical Nature of an Overcrowded Phosphaquinoid",
+    "authors": [
+      "Rajesh Deka",
+      "Taegeun Jo",
+      "Samir Chattopadhyay",
+      "Jing Tao",
+      "Luca D\u2019Amario",
+      "Anders Thapper",
+      "Stefano Crespi",
+      "Andreas Orthaber"
+    ],
+    "abstract": "Molecules capable of reversibly transitioning between istinct states in response to multiple stimuli are highly sought after for responsive materials, enabling precise control over electronic structure at the molecular level. While overcrowded alkene (OCA) diradicaloids have shown promise in this context, research has largely centered  on carbon-based systems, leaving main-group alternatives underexplored. Herein, we present the synthesis of an  air stable, phosphaalkene substituted hybrid OCA diradicaloid, obtained by replacing one exocyclic C=C bond of  an anthraquinodimethane core with a low-valent phosphaalkene unit (\u2013C=P\u2013Mes*, Mes*= 2,4,6-tri-tert butylphenyl) and appending a fluorenyl group at the opposite terminus. This unique molecular framework enables distinct responses to external stimuli, as demonstrated by comprehensive spectroscopic analysis and supported by theoretical studies. The molecule undergoes a temperature-induced, reversible conformational change from a folded quinoidal to a twisted diradicaloid state via rotation of the fluorenyl unit about the central overcrowded alkene bond. Furthermore, reversible Lewis acid\u2013base interactions at the phosphorus center dynamically modulate the diradical character, illustrating a rare example of chemical control in a main-group-based OCA diradicaloid. These findings open new avenues for the design of main-group diradicaloids with multi-stimulus responsiveness.",
+    "published": "2025-11-30T04:59:43.262Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-6kh5d",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6924136fa10c9f5ca17d7ee2/original/dynamic-modulation-of-the-diradical-nature-of-an-overcrowded-phosphaquinoid.pdf",
+    "doi": "10.26434/chemrxiv-2025-6kh5d",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-6kh5d",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Octahedral Coordination Cages of Co(II) and Ni(II) for Development of ParaSHIFT Probes ",
+    "authors": [
+      "Aruni Dissanayake",
+      "Jaclyn Raymond",
+      "Matthew Crawley",
+      "Janet Morrow"
+    ],
+    "abstract": "The solid-state structures and solution properties of octahedral M6L4-type metal-organic cages with acylhydrazone linkages containing paramagnetic Co(II), Ni(II), or diamagnetic Zn(II) and their respective mononuclear analogs are presented towards development of paramagnetic shift (paraSHIFT) probes for magnetic resonance spectroscopy (MRS) imaging applications. Each metal center is six-coordinate and has two methylpyridine groups serving to maintain the high-spin divalent center for Co(II) or Ni(II). The Co(II) cage and mononuclear complex showed sharp 1H NMR resonances at the clinically relevant magnetic field strength of 1.4 T (60 MHz) or at high field strengths of 9.4 (400 MHz) and 11.7 T (500 MHz), whereas the Ni(II) cage and complex showed somewhat broadened proton resonances. 1H NMR studies acquired over 2 minutes showed that the Co(II) coordination cage methyl protons gave limits of detection (LOD) of 50 \u00b5M, due to the high symmetry of the cage with 36 equivalent methyl protons, whereas that of the monomeric complex was 125 \u00b5M. Moreover, the fully deprotonated coordination cages were substantially more inert towards trans-metallation than were the simple monomeric complexes. Cationic tetraalkylammonium or tetraethylphosphonium guests (including the metabolite, acetylcholine) encapsulated within the Co(II) cage produced a shift in the cage proton resonances, which highlights the potential for sensing small molecules by MRS.",
+    "published": "2025-11-28T10:43:38.233Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-67mp2",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6924ef8ba10c9f5ca1991dc5/original/octahedral-coordination-cages-of-co-ii-and-ni-ii-for-development-of-para-shift-probes.pdf",
+    "doi": "10.26434/chemrxiv-2025-67mp2",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-67mp2",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "On the effect of Mg2+ ions on transport properties in molten chloride fast reactor fuels",
+    "authors": [
+      "Woei Jer Ng",
+      "Kateryna Goloviznina",
+      "Vincent Sarou-Kanian",
+      "Mathieu Salanne",
+      "Aydar Rakhmatullin"
+    ],
+    "abstract": "Molten chloride fast reactors (MCFRs) are emerging as a promising class of molten salt reactor (MSR) designs due to their ability to dissolve large amounts of major actinides while keeping low melting points and sustaining a hard neutron spectrum. In this context, understanding molten salt transport properties\u2014such as viscosity and self-diffusivity\u2014is essential for the design and optimisation of MSRs with efficient heat transfer characteristics. However, an important gap remains in the literature regarding transport properties in molten chlorides. In this work, we performed classical molecular dynamics (MD) simulations with the Polarisable Ion Model (PIM) to evaluate the viscosities and self-diffusion coefficients of molten NaCl\u2013MgCl2\u2013LaCl3, which was used in our previous work as a simulant for the ARAMIS-A reactor fuel. To validate the accuracy of our approach, calculated transport properties for the NaCl\u2013LaCl3 binary system were benchmarked against capillary viscometry measurements from the literature and our own Pulsed-Field Gradient Nuclear Magnetic Resonance (PFG\u2013NMR) experiments. Our study compares the roles of NaCl and MgCl2 on the transport properties of MCFR fuels. Interestingly, we observe that MgCl2 does not impact LaCl3-poor and LaCl3-rich melts in a similar way, due to the competition between the multivalent ions to attract chloride ions in their first shell and their ability to form cluster species.",
+    "published": "2025-11-28T09:05:17.370Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-bzmt2",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692497f765a54c2d4a782c20/original/on-the-effect-of-mg2-ions-on-transport-properties-in-molten-chloride-fast-reactor-fuels.pdf",
+    "doi": "10.26434/chemrxiv-2025-bzmt2",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-bzmt2",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Upcycling Rare Earth Elements from Leached Phosphor Fractions (YOX, LAP) Utilizing \u03b1-Aminobisphosphonate ",
+    "authors": [
+      "Krista Oikarinen",
+      "Esa Kukkonen",
+      "Minnea Tuomisto",
+      "Janne Yliharju",
+      "Arttu  Miettinen",
+      "Mika  Lastusaari",
+      "Ari V\u00e4is\u00e4nen",
+      "Jani O. Moilanen"
+    ],
+    "abstract": "A process involving three phases (leaching, purification, and precipitation) for upcycling rare earth elements (REEs) from spent fluorescent lamp phosphor material was developed. First, the leaching of different phosphor fractions using methanesulfonic acid (MSA) as a lixiviant was studied. The optimized three-step leaching sequence involved: (1) leaching the halophosphonate fraction (HALO) with pure MSA (L/S=20 L/kg, T=22 \u00b0C, t= 1 h), (2) leaching the yttrium-oxide (YOX) fraction with 5% MSA (L/S=20 L/kg, T=40 \u00b0C, t= 2 h), and (3) the lanthanum-phosphate (LAP) fraction with pure MSA (L/S=20 L/kg, T=180 \u00b0C, t= 1.5 h). The YOX and LAP leachates were further processed by quantitatively precipitating iron. Due to the high aluminum content, the LAP leachate was treated using 3D-printed PA12/Amberlyst15 filters, which contained 70 wt% nylon-12, and 30 wt% of commercial sulfonic acid-based Amberlyst 15 ion exchange resin. The solid-phase extraction (SPE) stage consisted of adsorption and desorption phases, with desorption occurring in two steps: (1) removing impurities such as aluminum, magnesium, and boron using 1 M NH4Cl and (2) desorbing the LAP leachate containing mainly La, Tb, and Ce with 5 M MSA. After treating the YOX (mainly Y, Eu), and LAP (mainly La, Tb, Ce) leachates, both fractions were precipitated using a synthesized \u03b1-aminobis(phosphonate) ligand. The resulting YOX and LAP precipitates contained REEs with a purity of 99.6\u00b11.3% and 98.9\u00b11.4%., respectively. The precipitated REE-complexes showed the characteristic emission bands of Tb\u00b3\u207a and Eu\u00b3\u207a in their respective luminescence spectra, underpinning the utilization of these complexes in optical applications.",
+    "published": "2025-11-28T12:23:27.112Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-wt323",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69254715ef936fb4a27f5e11/original/upcycling-rare-earth-elements-from-leached-phosphor-fractions-yox-lap-utilizing-aminobisphosphonate.pdf",
+    "doi": "10.26434/chemrxiv-2025-wt323",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-wt323",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Robust \u03c0-Stacking Derived Metallic Conductivity in Tetrathiafulvalene-Based Coordination Polymers",
+    "authors": [
+      "Saranya  Velliyarat",
+      "Jan-Niklas Boyn"
+    ],
+    "abstract": "Tetrathiafulvalene (TTF)-based conducting coordination polymers (CCPs) are distinguished by their extended \u03c0 conjugation and rich redox chemistry, which can enable metallic conductivity comparable to or exceeding that of traditional inorganic semiconductors. However, the mechanisms underlying their conductivity and magnetic behavior remain poorly understood due to the complex interplay of \u03c0-conjugation, metal\u2013ligand interactions, dimensionality, and structural disorder. Here, we employ density functional theory to investigate NiTTFtt and related metal\u2013TTFtt systems (Pd, Pt, Sn, Co, Cu, Fe). Our findings establish metallic conduction in TTFtt-based CCPs as an intrinsic property of the \u03c0-conjugated backbone, largely independent of metal identity and structural disorder. This intrinsic robustness, combined with tunable magnetic features and mechanical flexibility, highlights the potential of TTFtt-based CCPs as multifunctional molecular conductors for reliable performance in next generation electronic materials.",
+    "published": "2025-11-27T14:23:22.983Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-f24sf",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692344c2ef936fb4a242a5c6/original/robust-stacking-derived-metallic-conductivity-in-tetrathiafulvalene-based-coordination-polymers.pdf",
+    "doi": "10.26434/chemrxiv-2025-f24sf",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-f24sf",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Pb(II) and Co(II) Decontamination in Aqueous Systems by Magnesium-Enriched Bismuth Ferrite and Its Hybrid Materials",
+    "authors": [
+      "Sabrine Saad",
+      "Amel Ben Slimane"
+    ],
+    "abstract": "A novel magnesium-incorporated bismuth ferrite along with its composites, including bentonite and activated carbon hybrids, were synthesized via a self-ignition technique where glycine acted as a combustion agent. The efficiency of these materials to eliminate Pb(II) and Co(II) species in polluted water was comprehensively evaluated. Characterizations were performed through BET surface area measurement, SEM observation, FTIR analysis, and XRD examination. FTIR spectra confirmed the presence of metal\u2013oxygen bond vibrations in the 400\u20131000 cm\u207b\u00b9 region, highlighting an Fe\u2013O stretching mode near 419 cm\u207b\u00b9, Mg\u2013O bands between 469 and 548.18 cm\u207b\u00b9, and Bi\u2013O vibrations ranging from 673 to 730.28 cm\u207b\u00b9 for the ferrite and its composites. SEM micrographs revealed irregular, porous morphologies featuring surface microcavities that favor heavy metal diffusion. BET results indicated mesoporous structures with specific surface areas of 23.694 m\u00b2/g, 25.0 m\u00b2/g, and 20.289 m\u00b2/g for the ferrite, ferrite/bentonite, and ferrite/activated carbon composites, respectively. Pore diameters varied between 4.94 and 15.5 nm, with pore capacities ranging from 0.029 to 0.0456 cm\u00b3/g, underscoring their promising capacity for heavy metal adsorption. Co\u00b2\u207a ions required a longer time to reach equilibrium (up to 180 minutes) compared to Pb\u00b2\u207a ions (120 minutes), suggesting faster interaction or diffusion of lead ions onto the adsorbents. Kinetic experiments demonstrated that adsorption obeyed a second-order kinetic equation, indicating a rate-controlling step primarily determined by the abundance of available active centers and by the concentration of metallic cations on the sorbent interface, rather than by simple transport of ions. The sorption behavior was assessed using Langmuir and Freundlich models, showing that findings from both models were consistent with each other: the Langmuir approach highlighted single-layer adsorption over a uniform interface, whereas the Freundlich approach revealed increasing heterogeneity of adsorption sites, particularly in the composites, explaining their superior performance relative to the pure ferrite. The highest metal ion removal capacities reached 181.8 mg/g (Pb) and 166.666 mg/g (Co) using the ferrite, 191.975 mg/g (Pb) and 188.643 mg/g (Co) with the ferrite/bentonite composite, and 195.198 mg/g (Pb) and 190.839 mg/g (Co) when employing the ferrite/activated carbon composite. According to thermodynamic findings, metal ion capture was spontaneous and exothermic. Low isosteric heat values indicated a physisorption-dominated mechanism with weak adsorbate\u2013adsorbent interactions. The research reported herein supports the progress of sustainable chemistry and development in Africa by providing novel approaches to address environmental pollution and resource management challenges.",
+    "published": "2025-11-26T13:30:18.100Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-2bfvr",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6921bdf7a10c9f5ca1338ffd/original/pb-ii-and-co-ii-decontamination-in-aqueous-systems-by-magnesium-enriched-bismuth-ferrite-and-its-hybrid-materials.pdf",
+    "doi": "10.26434/chemrxiv-2025-2bfvr",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-2bfvr",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Side-Arm Sterics Direct Conformation, Topology, and Function in Zirconium Metal\u2013Organic Frameworks ",
+    "authors": [
+      "Haofan Yang",
+      "Qianhui  Wang",
+      "Thang Pham",
+      "Zhiwei  Wang",
+      "Haomiao  Xie",
+      "Yongjie  Xu",
+      "Filip  Formalik",
+      "Davide Proserpio",
+      "Charlotte Stern",
+      "Alice  Li",
+      "Xavier Krull",
+      "Andrew Cooper",
+      "Randall Snurr",
+      "Joseph Hupp"
+    ],
+    "abstract": "The conformational variability of organic linkers holds significant potential for expanding the structural and topological diversity of metal\u2013organic frameworks (MOFs). Traditional design strategies typically rely on steric tuning of the central linker core using small substituents, such as methyl groups. In this study, we depart from that paradigm by introducing steric control through modular side-arm functionali-zation. Six amide or cyano groups are employed as unconventional steric units to induce isolable con-formational variability. This design enables the linker to flex and twist, guiding the formation of two isostructural Zr-MOFs, AM-Zr-1 and CN-Zr-1, both adopting previously unreported underlying net 6,8-c nuh1 and 3,8-c nuh2 with highly distorted, topologically complex porous architecture. Despite their iden-tical connectivity, AM-Zr-1 generates a geometrically unique amide pocket that enhances CO2 binding and affords higher CO2/N2 and CO2/CH4 selectivity, whereas the less bulky cyano substituents confer a more extended conformation to CN-Zr-1, resulting in higher surface area and H2 uptake. These findings highlight steric side-arm functionalization as a simple yet versatile strategy for tuning Zr-MOF topology and function.",
+    "published": "2025-11-26T13:24:33.685Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-7zpr5",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6921cce865a54c2d4a22dc5f/original/side-arm-sterics-direct-conformation-topology-and-function-in-zirconium-metal-organic-frameworks.pdf",
+    "doi": "10.26434/chemrxiv-2025-7zpr5",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-7zpr5",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Adsorbate-Induced Reversible Changes in Zeolite ZEO-5 Attributed to its Triple-Four-Silicate-Rings",
+    "authors": [
+      "Zihao Rei Gao",
+      "Cristian Aristizabal-Gonz\u00e1lez",
+      "Xiujie Weng",
+      "Junyan Zhang",
+      "Dongxia Liu",
+      "Arturo J.  Hern\u00e1ndez-Maldonado",
+      "Michael Tsapatsis"
+    ],
+    "abstract": "Extra-large pore zeolites exhibit structural features distinct from those of classical zeolites, with potential consequences in their use as adsorbents and catalysts. The lowest-framework-density known zeolite, ZEO-5, was synthesized via interchain expansion, forming unprecedented triple four-ring (t4r) units, creating a fully connected framework with 20-membered-ring pores. Here, we report that ZEO-5 exhibits unique water adsorption behavior. Initially hydrophobic, it undergoes a sharp increase in water uptake within a narrow range of relative pressure, transitioning into a hydrophilic status, with a pronounced desorption hysteresis. Characterization by powder X-ray diffraction, porosimetry, in situ infrared spectroscopy, and solid-state nuclear magnetic resonance reveals structural degradation via Si-O-Si bond cleavage within the highly strained t4r unit. Remarkably, upon re-calcination, the original structure of ZEO-5, including its t4r units, is fully restored, establishing a reversible adsorption-induced order-disorder structural transformation. Similar behavior occurs with other polar molecules, including ammonia and alcohols, underscoring the broader implications of this ZEO-5 feature for adsorptive separations and for pore functionalization. For example, ZEO-5 at 423K, exhibits high ammonia working capacity between 11 and 1.1 bar adsorption and desorption pressures, respectively, surpassing the corresponding performance of commercial aluminosilicate zeolites. Structure models, consistent with experimental observations, are proposed to explain this phenomenon.",
+    "published": "2025-11-26T10:23:39.589Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-cd499",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6920b55eef936fb4a2ea5cc2/original/adsorbate-induced-reversible-changes-in-zeolite-zeo-5-attributed-to-its-triple-four-silicate-rings.pdf",
+    "doi": "10.26434/chemrxiv-2025-cd499",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-cd499",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Entropy-driven ligand exchange in a rotationally flexible dinuclear Fe(II)-Fe(II) complex",
+    "authors": [
+      "Pablo G. Porta",
+      "Benjamin Kintzel",
+      "Birgit Weber",
+      "Michael Busch",
+      "Dieter Sorsche"
+    ],
+    "abstract": "In metalloenzymes, precise control of metal\u2013metal distance and coordination en- vironment enables challenging catalytic transformations. This often involves hydro- gen bonding in the second coordination sphere. Although many homogeneous sys- tems aim to mimic these features, the capture and characterization of transient co- ordination events remains a challenge. Exploring the first diiron complex of the rota- tionally flexible dinucleating ligand 1,1\u2019,5,5\u2019,6,6\u2019-hexamethyl-4,4\u2019-bis(picolinimino)-2,2\u2019- bibenzimidazole, we uncover a counter-intuitive, entropy-driven ligand exchange equi- librium which we fully described by means of variable temperature studies in solution, key intermediate species trapped in crystallo, and a mechanistic study in silico. This comprehensive experimental and computational characterization of the ligand and com- plex revealed that the central C\u2013C bond enables adaptation to different metal\u2013metal distances. Cooling a methanol solution of the complex induces a color change from green to blue. Based on crystallographic and UV-vis studies, the color change is attributed to the reversible substitution of chlorido ligands by methanol. Density functional the- ory calculations suggest that this ligand exchange is driven by the change in entropy inherent to the reduction of temperature. Under controlled conditions, electrochemical analysis reveals two accessible redox events: a fully reversible redox process at -0.05 V vs. Fc/Fc+ and a series of irreversible reduction reactions at more negative potentials. The resemblance of these redox features with those in established iron catalysts high- lights the potential of this system to support a wide range of catalytic transformations.",
+    "published": "2025-11-26T07:18:23.113Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-gchml",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6920213cef936fb4a2d8b596/original/entropy-driven-ligand-exchange-in-a-rotationally-flexible-dinuclear-fe-ii-fe-ii-complex.pdf",
+    "doi": "10.26434/chemrxiv-2025-gchml",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-gchml",
+    "categories": [
+      "chemrxiv.IC"
+    ]
   }
 ]
