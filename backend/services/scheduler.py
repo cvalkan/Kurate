@@ -8,8 +8,8 @@ from typing import List, Optional, Dict
 from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
 from core.auth import get_settings
 from services.arxiv import fetch_arxiv_papers
-from services.llm import download_and_extract_pdf, compare_papers
-from services.ranking import calculate_confidence_interval, wilson_margin_pct
+from services.llm import download_and_extract_pdf, compare_papers, generate_precomparison_impact_summary
+from services.ranking import calculate_confidence_interval, wilson_margin_pct, compute_leaderboard
 
 _scheduler_running = False
 _processing_locks = {}  # Per-category locks
