@@ -778,6 +778,79 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
             entry["vs_fullpdf"] = round(sp, 4) if not (sp != sp) else 0
         config_correlations[ck] = entry
 
+    # ── Extract convergence curve (same x-axis: avg matches per paper) ──
+    extract_curve = []
+    if fullpdf_rank and main_matches:
+        random.seed(42)
+        shuffled_extract = list(main_matches)
+        random.shuffle(shuffled_extract)
+
+        # Use the same avg-matches-per-paper steps as the summary curve
+        target_avgs = [p["avg_matches_per_paper"] for p in curve]
+        # Also add higher steps up to the full extract dataset
+        total_ext = len(shuffled_extract)
+        full_counts = defaultdict(int)
+        for m in shuffled_extract:
+            if m["paper1_id"] in paper_ids:
+                full_counts[m["paper1_id"]] += 1
+            if m["paper2_id"] in paper_ids:
+                full_counts[m["paper2_id"]] += 1
+        max_ext_avg = sum(full_counts[p] for p in paper_ids if full_counts[p] > 0) / max(sum(1 for p in paper_ids if full_counts[p] > 0), 1)
+
+        # Add steps beyond the summary range up to extract max
+        extra_steps = [round(max_ext_avg * f) for f in [0.25, 0.5, 0.75, 1.0]]
+        all_targets = sorted(set(target_avgs + extra_steps))
+
+        for target_avg in all_targets:
+            # Binary search for the number of matches that gives this avg
+            lo, hi = 1, total_ext
+            best_n = total_ext
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                counts = defaultdict(int)
+                for m in shuffled_extract[:mid]:
+                    if m["paper1_id"] in paper_ids:
+                        counts[m["paper1_id"]] += 1
+                    if m["paper2_id"] in paper_ids:
+                        counts[m["paper2_id"]] += 1
+                active_pids = [p for p in paper_ids if counts[p] > 0]
+                if not active_pids:
+                    lo = mid + 1
+                    continue
+                avg = sum(counts[p] for p in active_pids) / len(active_pids)
+                if avg < target_avg:
+                    lo = mid + 1
+                else:
+                    best_n = mid
+                    hi = mid - 1
+
+            subset = shuffled_extract[:best_n]
+            sub_lb = compute_leaderboard(papers, subset)
+            sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+            active = {m["paper1_id"] for m in subset if m["paper1_id"] in paper_ids} | {m["paper2_id"] for m in subset if m["paper2_id"] in paper_ids}
+
+            counts = defaultdict(int)
+            for m in subset:
+                if m["paper1_id"] in paper_ids:
+                    counts[m["paper1_id"]] += 1
+                if m["paper2_id"] in paper_ids:
+                    counts[m["paper2_id"]] += 1
+            active_counts = [counts[p] for p in active if counts[p] > 0]
+            actual_avg = round(sum(active_counts) / max(len(active_counts), 1), 1)
+
+            common_fp = [pid for pid in active if pid in fullpdf_rank and pid in sub_rank]
+            fp_rho = None
+            if len(common_fp) >= 3:
+                sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common_fp], [fullpdf_rank[p] for p in common_fp])
+                fp_rho = round(sp, 4) if not (sp != sp) else 0
+
+            extract_curve.append({
+                "matches": best_n,
+                "avg_matches_per_paper": actual_avg,
+                "vs_fullpdf_spearman": fp_rho,
+                "papers_covered": len(active),
+            })
+
     return {
         "status": "ok",
         "category": category,
@@ -786,5 +859,6 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         "total_fullpdf_matches": len(fullpdf_consensus_matches),
         "papers": len(papers),
         "curve": curve,
+        "extract_curve": extract_curve,
         "config_correlations": config_correlations,
     }
