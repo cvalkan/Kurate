@@ -71,7 +71,7 @@ export default function PromptsPage() {
           />
           {prompts.summary && (
             <PromptBlock
-              label="Impact Summary Prompt"
+              label="AI Impact Summary Prompt"
               icon={Sparkles}
               systemPrompt={prompts.summary?.system_prompt}
               userPrompt={prompts.summary?.user_prompt}
