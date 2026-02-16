@@ -182,6 +182,9 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               <Tooltip content={<Tip />} />
               {dsIds.length > 1 && <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
               {dsIds.length <= 1 && <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
+              {isLeaderboard && metric === "spearman" && (
+                <ReferenceLine y={0.95} stroke="#22c55e" strokeDasharray="4 4" label={{ value: "ρ = 0.95", position: "right", fontSize: 9, fill: "#22c55e" }} />
+              )}
               {dsIds.map((did, i) => (
                 <Line key={did} type="monotone" dataKey={`${did}_${metric}`} name={curves[did].name}
                   stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
