@@ -268,12 +268,53 @@ async def _scheduler_loop():
             pass
 
 
+async def _store_ranking_snapshot(category: str):
+    """Store a ranking snapshot after a comparison round.
+    
+    Each snapshot records the current BT ranking so we can compare
+    rankings across rounds to detect convergence.
+    """
+    papers = await db.papers.find(
+        {"categories.0": category}, {"_id": 0, "id": 1, "title": 1}
+    ).to_list(500)
+    if len(papers) < 2:
+        return
+
+    all_matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
+    ).to_list(100000)
+
+    pid_set = {p["id"] for p in papers}
+    filtered = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
+    if not filtered:
+        return
+
+    lb = compute_leaderboard(papers, filtered)
+    rankings = {e["id"]: e["rank"] for e in lb}
+
+    # Get next round number for this category
+    last = await db.ranking_snapshots.find_one(
+        {"category": category}, sort=[("round", -1)], projection={"_id": 0, "round": 1}
+    )
+    next_round = (last["round"] + 1) if last else 1
+
+    await db.ranking_snapshots.insert_one({
+        "category": category,
+        "round": next_round,
+        "rankings": rankings,
+        "total_matches": len(filtered),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    logger.debug(f"[{category}] Stored ranking snapshot round {next_round}")
+
+
 async def _check_goals_met(category: str = "cs.RO") -> bool:
     """Check if ranking has converged for a category.
     
-    Uses ranking stability: compares current BT ranking against the ranking
-    from a few rounds ago. When Spearman ρ > threshold for consecutive checks,
-    the tournament has converged.
+    Uses temporal ranking stability: after each round, compute Spearman ρ
+    between the current ranking and the ranking from 2 rounds ago.
+    Tournament stops when ρ > threshold for `convergence_rounds` consecutive checks.
     
     Also ensures minimum matches per paper and top-K cross-matching.
     """
@@ -298,7 +339,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
 
     all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ).to_list(100000)
 
     for m in all_matches:
@@ -330,34 +371,35 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
             if pair not in compared_pairs:
                 return False
 
-    # Goal 3: ranking convergence
-    # Compare ranking from all matches vs ranking from 80% of matches
-    if len(all_matches) < 20:
+    # Goal 3: ranking convergence via temporal snapshots
+    # Compare current ranking with ranking from 2 rounds ago
+    # Need at least convergence_rounds + 2 snapshots to check
+    snapshots = await db.ranking_snapshots.find(
+        {"category": category},
+        {"_id": 0, "round": 1, "rankings": 1},
+    ).sort("round", -1).to_list(convergence_rounds + 2)
+
+    if len(snapshots) < convergence_rounds + 2:
         return False
 
-    match_as_list = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
-                      "winner_id": m["winner_id"], "completed": True, "failed": False}
-                     for m in all_matches]
+    # snapshots are sorted newest first: [round N, N-1, N-2, ...]
+    # Check: for the last `convergence_rounds` rounds, is ρ(round_i, round_{i-2}) > threshold?
+    consecutive_stable = 0
+    for i in range(convergence_rounds):
+        current = snapshots[i]["rankings"]
+        compare_with = snapshots[i + 2]["rankings"]  # 2 rounds before
+        common = [pid for pid in paper_ids if pid in current and pid in compare_with]
+        if len(common) < 3:
+            return False
+        sp, _ = scipy_stats.spearmanr(
+            [current[p] for p in common],
+            [compare_with[p] for p in common]
+        )
+        if sp != sp or sp < convergence_threshold:  # NaN check
+            return False
+        consecutive_stable += 1
 
-    full_lb = compute_leaderboard(papers, match_as_list)
-    full_rank = {e["id"]: e["rank"] for e in full_lb}
-
-    # Check stability at multiple cutoffs
-    stable_count = 0
-    for frac in [0.7, 0.8, 0.9]:
-        n = int(len(match_as_list) * frac)
-        sub_lb = compute_leaderboard(papers, match_as_list[:n])
-        sub_rank = {e["id"]: e["rank"] for e in sub_lb}
-        common = [pid for pid in paper_ids if pid in full_rank and pid in sub_rank]
-        if len(common) >= 3:
-            sp, _ = scipy_stats.spearmanr(
-                [sub_rank[p] for p in common],
-                [full_rank[p] for p in common]
-            )
-            if not (sp != sp) and sp >= convergence_threshold:
-                stable_count += 1
-
-    return stable_count >= convergence_rounds
+    return consecutive_stable >= convergence_rounds
 
 
 async def run_fetch_cycle(category: str = "cs.RO"):
