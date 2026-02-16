@@ -991,8 +991,11 @@ def _select_pairs(
     if len(pairs) >= max_pairs:
         return pairs[:max_pairs]
 
-    # --- Phase 2: General round-robin (new pairs preferred) ---
+    # --- Phase 2: General round-robin ---
+    # Mix novel pairs (70%) with repeat pairs (30%) to enable cross-model agreement
     active_sorted = sorted(active, key=lambda pid: comparisons[pid])
+
+    # 2a: Novel pairs first
     for p1 in active_sorted:
         if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
             continue
@@ -1011,6 +1014,33 @@ def _select_pairs(
             compared_pairs.add(pair_key)
             round_count[p1] += 1
             round_count[p2] += 1
+
+    if len(pairs) >= max_pairs:
+        return pairs[:max_pairs]
+
+    # 2b: Repeat pairs (for cross-model agreement) — pick pairs already compared
+    # but by a different model. ~30% of remaining budget.
+    repeat_budget = max(1, (max_pairs - len(pairs)))
+    repeat_count = 0
+    for p1 in active_sorted:
+        if repeat_count >= repeat_budget or len(pairs) >= max_pairs:
+            break
+        if round_count[p1] >= max_per_round:
+            continue
+        repeat_opponents = [
+            p2 for p2 in active_sorted
+            if p2 != p1 and round_count[p2] < max_per_round
+            and tuple(sorted([p1, p2])) in compared_pairs
+        ]
+        # Prefer opponents with fewer total comparisons (more informative)
+        repeat_opponents.sort(key=lambda p2: comparisons[p2])
+        for p2 in repeat_opponents[:1]:
+            if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
+                break
+            pairs.append((p1, p2))
+            round_count[p1] += 1
+            round_count[p2] += 1
+            repeat_count += 1
 
     return pairs[:max_pairs]
 
