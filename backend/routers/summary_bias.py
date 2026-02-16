@@ -971,7 +971,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
                 fp_rho = round(sp, 4) if not (sp != sp) else 0
 
             # Only include points with sufficient paper coverage
-            if len(active) >= len(paper_ids) * 0.8:
+            if len(active) >= len(paper_ids) * 0.9:
                 extract_curve.append({
                     "matches": best_n,
                     "avg_matches_per_paper": actual_avg,
