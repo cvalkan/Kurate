@@ -216,6 +216,32 @@ export function AdminStatistics({ categories }) {
     );
   };
 
+  const summaryCost = summaryStats?.totals?.total_cost || 0;
+  const summaryTokens = summaryStats?.totals?.total_tokens || 0;
+  const combinedCost = totals.cost + summaryCost;
+  const combinedTokens = totals.tokens + summaryTokens;
+
+  // Merge match model stats with summary model stats for unified view
+  const mergedModelStats = { ...modelStats };
+  if (summaryStats?.models) {
+    for (const [mk, ss] of Object.entries(summaryStats.models)) {
+      // Map summary model key (e.g. "openai:gpt-5_2") to match model key (e.g. "openai/gpt-5.2")
+      const provider = mk.split(":")[0];
+      const model = mk.split(":").slice(1).join(":").replace(/_/g, ".");
+      const matchKey = `${provider}/${model}`;
+      // Find the matching key in modelStats
+      const existingKey = Object.keys(mergedModelStats).find(k => k.includes(model) || k.includes(provider));
+      if (existingKey) {
+        mergedModelStats[existingKey] = {
+          ...mergedModelStats[existingKey],
+          summary_cost: ss.cost_total || 0,
+          summary_count: ss.summaries || 0,
+          summary_tokens: (ss.input_tokens || 0) + (ss.output_tokens || 0),
+        };
+      }
+    }
+  }
+
   return (
     <div className="space-y-6" data-testid="admin-statistics">
       {/* Summary cards */}
@@ -224,14 +250,14 @@ export function AdminStatistics({ categories }) {
         <StatSummaryCard label="Total Matches" value={totals.matches.toLocaleString()} icon={Swords} color="#8b5cf6" />
         <StatSummaryCard
           label="Total Tokens"
-          value={formatTokens(totals.tokens)}
-          sub={`${formatTokens(totals.input_tokens || 0)} in / ${formatTokens(totals.output_tokens || 0)} out`}
+          value={formatTokens(combinedTokens)}
+          sub={`${formatTokens(totals.input_tokens || 0)} in / ${formatTokens(totals.output_tokens || 0)} out (matches)`}
           icon={Cpu} color="#10b981"
         />
         <StatSummaryCard
           label="Total Cost"
-          value={`$${totals.cost.toFixed(2)}`}
-          sub={modelCount > 0 ? `${modelCount} models` : null}
+          value={`$${combinedCost.toFixed(2)}`}
+          sub={summaryCost > 0 ? `$${totals.cost.toFixed(0)} matches + $${summaryCost.toFixed(0)} summaries` : `${modelCount} models`}
           icon={Coins} color="#f59e0b"
         />
       </div>
