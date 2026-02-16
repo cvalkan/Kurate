@@ -31,18 +31,27 @@ async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            executable_path="/pw-browsers/chromium_headless_shell-1208/chrome-linux/headless_shell",
-            args=["--no-sandbox"],
+            executable_path="/pw-browsers/chromium-1208/chrome-linux/chrome",
+            args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
         )
-        page = await browser.new_page()
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        )
+        page = await context.new_page()
 
         for pg in range(pages_needed):
             if len(papers) >= max_results:
                 break
             url = f"{CHEMRXIV_SEARCH_URL}?ConceptID={subject['concept_id']}&sortBy=Earliest&startPage={pg}&pageSize=20"
             try:
-                await page.goto(url, wait_until="networkidle", timeout=30000)
-                await page.wait_for_timeout(2000)
+                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                # Wait for Cloudflare challenge to resolve
+                await page.wait_for_timeout(5000)
+                # Wait for search results to appear
+                try:
+                    await page.wait_for_selector('a[href*="/doi/full/"]', timeout=15000)
+                except Exception:
+                    pass
                 html = await page.content()
                 page_papers = _parse_search_results(html, category)
                 papers.extend(page_papers)
