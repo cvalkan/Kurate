@@ -46,6 +46,7 @@ const STATIC_SECTIONS = [
     items: [
       { id: "exp-summary-bias", label: "Summary Bias", sub: "Biomolecules", category: "q-bio.BM" },
       { id: "exp-summary-bias-econ", label: "Summary Bias", sub: "Economics", category: "econ.GN" },
+      { id: "exp-summary-bias-phys", label: "Summary Bias", sub: "Comp Physics", category: "physics.comp-ph" },
     ],
   },
 ];
