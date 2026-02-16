@@ -266,6 +266,65 @@ export function AdminStatistics({ categories }) {
         </div>
       )}
 
+      {/* Summary Generation Stats */}
+      {summaryStats && summaryStats.totals?.total_summaries > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4" data-testid="summary-generation-stats">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium">Summary Generation</h3>
+            <span className="text-[11px] text-muted-foreground">
+              {summaryStats.papers_with_all_3}/{summaryStats.total_papers} papers with all 3 models
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="p-2.5 rounded-md bg-secondary/30 text-center">
+              <div className="font-mono text-lg font-bold">{summaryStats.totals.total_summaries}</div>
+              <div className="text-[10px] text-muted-foreground">Summaries</div>
+            </div>
+            <div className="p-2.5 rounded-md bg-secondary/30 text-center">
+              <div className="font-mono text-lg font-bold">{formatTokens(summaryStats.totals.total_tokens)}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {formatTokens(summaryStats.totals.input_tokens)} in / {formatTokens(summaryStats.totals.output_tokens)} out
+              </div>
+            </div>
+            <div className="p-2.5 rounded-md bg-secondary/30 text-center">
+              <div className="font-mono text-lg font-bold">${summaryStats.totals.total_cost.toFixed(2)}</div>
+              <div className="text-[10px] text-muted-foreground">Est. Cost</div>
+            </div>
+            <div className="p-2.5 rounded-md bg-secondary/30 text-center">
+              <div className="font-mono text-lg font-bold">
+                ${totals.cost > 0 ? ((summaryStats.totals.total_cost + totals.cost)).toFixed(2) : summaryStats.totals.total_cost.toFixed(2)}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Combined (Matches + Summaries)</div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {Object.entries(summaryStats.models)
+              .sort((a, b) => (b[1].cost_total || 0) - (a[1].cost_total || 0))
+              .map(([model, stats], idx) => {
+                const pct = summaryStats.totals.total_cost > 0 ? ((stats.cost_total || 0) / summaryStats.totals.total_cost) * 100 : 0;
+                const shortName = model.split(":").pop().replace(/_/g, ".");
+                return (
+                  <div key={model} className="flex items-center gap-3">
+                    <span className="text-xs font-mono w-40 shrink-0 truncate">{shortName}</span>
+                    <div className="flex-1 h-5 bg-secondary/50 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: getColor(model, idx) }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+                      <span className="font-mono">{stats.summaries} sums</span>
+                      <span className="font-mono text-muted-foreground">{formatTokens(stats.input_tokens + stats.output_tokens)} tok</span>
+                      <span className="font-mono font-medium text-foreground">${(stats.cost_total || 0).toFixed(2)}</span>
+                      <span className="w-10 text-right">{pct.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Chart controls */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
