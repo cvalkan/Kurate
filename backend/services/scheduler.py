@@ -625,7 +625,14 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     else:
                         presented_batch.append((p1_id, p2_id))
                 for p1_id, p2_id in presented_batch:
-                    tasks.append(compare_papers(paper_lookup[p1_id], paper_lookup[p2_id], prompt_config, char_limit=section_char_limit))
+                    # Inject AI summary into paper dict based on admin setting
+                    p1 = paper_lookup[p1_id]
+                    p2 = paper_lookup[p2_id]
+                    summary_model = _pick_summary_source(summary_source)
+                    smk = _summary_model_key(summary_model)
+                    p1_with_sum = {**p1, "ai_impact_summary": (p1.get("summaries") or {}).get(smk, "")}
+                    p2_with_sum = {**p2, "ai_impact_summary": (p2.get("summaries") or {}).get(smk, "")}
+                    tasks.append(compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary"))
 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
