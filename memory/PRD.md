@@ -103,19 +103,20 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - `/tmp/elife_neuro.json` — Cached eLife Neuroscience scan data (769 articles)
 
 ## Pending
-- P1: Phase 2 — Replace matchmaking with simplified pair selection + convergence-based stopping UI
-- P1: Phase 3 — Replace impact reports with 3-model summary tabs on paper detail page
 - P1: Phase 4 — Backfill summaries for existing papers, migration testing
+- P1: Add "View Prompts" modal to SciPost page
 - P2: Resume ICLR LLMs multi-model runs
 
-## Architecture Update: Summary-First Pipeline (Phase 1 Complete)
+## Architecture Update: Summary-First Pipeline (Phases 1-3 Complete)
 - Replaced section extraction with pre-generated AI impact summaries as tournament input
 - On paper fetch: download PDF → generate 3 AI summaries (Claude, Gemini, GPT) → store in `papers.summaries`
 - Tournament now uses `content_mode="abstract_plus_summary"` with admin-configurable summary source
 - New admin setting: `summary_source` ("claude", "gemini", "gpt", "round_robin")
 - Convergence-based stopping: Spearman ρ stability check replaces CI-based stopping
 - New settings: `convergence_threshold` (0.95), `convergence_rounds` (3), reduced `max_matches_per_paper` (20)
-- Removed: `ci_target`, `section_char_limit` settings (obsolete)
+- **Phase 2 (Feb 16)**: Replaced complex UCB/CI-based pair selection with simplified round-robin (top-K cross-matches → deficit papers → general round-robin)
+- **Phase 3 (Feb 16)**: Paper Detail page now shows tabbed AI summaries (Claude/Gemini/GPT) with fallback to legacy `impact_summary`
+- Removed: `ci_target`, `section_char_limit` settings, `wilson_margin_pct` dependency in scheduler
 - Prompts page now shows pre-comparison IMPACT_ASSESSMENT_PROMPT instead of post-hoc summary prompt
 
 ## Backlog
