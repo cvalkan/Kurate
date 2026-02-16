@@ -523,7 +523,8 @@ def _pick_summary_source(setting: str) -> dict:
 
 
 def _summary_model_key(model_info: dict) -> str:
-    return f"{model_info['provider']}:{model_info['model']}"
+    # Replace dots with underscores — MongoDB interprets dots as nested paths in $set
+    return f"{model_info['provider']}:{model_info['model']}".replace(".", "_")
 
 
 async def _generate_paper_summaries(category: str = None):
