@@ -1157,19 +1157,22 @@ async def get_timeseries(category: Optional[str] = None):
             entry[f"papers_daily_{cat}"] = p_cat
             entry[f"papers_cumulative_{cat}"] = cum_papers[cat]
 
-        # Matches
+        # Matches + Summaries combined in tokens/cost
         m_data = matches_daily[day].get("_total", {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
+        s_data = summary_daily[day].get("_total", {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
         cum_matches["_total"] += m_data["count"]
-        cum_tokens["_total"] += m_data["input_tokens"] + m_data["output_tokens"]
-        cum_cost["_total"] += m_data["cost"]
+        day_tokens = m_data["input_tokens"] + m_data["output_tokens"] + s_data["input_tokens"] + s_data["output_tokens"]
+        day_cost = m_data["cost"] + s_data["cost"]
+        cum_tokens["_total"] += day_tokens
+        cum_cost["_total"] += day_cost
         entry["matches_daily"] = m_data["count"]
         entry["matches_cumulative"] = cum_matches["_total"]
-        entry["tokens_daily"] = m_data["input_tokens"] + m_data["output_tokens"]
+        entry["tokens_daily"] = day_tokens
         entry["tokens_cumulative"] = cum_tokens["_total"]
-        entry["cost_daily"] = round(m_data["cost"], 4)
+        entry["cost_daily"] = round(day_cost, 4)
         entry["cost_cumulative"] = round(cum_cost["_total"], 4)
-        entry["input_tokens_daily"] = m_data["input_tokens"]
-        entry["output_tokens_daily"] = m_data["output_tokens"]
+        entry["input_tokens_daily"] = m_data["input_tokens"] + s_data["input_tokens"]
+        entry["output_tokens_daily"] = m_data["output_tokens"] + s_data["output_tokens"]
 
         # Per-category matches
         for cat in all_cats:
