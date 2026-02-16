@@ -467,11 +467,6 @@ function FairComparisonChart({ summarizer_random_curves, extract_curve, total_ex
 }
 
 
-const SUMMARIZER_COLORS = {
-  "Claude Opus": "#8b5cf6",
-  "Gemini 3": "#059669",
-  "GPT 5.2": "#2563eb",
-};
 
 function SingleConfigChart({ single_config_curves, extract_curve, total_extract_matches, papers }) {
   if (!single_config_curves || Object.keys(single_config_curves).length < 2) return null;
