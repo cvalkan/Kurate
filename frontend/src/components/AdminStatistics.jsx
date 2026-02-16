@@ -297,7 +297,7 @@ export function AdminStatistics({ categories }) {
           </Button>
         </div>
         <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 ml-auto"
-          onClick={() => { setLoading(true); fetchTimeseries(); }} data-testid="refresh-charts"
+          onClick={() => { setLoading(true); fetchData(); }} data-testid="refresh-charts"
         >
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
