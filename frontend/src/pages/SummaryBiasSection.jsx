@@ -252,6 +252,7 @@ function FullPdfStats({ stats }) {
 const CATEGORY_LABELS = {
   "q-bio.BM": "Biomolecules",
   "econ.GN": "Economics",
+  "physics.comp-ph": "Computational Physics",
 };
 
 export default function SummaryBiasSection({ category = "q-bio.BM" }) {
