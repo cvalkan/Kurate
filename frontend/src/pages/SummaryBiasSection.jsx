@@ -372,8 +372,8 @@ function ComparisonChart({ curve, extract_curve, total_consensus_matches, total_
   const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
 
   const allAvg = [
-    ...curve.map(p => p.avg_matches_per_paper),
-    ...extract_curve.map(p => p.avg_matches_per_paper),
+    ...curve.filter(p => p.llm_calls_per_paper != null).map(p => p.llm_calls_per_paper),
+    ...extract_curve.filter(p => p.llm_calls_per_paper != null).map(p => p.llm_calls_per_paper),
   ];
   const maxX = Math.max(...allAvg);
   const allY = [
