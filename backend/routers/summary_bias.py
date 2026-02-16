@@ -970,7 +970,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         "category": category,
         "total_summary_matches": total,
         "total_extract_matches": len(main_matches),
-        "total_fullpdf_matches": len(fullpdf_consensus_matches),
+        "total_fullpdf_matches": len(fullpdf_single_matches),
         "papers": len(papers),
         "curve": curve,
         "extract_curve": extract_curve,
