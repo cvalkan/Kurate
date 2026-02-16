@@ -79,18 +79,33 @@ export default function CorrelationPage() {
       </div>
 
       {categories.length > 1 && (
-        <div className="flex items-center gap-1 mb-6 p-1 bg-primary/5 rounded-lg flex-wrap" data-testid="corr-cat-tabs">
-          {categories.map((c) => (
-            <Button
-              key={c.id}
-              variant={category === c.id ? "default" : "ghost"}
-              size="sm"
-              onClick={() => { setCategory(c.id); setLoading(true); }}
-              className="text-xs h-8 shrink-0"
-            >
+        <div className="flex items-center gap-1 mb-6 p-1 bg-primary/5 rounded-lg overflow-x-auto scrollbar-none" data-testid="corr-cat-tabs">
+          {categories.slice(0, 5).map((c) => (
+            <Button key={c.id} variant={category === c.id ? "default" : "ghost"} size="sm" onClick={() => { setCategory(c.id); setMoreOpen(false); setLoading(true); }} className="text-xs h-8 shrink-0">
               {c.name}
             </Button>
           ))}
+          {categories.length > 5 && (
+            <div className="relative shrink-0" ref={moreCatsRef}>
+              <Button
+                variant={categories.slice(5).some(c2 => c2.id === category) ? "default" : "ghost"}
+                size="sm" className="text-xs h-8 gap-1 shrink-0"
+                onClick={() => setMoreOpen(v => !v)}
+              >
+                {categories.slice(5).find(c2 => c2.id === category)?.name || "More"}
+                <ChevronDown className={`h-3 w-3 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+              </Button>
+              {moreOpen && (
+                <div className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-48 py-1" style={{ top: moreCatsRef.current?.getBoundingClientRect().bottom + 4, left: moreCatsRef.current?.getBoundingClientRect().left }}>
+                  {categories.slice(5).map((c2) => (
+                    <button key={c2.id} className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${category === c2.id ? "bg-accent/10 text-accent font-medium" : ""}`} onClick={() => { setCategory(c2.id); setMoreOpen(false); setLoading(true); }}>
+                      <span className="font-mono text-[11px] text-muted-foreground mr-2">{c2.id}</span>{c2.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
