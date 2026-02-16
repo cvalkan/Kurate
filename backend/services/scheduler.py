@@ -1018,28 +1018,29 @@ def _select_pairs(
     if len(pairs) >= max_pairs:
         return pairs[:max_pairs]
 
-    # 2b: Repeat pairs (for cross-model agreement) — pick pairs already compared
-    # but by a different model. ~30% of remaining budget.
+    # 2b: Repeat pairs (for cross-model agreement) — re-match already-compared pairs
+    # Uses ALL papers including capped — this is specifically for generating
+    # overlapping judgments by different models, not for ranking
     repeat_budget = max(1, (max_pairs - len(pairs)))
     repeat_count = 0
-    for p1 in active_sorted:
+    all_sorted = sorted(paper_ids, key=lambda pid: comparisons[pid])
+    for p1 in all_sorted:
         if repeat_count >= repeat_budget or len(pairs) >= max_pairs:
             break
-        if round_count[p1] >= max_per_round:
+        if round_count.get(p1, 0) >= max_per_round:
             continue
         repeat_opponents = [
-            p2 for p2 in active_sorted
-            if p2 != p1 and round_count[p2] < max_per_round
+            p2 for p2 in all_sorted
+            if p2 != p1 and round_count.get(p2, 0) < max_per_round
             and tuple(sorted([p1, p2])) in compared_pairs
         ]
-        # Prefer opponents with fewer total comparisons (more informative)
         repeat_opponents.sort(key=lambda p2: comparisons[p2])
         for p2 in repeat_opponents[:1]:
-            if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
+            if round_count.get(p1, 0) >= max_per_round or len(pairs) >= max_pairs:
                 break
             pairs.append((p1, p2))
-            round_count[p1] += 1
-            round_count[p2] += 1
+            round_count[p1] = round_count.get(p1, 0) + 1
+            round_count[p2] = round_count.get(p2, 0) + 1
             repeat_count += 1
 
     return pairs[:max_pairs]
