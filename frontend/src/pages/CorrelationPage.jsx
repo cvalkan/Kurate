@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, ChevronDown } from "lucide-react";
 import { CorrelationSection } from "@/components/CorrelationSection";
 import { LeaderboardConvergence } from "@/components/ConvergenceSection";
 
