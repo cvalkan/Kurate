@@ -652,11 +652,17 @@ async def get_public_prompts():
     }
 
     summary_doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
-    summary_prompt = None
     if summary_doc and summary_doc.get("system_prompt"):
         summary_prompt = {
             "system_prompt": summary_doc.get("system_prompt", ""),
             "user_prompt": summary_doc.get("user_prompt", ""),
+        }
+    else:
+        # Use the pre-comparison impact assessment prompt
+        from services.llm import IMPACT_ASSESSMENT_PROMPT
+        summary_prompt = {
+            "system_prompt": IMPACT_ASSESSMENT_PROMPT["system_prompt"],
+            "user_prompt": IMPACT_ASSESSMENT_PROMPT["user_prompt"],
         }
 
     return {
