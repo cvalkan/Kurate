@@ -1323,7 +1323,7 @@ async def _compute_extraction_stats_impl(category: str = None):
     char_limit = settings_doc.get("section_char_limit", DEFAULT_SETTINGS.get("section_char_limit", 2000))
     
     # Count papers efficiently
-    query = {"full_text": {"$exists": True, "$ne": None, "$ne": ""}}
+    query = {"full_text": {"$exists": True, "$nin": [None, ""]}}
     if category:
         query["categories.0"] = category
     
