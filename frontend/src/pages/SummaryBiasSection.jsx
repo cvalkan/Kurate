@@ -486,6 +486,117 @@ function FairComparisonChart({ summarizer_random_curves, random_all_curve, extra
 
 
 
+const JUDGE_COLORS = {
+  "Claude Opus": "#8b5cf6",
+  "Gemini 3": "#059669",
+  "GPT 5.2": "#2563eb",
+};
+
+function JudgeComparisonChart({ judge_random_curves, random_all_curve, extract_curve, total_extract_matches, papers }) {
+  if (!judge_random_curves || !extract_curve || extract_curve.length < 2) return null;
+
+  const xKey = "llm_calls_per_paper";
+  const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
+  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+
+  const entries = Object.entries(judge_random_curves);
+  const extPts = extract_curve.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
+  const randPts = (random_all_curve || []).filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
+  const allPts = [...entries.flatMap(([, pts]) => pts), ...randPts];
+  const allX = [...allPts.map(p => p[xKey] || 0), ...extPts.map(p => p[xKey] || 0)].filter(v => v > 0);
+  const allY = [...allPts, ...extPts].map(p => p.vs_fullpdf_spearman).filter(v => v != null);
+  const maxX = Math.max(...allX);
+  const yMin = Math.max(0, Math.floor(Math.min(...allY) * 10) / 10 - 0.1);
+
+  const sx = x => PAD.l + (x / maxX) * cw;
+  const sy = y => PAD.t + (1 - (y - yMin) / (1.0 - yMin)) * ch;
+  const makePath = pts => {
+    const valid = pts.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
+    if (valid.length < 2) return null;
+    return valid.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p.vs_fullpdf_spearman).toFixed(1)}`).join(" ");
+  };
+
+  const lastExt = extPts[extPts.length - 1];
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold mb-0.5">Summary vs Extract: Convergence by Judge</h3>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          Fair comparison: all use <strong>1 LLM call per match</strong>. Each colored line uses a fixed judge with a random summarizer per match.
+          The <strong>dark line</strong> uses random judge + random summarizer. <strong>Orange dashed</strong> = extract baseline.
+          {papers && <> {papers} papers. Extract: {total_extract_matches?.toLocaleString()} calls.</>}
+        </p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
+        {[0.2, 0.4, 0.6, 0.8, 1.0].filter(v => v >= yMin).map(v => (
+          <g key={v}>
+            <line x1={PAD.l} y1={sy(v)} x2={W - PAD.r} y2={sy(v)} stroke="#e5e7eb" strokeWidth="0.5" />
+            <text x={PAD.l - 4} y={sy(v) + 3} textAnchor="end" fontSize="8" fill="#9ca3af">{v.toFixed(1)}</text>
+          </g>
+        ))}
+        {[2, 5, 10, 15, 20, 30, 40, 60, 80].filter(v => v <= maxX * 1.05).map(v => (
+          <text key={v} x={sx(v)} y={H - 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{v}</text>
+        ))}
+        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">LLM calls per paper</text>
+        <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
+
+        {makePath(extPts) && <path d={makePath(extPts)} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" />}
+        {lastExt && <circle cx={sx(lastExt[xKey])} cy={sy(lastExt.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
+
+        {entries.map(([name, pts]) => {
+          const d = makePath(pts);
+          const color = JUDGE_COLORS[name] || "#666";
+          const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null && p[xKey]);
+          return d ? (
+            <g key={name}>
+              <path d={d} fill="none" stroke={color} strokeWidth="2" />
+              {last && <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="3" fill={color} />}
+            </g>
+          ) : null;
+        })}
+
+        {makePath(randPts) && <path d={makePath(randPts)} fill="none" stroke="#334155" strokeWidth="2.5" />}
+        {randPts.length > 0 && (() => { const last = randPts[randPts.length - 1]; return last ? <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="3.5" fill="#334155" /> : null; })()}
+      </svg>
+      <div className="flex flex-wrap gap-4 text-[10px]">
+        {randPts.length > 0 && (() => {
+          const last = randPts[randPts.length - 1];
+          return last ? (
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-0.5 rounded bg-slate-700" />
+              <span className="text-muted-foreground">Random summary + judge:</span>
+              <span className="font-mono font-semibold">ρ = {last.vs_fullpdf_spearman?.toFixed(3)}</span>
+              <span className="text-muted-foreground">@ {last[xKey]} calls/paper</span>
+            </div>
+          ) : null;
+        })()}
+        {entries.map(([name, pts]) => {
+          const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null);
+          const color = JUDGE_COLORS[name] || "#666";
+          return last ? (
+            <div key={name} className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color }} />
+              <span className="text-muted-foreground">{name} judge:</span>
+              <span className="font-mono font-semibold">ρ = {last.vs_fullpdf_spearman?.toFixed(3)}</span>
+              <span className="text-muted-foreground">@ {last[xKey]} calls/paper</span>
+            </div>
+          ) : null;
+        })}
+        {lastExt && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 4px, transparent 4px 7px)" }} />
+            <span className="text-muted-foreground">Extract (round-robin):</span>
+            <span className="font-mono font-semibold">ρ = {lastExt.vs_fullpdf_spearman?.toFixed(3)}</span>
+            <span className="text-muted-foreground">@ {lastExt[xKey]} calls/paper</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 const CATEGORY_LABELS = {
   "q-bio.BM": "Biomolecules",
   "econ.GN": "Economics",
