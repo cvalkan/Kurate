@@ -102,22 +102,27 @@ function CustomTooltip({ active, payload, label, formatter }) {
 
 export function AdminStatistics({ categories }) {
   const [timeseries, setTimeseries] = useState(null);
+  const [summaryStats, setSummaryStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("cumulative"); // "daily" | "cumulative"
   const [scopeMode, setScopeMode] = useState("system"); // "system" | "category"
 
-  const fetchTimeseries = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/admin/timeseries`, { headers: getAdminHeaders() });
-      setTimeseries(res.data);
+      const [tsRes, statsRes] = await Promise.all([
+        axios.get(`${API}/api/admin/timeseries`, { headers: getAdminHeaders() }),
+        axios.get(`${API}/api/admin/stats`, { headers: getAdminHeaders() }),
+      ]);
+      setTimeseries(tsRes.data);
+      setSummaryStats(statsRes.data.summaries || null);
     } catch (err) {
-      console.error("Failed to load timeseries:", err);
+      console.error("Failed to load stats:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchTimeseries(); }, [fetchTimeseries]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading || !timeseries) {
     return (
