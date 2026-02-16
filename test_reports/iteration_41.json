@@ -1,0 +1,93 @@
+{
+  "summary": "Tested Phase 4 features: temporal ranking convergence (Spearman ρ), backfill summaries endpoint, summary stats, convergence settings, and tabbed AI summaries UI. All 14 backend tests pass. Frontend correctly shows tabbed summaries for papers with pre-gen data and falls back to legacy impact_summary for others.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/papers/{id}",
+        "issue": "One paper (openai:gpt-5) has summaries stored as dict instead of string - legacy data format inconsistency",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "GET /api/health returns 200 with status=ok",
+    "GET /api/admin/progress?category=cs.RO returns convergence-based Goal 2 (Ranking stability ρ ≥ 0.95)",
+    "Goal 2 includes latest_rho, snapshots (5), done/total fields",
+    "Goal 2 no longer references CI (correctly replaced with ranking stability)",
+    "GET /api/admin/settings returns convergence_threshold=0.95, convergence_rounds=3",
+    "GET /api/admin/settings returns summary_source=round_robin, summary_parallel=10",
+    "GET /api/admin/settings returns min_matches_per_paper=3, max_matches_per_paper=20",
+    "PUT /api/admin/settings accepts convergence_threshold (float 0.5-1.0) and convergence_rounds (int)",
+    "POST /api/admin/backfill-summaries endpoint exists and returns status",
+    "POST /api/admin/backfill-summaries accepts category filter",
+    "GET /api/admin/summary-stats returns pregen_coverage_rate and with_pregen_summaries",
+    "GET /api/papers/{id} for paper with summaries returns summaries field with provider:model keys",
+    "GET /api/convergence?category=cs.RO returns convergence data",
+    "GET /api/leaderboard?category=cs.RO returns papers correctly",
+    "Paper detail page shows tabbed AI summaries (Gemini/Claude/GPT tabs) for paper 1b752605-7045-46f2-8308-a2e0142aa8a7",
+    "Paper detail page falls back to legacy impact_summary for papers without pre-gen summaries",
+    "Admin settings page shows Convergence Threshold (ρ) = 0.95",
+    "Admin settings page shows Convergence Rounds = 3",
+    "Admin settings page shows Summary Source dropdown = Round Robin (all 3)",
+    "CI Target field correctly removed from admin settings",
+    "Section Char Limit field correctly removed from admin settings",
+    "Leaderboard loads correctly with 8 papers (135 total)"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_phase4_convergence_backfill.py",
+    "/app/test_reports/pytest/phase4_convergence_backfill.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "scheduler.py _store_ranking_snapshot() correctly stores ranking snapshots after each comparison round",
+    "_check_goals_met() uses Spearman ρ from scipy.stats.spearmanr for temporal ranking convergence",
+    "admin.py progress endpoint correctly calculates Goal 2 using ranking snapshots",
+    "SettingsUpdate model correctly includes convergence_threshold (float) and convergence_rounds (int)",
+    "PaperPage.jsx getSummaryEntries() correctly parses summaries by provider:model key format",
+    "PaperPage.jsx correctly falls back to impact_summary when summaries field is empty/missing",
+    "AdminPage.jsx includes all new settings fields with appropriate tooltips"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase4_convergence_backfill.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None - existing data used",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 4 (convergence-based architecture + backfill) complete. Settings: convergence_threshold=0.95, convergence_rounds=3, min_matches_per_paper=3, max_matches_per_paper=20. Ranking snapshots collection has 5 entries per category (seeded during startup). Paper 1b752605-7045-46f2-8308-a2e0142aa8a7 has pre-gen summaries from gemini, claude, and openai. About 33% of papers have pre-gen summaries. Goal 2 now uses Spearman ρ for ranking stability instead of CI-based stopping.",
+  "features_verified": {
+    "temporal_ranking_convergence": {
+      "implementation": "_check_goals_met uses scipy.stats.spearmanr comparing current ranking vs 2 rounds ago",
+      "convergence_threshold": 0.95,
+      "convergence_rounds": 3,
+      "goal2_label": "Ranking stability ρ ≥ 0.95"
+    },
+    "backfill_summaries": {
+      "endpoint": "POST /api/admin/backfill-summaries",
+      "status_options": ["started", "complete", "waiting"],
+      "generates_3_summaries_per_paper": true
+    },
+    "summary_stats": {
+      "endpoint": "GET /api/admin/summary-stats",
+      "fields": ["pregen_coverage_rate", "with_pregen_summaries", "total"]
+    },
+    "tabbed_summaries_ui": {
+      "component": "PaperPage.jsx",
+      "tabs": ["Claude", "Gemini", "GPT"],
+      "fallback": "legacy impact_summary when no pre-gen summaries"
+    },
+    "admin_settings_updated": {
+      "new_fields": ["convergence_threshold", "convergence_rounds", "summary_source"],
+      "removed_fields": ["ci_target", "section_char_limit"]
+    }
+  }
+}
