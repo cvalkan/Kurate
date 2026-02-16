@@ -252,15 +252,15 @@ function FullPdfStats({ stats }) {
 
 function ConvergenceChart({ data }) {
   if (!data || !data.curve || data.curve.length < 2) return null;
-  const { curve, extract_curve, single_config_curves, config_correlations, total_extract_matches, total_summary_matches, papers } = data;
+  const { curve, extract_curve, summarizer_random_curves, single_config_curves, config_correlations, total_extract_matches, total_summary_matches, papers } = data;
 
   return (
     <div className="space-y-5" data-testid="convergence-section">
       {/* Chart 1: Internal convergence of random-single summary ranking */}
       <InternalChart curve={curve} total={total_summary_matches} papers={papers} />
 
-      {/* Chart 2: Summary vs Extract (both 1 call/match, same x-axis) */}
-      <FairComparisonChart curve={curve} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
+      {/* Chart 2: Per-summarizer (random judge) vs Extract */}
+      <FairComparisonChart summarizer_random_curves={summarizer_random_curves} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
 
       {/* Chart 3: All 9 single configs vs extract */}
       <SingleConfigChart single_config_curves={single_config_curves} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
