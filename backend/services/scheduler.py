@@ -188,7 +188,7 @@ async def _scheduler_loop():
             # Fetch papers only for ACTIVE categories (paused categories don't fetch)
             for cat in active_cats:
                 cat_status = _get_cat_status(cat)
-                last_fetch_key = f"last_fetch_at_{cat}"
+                last_fetch_key = f"last_fetch_at_{cat.replace('.', '_')}"
                 last_fetch = settings.get(last_fetch_key)
 
                 should_fetch = False
