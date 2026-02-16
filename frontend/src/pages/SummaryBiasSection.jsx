@@ -416,30 +416,30 @@ function ComparisonChart({ curve, extract_curve, total_consensus_matches, total_
         {[2, 5, 10, 15, 20, 30, 40, 60, 80].filter(v => v <= maxX * 1.05).map(v => (
           <text key={v} x={sx(v)} y={H - 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{v}</text>
         ))}
-        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">Avg matches per paper</text>
+        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">LLM calls per paper</text>
         <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
 
         {extractPath && <path d={extractPath} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" />}
-        {lastExtract && <circle cx={sx(lastExtract.avg_matches_per_paper)} cy={sy(lastExtract.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
+        {lastExtract && <circle cx={sx(lastExtract.llm_calls_per_paper)} cy={sy(lastExtract.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
 
         {summaryPath && <path d={summaryPath} fill="none" stroke="#059669" strokeWidth="2.5" />}
-        {lastSummary && <circle cx={sx(lastSummary.avg_matches_per_paper)} cy={sy(lastSummary.vs_fullpdf_spearman)} r="3.5" fill="#059669" />}
+        {lastSummary && <circle cx={sx(lastSummary.llm_calls_per_paper)} cy={sy(lastSummary.vs_fullpdf_spearman)} r="3.5" fill="#059669" />}
       </svg>
       <div className="flex flex-wrap gap-5 text-[10px]">
         {lastSummary && (
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-0.5 rounded bg-emerald-600" />
-            <span className="text-muted-foreground">Abstract + Summary (consensus):</span>
+            <span className="text-muted-foreground">Abstract + Summary (9-model consensus):</span>
             <span className="font-mono font-semibold">ρ = {lastSummary.vs_fullpdf_spearman?.toFixed(3)}</span>
-            <span className="text-muted-foreground">@ {lastSummary.avg_matches_per_paper} avg/paper</span>
+            <span className="text-muted-foreground">@ {lastSummary.llm_calls_per_paper} calls/paper</span>
           </div>
         )}
         {lastExtract && (
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 4px, transparent 4px 7px)" }} />
-            <span className="text-muted-foreground">Extract (sections):</span>
+            <span className="text-muted-foreground">Extract (single model):</span>
             <span className="font-mono font-semibold">ρ = {lastExtract.vs_fullpdf_spearman?.toFixed(3)}</span>
-            <span className="text-muted-foreground">@ {lastExtract.avg_matches_per_paper} avg/paper</span>
+            <span className="text-muted-foreground">@ {lastExtract.llm_calls_per_paper} calls/paper</span>
           </div>
         )}
       </div>
