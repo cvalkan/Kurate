@@ -610,6 +610,17 @@ function JudgeComparisonChart({ judge_random_curves, random_all_curve, extract_c
             <span className="text-muted-foreground">@ {lastExt[xKey]} calls/paper</span>
           </div>
         )}
+        {absPts.length > 0 && (() => {
+          const l = absPts[absPts.length-1];
+          return l ? (
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #ef4444 0 3px, transparent 3px 6px)" }} />
+              <span className="text-muted-foreground">Abstract only:</span>
+              <span className="font-mono font-semibold">ρ = {l.vs_fullpdf_spearman?.toFixed(3)}</span>
+              <span className="text-muted-foreground">@ {l[xKey]} calls/paper</span>
+            </div>
+          ) : null;
+        })()}
       </div>
     </div>
   );
