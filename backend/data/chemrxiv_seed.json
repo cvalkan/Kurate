@@ -481,5 +481,367 @@
     "categories": [
       "chemrxiv.IC"
     ]
+  },
+  {
+    "title": "FePTP: A text-mined dataset of transformation pathways among iron-containing phases",
+    "authors": [
+      "Le Lin",
+      "Changhai Ren",
+      "Yang Xiao",
+      "Jingyu Nie",
+      "Chongchong Qi",
+      "Xiaoqin Li",
+      "Han Wang",
+      "Zhang Lin"
+    ],
+    "abstract": "Iron, the most abundant element on Earth by mass (34.6%), primarily exists as iron minerals due to its inherent reactivity. The study of iron mineral phase transformations under changing environmental conditions remains an important research focus due to its geological, environmental, and industrial significance. Yet, the complexity of the system prevents the development of a universal principle to interpret phase transformation behaviors across diverse environmental conditions. An alternative approach is to employ data-driven methods to obtain approximate predictive results. Nevertheless, the data concerning iron-containing phase transformations remain fragmented due to a lack of standardized integration, hindering the advancement of related research. To address this gap, we have developed an automated pipeline that extracts and curates iron-containing phase transformation pathways, creating the first text-mined dataset of 11,241 pathways. Each record includes the precursor/product phases, reaction category, procedures, and associated parameters, as well as the extent of transformation and reaction equations, providing a comprehensive foundation for advancing data-driven research.",
+    "published": "2025-12-09T07:21:37.908Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-5t3s1",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692e8e92a10c9f5ca1ba0908/original/fe-ptp-a-text-mined-dataset-of-transformation-pathways-among-iron-containing-phases.pdf",
+    "doi": "10.26434/chemrxiv-2025-5t3s1",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-5t3s1",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Structure-property relationship in cubic Zr7Ru6+\u0445Ga17-x (0 \u2264 x \u2264 2.0): disorder, electrical transport and bonding",
+    "authors": [
+      "Volodymyr Babizhetskyy",
+      "Oksana Myakush",
+      "Bogdan Kotur",
+      "Volodymyr Smetana",
+      "J\u00fcrgen K\u00f6hler",
+      "Reinhard Kremer",
+      "Gerd Meyer",
+      "Anja-Verena  Mudring"
+    ],
+    "abstract": "The new ternary berthollide Zr7Ru6+xGa17-x (0 \u2264 x \u2264 2.0) has been synthesized by arc melting stoichiometric amounts of the elements. The homogeneity ranges at 870 K of the phases have been examined using powder x-ray diffraction and energy-dispersive X-ray analysis. Zr7Ru6Ga17 crystallizes in a new cubic structure-type (Pearson symbol cF120, space group Fm3 \u0305m no. 225, a = 12.409(1) \u00c5, Z = 4) extending the family of closely-related cubic structures described by the Pearson symbols cF116\u2013120. The crystal structure of Zr7Ru6Ga17 can be regarded as a deficient superstructure polyhedral variant of CaF2 [1]. Density-functional electronic structure calculations performed for an ordered structural approximant uncover pronounced features near the Fermi level, including several van Hove singularities, indicative of a potential electronic instability. Chemical bonding analysis based on \u2013COHP method reveals that heteroatomic Zr-Ga and Ru-Ga contacts dominate the bonding landscape, with zirconium showing an unexpectedly strong covalent contribution despite its minority fraction. Complementary physical measurements demonstrate a characteristic type of transport and thermodynamic behavior that is directly influenced by the structural disorder and the peculiar electronic structure. The combination of a new cubic architecture, Fermi-level singularities and unconventional bonding motifs places Zr7Ru6+xGa17-x as a promising platform for exploring structure-property correlations in Ga-rich intermetallics and expands the chemistry of the cF120 family.",
+    "published": "2025-12-08T10:47:36.233Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-hk047",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692dbdeba10c9f5ca19e7e61/original/structure-property-relationship-in-cubic-zr7ru6-ga17-x-0-x-2-0-disorder-electrical-transport-and-bonding.pdf",
+    "doi": "10.26434/chemrxiv-2025-hk047",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-hk047",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Influence of Distance and Angle Between Pliers and Rotors on Helicity Switching: Exploring the Structure-Property Relationship",
+    "authors": [
+      "Diptiprava Sahoo",
+      "Akanksha Sharma",
+      "Anshuman  Bera",
+      "Vennapusa Sivaranjana Reddy",
+      "Soumen De"
+    ],
+    "abstract": "Bisporphyrin tweezers can be rendered chiral either by introducing a stereogenic unit or by complexing with a chiral guest via axial coordination. To investigate this mode of chiral induction, four derivatives of the plier were synthesised by varying the distance between the two nitrogen atoms or altering their positional arrangement. In comparison to the meta-pyridine, the para-pyridine pliers exhibit lower photoswitching efficiency and a shorter thermal half-life, which is also observed in the case of the corresponding complexes. Upon coordination of the chiral pliers with achiral rotors, the free rotation of the rotors becomes restricted, leading to the induction of chirality in the rotor and the emergence of a circular dichroism (CD) signal. For the shorter tweezers, a change in the rotor from a meta-substituted to an ortho-substituted derivative results in a shift in chirality preference from M to P. Conversely, when keeping the meta-substituted rotor constant and altering the tweezer structure from meta-pyridyl to para-pyridyl derivative, the chirality preference changes from P to M. In contrast, the longer tweezers, due to their increased distance from the chiral axis, did not exhibit such an opposite chiral preference for ortho-substituted rotors. Moreover, for para-pyridine-substituted pliers, the porphyrin system remained CD-silent. Upon examining the photoswitching behaviour of these complexes, helicity inversion of the rotor was observed in only one case, while all other cases showed no such effect.",
+    "published": "2025-12-07T11:45:31.666Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-s9l3j",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692aa670a10c9f5ca150e98f/original/influence-of-distance-and-angle-between-pliers-and-rotors-on-helicity-switching-exploring-the-structure-property-relationship.pdf",
+    "doi": "10.26434/chemrxiv-2025-s9l3j",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-s9l3j",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "SYNTHESIS AND CHARACTERIZATION OF HETEROCYCLIC N, N\u2019- BIDENTATE LIGANDS AND THEIR TRANSITION METAL (II) COMPLEXES",
+    "authors": [
+      "KEVIN NYARANGO OTAO",
+      "JOEL MWANGI GICHUMBI",
+      "ERIC CHOMBA NJAGI"
+    ],
+    "abstract": "This paper seeks to report the synthesis and characterization of N, N\u2019-bidentate ligands together with their copper and zinc complexes. The reaction of equimolar quantities of the selected hydrazinyl pyridazines with a diketone resulted in the formation of the expected pyrazolylpyridazines. The transition metal (II) complexes were obtained by the reaction of the metal chlorides with the synthesized ligands in the ratio 1:2. The synthesized ligands and the complexes were characterized using the melting point determination, molar conductivity measurements, FT-IR spectroscopy, UV-VIS spectroscopy, and 1H-NMR spectroscopy. The ligands melted at lower temperatures compared to the complexes (72, 141 and 148 \u00b0C for L1, L2 and L3 respectively). It was observed that the complexes decomposed in the range of 268-320 \u00b0C and that decomposition temperature was dependent on the increase in the molecular weights of the complexes. Conductivity measurements revealed that all the compounds are non-electrolytes with their conductivities in the range 8 - 20 \u03a9 -1 cm2mol-1.  The spectral data revealed the presence of N, N\u2019-donor groups in the aromatic rings due to the presence of  \u2013C=N- vibration bands at 1653cm-1, 1660 cm-1 and 1624 cm-1for L1, L2 and L3 respectively. Upon complexation, the bands shift to lower frequencies (1641, 1625 and 1598 cm-1 for zinc complexes of L1, L2 and L3 respectively, suggesting coordination through the N, N\u2019-donor groups. An octahedral geometry of the complexes was proposed based on the presence of absorption bands in the wavelength range of 238 \u2013 456 nm in the electronic spectra of the compounds. The 1H NMR revealed the presence of \u2013C=N- with resonance peaks at \u1e9f = 8.2, 8.1 and 7.8 ppm for L1, L2 and L3 respectively. Upon complexation, these peaks shift downfield (8.44, 8.57 and 7.89 ppm respectively) indicating that coordination to the metal is exclusively through the N, N\u2019 donor atoms in the ligands.",
+    "published": "2025-12-07T19:30:48.585Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-t211l",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6925efe665a54c2d4a9d6825/original/synthesis-and-characterization-of-heterocyclic-n-n-bidentate-ligands-and-their-transition-metal-ii-complexes.pdf",
+    "doi": "10.26434/chemrxiv-2025-t211l",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-t211l",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Crystallization-Induced Coordination Diversity of Cu(I)-Pyridine Halide Complexes Resulting in Optical Tunability",
+    "authors": [
+      "Mariia Beliaeva",
+      "Ond\u0159ej Mr\u00f3zek",
+      "Igor O. Koshevoy",
+      "Andreas Steffen",
+      "Andrey Belyaev"
+    ],
+    "abstract": "Copper(I) derivatives have emerged as a versatile class of luminescent and photoactive materials, combining earth-abundance, structural adaptability, and rich excited-state dynamics that enable their application in luminescent devices, photocatalysis, and sensing technologies. Herein, we report a novel family of copper(I) pyridine halide complexes supported by a 4-(N,N-dimethylamino)pyridine (DMAP) ligand, featuring exceptional crystallization-induced diversity of coordination motifs. The variation of halides and stoichiometry of [Cu(NCMe)4]BF4/CuX (X = Cl, Br, I) precursors enabled the selective isolation of an unprecedented series of cationic/neutral mono- and multinuclear hybrid species, namely, [(DMAP)2Cu]BF4, [(DMAP)CuCl], [(DMAP)4Cu2(2\u2013X)]BF4 (X = Cl, Br), [(DMAP)4Cu4(2-Br)2(3-Br)2][(DMAP)2Cu]2(BF4)2, and [(DMAP)2Cu2(2\u2013I)2]2[(DMAP)2Cu]3(BF4)3. Single-crystal X-ray diffraction revealed that the bridging mode of halides is decisive in governing packing topology, nuclearity, and structural arrangement of metal/cluster centers. Photophysical studies demonstrated tunable solid-state phosphorescence spanning from sky-blue (478 nm) to deep red (640 nm), with quantum yields and radiative rates reaching 0.41 and 7.3\u00d710^4 s^\u22121, respectively. Advanced photophysical studies combined with DFT/TD-DFT calculations facilitated the untangling of structural characteristics responsible for control over photophysical properties such as triplet formation and its (non-)radiative decay or the nature of luminescent excited states, defining multiple structure-property relationships. These results establish an effective strategy to unlock new coordination motifs in copper(I) halide chemistry and to achieve broadband optical tunability in earth-abundant photoactive materials by means of crystallization tools.",
+    "published": "2025-12-04T06:15:18.676Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-30m7x",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69298e3ea10c9f5ca132e911/original/crystallization-induced-coordination-diversity-of-cu-i-pyridine-halide-complexes-resulting-in-optical-tunability.pdf",
+    "doi": "10.26434/chemrxiv-2025-30m7x",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-30m7x",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Site-selective Au(III)-mediated metalloenzyme conjugations",
+    "authors": [
+      "Nima Adhami",
+      "Michael  Rebelo",
+      "Pathorn  Teptarakulkarn",
+      "Sofia Ando",
+      "Eileen Olivares",
+      "Thomas Goff",
+      "Varun  Tej Raviprolu",
+      "Aldo Munoz",
+      "Michael Sawaya",
+      "Doyeon Han",
+      "Niko Vlahakis",
+      "Songrong Qu",
+      "Tyler Kerr",
+      "Reanne Coutinho",
+      "Rachel Loo",
+      "Joseph  Loo",
+      "Hannah Shafaat",
+      "Jose Rodriguez",
+      "Alexander Spokoyny"
+    ],
+    "abstract": "Herein, we introduce an operationally simple approach for the direct covalent modification of metalloenzymes via Au(III)-mediated S-arylation chemistry. Using a model class of rubredoxin metalloenzymes containing Fe or Ni in the tetrathiolate active site, we show that these biomolecules can be site-selectively tagged with a variety of abiotic functional groups by leveraging a cysteine residue positioned distal to the active site. The bioconjugation proceeds under mild aqueous conditions, rapidly, and in quantitative yields, and most importantly without perturbing the structural or functional integrity of the enzyme, which normally can occur through adventitious demetallation of the active site. Detailed structural studies, including the first reported X-ray crystal structure of a cysteine-arylated metalloprotein, illuminate a clear preference for regioselective arylation at solvent-exposed cysteine residues, offering a blueprint for predictable and programmable bioconjugation in complex biomolecules. This work demonstrates a unique power of \u201cbackgroundless\u201d Au(III) arylation chemistry, rendering site-selective bioconjugation of some of the most delicate biomolecules.",
+    "published": "2025-12-04T10:14:38.194Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-z5kt1",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6924df8cef936fb4a2767c25/original/site-selective-au-iii-mediated-metalloenzyme-conjugations.pdf",
+    "doi": "10.26434/chemrxiv-2025-z5kt1",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-z5kt1",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "PARAMAGNETIC SUPRAMOLECULAR POLYMERS OF METAL-METAL BONDED DIRUTHENIUM COMPLEXES",
+    "authors": [
+      "Lourdes  del \u00c1lamo",
+      "Rodrigo Gonz\u00e1lez-Prieto",
+      "Jose Luis Priego",
+      "Laura  Casta\u00f1ar",
+      "Ivo Krummenacher",
+      "Jose Manuel P\u00e9rez-Ca\u00f1adillas",
+      "Santiago Herrero",
+      "Maria J.  Mayoral"
+    ],
+    "abstract": "The self-assembly of paramagnetic molecular units into higher-order architectures remains a largely unexplored strategy for creating functional magnetic materials. Here we report the formation of supramolecular polymers from a metal-metal bonded diruthenium monomer. Variable-concentration NMR studies, including DOSY, demonstrate the chloride-driven self-assembly of monomeric species into linear aggregates in solution. Remarkably, magnetic measurements reveal that the paramagnetic character of the monomer is successfully transferred to the supramolecular polymer, giving rise to a magnetically active material. The comparison between monomeric and aggregated states shows that supramolecular organization modulates the magnetic properties through intermolecular interactions. This work establishes metal-metal-bonded diruthenium units as versatile building blocks for designing paramagnetic supramolecular material with emergent magnetic behavior",
+    "published": "2025-12-03T06:29:27.451Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-16szp",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692820d1a10c9f5ca1f83946/original/paramagnetic-supramolecular-polymers-of-metal-metal-bonded-diruthenium-complexes.pdf",
+    "doi": "10.26434/chemrxiv-2025-16szp",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-16szp",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "NiII\u2013PdII as a More Solution-Stable Paddlewheel Alternative to CuII\u2013CuII in Metal\u2013Organic Cages",
+    "authors": [
+      "Shannon Thoonen",
+      "Elaine Marques",
+      "Dhairya Hans",
+      "Kellie Tuck",
+      "David Turner"
+    ],
+    "abstract": "The dinuclear CuII-carboxylate paddlewheel is a lynchpin of metal\u2013organic cages (MOCs), yet has been shown to be highly labile in solution. Herein, kinetically stable heterometallic (NiPd)2L4 lantern-type helicate cages have been assembled from preformed [NiPd(OAc)4] paddlewheel precursor complexes. Ligand exchange experiments followed by HPLC revealed the half-lives of the (NiPd)2L4 cages in solution to be 103 times greater than that of Cu4L4 cage analogues. Due to the unique non-coordinating, charge-neutral PdII\u00b7\u00b7\u00b7PdII cavity, the hydrophobic guest chloranil was encapsulated inside a (NiPd)2L4 cage with no evidence of guest uptake in the presence of the analogous Cu4L4 cage. The NiII\u2013PdII paddlewheel system provides a kinetically stable yet synthetically accessible alternative to labile CuII-based metallosupramolecular cages with cavities unoccupied by coordinating solvent molecules or counterions.",
+    "published": "2025-12-03T13:11:54.614Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-2tmnf",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69291d7465a54c2d4a0f3c2b/original/ni-ii-pd-ii-as-a-more-solution-stable-paddlewheel-alternative-to-cu-ii-cu-ii-in-metal-organic-cages.pdf",
+    "doi": "10.26434/chemrxiv-2025-2tmnf",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-2tmnf",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "On the Consequences of Categorical Completion in Gas Dynamics: Resolution of\n Gibbs\u2019 Paradox Through Categorical State Irreversibility",
+    "authors": [
+      "Kundai Sachikonye"
+    ],
+    "abstract": "Gibbs\u2019 paradox\u2014the apparent discontinuity in mixing entropy for gases of varying similarity and\n the seeming reversibility of mixing-separation cycles\u2014has resisted fully satisfactory resolution for\n 150 years. We present a solution based on categorical state theory, which posits that physical con\nf\n igurations are distinguished not only by spatial arrangement but by their position in an irreversible\n completion sequence. We introduce an oscillatory entropy formulation S = kB log\u03b1, where \u03b1 is\n the termination probability of oscillatory patterns, and prove that categorical irreversibility (once a\n state is completed, it cannot be re-occupied) necessitates entropy increase in full mixing-separation\n cycles, even for macroscopically identical spatial configurations. The microscopic mechanism is iden\ntified as phase-lock network densification: gas molecules couple through Van der Waals forces, and\n mixing increases the number of phase-lock constraints. This topological origin of entropy requires\n no statistical arguments, microstate counting ambiguities, or quantum indistinguishability\u2014entropy\n emerges purely from network topology. We derive testable predictions distinguishing our framework\n from standard statistical mechanics: (1) isothermal entropy increase during isobaric mixing, (2)\n phase-lock coherence time scaling as \u03c4 \u223c N\u22123/2, and (3) measurable residual phase correlations\n after re-separation. These predictions are accessible to current experimental techniques in precision\n gas thermometry and molecular spectroscopy.",
+    "published": "2025-12-03T13:44:32.511Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-4wfkj",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6928f96f65a54c2d4a0bcff6/original/on-the-consequences-of-categorical-completion-in-gas-dynamics-resolution-of-gibbs-paradox-through-categorical-state-irreversibility.pdf",
+    "doi": "10.26434/chemrxiv-2025-4wfkj",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-4wfkj",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Isocyanates and Isocyanides as Substrates for the Acid-Mediated Ring Expansion of Cyclotriphosphanes: Access to 1-imino-2-oxo-3,4,5-triphospholanes and 1-imino-2,3,4-triphosphetanes",
+    "authors": [
+      "Helen Leslie",
+      "Mitchell Nascimento",
+      "Brian Patrick",
+      "Etienne LaPierre",
+      "Ian  Manners"
+    ],
+    "abstract": "Herein we report the acid-mediated insertion of isocyanates and isocyanides into the cyclotriphosphane (PtBu)3 to yield 1-imino-2-oxo-3,4,5-triphospholanes (1R) and 1-imino-2,3,4-triphosphetanes (2R), respectively. The insertion of both substrates into (PtBu)3 proceeds in a manner distinct from related insertions into organic substrates such as epoxides and donor-acceptor cyclopropanes. Critically, the insertion of isocyanides proceeds with 100% atom economy, and may be performed using catalytic Br\u00f8nsted or Lewis acid with only a mild decrease in selectivity. The use of compounds of the type 1R and 2R in coordination chemistry was explored by reaction with [Rh(COD)Cl]2. In both cases the heterocycles bind rhodium selectively through the least sterically encumbered phosphorus atom.",
+    "published": "2025-12-03T12:47:33.135Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-5sgmt",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6928cfe665a54c2d4a081848/original/isocyanates-and-isocyanides-as-substrates-for-the-acid-mediated-ring-expansion-of-cyclotriphosphanes-access-to-1-imino-2-oxo-3-4-5-triphospholanes-and-1-imino-2-3-4-triphosphetanes.pdf",
+    "doi": "10.26434/chemrxiv-2025-5sgmt",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-5sgmt",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Harnessing Long-lived Triplets in phosphine-Modified TIPS-Anthracene Based Au(I) Complexes for Photoinduced Electron Transfer and Room-temperature Phosphorescence",
+    "authors": [
+      "Avik Bhanja",
+      "Sree Chithra",
+      "Rafael Araujo",
+      "Ebin Sebastian",
+      "Tomas Edvinsson",
+      "Victor Gray"
+    ],
+    "abstract": "TIPS-acene derivatives are well known for their diverse photochemical and rich triplet mediated optoelectronic applications. Metal functionalized acenes are scare and the role of metal coordination on the intriguing triplet state processes is not well studied. Here, we have successfully functionalized a TIPS-anthracene backbone with diphenylphosphine group and report both the monomeric [Au(TIPS-AntP)Cl] and dimeric [Au(TIPS-AntP)2OTf], gold(I) complexes. We further report the excited state dynamics of ligands and complexes in solution. Both Au(I) complexes shows close to quantitative intersystem crossing for triplet excited state formation. TD-DFT calculations supported the experimental absorption and emission results by providing insights into the energy gap between the electronic states involved in the photophysical processes. The effect of the metal ions in triplet state formation was investigated using femtosecond transition absorption spectroscopy. In addition to the fluorescence emission from the excited singlet state, ligands, as well as complexes, show room temperature phosphorescence (RTP) from their excited triplet state, with Au(I) complexes demonstrating significantly brighter RTP. The lifetime of the photoactive triplet states is long enough to facilitate photoinduced electron transfer to chloranil, work as an electron acceptor. These findings highlight the potential of Au(I)l-coordinated TIPS-acenes as promising candidate for harnessing triplet states in triplet-mediated applications.",
+    "published": "2025-12-03T13:24:19.748Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-ggnhv",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/691c24d3a10c9f5ca14be432/original/harnessing-long-lived-triplets-in-phosphine-modified-tips-anthracene-based-au-i-complexes-for-photoinduced-electron-transfer-and-room-temperature-phosphorescence.pdf",
+    "doi": "10.26434/chemrxiv-2025-ggnhv",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-ggnhv",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "An integrative approach towards bio-inspired sequestration of rare earth elements",
+    "authors": [
+      "Yulia Perevedentseva",
+      "Lukas Waurick",
+      "Dini Marlina",
+      "Gerda Techert",
+      "Yannic M\u00fcllers",
+      "Franziska Lederer",
+      "Heiko M\u00f6ller",
+      "Michael Kumke",
+      "Ulrich Glebe",
+      "Bj\u00f6rn Drobot"
+    ],
+    "abstract": "Despite their important role in the development of renewable energy, the process of obtaining lanthanides (Ln) through conventional mining or through recovery processes is problematic due to their negative impact on the environment. Research into new recovery processes therefore will be crucial to enable cost-effective and environmentally friendly enrichment and separation of Ln, particularly from waste streams or mine water. Many proteins contain specific peptide sequences as metal-binding sites. EF-hand loops are a Ca2+ binding motif in a diverse family of proteins, among them calmodulin (CaM). As it is well known that lanthanides can substitute Ca2+ in proteins, peptides based on the proteinic binding motifs are a promising approach to develop materials for Ln binding, separation and recovery. This study characterizes the CaM-EF-hand 4 (EF4) and its binding behaviour for various lanthanides in detail. Isothermal titration calorimetry (ITC), time-resolved laser fluorescence spectroscopy (TRLFS), nuclear magnetic resonance (NMR) spectroscopy and molecular dynamics (MD) simulations demonstrate a generally high Ln-binding affinity but indicate slightly different binding constants for different Ln to EF4 (DIDGDGQVNYEE). In addition, thermodynamic, structural and coordination effects upon binding are investigated. The isolated peptide possesses a much higher flexibility than the loop within the protein. Under certain conditions, multiple complex stoichiometries, 1:1 and 2:1 (Ln3+:peptide), are detected. Finally, immobilized EF4 is used to demonstrate the extraction and recovery of Sm3+ from aqueous solution. Overall, the EF4 loop motif of calmodulin turns out to be a promising biological ligand for lanthanide extraction.",
+    "published": "2025-12-03T10:11:32.186Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-lrfbx",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69286ffcef936fb4a2e95689/original/an-integrative-approach-towards-bio-inspired-sequestration-of-rare-earth-elements.pdf",
+    "doi": "10.26434/chemrxiv-2025-lrfbx",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-lrfbx",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Facet-Dependent Catalytic Performance of Solution-Derived Epitaxial Bismuth Vanadate Photoanodes",
+    "authors": [
+      "Guan-Zhu Tu",
+      "Shin-Yu Chen",
+      "Chih-Yu Chuang",
+      "Pei-Wen Cheng",
+      "Chun-hsien Chen",
+      "Chang-Ming Jiang"
+    ],
+    "abstract": "Epitaxial control offers a powerful route to overcome the intrinsic transport limitations of metal\u2010oxide photoanodes, yet it is typically achieved by costly vacuum techniques. Here we report a scalable solution\u2010derived strategy that combines metal\u2013organic decomposition (MOD) with rapid thermal annealing (RTA) to realize high-quality epitaxial BiVO4 photoanodes on conductive ITO/YSZ templates. By optimizing ITO thickness, annealing atmosphere, temperature, and dwell time, we obtain epitaxial ITO(001)/YSZ with high crystallinity, smooth morphology, and stable conductivity, which serves as an effective lattice-matched underlayer for subsequent BiVO4 growth. The resulting BiVO4(001)/ITO/YSZ heterostructure exhibits single-axis [001] orientation, atomically coherent interfaces, and low surface roughness. Under AM 1.5G illumination, the epitaxial BiVO4 photoanode delivers a photocurrent density of 2.2 mA cm\u207b2 at 1.23 VRHE, nearly three times higher than a polycrystalline BiVO4 counterpart. Efficiency deconvolution reveals that this enhancement arises from improved bulk charge separation and interfacial charge transfer, enabled by directional transport along the [001] axis and the highly active (001) facets. Using Mo as a model dopant, we further demonstrate that aliovalent doping can be implemented simply by precursor modification while preserving epitaxial order. Finally, NHS-mediated benzyl alcohol oxidation on this platform evidences facet-dependent surface reactivity and shows that Mo-doped epitaxial films exhibit mitigated photocurrent decay, underscoring the utility of this epitaxial system for mechanistic studies of complex PEC transformations.",
+    "published": "2025-12-03T10:45:05.658Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-q1vl6",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692886cea10c9f5ca1117409/original/facet-dependent-catalytic-performance-of-solution-derived-epitaxial-bismuth-vanadate-photoanodes.pdf",
+    "doi": "10.26434/chemrxiv-2025-q1vl6",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-q1vl6",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Strain-Release Pentafluorosulfanylation of Carbonyl-Containing Disubstituted Bicyclobutanes: Insight on SF5\u2026C=O Interactions and a Fortuitous Path to SF5-Containing Oxa[2.1.1]bicyclohexanes",
+    "authors": [
+      "Alexander Stephens",
+      "Jake Olvera",
+      "Yannick Kraemer",
+      "Tyson Vu",
+      "Wang-Yeuk Kong",
+      "Sudiksha Chaturvedi",
+      "Jeffrey Wang",
+      "Dean Tantillo",
+      "Cody Pitts"
+    ],
+    "abstract": "The recent merger of pentafluorosulfanylation with strain-release functionalization logic \u2013 largely enabled by an increase in reagent accessibility \u2013 has begun to reshape the ways we can imagine incorporating the SF5 group into organic molecules.  In this study, we first explore how both radical polarity matching and substituent effects, when employed synergistically, can be used to effect regio- and diastereoselective SF5Cl addition across 1,3-disubstituted (viz. 3-aryl-1-carbonyl-substituted) bicyclobutanes (BCBs) to access a class of congested alpha-SF5-carbonyl-containing tetrasubstituted cyclobutanes (CBs).  Synthetic, computational, and structural studies not only provide insight on the observed selectivity but reveal a potential to employ the resultant SF5-CBs as model systems for studying unusually close and record-setting intramolecular SF5\u2026C=X (X = C, N, or O) contacts by SC-XRD.  DFT calculations characterize these as \"weakly attractive\" interactions and provide context for how the equatorial fluorine atoms of the SF5 group may behave when forced into proximity of  systems.  Thereafter, we describe a complementary telescoped protocol to facilitate isolation of SF5-CBs as alcohols, as well as a fortuitous observation that led to the synthesis of the first suite of SF5-substituted oxa[2.1.1]bicyclohexanes (OBHs).  The SF5-OBH motif is ostensibly a novel \"hybrid bioisostere\" for the meta-CF3-Ph motif.",
+    "published": "2025-12-02T13:20:52.459Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-xtbsz",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692774d0a10c9f5ca1e56a9c/original/strain-release-pentafluorosulfanylation-of-carbonyl-containing-disubstituted-bicyclobutanes-insight-on-sf5-c-o-interactions-and-a-fortuitous-path-to-sf5-containing-oxa-2-1-1-bicyclohexanes.pdf",
+    "doi": "10.26434/chemrxiv-2025-xtbsz",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-xtbsz",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "On the Origin of Circularly Polarized Luminescence in Chiral One-Dimensional (A)PbBr3 Single Crystals",
+    "authors": [
+      "Maria Maniadi",
+      "Marie Guesdon",
+      "Kostiantyn Tieriekhov",
+      "Aseem Rajan Kshirsagar",
+      "Davide Spirito",
+      "Beatriz Mart\u00edn-Garc\u00eda",
+      "Nicolas Mercier",
+      "Oriol Arteaga",
+      "Mika\u00ebl Kepenekian",
+      "Claudine Katan",
+      "Alexandre Abherv\u00e9"
+    ],
+    "abstract": "With the emergence of chiral hybrid metal-halide and chiral low-dimensional halide perovskite materials, the propensity to generate polarized electroluminescence in LED devices using this new family of hybrid semiconductors is questioned. To evaluate this potential, some efforts have been undertaken in order to reveal their intrinsic circularly polarized luminescence (CPL) either in the single crystal or thin film state. However, the strong anisotropy in the optical properties of such highly crystalline materials can affect CPL measurements, especially in bi-axial compounds, leading to the dominance of artifacts and/or CPL of macroscopic origin which have been sometimes overlooked. Here, we wish to investigate the origins of CPL signals recorded using one-dimensional compounds of general formula (A)PbBr3 (A = monovalent cation). To achieve this, we complement the crystal structure determination with optical properties analysis (photoluminescence, circular dichroism), Raman spectroscopy, and computational modeling. CPL measurements reveal that the circularly polarized signal is dominated by the combination of linearly polarized optical effects from the sample and the detection system (i.e. artifacts), while the combination of two linearly polarized optical phenomena from the sample could give rise to non-reciprocal CPL, i.e. a reproducible CPL which is dependent to the direction of propagation. This study suggests that with a careful choice of organic cation, chiral hybrid metal-halides could afford reciprocal CPL with glum values lying in the 10-3 order of magnitude, a degree of polarization that might be increased in electroluminescence due to the presence of non-reciprocal effects.",
+    "published": "2025-12-02T06:08:10.340Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-zkdhx",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6926b915ef936fb4a2ad86e4/original/on-the-origin-of-circularly-polarized-luminescence-in-chiral-one-dimensional-a-pb-br3-single-crystals.pdf",
+    "doi": "10.26434/chemrxiv-2025-zkdhx",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-zkdhx",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Strategic MOF Linker Methylation to Direct Pore Structure and Local Dynamics",
+    "authors": [
+      "Deepika Rani",
+      "Marco Bengsch",
+      "Christophe Fares",
+      "Michael Patzer",
+      "Constanze Neumann"
+    ],
+    "abstract": "The marvelous substrate recognition of enzyme hosts is attributed to induced-fit binding, in which the enzyme host maintains a delicate balance between preorganization and flexibility. For synthetic porous hosts such as MOFs, programmable control over the local and global flexibility modes is thus crucial for the optimization of host-guest interactions. Here we show that methylation adjacent to the pyrene-arene junction of the linker permits the synthesis of a derivative of NU-1000 in which aryl rotation is thermally inaccessible but small angle librations remain facile. Mechanochemically promoted Suzuki cross-coupling was able to overcome the twin challenges of poor solubility and steric congestion to access a linker that could not be prepared in solution. The incorporation of methyl groups in the linker controls the local dynamics of the MOF pore and permit a window that interconnects channels in the unsubstituted MOF to evolve into a separate micropore environment. In addition, we show how the different chemical shifts observed for nuclei that extend into distinct MOF pores permits experimental determination of rotational barriers via variable-temperature 13C solid-state NMR.",
+    "published": "2025-12-01T14:39:36.146Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-1zwdg",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/691db11fef936fb4a26454af/original/strategic-mof-linker-methylation-to-direct-pore-structure-and-local-dynamics.pdf",
+    "doi": "10.26434/chemrxiv-2025-1zwdg",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-1zwdg",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Alkene Hydrogenation by a Cationic, Nine-Coordinate Molybdenum(VI) Pentahydride Catalyst",
+    "authors": [
+      "Arno Estival",
+      "Michel Sigrist",
+      "Nicolas Queyriaux",
+      "Jorge Cabrera-Trujillo",
+      "Nina Durvin",
+      "Marie-Christine Boegli",
+      "Laure Vendier",
+      "Mary Grellier",
+      "Karinne Miqueu",
+      "Antoine Simonneau"
+    ],
+    "abstract": "The cationic nine-coordinate pentahydrido complex [MoH5(depe)2]BPh4 (1\u00b7BPh4, depe = 1,2-(diethylphosphino)ethane) is, to the best of our knowledge, the first early transition metal polyhydride shown to efficiently catalyze the hydrogenation of an extensive set of unactivated alkenes. Preliminary mechanistic investigation by Density Functional Theory (DFT) calculations indicates that turnover relies on the ability of this 18-electron, d0 complex to undergo thermally facile H2 reductive elimination, which opens coordination sites and supplies the metal center the necessary electrons to engage in the reduction of the substrate. According to the computations, ethylene hydrogenation catalysis by 1\u00b7BPh4 follows a Wilkinson-Osborn-type mechanism. These findings demonstrate that high-coordinate early transition metal polyhydrides are not mere structural curiosities but can act as genuine hydrogenation catalysts. The unique reactivity of 1\u00b7BPh4 provides a foundation for new design concepts in base-metal homogeneous catalysis, beyond the current focus on late 3d metals.",
+    "published": "2025-12-01T06:08:06.088Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-80sgv",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69259b41ef936fb4a287f5fc/original/alkene-hydrogenation-by-a-cationic-nine-coordinate-molybdenum-vi-pentahydride-catalyst.pdf",
+    "doi": "10.26434/chemrxiv-2025-80sgv",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-80sgv",
+    "categories": [
+      "chemrxiv.IC"
+    ]
   }
 ]
