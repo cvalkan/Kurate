@@ -693,7 +693,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
 
     curve = []
     for n_matches in x_values:
-        subset = consensus_matches[:n_matches]
+        subset = random_single_matches[:n_matches]
         sub_lb = compute_leaderboard(papers, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
 
