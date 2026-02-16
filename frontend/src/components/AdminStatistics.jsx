@@ -216,10 +216,11 @@ export function AdminStatistics({ categories }) {
     );
   };
 
-  const summaryCost = summaryStats?.totals?.total_cost || 0;
+  const summaryCost = totals.summary_cost || (summaryStats?.totals?.total_cost) || 0;
+  const matchCost = totals.match_cost || (totals.cost - summaryCost);
+  const combinedCost = totals.cost;
   const summaryTokens = summaryStats?.totals?.total_tokens || 0;
-  const combinedCost = totals.cost + summaryCost;
-  const combinedTokens = totals.tokens + summaryTokens;
+  const combinedTokens = totals.tokens;
 
   // Merge match model stats with summary model stats for unified view
   const mergedModelStats = { ...modelStats };
