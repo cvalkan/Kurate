@@ -428,11 +428,15 @@ async def run_fetch_cycle(category: str = "cs.RO"):
 
         new_count = 0
         for rp in raw_papers:
-            exists = await db.papers.find_one({"arxiv_id": rp["arxiv_id"]}, {"_id": 0, "id": 1})
+            # Dedup by source-specific ID
+            dedup_key = id_field
+            dedup_value = rp.get(id_field) or rp.get("doi") or rp.get("arxiv_id")
+            if not dedup_value:
+                continue
+            exists = await db.papers.find_one({dedup_key: dedup_value}, {"_id": 0, "id": 1})
             if not exists:
                 paper_doc = {
                     "id": str(uuid.uuid4()),
-                    "arxiv_id": rp["arxiv_id"],
                     "title": rp["title"],
                     "authors": rp["authors"],
                     "abstract": rp["abstract"],
@@ -444,6 +448,13 @@ async def run_fetch_cycle(category: str = "cs.RO"):
                     "added_at": datetime.now(timezone.utc).isoformat(),
                     "needs_pdf": True,
                 }
+                # Store source-specific IDs
+                if rp.get("arxiv_id"):
+                    paper_doc["arxiv_id"] = rp["arxiv_id"]
+                if rp.get("chemrxiv_id"):
+                    paper_doc["chemrxiv_id"] = rp["chemrxiv_id"]
+                if rp.get("doi"):
+                    paper_doc["doi"] = rp["doi"]
                 await db.papers.insert_one(paper_doc)
                 new_count += 1
 
