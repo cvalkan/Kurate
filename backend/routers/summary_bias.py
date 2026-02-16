@@ -744,6 +744,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
             counts[m["paper2_id"]] += 1
         active_counts = [counts[p] for p in active if counts[p] > 0]
         point["avg_matches_per_paper"] = round(sum(active_counts) / max(len(active_counts), 1), 1)
+        point["llm_calls_per_paper"] = point["avg_matches_per_paper"]  # 1:1 for random-single
 
         curve.append(point)
 
