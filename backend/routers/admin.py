@@ -449,7 +449,12 @@ async def get_progress_estimate(category: str = "cs.RO"):
     matches_for_goal2 = 0 if goal2_met else max(0, (convergence_rounds - convergence_met_count) * len(all_paper_ids) // 2)
 
     # Goal 3: Cross-matches among non-capped top-K papers
-    # Papers at max_matches are exempt — they've played enough
+    sorted_papers = sorted(
+        all_paper_ids,
+        key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
+        reverse=True,
+    )
+    top_k_ids = sorted_papers[:min(top_k, total_papers)]
     topk_capped = {pid for pid in top_k_ids if paper_match_count[pid] >= max_matches}
     topk_crossmatch_ids = [pid for pid in top_k_ids if pid not in topk_capped]
     topk_total_pairs = len(topk_crossmatch_ids) * (len(topk_crossmatch_ids) - 1) // 2
@@ -467,8 +472,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
     # Per-category counts
-    cat_matches_done = sum(paper_match_count.values()) // 2  # each match counted twice
-    # PDF count: use pre-computed from background cache, fallback to DB
+    cat_matches_done = sum(paper_match_count.values()) // 2
     cat_papers_with_pdf = lb_cache.get("_pdf_by_cat", {}).get(category, 0)
 
     result = {
@@ -486,9 +490,11 @@ async def get_progress_estimate(category: str = "cs.RO"):
         },
         "goal2": {
             "met": bool(goal2_met),
-            "label": f"CI \u2264 {ci_target}% for top-{len(top_k_ids)}",
-            "done": int(top_k_converged),
-            "total": int(len(top_k_ids)),
+            "label": f"Ranking stability \u03c1 \u2265 {convergence_threshold}",
+            "done": int(convergence_met_count),
+            "total": int(convergence_rounds),
+            "latest_rho": latest_rho,
+            "snapshots": len(snapshots),
         },
         "goal3": {
             "met": bool(goal3_met),
