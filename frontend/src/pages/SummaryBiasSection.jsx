@@ -251,7 +251,7 @@ function FullPdfStats({ stats }) {
 
 function ConvergenceChart({ data }) {
   if (!data || !data.curve || data.curve.length < 2) return null;
-  const { curve, extract_curve, config_correlations, total_extract_matches, total_fullpdf_matches, total_consensus_matches, papers } = data;
+  const { curve, extract_curve, summarizer_curves, config_correlations, total_extract_matches, total_fullpdf_matches, total_consensus_matches, papers } = data;
 
   return (
     <div className="space-y-5" data-testid="convergence-section">
