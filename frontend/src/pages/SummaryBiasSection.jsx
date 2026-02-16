@@ -447,16 +447,18 @@ const SUMMARIZER_COLORS = {
   "GPT 5.2": "#2563eb",
 };
 
-function SummarizerConvergenceChart({ summarizer_curves, single_config_curves, extract_curve, papers }) {
-  if (!summarizer_curves || Object.keys(summarizer_curves).length < 2) return null;
+function SingleConfigChart({ single_config_curves, extract_curve, total_extract_matches, papers }) {
+  if (!single_config_curves || Object.keys(single_config_curves).length < 2) return null;
 
-  const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
+  const W = 620, H = 280, PAD = { t: 20, r: 20, b: 44, l: 50 };
   const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
 
-  const allPts = Object.values(summarizer_curves).flat();
   const extPts = extract_curve || [];
-  // Use llm_calls_per_paper
   const xKey = "llm_calls_per_paper";
+
+  // Group single configs by summarizer for coloring
+  const configs = Object.entries(single_config_curves);
+  const allPts = configs.flatMap(([, pts]) => pts);
   const allX = [...allPts.map(p => p[xKey] || 0), ...extPts.map(p => p[xKey] || 0)].filter(v => v > 0);
   const maxX = Math.max(...allX);
   const allY = [...allPts, ...extPts].map(p => p.vs_fullpdf_spearman).filter(v => v != null);
@@ -471,35 +473,31 @@ function SummarizerConvergenceChart({ summarizer_curves, single_config_curves, e
     return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p.vs_fullpdf_spearman).toFixed(1)}`).join(" ");
   };
 
-  const entries = Object.entries(summarizer_curves);
   const extractPath = extPts.length >= 2 ? makePath(extPts) : null;
   const lastExtract = extPts.length ? [...extPts].reverse().find(p => p.vs_fullpdf_spearman != null) : null;
 
-  // Pick best single-config per summarizer for thin lines
-  const singleLines = [];
-  if (single_config_curves) {
-    const bySummarizer = {};
-    for (const [label, pts] of Object.entries(single_config_curves)) {
-      const sumName = label.split(" + ")[1]?.replace(" sum", "") || label;
-      const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null);
-      if (!last) continue;
-      if (!bySummarizer[sumName] || last.vs_fullpdf_spearman > bySummarizer[sumName].rho) {
-        bySummarizer[sumName] = { label, pts, rho: last.vs_fullpdf_spearman, last };
-      }
-    }
-    for (const [sumName, { label, pts, last }] of Object.entries(bySummarizer)) {
-      const color = SUMMARIZER_COLORS[sumName] || "#999";
-      singleLines.push({ label, pts, color, last });
-    }
+  // Assign colors by summarizer
+  const configColors = {};
+  for (const [label] of configs) {
+    const sumName = label.split(" + ")[1]?.replace(" sum", "") || "";
+    configColors[label] = SUMMARIZER_COLORS[sumName] || "#666";
   }
+
+  // Sort configs by final rho descending for legend
+  const sortedConfigs = [...configs].sort((a, b) => {
+    const lastA = [...a[1]].reverse().find(p => p.vs_fullpdf_spearman != null);
+    const lastB = [...b[1]].reverse().find(p => p.vs_fullpdf_spearman != null);
+    return (lastB?.vs_fullpdf_spearman || 0) - (lastA?.vs_fullpdf_spearman || 0);
+  });
 
   return (
     <div className="border border-border rounded-lg p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold mb-0.5">Convergence by Summary Model</h3>
+        <h3 className="text-sm font-semibold mb-0.5">Ranking Convergence: Summary Configs vs Extract</h3>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          X-axis = LLM calls per paper. <strong>Solid lines</strong>: 3-judge majority per summarizer (3 calls/match).
-          <strong> Thin lines</strong>: best single judge+summarizer config (1 call/match). <strong>Orange dashed</strong>: extract baseline (1 call/match).
+          Fair comparison: all lines use <strong>1 LLM call per match</strong>. Each colored line is a single (judge + summarizer) configuration.
+          The <strong>orange dashed</strong> line is the extract-based tournament. X-axis = LLM calls per paper. Y-axis = Spearman ρ vs full-PDF ranking.
+          {papers && <> {papers} papers. Extract: {total_extract_matches?.toLocaleString()} calls.</>}
         </p>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
@@ -516,58 +514,39 @@ function SummarizerConvergenceChart({ summarizer_curves, single_config_curves, e
         <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
 
         {/* Extract reference */}
-        {extractPath && <path d={extractPath} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6,3" />}
-        {lastExtract && <circle cx={sx(lastExtract[xKey])} cy={sy(lastExtract.vs_fullpdf_spearman)} r="2.5" fill="#f59e0b" />}
+        {extractPath && <path d={extractPath} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" />}
+        {lastExtract && <circle cx={sx(lastExtract[xKey])} cy={sy(lastExtract.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
 
-        {/* Single-config thin lines */}
-        {singleLines.map(({ label, pts, color }) => {
+        {/* Single-config lines */}
+        {sortedConfigs.map(([label, pts]) => {
           const d = makePath(pts);
+          const color = configColors[label];
           const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null && p[xKey]);
           return d ? (
             <g key={label}>
-              <path d={d} fill="none" stroke={color} strokeWidth="1" strokeOpacity="0.5" />
-              {last && <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="2" fill={color} fillOpacity="0.5" />}
-            </g>
-          ) : null;
-        })}
-
-        {/* 3-judge majority (solid) */}
-        {entries.map(([name, points]) => {
-          const d = makePath(points);
-          const color = SUMMARIZER_COLORS[name] || "#666";
-          const last = [...points].reverse().find(p => p.vs_fullpdf_spearman != null && p[xKey]);
-          return d ? (
-            <g key={name}>
-              <path d={d} fill="none" stroke={color} strokeWidth="2" />
-              {last && <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="3" fill={color} />}
+              <path d={d} fill="none" stroke={color} strokeWidth="1.5" />
+              {last && <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="2.5" fill={color} />}
             </g>
           ) : null;
         })}
       </svg>
-      <div className="flex flex-wrap gap-4 text-[10px]">
-        {entries.map(([name, points]) => {
-          const last = [...points].reverse().find(p => p.vs_fullpdf_spearman != null);
-          const color = SUMMARIZER_COLORS[name] || "#666";
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+        {sortedConfigs.map(([label, pts]) => {
+          const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null);
+          const color = configColors[label];
           return last ? (
-            <div key={name} className="flex items-center gap-1.5">
+            <div key={label} className="flex items-center gap-1.5">
               <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color }} />
-              <span className="text-muted-foreground">{name} (3-judge):</span>
-              <span className="font-mono font-semibold">ρ = {last.vs_fullpdf_spearman?.toFixed(3)}</span>
+              <span className="text-muted-foreground">{label}:</span>
+              <span className="font-mono font-medium">{last.vs_fullpdf_spearman?.toFixed(3)}</span>
             </div>
           ) : null;
         })}
-        {singleLines.map(({ label, color, last }) => (
-          <div key={label} className="flex items-center gap-1.5">
-            <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color, opacity: 0.5 }} />
-            <span className="text-muted-foreground">{label} (1-call):</span>
-            <span className="font-mono">{last.vs_fullpdf_spearman?.toFixed(3)}</span>
-          </div>
-        ))}
         {lastExtract && (
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 3px, transparent 3px 6px)" }} />
-            <span className="text-muted-foreground">Extract:</span>
-            <span className="font-mono">{lastExtract.vs_fullpdf_spearman?.toFixed(3)}</span>
+            <span className="text-muted-foreground">Extract (single model):</span>
+            <span className="font-mono font-medium">{lastExtract.vs_fullpdf_spearman?.toFixed(3)}</span>
           </div>
         )}
       </div>
