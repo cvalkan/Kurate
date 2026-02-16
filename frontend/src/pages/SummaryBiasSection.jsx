@@ -261,6 +261,9 @@ function ConvergenceChart({ data }) {
       {/* Chart 2: Apples-to-apples comparison (x = avg matches per paper) */}
       <ComparisonChart curve={curve} extract_curve={extract_curve} total_consensus_matches={total_consensus_matches} total_extract_matches={total_extract_matches} papers={papers} />
 
+      {/* Chart 3: Per-summarizer convergence */}
+      <SummarizerConvergenceChart summarizer_curves={summarizer_curves} extract_curve={extract_curve} papers={papers} />
+
       {/* Per-config table */}
       {config_correlations && Object.keys(config_correlations).length > 0 && (
         <div className="border border-border rounded-lg p-4">
