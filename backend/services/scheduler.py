@@ -550,21 +550,26 @@ async def _generate_paper_summaries(category: str = None):
     async def gen_one(paper, model_info):
         nonlocal generated
         mk = _summary_model_key(model_info)
-        # Check if already exists
+        # Check if already exists and is a valid string > 50 chars
         existing = (paper.get("summaries") or {}).get(mk)
-        if existing:
+        if existing and isinstance(existing, str) and len(existing) > 50:
             return
 
         async with sem:
             result = await generate_precomparison_impact_summary(paper, model_override=model_info)
             if result and result.get("summary"):
-                await db.papers.update_one(
-                    {"id": paper["id"]},
-                    {"$set": {f"summaries.{mk}": result["summary"]}},
-                )
-                generated += 1
-                if cat_status and generated % 5 == 0:
-                    cat_status["current_activity"] = f"Generating summaries... ({generated})"
+                summary_val = result["summary"]
+                # Ensure we always store a string
+                if not isinstance(summary_val, str):
+                    summary_val = str(summary_val)
+                if len(summary_val) > 50:
+                    await db.papers.update_one(
+                        {"id": paper["id"]},
+                        {"$set": {f"summaries.{mk}": summary_val}},
+                    )
+                    generated += 1
+                    if cat_status and generated % 5 == 0:
+                        cat_status["current_activity"] = f"Generating summaries... ({generated})"
 
     tasks = []
     for paper in papers:
