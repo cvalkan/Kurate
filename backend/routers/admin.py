@@ -415,38 +415,38 @@ async def get_progress_estimate(category: str = "cs.RO"):
     matches_for_goal1 = max(0, (deficit + 1) // 2)
     goal1_met = papers_at_min == total_papers
 
-    # Goal 2: Top-K papers have Wilson CI margin <= ci_target %
-    sorted_papers = sorted(
-        all_paper_ids,
-        key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
-        reverse=True,
-    )
-    top_k_ids = sorted_papers[:min(top_k, total_papers)]
-    top_k_converged = 0
-    matches_for_goal2 = 0
-    top_k_details = []
-    target_frac = ci_target / 100.0
+    # Goal 2: Ranking convergence (Spearman ρ stability)
+    # Check ranking snapshots: ρ between current and 2 rounds ago
+    from scipy import stats as scipy_stats
+    snapshots = await db.ranking_snapshots.find(
+        {"category": category},
+        {"_id": 0, "round": 1, "rankings": 1},
+    ).sort("round", -1).to_list(convergence_rounds + 2)
 
-    for pid in top_k_ids:
-        n = paper_match_count[pid]
-        w = paper_wins.get(pid, 0)
-        margin_pct = wilson_margin_pct(w, n)
-        converged = bool(margin_pct <= ci_target or n >= max_matches)
-        if converged:
-            top_k_converged += 1
-        else:
-            p = w / n if n > 0 else 0.5
-            p = max(0.05, min(0.95, p))
-            z = 1.96
-            n_for_ci = max(0, int(z * z * p * (1 - p) / (target_frac * target_frac)) - n)
-            n_for_cap = max(0, max_matches - n)
-            matches_for_goal2 += min(n_for_ci, n_for_cap)
-        elo_ci = _elo_ci(w, n)
-        top_k_details.append({
-            "id": pid, "matches": int(n), "margin_pct": float(margin_pct),
-            "elo_ci": int(round(elo_ci)) if elo_ci < 999 else None, "converged": converged,
-        })
-    goal2_met = bool(top_k_converged == len(top_k_ids))
+    convergence_met_count = 0
+    latest_rho = None
+    if len(snapshots) >= 3:
+        # Check last convergence_rounds pairs (current vs 2-rounds-ago)
+        for i in range(min(convergence_rounds, len(snapshots) - 2)):
+            current_ranks = snapshots[i]["rankings"]
+            prev_ranks = snapshots[i + 2]["rankings"]
+            common = [pid for pid in all_paper_ids if pid in current_ranks and pid in prev_ranks]
+            if len(common) >= 3:
+                sp, _ = scipy_stats.spearmanr(
+                    [current_ranks[p] for p in common],
+                    [prev_ranks[p] for p in common]
+                )
+                if i == 0:
+                    latest_rho = round(float(sp), 4) if sp == sp else None
+                if sp == sp and sp >= convergence_threshold:
+                    convergence_met_count += 1
+                else:
+                    break  # Must be consecutive
+            else:
+                break
+
+    goal2_met = bool(convergence_met_count >= convergence_rounds)
+    matches_for_goal2 = 0 if goal2_met else max(0, (convergence_rounds - convergence_met_count) * len(all_paper_ids) // 2)
 
     # Goal 3: Cross-matches among non-capped top-K papers
     # Papers at max_matches are exempt — they've played enough
