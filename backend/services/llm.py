@@ -15,7 +15,7 @@ from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_
 _llm_executor = ThreadPoolExecutor(max_workers=100, thread_name_prefix="llm")
 
 
-async def download_and_extract_pdf(pdf_url: str) -> Optional[str]:
+async def download_and_extract_pdf(pdf_url: str, doi: str = None) -> Optional[str]:
     try:
         headers = {"User-Agent": "paperscraper/1.0 (+https)"}
         async with httpx.AsyncClient(headers=headers) as http_client:
@@ -33,11 +33,50 @@ async def download_and_extract_pdf(pdf_url: str) -> Optional[str]:
 
         full_text = "\n".join(text_parts)
         full_text = " ".join(full_text.split())
-        # Remove Unicode surrogate characters that can't be encoded to UTF-8
         full_text = full_text.encode("utf-8", errors="replace").decode("utf-8")
         return full_text
     except Exception as e:
-        logger.error(f"Failed to download/extract PDF from {pdf_url}: {e}")
+        logger.warning(f"Direct PDF download failed for {pdf_url}: {e}")
+        # Fallback: try paperscraper if DOI is available (handles ChemRxiv via Cambridge API)
+        if doi and "chemrxiv" in (doi + (pdf_url or "")).lower():
+            return await _download_pdf_via_paperscraper(doi)
+        return None
+
+
+async def _download_pdf_via_paperscraper(doi: str) -> Optional[str]:
+    """Fallback: use paperscraper's save_pdf to download ChemRxiv PDFs via Cambridge API."""
+    try:
+        from paperscraper.pdf import save_pdf
+        import tempfile
+
+        tmpdir = tempfile.mkdtemp()
+        path = os.path.join(tmpdir, "paper")
+
+        loop = asyncio.get_event_loop()
+        success = await loop.run_in_executor(
+            None,
+            lambda: save_pdf({"doi": doi}, filepath=path)
+        )
+
+        pdf_path = path + ".pdf" if not path.endswith(".pdf") else path
+        if success and os.path.exists(pdf_path):
+            with open(pdf_path, "rb") as f:
+                reader = PdfReader(f)
+                text_parts = [page.extract_text() or "" for page in reader.pages]
+            full_text = " ".join("\n".join(text_parts).split())
+            full_text = full_text.encode("utf-8", errors="replace").decode("utf-8")
+
+            # Cleanup
+            for fn in os.listdir(tmpdir):
+                os.remove(os.path.join(tmpdir, fn))
+            os.rmdir(tmpdir)
+
+            if len(full_text) > 100:
+                logger.info(f"PDF downloaded via paperscraper for {doi} ({len(full_text)} chars)")
+                return full_text
+        return None
+    except Exception as e:
+        logger.warning(f"paperscraper PDF fallback failed for {doi}: {e}")
         return None
 
 
