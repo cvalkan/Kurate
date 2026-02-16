@@ -391,20 +391,19 @@ function ComparisonChart({ curve, extract_curve, total_consensus_matches, total_
     return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p[key]).toFixed(1)}`).join(" ");
   };
 
-  const summaryPath = makePath(curve, "vs_fullpdf_spearman", "avg_matches_per_paper");
-  const extractPath = makePath(extract_curve, "vs_fullpdf_spearman", "avg_matches_per_paper");
-  const lastSummary = [...curve].reverse().find(p => p.vs_fullpdf_spearman != null);
-  const lastExtract = [...extract_curve].reverse().find(p => p.vs_fullpdf_spearman != null);
+  const summaryPath = makePath(curve, "vs_fullpdf_spearman", "llm_calls_per_paper");
+  const extractPath = makePath(extract_curve, "vs_fullpdf_spearman", "llm_calls_per_paper");
+  const lastSummary = [...curve].reverse().find(p => p.vs_fullpdf_spearman != null && p.llm_calls_per_paper != null);
+  const lastExtract = [...extract_curve].reverse().find(p => p.vs_fullpdf_spearman != null && p.llm_calls_per_paper != null);
 
   return (
     <div className="border border-border rounded-lg p-4 space-y-3">
       <div>
         <h3 className="text-sm font-semibold mb-0.5">Summary vs Extract: Convergence to Full-PDF Ranking</h3>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Apples-to-apples comparison: both curves use the same x-axis (avg matches per paper) and measure correlation with the same full-PDF ranking.
-          The <strong>green</strong> line (abstract + summary) converges faster and higher than the <strong>orange dashed</strong> line (section extracts).
-          At ~5 matches/paper, summaries already outperform extracts at ~40 matches/paper.
-          Summary data: {total_consensus_matches} matches. Extract data: {total_extract_matches?.toLocaleString()} matches. {papers} papers.
+          Fair cost comparison: x-axis = <strong>LLM calls per paper</strong> (summary consensus uses 9 calls/match; extract uses 1).
+          Both curves measure correlation with the same full-PDF ranking.
+          Summary: {total_consensus_matches} matches (x9 = {total_consensus_matches * 9} calls). Extract: {total_extract_matches?.toLocaleString()} calls. {papers} papers.
         </p>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
