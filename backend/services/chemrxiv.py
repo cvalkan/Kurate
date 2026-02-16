@@ -24,8 +24,9 @@ HEADERS = {
 async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int = 50) -> List[Dict]:
     """Fetch recent papers from ChemRxiv via the Cambridge Open Engage API.
     
-    Uses the same API as paperscraper but filtered for the target subject area.
-    Returns papers with full metadata suitable for the tournament pipeline.
+    The COE API returns papers from ALL Cambridge platforms, so we filter by
+    origin=CHEMRXIV and subject name. Need to scan many pages since ChemRxiv
+    papers are a small fraction of the total.
     """
     subject = CHEMRXIV_SUBJECTS.get(category)
     if not subject:
@@ -35,9 +36,11 @@ async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int 
     papers = []
     page_size = 50
     skip = 0
+    max_skip = 5000  # Safety limit — don't scan more than 5000 entries
+    empty_streak = 0
 
     async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
-        while len(papers) < max_results:
+        while len(papers) < max_results and skip < max_skip:
             params = {
                 "limit": page_size,
                 "skip": skip,
@@ -55,6 +58,7 @@ async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int 
             if not hits:
                 break
 
+            found_in_page = 0
             for hit in hits:
                 item = hit.get("item", hit)
                 # Filter: only CHEMRXIV origin papers
@@ -69,12 +73,24 @@ async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int 
                 paper = _parse_item(item, category)
                 if paper:
                     papers.append(paper)
+                    found_in_page += 1
                     if len(papers) >= max_results:
                         break
 
+            if found_in_page > 0:
+                empty_streak = 0
+                logger.info(f"ChemRxiv API skip={skip}: found {found_in_page} {category} papers (total: {len(papers)})")
+            else:
+                empty_streak += 1
+                # If we haven't found any target papers in 10 consecutive pages, stop
+                if empty_streak >= 10:
+                    logger.info(f"ChemRxiv API: 10 consecutive empty pages at skip={skip}, stopping")
+                    break
+
             skip += page_size
             if len(hits) < page_size:
-                break  # Last page
+                break
+            await asyncio.sleep(0.5)  # Rate limit
 
     logger.info(f"ChemRxiv API: fetched {len(papers)} {category} papers")
     return papers[:max_results]
