@@ -1259,6 +1259,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         "papers": len(papers),
         "curve": curve,
         "extract_curve": extract_curve,
+        "abstract_curve": abstract_curve,
         "summarizer_curves": summarizer_curves,
         "summarizer_random_curves": summarizer_random_curves,
         "judge_random_curves": judge_random_curves,
