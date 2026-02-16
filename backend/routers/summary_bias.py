@@ -598,4 +598,194 @@ async def get_results(category: str = Query("q-bio.BM")):
         "unanimous_rate": round(unanimous / n * 100, 1),
         "consensus_matches": len(consensus),
         "consensus_rate": round(len(consensus) / n * 100, 1),
+
+
+# ─── Convergence ─────────────────────────────────────────────────────────
+
+@router.get("/convergence")
+async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(15)):
+    """How fast does the summary-based tournament ranking converge?
+
+    Compares against:
+    1. Extract-based tournament ranking (from main matches, ~2000 matches) as ground truth
+    2. Full-PDF baseline ranking (from 200 matches × 3 judges)
+    3. Internal stability (ranking at N vs final ranking)
+    """
+    from scipy import stats as scipy_stats
+
+    # Get papers
+    papers = await db.papers.find({"categories": category}, {"_id": 0}).to_list(500)
+    if not papers:
+        return {"status": "no_data"}
+    paper_lookup = {p["id"]: p for p in papers}
+    paper_ids = set(paper_lookup.keys())
+
+    # ── Reference 1: Extract-based ranking from main tournament ──
+    main_matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
+    ).to_list(100000)
+    extract_lb = compute_leaderboard(papers, main_matches)
+    extract_rank = {e["id"]: e["rank"] for e in extract_lb}
+
+    # ── Get summary-bias matches (consensus) ──
+    all_docs = await db.summary_bias_matches.find(
+        {"category": category, "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "original_match_id": 1, "paper1_id": 1, "paper2_id": 1,
+         "winner_id": 1, "judge_key": 1, "summary_key": 1, "created_at": 1}
+    ).to_list(100000)
+
+    summary_docs = [m for m in all_docs if m.get("summary_key") != "full_pdf"]
+    fullpdf_docs = [m for m in all_docs if m.get("summary_key") == "full_pdf"]
+
+    # Build consensus winner per match
+    by_match = defaultdict(list)
+    for m in summary_docs:
+        by_match[m["original_match_id"]].append(m["winner_id"])
+
+    consensus_matches = []
+    for mid, winners in by_match.items():
+        c = Counter(winners)
+        best, cnt = c.most_common(1)[0]
+        # Find a representative doc for paper IDs
+        rep = next(m for m in summary_docs if m["original_match_id"] == mid)
+        consensus_matches.append({
+            "paper1_id": rep["paper1_id"],
+            "paper2_id": rep["paper2_id"],
+            "winner_id": best,
+            "completed": True,
+            "failed": False,
+        })
+
+    # Sort by original match order for stable subsampling
+    random.seed(42)
+    random.shuffle(consensus_matches)
+
+    # ── Reference 2: Full-PDF ranking ──
+    fp_by_match = defaultdict(list)
+    fp_match_papers = {}
+    for m in fullpdf_docs:
+        fp_by_match[m["original_match_id"]].append(m["winner_id"])
+        fp_match_papers[m["original_match_id"]] = (m["paper1_id"], m["paper2_id"])
+
+    fullpdf_consensus_matches = []
+    for mid, winners in fp_by_match.items():
+        c = Counter(winners)
+        best, cnt = c.most_common(1)[0]
+        p1, p2 = fp_match_papers[mid]
+        fullpdf_consensus_matches.append({
+            "paper1_id": p1, "paper2_id": p2,
+            "winner_id": best, "completed": True, "failed": False,
+        })
+
+    fullpdf_lb = compute_leaderboard(papers, fullpdf_consensus_matches) if fullpdf_consensus_matches else []
+    fullpdf_rank = {e["id"]: e["rank"] for e in fullpdf_lb}
+
+    # ── Final summary ranking (all consensus matches) ──
+    final_lb = compute_leaderboard(papers, consensus_matches)
+    final_rank = {e["id"]: e["rank"] for e in final_lb}
+
+    # ── Convergence curve ──
+    total = len(consensus_matches)
+    if total < 10:
+        return {"status": "insufficient_data", "consensus_matches": total}
+
+    step_size = max(1, total // steps)
+    x_values = list(range(step_size, total + 1, step_size))
+    if x_values[-1] < total:
+        x_values.append(total)
+
+    curve = []
+    for n_matches in x_values:
+        subset = consensus_matches[:n_matches]
+        sub_lb = compute_leaderboard(papers, subset)
+        sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+
+        # Papers that have matches in this subset
+        active = {m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}
+        active = active & paper_ids
+
+        point = {"matches": n_matches, "papers_covered": len(active)}
+
+        # Correlation with extract-based ranking
+        common_ext = [pid for pid in active if pid in extract_rank and pid in sub_rank]
+        if len(common_ext) >= 3:
+            sp, _ = scipy_stats.spearmanr(
+                [sub_rank[p] for p in common_ext],
+                [extract_rank[p] for p in common_ext]
+            )
+            point["vs_extract_spearman"] = round(sp, 4) if not (sp != sp) else 0
+        else:
+            point["vs_extract_spearman"] = None
+
+        # Correlation with full-PDF ranking
+        if fullpdf_rank:
+            common_fp = [pid for pid in active if pid in fullpdf_rank and pid in sub_rank]
+            if len(common_fp) >= 3:
+                sp, _ = scipy_stats.spearmanr(
+                    [sub_rank[p] for p in common_fp],
+                    [fullpdf_rank[p] for p in common_fp]
+                )
+                point["vs_fullpdf_spearman"] = round(sp, 4) if not (sp != sp) else 0
+            else:
+                point["vs_fullpdf_spearman"] = None
+
+        # Internal stability (vs final ranking)
+        common_final = [pid for pid in active if pid in final_rank and pid in sub_rank]
+        if len(common_final) >= 3:
+            sp, _ = scipy_stats.spearmanr(
+                [sub_rank[p] for p in common_final],
+                [final_rank[p] for p in common_final]
+            )
+            point["vs_final_spearman"] = round(sp, 4) if not (sp != sp) else 0
+        else:
+            point["vs_final_spearman"] = None
+
+        # Avg matches per paper
+        counts = defaultdict(int)
+        for m in subset:
+            counts[m["paper1_id"]] += 1
+            counts[m["paper2_id"]] += 1
+        active_counts = [counts[p] for p in active if counts[p] > 0]
+        point["avg_matches_per_paper"] = round(sum(active_counts) / max(len(active_counts), 1), 1)
+
+        curve.append(point)
+
+    # ── Also compute per-config convergence (each of 9 configs separately) ──
+    config_final_ranks = {}
+    config_keys = sorted({f"{m['judge_key']}|{m['summary_key']}" for m in summary_docs})
+    for ck in config_keys:
+        ck_matches = [{
+            "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+            "winner_id": m["winner_id"], "completed": True, "failed": False,
+        } for m in summary_docs if f"{m['judge_key']}|{m['summary_key']}" == ck]
+        ck_lb = compute_leaderboard(papers, ck_matches)
+        config_final_ranks[ck] = {e["id"]: e["rank"] for e in ck_lb}
+
+    # Correlation of each config's ranking with extract and full-PDF
+    config_correlations = {}
+    for ck, ranks in config_final_ranks.items():
+        common_ext = [pid for pid in paper_ids if pid in extract_rank and pid in ranks]
+        common_fp = [pid for pid in paper_ids if pid in fullpdf_rank and pid in ranks] if fullpdf_rank else []
+
+        entry = {"label": f"{_short(ck.split('|')[0])} + {_short(ck.split('|')[1])} sum"}
+        if len(common_ext) >= 3:
+            sp, _ = scipy_stats.spearmanr([ranks[p] for p in common_ext], [extract_rank[p] for p in common_ext])
+            entry["vs_extract"] = round(sp, 4) if not (sp != sp) else 0
+        if len(common_fp) >= 3:
+            sp, _ = scipy_stats.spearmanr([ranks[p] for p in common_fp], [fullpdf_rank[p] for p in common_fp])
+            entry["vs_fullpdf"] = round(sp, 4) if not (sp != sp) else 0
+        config_correlations[ck] = entry
+
+    return {
+        "status": "ok",
+        "category": category,
+        "total_consensus_matches": total,
+        "total_extract_matches": len(main_matches),
+        "total_fullpdf_matches": len(fullpdf_consensus_matches),
+        "papers": len(papers),
+        "curve": curve,
+        "config_correlations": config_correlations,
+    }
+
     }
