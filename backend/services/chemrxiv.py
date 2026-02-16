@@ -1,138 +1,138 @@
-"""ChemRxiv paper fetcher — uses crawl_tool data or lightweight scraping."""
+"""ChemRxiv paper fetcher using the Cambridge Open Engage API (same as paperscraper)."""
+import asyncio
 import re
-import json
 import httpx
-from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Optional
+from bs4 import BeautifulSoup
 from core.config import logger
 
+# Cambridge Open Engage API (fallback that bypasses Cloudflare on chemrxiv.org)
+COE_API_BASE = "https://www.cambridge.org/engage/coe/public-api/v1/"
+COE_ORIGIN = "CHEMRXIV"
+
 CHEMRXIV_SUBJECTS = {
-    "chemrxiv.IC": {"concept_id": "502564", "name": "Inorganic Chemistry"},
+    "chemrxiv.IC": {"name": "Inorganic Chemistry"},
 }
 
-SEED_FILE = Path(__file__).parent.parent / "data" / "chemrxiv_seed.json"
+HEADERS = {
+    "Accept": "application/json",
+    "User-Agent": "paperscraper/1.0 (+https)",
+}
 
 
 async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int = 50) -> List[Dict]:
-    """Fetch papers from ChemRxiv. Uses seed file if available, else tries HTTP scraping."""
+    """Fetch recent papers from ChemRxiv via the Cambridge Open Engage API.
+    
+    Uses the same API as paperscraper but filtered for the target subject area.
+    Returns papers with full metadata suitable for the tournament pipeline.
+    """
     subject = CHEMRXIV_SUBJECTS.get(category)
     if not subject:
         logger.error(f"Unknown ChemRxiv category: {category}")
         return []
 
-    # Check for seed file first
-    if SEED_FILE.exists():
-        try:
-            with open(SEED_FILE) as f:
-                papers = json.load(f)
-            papers = [p for p in papers if category in p.get("categories", [])]
-            logger.info(f"ChemRxiv: loaded {len(papers)} papers from seed file")
-            return papers[:max_results]
-        except Exception as e:
-            logger.warning(f"ChemRxiv seed file error: {e}")
-
-    # Fallback: try HTTP with browser-like headers
     papers = []
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-    pages_needed = (max_results + 19) // 20
+    page_size = 50
+    skip = 0
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
-        for pg in range(pages_needed):
-            if len(papers) >= max_results:
-                break
-            url = f"https://chemrxiv.org/action/doSearch?ConceptID={subject['concept_id']}&sortBy=Earliest&startPage={pg}&pageSize=20"
+    async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
+        while len(papers) < max_results:
+            params = {
+                "limit": page_size,
+                "skip": skip,
+                "sort": "PUBLISHED_DATE_DESC",
+            }
             try:
-                resp = await client.get(url)
-                if resp.status_code == 403:
-                    logger.warning(f"ChemRxiv 403 (Cloudflare) on page {pg} — use seed file instead")
-                    break
+                resp = await client.get(f"{COE_API_BASE}items", params=params)
                 resp.raise_for_status()
-                page_papers = parse_search_html(resp.text, category)
-                papers.extend(page_papers)
+                data = resp.json()
             except Exception as e:
-                logger.error(f"ChemRxiv fetch page {pg}: {e}")
+                logger.error(f"ChemRxiv API error at skip={skip}: {e}")
                 break
 
-    logger.info(f"ChemRxiv: fetched {len(papers)} {category} papers")
+            hits = data.get("itemHits", [])
+            if not hits:
+                break
+
+            for hit in hits:
+                item = hit.get("item", hit)
+                # Filter: only CHEMRXIV origin papers
+                if item.get("origin") != COE_ORIGIN:
+                    continue
+
+                # Filter by subject (check if paper has the target subject)
+                item_subjects = [s.get("name", "") for s in (item.get("subjects") or []) if isinstance(s, dict)]
+                if subject["name"] not in item_subjects:
+                    continue
+
+                paper = _parse_item(item, category)
+                if paper:
+                    papers.append(paper)
+                    if len(papers) >= max_results:
+                        break
+
+            skip += page_size
+            if len(hits) < page_size:
+                break  # Last page
+
+    logger.info(f"ChemRxiv API: fetched {len(papers)} {category} papers")
     return papers[:max_results]
 
 
-def parse_search_html(html: str, category: str) -> List[Dict]:
-    """Parse papers from ChemRxiv search results HTML."""
-    papers = []
-    date_pattern = re.compile(
-        r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
-    )
-    author_pattern = re.compile(r'ContribAuthorRaw=[^"]*"[^>]*>([^<]+)</a>')
+def _parse_item(item: dict, category: str) -> Optional[Dict]:
+    """Parse a Cambridge Open Engage API item into our paper format."""
+    title = item.get("title", "").strip()
+    if not title or len(title) < 10:
+        return None
 
-    sections = re.split(
-        r'(?=\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})',
-        html,
-    )
+    # Authors
+    authors = []
+    for author in item.get("authors", []) or []:
+        first = (author or {}).get("firstName", "")
+        last = (author or {}).get("lastName", "")
+        name = " ".join(part for part in [first, last] if part).strip()
+        if name:
+            authors.append(name)
 
-    for section in sections[1:]:
-        date_match = date_pattern.search(section)
-        if not date_match:
-            continue
-        date_str = date_match.group(1)
-
-        title_match = re.search(
-            r'<a[^>]*href="(https://chemrxiv\.org/doi/full/([^"]+))"[^>]*>(.*?)</a>',
-            section, re.DOTALL,
-        )
-        if not title_match:
-            continue
-
-        link = title_match.group(1)
-        doi_path = title_match.group(2)
-        title = re.sub(r'<[^>]+>', '', title_match.group(3)).strip()
-        title = re.sub(r'\s+', ' ', title)
-        if not title or len(title) < 10:
-            continue
-
-        doi = f"10.26434/{doi_path.split('/v')[0]}" if doi_path else ""
-
-        authors = author_pattern.findall(section)
-        seen = set()
-        unique_authors = []
-        for a in authors:
-            a = a.strip()
-            if a and a not in seen and len(a) > 1:
-                seen.add(a)
-                unique_authors.append(a)
-
+    # Abstract (HTML → plain text)
+    abstract_html = item.get("abstract", "")
+    if abstract_html:
+        abstract = BeautifulSoup(abstract_html, "html.parser").get_text(separator=" ").strip()
+        if abstract.startswith("Abstract"):
+            abstract = abstract[8:].strip()
+    else:
         abstract = ""
-        abstract_match = re.search(
-            r'(?:and\s*\d+\s*others|0\s*others)\s*</.*?>(.*?)(?:<a[^>]*>View all|$)',
-            section, re.DOTALL,
-        )
-        if abstract_match:
-            abstract = re.sub(r'<[^>]+>', '', abstract_match.group(1)).strip()
-            abstract = re.sub(r'\s+', ' ', abstract)
 
-        try:
-            parsed_date = datetime.strptime(date_str, "%d %B %Y")
-            published = parsed_date.strftime("%Y-%m-%dT00:00:00Z")
-        except Exception:
-            published = date_str
+    # DOI
+    doi = item.get("doi", "")
 
-        pdf_link = f"https://chemrxiv.org/doi/pdf/{doi_path}" if doi_path else None
+    # Published date
+    status_date = item.get("statusDate", "")
+    published = status_date if status_date else datetime.now(timezone.utc).isoformat()
 
-        papers.append({
-            "title": title,
-            "authors": unique_authors,
-            "abstract": abstract,
-            "published": published,
-            "link": link,
-            "pdf_link": pdf_link,
-            "doi": doi,
-            "chemrxiv_id": doi_path,
-            "categories": [category],
-        })
+    # Paper link
+    link = f"https://chemrxiv.org/doi/full/{doi}" if doi else item.get("url", "")
 
-    return papers
+    # PDF URL from asset
+    pdf_link = None
+    asset = item.get("asset")
+    if isinstance(asset, dict):
+        original = asset.get("original")
+        if isinstance(original, dict) and original.get("url"):
+            pdf_link = original["url"]
+
+    # Use DOI as the dedup key (strip version suffix for consistency)
+    chemrxiv_id = doi
+
+    return {
+        "title": title,
+        "authors": authors,
+        "abstract": abstract,
+        "published": published,
+        "link": link,
+        "pdf_link": pdf_link,
+        "doi": doi,
+        "chemrxiv_id": chemrxiv_id,
+        "categories": [category],
+    }
