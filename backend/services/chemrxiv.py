@@ -75,10 +75,6 @@ def _parse_search_results(html: str, category: str) -> List[Dict]:
         html, re.DOTALL
     )
 
-    # Also capture dates - they appear as text like "16 February 2026"
-    date_pattern = re.compile(r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})')
-    dates = date_pattern.findall(html)
-
     # Parse author blocks
     author_pattern = re.compile(r'ContribAuthorRaw=[^"]*"[^>]*>([^<]+)</a>')
     
