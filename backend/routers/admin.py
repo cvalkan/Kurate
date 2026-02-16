@@ -1203,6 +1203,13 @@ async def get_timeseries(category: Optional[str] = None):
         stats["cost_total"] = round(cost_in + cost_out, 4)
         total_model_cost += cost_in + cost_out
 
+    # Compute total summary tokens/cost for the totals
+    total_summary_tokens = sum(
+        summary_daily[day]["_total"]["input_tokens"] + summary_daily[day]["_total"]["output_tokens"]
+        for day in summary_daily
+    )
+    total_summary_cost = sum(summary_daily[day]["_total"]["cost"] for day in summary_daily)
+
     return {
         "series": series,
         "categories": all_cats,
@@ -1213,6 +1220,8 @@ async def get_timeseries(category: Optional[str] = None):
             "input_tokens": sum(s.get("input_tokens", 0) for s in model_stats.values()),
             "output_tokens": sum(s.get("output_tokens", 0) for s in model_stats.values()),
             "cost": round(cum_cost["_total"], 4),
+            "match_cost": round(cum_cost["_total"] - total_summary_cost, 4),
+            "summary_cost": round(total_summary_cost, 4),
         },
         "models": model_stats,
     }
