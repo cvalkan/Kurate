@@ -202,7 +202,7 @@ async def startup():
 
     # Migration: update settings for new convergence-based architecture
     try:
-        from core.auth import invalidate_settings_cache
+        from core.auth import invalidate_settings_cache as _inv_cache
         _settings_doc = await db.settings.find_one({"key": "global"})
         if _settings_doc:
             migration_updates = {}
@@ -222,7 +222,7 @@ async def startup():
                 migration_updates["max_matches_per_paper"] = 20
             if migration_updates:
                 await db.settings.update_one({"key": "global"}, {"$set": migration_updates})
-                invalidate_settings_cache()
+                _inv_cache()
                 logger.info(f"Migrated settings: {list(migration_updates.keys())}")
     except Exception as e:
         logger.warning(f"Settings migration warning: {e}")
