@@ -253,99 +253,18 @@ function ConvergenceChart({ data }) {
   if (!data || !data.curve || data.curve.length < 2) return null;
   const { curve, extract_curve, config_correlations, total_extract_matches, total_fullpdf_matches, total_consensus_matches, papers } = data;
 
-  // Use avg_matches_per_paper as x-axis for apples-to-apples comparison
-  const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
-  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
-
-  const allAvg = [
-    ...curve.map(p => p.avg_matches_per_paper),
-    ...(extract_curve || []).map(p => p.avg_matches_per_paper),
-  ];
-  const maxX = Math.max(...allAvg);
-  const allY = [
-    ...curve.flatMap(p => [p.vs_fullpdf_spearman].filter(v => v != null)),
-    ...(extract_curve || []).flatMap(p => [p.vs_fullpdf_spearman].filter(v => v != null)),
-  ];
-  const minYRaw = allY.length ? Math.min(...allY) : 0;
-  const yMin = Math.max(0, Math.floor(minYRaw * 10) / 10 - 0.1);
-  const maxY = 1.0;
-
-  const sx = x => PAD.l + (x / maxX) * cw;
-  const sy = y => PAD.t + (1 - (y - yMin) / (maxY - yMin)) * ch;
-
-  const makePath = (points, key, xKey) =>  {
-    const pts = points.filter(p => p[key] != null);
-    if (pts.length < 2) return null;
-    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p[key]).toFixed(1)}`).join(" ");
-  };
-
-  const summaryPath = makePath(curve, "vs_fullpdf_spearman", "avg_matches_per_paper");
-  const extractPath = extract_curve ? makePath(extract_curve, "vs_fullpdf_spearman", "avg_matches_per_paper") : null;
-
-  const lastSummary = [...curve].reverse().find(p => p.vs_fullpdf_spearman != null);
-  const lastExtract = extract_curve ? [...extract_curve].reverse().find(p => p.vs_fullpdf_spearman != null) : null;
-
-  // Config correlation table
-  const configs = config_correlations ? Object.entries(config_correlations) : [];
-
   return (
-    <div className="border border-border rounded-lg p-4 space-y-4" data-testid="convergence-section">
-      <div>
-        <h3 className="text-sm font-semibold mb-0.5">Ranking Convergence vs Full-PDF Baseline</h3>
-        <p className="text-[10px] text-muted-foreground">
-          How fast does each content mode converge to the full-PDF ranking? X-axis = avg matches per paper (apples-to-apples).
-          Summary consensus: {total_consensus_matches} matches across {papers} papers. Extract tournament: {total_extract_matches?.toLocaleString()} matches.
-        </p>
-      </div>
+    <div className="space-y-5" data-testid="convergence-section">
+      {/* Chart 1: Internal convergence (x = consensus matches) */}
+      <InternalConvergenceChart curve={curve} total_consensus_matches={total_consensus_matches} papers={papers} />
 
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
-        {/* Grid */}
-        {[0.2, 0.4, 0.6, 0.8, 1.0].filter(v => v >= yMin).map(v => (
-          <g key={v}>
-            <line x1={PAD.l} y1={sy(v)} x2={W - PAD.r} y2={sy(v)} stroke="#e5e7eb" strokeWidth="0.5" />
-            <text x={PAD.l - 4} y={sy(v) + 3} textAnchor="end" fontSize="8" fill="#9ca3af">{v.toFixed(1)}</text>
-          </g>
-        ))}
-        {/* X axis */}
-        {[2, 5, 10, 15, 20, 30, 40].filter(v => v <= maxX * 1.05).map(v => (
-          <text key={v} x={sx(v)} y={H - 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{v}</text>
-        ))}
-        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">Avg matches per paper</text>
-        <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
+      {/* Chart 2: Apples-to-apples comparison (x = avg matches per paper) */}
+      <ComparisonChart curve={curve} extract_curve={extract_curve} total_consensus_matches={total_consensus_matches} total_extract_matches={total_extract_matches} papers={papers} />
 
-        {/* Extract curve (dashed) */}
-        {extractPath && <path d={extractPath} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" />}
-        {lastExtract && <circle cx={sx(lastExtract.avg_matches_per_paper)} cy={sy(lastExtract.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
-
-        {/* Summary curve (solid) */}
-        {summaryPath && <path d={summaryPath} fill="none" stroke="#059669" strokeWidth="2.5" />}
-        {lastSummary && <circle cx={sx(lastSummary.avg_matches_per_paper)} cy={sy(lastSummary.vs_fullpdf_spearman)} r="3.5" fill="#059669" />}
-      </svg>
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-5 text-[10px]">
-        {lastSummary && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-4 h-0.5 rounded bg-emerald-600" />
-            <span className="text-muted-foreground">Abstract + Summary (consensus):</span>
-            <span className="font-mono font-semibold">ρ = {lastSummary.vs_fullpdf_spearman?.toFixed(3)}</span>
-            <span className="text-muted-foreground">@ {lastSummary.avg_matches_per_paper} avg/paper</span>
-          </div>
-        )}
-        {lastExtract && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-4 h-0.5 rounded bg-amber-500" style={{ backgroundImage: "repeating-linear-gradient(90deg, #f59e0b 0, #f59e0b 4px, transparent 4px, transparent 7px)" }} />
-            <span className="text-muted-foreground">Extract (sections):</span>
-            <span className="font-mono font-semibold">ρ = {lastExtract.vs_fullpdf_spearman?.toFixed(3)}</span>
-            <span className="text-muted-foreground">@ {lastExtract.avg_matches_per_paper} avg/paper</span>
-          </div>
-        )}
-      </div>
-
-      {/* Per-config correlation table */}
-      {configs.length > 0 && (
-        <div>
-          <h4 className="text-xs font-semibold mb-1.5 mt-2">Per-Config Ranking Correlation (200 matches each)</h4>
+      {/* Per-config table */}
+      {config_correlations && Object.keys(config_correlations).length > 0 && (
+        <div className="border border-border rounded-lg p-4">
+          <h4 className="text-xs font-semibold mb-1.5">Per-Config Ranking Correlation (200 matches each)</h4>
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
@@ -356,7 +275,7 @@ function ConvergenceChart({ data }) {
                 </tr>
               </thead>
               <tbody>
-                {configs.map(([ck, d]) => (
+                {Object.entries(config_correlations).map(([ck, d]) => (
                   <tr key={ck} className="border-b border-border/20">
                     <td className="px-2 py-1 text-xs">{d.label}</td>
                     <td className="text-right px-2 py-1 font-mono">{d.vs_extract?.toFixed(3) ?? "—"}</td>
@@ -368,6 +287,160 @@ function ConvergenceChart({ data }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function InternalConvergenceChart({ curve, total_consensus_matches, papers }) {
+  const W = 600, H = 240, PAD = { t: 20, r: 20, b: 40, l: 50 };
+  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+
+  const maxX = Math.max(...curve.map(p => p.matches));
+  const allY = curve.flatMap(p => [p.vs_extract_spearman, p.vs_fullpdf_spearman, p.vs_final_spearman].filter(v => v != null));
+  const yMin = Math.max(0, Math.floor(Math.min(...allY) * 10) / 10 - 0.1);
+
+  const sx = x => PAD.l + (x / maxX) * cw;
+  const sy = y => PAD.t + (1 - (y - yMin) / (1.0 - yMin)) * ch;
+
+  const lines = [
+    { key: "vs_extract_spearman", color: "#2563eb", label: "vs Extract tournament" },
+    { key: "vs_fullpdf_spearman", color: "#059669", label: "vs Full-PDF baseline" },
+    { key: "vs_final_spearman", color: "#9333ea", label: "Internal stability" },
+  ];
+
+  const makePath = (key) => {
+    const pts = curve.filter(p => p[key] != null);
+    if (pts.length < 2) return null;
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.matches).toFixed(1)},${sy(p[key]).toFixed(1)}`).join(" ");
+  };
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold mb-0.5">Summary Ranking Convergence</h3>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          How the summary-based BT ranking evolves as more consensus matches are added.
+          <strong> Purple</strong> = internal stability (how stable is the ranking). <strong>Green</strong> = correlation with the full-PDF ranking (accuracy).
+          <strong> Blue</strong> = correlation with the extract tournament ({total_consensus_matches} summary matches vs the full extract tournament).
+          The ranking stabilizes quickly and reaches high correlation with full-PDF by ~100 matches ({papers} papers).
+        </p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[600px]">
+        {[0.2, 0.4, 0.6, 0.8, 1.0].filter(v => v >= yMin).map(v => (
+          <g key={v}>
+            <line x1={PAD.l} y1={sy(v)} x2={W - PAD.r} y2={sy(v)} stroke="#e5e7eb" strokeWidth="0.5" />
+            <text x={PAD.l - 4} y={sy(v) + 3} textAnchor="end" fontSize="8" fill="#9ca3af">{v.toFixed(1)}</text>
+          </g>
+        ))}
+        {curve.filter((_, i) => i % Math.max(1, Math.floor(curve.length / 5)) === 0 || i === curve.length - 1).map(p => (
+          <text key={p.matches} x={sx(p.matches)} y={H - 8} textAnchor="middle" fontSize="8" fill="#9ca3af">{p.matches}</text>
+        ))}
+        <text x={PAD.l + cw / 2} y={H} textAnchor="middle" fontSize="8" fill="#9ca3af">Consensus matches</text>
+        <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ</text>
+        {lines.map(({ key, color }) => {
+          const d = makePath(key);
+          return d ? <path key={key} d={d} fill="none" stroke={color} strokeWidth="2" /> : null;
+        })}
+        {lines.map(({ key, color }) => {
+          const last = [...curve].reverse().find(p => p[key] != null);
+          return last ? <circle key={key + "d"} cx={sx(last.matches)} cy={sy(last[key])} r="3" fill={color} /> : null;
+        })}
+      </svg>
+      <div className="flex flex-wrap gap-4 text-[10px]">
+        {lines.map(({ key, color, label }) => {
+          const last = [...curve].reverse().find(p => p[key] != null);
+          return last ? (
+            <div key={key} className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color }} />
+              <span className="text-muted-foreground">{label}:</span>
+              <span className="font-mono font-medium">{last[key]?.toFixed(3)}</span>
+            </div>
+          ) : null;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ComparisonChart({ curve, extract_curve, total_consensus_matches, total_extract_matches, papers }) {
+  if (!extract_curve || extract_curve.length < 2) return null;
+
+  const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
+  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+
+  const allAvg = [
+    ...curve.map(p => p.avg_matches_per_paper),
+    ...extract_curve.map(p => p.avg_matches_per_paper),
+  ];
+  const maxX = Math.max(...allAvg);
+  const allY = [
+    ...curve.flatMap(p => [p.vs_fullpdf_spearman].filter(v => v != null)),
+    ...extract_curve.flatMap(p => [p.vs_fullpdf_spearman].filter(v => v != null)),
+  ];
+  const yMin = Math.max(0, Math.floor(Math.min(...allY) * 10) / 10 - 0.1);
+
+  const sx = x => PAD.l + (x / maxX) * cw;
+  const sy = y => PAD.t + (1 - (y - yMin) / (1.0 - yMin)) * ch;
+
+  const makePath = (points, key, xKey) => {
+    const pts = points.filter(p => p[key] != null);
+    if (pts.length < 2) return null;
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p[key]).toFixed(1)}`).join(" ");
+  };
+
+  const summaryPath = makePath(curve, "vs_fullpdf_spearman", "avg_matches_per_paper");
+  const extractPath = makePath(extract_curve, "vs_fullpdf_spearman", "avg_matches_per_paper");
+  const lastSummary = [...curve].reverse().find(p => p.vs_fullpdf_spearman != null);
+  const lastExtract = [...extract_curve].reverse().find(p => p.vs_fullpdf_spearman != null);
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold mb-0.5">Summary vs Extract: Convergence to Full-PDF Ranking</h3>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          Apples-to-apples comparison: both curves use the same x-axis (avg matches per paper) and measure correlation with the same full-PDF ranking.
+          The <strong>green</strong> line (abstract + summary) converges faster and higher than the <strong>orange dashed</strong> line (section extracts).
+          At ~5 matches/paper, summaries already outperform extracts at ~40 matches/paper.
+          Summary data: {total_consensus_matches} matches. Extract data: {total_extract_matches?.toLocaleString()} matches. {papers} papers.
+        </p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
+        {[0.2, 0.4, 0.6, 0.8, 1.0].filter(v => v >= yMin).map(v => (
+          <g key={v}>
+            <line x1={PAD.l} y1={sy(v)} x2={W - PAD.r} y2={sy(v)} stroke="#e5e7eb" strokeWidth="0.5" />
+            <text x={PAD.l - 4} y={sy(v) + 3} textAnchor="end" fontSize="8" fill="#9ca3af">{v.toFixed(1)}</text>
+          </g>
+        ))}
+        {[2, 5, 10, 15, 20, 30, 40, 60, 80].filter(v => v <= maxX * 1.05).map(v => (
+          <text key={v} x={sx(v)} y={H - 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{v}</text>
+        ))}
+        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">Avg matches per paper</text>
+        <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
+
+        {extractPath && <path d={extractPath} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" />}
+        {lastExtract && <circle cx={sx(lastExtract.avg_matches_per_paper)} cy={sy(lastExtract.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
+
+        {summaryPath && <path d={summaryPath} fill="none" stroke="#059669" strokeWidth="2.5" />}
+        {lastSummary && <circle cx={sx(lastSummary.avg_matches_per_paper)} cy={sy(lastSummary.vs_fullpdf_spearman)} r="3.5" fill="#059669" />}
+      </svg>
+      <div className="flex flex-wrap gap-5 text-[10px]">
+        {lastSummary && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-0.5 rounded bg-emerald-600" />
+            <span className="text-muted-foreground">Abstract + Summary (consensus):</span>
+            <span className="font-mono font-semibold">ρ = {lastSummary.vs_fullpdf_spearman?.toFixed(3)}</span>
+            <span className="text-muted-foreground">@ {lastSummary.avg_matches_per_paper} avg/paper</span>
+          </div>
+        )}
+        {lastExtract && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 4px, transparent 4px 7px)" }} />
+            <span className="text-muted-foreground">Extract (sections):</span>
+            <span className="font-mono font-semibold">ρ = {lastExtract.vs_fullpdf_spearman?.toFixed(3)}</span>
+            <span className="text-muted-foreground">@ {lastExtract.avg_matches_per_paper} avg/paper</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
