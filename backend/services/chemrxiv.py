@@ -69,10 +69,9 @@ def _parse_search_results(html: str, category: str) -> List[Dict]:
     papers = []
 
     # Pattern: links to individual paper pages
-    # Format: https://chemrxiv.org/doi/full/10.26434/chemrxiv.XXXXX/vN or chemrxiv-XXXX-XXXXX/vN
-    paper_blocks = re.findall(
+    paper_pattern = re.compile(
         r'<a[^>]*href="(https://chemrxiv\.org/doi/full/([^"]+))"[^>]*>(.*?)</a>',
-        html, re.DOTALL
+        re.DOTALL
     )
 
     # Parse author blocks
