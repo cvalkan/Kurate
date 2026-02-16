@@ -976,6 +976,46 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
                 "papers_covered": len(active),
             })
 
+    # ── Abstract-only convergence curve ──
+    abstract_curve = []
+    if abstract_docs:
+        abs_matches = [{
+            "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+            "winner_id": m["winner_id"], "completed": True, "failed": False,
+        } for m in abstract_docs if m.get("winner_id")]
+        random.seed(42)
+        random.shuffle(abs_matches)
+
+        abs_total = len(abs_matches)
+        abs_step = max(1, abs_total // steps)
+        abs_x = list(range(abs_step, abs_total + 1, abs_step))
+        if abs_x and abs_x[-1] < abs_total:
+            abs_x.append(abs_total)
+
+        for n_m in abs_x:
+            subset = abs_matches[:n_m]
+            sub_lb = compute_leaderboard(papers, subset)
+            sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+            active = ({m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}) & paper_ids
+            counts = defaultdict(int)
+            for m in subset:
+                if m["paper1_id"] in paper_ids:
+                    counts[m["paper1_id"]] += 1
+                if m["paper2_id"] in paper_ids:
+                    counts[m["paper2_id"]] += 1
+            ac = [counts[p] for p in active if counts[p] > 0]
+            avg_mpp = round(sum(ac) / max(len(ac), 1), 1)
+            fp_rho = None
+            if fullpdf_rank:
+                common_fp = [pid for pid in active if pid in fullpdf_rank and pid in sub_rank]
+                if len(common_fp) >= 3:
+                    sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common_fp], [fullpdf_rank[p] for p in common_fp])
+                    fp_rho = round(sp, 4) if not (sp != sp) else 0
+            abstract_curve.append({
+                "matches": n_m, "avg_matches_per_paper": avg_mpp,
+                "llm_calls_per_paper": avg_mpp, "vs_fullpdf_spearman": fp_rho,
+            })
+
     # ── Per-summarizer convergence curves ──
     # For each summary model, take the 3-judge majority and build a convergence curve
     summarizer_keys = sorted({m["summary_key"] for m in summary_docs})
