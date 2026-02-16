@@ -249,6 +249,119 @@ function FullPdfStats({ stats }) {
   );
 }
 
+function ConvergenceChart({ data }) {
+  if (!data || !data.curve || data.curve.length < 2) return null;
+  const { curve, config_correlations, total_extract_matches, total_fullpdf_matches, total_consensus_matches } = data;
+
+  // SVG chart dimensions
+  const W = 600, H = 240, PAD = { t: 20, r: 20, b: 40, l: 50 };
+  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+
+  const maxX = Math.max(...curve.map(p => p.matches));
+  const minY = Math.min(...curve.flatMap(p => [p.vs_extract_spearman, p.vs_fullpdf_spearman, p.vs_final_spearman].filter(v => v != null)));
+  const maxY = 1.0;
+  const yMin = Math.max(0, Math.floor(minY * 10) / 10 - 0.1);
+
+  const sx = x => PAD.l + (x / maxX) * cw;
+  const sy = y => PAD.t + (1 - (y - yMin) / (maxY - yMin)) * ch;
+
+  const lines = [
+    { key: "vs_extract_spearman", color: "#2563eb", label: "vs Extract tournament" },
+    { key: "vs_fullpdf_spearman", color: "#059669", label: "vs Full-PDF baseline" },
+    { key: "vs_final_spearman", color: "#9333ea", label: "Internal stability" },
+  ];
+
+  const makePath = (key) => {
+    const pts = curve.filter(p => p[key] != null);
+    if (pts.length < 2) return null;
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.matches).toFixed(1)},${sy(p[key]).toFixed(1)}`).join(" ");
+  };
+
+  // Config correlation table
+  const configs = config_correlations ? Object.entries(config_correlations) : [];
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-4" data-testid="convergence-section">
+      <div>
+        <h3 className="text-sm font-semibold mb-0.5">Ranking Convergence</h3>
+        <p className="text-[10px] text-muted-foreground">
+          How fast does the summary-based BT ranking converge? Measured by Spearman correlation as matches increase.
+          Extract baseline: {total_extract_matches?.toLocaleString()} matches. Full-PDF: {total_fullpdf_matches} matches. Summary consensus: {total_consensus_matches} matches.
+        </p>
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[600px]">
+        {/* Grid */}
+        {[0.2, 0.4, 0.6, 0.8, 1.0].filter(v => v >= yMin).map(v => (
+          <g key={v}>
+            <line x1={PAD.l} y1={sy(v)} x2={W - PAD.r} y2={sy(v)} stroke="#e5e7eb" strokeWidth="0.5" />
+            <text x={PAD.l - 4} y={sy(v) + 3} textAnchor="end" fontSize="8" fill="#9ca3af">{v.toFixed(1)}</text>
+          </g>
+        ))}
+        {/* X axis labels */}
+        {curve.filter((_, i) => i % Math.max(1, Math.floor(curve.length / 5)) === 0 || i === curve.length - 1).map(p => (
+          <text key={p.matches} x={sx(p.matches)} y={H - 8} textAnchor="middle" fontSize="8" fill="#9ca3af">{p.matches}</text>
+        ))}
+        <text x={PAD.l + cw / 2} y={H - 0} textAnchor="middle" fontSize="8" fill="#9ca3af">Consensus matches</text>
+        <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ</text>
+
+        {/* Lines */}
+        {lines.map(({ key, color }) => {
+          const d = makePath(key);
+          return d ? <path key={key} d={d} fill="none" stroke={color} strokeWidth="2" /> : null;
+        })}
+
+        {/* Dots at last point */}
+        {lines.map(({ key, color }) => {
+          const last = [...curve].reverse().find(p => p[key] != null);
+          return last ? <circle key={key + "-dot"} cx={sx(last.matches)} cy={sy(last[key])} r="3" fill={color} /> : null;
+        })}
+      </svg>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-[10px]">
+        {lines.map(({ key, color, label }) => {
+          const last = [...curve].reverse().find(p => p[key] != null);
+          return last ? (
+            <div key={key} className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color }} />
+              <span className="text-muted-foreground">{label}:</span>
+              <span className="font-mono font-medium">{last[key]?.toFixed(3)}</span>
+            </div>
+          ) : null;
+        })}
+      </div>
+
+      {/* Per-config correlation table */}
+      {configs.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold mb-1.5 mt-2">Per-Config Ranking Correlation (200 matches each)</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-2 py-1 font-medium text-[10px] text-muted-foreground">Configuration</th>
+                  <th className="text-right px-2 py-1 font-medium text-[10px] text-muted-foreground">vs Extract</th>
+                  <th className="text-right px-2 py-1 font-medium text-[10px] text-muted-foreground">vs Full PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {configs.map(([ck, data]) => (
+                  <tr key={ck} className="border-b border-border/20">
+                    <td className="px-2 py-1 text-xs">{data.label}</td>
+                    <td className="text-right px-2 py-1 font-mono">{data.vs_extract?.toFixed(3) ?? "—"}</td>
+                    <td className="text-right px-2 py-1 font-mono">{data.vs_fullpdf?.toFixed(3) ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CATEGORY_LABELS = {
   "q-bio.BM": "Biomolecules",
   "econ.GN": "Economics",
