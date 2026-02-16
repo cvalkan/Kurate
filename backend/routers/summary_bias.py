@@ -923,9 +923,9 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
                 full_counts[m["paper2_id"]] += 1
         max_ext_avg = sum(full_counts[p] for p in paper_ids if full_counts[p] > 0) / max(sum(1 for p in paper_ids if full_counts[p] > 0), 1)
 
-        # Add steps beyond the summary range up to extract max
-        extra_steps = [round(max_ext_avg * f) for f in [0.25, 0.5, 0.75, 1.0]]
-        all_targets = sorted(set(target_avgs + extra_steps))
+        # Cap extract curve at same range as summary curve
+        max_summary_avg = max(target_avgs) if target_avgs else 10
+        all_targets = sorted(set(t for t in target_avgs if t <= max_summary_avg * 1.1))
 
         for target_avg in all_targets:
             # Binary search for the number of matches that gives this avg
