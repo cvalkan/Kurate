@@ -262,27 +262,36 @@ export function AdminStatistics({ categories }) {
         />
       </div>
 
-      {/* Model breakdown */}
-      {modelStats && modelCount > 0 && (
+      {/* Model breakdown — combined match + summary costs */}
+      {mergedModelStats && Object.keys(mergedModelStats).length > 0 && (
         <div className="rounded-lg border border-border bg-card p-4" data-testid="model-breakdown">
           <h3 className="text-sm font-medium mb-3">Cost by Model</h3>
           <div className="space-y-2">
-            {Object.entries(modelStats)
-              .sort((a, b) => (b[1].cost_total || 0) - (a[1].cost_total || 0))
+            {Object.entries(mergedModelStats)
+              .sort((a, b) => ((b[1].cost_total || 0) + (b[1].summary_cost || 0)) - ((a[1].cost_total || 0) + (a[1].summary_cost || 0)))
               .map(([model, stats], idx) => {
-                const pct = totals.cost > 0 ? ((stats.cost_total || 0) / totals.cost) * 100 : 0;
+                const matchCost = stats.cost_total || 0;
+                const sumCost = stats.summary_cost || 0;
+                const totalModelCost = matchCost + sumCost;
+                const pct = combinedCost > 0 ? (totalModelCost / combinedCost) * 100 : 0;
                 return (
                   <div key={model} className="flex items-center gap-3">
                     <span className="text-xs font-mono w-36 shrink-0 truncate">{model.split("/").pop()}</span>
-                    <div className="flex-1 h-5 bg-secondary/50 rounded-full overflow-hidden">
+                    <div className="flex-1 h-5 bg-secondary/50 rounded-full overflow-hidden flex">
                       <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: getColor(model, idx) }}
+                        className="h-full transition-all"
+                        style={{ width: `${combinedCost > 0 ? (matchCost / combinedCost) * 100 : 0}%`, backgroundColor: getColor(model, idx) }}
                       />
+                      {sumCost > 0 && (
+                        <div
+                          className="h-full transition-all opacity-50"
+                          style={{ width: `${combinedCost > 0 ? (sumCost / combinedCost) * 100 : 0}%`, backgroundColor: getColor(model, idx) }}
+                        />
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
-                      <span className="font-mono">{stats.matches} calls</span>
-                      <span className="font-mono font-medium text-foreground">${(stats.cost_total || 0).toFixed(2)}</span>
+                      <span className="font-mono">{stats.matches} calls{stats.summary_count ? ` + ${stats.summary_count} sums` : ""}</span>
+                      <span className="font-mono font-medium text-foreground">${totalModelCost.toFixed(2)}</span>
                       <span className="w-10 text-right">{pct.toFixed(0)}%</span>
                     </div>
                   </div>
