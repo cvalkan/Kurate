@@ -415,8 +415,16 @@ async def run_fetch_cycle(category: str = "cs.RO"):
         settings = await get_settings()
         max_papers = settings.get("max_papers_per_fetch", 50)
 
-        raw_papers = await fetch_arxiv_papers(category=category, max_results=max_papers)
-        logger.info(f"Fetched {len(raw_papers)} {category} papers from arXiv")
+        # Route to the correct fetcher based on category prefix
+        if category.startswith("chemrxiv."):
+            from services.chemrxiv import fetch_chemrxiv_papers
+            raw_papers = await fetch_chemrxiv_papers(category=category, max_results=max_papers)
+            logger.info(f"Fetched {len(raw_papers)} {category} papers from ChemRxiv")
+            id_field = "chemrxiv_id"  # Dedup key for ChemRxiv
+        else:
+            raw_papers = await fetch_arxiv_papers(category=category, max_results=max_papers)
+            logger.info(f"Fetched {len(raw_papers)} {category} papers from arXiv")
+            id_field = "arxiv_id"
 
         new_count = 0
         for rp in raw_papers:
