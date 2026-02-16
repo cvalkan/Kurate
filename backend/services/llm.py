@@ -667,6 +667,11 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             )
             if response and response.strip():
                 summary_text = response.strip() if isinstance(response, str) else str(response)
+                # GPT-5.2 sometimes returns structured dict responses — extract the text
+                if isinstance(response, dict):
+                    # Take the longest string value from the dict
+                    vals = [v for v in response.values() if isinstance(v, str)]
+                    summary_text = max(vals, key=len) if vals else str(response)
                 return {"summary": summary_text, "model_used": model_info, "char_count": len(summary_text), "word_count": len(summary_text.split())}
         except Exception as e:
             logger.warning(f"Impact assessment attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
