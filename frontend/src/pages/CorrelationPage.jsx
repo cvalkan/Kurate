@@ -12,6 +12,14 @@ export default function CorrelationPage() {
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
   const [category, setCategory] = useState("");
+  const moreCatsRef = useRef(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => { if (moreCatsRef.current && !moreCatsRef.current.contains(e.target)) setMoreOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
