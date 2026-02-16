@@ -381,6 +381,9 @@ async def run_fetch_cycle(category: str = "cs.RO"):
         if new_count > 0:
             await _download_pending_pdfs(category=category)
 
+        # Generate AI summaries for papers with full text
+        await _generate_paper_summaries(category=category)
+
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
 
     except Exception as e:
