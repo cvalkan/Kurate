@@ -258,18 +258,22 @@ const CATEGORY_LABELS = {
 export default function SummaryBiasSection({ category = "q-bio.BM" }) {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
+  const [convergence, setConvergence] = useState(null);
   const [loading, setLoading] = useState(true);
   const catLabel = CATEGORY_LABELS[category] || category;
 
   const fetchData = useCallback(async () => {
     try {
-      const [sRes, rRes] = await Promise.all([
+      const [sRes, rRes, cRes] = await Promise.all([
         axios.get(`${API}/api/summary-bias/status?category=${category}`),
         axios.get(`${API}/api/summary-bias/results?category=${category}`),
+        axios.get(`${API}/api/summary-bias/convergence?category=${category}`).catch(() => ({ data: {} })),
       ]);
       setStatus(sRes.data);
       if (rRes.data.status === "ok") setResults(rRes.data);
       else setResults(null);
+      if (cRes.data.status === "ok") setConvergence(cRes.data);
+      else setConvergence(null);
     } catch (e) {
       console.error(e);
     } finally {
