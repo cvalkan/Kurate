@@ -202,6 +202,7 @@ async def startup():
 
     # Migration: update settings for new convergence-based architecture
     try:
+        from core.auth import invalidate_settings_cache
         _settings_doc = await db.settings.find_one({"key": "global"})
         if _settings_doc:
             migration_updates = {}
