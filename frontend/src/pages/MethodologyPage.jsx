@@ -93,8 +93,8 @@ export default function MethodologyPage() {
           <p>Papers often have multiple arXiv tags. The leaderboard supports tag-based filtering with AND/OR logic, letting users view papers across primary categories.</p>
         </Step>
 
-        <Step number={8} icon={Sparkles} title="Impact Assessment">
-          <p>Once a paper's ranking has converged, the system generates an <span className="text-foreground font-medium">AI Impact Assessment</span> summarizing its strengths, limitations, and overall significance based on both its content and tournament performance. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-summary">View the summary prompt &rarr;</Link></p>
+        <Step number={8} icon={Sparkles} title="Pre-Generated Impact Assessments">
+          <p>When a paper is first fetched, three independent <span className="text-foreground font-medium">AI Impact Assessments</span> are generated from the full PDF text — one from each model (Claude, Gemini, GPT). These are immediately available on the paper detail page in a tabbed view, allowing comparison of how different models evaluate the same paper. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-summary">View the assessment prompt &rarr;</Link></p>
         </Step>
 
         <Step number={9} icon={Trophy} title="Dynamic Leaderboard">
