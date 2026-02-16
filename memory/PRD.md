@@ -103,8 +103,10 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - `/tmp/elife_neuro.json` — Cached eLife Neuroscience scan data (769 articles)
 
 ## Pending
-- P1: Resume ICLR LLMs multi-model runs
-- P1: Add "View Prompts" modal to SciPost
+- P1: Phase 2 — Replace matchmaking with simplified pair selection + convergence-based stopping UI
+- P1: Phase 3 — Replace impact reports with 3-model summary tabs on paper detail page
+- P1: Phase 4 — Backfill summaries for existing papers, migration testing
+- P2: Resume ICLR LLMs multi-model runs
 
 ## Backlog
 - Explore eLife as complementary dataset
