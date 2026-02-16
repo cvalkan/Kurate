@@ -970,12 +970,14 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
                 sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common_fp], [fullpdf_rank[p] for p in common_fp])
                 fp_rho = round(sp, 4) if not (sp != sp) else 0
 
-            extract_curve.append({
-                "matches": best_n,
-                "avg_matches_per_paper": actual_avg,
-                "vs_fullpdf_spearman": fp_rho,
-                "papers_covered": len(active),
-            })
+            # Only include points with sufficient paper coverage
+            if len(active) >= len(paper_ids) * 0.8:
+                extract_curve.append({
+                    "matches": best_n,
+                    "avg_matches_per_paper": actual_avg,
+                    "vs_fullpdf_spearman": fp_rho,
+                    "papers_covered": len(active),
+                })
 
     # ── Abstract-only convergence curve ──
     abstract_curve = []
