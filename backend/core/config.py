@@ -77,11 +77,13 @@ DEFAULT_SETTINGS = {
     "max_papers_per_fetch": 50,
     "parallel_agents": 5,
     "top_k_focus": 10,
-    "min_matches_per_paper": 5,
-    "max_matches_per_paper": 150,
+    "min_matches_per_paper": 3,
+    "max_matches_per_paper": 20,
     "max_new_matches_per_round": 3,
-    "ci_target": 12,
+    "convergence_threshold": 0.95,  # Spearman ρ threshold for ranking stability
+    "convergence_rounds": 3,        # Consecutive rounds above threshold to stop
     "min_papers_for_tournament": 8,
     "paused": False,
-    "section_char_limit": 2000,  # Max chars to extract per section (first half + last half)
+    "summary_source": "round_robin",  # "claude", "gemini", "gpt", or "round_robin"
+    "summary_parallel": 10,           # Concurrent summary generation tasks
 }
