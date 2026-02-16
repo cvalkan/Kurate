@@ -962,7 +962,33 @@ def _select_pairs(
         if len(pairs) >= max_pairs:
             break
 
-    if len(pairs) >= max_pairs or len(active) < 2:
+    if len(pairs) >= max_pairs:
+        return pairs[:max_pairs]
+
+    # If no active (uncapped) papers remain, skip Phases 1-2a but still do 2b (repeats)
+    if len(active) < 2:
+        # Phase 2b: Repeat pairs using ALL papers (including capped)
+        repeat_budget = max(1, max_pairs - len(pairs))
+        repeat_count = 0
+        all_sorted = sorted(paper_ids, key=lambda pid: comparisons[pid])
+        for p1 in all_sorted:
+            if repeat_count >= repeat_budget or len(pairs) >= max_pairs:
+                break
+            if round_count.get(p1, 0) >= max_per_round:
+                continue
+            repeat_opponents = [
+                p2 for p2 in all_sorted
+                if p2 != p1 and round_count.get(p2, 0) < max_per_round
+                and tuple(sorted([p1, p2])) in compared_pairs
+            ]
+            repeat_opponents.sort(key=lambda p2: comparisons[p2])
+            for p2 in repeat_opponents[:1]:
+                if round_count.get(p1, 0) >= max_per_round or len(pairs) >= max_pairs:
+                    break
+                pairs.append((p1, p2))
+                round_count[p1] = round_count.get(p1, 0) + 1
+                round_count[p2] = round_count.get(p2, 0) + 1
+                repeat_count += 1
         return pairs[:max_pairs]
 
     # --- Phase 1: Deficit papers (below min_matches) ---
