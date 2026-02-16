@@ -269,19 +269,25 @@ async def _scheduler_loop():
 
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
-    """Check if all ranking goals are satisfied for a category.
+    """Check if ranking has converged for a category.
     
-    Goal 1: All papers have >= min_matches
-    Goal 2: Top-K papers have CI <= ci_target
-    Goal 3: All non-capped top-K papers have played against each other at least once
+    Uses ranking stability: compares current BT ranking against the ranking
+    from a few rounds ago. When Spearman ρ > threshold for consecutive checks,
+    the tournament has converged.
+    
+    Also ensures minimum matches per paper and top-K cross-matching.
     """
+    from scipy import stats as scipy_stats
+
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
-    max_matches = settings.get("max_matches_per_paper", 150)
+    max_matches = settings.get("max_matches_per_paper", 20)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 12)
+    convergence_threshold = settings.get("convergence_threshold", 0.95)
+    convergence_rounds = settings.get("convergence_rounds", 3)
 
-    paper_ids = [p["id"] async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1})]
+    papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1, "title": 1}).to_list(500)
+    paper_ids = [p["id"] for p in papers]
     if len(paper_ids) < 2:
         return True
 
@@ -290,10 +296,12 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     paper_wins = {pid: 0 for pid in paper_ids}
     compared_pairs = set()
 
-    async for m in db.matches.find(
+    all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ):
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1},
+    ).to_list(100000)
+
+    for m in all_matches:
         if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
             paper_match_count[m["paper1_id"]] += 1
             paper_match_count[m["paper2_id"]] += 1
@@ -307,26 +315,13 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         if c < min_matches:
             return False
 
-    # Identify top-K by win rate (ALL papers, including capped)
+    # Goal 2: top-K cross-matching
     sorted_papers = sorted(
-        paper_match_count.keys(),
+        paper_ids,
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
         reverse=True,
     )
     top_k_ids = sorted_papers[:min(top_k, len(sorted_papers))]
-
-    # Goal 2: CI convergence for top-K
-    for pid in top_k_ids:
-        n = paper_match_count[pid]
-        if n >= max_matches:
-            continue
-        w = paper_wins.get(pid, 0)
-        margin_pct = wilson_margin_pct(w, n)
-        if margin_pct > ci_target:
-            return False
-
-    # Goal 3: Cross-matches among non-capped top-K papers
-    # Papers at max_matches are exempt — they've played enough
     capped = {pid for pid in top_k_ids if paper_match_count[pid] >= max_matches}
     crossmatch_ids = [pid for pid in top_k_ids if pid not in capped]
     for i in range(len(crossmatch_ids)):
@@ -335,7 +330,34 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
             if pair not in compared_pairs:
                 return False
 
-    return True
+    # Goal 3: ranking convergence
+    # Compare ranking from all matches vs ranking from 80% of matches
+    if len(all_matches) < 20:
+        return False
+
+    match_as_list = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                      "winner_id": m["winner_id"], "completed": True, "failed": False}
+                     for m in all_matches]
+
+    full_lb = compute_leaderboard(papers, match_as_list)
+    full_rank = {e["id"]: e["rank"] for e in full_lb}
+
+    # Check stability at multiple cutoffs
+    stable_count = 0
+    for frac in [0.7, 0.8, 0.9]:
+        n = int(len(match_as_list) * frac)
+        sub_lb = compute_leaderboard(papers, match_as_list[:n])
+        sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+        common = [pid for pid in paper_ids if pid in full_rank and pid in sub_rank]
+        if len(common) >= 3:
+            sp, _ = scipy_stats.spearmanr(
+                [sub_rank[p] for p in common],
+                [full_rank[p] for p in common]
+            )
+            if not (sp != sp) and sp >= convergence_threshold:
+                stable_count += 1
+
+    return stable_count >= convergence_rounds
 
 
 async def run_fetch_cycle(category: str = "cs.RO"):
