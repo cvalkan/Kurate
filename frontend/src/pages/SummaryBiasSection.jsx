@@ -249,44 +249,6 @@ function FullPdfStats({ stats }) {
   );
 }
 
-function ConvergenceChart({ data }) {
-  if (!data || !data.curve || data.curve.length < 2) return null;
-  const { extract_curve, single_config_curves, config_correlations, total_extract_matches, papers } = data;
-
-  return (
-    <div className="space-y-5" data-testid="convergence-section">
-      {/* Single-config convergence vs extract (all 1 call/match — fair comparison) */}
-      <SingleConfigChart single_config_curves={single_config_curves} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
-
-      {/* Per-config table */}
-      {config_correlations && Object.keys(config_correlations).length > 0 && (
-        <div className="border border-border rounded-lg p-4">
-          <h4 className="text-xs font-semibold mb-1.5">Per-Config Ranking Correlation (200 matches each)</h4>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-2 py-1 font-medium text-[10px] text-muted-foreground">Configuration</th>
-                  <th className="text-right px-2 py-1 font-medium text-[10px] text-muted-foreground">vs Extract</th>
-                  <th className="text-right px-2 py-1 font-medium text-[10px] text-muted-foreground">vs Full PDF</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(config_correlations).map(([ck, d]) => (
-                  <tr key={ck} className="border-b border-border/20">
-                    <td className="px-2 py-1 text-xs">{d.label}</td>
-                    <td className="text-right px-2 py-1 font-mono">{d.vs_extract?.toFixed(3) ?? "—"}</td>
-                    <td className="text-right px-2 py-1 font-mono">{d.vs_fullpdf?.toFixed(3) ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function ConvergenceChart({ data }) {
   if (!data || !data.curve || data.curve.length < 2) return null;
