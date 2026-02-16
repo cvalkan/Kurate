@@ -445,6 +445,102 @@ function ComparisonChart({ curve, extract_curve, total_consensus_matches, total_
   );
 }
 
+const SUMMARIZER_COLORS = {
+  "Claude Opus": "#8b5cf6",
+  "Gemini 3": "#059669",
+  "GPT 5.2": "#2563eb",
+};
+
+function SummarizerConvergenceChart({ summarizer_curves, extract_curve, papers }) {
+  if (!summarizer_curves || Object.keys(summarizer_curves).length < 2) return null;
+
+  const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
+  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+
+  const allPts = Object.values(summarizer_curves).flat();
+  const extPts = extract_curve || [];
+  const allAvg = [...allPts.map(p => p.avg_matches_per_paper), ...extPts.map(p => p.avg_matches_per_paper)];
+  const maxX = Math.max(...allAvg);
+  const allY = [...allPts, ...extPts].map(p => p.vs_fullpdf_spearman).filter(v => v != null);
+  const yMin = Math.max(0, Math.floor(Math.min(...allY) * 10) / 10 - 0.1);
+
+  const sx = x => PAD.l + (x / maxX) * cw;
+  const sy = y => PAD.t + (1 - (y - yMin) / (1.0 - yMin)) * ch;
+
+  const makePath = (points) => {
+    const pts = points.filter(p => p.vs_fullpdf_spearman != null);
+    if (pts.length < 2) return null;
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.avg_matches_per_paper).toFixed(1)},${sy(p.vs_fullpdf_spearman).toFixed(1)}`).join(" ");
+  };
+
+  const entries = Object.entries(summarizer_curves);
+  const extractPath = extPts.length >= 2 ? makePath(extPts) : null;
+  const lastExtract = extPts.length ? [...extPts].reverse().find(p => p.vs_fullpdf_spearman != null) : null;
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold mb-0.5">Convergence by Summary Model</h3>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          For each summary model, the 3 judges' majority vote is used to build a tournament ranking. Each curve shows how fast that
+          summarizer's ranking converges to the full-PDF baseline. The <strong>orange dashed</strong> line shows the extract-based tournament for reference.
+          This reveals which summary model produces the most efficient ranking signal per match.
+        </p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
+        {[0.2, 0.4, 0.6, 0.8, 1.0].filter(v => v >= yMin).map(v => (
+          <g key={v}>
+            <line x1={PAD.l} y1={sy(v)} x2={W - PAD.r} y2={sy(v)} stroke="#e5e7eb" strokeWidth="0.5" />
+            <text x={PAD.l - 4} y={sy(v) + 3} textAnchor="end" fontSize="8" fill="#9ca3af">{v.toFixed(1)}</text>
+          </g>
+        ))}
+        {[2, 5, 10, 15, 20, 30, 40, 60, 80].filter(v => v <= maxX * 1.05).map(v => (
+          <text key={v} x={sx(v)} y={H - 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{v}</text>
+        ))}
+        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">Avg matches per paper</text>
+        <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
+
+        {/* Extract reference (dashed) */}
+        {extractPath && <path d={extractPath} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6,3" />}
+        {lastExtract && <circle cx={sx(lastExtract.avg_matches_per_paper)} cy={sy(lastExtract.vs_fullpdf_spearman)} r="2.5" fill="#f59e0b" />}
+
+        {/* Per-summarizer curves */}
+        {entries.map(([name, points]) => {
+          const d = makePath(points);
+          const color = SUMMARIZER_COLORS[name] || "#666";
+          const last = [...points].reverse().find(p => p.vs_fullpdf_spearman != null);
+          return d ? (
+            <g key={name}>
+              <path d={d} fill="none" stroke={color} strokeWidth="2" />
+              {last && <circle cx={sx(last.avg_matches_per_paper)} cy={sy(last.vs_fullpdf_spearman)} r="3" fill={color} />}
+            </g>
+          ) : null;
+        })}
+      </svg>
+      <div className="flex flex-wrap gap-4 text-[10px]">
+        {entries.map(([name, points]) => {
+          const last = [...points].reverse().find(p => p.vs_fullpdf_spearman != null);
+          const color = SUMMARIZER_COLORS[name] || "#666";
+          return last ? (
+            <div key={name} className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color }} />
+              <span className="text-muted-foreground">{name} summary:</span>
+              <span className="font-mono font-semibold">ρ = {last.vs_fullpdf_spearman?.toFixed(3)}</span>
+            </div>
+          ) : null;
+        })}
+        {lastExtract && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 3px, transparent 3px 6px)" }} />
+            <span className="text-muted-foreground">Extract:</span>
+            <span className="font-mono font-semibold">ρ = {lastExtract.vs_fullpdf_spearman?.toFixed(3)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const CATEGORY_LABELS = {
   "q-bio.BM": "Biomolecules",
   "econ.GN": "Economics",
