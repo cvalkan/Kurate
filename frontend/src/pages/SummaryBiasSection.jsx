@@ -453,7 +453,7 @@ const SUMMARIZER_COLORS = {
   "GPT 5.2": "#2563eb",
 };
 
-function SummarizerConvergenceChart({ summarizer_curves, extract_curve, papers }) {
+function SummarizerConvergenceChart({ summarizer_curves, single_config_curves, extract_curve, papers }) {
   if (!summarizer_curves || Object.keys(summarizer_curves).length < 2) return null;
 
   const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
@@ -461,8 +461,10 @@ function SummarizerConvergenceChart({ summarizer_curves, extract_curve, papers }
 
   const allPts = Object.values(summarizer_curves).flat();
   const extPts = extract_curve || [];
-  const allAvg = [...allPts.map(p => p.avg_matches_per_paper), ...extPts.map(p => p.avg_matches_per_paper)];
-  const maxX = Math.max(...allAvg);
+  // Use llm_calls_per_paper
+  const xKey = "llm_calls_per_paper";
+  const allX = [...allPts.map(p => p[xKey] || 0), ...extPts.map(p => p[xKey] || 0)].filter(v => v > 0);
+  const maxX = Math.max(...allX);
   const allY = [...allPts, ...extPts].map(p => p.vs_fullpdf_spearman).filter(v => v != null);
   const yMin = Math.max(0, Math.floor(Math.min(...allY) * 10) / 10 - 0.1);
 
@@ -470,23 +472,40 @@ function SummarizerConvergenceChart({ summarizer_curves, extract_curve, papers }
   const sy = y => PAD.t + (1 - (y - yMin) / (1.0 - yMin)) * ch;
 
   const makePath = (points) => {
-    const pts = points.filter(p => p.vs_fullpdf_spearman != null);
+    const pts = points.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
     if (pts.length < 2) return null;
-    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.avg_matches_per_paper).toFixed(1)},${sy(p.vs_fullpdf_spearman).toFixed(1)}`).join(" ");
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p.vs_fullpdf_spearman).toFixed(1)}`).join(" ");
   };
 
   const entries = Object.entries(summarizer_curves);
   const extractPath = extPts.length >= 2 ? makePath(extPts) : null;
   const lastExtract = extPts.length ? [...extPts].reverse().find(p => p.vs_fullpdf_spearman != null) : null;
 
+  // Pick best single-config per summarizer for thin lines
+  const singleLines = [];
+  if (single_config_curves) {
+    const bySummarizer = {};
+    for (const [label, pts] of Object.entries(single_config_curves)) {
+      const sumName = label.split(" + ")[1]?.replace(" sum", "") || label;
+      const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null);
+      if (!last) continue;
+      if (!bySummarizer[sumName] || last.vs_fullpdf_spearman > bySummarizer[sumName].rho) {
+        bySummarizer[sumName] = { label, pts, rho: last.vs_fullpdf_spearman, last };
+      }
+    }
+    for (const [sumName, { label, pts, last }] of Object.entries(bySummarizer)) {
+      const color = SUMMARIZER_COLORS[sumName] || "#999";
+      singleLines.push({ label, pts, color, last });
+    }
+  }
+
   return (
     <div className="border border-border rounded-lg p-4 space-y-3">
       <div>
         <h3 className="text-sm font-semibold mb-0.5">Convergence by Summary Model</h3>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          For each summary model, the 3 judges' majority vote is used to build a tournament ranking. Each curve shows how fast that
-          summarizer's ranking converges to the full-PDF baseline. The <strong>orange dashed</strong> line shows the extract-based tournament for reference.
-          This reveals which summary model produces the most efficient ranking signal per match.
+          X-axis = LLM calls per paper. <strong>Solid lines</strong>: 3-judge majority per summarizer (3 calls/match).
+          <strong> Thin lines</strong>: best single judge+summarizer config (1 call/match). <strong>Orange dashed</strong>: extract baseline (1 call/match).
         </p>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
@@ -499,22 +518,34 @@ function SummarizerConvergenceChart({ summarizer_curves, extract_curve, papers }
         {[2, 5, 10, 15, 20, 30, 40, 60, 80].filter(v => v <= maxX * 1.05).map(v => (
           <text key={v} x={sx(v)} y={H - 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{v}</text>
         ))}
-        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">Avg matches per paper</text>
+        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">LLM calls per paper</text>
         <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
 
-        {/* Extract reference (dashed) */}
+        {/* Extract reference */}
         {extractPath && <path d={extractPath} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6,3" />}
-        {lastExtract && <circle cx={sx(lastExtract.avg_matches_per_paper)} cy={sy(lastExtract.vs_fullpdf_spearman)} r="2.5" fill="#f59e0b" />}
+        {lastExtract && <circle cx={sx(lastExtract[xKey])} cy={sy(lastExtract.vs_fullpdf_spearman)} r="2.5" fill="#f59e0b" />}
 
-        {/* Per-summarizer curves */}
+        {/* Single-config thin lines */}
+        {singleLines.map(({ label, pts, color }) => {
+          const d = makePath(pts);
+          const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null && p[xKey]);
+          return d ? (
+            <g key={label}>
+              <path d={d} fill="none" stroke={color} strokeWidth="1" strokeOpacity="0.5" />
+              {last && <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="2" fill={color} fillOpacity="0.5" />}
+            </g>
+          ) : null;
+        })}
+
+        {/* 3-judge majority (solid) */}
         {entries.map(([name, points]) => {
           const d = makePath(points);
           const color = SUMMARIZER_COLORS[name] || "#666";
-          const last = [...points].reverse().find(p => p.vs_fullpdf_spearman != null);
+          const last = [...points].reverse().find(p => p.vs_fullpdf_spearman != null && p[xKey]);
           return d ? (
             <g key={name}>
               <path d={d} fill="none" stroke={color} strokeWidth="2" />
-              {last && <circle cx={sx(last.avg_matches_per_paper)} cy={sy(last.vs_fullpdf_spearman)} r="3" fill={color} />}
+              {last && <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="3" fill={color} />}
             </g>
           ) : null;
         })}
@@ -526,16 +557,23 @@ function SummarizerConvergenceChart({ summarizer_curves, extract_curve, papers }
           return last ? (
             <div key={name} className="flex items-center gap-1.5">
               <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color }} />
-              <span className="text-muted-foreground">{name} summary:</span>
+              <span className="text-muted-foreground">{name} (3-judge):</span>
               <span className="font-mono font-semibold">ρ = {last.vs_fullpdf_spearman?.toFixed(3)}</span>
             </div>
           ) : null;
         })}
+        {singleLines.map(({ label, color, last }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color, opacity: 0.5 }} />
+            <span className="text-muted-foreground">{label} (1-call):</span>
+            <span className="font-mono">{last.vs_fullpdf_spearman?.toFixed(3)}</span>
+          </div>
+        ))}
         {lastExtract && (
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 3px, transparent 3px 6px)" }} />
             <span className="text-muted-foreground">Extract:</span>
-            <span className="font-mono font-semibold">ρ = {lastExtract.vs_fullpdf_spearman?.toFixed(3)}</span>
+            <span className="font-mono">{lastExtract.vs_fullpdf_spearman?.toFixed(3)}</span>
           </div>
         )}
       </div>
