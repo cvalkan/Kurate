@@ -38,9 +38,69 @@ async def download_and_extract_pdf(pdf_url: str, doi: str = None) -> Optional[st
         return full_text
     except Exception as e:
         logger.warning(f"Direct PDF download failed for {pdf_url}: {e}")
-        # Fallback: try paperscraper if DOI is available (handles ChemRxiv via Cambridge API)
+        # Fallback for ChemRxiv: use Playwright to bypass Cloudflare, then paperscraper
         if doi and "chemrxiv" in (doi + (pdf_url or "")).lower():
+            result = await _download_pdf_via_playwright(pdf_url)
+            if result:
+                return result
             return await _download_pdf_via_paperscraper(doi)
+        return None
+
+
+async def _download_pdf_via_playwright(pdf_url: str) -> Optional[str]:
+    """Download PDF via Playwright to bypass Cloudflare JS challenge."""
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return None
+
+    try:
+        # Add download=true parameter
+        if "?" not in pdf_url:
+            pdf_url += "?download=true"
+        elif "download=true" not in pdf_url:
+            pdf_url += "&download=true"
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                executable_path="/pw-browsers/chromium-1208/chrome-linux/chrome",
+                args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
+            )
+            ctx = await browser.new_context(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            )
+            page = await ctx.new_page()
+
+            resp = await page.goto(pdf_url, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(5000)
+
+            # Get the raw response body if it's a PDF
+            content_type = resp.headers.get("content-type", "") if resp else ""
+            if "pdf" in content_type:
+                body = await resp.body()
+            else:
+                # The page might have resolved the challenge; try getting content
+                raw = await page.content()
+                if raw.startswith("%PDF"):
+                    body = raw.encode("latin-1")
+                else:
+                    await browser.close()
+                    return None
+
+            await browser.close()
+
+            reader = PdfReader(io.BytesIO(body))
+            text_parts = [page_obj.extract_text() or "" for page_obj in reader.pages]
+            full_text = " ".join("\n".join(text_parts).split())
+            full_text = full_text.encode("utf-8", errors="replace").decode("utf-8")
+
+            if len(full_text) > 100:
+                logger.info(f"PDF downloaded via Playwright for {pdf_url[:60]}... ({len(full_text)} chars)")
+                return full_text
+            return None
+    except Exception as e:
+        logger.warning(f"Playwright PDF download failed for {pdf_url}: {e}")
         return None
 
 
