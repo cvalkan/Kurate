@@ -53,12 +53,12 @@ export default function MethodologyPage() {
       </div>
 
       <div>
-        <Step number={1} icon={Search} title="Paper Discovery & Full-Text Extraction">
-          <p>The system queries the arXiv API for the latest papers across {catList || "Robotics, Distributed Computing, Economics, Computational Physics, Biomolecules"}. For each paper, the full PDF is downloaded and key sections are extracted — Introduction, Methodology, Results, and Conclusion — so the AI judges evaluate the complete scientific contribution, not just the abstract.</p>
+        <Step number={1} icon={Search} title="Paper Discovery & AI Impact Assessment">
+          <p>The system queries the arXiv API for the latest papers across {catList || "Robotics, Distributed Computing, Economics, Computational Physics, Biomolecules"}. For each paper, the full PDF is downloaded and three independent <span className="text-foreground font-medium">AI Impact Assessments</span> are generated — one each from GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro — analyzing the paper's novelty, methodology, potential impact, and limitations. These pre-computed summaries power both the pairwise tournament and the paper detail pages.</p>
         </Step>
 
         <Step number={2} icon={Swords} title="Pairwise Tournament">
-          <p>Papers are compared head-to-head in pairs. Each comparison is assigned to one of three AI models via <span className="text-foreground font-medium">round-robin rotation</span>, ensuring every paper is evaluated by all three models equally:</p>
+          <p>Papers are compared head-to-head in pairs using their <span className="text-foreground font-medium">abstract + AI summary</span> as input. Each comparison is assigned to one of three AI models via <span className="text-foreground font-medium">round-robin rotation</span>, ensuring every paper is evaluated by all three models equally:</p>
           <div className="flex flex-wrap gap-2 my-2">
             <span className="text-xs font-mono px-2 py-1 rounded border bg-green-50 text-green-700 border-green-200">GPT-5.2</span>
             <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-50 text-orange-700 border-orange-200">Claude Opus 4.5</span>
