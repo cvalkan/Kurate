@@ -764,8 +764,9 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
          "winner_id": 1, "judge_key": 1, "summary_key": 1, "created_at": 1}
     ).to_list(100000)
 
-    summary_docs = [m for m in all_docs if m.get("summary_key") != "full_pdf"]
+    summary_docs = [m for m in all_docs if m.get("summary_key") not in ("full_pdf", "abstract")]
     fullpdf_docs = [m for m in all_docs if m.get("summary_key") == "full_pdf"]
+    abstract_docs = [m for m in all_docs if m.get("summary_key") == "abstract"]
 
     # ── Build random-single matches: for each match, pick 1 random verdict from the 9 configs ──
     # This is fair: 1 LLM call per match, random model diversity (like extract's round-robin)
