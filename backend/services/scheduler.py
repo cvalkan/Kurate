@@ -834,29 +834,23 @@ async def _generate_pending_summaries(category: str = None):
 def _select_pairs(
     papers: list, stats: dict, compared_pairs: set,
     max_pairs: int, top_k: int, min_matches: int,
-    max_matches: int, max_per_round: int, ci_target: float = 12.0,
+    max_matches: int, max_per_round: int, **kwargs,
 ) -> List[tuple]:
     """
-    Smart pair selection with adaptive per-paper round caps.
+    Simplified round-robin pair selection.
 
-    Key principles:
-    1. Top-K cross-matches: missing pairs among top-K papers get HIGHEST priority
-    2. Papers below min_matches get high priority AND higher per-round cap
-    3. After min_matches, CI-width drives both priority and round cap
-    4. Papers with narrow CIs or extreme win rates get lower caps
-    5. Pairs with similar win rates are preferred (most informative)
-    6. Top-K papers get boosted priority and caps when CI needs narrowing
+    Priority:
+    1. Top-K cross-matches: ensure all top-K papers have been compared to each other
+    2. Deficit papers: papers below min_matches get paired first
+    3. General round-robin: new (uncompared) pairs preferred, balanced coverage
     """
     paper_ids = [p["id"] for p in papers]
-    n = len(paper_ids)
-    if n < 2:
+    if len(paper_ids) < 2:
         return []
 
-    # Pre-compute per-paper metrics
     capped = set()
     comparisons = {}
     win_rates = {}
-    ci_widths = {}
 
     for pid in paper_ids:
         s = stats.get(pid, {})
@@ -866,152 +860,78 @@ def _select_pairs(
         if c >= max_matches:
             capped.add(pid)
         win_rates[pid] = w / max(c, 1)
-        ci_widths[pid] = wilson_margin_pct(w, c)
 
     active = [pid for pid in paper_ids if pid not in capped]
     if len(active) < 2:
         return []
 
-    # Rank ALL papers by win rate for top-K detection (including capped)
-    # This ensures top-K identification is consistent with _check_goals_met
+    # Rank papers for top-K identification
     all_ranked = sorted(paper_ids, key=lambda pid: win_rates[pid], reverse=True)
-    top_k_all = all_ranked[:min(top_k, len(all_ranked))]
-
-    # For Phase 0 cross-matching: only non-capped top-K papers
-    # Capped papers are exempt (they've hit max_matches)
-    top_k_crossmatch = [pid for pid in top_k_all if pid not in capped]
-
-    # For priority/cap calculations: top-K among active papers
-    top_k_set = set(top_k_all) & set(active)
-
-    # Also sort active papers for normal pair selection (used in Phase 1+)
-    # (priority_sorted is used below instead of ranked)
-
-    # --- Phase 0: Top-K cross-matches (highest priority) ---
-    # Find all missing pairs among non-capped top-K papers
-    topk_missing_pairs = []
-    for i in range(len(top_k_crossmatch)):
-        for j in range(i + 1, len(top_k_crossmatch)):
-            pair_key = tuple(sorted([top_k_crossmatch[i], top_k_crossmatch[j]]))
-            if pair_key not in compared_pairs:
-                topk_missing_pairs.append((top_k_crossmatch[i], top_k_crossmatch[j]))
+    top_k_ids = all_ranked[:min(top_k, len(all_ranked))]
+    top_k_crossmatch = [pid for pid in top_k_ids if pid not in capped]
 
     pairs = []
     round_count = {pid: 0 for pid in active}
 
-    # Inject top-K cross-match pairs first (up to half the budget)
-    topk_budget = max(max_pairs // 2, len(topk_missing_pairs))
-    for p1, p2 in topk_missing_pairs[:topk_budget]:
+    # --- Phase 0: Top-K cross-matches (highest priority) ---
+    for i in range(len(top_k_crossmatch)):
+        for j in range(i + 1, len(top_k_crossmatch)):
+            pair_key = tuple(sorted([top_k_crossmatch[i], top_k_crossmatch[j]]))
+            if pair_key not in compared_pairs:
+                if len(pairs) >= max_pairs:
+                    break
+                pairs.append((top_k_crossmatch[i], top_k_crossmatch[j]))
+                compared_pairs.add(pair_key)
+                round_count[top_k_crossmatch[i]] += 1
+                round_count[top_k_crossmatch[j]] += 1
         if len(pairs) >= max_pairs:
             break
-        pairs.append((p1, p2))
-        compared_pairs.add(tuple(sorted([p1, p2])))
-        round_count[p1] += 1
-        round_count[p2] += 1
 
     if len(pairs) >= max_pairs:
         return pairs[:max_pairs]
 
-    # --- Phase 1+: Normal priority-based selection ---
-    # Per-paper priority score AND adaptive round cap
-    paper_priority = {}
-    paper_round_cap = {}  # Adaptive per-paper cap
-
-    for pid in active:
-        c = comparisons[pid]
-        ci = ci_widths[pid]
-        wr = win_rates[pid]
-
-        # Phase 1: Deficit — papers below min_matches
-        deficit = max(0, min_matches - c) / max(min_matches, 1)
-        in_deficit = c < min_matches
-
-        # Phase 2: CI-driven
-        ci_urgency = max(0, (ci - ci_target)) / max(ci_target, 1)
-
-        # Exploration bonus for very new papers
-        exploration = max(0, 1.0 - c / max(min_matches * 2, 1))
-
-        # Top-K boost
-        topk_bonus = 0
-        if pid in top_k_set and ci > ci_target:
-            topk_bonus = ci_urgency * 2.0
-
-        # Extreme penalty — reduced for top-K papers to ensure they get matched
-        extreme_penalty = 0
-        is_extreme = False
-        if c >= min_matches and (wr > 0.9 or wr < 0.1):
-            is_extreme = True
-            if pid not in top_k_set:
-                extreme_penalty = 0.5 * (1 - min(ci_urgency, 1.0))
-            # No penalty for top-K extreme papers — they need differentiation
-
-        priority = (deficit * 10.0
-                    + ci_urgency * 5.0
-                    + exploration * 1.0
-                    + topk_bonus
-                    - extreme_penalty)
-        paper_priority[pid] = max(priority, 0.01)
-
-        # Adaptive round cap based on urgency
-        if in_deficit:
-            # Deficit papers: allow up to 2x the base cap to quickly fill minimum
-            paper_round_cap[pid] = max_per_round * 2
-        elif pid in top_k_set and ci > ci_target:
-            # Top-K papers still needing CI narrowing: boosted cap
-            paper_round_cap[pid] = max(max_per_round, int(max_per_round * (1 + ci_urgency)))
-        elif is_extreme and ci <= ci_target and pid not in top_k_set:
-            # Extreme NON-top-K papers with narrow CI: minimal cap
-            paper_round_cap[pid] = max(1, max_per_round // 2)
-        elif ci <= ci_target and c >= min_matches:
-            # Converged papers: reduced cap
-            paper_round_cap[pid] = max(1, max_per_round // 2)
-        else:
-            # Normal: base cap scaled by CI urgency
-            paper_round_cap[pid] = max(max_per_round, int(max_per_round * min(1 + ci_urgency * 0.5, 2)))
-
-    # Sort papers by priority (highest first)
-    priority_sorted = sorted(active, key=lambda pid: paper_priority[pid], reverse=True)
-
-    # Generate candidate pairs with adaptive caps
-    for p1 in priority_sorted:
-        cap1 = paper_round_cap.get(p1, max_per_round)
-        if round_count[p1] >= cap1 or len(pairs) >= max_pairs:
+    # --- Phase 1: Deficit papers (below min_matches) ---
+    deficit_papers = sorted(
+        [pid for pid in active if comparisons[pid] < min_matches],
+        key=lambda pid: comparisons[pid],
+    )
+    for p1 in deficit_papers:
+        if round_count[p1] >= max_per_round * 2 or len(pairs) >= max_pairs:
             continue
+        candidates = [
+            p2 for p2 in active
+            if p2 != p1 and round_count[p2] < max_per_round * 2
+            and tuple(sorted([p1, p2])) not in compared_pairs
+        ]
+        candidates.sort(key=lambda p2: abs(comparisons[p1] - comparisons[p2]))
+        for p2 in candidates[:max_per_round]:
+            if len(pairs) >= max_pairs:
+                break
+            pair_key = tuple(sorted([p1, p2]))
+            pairs.append((p1, p2))
+            compared_pairs.add(pair_key)
+            round_count[p1] += 1
+            round_count[p2] += 1
 
-        best_opponents = []
-        for p2 in priority_sorted:
-            cap2 = paper_round_cap.get(p2, max_per_round)
-            if p2 == p1 or round_count[p2] >= cap2:
+    if len(pairs) >= max_pairs:
+        return pairs[:max_pairs]
+
+    # --- Phase 2: General round-robin (new pairs preferred) ---
+    active_sorted = sorted(active, key=lambda pid: comparisons[pid])
+    for p1 in active_sorted:
+        if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
+            continue
+        new_opponents = [
+            p2 for p2 in active_sorted
+            if p2 != p1 and round_count[p2] < max_per_round
+            and tuple(sorted([p1, p2])) not in compared_pairs
+        ]
+        for p2 in new_opponents:
+            if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
+                break
+            if round_count[p2] >= max_per_round:
                 continue
             pair_key = tuple(sorted([p1, p2]))
-            is_novel = pair_key not in compared_pairs
-
-            pair_score = paper_priority[p1] + paper_priority[p2]
-
-            # Win-rate similarity bonus
-            wr_diff = abs(win_rates[p1] - win_rates[p2])
-            similarity_bonus = max(0, 1.0 - wr_diff * 3.0)
-            pair_score += similarity_bonus * 2.0
-
-            if is_novel:
-                pair_score += 3.0
-            else:
-                pair_score *= 0.1
-
-            best_opponents.append((p2, pair_score, is_novel, pair_key))
-
-        best_opponents.sort(key=lambda x: x[1], reverse=True)
-
-        for p2, score, is_novel, pair_key in best_opponents:
-            cap1 = paper_round_cap.get(p1, max_per_round)
-            cap2 = paper_round_cap.get(p2, max_per_round)
-            if round_count[p1] >= cap1 or len(pairs) >= max_pairs:
-                break
-            if round_count[p2] >= cap2:
-                continue
-            if not is_novel and any(x[2] for x in best_opponents):
-                continue
             pairs.append((p1, p2))
             compared_pairs.add(pair_key)
             round_count[p1] += 1
