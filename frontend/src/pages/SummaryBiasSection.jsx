@@ -251,18 +251,12 @@ function FullPdfStats({ stats }) {
 
 function ConvergenceChart({ data }) {
   if (!data || !data.curve || data.curve.length < 2) return null;
-  const { curve, extract_curve, summarizer_curves, single_config_curves, config_correlations, total_extract_matches, total_fullpdf_matches, total_consensus_matches, papers } = data;
+  const { extract_curve, single_config_curves, config_correlations, total_extract_matches, papers } = data;
 
   return (
     <div className="space-y-5" data-testid="convergence-section">
-      {/* Chart 1: Internal convergence (x = consensus matches) */}
-      <InternalConvergenceChart curve={curve} total_consensus_matches={total_consensus_matches} papers={papers} />
-
-      {/* Chart 2: Apples-to-apples comparison (x = avg matches per paper) */}
-      <ComparisonChart curve={curve} extract_curve={extract_curve} total_consensus_matches={total_consensus_matches} total_extract_matches={total_extract_matches} papers={papers} />
-
-      {/* Chart 3: Per-summarizer convergence */}
-      <SummarizerConvergenceChart summarizer_curves={summarizer_curves} single_config_curves={single_config_curves} extract_curve={extract_curve} papers={papers} />
+      {/* Single-config convergence vs extract (all 1 call/match — fair comparison) */}
+      <SingleConfigChart single_config_curves={single_config_curves} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
 
       {/* Per-config table */}
       {config_correlations && Object.keys(config_correlations).length > 0 && (
