@@ -1,163 +1,18 @@
 [
   {
-    "title": "Synthesis and Vibrational Identification of the Uranyl Peroxodicarbonate [UO2(O2)(CO3)3]4-: Insights into Peroxo-Carbonate Bonding from 18O Labeling, DFT and QTAIM analysis",
-    "authors": [
-      "Julien Margate",
-      "Leonard Floarea",
-      "Charles Coubronne",
-      "Elise Berrier",
-      "Ga\u00eblle Milanole",
-      "Florent R\u00e9al",
-      "Murielle Rivenet",
-      "Val\u00e9rie Vallet"
-    ],
-    "abstract": "In carbonate-rich aqueous environments relevant to spent nuclear fuel storage, the coexistence of carbonate species and radiolytically generated H2O2 is expected to promote the formation of uranyl peroxo-carbonate complexes under mild conditions.",
-    "published": "2026-02-16T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000099/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000099/v1",
-    "doi": "10.26434/chemrxiv.15000099",
-    "chemrxiv_id": "10.26434/chemrxiv.15000099/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Chromium(III) amino-bis(phenolate) catalysts for the ring-opening copolymerization of epoxides and phthalic anhydride",
-    "authors": [
-      "Cyler W Vos",
-      "Aayush Anand",
-      "Jian-Bin Lin",
-      "Christopher M Kozak"
-    ],
-    "abstract": "The amino-bis(phenolate) chromium(III) 'ate' complex and the similar amino-bis(phenolate) chromium(III) complex were investigated for ring-opening copolymerization.",
-    "published": "2026-02-16T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000111/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000111/v1",
-    "doi": "10.26434/chemrxiv.15000111",
-    "chemrxiv_id": "10.26434/chemrxiv.15000111/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Symmetric VSEPR Geometries from Energy Minimization on a Sphere",
-    "authors": [
-      "Yunjae Kim"
-    ],
-    "abstract": "The basic VSEPR molecular geometries are derived by treating electron domains as identical repelling charges constrained to a sphere.",
-    "published": "2026-02-16T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000129/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000129/v1",
-    "doi": "10.26434/chemrxiv.15000129",
-    "chemrxiv_id": "10.26434/chemrxiv.15000129/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Outer-Sphere Tuning of Synthetic Iron-Sulfur Clusters within Nanoscale Cage Frameworks",
-    "authors": [
-      "Rupal Baliyan",
-      "Shelby T. Davis",
-      "Jan-Niklas Boyn",
-      "Gwendolyn A. Bailey"
-    ],
-    "abstract": "Iron-sulfur clusters are atomic-scale archetypes for multielectron-mediated catalysis, yet translating their enzymatic proficiency into robust synthetic platforms remains a central challenge.",
-    "published": "2026-02-15T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2024-vk5d3/v3",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2024-vk5d3/v3",
-    "doi": "10.26434/chemrxiv-2024-vk5d3",
-    "chemrxiv_id": "10.26434/chemrxiv-2024-vk5d3/v3",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Stepwise Metalation Triggers Long-Range Structural Communication in a Chiral Organic Cage",
+    "title": "Stepwise Zn(II) Coordination in a TPMA-Based Chiral Cage Probed by Circular Dichroism",
     "authors": [
       "Melvin Raulin",
-      "Chiara Slaviero",
       "Federico Begato",
       "Giulia Licini",
       "Cristiano Zonta"
     ],
-    "abstract": "Biological allosteric systems achieve functional control through long-range communication between distant binding sites.",
-    "published": "2026-02-15T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-hs6n6/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2025-hs6n6/v2",
+    "abstract": "The stepwise coordination of Zn(II) within a chiral cage featuring two intrinsic tris(2-pyridylmethyl)amine (TPMA) binding sites was investigated using a combination of NMR spectroscopy, circular dichroism (CD) and TD-DFT calculations. NMR titrations reveal a sequential two-step metalation process, influenced by solvent polarity. The CD evolution mirrors this progression, showing well-defined isodichroic points and gradual blue-shift of the main bands. DFT optimizations indicate that Zn(II) coordination is accompanied by a progressive opening and rigidification of the TPMA arms, while TD-DFT simulations reproduce the observed redistribution of ECD intensities, consistent with changes in chromophore orientation and electronic coupling. These results define a relationship between metalation dynamics, structural reorganization and chiroptical response, illustrating how subtle structural changes at the coordination sites translate into measurable optical differences.",
+    "published": "2025-12-24T12:56:06.983Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-hs6n6",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6943d7bf6e8e74030e2e106e/original/stepwise-zn-ii-coordination-in-a-tpma-based-chiral-cage-probed-by-circular-dichroism.pdf",
     "doi": "10.26434/chemrxiv-2025-hs6n6",
-    "chemrxiv_id": "10.26434/chemrxiv-2025-hs6n6/v2",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Computational Prediction and Experimental Validation Framework for Nitrogen-Enriched Metal-Decorated Porous Framework Composites",
-    "authors": [
-      "Manan Limbad"
-    ],
-    "abstract": "We present a comprehensive computational framework for predicting synergistic hydrogen storage performance in nitrogen-enriched porous framework composites.",
-    "published": "2026-02-15T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000067/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000067/v1",
-    "doi": "10.26434/chemrxiv.15000067",
-    "chemrxiv_id": "10.26434/chemrxiv.15000067/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Redox chemistry and photophysics of the [V(dgpy)2] 3+/2+ redox pair",
-    "authors": [
-      "Alexandra K\u00f6nig",
-      "Marietta Goetz",
-      "Robert Naumann",
-      "Christoph F\u00f6rster",
-      "Jan Klett",
-      "Maximilian E Huber",
-      "Phillip Weber",
-      "Christoph Riehn",
-      "Jennifer Meyer",
-      "Katja Heinze"
-    ],
-    "abstract": "Transition metal complexes with Earth-abundant metal centers hold significant potential for light-induced processes.",
-    "published": "2026-02-13T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000052/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000052/v1",
-    "doi": "10.26434/chemrxiv.15000052",
-    "chemrxiv_id": "10.26434/chemrxiv.15000052/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Introducing Diradicaloid Thiele's Hydrocarbon Derivatives as Ligand in Transition Metal Chemistry",
-    "authors": [
-      "Alok Mahata",
-      "Nicol\u00e1s I Neuman",
-      "Biprajit Sarkar"
-    ],
-    "abstract": "Thiele's hydrocarbon derivatives, or p-quinodimethanes, are prototypical members of the organic diradicaloid family.",
-    "published": "2026-02-13T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000054/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000054/v1",
-    "doi": "10.26434/chemrxiv.15000054",
-    "chemrxiv_id": "10.26434/chemrxiv.15000054/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Size-Independent Quantum Entanglement Signatures in Cs3Al-n Superatom Clusters: An Fbond Analysis",
-    "authors": [
-      "Celal Arda"
-    ],
-    "abstract": "",
-    "published": "2026-02-13T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000063/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000063/v1",
-    "doi": "10.26434/chemrxiv.15000063",
-    "chemrxiv_id": "10.26434/chemrxiv.15000063/v1",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-hs6n6",
     "categories": [
       "chemrxiv.IC"
     ]
@@ -165,7 +20,7 @@
   {
     "title": "Orthogonal Solvent Mediation for Solid Composite Electrolyte Synthesis: Phase Integration via Particle Dispersion",
     "authors": [
-      "Runqi Wu",
+      "Runqi  Wu",
       "Xiang You",
       "Trinanjan Dey",
       "Grace Flaman",
@@ -173,690 +28,456 @@
       "Michael Fleischauer",
       "Lingzi Sang"
     ],
-    "abstract": "Ceramic-rich solid-composite electrolytes exhibit ceramic-like ionic conductivity and enhanced mechanical property.",
-    "published": "2026-02-12T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-0b2zx/v4",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2025-0b2zx/v4",
+    "abstract": "Ceramic-rich solid-composite electrolytes exhibit ceramic-like ionic conductivity and enhanced mechanical property, making them promising candidates for market-relevant solid-state batteries. In-depth knowledge of the microstructure within the composite electrolytes for ideal performances and their correlation with the choice of materials and processing methods are not well-understood. Herein, we report a solution-cast, free-standing composite film comprised of well-integrated ceramic (Li3InCl\u00ac6) and binder (Styrene-Ethylene-Butylene-Styrene, SEBS) phase, which simultaneously provides Li+ transport pathways and the required mechanical support. In the formation of this unique microstructure, we mark the mediator role of dibutyl ether \u2013 a low polarity solvent that forms a non-invasive polar-ionic interaction with the electronegative metal elements at the surface of Li3InCl\u00ac6 particles to suspend and disperse Li3InCl6 particles in the dissolved SEBS matrix, facilitating phase integration. This weak interaction only occurs at chosen conditions; increased solvent-to-ceramic ratio and interaction time can induce Li3InCl6 decomposition. Our results correlate the electrochemical performance of a ceramic-rich Li3InCl6-SEBS composite electrolyte film with its microstructure; the latter was demonstrated to be potentially tunable by altering the molecular structure of the solvent and the parameters used in composite electrolyte synthesis procedures. This work provides materials structural-level insights that underpin the design principle of solution-cast solid composite electrolytes.",
+    "published": "2025-11-17T04:46:08.118Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-0b2zx",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6912ce9aa10c9f5ca1af88d7/original/orthogonal-solvent-mediation-for-solid-composite-electrolyte-synthesis-phase-integration-via-particle-dispersion.pdf",
     "doi": "10.26434/chemrxiv-2025-0b2zx",
-    "chemrxiv_id": "10.26434/chemrxiv-2025-0b2zx/v4",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-0b2zx",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Defect-Driven Local Structures in 3D Hollow Hybrid Perovskites Resolved by Solid-State NMR Spectroscopy",
-    "authors": [
-      "Claire Welton",
-      "Braulio Reyes-Su\u00e1rez",
-      "Tomasz Pawlak",
-      "Parth Raval",
-      "Mercouri G Kanatzidis",
-      "G N Manjunatha Reddy"
-    ],
-    "abstract": "Metal halide perovskites are versatile semiconductors with high defect tolerance.",
-    "published": "2026-02-12T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000026/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000026/v1",
-    "doi": "10.26434/chemrxiv.15000026",
-    "chemrxiv_id": "10.26434/chemrxiv.15000026/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Empirical Assessment of Energy Consumption and Chemical Productivity Across Diverse Mechanochemical Platforms",
-    "authors": [
-      "Harikumar Shastry Barkur",
-      "Victor Marcus Oldhues",
-      "Nicolas Krahn",
-      "Sven Gr\u00e4tz",
-      "Sandra Breitung",
-      "Lars Borchardt"
-    ],
-    "abstract": "Mechanochemical synthesis is frequently identified as a sustainable alternative to solvent-based methods.",
-    "published": "2026-02-12T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000035/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000035/v1",
-    "doi": "10.26434/chemrxiv.15000035",
-    "chemrxiv_id": "10.26434/chemrxiv.15000035/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Catalyst-free hydrophosphination of alkenes enabled by protic solvents",
-    "authors": [
-      "Emma J Finfer",
-      "Evelyn M Kempf",
-      "Rory Waterman"
-    ],
-    "abstract": "Under catalyst-free conditions, activated olefins are subject to hydrophosphination in Click-like efficiency.",
-    "published": "2026-02-12T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000044/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000044/v1",
-    "doi": "10.26434/chemrxiv.15000044",
-    "chemrxiv_id": "10.26434/chemrxiv.15000044/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Atomic Layer Deposition of Textured ZnO on 200 mm Wafers for Device Applications",
-    "authors": [
-      "Katherine Guzey",
-      "Noah Brechmann",
-      "Emad Najafidehaghani",
-      "Thomas Gemming",
-      "Anjana Devi",
-      "Nils Boysen"
-    ],
-    "abstract": "Zinc oxide is a technologically important wide-bandgap semiconductor used in optoelectronics, sensing, and transparent electronic devices.",
-    "published": "2026-02-11T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002115/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002115/v1",
-    "doi": "10.26434/chemrxiv.10002115",
-    "chemrxiv_id": "10.26434/chemrxiv.10002115/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "AutoSolveX: a Python-based pipeline for automated structure solution, refinement, and guest identification from diffraction data",
-    "authors": [
-      "Sofiia Butonova",
-      "Yinlin Chen",
-      "Xiaodong Zou"
-    ],
-    "abstract": "Three-dimensional electron diffraction is a powerful technique for determining the structures from nanosized crystals.",
-    "published": "2026-02-11T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002125/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002125/v1",
-    "doi": "10.26434/chemrxiv.10002125",
-    "chemrxiv_id": "10.26434/chemrxiv.10002125/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Uranocenium \u2013 The bis-[8]annulene Uranium Cation",
-    "authors": [
-      "Cameron N Deakin",
-      "Iulia Turcas",
-      "Benjamin L L R\u00e9ant",
-      "Conrad A P Goodwin"
-    ],
-    "abstract": "Uranocene is the actinide equivalent to ferrocene. Here we report the elusive uranocenium cation.",
-    "published": "2026-02-11T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000008/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000008/v1",
-    "doi": "10.26434/chemrxiv.15000008",
-    "chemrxiv_id": "10.26434/chemrxiv.15000008/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Synthesis of two methylolanthanin derivatives and the investigation of their lanthanide and iron binding capabilities",
-    "authors": [
-      "Michael W Mertens",
-      "Sarah L H\u00fcgel",
-      "Oliver Hagen",
-      "Lena J Daumann"
-    ],
-    "abstract": "Lanthanides have recently been recognized as essential cofactors for certain bacterial enzymes.",
-    "published": "2026-02-11T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000020/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15000020/v1",
-    "doi": "10.26434/chemrxiv.15000020",
-    "chemrxiv_id": "10.26434/chemrxiv.15000020/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "A Catalyst-Coated Mesoporous Carbon-Membrane Electrode Assembly for In-situ Soft X-ray XPS and NEXAFS Studies of Electrocatalytic Interfaces",
+    "title": "A Catalyst-Coated Mesoporous Carbon\u2013Membrane Electrode Assembly for In-situ Soft X-ray XPS and NEXAFS Studies of Electrocatalytic Interfaces",
     "authors": [
       "James Counter",
       "Santosh Kumar",
       "Christopher Zalitis",
+      "Mark Clapp",
+      "David Grinter",
+      "Matthijs VanSpronsen",
+      "Pilar Ferrer",
+      "Burcu Karagoz",
+      "Tugce Eralp Erden",
+      "Roger A. Bennett",
       "Georg Held"
     ],
-    "abstract": "In-situ soft X-ray spectroscopy provides direct insight into the electronic structure of electrocatalysts.",
-    "published": "2026-02-10T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2026-4ddq1/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2026-4ddq1/v2",
+    "abstract": "In-situ soft X-ray spectroscopy provides direct insight into the electronic structure of electrocatalysts under realistic reaction conditions but remains technically challenging due to the need to combine aqueous electrochemistry with ultra-high-vacuum detection. Here we present a mesoporous carbon\u2013membrane working electrode assembly (WEA) that enables window-free in-situ XPS and NEXAFS measurements during electrochemical reactions. The design integrates a Nafion\u2122 proton-exchange membrane with a mesoporous carbon\u2013ionomer contact layer and a thin IrO\u2093 catalyst layer, providing continuous electronic and protonic pathways and stable hydration through the membrane. By tuning the chamber water vapor pressure to 8 mbar, the WEA maintains a nanometer-thin water layer sufficient for the oxygen evolution reaction (OER) while preserving photoelectron detection efficiency. A robust peristaltic pumping system and closed-loop alumina-bed water vapor dosing maintain steady-state hydration at 6\u201310 mbar with <\u00b10.1 mbar variation, enabling reproducible in-siut spectra over extended periods. In-situ Ir 4f and O 1s XPS reveal reversible oxidation of Ir\u00b3\u207a/Ir\u2074\u207a to Ir\u2074\u207a/Ir\u2075\u207a and dynamic changes in hydroxyl and lattice oxygen species, while O K-edge NEXAFS identify the formation of \u03bc\u2082\u2013O and \u03bc\u2081\u2013O species at OER potential, corresponding to OER-active intermediates. The WEA thus provides a quantitative, window-free platform for probing electrochemical interfaces under near-ambient conditions and establishes a general methodology for in-situ soft X-ray studies of functional electrocatalysts, closely resembling the architecture and operation of industrial membrane-based water electrolysers. This approach establishes a reliable methodology for coupling electrochemistry with the element specific soft X-ray spectroscopy under realistic reaction conditions.",
+    "published": "2026-01-07T15:24:43.853Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2026-4ddq1",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/694bac98e3cb457e13922ed7/original/a-catalyst-coated-mesoporous-carbon-membrane-electrode-assembly-for-in-situ-soft-x-ray-xps-and-nexafs-studies-of-electrocatalytic-interfaces.pdf",
     "doi": "10.26434/chemrxiv-2026-4ddq1",
-    "chemrxiv_id": "10.26434/chemrxiv-2026-4ddq1/v2",
+    "chemrxiv_id": "10.26434/chemrxiv-2026-4ddq1",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Cysteine Protonation States in Copper Trafficking Proteins and Its Influence on Biological Cu(I) Transfer Mechanism",
-    "authors": [
-      "Sk Hasibo Hassan",
-      "Soumak Ghosh",
-      "Avisek Das"
-    ],
-    "abstract": "Copper delivery from metallochaperones to P-type ATPases requires coordination by cysteine residues.",
-    "published": "2026-02-10T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001925/v3",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001925/v3",
-    "doi": "10.26434/chemrxiv.10001925",
-    "chemrxiv_id": "10.26434/chemrxiv.10001925/v3",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Bistable Terahertz Functionality of a Near Room-Temperature Spin Crossover Material",
-    "authors": [
-      "Bhart Kumar",
-      "Brijesh Singh Mehra",
-      "Prakhar Vashishta",
-      "Dhanvir Singh Rana",
-      "Sanjit Konar"
-    ],
-    "abstract": "The light-matter interaction at terahertz frequencies is poised to advance the frontiers of information processing.",
-    "published": "2026-02-10T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002088/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002088/v1",
-    "doi": "10.26434/chemrxiv.10002088",
-    "chemrxiv_id": "10.26434/chemrxiv.10002088/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Transition metal ferrite nanoparticle catalyzed Fenton-like oxidation to decolourize dye-contaminated water",
-    "authors": [
-      "Jacob E Daniel",
-      "Alex Barnosky",
-      "Ethan Crace",
-      "Abhinandan Banerjee"
-    ],
-    "abstract": "3d transition metal ferrite NPs are unique nanostructured materials owing to their tunable magnetic properties.",
-    "published": "2026-02-10T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002105/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002105/v1",
-    "doi": "10.26434/chemrxiv.10002105",
-    "chemrxiv_id": "10.26434/chemrxiv.10002105/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "The Pyridylketenyl Anion: Entry to Diverse N-Heterocycles",
-    "authors": [
-      "Stephan Mayer",
-      "Felix Krischer",
-      "Kristin Wulff",
-      "Viktoria H Gessner"
-    ],
-    "abstract": "The pyridylketene has previously been isolated via matrix isolation and demonstrated potential in the synthesis of N-heterocycles.",
-    "published": "2026-02-10T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002107/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002107/v1",
-    "doi": "10.26434/chemrxiv.10002107",
-    "chemrxiv_id": "10.26434/chemrxiv.10002107/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Chirality transfer in nematic liquid crystals via octahedral coordination compounds",
+    "title": "Chirality transfer in nematic liquid crystals via octahedral coordination compounds with \u0394 and \u039b chirality",
     "authors": [
       "Jun Yoshida"
     ],
-    "abstract": "Nematic liquid crystals readily transform into chiral nematic phases upon the incorporation of optically active substances.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2026-s9shs/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2026-s9shs/v2",
+    "abstract": "Nematic (N) liquid crystals (LCs), characterized by one-dimensional orientational order, readily transform into chiral nematic (N*) phases upon the incorporation of optically active substances, known as chiral dopants. While the ease of N* induction has driven the extensive development of organic chiral dopants, coordination compounds possessing  \u0394/\u039b chirality have emerged as compelling alternatives, offering distinct structural and functional attributes. A defining feature of these \"metallodopants\" is their exceptionally high helical twisting power (HTP). For instance, early studies demonstrated that the simple complex \u039b-[Ru(acac)3] exhibits a remarkably high HTP of 90 micrometer-1 in MBBA (N-(4-methoxybenzylidene)-4-butylaniline). This efficiency is attributed to the rigid coordination framework, which facilitates robust chirality transfer to the host LC. However, metallodopants often face challenges regarding miscibility with nematic hosts and intrinsic coloration, potentially complicating their integration into optical devices; consequently, systematic investigations have been limited compared to organic dopants. Nevertheless, metallodopants offer unique advantages. In tris(chelate) metal complexes, the sense of the induced helix (P or M) is strongly correlated with ligand orientation; for example, a 90\u00b0 rotation of a ligand\u2019s elongation axis can reverse the helical sense. This predictable inversion, supported by theoretical models, underscores the critical role of structural rigidity. Furthermore, the intrinsic absorption of these complexes, once viewed as a drawback, is now being harnessed for resonance Raman enhancement and chiroptical modulation. By combining high HTPs, predictable helix inversion, and spectroscopic utility, coordination compounds are positioning themselves as versatile competitors to organic dopants, serving as both functional inducers and optical probes for next-generation photonic and sensing technologies.",
+    "published": "2026-01-07T11:17:04.175Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2026-s9shs",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/695636d4900d745c43a40a29/original/chirality-transfer-in-nematic-liquid-crystals-via-octahedral-coordination-compounds-with-and-chirality.pdf",
     "doi": "10.26434/chemrxiv-2026-s9shs",
-    "chemrxiv_id": "10.26434/chemrxiv-2026-s9shs/v2",
+    "chemrxiv_id": "10.26434/chemrxiv-2026-s9shs",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Polyoxometalate-Assisted Crystallization: A General Strategy for Structural Characterization of Molecular Radium Complexes",
-    "authors": [
-      "Kaitlyn S Engle",
-      "Lesta S Fletcher",
-      "Nikki A Thiele"
-    ],
-    "abstract": "A fundamental understanding of radium coordination chemistry has been hindered by the scarcity of 226Ra.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002027/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002027/v2",
-    "doi": "10.26434/chemrxiv.10002027",
-    "chemrxiv_id": "10.26434/chemrxiv.10002027/v2",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Unexpected Chemistry of Molecular Precursors to Boron Arsenide Materials",
-    "authors": [
-      "Brandon J Ackley",
-      "Diego R Javier-Jim\u00e9nez",
-      "Rory Waterman"
-    ],
-    "abstract": "Simple arsine-boranes were explored as precursors to the semiconductor ceramic cubic boron arsenide.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002029/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002029/v1",
-    "doi": "10.26434/chemrxiv.10002029",
-    "chemrxiv_id": "10.26434/chemrxiv.10002029/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Unified Mechanistic Insights into Hydrogen Evolution and Oxidation from Homogeneous to Heterogeneous Electrocatalysis",
-    "authors": [
-      "Sriram Katipamula",
-      "Helena Wagner",
-      "Bertrand Reuillard",
-      "Cyrille Costentin",
-      "Vincent Artero"
-    ],
-    "abstract": "Direct comparisons between homogeneous and heterogeneous electrocatalysis using the same molecular system remain rare.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002033/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002033/v1",
-    "doi": "10.26434/chemrxiv.10002033",
-    "chemrxiv_id": "10.26434/chemrxiv.10002033/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Femtosecond Soft X-ray Absorption Spectroscopy Identifies Metal-Centered S1 Excited State of Cyanocobalamin",
-    "authors": [
-      "Nahid Ghodrati",
-      "Benjamin E Van Kuiken"
-    ],
-    "abstract": "Time-resolved X-ray absorption spectroscopy at the Co L3-edge was used to identify metal-centered character in the S1 excited state.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002045/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002045/v1",
-    "doi": "10.26434/chemrxiv.10002045",
-    "chemrxiv_id": "10.26434/chemrxiv.10002045/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Boron-Centered Proton-Coupled Electron Transfer",
-    "authors": [
-      "Varun Tej Raviprolu",
-      "Alexander M Spokoyny"
-    ],
-    "abstract": "Proton-Coupled Electron Transfer has been well-established in transition metal complexes, biomolecules, and organic compounds.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002050/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002050/v1",
-    "doi": "10.26434/chemrxiv.10002050",
-    "chemrxiv_id": "10.26434/chemrxiv.10002050/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Generalization of the Discrete Valence Operator: Unification of the s, p, d Blocks and Noble Gases",
-    "authors": [
-      "Roberto Reinosa Fern\u00e1ndez"
-    ],
-    "abstract": "The mathematical formalization of chemical valence is an essential step in the development of stoichiometric prediction algorithms.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002057/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002057/v1",
-    "doi": "10.26434/chemrxiv.10002057",
-    "chemrxiv_id": "10.26434/chemrxiv.10002057/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Bimetallic Bismuth-based Nanoparticles from Pseudo-Tetrahedral Zintl Anions",
-    "authors": [
-      "Megan A Parker",
-      "Dirk Hauschild",
-      "Stefanie Dehnen"
-    ],
-    "abstract": "While Zintl compounds comprising Bi-based anions have been used as starting materials for larger clusters.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002075/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002075/v1",
-    "doi": "10.26434/chemrxiv.10002075",
-    "chemrxiv_id": "10.26434/chemrxiv.10002075/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Sodium Vacancy, Nickel Charge and Orbital Order: Structural Evolution in Electrochemically Desodiated NaxNiO2",
-    "authors": [
-      "James M A Steele",
-      "Joshua D Bocarsly",
-      "Clare P Grey",
-      "Si\u00e2n E Dutton"
-    ],
-    "abstract": "NaNiO2 is a promising cathode material for sodium-ion batteries due to its high theoretical capacity.",
-    "published": "2026-02-09T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002076/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002076/v1",
-    "doi": "10.26434/chemrxiv.10002076",
-    "chemrxiv_id": "10.26434/chemrxiv.10002076/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "From KGeP to the Protonated P4-like Anion and the Endohedral Zintl Cluster",
-    "authors": [
-      "Nils Spang",
-      "Katrin Beuthert",
-      "Stefanie Dehnen"
-    ],
-    "abstract": "",
-    "published": "2026-02-08T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002006/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002006/v1",
-    "doi": "10.26434/chemrxiv.10002006",
-    "chemrxiv_id": "10.26434/chemrxiv.10002006/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Operando Characterisation of SEI Formation in Ni-Rich Lithium-Ion Cells",
-    "authors": [
-      "Arthur Fordham",
-      "Brandon Frost",
-      "Rhodri Jervis"
-    ],
-    "abstract": "The pursuit of high-energy lithium-ion batteries has driven the adoption of Ni-rich layered oxides.",
-    "published": "2026-02-08T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10002013/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10002013/v1",
-    "doi": "10.26434/chemrxiv.10002013",
-    "chemrxiv_id": "10.26434/chemrxiv.10002013/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Prediction of aluminium distributions in zeolites using basin-hopping and machine learning potentials",
-    "authors": [
-      "Oscar Bengtsson",
-      "Daniel Hewitt",
-      "Ben Slater"
-    ],
-    "abstract": "We present a systematic approach to predicting the structures of three sodiated aluminosilicate zeolites.",
-    "published": "2026-02-05T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001878/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001878/v2",
-    "doi": "10.26434/chemrxiv.10001878",
-    "chemrxiv_id": "10.26434/chemrxiv.10001878/v2",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Evolution of Acetylacetone from Solution to Film in Indium Nitrate Combustion Sol-Gel",
-    "authors": [
-      "Marisol Valdez",
-      "Julia W P Hsu"
-    ],
-    "abstract": "This study investigates the evolution of acetylacetone fuel in indium nitrate combustion sol-gel solution.",
-    "published": "2026-02-05T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001976/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001976/v1",
-    "doi": "10.26434/chemrxiv.10001976",
-    "chemrxiv_id": "10.26434/chemrxiv.10001976/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Dicationic Tetrylene Ligands Modulate Pt0 pi-Acid Catalysis",
-    "authors": [
-      "Liuyang Chen",
-      "Shaoguang Zhang"
-    ],
-    "abstract": "Dicationic heavy tetrylenes represent a rare class of potentially ambiphilic yet electron-withdrawing ligands.",
-    "published": "2026-02-05T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001982/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001982/v1",
-    "doi": "10.26434/chemrxiv.10001982",
-    "chemrxiv_id": "10.26434/chemrxiv.10001982/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Surface Structure and Electrochemical Signatures of Copper Nanocrystals with Tunable Facets",
-    "authors": [
-      "Andrea Conte",
-      "Marco Baron",
-      "Sabrina Antonello"
-    ],
-    "abstract": "Understanding the surface structure of copper nanocrystals is critical for optimizing their catalytic performance.",
-    "published": "2026-02-04T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001595/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001595/v2",
-    "doi": "10.26434/chemrxiv.10001595",
-    "chemrxiv_id": "10.26434/chemrxiv.10001595/v2",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Halide-Directed Nanostructuring of Copper Unraveled by Multivariate Analysis",
-    "authors": [
-      "Andrea Conte",
-      "Mar\u00eda Escudero-Escribano"
-    ],
-    "abstract": "Nanostructuring metallic surfaces is a key strategy to tailor morphology and increase surface area.",
-    "published": "2026-02-04T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001930/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001930/v1",
-    "doi": "10.26434/chemrxiv.10001930",
-    "chemrxiv_id": "10.26434/chemrxiv.10001930/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Unanticipated Enhancement to Phosphide Nucleophilicity in Dimethyl Sulfoxide",
-    "authors": [
-      "Emma J Finfer",
-      "Rory Waterman"
-    ],
-    "abstract": "An exceptional nucleophilicity of phosphide was discovered for reactions conducted in DMSO.",
-    "published": "2026-02-04T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001953/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001953/v1",
-    "doi": "10.26434/chemrxiv.10001953",
-    "chemrxiv_id": "10.26434/chemrxiv.10001953/v1",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "A Deep-Red-Absorbing Osmium(II) Complex as a Photosensitizer for Photodynamic Therapy inducing Immunogenic Cell Death",
+    "title": "A Near-Infrared-Absorbing Osmium(II) Complex as a Photosensitizer for Photodynamic Therapy inducing Immunogenic Cell Death",
     "authors": [
       "Yiyi Zhang",
+      "Pierre Mesdom",
+      "Eduardo Izquierdo-Garc\u00eda",
+      "Jo\u00e3o Ant\u00f3nio",
+      "Bruno Saubamea",
+      "Johanne Seguin",
+      "Morgane  Moinard",
+      "Philippe Arnoux",
+      "C\u00e9line Frochot",
+      "Kevin Cariou",
+      "Bich-Thuy Doan",
       "Gilles Gasser"
     ],
-    "abstract": "Immunogenic cell death, which converts tumor cells into their own vaccine, plays a pivotal role in anti-cancer therapies.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2024-6dnl2/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2024-6dnl2/v2",
+    "abstract": "Immunogenic cell death (ICD), which converts tumor cells into their own vaccine, plays a pivotal role in the development of novel anti-cancer therapies. Here, a small series of osmium(II) polypyridyl complexes were synthesized and their biological activity in the dark and upon light irradiation against various cancer cell lines was studied. The compound Os2 (bearing two 4,7-diphenyl-1,10-phenanthrolines and one substituted bipyridine ligand) was discovered to be the most effective photosensitizer (PS) for photodynamic therapy (PDT) of this series through the photogeneration of 1O2 and \u2022OH. In addition, Os2 was found to exhibit promising toxicity upon near-infrared (NIR) irradiation under both normoxia and hypoxia. These observations indicate that this PS is working through a mixture of Type-I and Type-II mechanisms. More interestingly, upon 740 nm irradiation, Os2 can stimulate a strong ICD response both in vitro and in vivo. A comprehensive immune analysis showed that mice vaccinated with Os2-treated CT26-luc cells boosted the systemic specific adaptive immune responses, including the activation of CD8+ T cells and reprograming of macrophages, leading to effective inhibition of tumor growth. Os2 is, to the best of our knowledge, the first photoactive osmium-based complex inducing ICD.",
+    "published": "2024-09-19T08:14:43.672Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2024-6dnl2",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/66eb056f12ff75c3a1b7ba0a/original/a-near-infrared-absorbing-osmium-ii-complex-as-a-photosensitizer-for-photodynamic-therapy-inducing-immunogenic-cell-death.pdf",
     "doi": "10.26434/chemrxiv-2024-6dnl2",
-    "chemrxiv_id": "10.26434/chemrxiv-2024-6dnl2/v2",
+    "chemrxiv_id": "10.26434/chemrxiv-2024-6dnl2",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "The roles of Asn7 and Trp67 in tuning the ferryl haem form of Staphylococcus aureus IsdG",
-    "authors": [
-      "Aarzoo Grover",
-      "Matthew Liptak"
-    ],
-    "abstract": "IsdG is a member of the Staphylococcus aureus iron-regulated surface determinant system that degrades haem.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-01n9d/v3",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2025-01n9d/v3",
-    "doi": "10.26434/chemrxiv-2025-01n9d",
-    "chemrxiv_id": "10.26434/chemrxiv-2025-01n9d/v3",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Mechanism of Ag+-induced Folding of a Bacterial Peptide from Replica-Exchange Molecular Simulations",
-    "authors": [
-      "Florian E.C. Blanc",
-      "Olivier Walker"
-    ],
-    "abstract": "Interactions between proteins and metal cations are central to biochemical processes and shape protein structures.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-pfwmz/v3",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2025-pfwmz/v3",
-    "doi": "10.26434/chemrxiv-2025-pfwmz",
-    "chemrxiv_id": "10.26434/chemrxiv-2025-pfwmz/v3",
-    "categories": [
-      "chemrxiv.IC"
-    ]
-  },
-  {
-    "title": "Conversion between 2- and 3-dimensional halogen-bonded networks",
+    "title": "Conversion between 3- and 2-dimensional halogen-bonded networks formed from a single building block ",
     "authors": [
       "Jordan Smith",
+      "Courtney Ennis",
+      "Huan Doan",
+      "Valeska Ting",
       "Nicholas White"
     ],
-    "abstract": "",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2026-gb57q/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv-2026-gb57q/v2",
+    "abstract": "A single building block bearing complementary halogen-bond donors and acceptors is described. Crystallisation is solvent dependent, forming 2D and 3D networks with a predictable donor-acceptor arrangement. Upon solvent exchange, the 3D-network undergoes an unprecedented single-crystal transformation to a new 2D phase. Far-infrared spectroscopy was employed to identify diagnostic signals for phase transition.",
+    "published": "2026-01-12T10:53:08.545Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2026-gb57q",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/695f34995c91413e6ea3eadc/original/conversion-between-3-and-2-dimensional-halogen-bonded-networks-formed-from-a-single-building-block.pdf",
     "doi": "10.26434/chemrxiv-2026-gb57q",
-    "chemrxiv_id": "10.26434/chemrxiv-2026-gb57q/v2",
+    "chemrxiv_id": "10.26434/chemrxiv-2026-gb57q",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Mechanistic Origin of Capacity Limitation in Sidorenkite-Type Carbonophosphate Cathodes for Na-Ion Batteries",
+    "title": "Wells-Dawson Polyoxometalate Complexes with Actinides (Part 1): Americium and Curium",
     "authors": [
-      "Samuel Franz Gatti",
-      "Sigita Trabesinger"
+      "Ian Colliard",
+      "Gauthier Deblonde"
     ],
-    "abstract": "New classes of materials are required for sodium ion batteries to compete with their Li-counterpart.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001774/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001774/v2",
-    "doi": "10.26434/chemrxiv.10001774",
-    "chemrxiv_id": "10.26434/chemrxiv.10001774/v2",
+    "abstract": "We report the isolation, plus spectroscopic and structural characterization, of the first trivalent actinide complexes with a Wells\u2013Dawson polyoxometalate (POM), using the lacunary ligand [\u03b12-P2W17O61]10- (P2W17). Americium(III) forms two distinct phases: triclinic (K17Am(P2W17O61)2\u00b742.5H2O) and monoclinic (K17Am(P2W17O61)2\u00b712H2O), while curium(III) crystallizes exclusively in the monoclinic phase (K17Cm(P2W17O61)2\u00b78H2O). These two phases for Am(III) exhibit systematic differences in bending and twisting of the POM framework around the metal, leading to measurable impact in their electronic absorption spectra. Combining these new structures with prior pioneering work on the stabilization of Am(IV) with P2W17 [Sokolova et al. Inorg. Chem. 2009], the Wells-Dawson complex offers a rare coordination framework for which both the Am(III) and Am(IV) versions have been isolated and structurally characterized. Comparison of the [AmIII(P2W17)2]17- and [AmIV(P2W17)2]16- complexes show that oxidation produces a predictable contraction in Am\u2013O distances and a redistribution of angular distortions throughout the structure. Our POM-based microscale synthetic approach, optimized here to the sub-microgram level, with crystals suitable for XRD were obtained from ~330 ng of 243Am or 248Cm, enables direct structural analysis of exceedingly rare actinides. This work expands the chemistry of Wells\u2013Dawson POMs to trivalent actinides and establishes clear structure\u2013property relationships that will guide future studies of scarce f-elements.",
+    "published": "2025-12-15T12:46:50.057Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-kc4ln",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6936872b65a54c2d4ac53274/original/wells-dawson-polyoxometalate-complexes-with-actinides-part-1-americium-and-curium.pdf",
+    "doi": "10.26434/chemrxiv-2025-kc4ln",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-kc4ln",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Li+ Transport in Ca-Substituted beta-Li3PS4: Role of PS43- Vibrations and Rotations",
+    "title": "Zwitterionic Pnictinidenes in Catalytic Defluorinative Functionalization: Beyond Redox Hydrodefluorination",
     "authors": [
-      "Shoma Kawano",
-      "Takahiro Ohkubo"
+      "Irene Sanchez-Sordo",
+      "Sergio Fernandez",
+      "Selwin Fernando",
+      "Diego Andrada",
+      "Oriol Planas"
     ],
-    "abstract": "Sulfide-based solid electrolytes are key materials for all-solid-state batteries owing to their high Li+ conductivity.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001797/v2",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001797/v2",
-    "doi": "10.26434/chemrxiv.10001797",
-    "chemrxiv_id": "10.26434/chemrxiv.10001797/v2",
+    "abstract": "Functionalization of fluorocarbons represents a central challenge in synthetic chemistry due to the exceptional strength of C\u2013F bonds and the persistence of such compounds in the environment. Herein, we report the catalytic defluorinative functionalization of polyfluoro(hetero)arenes mediated by zwitterionic Sb and Bi species. These bis(NHC)borate-stabilized complexes enable C\u2013X bond formation (X = C, O, S, N, P, Se) under mild conditions and a broad substrate scope. Mechanistic investigations, supported by DFT, reveal a dual landscape of redox and redox-neutral pathways, underscoring the metallomimetic behaviour of pnictinidenes in oxidative addition and highlighting the catalytic potential of pnictogen fluoride species. This work establishes zwitterionic Sb and Bi complexes as versatile catalysts for C\u2013F bond activation, providing a general platform for main-group catalysis in defluorofunctionalization chemistry.",
+    "published": "2025-12-15T04:57:14.166Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-0d210",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69331c9b65a54c2d4a4f8395/original/zwitterionic-pnictinidenes-in-catalytic-defluorinative-functionalization-beyond-redox-hydrodefluorination.pdf",
+    "doi": "10.26434/chemrxiv-2025-0d210",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-0d210",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "From Ruby to Molecular Ruby: Excited State Understanding and Design",
+    "title": "Wells-Dawson Polyoxometalate Complexes with Actinides (Part 2): Californium.",
     "authors": [
-      "Katja Heinze",
-      "Christoph F\u00f6rster"
+      "Ian Colliard",
+      "Gauthier Deblonde"
     ],
-    "abstract": "The gemstone ruby possesses exceptional photophysical properties with an extremely long-lived phosphorescence.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001875/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001875/v1",
-    "doi": "10.26434/chemrxiv.10001875",
-    "chemrxiv_id": "10.26434/chemrxiv.10001875/v1",
+    "abstract": "We report the first example of a polyoxometalate (POM) compound containing californium. Using a Wells-Dawson POM ligand, K17Cf(P2W17O61)2\u00b72H2O was synthesized and characterized. Californium is the heaviest element ever crystalized with a POM. Since its discovery in 1950, only 13 coordination compounds of Cf have been isolated and structurally characterized, including the one reported here.  The structure of the Cf(III)-POM compound complements the equivalent structures with Am(III) and Cm(III) that we recently reported (K17Am(P2W17O61)2\u00b742.5H2O, K17Am(P2W17O61)2\u00b712H2O, and K17Cm(P2W17O61)2\u00b78H2O). Taken together, this series gives an unprecedented perspective on heavy actinide chemistry given the isostructural and isomorphic nature of these compounds. We were also able to extrapolate bond distances for the equivalent Bk(III)-POM compound. The present study confirms and extends the structural effects that we observed for trivalent lanthanide and lighter actinide complexes with the Wells-Dawson POM, where the possible formation (or lack thereof) of two phases, one monoclinic and one triclinic, seems to dictate the structural, electronic, and even solubility properties of the POM systems. Significant solubility differences among the POM\u2019s f-element complexes were observed, enabling selective precipitation of with separation factors rivaling liquid-liquid extraction.",
+    "published": "2025-12-15T12:49:11.550Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-ct10m",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/693dea87ef27c95d3be26dc4/original/wells-dawson-polyoxometalate-complexes-with-actinides-part-2-californium.pdf",
+    "doi": "10.26434/chemrxiv-2025-ct10m",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-ct10m",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Coordinative Guest Recognition Triggers Macroscale Deformation of Metal-Organic Polyhedra Polymer Gels",
+    "title": "Strategic lifetime tuning of visible-light absorbing two-coordinate metal complexes",
     "authors": [
-      "Tomoki Tateishi",
-      "Shuhei Furukawa"
+      "Kelly Biv",
+      "Thabassum Nattikallungal",
+      "Peter Djurovich",
+      "Stephen Bradforth",
+      "Mark Thompson"
     ],
-    "abstract": "Molecular recognition plays a central role in supramolecular chemistry.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001885/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001885/v1",
-    "doi": "10.26434/chemrxiv.10001885",
-    "chemrxiv_id": "10.26434/chemrxiv.10001885/v1",
+    "abstract": "This paper highlights how the singlet and triplet amide ligand centered (LC) and singlet and triplet interligand charge transfer (ICT) states in (carbene)M(amide), M = Cu, Au (cMa) complexes influence the excited state properties when the triplet states are close in energy.  To that end we prepared a set of five cMa complexes, in which the amide (i.e. 5H-benzo[b]carbazole, H-BnCz) was kept constant giving a triplet LC energy of ca. 2.15 eV.  Four different carbene ligands were selected to develop carbene-M-BnCz complexes which have energies for the ICT state that vary from being either markedly higher, lower, or close to the energy of the triplet LC state on the amide ligand.  Steady-state and time-resolved spectroscopic studies show that the emission spectrum of the cMa complex mirrors the phosphorescence of the parent H-BnCz amide and has a luminescence decay lifetime in the millisecond regime when the lowest energy excited state is triplet LC.  When the lowest energy states are singlet and triplet ICT in nature, the emission band is broad and featureless, giving a lifetime in the nanosecond regime.  As the triplet LC, and the singlet and triplet ICT states have comparable energies, dynamic equilibrium between the states is observed with the luminescence consisting of a mixture of triplet LC, and singlet and triplet ICT transitions.  The measured lifetime of this equilibrating system is between 45 microseconds and 350 microseconds depending on the solvent, for both copper- and gold-based cMa complexes.  These complexes demonstrate the ability to \u201cpark\u201d the excited state population in the triplet LC state, allowing it to act as a reservoir for thermally activated emission, while still maintaining a very rapid equilibrium between LC and ICT states.",
+    "published": "2025-12-15T04:43:53.028Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-h7xrx",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6933b1cda10c9f5ca1779a48/original/strategic-lifetime-tuning-of-visible-light-absorbing-two-coordinate-metal-complexes.pdf",
+    "doi": "10.26434/chemrxiv-2025-h7xrx",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-h7xrx",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Lewis acidic regulators boost efficient nitrate-to-ammonia electrosynthesis on low-cost copper nanohybrids",
+    "title": "A Crystalline In(II) Hydride",
     "authors": [
-      "Tian Zeng",
-      "Edmund C M Tse"
+      "Olympia Mouriki",
+      "Graham Tizzard",
+      "Simon Coles",
+      "Diego Andrada",
+      "Oriol Planas"
     ],
-    "abstract": "Electrochemical nitrate-to-ammonia reduction reaction represents a one-stone-two-bird strategy.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001887/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001887/v1",
-    "doi": "10.26434/chemrxiv.10001887",
-    "chemrxiv_id": "10.26434/chemrxiv.10001887/v1",
+    "abstract": "Subvalent hydride species of heavier main-group elements are notoriously elusive due to their intrinsic instability and rapid decomposition, generating hydrogen. Nevertheless, they offer significant potential for small-molecule activation and catalysis. Herein, we report the synthesis and characterization of the first stable, crystalline subvalent indium hydride, supported by bis(N-heterocyclic carbene)borate ligands and featuring a covalent In\u2013In bond. This compound has been comprehensively characterized by NMR spectroscopy, FT-IR, single-crystal X-ray diffraction, and computational calculations, and experimental and theoretical studies reveal key features that underpin its exceptional stability. Preliminary reactivity investigations demonstrate that this discrete In(II) hydride acts as a nucleophile, opening new avenues for bond activation involving hydrides derived from the heaviest p-block elements.",
+    "published": "2025-12-14T04:47:03.669Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-3qx6j",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69304cbca10c9f5ca1f635af/original/a-crystalline-in-ii-hydride.pdf",
+    "doi": "10.26434/chemrxiv-2025-3qx6j",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-3qx6j",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Exploring the Electronic and Structural Modulation in a Novel Bimetallic NiFe Metal Organic Frameworks",
+    "title": "Ultrafast Electrocatalytic H2 Evolution from Water Achieved by a Cobalt-NHC Catalyst",
     "authors": [
-      "Dhouha Abid",
-      "Carsten Streb"
+      "Masanori Kan",
+      "Kosei Yamauchi",
+      "Ken Sakai"
     ],
-    "abstract": "Developing porous materials with tunable electronic properties is essential for advancing photoactive systems.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001888/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001888/v1",
-    "doi": "10.26434/chemrxiv.10001888",
-    "chemrxiv_id": "10.26434/chemrxiv.10001888/v1",
+    "abstract": "Development of highly active catalysts for water oxidation and reduction is one of the crucial targets in artificial photosynthesis. However, chemists still face a great challenge in advancing the molecular-level understanding of these catalytic processes. Here we succeed in raising two orders of magnitude in the turnover frequency (TOF) of electrocatalysis for hydrogen evolution reaction (HER) under neutral aqueous conditions (pH 7.0). The title N-heterocyclic carbene cobalt catalyst (Co-NHC1) is demonstrated to achieve an unprecedented TOF of 33 million s-1, which is by far higher than the highest value reported to date (TOF = 0.1 million s-1 at pH 7.0). We also show that the HER electrocatalyzed by Co-NHC1 rapidly proceeds as a diffusion-limited reaction via two successive concerted proton-electron transfer (CPET) pathways.",
+    "published": "2025-12-14T04:53:18.386Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-hwww9",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6932e301a10c9f5ca15ebe23/original/ultrafast-electrocatalytic-h2-evolution-from-water-achieved-by-a-cobalt-nhc-catalyst.pdf",
+    "doi": "10.26434/chemrxiv-2025-hwww9",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-hwww9",
     "categories": [
       "chemrxiv.IC"
     ]
   },
   {
-    "title": "Interstitial C/N Doping Stabilizes Pd@Pt Core-Shell Electrocatalysts",
+    "title": "Germanium-Organic Frameworks: Metalloid-Metalloid Bonding as A Covalent Switch for Linker Redox and Conductivity",
     "authors": [
-      "Xianmeng Song",
-      "Feng Ru Fan"
+      "Ha L. Nguyen",
+      "Mukunda Mandal",
+      "Chen-Yu Lien",
+      "Alexander S. Filatov",
+      "Shilin Zheng",
+      "Chenghua Deng",
+      "Macon Abernathy",
+      "Ritimukta  Sarangi",
+      "Akhil S. Kumar",
+      "Jan  Hofmann",
+      "Karena  Chapman",
+      "Jie-Hao Chen",
+      "Shrayesh  Patel",
+      "Laura Gagliardi",
+      "John S. Anderson"
     ],
-    "abstract": "Platinum-based multimetallic catalysts have attracted widespread attention for catalytic activity optimization.",
-    "published": "2026-02-03T00:00:00Z",
-    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv.10001890/v1",
-    "pdf_link": "https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.10001890/v1",
-    "doi": "10.26434/chemrxiv.10001890",
-    "chemrxiv_id": "10.26434/chemrxiv.10001890/v1",
+    "abstract": "The diverse structures of metal-organic frameworks (MOFs) originate from the coordination chemistry of ionic metal-ligand bonds, while covalent organic frameworks (COFs) leverage covalent bonding. Between these extremes, extended structures based on metalloids are comparatively rare. This paucity obscures how the chemistry of the metalloid elements, intermediate between the metals and the main group, manifests in the properties of new porous materials. This study presents the chemistry of new examples of germanium-organic frameworks (GeOFs). Two new GeOFs with metalloid GeO4 nodes and redox-active triphenylene hexahydroxyl (THO) linkers, Ge-THO-1 and Ge-THO-2, have been synthesized and characterized. Ge-THO-1 has Ge2+ nodes which become tetravalent with concomitant formation of Ge\u2013Ge bonds in Ge-THO-2 upon activation or air exposure. This structural transformation leads to a 10,000-fold increase in electrical conductivity. These materials are rare examples of GeOFs as well as a unique case where metal-metal bond formation regulates structure and conductivity in porous materials.",
+    "published": "2025-12-12T19:37:53.197Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-361kl",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/693361d8ef936fb4a2520544/original/germanium-organic-frameworks-metalloid-metalloid-bonding-as-a-covalent-switch-for-linker-redox-and-conductivity.pdf",
+    "doi": "10.26434/chemrxiv-2025-361kl",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-361kl",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Improving Thermal Cycling Stability and Magnetocaloric Efficiency through Orbital Competition and Entropy Engineering in RE11Rh4In9, 4d-4f Layered Intermetallics",
+    "authors": [
+      "Yuriy Tyvanchuk",
+      "Volodymyr Babizhetskyy",
+      "Stanis\u0142aw Baran",
+      "Andrzej Szytu\u0142a",
+      "Volodymyr Smetana",
+      "Emil I. Jaffal",
+      "Balaranjan Selvaratnam",
+      "Anja-Verana  Mudring",
+      "Anton O. Oliynyk"
+    ],
+    "abstract": "A series of RE11Rh4In9 intermetallics (RE = Gd, Tb, Ho and Tm) adopting the Nd11Pd4In9-type structure (space group Cmmm, oS48) was synthesized. The structure of the novel compounds has been visualized and described through CsCl- and AlB\u2082-type fragment tiling, with the help of in-house developed software, revealing the structure being the first intermediate in the CsCl- to AlB2-type structure transformation with 18% of the AlB2-type fragments and no face-sharing between these fragments. Magnetic properties of RE11Rh4In9 (RE = Gd, Tb) have been examined. The compounds undergo transition from para- to ferromagnetic order 80K with additional magnetic transitions detectable at lower temperatures. Magnetic entropy change reaches 5.32 and 3.66 J\u00b7kg\u22121\u00b7K\u22121 under magnetic flux density change of \u03bc0\u0394H = 0-9 T for RE = Gd and Tb, respectively. Relative cooling power and refrigerant capacity are equal respectively to 615.4 and 501.1 J\u00b7kg\u22121 in Gd11Rh4In9 or 393.2 and 311.4 J\u00b7kg\u22121 in Tb11Rh4In9 under \u03bc0\u0394H = 0-9 T. RE11Rh4In9 establish a new structural family of Rh-containing rare-earth intermetallics that exhibit competitive magnetocaloric performance in a broad range with the maximum near 80 K. Subtle changes in electronic structure govern exchange interactions and magnetic entropy for tuning magnetocaloric properties through controlled f-d hybridizations.",
+    "published": "2025-12-12T03:25:18.749Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-58fr6",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692c765065a54c2d4a666626/original/improving-thermal-cycling-stability-and-magnetocaloric-efficiency-through-orbital-competition-and-entropy-engineering-in-re11rh4in9-4d-4f-layered-intermetallics.pdf",
+    "doi": "10.26434/chemrxiv-2025-58fr6",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-58fr6",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Synthesis and Redox Properties of a Thermally Stable bis-N-Heterocyclic Carbene Adduct of Phosphorus Mononitride",
+    "authors": [
+      "Helen Leslie",
+      "Brian  Patrick",
+      "Etienne LaPierre",
+      "Ian Manners"
+    ],
+    "abstract": "Herein we report the synthesis and characterization of an unsymmetric thermally stable N-heterocyclic carbene adduct of phosphorus mononitride IPrMePNIPr (3). The asymmetry and thermal stability of 3 allowed for unambiguous characterization in both the solid-state and solution, including the dynamic motion and electrochemical properties, permitting the comparison to related compounds. 3 could be oxidized by one electron to form the corresponding radical cation salt [3][SbF6]. Further oxidation resulted degradation, either by fluoride abstraction from the counteranion or mechanisms unknown, depending on the nature of the oxidant. The Lewis acidity of the targeted dication [3]2+ was evaluated computationally, revealing a FIA in solution of 285 kJ mol\u22121, consistent with the observed reactivity.",
+    "published": "2025-12-12T03:27:59.669Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-dwn7n",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692e01bda10c9f5ca1a5c88f/original/synthesis-and-redox-properties-of-a-thermally-stable-bis-n-heterocyclic-carbene-adduct-of-phosphorus-mononitride.pdf",
+    "doi": "10.26434/chemrxiv-2025-dwn7n",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-dwn7n",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Nano-crystalline sponge method enabled by 3D electron diffraction ",
+    "authors": [
+      "Sofiia Butonova",
+      "Jung Cho",
+      "Marcus Wallin",
+      "Zhehao Huang",
+      "Xiaodong Zou"
+    ],
+    "abstract": "The crystalline sponge (CS) method utilizes a crystalline porous material to arrange target molecules within its periodic pores. This ena-bles the determination of 3D atomic structures of organic molecules without the need for crystallization. However, its applicability is cur-rently limited by the availability of suitable porous single crystals that can grow to a sufficient size for X-ray diffraction analysis. Here, we demonstrate that 3D electron diffraction (3D ED) overcomes this size limitation and enables structure determination from nano-sized crystalline sponges. We use the nanocrystalline bismuth-based metal-organic framework (MOF) SU-100 as a prototype crystalline sponge to demonstrate the feasibility and advantages of 3D ED for determining the structures of organic molecules, owing to its flexible framework that remains stable in air and under the electron beam. To evaluate this capability, we examined ten organic molecules intro-duced as pure liquids, in solutions, or as vapors. Using 3D ED under low electron fluence and cryogenic conditions, we determine the atomic structures of the guests and directly demonstrate that soaked organic molecules are periodically arranged within the pores of SU-100. These analyses reveal that guest alignment is mediated via strong and weak interactions with the framework, including coordination bonds, hydrogen bonds, offset-type \u03c0\u2013\u03c0 stacking, and Van der Waals interactions.",
+    "published": "2025-12-12T01:20:26.156Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-hr4dp",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692fd498ef936fb4a2c71c6f/original/nano-crystalline-sponge-method-enabled-by-3d-electron-diffraction.pdf",
+    "doi": "10.26434/chemrxiv-2025-hr4dp",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-hr4dp",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Metastable phases as a route to silver thiolates processing: structural, spectroscopy and computational data ",
+    "authors": [
+      "Daniil Zhuravlev",
+      "Katerina Tatarinova",
+      "Dmitry  Cheshev",
+      "Alexander Maksimov",
+      "Veronica  Sulyaeva",
+      "Iliya Korolkov",
+      "Alexander Novikov",
+      "Alexey Berezin",
+      "Aleksei Titov",
+      "Alexey Kuznetsov",
+      "Raul Rodriguez",
+      "Maxim Sokolov",
+      "Pavel Abramov"
+    ],
+    "abstract": "The recent advancements in 11 group metal-organic chalcogenolates (MOCs) based materials raise questions about the preparation of MOC films. In this research, we demonstrate that polymeric [Ag(S-Arf)]n (Arf = perfluorinated aryl group) can be dissolved in pyridine and its homologues (py-R). These solutions can be used to process [Ag(S-Arf)]n using different methods. Crystallization from these solutions produces a new type of MOCs, [(py-R)Ag(S-Arf)]n, that are here systematically characterized by structural, spectroscopic, and computational techniques.",
+    "published": "2025-12-11T09:44:09.819Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-6gznq",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69306f75a10c9f5ca1fa2a1f/original/metastable-phases-as-a-route-to-silver-thiolates-processing-structural-spectroscopy-and-computational-data.pdf",
+    "doi": "10.26434/chemrxiv-2025-6gznq",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-6gznq",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Probing the Redox Chemistry of Bimetallic Rare Earth-Catechol ate Complexes ",
+    "authors": [
+      "Han Geng",
+      "Joshua  Nelson",
+      "Kevin Ruoff",
+      "Robert Higgins",
+      "Michael Gau",
+      "Patrick Carroll",
+      "Eric Schelter"
+    ],
+    "abstract": "A catecholate proligand, 2,3\u2013dihydroxy\u20134,6\u2013di\u2013tert\u2013butyl\u2013benzaldehyde ([trenHC=N(H2tBu2cat)3]), capable of binding two metal cations, and its complexes RE2[trenHC=N(tBu2cat)3], RE = La, Nd, Dy were synthesized. X-ray structures of the complex-es showed that C\u2013O bond lengths, ranging from 1.317(4)\u20131.334(3) \u00c5, and C\u2013C bond lengths, ranging from 1.426(3)\u20131.443(3) \u00c5, of the complexes were consistent with the cate-cholate form of the ligand in all cases. Cyclic voltammetry (CV) measurements revealed the oxidation of the catecholate ligand arms to the semiquinonate form in all three metal complexes. The oxidation potentials for the metal complexes are modulated to shift towards more positive potentials with increasing Lewis acidity.  The results support the hy-pothesis that differences in ligand oxidation potentials can be exploited for realizing systems for separations of rare earth metals.",
+    "published": "2025-12-10T21:07:47.649Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-bx1gn",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/693197d665a54c2d4a18d3dd/original/probing-the-redox-chemistry-of-bimetallic-rare-earth-catechol-ate-complexes.pdf",
+    "doi": "10.26434/chemrxiv-2025-bx1gn",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-bx1gn",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Mineral Deposition from Liquid Precursors Triggered by Complementary Polyelectrolytes",
+    "authors": [
+      "Mohammed Kayes Patoary",
+      "Eli Halperin Pierce",
+      "Elizabeth Siu",
+      "Brigitte Gallagher",
+      "Md Abul Shahid",
+      "Yang Zhang",
+      "Thomas B. H.  Schroeder"
+    ],
+    "abstract": "Polymer-induced liquid precursors are hydrated, metastable, amorphous droplets rich in insoluble ionic compounds; they form in aqueous solutions that are supersaturated with mineral ions in the presence of charged polymers that delay the onset of crystal nucleation. This work reports that rapid crystallization of a range of inorganic mineral salts can be triggered by the addition of polycations to polyanion-stabilized precursor solutions that would otherwise be stably amorphous for over ten days. In complex coacervate systems, entropic gains drive the competitive displacement of small (e.g.) cationic species from anionic binding partners by larger molecules with more positive charges. We build evidence that the constituents of the stabilized mineral salt are displaced from the stabilizing polyanion by the added polycation in a similar manner. By exposing liquid precursor solutions to arrays of polycationic hydrogels, we demonstrate the ability to deposit crystals in a site-selective manner, enabling spatial control over mineral formation.",
+    "published": "2025-12-11T06:43:07.744Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-hpqg5",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/692a189e65a54c2d4a2e7f3e/original/mineral-deposition-from-liquid-precursors-triggered-by-complementary-polyelectrolytes.pdf",
+    "doi": "10.26434/chemrxiv-2025-hpqg5",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-hpqg5",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "1D chains and an open 3D network from poly(diethylamidinium) cations and polycarboxylate anions ",
+    "authors": [
+      "Meabh  Perry-Britton",
+      "Jessica Du",
+      "Nicholas White"
+    ],
+    "abstract": "New monotopic, ditopic, and tetratopic diethylamidinium building blocks were prepared and their interactions with (poly)carboxylates studied in solution and by crystallisation to give hydrogen-bonded networks. Crystallisation of the bis(diethylamidinium) tecton with terephthalate or biphenyldicarboxylate gave 1D hydrogen-bonded chains where the diethylamidinium groups adopted E/E conformations allowing for R_2^2 (8) hydrogen bonding with the anion. In contrast, 3D networks had E/Z diethylamidinium conformations, limiting hydrogen bonding to single-point interactions. Despite this, an open network structure was formed where approximately half of the unit cell volume was occupied by disordered solvent molecules. A survey of the Cambridge Structural Database revealed that both E/E and E/Z arrangements are common, while DFT calculations suggest that the E/E conformation is ~ 13 kJ mol\u20131 higher in energy than the E/Z conformation for both dimethylamidiniums and diethylamidiniums in the gas phase.  Factors that contribute to the favourability of E/E and E/Z arrangements in the solid state are discussed, specifically with reference to the design of open networks.",
+    "published": "2025-12-11T10:04:30.501Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-mpb9k",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6931263165a54c2d4a00d028/original/1d-chains-and-an-open-3d-network-from-poly-diethylamidinium-cations-and-polycarboxylate-anions.pdf",
+    "doi": "10.26434/chemrxiv-2025-mpb9k",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-mpb9k",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Separations by Excited State Quenching (SES-Q) an Emerging Concept for Reactive Rare Earth Separations",
+    "authors": [
+      "Kevin Ruoff",
+      "Eric Schelter"
+    ],
+    "abstract": "Rare earth elements (REs; Sc, Y, La-Lu) are essential commodities for the manufacturing of advanced materials. There is an increasing demand for REs that requires an increase in supply, but procurement of these elements represents not only an economic and geopolitical challenge, but a chemical challenge. Current separation processes are inherently limited by their size-based selectivity. There is a pressing need for new and more efficient rare earth separations techniques that leverage properties other than size. There is an opportunity to use light to drive chemical reactions that are selective for certain rare earth cations to achieve separations by excited state quenching (SES-Q). By virtue of the progressive filling of the 4f-subshell, rare earth elements exhibit different photophysical properties that can manifest as divergent photochemical reactivity when paired with a photochemically reactive organic compound. Select photochemical reactions of rare earth compounds are separated into four categories based on the type of reaction and the site of the reaction and discuss them in terms of their potential for separations.",
+    "published": "2025-12-10T20:53:03.915Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-pptp5",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/69319c0765a54c2d4a1b2456/original/separations-by-excited-state-quenching-ses-q-an-emerging-concept-for-reactive-rare-earth-separations.pdf",
+    "doi": "10.26434/chemrxiv-2025-pptp5",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-pptp5",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Observing Kinetic Selectivity in Anthracene Photodimerization through Selective Quenching by Excited States of Proximate Rare Earth Cations",
+    "authors": [
+      "Kevin Ruoff",
+      "Mitchell Zembower",
+      "Tyler Gong",
+      "Tuna Sagdan",
+      "Morgan Noody",
+      "Gary Chen",
+      "Michael Gau",
+      "Alexandra Bacon",
+      "Cherie Kagan",
+      "Eric Schelter"
+    ],
+    "abstract": "Towards development of new separations strategies for rare earth elements (REs; La-Lu, Y, Sc), the discovery of divergent reactivity for RE complexes is an essential first step. We report the synthesis, photophysical characterization, and photodimerization reactivity of a series of kinetically inert rare earth coordination compounds encapsulated by a 1,4,7,10 tetraazacyclododecane-1,4,7-triacetic acid (DO3A) ligand appended with a triazole-bridged anthracene arm, RE(DO3A-anthracene), 2-RE (RE = La-Pr, Sm-Lu, Y). Ultraviolet (UV) light irradiation of all 2-RE compounds produces the respective photodimers, 3-RE. The reaction kinetics were studied using UV-Vis spectroscopy and found to have no correlation with size of the RE cation, a rare outcome in rare earths chemistry. A dichotomy was found between diamagnetic, fast-reacting congeners and paramagnetic, slow-reacting congeners, with 2-Ce, 2-Gd, and 2-Tb as notable paramagnetic, fast reacting exceptions. It is hypothesized that photodimerization can occur for this system by a singlet and/or a triplet pathway, the latter of which can be suppressed by addition of a triplet quencher (cyclononatetraene, COT), which promotes the singlet-only pathway. The reaction rates of the singlet-only pathway were found to correlate well with the fluorescence lifetimes of 2-RE. The findings presented here are discussed in the context of a previously reported solid-state photodimerization of a series of anthracene-based rare earth compounds, wherein differences are attributed to the intermediacy of an excimer in the solid-state reaction and no such intermediacy in the present solution studies. This study lays a key groundwork for a selective rare earth separation system based on anthracene photodimerization where kinetic selectivity is achieved through excited state quenching.",
+    "published": "2025-12-10T20:56:23.050Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-s1wpk",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6930d241ef936fb4a2ea2824/original/observing-kinetic-selectivity-in-anthracene-photodimerization-through-selective-quenching-by-excited-states-of-proximate-rare-earth-cations.pdf",
+    "doi": "10.26434/chemrxiv-2025-s1wpk",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-s1wpk",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Electrochemical activity of novel Ni-rich disordered rock salts upon simultaneous cation and anion substitution",
+    "authors": [
+      "Neelam Sunariwal",
+      "Fenguan Shi",
+      "Khagesh  Kumar",
+      "Akhil Tayal",
+      "Dennis Nordlund",
+      "Jordi  Cabana"
+    ],
+    "abstract": "Ni-based disordered rock-salt (DRS) oxyfluoride materials gained increased attention for their high capacity and energy density but suffer from structural instability and poor high-voltage cyclability. Here, we report that new electrochemically active phase that can be reached through the structural modification via simultaneous cation doping and anion substitution to produce DRS oxyfluorides. The optimized Cu-substituted F-rich DRS phase delivers ~200 mAh g\u22121 between 1.5-4.8V, with over 90% capacity retention after 50 cycles. Hard and soft X-ray absorption spectroscopy reveals that both Ni and Cu actively take part in redox-active and strongly hybridized with O and F ligands. Pronounced O and F K-edge pre-edge features, together with reversible changes in Cu oxidation state and coordination, evidence strong metal-ligand covalency and mixed cation-anion redox. These results demonstrate that simultaneous Cu doping and F enrichment can stabilize the DRS framework and enable high-energy, cycling-stable oxyfluoride cathodes for next-generation Li-ion batteries.",
+    "published": "2025-12-11T07:15:26.895Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-vfq52",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6930cc0265a54c2d4af304e1/original/electrochemical-activity-of-novel-ni-rich-disordered-rock-salts-upon-simultaneous-cation-and-anion-substitution.pdf",
+    "doi": "10.26434/chemrxiv-2025-vfq52",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-vfq52",
+    "categories": [
+      "chemrxiv.IC"
+    ]
+  },
+  {
+    "title": "Vanadium\u2013Cobalt O\u2261VCo3O4 Oxo Cubanes from V/Co Redox Exchange",
+    "authors": [
+      "Thomas Alexander Wheeler",
+      "Vincent John Pershing Maddi",
+      "Robert Allan Carter",
+      "T. Don Tilley"
+    ],
+    "abstract": "The synthesis of a novel vanadium-cobalt oxo cubane [O\u2261VCo3(\u03bc3-OH)(\u03bc3-O)3(OAc)4(t-Bupy)3]+ (OAc = acetate, t-Bupy = 4-tertbutylpyridine) occurs by way of a metal-metal exchange reaction between the Co4(\u03bc3-O)4(OAc)4(t-Bupy)4 cubane and VCl4(THF)2. Mechanistic investigations reveal that the terminal oxo ligand originates from water, and that a proton source is critical for the metal-metal exchange. The solid-state structure of the [O\u2261VCo3O4]+ cubane is more distorted from an idealized cubane geometry than previously reported [MCo3O4] heterometallic cubanes (M = Ru, Mn). The cluster is readily deprotonated by basic alumina to produce the neutral cluster, O\u2261VCo3(\u03bc3-O)4(OAc)4(t-Bupy), the solid-state structure of which reveals retention of the oxo-cubane motif. The observed bonding and reactivity are rationalized with density functional theory, which indicates that the vanadium center does not significantly contribute to the occupied fron-tier molecular orbitals. Electrochemical studies support a quasireversible one-electron oxidation event at 0.85 V vs. Fc/Fc+ in acetonitrile but attempts to isolate the oxidized species instead gave the protonated cluster resulting from C\u2013H bond activation of the solvent.",
+    "published": "2025-12-10T03:08:51.454Z",
+    "link": "https://chemrxiv.org/doi/full/10.26434/chemrxiv-2025-x9tpb",
+    "pdf_link": "https://www.cambridge.org/engage/api-gateway/coe/assets/orp/resource/item/6930a4b965a54c2d4aeceb5c/original/vanadium-cobalt-o-v-co3o4-oxo-cubanes-from-v-co-redox-exchange.pdf",
+    "doi": "10.26434/chemrxiv-2025-x9tpb",
+    "chemrxiv_id": "10.26434/chemrxiv-2025-x9tpb",
     "categories": [
       "chemrxiv.IC"
     ]
