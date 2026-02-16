@@ -1084,8 +1084,53 @@ async def get_timeseries(category: Optional[str] = None):
             model_stats[model_key]["input_tokens"] += inp
             model_stats[model_key]["output_tokens"] += out
 
-    # Build sorted date list
-    all_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys())))
+    # --- Summary generation costs (estimated from paper summaries) ---
+    summary_daily = defaultdict(lambda: defaultdict(lambda: {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0}))
+    async for p in db.papers.find(
+        {"summaries": {"$exists": True, "$ne": None}},
+        {"_id": 0, "summaries": 1, "full_text": 1, "abstract": 1, "added_at": 1, "categories": 1},
+    ):
+        sums = p.get("summaries") or {}
+        if not sums:
+            continue
+        day = (p.get("added_at") or "")[:10]
+        if not day:
+            continue
+        cat = (p.get("categories") or ["unknown"])[0]
+        ft_len = len(p.get("full_text", "") or "")
+        abs_len = len(p.get("abstract", "") or "")
+        input_chars_per_call = min(ft_len, 40000) + min(abs_len, 1500) + 500
+
+        for mk, text in sums.items():
+            if not isinstance(text, str) or len(text) < 50:
+                continue
+            provider = mk.split(":")[0]
+            model_name = mk.split(":")[-1].replace("_", ".")
+            if "openai" in provider:
+                pricing_key = "openai/gpt-5.2"
+            elif "anthropic" in provider:
+                pricing_key = "anthropic/claude-opus-4-5-20251101"
+            elif "gemini" in provider:
+                pricing_key = "gemini/gemini-3-pro-preview"
+            else:
+                pricing_key = None
+
+            inp_tok = input_chars_per_call // 4
+            out_tok = len(text) // 4
+            cost = 0.0
+            if pricing_key:
+                pr = MODEL_PRICING.get(pricing_key, {"input": 2.0, "output": 10.0})
+                cost = (inp_tok / 1_000_000) * pr["input"] + (out_tok / 1_000_000) * pr["output"]
+
+            for key in [cat, "_total"]:
+                bucket = summary_daily[day][key]
+                bucket["count"] += 1
+                bucket["input_tokens"] += inp_tok
+                bucket["output_tokens"] += out_tok
+                bucket["cost"] += cost
+
+    # Merge summary dates into all_dates
+    all_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys()) + list(summary_daily.keys())))
     settings_for_cats = await get_settings()
     all_cats = sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
 
