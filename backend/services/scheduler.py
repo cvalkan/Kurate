@@ -571,10 +571,13 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
 
             current_prompt_hash = _prompt_hash(prompt_config)
 
+            _paper_fields = {
+                "_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
+                "authors": 1, "arxiv_id": 1, "link": 1, "published": 1,
+                "pdf_link": 1, "added_at": 1, "summaries": 1,
+            }
             all_papers = await db.papers.find(
-                {"categories.0": category},
-                {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
-                 "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1, "added_at": 1}
+                {"categories.0": category}, _paper_fields
             ).to_list(5000)
 
             if len(all_papers) < 2:
@@ -587,9 +590,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 dl_count = await _download_pending_pdfs(category=category)
                 if dl_count > 0:
                     all_papers = await db.papers.find(
-                        {"categories.0": category},
-                        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
-                         "authors": 1, "arxiv_id": 1, "link": 1, "published": 1, "pdf_link": 1, "added_at": 1}
+                        {"categories.0": category}, _paper_fields
                     ).to_list(5000)
 
             # Only load standard matches for this category (exclude experiments)
