@@ -119,6 +119,9 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - Removed: `ci_target`, `section_char_limit`, `wilson_margin_pct` dependency in scheduler
 - Admin UI: Replaced CI Target/Section Char Limit with Convergence Threshold/Convergence Rounds/Summary Source dropdown
 - Prompts page shows pre-comparison IMPACT_ASSESSMENT_PROMPT
+- Convergence chart: leaderboard shows "final ranking" description + ρ=0.95 reference line; validation shows "human expert" description; Extract mode removed from ValidationConvergence
+- Methodology page: 10 steps updated — Step 1 "AI Impact Assessment", Step 2 "abstract + AI summary", Step 4 "Convergence-Based Stopping" (Spearman ρ), Step 8 "Pre-Generated Impact Assessments"
+- Summary rendering: PaperPage filters summaries < 50 chars, renders markdown headers/bold/bullet points
 
 ## Backlog
 - Explore eLife as complementary dataset
