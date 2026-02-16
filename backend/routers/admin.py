@@ -467,20 +467,20 @@ async def get_progress_estimate(category: str = "cs.RO"):
     goal2_met = bool(convergence_met_count >= convergence_rounds)
     matches_for_goal2 = 0 if goal2_met else max(0, (convergence_rounds - convergence_met_count) * len(all_paper_ids) // 2)
 
-    # Goal 3: Cross-matches among non-capped top-K papers
+    # Goal 3: Cross-matches among top-K papers
+    # ALL top-K papers should have played each other at least once
+    # Capped papers (at max_matches) are included — they've played plenty
     sorted_papers = sorted(
         all_paper_ids,
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
         reverse=True,
     )
     top_k_ids = sorted_papers[:min(top_k, total_papers)]
-    topk_capped = {pid for pid in top_k_ids if paper_match_count[pid] >= max_matches}
-    topk_crossmatch_ids = [pid for pid in top_k_ids if pid not in topk_capped]
-    topk_total_pairs = len(topk_crossmatch_ids) * (len(topk_crossmatch_ids) - 1) // 2
+    topk_total_pairs = len(top_k_ids) * (len(top_k_ids) - 1) // 2
     topk_matched_pairs = 0
-    for i in range(len(topk_crossmatch_ids)):
-        for j in range(i + 1, len(topk_crossmatch_ids)):
-            pair = tuple(sorted([topk_crossmatch_ids[i], topk_crossmatch_ids[j]]))
+    for i in range(len(top_k_ids)):
+        for j in range(i + 1, len(top_k_ids)):
+            pair = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
             if pair in compared_pairs:
                 topk_matched_pairs += 1
     matches_for_goal3 = topk_total_pairs - topk_matched_pairs
