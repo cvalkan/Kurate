@@ -611,28 +611,11 @@ async def update_evaluation_prompt(update: PromptUpdate):
     return {"success": True}
 
 
+from services.llm import IMPACT_ASSESSMENT_PROMPT as _IAP
+
 DEFAULT_SUMMARY_PROMPT = {
-    "system_prompt": """You are a scientific impact analyst. Write a concise, informative summary of a paper's scientific impact based on:
-1. The paper's content (abstract, methodology, results)
-2. How it performed in head-to-head comparisons against other recent papers, as judged by AI models simulating expert panels
-
-Write in third person, factual tone. Structure the summary as:
-- Opening sentence: What the paper does and its main contribution
-- Key strengths identified through comparisons (2-3 points)
-- Limitations or areas where other papers were preferred (1-2 points, if any losses exist)
-- Closing assessment of overall impact and significance
-
-Keep it to 150-200 words. Do not use bullet points — write flowing paragraphs.""",
-    "user_prompt": """Paper: "{title}"
-Authors: {authors}
-
-{paper_content}
-
-Tournament performance: {win_rate}% win rate across {num_matches} comparisons.
-
-{match_context}
-
-Write the scientific impact summary.""",
+    "system_prompt": _IAP["system_prompt"],
+    "user_prompt": _IAP["user_prompt"],
 }
 
 
