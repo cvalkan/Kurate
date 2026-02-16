@@ -556,7 +556,6 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             min_matches_per_paper = settings.get("min_matches_per_paper", 3)
             max_matches_per_paper = settings.get("max_matches_per_paper", 20)
             max_new_per_round = settings.get("max_new_matches_per_round", 3)
-            ci_target = settings.get("ci_target", 12)
             summary_source = settings.get("summary_source", "round_robin")
 
             from core.config import DEFAULT_EVALUATION_PROMPT
