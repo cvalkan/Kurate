@@ -115,6 +115,11 @@ async def update_settings(update: SettingsUpdate):
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")
 
+    # Validate convergence_threshold range
+    if "convergence_threshold" in update_dict:
+        ct = update_dict["convergence_threshold"]
+        update_dict["convergence_threshold"] = max(0.5, min(1.0, ct))
+
     await db.settings.update_one(
         {"key": "global"},
         {"$set": update_dict},
