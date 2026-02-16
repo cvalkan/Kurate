@@ -938,32 +938,31 @@ def _select_pairs(
         win_rates[pid] = w / max(c, 1)
 
     active = [pid for pid in paper_ids if pid not in capped]
-    if len(active) < 2:
-        return []
 
-    # Rank papers for top-K identification
+    # Rank ALL papers for top-K identification (including capped)
     all_ranked = sorted(paper_ids, key=lambda pid: win_rates[pid], reverse=True)
     top_k_ids = all_ranked[:min(top_k, len(all_ranked))]
-    top_k_crossmatch = [pid for pid in top_k_ids if pid not in capped]
 
     pairs = []
-    round_count = {pid: 0 for pid in active}
+    round_count = {pid: 0 for pid in paper_ids}
 
     # --- Phase 0: Top-K cross-matches (highest priority) ---
-    for i in range(len(top_k_crossmatch)):
-        for j in range(i + 1, len(top_k_crossmatch)):
-            pair_key = tuple(sorted([top_k_crossmatch[i], top_k_crossmatch[j]]))
+    # Include ALL top-K papers even if capped — exceeding max_matches
+    # is acceptable to ensure top-K differentiation
+    for i in range(len(top_k_ids)):
+        for j in range(i + 1, len(top_k_ids)):
+            pair_key = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
             if pair_key not in compared_pairs:
                 if len(pairs) >= max_pairs:
                     break
-                pairs.append((top_k_crossmatch[i], top_k_crossmatch[j]))
+                pairs.append((top_k_ids[i], top_k_ids[j]))
                 compared_pairs.add(pair_key)
-                round_count[top_k_crossmatch[i]] += 1
-                round_count[top_k_crossmatch[j]] += 1
+                round_count[top_k_ids[i]] += 1
+                round_count[top_k_ids[j]] += 1
         if len(pairs) >= max_pairs:
             break
 
-    if len(pairs) >= max_pairs:
+    if len(pairs) >= max_pairs or len(active) < 2:
         return pairs[:max_pairs]
 
     # --- Phase 1: Deficit papers (below min_matches) ---
