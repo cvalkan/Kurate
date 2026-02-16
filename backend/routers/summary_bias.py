@@ -963,6 +963,65 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
     for p in extract_curve:
         p["llm_calls_per_paper"] = p["avg_matches_per_paper"]
 
+    # ── Per-summarizer curves with random judge (1 call/match, fixed summarizer) ──
+    summarizer_random_curves = {}
+    for sk in summarizer_keys:
+        # For each match, pick 1 random judge using this summarizer
+        sk_by_match = defaultdict(list)
+        for m in summary_docs:
+            if m["summary_key"] == sk:
+                sk_by_match[m["original_match_id"]].append({
+                    "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                    "winner_id": m["winner_id"],
+                })
+
+        random.seed(42)
+        sk_matches = []
+        for mid, verdicts in sk_by_match.items():
+            pick = random.choice(verdicts)
+            sk_matches.append({
+                "paper1_id": pick["paper1_id"], "paper2_id": pick["paper2_id"],
+                "winner_id": pick["winner_id"], "completed": True, "failed": False,
+            })
+        random.shuffle(sk_matches)
+
+        sk_total = len(sk_matches)
+        sk_step = max(1, sk_total // steps)
+        sk_x = list(range(sk_step, sk_total + 1, sk_step))
+        if sk_x and sk_x[-1] < sk_total:
+            sk_x.append(sk_total)
+
+        sk_curve = []
+        for n_m in sk_x:
+            subset = sk_matches[:n_m]
+            sub_lb = compute_leaderboard(papers, subset)
+            sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+            active = ({m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}) & paper_ids
+            counts = defaultdict(int)
+            for m in subset:
+                if m["paper1_id"] in paper_ids:
+                    counts[m["paper1_id"]] += 1
+                if m["paper2_id"] in paper_ids:
+                    counts[m["paper2_id"]] += 1
+            ac = [counts[p] for p in active if counts[p] > 0]
+            avg_mpp = round(sum(ac) / max(len(ac), 1), 1)
+
+            fp_rho = None
+            if fullpdf_rank:
+                common_fp = [pid for pid in active if pid in fullpdf_rank and pid in sub_rank]
+                if len(common_fp) >= 3:
+                    sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common_fp], [fullpdf_rank[p] for p in common_fp])
+                    fp_rho = round(sp, 4) if not (sp != sp) else 0
+
+            sk_curve.append({
+                "matches": n_m,
+                "avg_matches_per_paper": avg_mpp,
+                "llm_calls_per_paper": avg_mpp,
+                "vs_fullpdf_spearman": fp_rho,
+            })
+
+        summarizer_random_curves[_short(sk)] = sk_curve
+
     return {
         "status": "ok",
         "category": category,
@@ -973,6 +1032,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         "curve": curve,
         "extract_curve": extract_curve,
         "summarizer_curves": summarizer_curves,
+        "summarizer_random_curves": summarizer_random_curves,
         "single_config_curves": single_config_curves,
         "config_correlations": config_correlations,
     }
