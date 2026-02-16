@@ -288,6 +288,206 @@ function ConvergenceChart({ data }) {
   );
 }
 
+function ConvergenceChart({ data }) {
+  if (!data || !data.curve || data.curve.length < 2) return null;
+  const { curve, extract_curve, single_config_curves, config_correlations, total_extract_matches, total_summary_matches, papers } = data;
+
+  return (
+    <div className="space-y-5" data-testid="convergence-section">
+      {/* Chart 1: Internal convergence of random-single summary ranking */}
+      <InternalChart curve={curve} total={total_summary_matches} papers={papers} />
+
+      {/* Chart 2: Summary vs Extract (both 1 call/match, same x-axis) */}
+      <FairComparisonChart curve={curve} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
+
+      {/* Chart 3: All 9 single configs vs extract */}
+      <SingleConfigChart single_config_curves={single_config_curves} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
+
+      {/* Per-config table */}
+      {config_correlations && Object.keys(config_correlations).length > 0 && (
+        <div className="border border-border rounded-lg p-4">
+          <h4 className="text-xs font-semibold mb-1.5">Per-Config Ranking Correlation (200 matches each)</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-2 py-1 font-medium text-[10px] text-muted-foreground">Configuration</th>
+                  <th className="text-right px-2 py-1 font-medium text-[10px] text-muted-foreground">vs Extract</th>
+                  <th className="text-right px-2 py-1 font-medium text-[10px] text-muted-foreground">vs Full PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(config_correlations).map(([ck, d]) => (
+                  <tr key={ck} className="border-b border-border/20">
+                    <td className="px-2 py-1 text-xs">{d.label}</td>
+                    <td className="text-right px-2 py-1 font-mono">{d.vs_extract?.toFixed(3) ?? "—"}</td>
+                    <td className="text-right px-2 py-1 font-mono">{d.vs_fullpdf?.toFixed(3) ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SimpleLineChart({ W, H, PAD, points, xKey, lines, xLabel, yLabel, title, description }) {
+  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+  const allY = lines.flatMap(l => points.map(p => p[l.key]).filter(v => v != null));
+  const yMin = Math.max(0, Math.floor(Math.min(...allY) * 10) / 10 - 0.1);
+  const maxX = Math.max(...points.map(p => p[xKey]));
+  const sx = x => PAD.l + (x / maxX) * cw;
+  const sy = y => PAD.t + (1 - (y - yMin) / (1.0 - yMin)) * ch;
+  const makePath = key => {
+    const pts = points.filter(p => p[key] != null);
+    if (pts.length < 2) return null;
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p[key]).toFixed(1)}`).join(" ");
+  };
+  const ticks = xKey === "matches"
+    ? points.filter((_, i) => i % Math.max(1, Math.floor(points.length / 5)) === 0 || i === points.length - 1).map(p => p[xKey])
+    : [2, 5, 10, 15, 20, 30, 40, 60, 80].filter(v => v <= maxX * 1.05);
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold mb-0.5">{title}</h3>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">{description}</p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
+        {[0.2, 0.4, 0.6, 0.8, 1.0].filter(v => v >= yMin).map(v => (
+          <g key={v}>
+            <line x1={PAD.l} y1={sy(v)} x2={W - PAD.r} y2={sy(v)} stroke="#e5e7eb" strokeWidth="0.5" />
+            <text x={PAD.l - 4} y={sy(v) + 3} textAnchor="end" fontSize="8" fill="#9ca3af">{v.toFixed(1)}</text>
+          </g>
+        ))}
+        {ticks.map(v => (
+          <text key={v} x={sx(v)} y={H - 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{v}</text>
+        ))}
+        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">{xLabel}</text>
+        <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>{yLabel}</text>
+        {lines.map(({ key, color, dash }) => {
+          const d = makePath(key);
+          return d ? <path key={key} d={d} fill="none" stroke={color} strokeWidth="2" strokeDasharray={dash || "none"} /> : null;
+        })}
+        {lines.map(({ key, color }) => {
+          const last = [...points].reverse().find(p => p[key] != null);
+          return last ? <circle key={key + "d"} cx={sx(last[xKey])} cy={sy(last[key])} r="3" fill={color} /> : null;
+        })}
+      </svg>
+      <div className="flex flex-wrap gap-4 text-[10px]">
+        {lines.map(({ key, color, label }) => {
+          const last = [...points].reverse().find(p => p[key] != null);
+          return last ? (
+            <div key={key} className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color }} />
+              <span className="text-muted-foreground">{label}:</span>
+              <span className="font-mono font-medium">{last[key]?.toFixed(3)}</span>
+            </div>
+          ) : null;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function InternalChart({ curve, total, papers }) {
+  return (
+    <SimpleLineChart
+      W={600} H={240} PAD={{ t: 20, r: 20, b: 40, l: 50 }}
+      points={curve} xKey="matches"
+      lines={[
+        { key: "vs_extract_spearman", color: "#2563eb", label: "vs Extract tournament" },
+        { key: "vs_fullpdf_spearman", color: "#059669", label: "vs Full-PDF baseline" },
+        { key: "vs_final_spearman", color: "#9333ea", label: "Internal stability" },
+      ]}
+      xLabel="Matches (1 random verdict per match)"
+      yLabel="Spearman ρ"
+      title="Summary Ranking Convergence"
+      description={`How the summary-based ranking evolves as matches are added. Each match uses 1 random (judge, summary) verdict — same cost as 1 extract match. ${total} matches across ${papers} papers.`}
+    />
+  );
+}
+
+function FairComparisonChart({ curve, extract_curve, total_extract_matches, papers }) {
+  if (!extract_curve || extract_curve.length < 2) return null;
+  // Merge both curves into one dataset with separate keys
+  const xKey = "llm_calls_per_paper";
+  const merged = [];
+  for (const p of curve) {
+    merged.push({ [xKey]: p[xKey], summary_rho: p.vs_fullpdf_spearman, extract_rho: null });
+  }
+  for (const p of extract_curve) {
+    merged.push({ [xKey]: p[xKey], summary_rho: null, extract_rho: p.vs_fullpdf_spearman });
+  }
+  merged.sort((a, b) => a[xKey] - b[xKey]);
+  // Build separate point arrays for path drawing
+  const sumPts = curve.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
+  const extPts = extract_curve.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
+  const allX = [...sumPts.map(p => p[xKey]), ...extPts.map(p => p[xKey])];
+  const allY = [...sumPts.map(p => p.vs_fullpdf_spearman), ...extPts.map(p => p.vs_fullpdf_spearman)];
+  const maxX = Math.max(...allX);
+  const yMin = Math.max(0, Math.floor(Math.min(...allY) * 10) / 10 - 0.1);
+
+  const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
+  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+  const sx = x => PAD.l + (x / maxX) * cw;
+  const sy = y => PAD.t + (1 - (y - yMin) / (1.0 - yMin)) * ch;
+  const makePath = pts => {
+    if (pts.length < 2) return null;
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p.vs_fullpdf_spearman).toFixed(1)}`).join(" ");
+  };
+  const lastSum = sumPts[sumPts.length - 1];
+  const lastExt = extPts[extPts.length - 1];
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold mb-0.5">Summary vs Extract: Convergence to Full-PDF Ranking</h3>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          Fair comparison: both use <strong>1 LLM call per match</strong>. Summary uses a random (judge, summarizer) per match.
+          Extract uses round-robin models. X-axis = LLM calls per paper. {papers} papers. Extract: {total_extract_matches?.toLocaleString()} calls.
+        </p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
+        {[0.2, 0.4, 0.6, 0.8, 1.0].filter(v => v >= yMin).map(v => (
+          <g key={v}>
+            <line x1={PAD.l} y1={sy(v)} x2={W - PAD.r} y2={sy(v)} stroke="#e5e7eb" strokeWidth="0.5" />
+            <text x={PAD.l - 4} y={sy(v) + 3} textAnchor="end" fontSize="8" fill="#9ca3af">{v.toFixed(1)}</text>
+          </g>
+        ))}
+        {[2, 5, 10, 15, 20, 30, 40, 60, 80].filter(v => v <= maxX * 1.05).map(v => (
+          <text key={v} x={sx(v)} y={H - 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{v}</text>
+        ))}
+        <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">LLM calls per paper</text>
+        <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
+        {makePath(extPts) && <path d={makePath(extPts)} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" />}
+        {lastExt && <circle cx={sx(lastExt[xKey])} cy={sy(lastExt.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
+        {makePath(sumPts) && <path d={makePath(sumPts)} fill="none" stroke="#059669" strokeWidth="2.5" />}
+        {lastSum && <circle cx={sx(lastSum[xKey])} cy={sy(lastSum.vs_fullpdf_spearman)} r="3.5" fill="#059669" />}
+      </svg>
+      <div className="flex flex-wrap gap-5 text-[10px]">
+        {lastSum && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-0.5 rounded bg-emerald-600" />
+            <span className="text-muted-foreground">Abstract + Summary (random single):</span>
+            <span className="font-mono font-semibold">ρ = {lastSum.vs_fullpdf_spearman?.toFixed(3)}</span>
+            <span className="text-muted-foreground">@ {lastSum[xKey]} calls/paper</span>
+          </div>
+        )}
+        {lastExt && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 4px, transparent 4px 7px)" }} />
+            <span className="text-muted-foreground">Extract (round-robin):</span>
+            <span className="font-mono font-semibold">ρ = {lastExt.vs_fullpdf_spearman?.toFixed(3)}</span>
+            <span className="text-muted-foreground">@ {lastExt[xKey]} calls/paper</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 const SUMMARIZER_COLORS = {
   "Claude Opus": "#8b5cf6",
