@@ -61,7 +61,7 @@ export function AdminOverview({
   return (
     <div className="space-y-6" data-testid="admin-overview">
       {categories.length > 1 && (
-        <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg flex-wrap" data-testid="admin-cat-tabs">
+        <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg overflow-x-auto scrollbar-none" data-testid="admin-cat-tabs">
           {categories.map((c) => (
             <Button
               key={c.id}
