@@ -485,7 +485,7 @@ async def _download_pending_pdfs(category: str = None):
         query["categories.0"] = category
 
     papers_needing_pdf = await db.papers.find(
-        query, {"_id": 0, "id": 1, "pdf_link": 1, "title": 1},
+        query, {"_id": 0, "id": 1, "pdf_link": 1, "title": 1, "doi": 1},
     ).to_list(200)
 
     if not papers_needing_pdf:
@@ -498,7 +498,7 @@ async def _download_pending_pdfs(category: str = None):
         if cat_status:
             cat_status["current_activity"] = f"Downloading PDF {i+1}/{len(papers_needing_pdf)}: {paper['title'][:40]}..."
         try:
-            full_text = await download_and_extract_pdf(paper["pdf_link"])
+            full_text = await download_and_extract_pdf(paper["pdf_link"], doi=paper.get("doi"))
             if full_text:
                 await db.papers.update_one(
                     {"id": paper["id"]},
