@@ -680,8 +680,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             cat_status["current_activity"] = f"{total_matches + completed} total matches"
             logger.info(f"[{category}] Comparison round: {completed} ok, {failed} failed")
 
-            # Generate impact summaries only for this category
-            await _generate_pending_summaries(category=category)
+            # Summaries are now pre-generated at fetch time (no post-hoc generation needed)
 
             return {"status": "ok", "completed": completed, "failed": failed}
 
