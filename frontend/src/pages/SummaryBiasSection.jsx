@@ -483,6 +483,8 @@ export default function SummaryBiasSection({ category = "q-bio.BM" }) {
             judgeConsistency={results.judge_consistency}
             summaryInfluence={results.summary_influence}
           />
+
+          {convergence && <ConvergenceChart data={convergence} />}
         </>
       )}
     </div>
