@@ -259,7 +259,7 @@ async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSu
     """
     from services.scheduler import _generate_paper_summaries
 
-    query = {"full_text": {"$ne": None}}
+    query = {"$or": [{"full_text": {"$ne": None}}, {"abstract": {"$exists": True, "$nin": [None, ""]}}]}
     if body.category:
         query["categories.0"] = body.category
 
