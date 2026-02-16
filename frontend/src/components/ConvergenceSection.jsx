@@ -37,7 +37,6 @@ export function ValidationConvergence({ datasets }) {
 
   const CONTENT_MODES = [
     { id: "abstract", label: "Abstract" },
-    { id: "extract", label: "Extract" },
     { id: "full_pdf", label: "Full PDF" },
     { id: "abstract_plus_summary", label: "Abstract + Summary" },
   ];
@@ -92,11 +91,11 @@ export function LeaderboardConvergence({ category }) {
 
   if (loading || !curve) return null;
   const label = category || "All Categories";
-  return <ConvergenceChart curves={{ all: { ...curve, name: label } }} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} compact />;
+  return <ConvergenceChart curves={{ all: { ...curve, name: label } }} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} compact isLeaderboard />;
 }
 
 /** Shared chart renderer. */
-function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, compact = false }) {
+function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, compact = false, isLeaderboard = false }) {
   const dsIds = Object.keys(curves);
 
   // Determine available top-k values
