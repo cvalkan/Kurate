@@ -35,26 +35,28 @@ function getSummaryEntries(summaries) {
     .filter(e => typeof e.text === "string" && e.text.length > 50);
 }
 
-/** Render LaTeX expressions in a string. Handles both $...$ (inline) and $$...$$ (block). */
+/** Render LaTeX expressions in a string. Handles $...$, $$...$$, \(...\), and \[...\] delimiters. */
 function renderLatex(text) {
   if (!text) return text;
-  // Block math: $$...$$
+  // Block math: $$...$$ 
   let result = text.replace(/\$\$(.+?)\$\$/gs, (_, expr) => {
-    try {
-      return katex.renderToString(expr.trim(), { displayMode: true, throwOnError: false });
-    } catch { return `$$${expr}$$`; }
+    try { return katex.renderToString(expr.trim(), { displayMode: true, throwOnError: false }); }
+    catch { return `$$${expr}$$`; }
   });
-  // Inline math: $...$  (but not $$)
+  // Block math: \[...\]
+  result = result.replace(/\\\[(.+?)\\\]/gs, (_, expr) => {
+    try { return katex.renderToString(expr.trim(), { displayMode: true, throwOnError: false }); }
+    catch { return `\\[${expr}\\]`; }
+  });
+  // Inline math: \(...\)
+  result = result.replace(/\\\((.+?)\\\)/g, (_, expr) => {
+    try { return katex.renderToString(expr.trim(), { displayMode: false, throwOnError: false }); }
+    catch { return `\\(${expr}\\)`; }
+  });
+  // Inline math: $...$ (but not $$)
   result = result.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (_, expr) => {
-    try {
-      return katex.renderToString(expr.trim(), { displayMode: false, throwOnError: false });
-    } catch { return `$${expr}$`; }
-  });
-  // Common LaTeX commands outside of $...$ delimiters
-  result = result.replace(/\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|omega|pi|rho|tau|phi|psi|chi|eta|zeta|nu|xi|kappa|iota|mathbb|mathcal|mathrm|infty|nabla|partial|sum|prod|int|sqrt|frac|log|exp|sin|cos|tan|lim|max|min|sup|inf)\b/g, (match) => {
-    try {
-      return katex.renderToString(match, { displayMode: false, throwOnError: false });
-    } catch { return match; }
+    try { return katex.renderToString(expr.trim(), { displayMode: false, throwOnError: false }); }
+    catch { return `$${expr}$`; }
   });
   return result;
 }
