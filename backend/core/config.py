@@ -42,6 +42,7 @@ CATEGORIES = {
     "econ.GN": "Economics",
     "physics.comp-ph": "Computational Physics",
     "q-bio.BM": "Biomolecules",
+    "chemrxiv.IC": "Inorganic Chemistry",
 }
 
 # Default evaluation prompt
