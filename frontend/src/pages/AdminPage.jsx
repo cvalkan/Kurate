@@ -252,9 +252,9 @@ export default function AdminPage() {
               { key: "min_matches_per_paper", label: "Min Matches Per Paper", help: "Minimum comparisons per paper. Highest priority for matchmaker." },
               { key: "max_matches_per_paper", label: "Max Matches Per Paper", help: "Stop comparing after this many matches." },
               { key: "max_new_matches_per_round", label: "Max New Matches Per Round", help: "Max new matches per paper per round." },
-              { key: "ci_target", label: "CI Target (% margin)", help: "Target win-rate confidence margin for top-K papers." },
-              { key: "section_char_limit", label: "Section Char Limit", help: "Max chars extracted per section (first half + last half). Higher = more context but higher cost. Default: 2000", min: 500, max: 20000 },
-            ].map(({ key, label, help, min, max }) => (
+              { key: "convergence_threshold", label: "Convergence Threshold (ρ)", help: "Spearman ρ threshold for ranking stability. Tournament stops when ρ > this for consecutive rounds. Default: 0.95", min: 0.5, max: 1.0, step: 0.01 },
+              { key: "convergence_rounds", label: "Convergence Rounds", help: "Number of consecutive rounds above threshold needed to stop. Default: 3", min: 1, max: 10 },
+            ].map(({ key, label, help, min, max, step }) => (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <Label className="text-xs">{label}</Label>
@@ -262,18 +262,37 @@ export default function AdminPage() {
                   <TooltipContent side="right"><p className="max-w-52 text-xs">{help}</p></TooltipContent></Tooltip>
                 </div>
                 <Input
-                  type="number" min={min} max={max}
-                  value={editSettings[key] || ""}
+                  type="number" min={min} max={max} step={step}
+                  value={editSettings[key] ?? ""}
                   onChange={(e) => {
-                    let v = Number(e.target.value) || "";
-                    if (min && v < min) v = min;
-                    if (max && v > max) v = max;
+                    let v = step && step < 1 ? parseFloat(e.target.value) : Number(e.target.value);
+                    if (isNaN(v)) v = "";
+                    if (v !== "" && min !== undefined && v < min) v = min;
+                    if (v !== "" && max !== undefined && v > max) v = max;
                     setEditSettings({ ...editSettings, [key]: v });
                   }}
                   data-testid={`setting-${key}`}
                 />
               </div>
             ))}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Summary Source</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Which model's summary to use for comparisons. round_robin rotates between all 3.</p></TooltipContent></Tooltip>
+              </div>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                value={editSettings.summary_source || "round_robin"}
+                onChange={(e) => setEditSettings({ ...editSettings, summary_source: e.target.value })}
+                data-testid="setting-summary-source"
+              >
+                <option value="round_robin">Round Robin (all 3)</option>
+                <option value="claude">Claude</option>
+                <option value="gemini">Gemini</option>
+                <option value="gpt">GPT</option>
+              </select>
+            </div>
             <div className="flex items-center gap-2">
               <Switch checked={editSettings.paused || false} onCheckedChange={(v) => setEditSettings({ ...editSettings, paused: v })} data-testid="setting-paused" />
               <Label className="text-xs">Paused</Label>
