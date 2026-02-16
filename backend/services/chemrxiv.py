@@ -26,7 +26,13 @@ async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int 
     papers = []
     pages_needed = (max_results + 19) // 20  # 20 results per page
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
         for page in range(pages_needed):
             if len(papers) >= max_results:
                 break
