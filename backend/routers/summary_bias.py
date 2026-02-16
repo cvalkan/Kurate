@@ -55,6 +55,134 @@ async def run_pipeline(body: PipelineRequest):
     return {"status": "started", "category": body.category, "num_matches": body.num_matches}
 
 
+class ExtendRequest(BaseModel):
+    category: str = "physics.comp-ph"
+    num_matches: int = 100
+    parallel: int = 20
+
+
+@router.post("/extend-matches", dependencies=[Depends(verify_admin)])
+async def extend_matches(body: ExtendRequest):
+    """Run additional matches in abstract, abstract+summary (all 9 configs), and full-PDF modes."""
+    if _state["phase"] != "idle":
+        return {"status": "already_running", "phase": _state["phase"], "progress": _state["progress"]}
+    asyncio.create_task(_extend_matches(body.category, body.num_matches, body.parallel))
+    return {"status": "started", "category": body.category, "num_matches": body.num_matches}
+
+
+async def _extend_matches(category: str, num_matches: int, parallel: int):
+    try:
+        _state["phase"] = "extending"
+
+        papers = await db.papers.find({"categories": category}, {"_id": 0}).to_list(500)
+        paper_lookup = {p["id"]: p for p in papers}
+        paper_ids = set(paper_lookup.keys())
+
+        # Load summaries
+        sums_raw = await db.summary_bias_summaries.find(
+            {"category": category}, {"_id": 0, "paper_id": 1, "model_key": 1, "summary_text": 1}
+        ).to_list(10000)
+        sum_lookup = {(s["paper_id"], s["model_key"]): s["summary_text"] for s in sums_raw}
+
+        # Get ALL existing matches for this category
+        all_main = await db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category},
+            {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+        ).to_list(100000)
+
+        # Already-used matches in the experiment
+        used_ids = set()
+        async for doc in db.summary_bias_matches.find(
+            {"category": category}, {"_id": 0, "original_match_id": 1}
+        ):
+            used_ids.add(doc["original_match_id"])
+
+        # Select new matches not yet in the experiment
+        model_keys = [_mk(m) for m in TOURNAMENT_MODELS]
+        available = [
+            m for m in all_main
+            if m["id"] not in used_ids
+            and m["paper1_id"] in paper_ids and m["paper2_id"] in paper_ids
+            and all((m["paper1_id"], mk) in sum_lookup and (m["paper2_id"], mk) in sum_lookup for mk in model_keys)
+        ]
+
+        selected = random.sample(available, min(num_matches, len(available)))
+        logger.info(f"Summary bias extend: {len(selected)} new matches from {len(available)} available")
+
+        # Total work: 9 summary configs + 3 full-PDF + 1 abstract = 13 per match
+        total_work = len(selected) * (len(TOURNAMENT_MODELS) ** 2 + len(TOURNAMENT_MODELS) + 1)
+        completed = 0
+        _state["progress"] = {"completed": 0, "total": total_work, "category": category}
+
+        sem = asyncio.Semaphore(parallel)
+        prompt_config = DEFAULT_EVALUATION_PROMPT
+
+        async def run_one(match, judge_model, summary_model_key, content_mode):
+            nonlocal completed
+            p1_id, p2_id = match["paper1_id"], match["paper2_id"]
+            p1 = {**paper_lookup[p1_id]}
+            p2 = {**paper_lookup[p2_id]}
+
+            if content_mode == "abstract_plus_summary":
+                p1["ai_impact_summary"] = sum_lookup.get((p1_id, summary_model_key), "")
+                p2["ai_impact_summary"] = sum_lookup.get((p2_id, summary_model_key), "")
+
+            swapped = random.random() < 0.5
+            pa, pb = (p2, p1) if swapped else (p1, p2)
+
+            async with sem:
+                doc = {
+                    "id": str(uuid.uuid4()),
+                    "experiment_id": "extend",
+                    "category": category,
+                    "original_match_id": match["id"],
+                    "paper1_id": p1_id,
+                    "paper2_id": p2_id,
+                    "original_winner_id": match["winner_id"],
+                    "judge_key": _mk(judge_model),
+                    "summary_key": summary_model_key if content_mode == "abstract_plus_summary" else content_mode,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                try:
+                    result = await compare_papers(
+                        pa, pb, prompt_config,
+                        content_mode=content_mode,
+                        model_override=judge_model,
+                    )
+                    winner_key = result.get("winner", "paper1")
+                    winner_id = (p2_id if winner_key == "paper1" else p1_id) if swapped else (p1_id if winner_key == "paper1" else p2_id)
+                    doc.update({"winner_id": winner_id, "reasoning": result.get("reasoning", ""), "completed": True, "failed": False})
+                except Exception as e:
+                    doc.update({"winner_id": None, "completed": False, "failed": True, "error": str(e)[:200]})
+
+                await db.summary_bias_matches.insert_one(doc)
+                completed += 1
+                _state["progress"]["completed"] = completed
+                if completed % 100 == 0:
+                    logger.info(f"Summary bias extend: {completed}/{total_work}")
+
+        work = []
+        for match in selected:
+            # 9 summary configs
+            for judge in TOURNAMENT_MODELS:
+                for summarizer in TOURNAMENT_MODELS:
+                    work.append((match, judge, _mk(summarizer), "abstract_plus_summary"))
+            # 3 full-PDF judges
+            for judge in TOURNAMENT_MODELS:
+                work.append((match, judge, "full_pdf", "full_pdf"))
+            # 1 abstract-only (random judge)
+            work.append((match, random.choice(TOURNAMENT_MODELS), "abstract", "abstract"))
+
+        random.shuffle(work)
+        await asyncio.gather(*(run_one(m, j, sk, cm) for m, j, sk, cm in work))
+        logger.info(f"Summary bias extend complete: {completed}/{total_work}")
+    except Exception as e:
+        logger.error(f"Summary bias extend error: {e}")
+    finally:
+        _state["phase"] = "idle"
+        _state["progress"] = {}
+
+
 async def _full_pipeline(category: str, num_matches: int, parallel: int):
     try:
         # Phase 1: Generate summaries
