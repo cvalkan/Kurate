@@ -128,7 +128,11 @@ export function AdminOverview({
                   }
                 </div>
                 {!progress.goal2?.met && (
-                  <span className="font-mono text-muted-foreground">{progress.goal2?.done}/{progress.goal2?.total}</span>
+                  <span className="font-mono text-muted-foreground">
+                    {progress.goal2?.latest_rho != null && <span className={progress.goal2.latest_rho >= 0.95 ? "text-green-600" : "text-amber-500"}>ρ={progress.goal2.latest_rho}</span>}
+                    {progress.goal2?.latest_rho != null && " · "}
+                    {progress.goal2?.done}/{progress.goal2?.total}
+                  </span>
                 )}
               </div>
               <div className="flex items-center justify-between text-xs">
