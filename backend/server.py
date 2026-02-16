@@ -200,6 +200,55 @@ async def startup():
     except Exception as e:
         logger.warning(f"shared_categories backfill warning: {e}")
 
+    # Migration: update settings for new convergence-based architecture
+    try:
+        _settings_doc = await db.settings.find_one({"key": "global"})
+        if _settings_doc:
+            migration_updates = {}
+            # Set new convergence defaults if not present
+            if _settings_doc.get("convergence_threshold") is None:
+                migration_updates["convergence_threshold"] = 0.95
+            if _settings_doc.get("convergence_rounds") is None:
+                migration_updates["convergence_rounds"] = 3
+            if _settings_doc.get("summary_source") is None:
+                migration_updates["summary_source"] = "round_robin"
+            if _settings_doc.get("summary_parallel") is None:
+                migration_updates["summary_parallel"] = 10
+            # Reduce min/max matches per the new architecture
+            if _settings_doc.get("min_matches_per_paper", 0) > 5:
+                migration_updates["min_matches_per_paper"] = 3
+            if _settings_doc.get("max_matches_per_paper") is None or _settings_doc.get("max_matches_per_paper", 999) > 50:
+                migration_updates["max_matches_per_paper"] = 20
+            if migration_updates:
+                await db.settings.update_one({"key": "global"}, {"$set": migration_updates})
+                invalidate_settings_cache()
+                logger.info(f"Migrated settings: {list(migration_updates.keys())}")
+    except Exception as e:
+        logger.warning(f"Settings migration warning: {e}")
+
+    # Migration: seed initial ranking snapshots from existing match data
+    try:
+        from services.scheduler import _store_ranking_snapshot
+        snapshot_count = await db.ranking_snapshots.count_documents({})
+        if snapshot_count == 0:
+            from core.auth import get_settings as _gs
+            _s = await _gs()
+            _active = _s.get("active_categories", list(CATEGORIES.keys()))
+            for _cat in _active:
+                paper_count = await db.papers.count_documents({"categories.0": _cat})
+                match_count = await db.matches.count_documents({
+                    "completed": True, "failed": {"$ne": True},
+                    "primary_category": _cat, "mode": {"$exists": False}
+                })
+                if paper_count >= 2 and match_count >= 10:
+                    # Seed 5 snapshots at different match subsets to bootstrap convergence
+                    for frac in [0.6, 0.7, 0.8, 0.9, 1.0]:
+                        await _store_ranking_snapshot(_cat)
+                    logger.info(f"Seeded 5 ranking snapshots for {_cat}")
+            logger.info("Ranking snapshot seeding complete")
+    except Exception as e:
+        logger.warning(f"Ranking snapshot seeding warning: {e}")
+
     # Initialize tournament registry from CATEGORIES
     try:
         from services.scheduler import init_tournament_registry
