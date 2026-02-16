@@ -71,14 +71,14 @@ export default function MethodologyPage() {
           <p>The presentation order of each pair is <span className="text-foreground font-medium">randomly flipped with 50% probability</span> before sending to the LLM. This eliminates positional bias — a known issue where models tend to prefer the paper presented first.</p>
         </Step>
 
-        <Step number={4} icon={RefreshCw} title="Adaptive Matchmaking">
-          <p>An intelligent algorithm selects which papers to compare next. It uses three convergence goals to decide when a category is "done":</p>
+        <Step number={4} icon={RefreshCw} title="Convergence-Based Stopping">
+          <p>A simplified <span className="text-foreground font-medium">round-robin matchmaker</span> selects pairs, with three convergence goals:</p>
           <ul className="list-disc list-inside space-y-1 text-xs mt-1">
-            <li><span className="text-foreground">Minimum matches</span> — Every paper gets at least N comparisons</li>
-            <li><span className="text-foreground">CI convergence</span> — Top-K papers must have confidence intervals below a target width</li>
-            <li><span className="text-foreground">Top-K cross-match</span> — Every pair of top-K papers must have played against each other at least once, preventing artificially high win rates from papers that never faced each other</li>
+            <li><span className="text-foreground">Minimum matches</span> — Every paper gets at least 3 comparisons</li>
+            <li><span className="text-foreground">Ranking stability</span> — After each round, the system computes Spearman &rho; between the current ranking and the ranking from 2 rounds ago. The tournament stops when &rho; &ge; 0.95 for 3 consecutive rounds.</li>
+            <li><span className="text-foreground">Top-K cross-match</span> — Every pair of top-K papers must have played against each other at least once</li>
           </ul>
-          <p className="mt-2">Papers with wide CIs and similar win rates are paired preferentially, as these matchups are most informative for separating ranks.</p>
+          <p className="mt-2">This convergence-based approach is more efficient than fixed match budgets — rankings stabilize much faster when AI summaries are used as input.</p>
         </Step>
 
         <Step number={5} icon={Users} title="Multi-Model Consensus">
