@@ -55,10 +55,11 @@ class SettingsUpdate(BaseModel):
     min_matches_per_paper: Optional[int] = None
     max_matches_per_paper: Optional[int] = None
     max_new_matches_per_round: Optional[int] = None
-    ci_target: Optional[int] = None
+    convergence_threshold: Optional[float] = None
+    convergence_rounds: Optional[int] = None
+    summary_source: Optional[str] = None
     paused: Optional[bool] = None
     admin_password: Optional[str] = None
-    section_char_limit: Optional[int] = None  # Truncation limit per section (default 2000)
 
 
 class PromptUpdate(BaseModel):
