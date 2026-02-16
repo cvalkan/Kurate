@@ -29,7 +29,11 @@ async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int 
         return []
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path="/pw-browsers/chromium_headless_shell-1208/chrome-linux/headless_shell",
+            args=["--no-sandbox"],
+        )
         page = await browser.new_page()
 
         for pg in range(pages_needed):
