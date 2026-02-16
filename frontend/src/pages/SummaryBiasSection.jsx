@@ -371,44 +371,39 @@ function InternalChart({ curve, total, papers }) {
   );
 }
 
-function FairComparisonChart({ curve, extract_curve, total_extract_matches, papers }) {
-  if (!extract_curve || extract_curve.length < 2) return null;
-  // Merge both curves into one dataset with separate keys
+function FairComparisonChart({ summarizer_random_curves, extract_curve, total_extract_matches, papers }) {
+  if (!summarizer_random_curves || !extract_curve || extract_curve.length < 2) return null;
+
   const xKey = "llm_calls_per_paper";
-  const merged = [];
-  for (const p of curve) {
-    merged.push({ [xKey]: p[xKey], summary_rho: p.vs_fullpdf_spearman, extract_rho: null });
-  }
-  for (const p of extract_curve) {
-    merged.push({ [xKey]: p[xKey], summary_rho: null, extract_rho: p.vs_fullpdf_spearman });
-  }
-  merged.sort((a, b) => a[xKey] - b[xKey]);
-  // Build separate point arrays for path drawing
-  const sumPts = curve.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
+  const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
+  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+
+  const entries = Object.entries(summarizer_random_curves);
   const extPts = extract_curve.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
-  const allX = [...sumPts.map(p => p[xKey]), ...extPts.map(p => p[xKey])];
-  const allY = [...sumPts.map(p => p.vs_fullpdf_spearman), ...extPts.map(p => p.vs_fullpdf_spearman)];
+  const allPts = entries.flatMap(([, pts]) => pts);
+  const allX = [...allPts.map(p => p[xKey] || 0), ...extPts.map(p => p[xKey] || 0)].filter(v => v > 0);
+  const allY = [...allPts, ...extPts].map(p => p.vs_fullpdf_spearman).filter(v => v != null);
   const maxX = Math.max(...allX);
   const yMin = Math.max(0, Math.floor(Math.min(...allY) * 10) / 10 - 0.1);
 
-  const W = 620, H = 260, PAD = { t: 20, r: 20, b: 44, l: 50 };
-  const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
   const sx = x => PAD.l + (x / maxX) * cw;
   const sy = y => PAD.t + (1 - (y - yMin) / (1.0 - yMin)) * ch;
   const makePath = pts => {
-    if (pts.length < 2) return null;
-    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p.vs_fullpdf_spearman).toFixed(1)}`).join(" ");
+    const valid = pts.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
+    if (valid.length < 2) return null;
+    return valid.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p[xKey]).toFixed(1)},${sy(p.vs_fullpdf_spearman).toFixed(1)}`).join(" ");
   };
-  const lastSum = sumPts[sumPts.length - 1];
+
   const lastExt = extPts[extPts.length - 1];
 
   return (
     <div className="border border-border rounded-lg p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold mb-0.5">Summary vs Extract: Convergence to Full-PDF Ranking</h3>
+        <h3 className="text-sm font-semibold mb-0.5">Summary vs Extract: Convergence by Summarizer</h3>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Fair comparison: both use <strong>1 LLM call per match</strong>. Summary uses a random (judge, summarizer) per match.
-          Extract uses round-robin models. X-axis = LLM calls per paper. {papers} papers. Extract: {total_extract_matches?.toLocaleString()} calls.
+          Fair comparison: all use <strong>1 LLM call per match</strong>. Each colored line uses a fixed summarizer with a random judge per match.
+          The <strong>orange dashed</strong> line is the extract tournament (round-robin judges). X-axis = LLM calls per paper.
+          {papers && <> {papers} papers. Extract: {total_extract_matches?.toLocaleString()} calls.</>}
         </p>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[620px]">
@@ -423,23 +418,38 @@ function FairComparisonChart({ curve, extract_curve, total_extract_matches, pape
         ))}
         <text x={PAD.l + cw / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="#9ca3af">LLM calls per paper</text>
         <text x={4} y={PAD.t + ch / 2} textAnchor="middle" fontSize="8" fill="#9ca3af" transform={`rotate(-90,4,${PAD.t + ch / 2})`}>Spearman ρ vs Full PDF</text>
+
         {makePath(extPts) && <path d={makePath(extPts)} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" />}
         {lastExt && <circle cx={sx(lastExt[xKey])} cy={sy(lastExt.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
-        {makePath(sumPts) && <path d={makePath(sumPts)} fill="none" stroke="#059669" strokeWidth="2.5" />}
-        {lastSum && <circle cx={sx(lastSum[xKey])} cy={sy(lastSum.vs_fullpdf_spearman)} r="3.5" fill="#059669" />}
+
+        {entries.map(([name, pts]) => {
+          const d = makePath(pts);
+          const color = SUMMARIZER_COLORS[name] || "#666";
+          const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null && p[xKey]);
+          return d ? (
+            <g key={name}>
+              <path d={d} fill="none" stroke={color} strokeWidth="2" />
+              {last && <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="3" fill={color} />}
+            </g>
+          ) : null;
+        })}
       </svg>
-      <div className="flex flex-wrap gap-5 text-[10px]">
-        {lastSum && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-4 h-0.5 rounded bg-emerald-600" />
-            <span className="text-muted-foreground">Abstract + Summary (random single):</span>
-            <span className="font-mono font-semibold">ρ = {lastSum.vs_fullpdf_spearman?.toFixed(3)}</span>
-            <span className="text-muted-foreground">@ {lastSum[xKey]} calls/paper</span>
-          </div>
-        )}
+      <div className="flex flex-wrap gap-4 text-[10px]">
+        {entries.map(([name, pts]) => {
+          const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null);
+          const color = SUMMARIZER_COLORS[name] || "#666";
+          return last ? (
+            <div key={name} className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color }} />
+              <span className="text-muted-foreground">{name} summary:</span>
+              <span className="font-mono font-semibold">ρ = {last.vs_fullpdf_spearman?.toFixed(3)}</span>
+              <span className="text-muted-foreground">@ {last[xKey]} calls/paper</span>
+            </div>
+          ) : null;
+        })}
         {lastExt && (
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 4px, transparent 4px 7px)" }} />
+            <div className="w-3 h-0.5 rounded" style={{ background: "repeating-linear-gradient(90deg, #f59e0b 0 4px, transparent 4px 7px)" }} />
             <span className="text-muted-foreground">Extract (round-robin):</span>
             <span className="font-mono font-semibold">ρ = {lastExt.vs_fullpdf_spearman?.toFixed(3)}</span>
             <span className="text-muted-foreground">@ {lastExt[xKey]} calls/paper</span>
