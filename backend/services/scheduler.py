@@ -744,7 +744,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             cat_status["current_activity"] = f"{total_matches + completed} total matches"
             logger.info(f"[{category}] Comparison round: {completed} ok, {failed} failed")
 
-            # Summaries are now pre-generated at fetch time (no post-hoc generation needed)
+            # Store ranking snapshot for convergence tracking
+            if completed > 0:
+                await _store_ranking_snapshot(category)
 
             return {"status": "ok", "completed": completed, "failed": failed}
 
