@@ -17,7 +17,8 @@ _llm_executor = ThreadPoolExecutor(max_workers=100, thread_name_prefix="llm")
 
 async def download_and_extract_pdf(pdf_url: str) -> Optional[str]:
     try:
-        async with httpx.AsyncClient() as http_client:
+        headers = {"User-Agent": "paperscraper/1.0 (+https)"}
+        async with httpx.AsyncClient(headers=headers) as http_client:
             response = await http_client.get(pdf_url, timeout=60.0, follow_redirects=True)
             response.raise_for_status()
 
