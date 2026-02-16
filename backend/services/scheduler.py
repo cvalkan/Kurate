@@ -556,8 +556,8 @@ async def _generate_paper_summaries(category: str = None):
     query = {}
     if category:
         query["categories.0"] = category
-    # Papers with either full_text or abstract (for ChemRxiv papers without PDFs)
-    query["$or"] = [{"full_text": {"$ne": None}}, {"abstract": {"$ne": None, "$ne": ""}}]
+    # Papers with either full_text or abstract
+    query["$or"] = [{"full_text": {"$ne": None}}, {"abstract": {"$exists": True, "$nin": [None, ""]}}]
 
     papers = await db.papers.find(
         query, {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
