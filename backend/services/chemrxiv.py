@@ -64,8 +64,8 @@ async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int 
         for paper in papers[:max_results]:
             if paper.get("link") and len(paper.get("abstract", "")) < 200:
                 try:
-                    await page.goto(paper["link"], wait_until="networkidle", timeout=20000)
-                    await page.wait_for_timeout(1000)
+                    await page.goto(paper["link"], wait_until="domcontentloaded", timeout=20000)
+                    await page.wait_for_timeout(3000)
                     html = await page.content()
                     full_abs = _extract_full_abstract(html)
                     if full_abs and len(full_abs) > len(paper.get("abstract", "")):
@@ -73,6 +73,7 @@ async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int 
                 except Exception:
                     pass
 
+        await context.close()
         await browser.close()
 
     papers = papers[:max_results]
