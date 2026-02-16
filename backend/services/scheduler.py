@@ -650,6 +650,16 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 cat_status["current_activity"] = "Not enough papers"
                 return {"status": "not_enough_papers"}
 
+            # Filter out papers without summaries — they shouldn't participate yet
+            papers_with_summaries = [p for p in all_papers if p.get("summaries")]
+            papers_without = len(all_papers) - len(papers_with_summaries)
+            if papers_without > 0:
+                logger.info(f"[{category}] Excluding {papers_without} papers without summaries from matchmaking")
+            all_papers = papers_with_summaries
+            if len(all_papers) < 2:
+                cat_status["current_activity"] = "Waiting for summaries"
+                return {"status": "waiting_for_summaries", "papers_without_summaries": papers_without}
+
             # Download any missing PDFs for this category
             papers_missing_text = sum(1 for p in all_papers if not p.get("full_text"))
             if papers_missing_text > 0:
