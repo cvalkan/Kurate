@@ -25,17 +25,35 @@ function getSummaryEntries(summaries) {
       const meta = SUMMARY_LABELS[provider] || { label: provider, color: "text-foreground" };
       return { key, provider, text, ...meta };
     })
-    .filter(e => e.text);
+    .filter(e => e.text && e.text.length > 50); // Filter out empty/failed summaries
 }
 
 function SummaryText({ text }) {
   return (
-    <div className="text-sm leading-relaxed space-y-3">
+    <div className="text-sm leading-relaxed space-y-2">
       {text.split("\n").filter(l => l.trim()).map((line, i) => {
+        // Markdown headers: ## or ###
+        const h2Match = line.match(/^#{1,3}\s+(.+)$/);
+        if (h2Match) {
+          return <h4 key={i} className="font-heading font-semibold text-sm mt-4 first:mt-0">{h2Match[1]}</h4>;
+        }
+        // Bold-only lines: **Title**
         const boldMatch = line.match(/^\*\*(.+?)\*\*$/);
         if (boldMatch) {
-          return <h4 key={i} className="font-heading font-medium text-sm mt-4 first:mt-0">{boldMatch[1]}</h4>;
+          return <h4 key={i} className="font-heading font-semibold text-sm mt-4 first:mt-0">{boldMatch[1]}</h4>;
         }
+        // Numbered headings: **1. Title** or **1) Title**
+        const numberedBold = line.match(/^\*\*(\d+[\.\)]\s*.+?)\*\*$/);
+        if (numberedBold) {
+          return <h4 key={i} className="font-heading font-semibold text-sm mt-3 first:mt-0">{numberedBold[1]}</h4>;
+        }
+        // Bullet points
+        const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+        if (bulletMatch) {
+          const content = bulletMatch[1].replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+          return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: content }} />;
+        }
+        // Inline bold
         const inlineBold = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
         if (inlineBold !== line) {
           return <p key={i} dangerouslySetInnerHTML={{ __html: inlineBold }} />;
