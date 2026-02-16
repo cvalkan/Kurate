@@ -960,9 +960,6 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
                 })
             single_config_curves[f"{_short(jk)} + {_short(sk)} sum"] = ck_curve
 
-    # Add llm_calls_per_paper to main curves
-    for p in curve:
-        p["llm_calls_per_paper"] = round(p["avg_matches_per_paper"] * 9, 1)
     for p in extract_curve:
         p["llm_calls_per_paper"] = p["avg_matches_per_paper"]
 
