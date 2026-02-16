@@ -639,57 +639,52 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
     summary_docs = [m for m in all_docs if m.get("summary_key") != "full_pdf"]
     fullpdf_docs = [m for m in all_docs if m.get("summary_key") == "full_pdf"]
 
-    # Build consensus winner per match
-    by_match = defaultdict(list)
+    # ── Build random-single matches: for each match, pick 1 random verdict from the 9 configs ──
+    # This is fair: 1 LLM call per match, random model diversity (like extract's round-robin)
+    by_match_all = defaultdict(list)  # original_match_id -> list of (paper1_id, paper2_id, winner_id)
     for m in summary_docs:
-        by_match[m["original_match_id"]].append(m["winner_id"])
-
-    consensus_matches = []
-    for mid, winners in by_match.items():
-        c = Counter(winners)
-        best, cnt = c.most_common(1)[0]
-        # Find a representative doc for paper IDs
-        rep = next(m for m in summary_docs if m["original_match_id"] == mid)
-        consensus_matches.append({
-            "paper1_id": rep["paper1_id"],
-            "paper2_id": rep["paper2_id"],
-            "winner_id": best,
-            "completed": True,
-            "failed": False,
+        by_match_all[m["original_match_id"]].append({
+            "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+            "winner_id": m["winner_id"],
         })
 
-    # Sort by original match order for stable subsampling
     random.seed(42)
-    random.shuffle(consensus_matches)
+    random_single_matches = []
+    for mid, verdicts in by_match_all.items():
+        pick = random.choice(verdicts)
+        random_single_matches.append({
+            "paper1_id": pick["paper1_id"], "paper2_id": pick["paper2_id"],
+            "winner_id": pick["winner_id"], "completed": True, "failed": False,
+        })
+    random.shuffle(random_single_matches)
 
-    # ── Reference 2: Full-PDF ranking ──
+    # ── Reference 2: Full-PDF ranking (also random-single: pick 1 of 3 judges) ──
     fp_by_match = defaultdict(list)
-    fp_match_papers = {}
     for m in fullpdf_docs:
-        fp_by_match[m["original_match_id"]].append(m["winner_id"])
-        fp_match_papers[m["original_match_id"]] = (m["paper1_id"], m["paper2_id"])
-
-    fullpdf_consensus_matches = []
-    for mid, winners in fp_by_match.items():
-        c = Counter(winners)
-        best, cnt = c.most_common(1)[0]
-        p1, p2 = fp_match_papers[mid]
-        fullpdf_consensus_matches.append({
-            "paper1_id": p1, "paper2_id": p2,
-            "winner_id": best, "completed": True, "failed": False,
+        fp_by_match[m["original_match_id"]].append({
+            "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+            "winner_id": m["winner_id"],
         })
 
-    fullpdf_lb = compute_leaderboard(papers, fullpdf_consensus_matches) if fullpdf_consensus_matches else []
+    fullpdf_single_matches = []
+    for mid, verdicts in fp_by_match.items():
+        pick = random.choice(verdicts)
+        fullpdf_single_matches.append({
+            "paper1_id": pick["paper1_id"], "paper2_id": pick["paper2_id"],
+            "winner_id": pick["winner_id"], "completed": True, "failed": False,
+        })
+
+    fullpdf_lb = compute_leaderboard(papers, fullpdf_single_matches) if fullpdf_single_matches else []
     fullpdf_rank = {e["id"]: e["rank"] for e in fullpdf_lb}
 
-    # ── Final summary ranking (all consensus matches) ──
-    final_lb = compute_leaderboard(papers, consensus_matches)
+    # ── Final summary ranking (all random-single matches) ──
+    final_lb = compute_leaderboard(papers, random_single_matches)
     final_rank = {e["id"]: e["rank"] for e in final_lb}
 
-    # ── Convergence curve ──
-    total = len(consensus_matches)
+    # ── Convergence curve (random-single: 1 call per match) ──
+    total = len(random_single_matches)
     if total < 10:
-        return {"status": "insufficient_data", "consensus_matches": total}
+        return {"status": "insufficient_data", "random_single_matches": total}
 
     step_size = max(1, total // steps)
     x_values = list(range(step_size, total + 1, step_size))
