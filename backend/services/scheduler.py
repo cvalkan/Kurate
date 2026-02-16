@@ -356,18 +356,16 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         if c < min_matches:
             return False
 
-    # Goal 2: top-K cross-matching
+    # Goal 2: top-K cross-matching (ALL top-K must have played each other)
     sorted_papers = sorted(
         paper_ids,
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
         reverse=True,
     )
     top_k_ids = sorted_papers[:min(top_k, len(sorted_papers))]
-    capped = {pid for pid in top_k_ids if paper_match_count[pid] >= max_matches}
-    crossmatch_ids = [pid for pid in top_k_ids if pid not in capped]
-    for i in range(len(crossmatch_ids)):
-        for j in range(i + 1, len(crossmatch_ids)):
-            pair = tuple(sorted([crossmatch_ids[i], crossmatch_ids[j]]))
+    for i in range(len(top_k_ids)):
+        for j in range(i + 1, len(top_k_ids)):
+            pair = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
             if pair not in compared_pairs:
                 return False
 
