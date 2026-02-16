@@ -430,6 +430,9 @@ function FairComparisonChart({ summarizer_random_curves, random_all_curve, extra
         {makePath(extPts) && <path d={makePath(extPts)} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" />}
         {lastExt && <circle cx={sx(lastExt[xKey])} cy={sy(lastExt.vs_fullpdf_spearman)} r="3" fill="#f59e0b" />}
 
+        {makePath(absPts) && <path d={makePath(absPts)} fill="none" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4,4" />}
+        {absPts.length > 0 && (() => { const l = absPts[absPts.length-1]; return l ? <circle cx={sx(l[xKey])} cy={sy(l.vs_fullpdf_spearman)} r="2.5" fill="#ef4444" /> : null; })()}
+
         {entries.map(([name, pts]) => {
           const d = makePath(pts);
           const color = SUMMARIZER_COLORS[name] || "#666";
