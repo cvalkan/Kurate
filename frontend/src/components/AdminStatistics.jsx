@@ -258,7 +258,7 @@ export function AdminStatistics({ categories }) {
         <StatSummaryCard
           label="Total Cost"
           value={`$${combinedCost.toFixed(2)}`}
-          sub={summaryCost > 0 ? `$${totals.cost.toFixed(0)} matches + $${summaryCost.toFixed(0)} summaries` : `${modelCount} models`}
+          sub={summaryCost > 0 ? `$${matchCost.toFixed(0)} matches + $${summaryCost.toFixed(0)} summaries` : `${modelCount} models`}
           icon={Coins} color="#f59e0b"
         />
       </div>
