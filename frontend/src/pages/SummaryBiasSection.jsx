@@ -377,7 +377,7 @@ const SUMMARIZER_COLORS = {
   "GPT 5.2": "#2563eb",
 };
 
-function FairComparisonChart({ summarizer_random_curves, random_all_curve, extract_curve, total_extract_matches, papers }) {
+function FairComparisonChart({ summarizer_random_curves, random_all_curve, extract_curve, abstract_curve, total_extract_matches, papers }) {
   if (!summarizer_random_curves || !extract_curve || extract_curve.length < 2) return null;
 
   const xKey = "llm_calls_per_paper";
@@ -386,8 +386,9 @@ function FairComparisonChart({ summarizer_random_curves, random_all_curve, extra
 
   const entries = Object.entries(summarizer_random_curves);
   const extPts = extract_curve.filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
+  const absPts = (abstract_curve || []).filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
   const randPts = (random_all_curve || []).filter(p => p.vs_fullpdf_spearman != null && p[xKey] != null);
-  const allPts = [...entries.flatMap(([, pts]) => pts), ...randPts];
+  const allPts = [...entries.flatMap(([, pts]) => pts), ...randPts, ...absPts];
   const allX = [...allPts.map(p => p[xKey] || 0), ...extPts.map(p => p[xKey] || 0)].filter(v => v > 0);
   const allY = [...allPts, ...extPts].map(p => p.vs_fullpdf_spearman).filter(v => v != null);
   const maxX = Math.max(...allX);
