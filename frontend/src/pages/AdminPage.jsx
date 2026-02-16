@@ -16,7 +16,6 @@ import { AdminOverview } from "@/components/AdminOverview";
 import { AdminExperiment } from "@/components/AdminExperiment";
 import { AdminStatistics } from "@/components/AdminStatistics";
 import { AdminCategories } from "@/components/AdminCategories";
-import { AdminExtraction } from "@/components/AdminExtraction";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
