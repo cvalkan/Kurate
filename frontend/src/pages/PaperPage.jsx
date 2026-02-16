@@ -1,20 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
-  ArrowLeft, ExternalLink, Trophy, XCircle, CheckCircle2, Clock, Sparkles, Tag,
+  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag,
 } from "lucide-react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-// Map summary keys to display names
 const SUMMARY_LABELS = {
-  "anthropic": { label: "Claude", color: "text-orange-500" },
-  "gemini": { label: "Gemini", color: "text-blue-500" },
-  "openai": { label: "GPT", color: "text-green-500" },
+  anthropic: { label: "Claude", color: "text-orange-500" },
+  gemini: { label: "Gemini", color: "text-blue-500" },
+  openai: { label: "GPT", color: "text-green-500" },
 };
 
 function getSummaryEntries(summaries) {
@@ -23,45 +24,89 @@ function getSummaryEntries(summaries) {
     .map(([key, text]) => {
       const provider = key.split(":")[0];
       const meta = SUMMARY_LABELS[provider] || { label: provider, color: "text-foreground" };
-      return { key, provider, text, ...meta };
+      // Use provider as safe tab id (no colons/dots)
+      return { key, tabId: provider, provider, text, ...meta };
     })
-    .filter(e => e.text && e.text.length > 50); // Filter out empty/failed summaries
+    .filter(e => e.text && e.text.length > 50);
+}
+
+/** Render LaTeX expressions in a string. Handles both $...$ (inline) and $$...$$ (block). */
+function renderLatex(text) {
+  if (!text) return text;
+  // Block math: $$...$$
+  let result = text.replace(/\$\$(.+?)\$\$/gs, (_, expr) => {
+    try {
+      return katex.renderToString(expr.trim(), { displayMode: true, throwOnError: false });
+    } catch { return `$$${expr}$$`; }
+  });
+  // Inline math: $...$  (but not $$)
+  result = result.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (_, expr) => {
+    try {
+      return katex.renderToString(expr.trim(), { displayMode: false, throwOnError: false });
+    } catch { return `$${expr}$`; }
+  });
+  // Common LaTeX commands outside of $...$ delimiters
+  result = result.replace(/\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|omega|pi|rho|tau|phi|psi|chi|eta|zeta|nu|xi|kappa|iota|mathbb|mathcal|mathrm|infty|nabla|partial|sum|prod|int|sqrt|frac|log|exp|sin|cos|tan|lim|max|min|sup|inf)\b/g, (match) => {
+    try {
+      return katex.renderToString(match, { displayMode: false, throwOnError: false });
+    } catch { return match; }
+  });
+  return result;
+}
+
+/** Render a text line with inline bold and LaTeX */
+function RenderedLine({ text }) {
+  // Apply bold markdown first, then LaTeX
+  let html = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = renderLatex(html);
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function SummaryText({ text }) {
+  if (!text) return null;
   return (
     <div className="text-sm leading-relaxed space-y-2">
       {text.split("\n").filter(l => l.trim()).map((line, i) => {
         // Markdown headers: ## or ###
         const h2Match = line.match(/^#{1,3}\s+(.+)$/);
         if (h2Match) {
-          return <h4 key={i} className="font-heading font-semibold text-sm mt-4 first:mt-0">{h2Match[1]}</h4>;
+          return <h4 key={i} className="font-heading font-semibold text-sm mt-4 first:mt-0"><RenderedLine text={h2Match[1]} /></h4>;
         }
         // Bold-only lines: **Title**
         const boldMatch = line.match(/^\*\*(.+?)\*\*$/);
         if (boldMatch) {
-          return <h4 key={i} className="font-heading font-semibold text-sm mt-4 first:mt-0">{boldMatch[1]}</h4>;
+          return <h4 key={i} className="font-heading font-semibold text-sm mt-4 first:mt-0"><RenderedLine text={boldMatch[1]} /></h4>;
         }
-        // Numbered headings: **1. Title** or **1) Title**
+        // Numbered headings: **1. Title**
         const numberedBold = line.match(/^\*\*(\d+[\.\)]\s*.+?)\*\*$/);
         if (numberedBold) {
-          return <h4 key={i} className="font-heading font-semibold text-sm mt-3 first:mt-0">{numberedBold[1]}</h4>;
+          return <h4 key={i} className="font-heading font-semibold text-sm mt-3 first:mt-0"><RenderedLine text={numberedBold[1]} /></h4>;
         }
         // Bullet points
         const bulletMatch = line.match(/^[-*]\s+(.+)$/);
         if (bulletMatch) {
-          const content = bulletMatch[1].replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-          return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: content }} />;
+          const html = renderLatex(bulletMatch[1].replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"));
+          return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: html }} />;
         }
-        // Inline bold
-        const inlineBold = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-        if (inlineBold !== line) {
-          return <p key={i} dangerouslySetInnerHTML={{ __html: inlineBold }} />;
+        // Regular line with inline formatting + LaTeX
+        const html = renderLatex(line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"));
+        if (html !== line) {
+          return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
         }
         return <p key={i}>{line}</p>;
       })}
     </div>
   );
+}
+
+/** Render abstract text with LaTeX support */
+function AbstractText({ text }) {
+  if (!text) return null;
+  const html = renderLatex(text);
+  if (html !== text) {
+    return <p className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  return <p className="text-sm leading-relaxed">{text}</p>;
 }
 
 export default function PaperPage() {
@@ -170,11 +215,11 @@ export default function PaperPage() {
       {paper.abstract && (
         <div className="mb-8 p-4 bg-secondary/30 rounded-lg border border-border" data-testid="paper-abstract">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Abstract</h3>
-          <p className="text-sm leading-relaxed">{paper.abstract}</p>
+          <AbstractText text={paper.abstract} />
         </div>
       )}
 
-      {/* AI Impact Summaries — Tabbed view for pre-generated summaries */}
+      {/* AI Impact Summaries — Tabbed view */}
       {summaryEntries.length > 0 ? (
         <div className="mb-8 p-4 bg-accent/[0.03] rounded-lg border border-accent/20" data-testid="ai-summaries">
           <div className="flex items-center gap-1.5 mb-3">
@@ -182,23 +227,22 @@ export default function PaperPage() {
             <h3 className="text-xs font-medium text-accent uppercase tracking-wide">AI Impact Assessments</h3>
             <span className="text-[10px] text-muted-foreground ml-1">({summaryEntries.length} models)</span>
           </div>
-          <Tabs defaultValue={summaryEntries[0].key}>
+          <Tabs defaultValue={summaryEntries[0].tabId}>
             <TabsList className="mb-3">
               {summaryEntries.map(e => (
-                <TabsTrigger key={e.key} value={e.key} className="text-xs gap-1.5" data-testid={`summary-tab-${e.provider}`}>
+                <TabsTrigger key={e.tabId} value={e.tabId} className="text-xs gap-1.5" data-testid={`summary-tab-${e.provider}`}>
                   <span className={e.color}>{e.label}</span>
                 </TabsTrigger>
               ))}
             </TabsList>
             {summaryEntries.map(e => (
-              <TabsContent key={e.key} value={e.key} data-testid={`summary-content-${e.provider}`}>
+              <TabsContent key={e.tabId} value={e.tabId} data-testid={`summary-content-${e.provider}`}>
                 <SummaryText text={e.text} />
               </TabsContent>
             ))}
           </Tabs>
         </div>
       ) : paper.impact_summary ? (
-        /* Fallback: old-style single impact summary */
         <div className="mb-8 p-4 bg-accent/[0.03] rounded-lg border border-accent/20" data-testid="impact-summary">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
