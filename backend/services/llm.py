@@ -666,7 +666,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
             )
             if response and response.strip():
-                return {"summary": response.strip(), "model_used": model_info, "char_count": len(response.strip()), "word_count": len(response.strip().split())}
+                summary_text = response.strip() if isinstance(response, str) else str(response)
+                return {"summary": summary_text, "model_used": model_info, "char_count": len(summary_text), "word_count": len(summary_text.split())}
         except Exception as e:
             logger.warning(f"Impact assessment attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
             if attempt < max_retries - 1:
