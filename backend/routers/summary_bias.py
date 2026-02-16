@@ -788,5 +788,3 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         "curve": curve,
         "config_correlations": config_correlations,
     }
-
-    }
