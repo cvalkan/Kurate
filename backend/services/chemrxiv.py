@@ -1,87 +1,68 @@
-"""ChemRxiv paper fetcher — uses Playwright to bypass Cloudflare and scrape search results."""
+"""ChemRxiv paper fetcher — uses crawl_tool data or lightweight scraping."""
 import re
-import asyncio
+import json
+import httpx
+from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
 from core.config import logger
-
-CHEMRXIV_SEARCH_URL = "https://chemrxiv.org/action/doSearch"
 
 CHEMRXIV_SUBJECTS = {
     "chemrxiv.IC": {"concept_id": "502564", "name": "Inorganic Chemistry"},
 }
 
+SEED_FILE = Path(__file__).parent.parent / "data" / "chemrxiv_seed.json"
+
 
 async def fetch_chemrxiv_papers(category: str = "chemrxiv.IC", max_results: int = 50) -> List[Dict]:
-    """Fetch recent papers from ChemRxiv using Playwright to handle Cloudflare."""
+    """Fetch papers from ChemRxiv. Uses seed file if available, else tries HTTP scraping."""
     subject = CHEMRXIV_SUBJECTS.get(category)
     if not subject:
         logger.error(f"Unknown ChemRxiv category: {category}")
         return []
 
+    # Check for seed file first
+    if SEED_FILE.exists():
+        try:
+            with open(SEED_FILE) as f:
+                papers = json.load(f)
+            papers = [p for p in papers if category in p.get("categories", [])]
+            logger.info(f"ChemRxiv: loaded {len(papers)} papers from seed file")
+            return papers[:max_results]
+        except Exception as e:
+            logger.warning(f"ChemRxiv seed file error: {e}")
+
+    # Fallback: try HTTP with browser-like headers
     papers = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
     pages_needed = (max_results + 19) // 20
 
-    try:
-        from playwright.async_api import async_playwright
-    except ImportError:
-        logger.error("Playwright not installed — cannot fetch ChemRxiv papers")
-        return []
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            executable_path="/pw-browsers/chromium-1208/chrome-linux/chrome",
-            args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
-        )
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        )
-        page = await context.new_page()
-
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
         for pg in range(pages_needed):
             if len(papers) >= max_results:
                 break
-            url = f"{CHEMRXIV_SEARCH_URL}?ConceptID={subject['concept_id']}&sortBy=Earliest&startPage={pg}&pageSize=20"
+            url = f"https://chemrxiv.org/action/doSearch?ConceptID={subject['concept_id']}&sortBy=Earliest&startPage={pg}&pageSize=20"
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                # Wait for Cloudflare challenge to resolve
-                await page.wait_for_timeout(5000)
-                # Wait for search results to appear
-                try:
-                    await page.wait_for_selector('a[href*="/doi/full/"]', timeout=15000)
-                except Exception:
-                    pass
-                html = await page.content()
-                page_papers = _parse_search_results(html, category)
+                resp = await client.get(url)
+                if resp.status_code == 403:
+                    logger.warning(f"ChemRxiv 403 (Cloudflare) on page {pg} — use seed file instead")
+                    break
+                resp.raise_for_status()
+                page_papers = parse_search_html(resp.text, category)
                 papers.extend(page_papers)
-                logger.info(f"ChemRxiv page {pg}: found {len(page_papers)} papers")
             except Exception as e:
-                logger.error(f"ChemRxiv fetch page {pg} failed: {e}")
+                logger.error(f"ChemRxiv fetch page {pg}: {e}")
                 break
 
-        # Fetch full abstracts for papers with truncated ones
-        for paper in papers[:max_results]:
-            if paper.get("link") and len(paper.get("abstract", "")) < 200:
-                try:
-                    await page.goto(paper["link"], wait_until="domcontentloaded", timeout=20000)
-                    await page.wait_for_timeout(3000)
-                    html = await page.content()
-                    full_abs = _extract_full_abstract(html)
-                    if full_abs and len(full_abs) > len(paper.get("abstract", "")):
-                        paper["abstract"] = full_abs
-                except Exception:
-                    pass
-
-        await context.close()
-        await browser.close()
-
-    papers = papers[:max_results]
     logger.info(f"ChemRxiv: fetched {len(papers)} {category} papers")
-    return papers
+    return papers[:max_results]
 
 
-def _parse_search_results(html: str, category: str) -> List[Dict]:
+def parse_search_html(html: str, category: str) -> List[Dict]:
     """Parse papers from ChemRxiv search results HTML."""
     papers = []
     date_pattern = re.compile(
@@ -155,22 +136,3 @@ def _parse_search_results(html: str, category: str) -> List[Dict]:
         })
 
     return papers
-
-
-def _extract_full_abstract(html: str) -> Optional[str]:
-    """Extract full abstract from a ChemRxiv paper page."""
-    meta_match = re.search(r'<meta[^>]*property="og:description"[^>]*content="([^"]*)"', html)
-    if meta_match:
-        abstract = meta_match.group(1).strip()
-        if len(abstract) > 100:
-            return abstract
-    abstract_match = re.search(
-        r'class="abstract[^"]*"[^>]*>(.*?)</(?:div|section)>',
-        html, re.DOTALL,
-    )
-    if abstract_match:
-        abstract = re.sub(r'<[^>]+>', '', abstract_match.group(1)).strip()
-        abstract = re.sub(r'\s+', ' ', abstract)
-        if len(abstract) > 100:
-            return abstract
-    return None
