@@ -440,8 +440,24 @@ function FairComparisonChart({ summarizer_random_curves, random_all_curve, extra
             </g>
           ) : null;
         })}
+
+        {/* Random summarizer + random judge */}
+        {makePath(randPts) && <path d={makePath(randPts)} fill="none" stroke="#334155" strokeWidth="2.5" />}
+        {randPts.length > 0 && (() => { const last = randPts[randPts.length - 1]; return last ? <circle cx={sx(last[xKey])} cy={sy(last.vs_fullpdf_spearman)} r="3.5" fill="#334155" /> : null; })()}
       </svg>
       <div className="flex flex-wrap gap-4 text-[10px]">
+        {/* Random all line */}
+        {randPts.length > 0 && (() => {
+          const last = randPts[randPts.length - 1];
+          return last ? (
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-0.5 rounded bg-slate-700" />
+              <span className="text-muted-foreground">Random summary + judge:</span>
+              <span className="font-mono font-semibold">ρ = {last.vs_fullpdf_spearman?.toFixed(3)}</span>
+              <span className="text-muted-foreground">@ {last[xKey]} calls/paper</span>
+            </div>
+          ) : null;
+        })()}
         {entries.map(([name, pts]) => {
           const last = [...pts].reverse().find(p => p.vs_fullpdf_spearman != null);
           const color = SUMMARIZER_COLORS[name] || "#666";
