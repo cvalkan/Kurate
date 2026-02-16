@@ -553,11 +553,11 @@ async def _generate_paper_summaries(category: str = None):
     settings = await get_settings()
     parallel = settings.get("summary_parallel", 10)
 
-    query = {"pdf_link": {"$ne": None}}
+    query = {}
     if category:
         query["categories.0"] = category
-    # Only papers with full_text
-    query["full_text"] = {"$ne": None}
+    # Papers with either full_text or abstract (for ChemRxiv papers without PDFs)
+    query["$or"] = [{"full_text": {"$ne": None}}, {"abstract": {"$ne": None, "$ne": ""}}]
 
     papers = await db.papers.find(
         query, {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
