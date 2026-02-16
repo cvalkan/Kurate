@@ -526,9 +526,10 @@ async def get_results(category: str = Query("q-bio.BM")):
         {"_id": 0}
     ).to_list(100000)
 
-    # Separate summary experiment matches from full-pdf baseline
-    matches = [m for m in all_docs if m.get("summary_key") != "full_pdf"]
+    # Separate summary experiment matches from full-pdf and abstract baselines
+    matches = [m for m in all_docs if m.get("summary_key") not in ("full_pdf", "abstract")]
     fullpdf_docs = [m for m in all_docs if m.get("summary_key") == "full_pdf"]
+    abstract_docs_r = [m for m in all_docs if m.get("summary_key") == "abstract"]
 
     if not matches:
         return {"status": "no_data"}
