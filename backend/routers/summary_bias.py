@@ -1022,6 +1022,65 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
 
         summarizer_random_curves[_short(sk)] = sk_curve
 
+    # ── Per-judge curves with random summarizer (1 call/match, fixed judge) ──
+    judge_keys = sorted({m["judge_key"] for m in summary_docs})
+    judge_random_curves = {}
+    for jk in judge_keys:
+        jk_by_match = defaultdict(list)
+        for m in summary_docs:
+            if m["judge_key"] == jk:
+                jk_by_match[m["original_match_id"]].append({
+                    "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                    "winner_id": m["winner_id"],
+                })
+
+        random.seed(42)
+        jk_matches = []
+        for mid, verdicts in jk_by_match.items():
+            pick = random.choice(verdicts)
+            jk_matches.append({
+                "paper1_id": pick["paper1_id"], "paper2_id": pick["paper2_id"],
+                "winner_id": pick["winner_id"], "completed": True, "failed": False,
+            })
+        random.shuffle(jk_matches)
+
+        jk_total = len(jk_matches)
+        jk_step = max(1, jk_total // steps)
+        jk_x = list(range(jk_step, jk_total + 1, jk_step))
+        if jk_x and jk_x[-1] < jk_total:
+            jk_x.append(jk_total)
+
+        jk_curve = []
+        for n_m in jk_x:
+            subset = jk_matches[:n_m]
+            sub_lb = compute_leaderboard(papers, subset)
+            sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+            active = ({m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}) & paper_ids
+            counts = defaultdict(int)
+            for m in subset:
+                if m["paper1_id"] in paper_ids:
+                    counts[m["paper1_id"]] += 1
+                if m["paper2_id"] in paper_ids:
+                    counts[m["paper2_id"]] += 1
+            ac = [counts[p] for p in active if counts[p] > 0]
+            avg_mpp = round(sum(ac) / max(len(ac), 1), 1)
+
+            fp_rho = None
+            if fullpdf_rank:
+                common_fp = [pid for pid in active if pid in fullpdf_rank and pid in sub_rank]
+                if len(common_fp) >= 3:
+                    sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common_fp], [fullpdf_rank[p] for p in common_fp])
+                    fp_rho = round(sp, 4) if not (sp != sp) else 0
+
+            jk_curve.append({
+                "matches": n_m,
+                "avg_matches_per_paper": avg_mpp,
+                "llm_calls_per_paper": avg_mpp,
+                "vs_fullpdf_spearman": fp_rho,
+            })
+
+        judge_random_curves[_short(jk)] = jk_curve
+
     return {
         "status": "ok",
         "category": category,
