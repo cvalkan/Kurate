@@ -893,8 +893,10 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
 
             counts = defaultdict(int)
             for m in subset:
-                if m["paper1_id"] in paper_ids: counts[m["paper1_id"]] += 1
-                if m["paper2_id"] in paper_ids: counts[m["paper2_id"]] += 1
+                if m["paper1_id"] in paper_ids:
+                    counts[m["paper1_id"]] += 1
+                if m["paper2_id"] in paper_ids:
+                    counts[m["paper2_id"]] += 1
             ac = [counts[p] for p in active if counts[p] > 0]
             avg_mpp = round(sum(ac) / max(len(ac), 1), 1)
 
