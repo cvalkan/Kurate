@@ -103,7 +103,8 @@ async def health():
 async def startup():
     try:
         await db.papers.create_index("id", unique=True)
-        await db.papers.create_index("arxiv_id", unique=True)
+        await db.papers.create_index("arxiv_id", unique=True, sparse=True)
+        await db.papers.create_index("chemrxiv_id", unique=True, sparse=True)
         await db.papers.create_index("published")
         await db.matches.create_index("id", unique=True)
         await db.matches.create_index("paper1_id")
