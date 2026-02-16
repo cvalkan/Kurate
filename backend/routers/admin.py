@@ -517,7 +517,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         },
         "goal3": {
             "met": bool(goal3_met),
-            "label": f"Top-{len(topk_crossmatch_ids)} cross-matches" + (f" ({len(topk_capped)} capped)" if topk_capped else ""),
+            "label": f"Top-{len(top_k_ids)} cross-matches",
             "done": int(topk_matched_pairs),
             "total": int(topk_total_pairs),
         },
