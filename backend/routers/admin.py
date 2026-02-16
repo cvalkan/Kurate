@@ -269,12 +269,13 @@ async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSu
     ).to_list(5000)
 
     from core.config import TOURNAMENT_MODELS
-    model_keys = [f"{m['provider']}:{m['model']}" for m in TOURNAMENT_MODELS]
+    from services.scheduler import _summary_model_key
+    model_keys = [_summary_model_key(m) for m in TOURNAMENT_MODELS]
 
     needs_work = 0
     for p in all_papers:
         existing = p.get("summaries") or {}
-        missing = [mk for mk in model_keys if mk not in existing]
+        missing = [mk for mk in model_keys if mk not in existing or not isinstance(existing.get(mk), str) or len(existing.get(mk, "")) < 50]
         if missing:
             needs_work += 1
 
