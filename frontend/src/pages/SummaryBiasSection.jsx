@@ -260,7 +260,7 @@ function ConvergenceChart({ data }) {
       <InternalChart curve={curve} total={total_summary_matches} papers={papers} />
 
       {/* Chart 2: Per-summarizer (random judge) vs Extract */}
-      <FairComparisonChart summarizer_random_curves={summarizer_random_curves} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
+      <FairComparisonChart summarizer_random_curves={summarizer_random_curves} random_all_curve={curve} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
 
       {/* Chart 3: All 9 single configs vs extract */}
       <SingleConfigChart single_config_curves={single_config_curves} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
