@@ -358,9 +358,10 @@ async def get_progress_estimate(category: str = "cs.RO"):
 
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
-    max_matches = settings.get("max_matches_per_paper", 150)
+    max_matches = settings.get("max_matches_per_paper", 20)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 12)
+    convergence_threshold = settings.get("convergence_threshold", 0.95)
+    convergence_rounds = settings.get("convergence_rounds", 3)
     global_paused = settings.get("paused", False)
     parallel_agents = settings.get("parallel_agents", 5)
 
