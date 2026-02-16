@@ -2,12 +2,49 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
   ArrowLeft, ExternalLink, Trophy, XCircle, CheckCircle2, Clock, Sparkles, Tag,
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
+
+// Map summary keys to display names
+const SUMMARY_LABELS = {
+  "anthropic": { label: "Claude", color: "text-orange-500" },
+  "gemini": { label: "Gemini", color: "text-blue-500" },
+  "openai": { label: "GPT", color: "text-green-500" },
+};
+
+function getSummaryEntries(summaries) {
+  if (!summaries || typeof summaries !== "object") return [];
+  return Object.entries(summaries)
+    .map(([key, text]) => {
+      const provider = key.split(":")[0];
+      const meta = SUMMARY_LABELS[provider] || { label: provider, color: "text-foreground" };
+      return { key, provider, text, ...meta };
+    })
+    .filter(e => e.text);
+}
+
+function SummaryText({ text }) {
+  return (
+    <div className="text-sm leading-relaxed space-y-3">
+      {text.split("\n").filter(l => l.trim()).map((line, i) => {
+        const boldMatch = line.match(/^\*\*(.+?)\*\*$/);
+        if (boldMatch) {
+          return <h4 key={i} className="font-heading font-medium text-sm mt-4 first:mt-0">{boldMatch[1]}</h4>;
+        }
+        const inlineBold = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        if (inlineBold !== line) {
+          return <p key={i} dangerouslySetInnerHTML={{ __html: inlineBold }} />;
+        }
+        return <p key={i}>{line}</p>;
+      })}
+    </div>
+  );
+}
 
 export default function PaperPage() {
   const { id } = useParams();
@@ -51,6 +88,7 @@ export default function PaperPage() {
 
   const { paper, matches, stats } = data;
   const winRate = stats.comparisons > 0 ? Math.round((stats.wins / stats.comparisons) * 100) : 0;
+  const summaryEntries = getSummaryEntries(paper.summaries);
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-4xl py-6 md:py-10">
@@ -118,8 +156,31 @@ export default function PaperPage() {
         </div>
       )}
 
-      {/* Impact Summary */}
-      {paper.impact_summary && (
+      {/* AI Impact Summaries — Tabbed view for pre-generated summaries */}
+      {summaryEntries.length > 0 ? (
+        <div className="mb-8 p-4 bg-accent/[0.03] rounded-lg border border-accent/20" data-testid="ai-summaries">
+          <div className="flex items-center gap-1.5 mb-3">
+            <Sparkles className="h-3.5 w-3.5 text-accent" />
+            <h3 className="text-xs font-medium text-accent uppercase tracking-wide">AI Impact Assessments</h3>
+            <span className="text-[10px] text-muted-foreground ml-1">({summaryEntries.length} models)</span>
+          </div>
+          <Tabs defaultValue={summaryEntries[0].key}>
+            <TabsList className="mb-3">
+              {summaryEntries.map(e => (
+                <TabsTrigger key={e.key} value={e.key} className="text-xs gap-1.5" data-testid={`summary-tab-${e.provider}`}>
+                  <span className={e.color}>{e.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {summaryEntries.map(e => (
+              <TabsContent key={e.key} value={e.key} data-testid={`summary-content-${e.provider}`}>
+                <SummaryText text={e.text} />
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+      ) : paper.impact_summary ? (
+        /* Fallback: old-style single impact summary */
         <div className="mb-8 p-4 bg-accent/[0.03] rounded-lg border border-accent/20" data-testid="impact-summary">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
@@ -130,26 +191,14 @@ export default function PaperPage() {
               <ModelBadge model={paper.summary_model_used} />
             )}
           </div>
-          <div className="text-sm leading-relaxed space-y-3">
-            {paper.impact_summary.split('\n').filter(l => l.trim()).map((line, i) => {
-              const boldMatch = line.match(/^\*\*(.+?)\*\*$/);
-              if (boldMatch) {
-                return <h4 key={i} className="font-heading font-medium text-sm mt-4 first:mt-0">{boldMatch[1]}</h4>;
-              }
-              const inlineBold = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-              if (inlineBold !== line) {
-                return <p key={i} dangerouslySetInnerHTML={{ __html: inlineBold }} />;
-              }
-              return <p key={i}>{line}</p>;
-            })}
-          </div>
+          <SummaryText text={paper.impact_summary} />
           {paper.summary_generated_at && (
             <p className="text-[10px] text-muted-foreground mt-3">
               Generated {new Date(paper.summary_generated_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
             </p>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8" data-testid="paper-stats">
