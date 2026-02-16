@@ -598,6 +598,7 @@ async def get_results(category: str = Query("q-bio.BM")):
         "unanimous_rate": round(unanimous / n * 100, 1),
         "consensus_matches": len(consensus),
         "consensus_rate": round(len(consensus) / n * 100, 1),
+    }
 
 
 # ─── Convergence ─────────────────────────────────────────────────────────
