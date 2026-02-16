@@ -108,6 +108,16 @@ Build a comprehensive system for validating and comparing the performance of AI 
 - P1: Phase 4 — Backfill summaries for existing papers, migration testing
 - P2: Resume ICLR LLMs multi-model runs
 
+## Architecture Update: Summary-First Pipeline (Phase 1 Complete)
+- Replaced section extraction with pre-generated AI impact summaries as tournament input
+- On paper fetch: download PDF → generate 3 AI summaries (Claude, Gemini, GPT) → store in `papers.summaries`
+- Tournament now uses `content_mode="abstract_plus_summary"` with admin-configurable summary source
+- New admin setting: `summary_source` ("claude", "gemini", "gpt", "round_robin")
+- Convergence-based stopping: Spearman ρ stability check replaces CI-based stopping
+- New settings: `convergence_threshold` (0.95), `convergence_rounds` (3), reduced `max_matches_per_paper` (20)
+- Removed: `ci_target`, `section_char_limit` settings (obsolete)
+- Prompts page now shows pre-comparison IMPACT_ASSESSMENT_PROMPT instead of post-hoc summary prompt
+
 ## Backlog
 - Explore eLife as complementary dataset
 - Experiment with different LLMs (Gemini 3 Flash)
