@@ -222,62 +222,81 @@ async def trigger_summary_generation(body: GenerateSummariesRequest = GenerateSu
 
 @router.get("/summary-stats", dependencies=[Depends(verify_admin)])
 async def get_summary_stats(category: str = None):
-    """Get statistics about AI impact summary generation."""
-    query_with = {"impact_summary": {"$exists": True, "$ne": None}}
-    query_without = {"$or": [{"impact_summary": {"$exists": False}}, {"impact_summary": None}]}
-    
+    """Get statistics about AI impact summary generation (both legacy and pre-generated)."""
+    query_base = {}
     if category:
-        query_with["categories.0"] = category
-        query_without["categories.0"] = category
-    
-    with_summary = await db.papers.count_documents(query_with)
-    without_summary = await db.papers.count_documents(query_without)
-    
-    # Count papers with enough matches but no summary
-    pipeline = [
-        {"$match": query_without},
-        {"$lookup": {
-            "from": "matches",
-            "let": {"paper_id": "$id"},
-            "pipeline": [
-                {"$match": {
-                    "$expr": {"$or": [
-                        {"$eq": ["$paper1_id", "$$paper_id"]},
-                        {"$eq": ["$paper2_id", "$$paper_id"]}
-                    ]},
-                    "completed": True,
-                    "failed": {"$ne": True},
-                    "mode": {"$exists": False}
-                }},
-                {"$count": "match_count"}
-            ],
-            "as": "match_info"
-        }},
-        {"$addFields": {
-            "match_count": {"$ifNull": [{"$arrayElemAt": ["$match_info.match_count", 0]}, 0]}
-        }},
-        {"$match": {"match_count": {"$gte": 3}}},
-        {"$count": "eligible"}
-    ]
-    
-    result = await db.papers.aggregate(pipeline).to_list(1)
-    eligible = result[0]["eligible"] if result else 0
-    
-    # Check tournament status for the category
-    tournament_status = None
-    if category:
-        from services.scheduler import _check_goals_met
-        goals_met = await _check_goals_met(category=category)
-        tournament_status = "completed" if goals_met else "in_progress"
-    
+        query_base["categories.0"] = category
+
+    # Legacy summaries
+    legacy_with = await db.papers.count_documents({**query_base, "impact_summary": {"$exists": True, "$ne": None}})
+
+    # Pre-generated summaries (new architecture)
+    pregen_with = await db.papers.count_documents({**query_base, "summaries": {"$exists": True, "$ne": None}})
+    total = await db.papers.count_documents(query_base)
+    without_pregen = total - pregen_with
+
     return {
-        "with_summary": with_summary,
-        "without_summary": without_summary,
-        "eligible_for_summary": eligible,
-        "total": with_summary + without_summary,
-        "coverage_rate": round(with_summary / max(with_summary + without_summary, 1) * 100, 1),
+        "with_summary": legacy_with,
+        "with_pregen_summaries": pregen_with,
+        "without_pregen_summaries": without_pregen,
+        "total": total,
+        "pregen_coverage_rate": round(pregen_with / max(total, 1) * 100, 1),
+        "legacy_coverage_rate": round(legacy_with / max(total, 1) * 100, 1),
         "category": category,
-        "tournament_status": tournament_status,
+    }
+
+
+class BackfillSummariesRequest(BaseModel):
+    category: str = None  # None = all categories
+
+
+@router.post("/backfill-summaries", dependencies=[Depends(verify_admin)])
+async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSummariesRequest()):
+    """Backfill pre-generated AI summaries (3 models) for existing papers.
+    
+    This generates summaries from Claude, Gemini, and GPT for papers that don't have them yet.
+    Runs in background. Papers must have full_text available.
+    """
+    from services.scheduler import _generate_paper_summaries
+
+    query = {"full_text": {"$ne": None}}
+    if body.category:
+        query["categories.0"] = body.category
+
+    # Count papers needing summaries
+    all_papers = await db.papers.find(
+        query, {"_id": 0, "id": 1, "summaries": 1}
+    ).to_list(5000)
+
+    from core.config import TOURNAMENT_MODELS
+    model_keys = [f"{m['provider']}:{m['model']}" for m in TOURNAMENT_MODELS]
+
+    needs_work = 0
+    for p in all_papers:
+        existing = p.get("summaries") or {}
+        missing = [mk for mk in model_keys if mk not in existing]
+        if missing:
+            needs_work += 1
+
+    if needs_work == 0:
+        return {
+            "status": "complete",
+            "category": body.category,
+            "papers_with_text": len(all_papers),
+            "papers_needing_summaries": 0,
+            "note": "All papers already have pre-generated summaries from all 3 models.",
+        }
+
+    # Run in background
+    asyncio.create_task(_generate_paper_summaries(category=body.category))
+
+    return {
+        "status": "started",
+        "category": body.category,
+        "papers_with_text": len(all_papers),
+        "papers_needing_summaries": needs_work,
+        "total_summaries_to_generate": needs_work * 3,
+        "note": f"Generating 3 AI summaries per paper for {needs_work} papers in background.",
     }
 
 
