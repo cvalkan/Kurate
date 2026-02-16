@@ -262,7 +262,7 @@ function ConvergenceChart({ data }) {
       <ComparisonChart curve={curve} extract_curve={extract_curve} total_consensus_matches={total_consensus_matches} total_extract_matches={total_extract_matches} papers={papers} />
 
       {/* Chart 3: Per-summarizer convergence */}
-      <SummarizerConvergenceChart summarizer_curves={summarizer_curves} extract_curve={extract_curve} papers={papers} />
+      <SummarizerConvergenceChart summarizer_curves={summarizer_curves} single_config_curves={single_config_curves} extract_curve={extract_curve} papers={papers} />
 
       {/* Per-config table */}
       {config_correlations && Object.keys(config_correlations).length > 0 && (
