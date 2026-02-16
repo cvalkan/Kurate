@@ -252,7 +252,7 @@ function FullPdfStats({ stats }) {
 
 function ConvergenceChart({ data }) {
   if (!data || !data.curve || data.curve.length < 2) return null;
-  const { curve, extract_curve, summarizer_random_curves, judge_random_curves, config_correlations, total_extract_matches, total_summary_matches, papers } = data;
+  const { curve, extract_curve, abstract_curve, summarizer_random_curves, judge_random_curves, config_correlations, total_extract_matches, total_summary_matches, papers } = data;
 
   return (
     <div className="space-y-5" data-testid="convergence-section">
@@ -260,10 +260,10 @@ function ConvergenceChart({ data }) {
       <InternalChart curve={curve} total={total_summary_matches} papers={papers} />
 
       {/* Chart 2: Per-summarizer (random judge) vs Extract */}
-      <FairComparisonChart summarizer_random_curves={summarizer_random_curves} random_all_curve={curve} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
+      <FairComparisonChart summarizer_random_curves={summarizer_random_curves} random_all_curve={curve} extract_curve={extract_curve} abstract_curve={abstract_curve} total_extract_matches={total_extract_matches} papers={papers} />
 
       {/* Chart 3: Per-judge (random summarizer) vs Extract */}
-      <JudgeComparisonChart judge_random_curves={judge_random_curves} random_all_curve={curve} extract_curve={extract_curve} total_extract_matches={total_extract_matches} papers={papers} />
+      <JudgeComparisonChart judge_random_curves={judge_random_curves} random_all_curve={curve} extract_curve={extract_curve} abstract_curve={abstract_curve} total_extract_matches={total_extract_matches} papers={papers} />
 
       {/* Per-config table */}
       {config_correlations && Object.keys(config_correlations).length > 0 && (
