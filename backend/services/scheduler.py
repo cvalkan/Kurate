@@ -715,9 +715,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 max_pairs = min(100, len(all_papers) * 2)
             pairs = _select_pairs(
                 all_papers, paper_stats, compared_pairs,
-                max_pairs, top_k_focus, min_matches_per_paper,
-                max_matches_per_paper, max_new_per_round,
-                ci_target=settings.get("ci_target", 12),
+                max_pairs, top_k_focus, max_new_per_round,
+                ci_target=settings.get("ci_target", 10),
+                ci_target_general=settings.get("ci_target_general", 15),
             )
 
             if not pairs:
