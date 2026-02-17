@@ -3,7 +3,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Plus, X, Search, Loader2, DollarSign, FileText, Swords, ChevronDown,
+  Plus, X, Search, Loader2, DollarSign, FileText, Swords, ChevronDown, Save, Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,16 +15,18 @@ function getAdminHeaders() {
 
 export function AdminCategories({ onCategoriesChanged }) {
   const [allCategories, setAllCategories] = useState([]);
-  const [activeIds, setActiveIds] = useState([]);
+  const [activeIds, setActiveIds] = useState([]);  // Server state
+  const [pendingAdds, setPendingAdds] = useState(new Set());
+  const [pendingRemoves, setPendingRemoves] = useState(new Set());
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [estimating, setEstimating] = useState(null);
   const [estimates, setEstimates] = useState({});
-  const [removing, setRemoving] = useState(null);
-  const [adding, setAdding] = useState(null);
-  const [confirmRemove, setConfirmRemove] = useState(null);
   const dropdownRef = useRef(null);
+
+  const hasChanges = pendingAdds.size > 0 || pendingRemoves.size > 0;
 
   const fetchCategories = async () => {
     try {
@@ -40,7 +42,6 @@ export function AdminCategories({ onCategoriesChanged }) {
 
   useEffect(() => { fetchCategories(); }, []);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setOpen(false);
@@ -49,21 +50,28 @@ export function AdminCategories({ onCategoriesChanged }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Effective active list = server active + pending adds - pending removes
+  const effectiveActive = useMemo(() => {
+    const ids = new Set(activeIds);
+    for (const id of pendingAdds) ids.add(id);
+    for (const id of pendingRemoves) ids.delete(id);
+    return [...ids].sort();
+  }, [activeIds, pendingAdds, pendingRemoves]);
+
   const activeCats = useMemo(
-    () => allCategories.filter(c => activeIds.includes(c.id)),
-    [allCategories, activeIds]
+    () => allCategories.filter(c => effectiveActive.includes(c.id)),
+    [allCategories, effectiveActive]
   );
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return allCategories.filter(c => !activeIds.includes(c.id));
+    if (!search.trim()) return allCategories.filter(c => !effectiveActive.includes(c.id));
     const q = search.toLowerCase();
     return allCategories.filter(c =>
-      !activeIds.includes(c.id) &&
+      !effectiveActive.includes(c.id) &&
       (c.id.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q))
     );
-  }, [allCategories, activeIds, search]);
+  }, [allCategories, effectiveActive, search]);
 
-  // Group the filtered results
   const grouped = useMemo(() => {
     const groups = {};
     for (const c of filtered) {
@@ -73,38 +81,56 @@ export function AdminCategories({ onCategoriesChanged }) {
     return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered]);
 
-  const handleAdd = async (catId) => {
-    setAdding(catId);
-    try {
-      await axios.post(`${API}/api/admin/categories/add`, { category_id: catId }, { headers: getAdminHeaders() });
-      toast.success(`Added ${catId}`);
-      setSearch("");
-      setOpen(false);
-      await fetchCategories();
-      if (onCategoriesChanged) onCategoriesChanged();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to add category");
-    } finally {
-      setAdding(null);
+  const stageAdd = (catId) => {
+    if (pendingRemoves.has(catId)) {
+      // Undo a pending remove
+      setPendingRemoves(prev => { const n = new Set(prev); n.delete(catId); return n; });
+    } else {
+      setPendingAdds(prev => new Set(prev).add(catId));
+    }
+    setSearch("");
+    setOpen(false);
+  };
+
+  const stageRemove = (catId) => {
+    if (pendingAdds.has(catId)) {
+      // Undo a pending add
+      setPendingAdds(prev => { const n = new Set(prev); n.delete(catId); return n; });
+    } else if (effectiveActive.length > 1) {
+      setPendingRemoves(prev => new Set(prev).add(catId));
     }
   };
 
-  const handleRemove = async (catId) => {
-    setRemoving(catId);
+  const discardChanges = () => {
+    setPendingAdds(new Set());
+    setPendingRemoves(new Set());
+  };
+
+  const saveChanges = async () => {
+    setSaving(true);
     try {
-      await axios.post(`${API}/api/admin/categories/remove`, { category_id: catId }, { headers: getAdminHeaders() });
-      toast.success(`Removed ${catId}`);
+      // Process removals first, then additions
+      for (const catId of pendingRemoves) {
+        await axios.post(`${API}/api/admin/categories/remove`, { category_id: catId }, { headers: getAdminHeaders() });
+      }
+      for (const catId of pendingAdds) {
+        await axios.post(`${API}/api/admin/categories/add`, { category_id: catId }, { headers: getAdminHeaders() });
+      }
+      const totalChanges = pendingAdds.size + pendingRemoves.size;
+      toast.success(`Saved ${totalChanges} category change${totalChanges > 1 ? "s" : ""}`);
+      setPendingAdds(new Set());
+      setPendingRemoves(new Set());
       await fetchCategories();
       if (onCategoriesChanged) onCategoriesChanged();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to remove category");
+      toast.error(err.response?.data?.detail || "Failed to save changes");
     } finally {
-      setRemoving(null);
+      setSaving(false);
     }
   };
 
   const handleEstimate = async (catId) => {
-    if (estimates[catId]) return; // already fetched
+    if (estimates[catId]) return;
     setEstimating(catId);
     try {
       const res = await axios.get(`${API}/api/admin/category-estimate/${catId}`, { headers: getAdminHeaders() });
@@ -122,20 +148,35 @@ export function AdminCategories({ onCategoriesChanged }) {
     <div className="space-y-4" data-testid="admin-categories">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Tournament Categories</h3>
-        <span className="text-xs text-muted-foreground">{activeIds.length} active</span>
+        <span className="text-xs text-muted-foreground">
+          {effectiveActive.length} active
+          {hasChanges && <span className="text-amber-500 ml-1">(unsaved changes)</span>}
+        </span>
       </div>
 
       {/* Active categories */}
       <div className="space-y-2">
         {activeCats.map(c => {
           const est = estimates[c.id];
+          const isPendingAdd = pendingAdds.has(c.id);
+          const isPendingRemove = pendingRemoves.has(c.id);
           return (
-            <div key={c.id} className="flex items-center gap-3 p-3 bg-secondary/30 rounded-lg border border-border group" data-testid={`active-cat-${c.id}`}>
+            <div
+              key={c.id}
+              className={`flex items-center gap-3 p-3 rounded-lg border group transition-colors ${
+                isPendingAdd ? "bg-green-50 border-green-200" :
+                isPendingRemove ? "bg-red-50 border-red-200 opacity-60" :
+                "bg-secondary/30 border-border"
+              }`}
+              data-testid={`active-cat-${c.id}`}
+            >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-accent">{c.id}</span>
-                  <span className="text-sm font-medium truncate">{c.name}</span>
+                  <span className={`text-sm font-medium truncate ${isPendingRemove ? "line-through" : ""}`}>{c.name}</span>
                   <span className="text-[10px] text-muted-foreground">{c.group}</span>
+                  {isPendingAdd && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">new</span>}
+                  {isPendingRemove && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">removing</span>}
                 </div>
                 {est && (
                   <div className="flex items-center gap-4 mt-1.5 text-[11px] text-muted-foreground">
@@ -149,7 +190,7 @@ export function AdminCategories({ onCategoriesChanged }) {
                 )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                {!est && (
+                {!est && !isPendingRemove && (
                   <Button variant="ghost" size="sm" className="h-7 text-[10px] text-muted-foreground"
                     onClick={() => handleEstimate(c.id)} disabled={estimating === c.id}
                     data-testid={`estimate-${c.id}`}
@@ -158,18 +199,46 @@ export function AdminCategories({ onCategoriesChanged }) {
                     {estimating === c.id ? "" : "Estimate"}
                   </Button>
                 )}
-                <Button variant="ghost" size="sm"
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => setConfirmRemove(c.id)} disabled={removing === c.id || activeIds.length <= 1}
-                  data-testid={`remove-${c.id}`}
-                >
-                  {removing === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
-                </Button>
+                {isPendingRemove || isPendingAdd ? (
+                  <Button variant="ghost" size="sm"
+                    className="h-7 text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={() => isPendingAdd ? stageRemove(c.id) : stageAdd(c.id)}
+                  >
+                    <Undo2 className="h-3 w-3 mr-1" /> Undo
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="sm"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => stageRemove(c.id)} disabled={effectiveActive.length <= 1}
+                    data-testid={`remove-${c.id}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Save / Discard bar */}
+      {hasChanges && (
+        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg" data-testid="save-categories-bar">
+          <span className="text-xs text-amber-700 flex-1">
+            {pendingAdds.size > 0 && `${pendingAdds.size} to add`}
+            {pendingAdds.size > 0 && pendingRemoves.size > 0 && ", "}
+            {pendingRemoves.size > 0 && `${pendingRemoves.size} to remove`}
+            {" — review cost estimates before saving"}
+          </span>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={discardChanges}>
+            Discard
+          </Button>
+          <Button size="sm" className="h-7 text-xs gap-1" onClick={saveChanges} disabled={saving}>
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+            Save Changes
+          </Button>
+        </div>
+      )}
 
       {/* Add category dropdown */}
       <div className="relative" ref={dropdownRef}>
@@ -212,14 +281,12 @@ export function AdminCategories({ onCategoriesChanged }) {
                     {cats.map(c => (
                       <button
                         key={c.id}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm rounded hover:bg-accent/10 transition-colors disabled:opacity-50"
-                        onClick={() => handleAdd(c.id)}
-                        disabled={adding === c.id}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm rounded hover:bg-accent/10 transition-colors"
+                        onClick={() => stageAdd(c.id)}
                         data-testid={`add-cat-${c.id}`}
                       >
                         <span className="font-mono text-[11px] text-accent shrink-0 w-28">{c.id}</span>
                         <span className="truncate">{c.name}</span>
-                        {adding === c.id && <Loader2 className="h-3 w-3 animate-spin ml-auto" />}
                       </button>
                     ))}
                   </div>
@@ -229,26 +296,6 @@ export function AdminCategories({ onCategoriesChanged }) {
           </div>
         )}
       </div>
-
-      {/* Confirm removal dialog */}
-      {confirmRemove && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-testid="confirm-remove-dialog">
-          <div className="bg-background rounded-lg border border-border shadow-xl p-5 max-w-sm mx-4 space-y-3">
-            <h4 className="font-medium text-sm">Remove category?</h4>
-            <p className="text-xs text-muted-foreground">
-              This will pause the <span className="font-mono text-foreground">{confirmRemove}</span> tournament and remove it from the public leaderboard. Existing data (papers, matches) will be preserved.
-            </p>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setConfirmRemove(null)} data-testid="confirm-remove-cancel">
-                Cancel
-              </Button>
-              <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => { handleRemove(confirmRemove); setConfirmRemove(null); }} data-testid="confirm-remove-yes">
-                Remove
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
