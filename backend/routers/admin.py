@@ -1335,8 +1335,8 @@ async def update_tournament_status(tournament_id: str, request: Request):
 @router.post("/tournaments/{tournament_id}/toggle-fetch", dependencies=[Depends(verify_admin)])
 async def toggle_tournament_fetch(tournament_id: str):
     """Toggle fetch (paper ingestion) pause for a tournament."""
-    doc = await db.tournaments.find_one({"tournament_id": tournament_id}, {"_id": 0, "fetch_paused": 1})
-    if not doc:
+    doc = await db.tournaments.find_one({"tournament_id": tournament_id}, {"_id": 0, "tournament_id": 1, "fetch_paused": 1})
+    if doc is None:
         raise HTTPException(404, "Tournament not found")
     new_state = not doc.get("fetch_paused", False)
     await db.tournaments.update_one(
@@ -1350,8 +1350,8 @@ async def toggle_tournament_fetch(tournament_id: str):
 @router.post("/tournaments/{tournament_id}/toggle-compare", dependencies=[Depends(verify_admin)])
 async def toggle_tournament_compare(tournament_id: str):
     """Toggle comparison (matchmaking) pause for a tournament."""
-    doc = await db.tournaments.find_one({"tournament_id": tournament_id}, {"_id": 0, "compare_paused": 1})
-    if not doc:
+    doc = await db.tournaments.find_one({"tournament_id": tournament_id}, {"_id": 0, "tournament_id": 1, "compare_paused": 1})
+    if doc is None:
         raise HTTPException(404, "Tournament not found")
     new_state = not doc.get("compare_paused", False)
     await db.tournaments.update_one(
@@ -1362,7 +1362,6 @@ async def toggle_tournament_compare(tournament_id: str):
     if not new_state:
         wake_scheduler()
     return {"compare_paused": new_state}
-    return {"status": "ok", "tournament_status": new_status}
 
 
 
