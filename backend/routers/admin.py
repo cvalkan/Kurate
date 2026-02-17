@@ -416,6 +416,13 @@ async def get_admin_status(category: str = "cs.RO"):
         for m in cat_matches_sorted
     ]
 
+    # Resolve last_fetch_at from settings if scheduler doesn't have it
+    sched_last_fetch = cat_scheduler.get("last_fetch_at")
+    if not sched_last_fetch:
+        settings = await get_settings()
+        sched_last_fetch = _resolve_last_fetch(settings, category)
+        cat_scheduler["last_fetch_at"] = sched_last_fetch
+
     result = {
         "total_papers": total_papers,
         "total_matches": total_matches,
