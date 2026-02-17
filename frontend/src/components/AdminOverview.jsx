@@ -1,12 +1,11 @@
 import { useState } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
-  RefreshCw, Swords, Activity, FileText, CheckCircle2, XCircle,
-  ChevronDown, ChevronUp, Pause, Play, Clock,
+  RefreshCw, Swords, FileText, CheckCircle2, XCircle, Search,
+  ChevronDown, Clock, Download, Sparkles,
 } from "lucide-react";
-import { ModelBadge } from "@/components/ModelBadge";
 import { toast } from "sonner";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -15,67 +14,74 @@ function getAdminHeaders() {
   return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" };
 }
 
-function StatCard({ label, value, icon: Icon }) {
-  return (
-    <div className="p-4 bg-secondary/30 rounded-lg border border-border">
-      <div className="flex items-center gap-2 mb-1">
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-        <span className="text-xs text-muted-foreground">{label}</span>
-      </div>
-      <div className="font-mono text-2xl font-bold">{value}</div>
-    </div>
-  );
+function timeAgo(iso) {
+  if (!iso) return "never";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 export function AdminOverview({
   status, progress, usageStats, categories, adminCat, setAdminCat,
-  triggerFetch, triggerCompare, togglePause, loading,
-  manualMatches, setManualMatches, onRefresh,
+  triggerFetch, loading, onRefresh,
 }) {
-  const [expandedLogs, setExpandedLogs] = useState(new Set());
+  const [checking, setChecking] = useState(false);
+  const [fetchableCount, setFetchableCount] = useState(null);
 
-  // Always operate on the tournament level for the current category
-  const handlePauseResume = async () => {
-    const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
-    const headers = getAdminHeaders();
+  const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
 
-    if (progress?.tournament_paused) {
-      try {
-        await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "active" }, { headers });
-        toast.success(`Tournament ${adminCat} resumed`);
-        if (onRefresh) onRefresh();
-      } catch { toast.error("Failed to resume tournament"); }
-    } else {
-      try {
-        await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "paused" }, { headers });
-        toast.success(`Tournament ${adminCat} paused`);
-        if (onRefresh) onRefresh();
-      } catch { toast.error("Failed to pause tournament"); }
+  const toggleAutoFetch = async () => {
+    try {
+      const res = await axios.post(`${API}/api/admin/tournaments/${tid}/toggle-fetch`, {}, { headers: getAdminHeaders() });
+      toast.success(res.data.fetch_paused ? "Auto-fetch OFF" : "Auto-fetch ON");
+      if (onRefresh) onRefresh();
+    } catch { toast.error("Failed to toggle auto-fetch"); }
+  };
+
+  const toggleTournament = async () => {
+    try {
+      const res = await axios.post(`${API}/api/admin/tournaments/${tid}/toggle-compare`, {}, { headers: getAdminHeaders() });
+      toast.success(res.data.compare_paused ? "Tournament OFF" : "Tournament ON");
+      if (onRefresh) onRefresh();
+    } catch { toast.error("Failed to toggle tournament"); }
+  };
+
+  const checkForNewPapers = async () => {
+    setChecking(true);
+    try {
+      const res = await axios.get(`${API}/api/admin/check-new-papers?category=${adminCat}`, { headers: getAdminHeaders() });
+      setFetchableCount(res.data.available || 0);
+      toast.success(`${res.data.available || 0} new papers available`);
+    } catch {
+      toast.error("Failed to check for new papers");
+    } finally {
+      setChecking(false);
     }
   };
 
-  const toggleFetchPause = async () => {
-    const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
-    try {
-      const res = await axios.post(`${API}/api/admin/tournaments/${tid}/toggle-fetch`, {}, { headers: getAdminHeaders() });
-      toast.success(res.data.fetch_paused ? "Fetching paused" : "Fetching resumed");
-      if (onRefresh) onRefresh();
-    } catch { toast.error("Failed to toggle fetch"); }
-  };
-
-  const toggleComparePause = async () => {
-    const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
-    try {
-      const res = await axios.post(`${API}/api/admin/tournaments/${tid}/toggle-compare`, {}, { headers: getAdminHeaders() });
-      toast.success(res.data.compare_paused ? "Comparisons paused" : "Comparisons resumed");
-      if (onRefresh) onRefresh();
-    } catch { toast.error("Failed to toggle compare"); }
+  const fetchAndSummarize = async () => {
+    triggerFetch();
+    setFetchableCount(null);
   };
 
   if (!status) return null;
 
+  const scheduler = status.scheduler || {};
+  const lastFetch = scheduler.last_fetch_at;
+  const nextFetch = scheduler.next_fetch_at;
+  const isGenerating = (scheduler.current_activity || "").includes("Generating summaries");
+
+  // Summary stats from progress
+  const totalPapers = progress?.total_papers || status.total_papers || 0;
+  const papersWithPdf = progress?.papers_with_pdf || 0;
+  const summaryInfo = progress?.summary_coverage;
+
   return (
-    <div className="space-y-6" data-testid="admin-overview">
+    <div className="space-y-4" data-testid="admin-overview">
       {categories.length > 1 && (
         <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg overflow-x-auto scrollbar-none" data-testid="admin-cat-tabs">
           {categories.map((c) => (
@@ -83,7 +89,7 @@ export function AdminOverview({
               key={c.id}
               variant={adminCat === c.id ? "default" : "ghost"}
               size="sm"
-              onClick={() => setAdminCat(c.id)}
+              onClick={() => { setAdminCat(c.id); setFetchableCount(null); }}
               className="text-xs h-8 shrink-0"
               data-testid={`admin-cat-${c.id}`}
             >
@@ -93,266 +99,174 @@ export function AdminOverview({
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Papers" value={status.total_papers} icon={FileText} />
-        <StatCard label="Matches" value={status.total_matches} icon={Swords} />
-        <StatCard label="Failed" value={status.failed_matches} icon={XCircle} />
-        <StatCard label="Unranked" value={status.unranked_papers} icon={Activity} />
+      {/* Section 1: Paper Ingestion */}
+      <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="ingestion-section">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
+            Paper Ingestion
+          </h3>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground">Auto-fetch</span>
+            <Switch
+              checked={!progress?.fetch_paused}
+              onCheckedChange={toggleAutoFetch}
+              data-testid="auto-fetch-toggle"
+            />
+          </div>
+        </div>
+
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-foreground font-medium">{totalPapers}</span> papers
+            {papersWithPdf > 0 && papersWithPdf < totalPapers && (
+              <span>· <span className="font-mono">{papersWithPdf}</span> with PDFs</span>
+            )}
+            {summaryInfo && summaryInfo.with_summaries < totalPapers && (
+              <span>· <span className="font-mono">{summaryInfo.with_summaries}</span> with summaries</span>
+            )}
+            {isGenerating && <span className="text-accent animate-pulse">· generating...</span>}
+          </div>
+          <div>
+            Last fetched <span className="font-mono text-foreground">{timeAgo(lastFetch)}</span>
+            {nextFetch && !progress?.fetch_paused && (
+              <span> · Next in <span className="font-mono text-foreground">{timeAgo(nextFetch).replace(" ago", "")}</span></span>
+            )}
+            {progress?.fetch_paused && <span className="text-amber-500 ml-1">(auto-fetch off)</span>}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 mt-3">
+          <Button
+            onClick={checkForNewPapers}
+            disabled={checking}
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-8"
+            data-testid="check-new-papers-btn"
+          >
+            <Search className={`h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />
+            {checking ? "Checking..." : "Check for new papers"}
+          </Button>
+          <Button
+            onClick={fetchAndSummarize}
+            disabled={loading.fetch}
+            size="sm"
+            className="gap-1.5 text-xs h-8"
+            data-testid="fetch-and-summarize-btn"
+          >
+            <Download className={`h-3.5 w-3.5 ${loading.fetch ? "animate-spin" : ""}`} />
+            {loading.fetch ? "Fetching..." : "Fetch & generate summaries"}
+          </Button>
+          {fetchableCount !== null && (
+            <span className="text-xs font-mono text-accent">{fetchableCount} available</span>
+          )}
+        </div>
       </div>
 
+      {/* Section 2: Tournament Progress */}
       {progress && (
-        <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="progress-indicator">
+        <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="tournament-section">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium">Ranking Progress</h3>
+            <h3 className="text-sm font-medium flex items-center gap-1.5">
+              <Swords className="h-3.5 w-3.5" />
+              Tournament
+            </h3>
             <div className="flex items-center gap-2">
               {progress.global_paused && (
-                <span className="text-[10px] px-2 py-1 rounded bg-amber-50 text-amber-700 font-medium" data-testid="global-pause-warning">
-                  System paused
-                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-medium">System paused</span>
               )}
-              <Button
-                onClick={toggleFetchPause}
-                variant={progress.fetch_paused ? "default" : "outline"}
-                size="sm"
-                className="gap-1 h-7 text-[11px]"
-                data-testid="toggle-fetch-btn"
-              >
-                {progress.fetch_paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                Fetch
-              </Button>
-              <Button
-                onClick={toggleComparePause}
-                variant={progress.compare_paused ? "default" : "outline"}
-                size="sm"
-                className="gap-1 h-7 text-[11px]"
-                data-testid="toggle-compare-btn"
-              >
-                {progress.compare_paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                Matches
-              </Button>
-              <Button
-                onClick={handlePauseResume}
-                variant={progress.tournament_paused ? "default" : "outline"}
-                size="sm"
-                className="gap-1 h-7 text-[11px]"
-                data-testid="pause-resume-button"
-              >
-                {progress.tournament_paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                All
-              </Button>
+              <span className="text-[10px] text-muted-foreground">Tournament</span>
+              <Switch
+                checked={!progress?.compare_paused && !progress?.tournament_paused}
+                onCheckedChange={toggleTournament}
+                data-testid="tournament-toggle"
+              />
             </div>
           </div>
 
+          {/* Convergence goals */}
           {progress.goals_met ? (
-            <div className="flex items-center gap-2 text-sm text-green-600 mb-2">
-              <CheckCircle2 className="h-4 w-4" />
-              All goals met — system idle
+            <div className="flex items-center gap-2 text-xs text-green-600 mb-2">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              All convergence goals met
             </div>
           ) : (
-            <div className="space-y-2 mb-2">
-              <div className="flex items-center gap-1.5 text-xs">
-                {progress.goal1?.met
-                  ? <><CheckCircle2 className="h-3 w-3 text-green-600" /><span className="text-green-600">{progress.goal1?.label}</span></>
-                  : <><Clock className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">{progress.goal1?.label}</span></>
-                }
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  {progress.goal2?.met
-                    ? <><CheckCircle2 className="h-3 w-3 text-green-600" /><span className="text-green-600">{progress.goal2?.label}</span></>
-                    : <><Clock className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">{progress.goal2?.label}</span></>
-                  }
-                </div>
-                {!progress.goal2?.met && (
-                  <span className="font-mono text-muted-foreground">
-                    {progress.goal2?.median_margin != null && <span className={progress.goal2.median_margin <= 12 ? "text-green-600" : "text-amber-500"}>median={progress.goal2.median_margin}%</span>}
-                    {progress.goal2?.median_margin != null && " · "}
-                    {progress.goal2?.done}/{progress.goal2?.total}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  {progress.goal3?.met
-                    ? <><CheckCircle2 className="h-3 w-3 text-green-600" /><span className="text-green-600">{progress.goal3?.label}</span></>
-                    : <><Clock className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">{progress.goal3?.label}</span></>
-                  }
-                </div>
-                {!progress.goal3?.met && progress.goal3?.total > 0 && (
-                  <span className="font-mono text-muted-foreground">{progress.goal3?.done}/{progress.goal3?.total}</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {!progress.goals_met && progress.estimated_matches_remaining > 0 && (
-            <div className="text-xs text-muted-foreground border-t border-border/50 pt-2 mt-2">
-              Est. <span className="font-mono text-foreground font-medium">~{progress.estimated_matches_remaining}</span> matches remaining
-              {progress.estimated_minutes > 0 && (
-                <span> &middot; ~<span className="font-mono text-foreground font-medium">{progress.estimated_minutes} min</span></span>
-              )}
-              {progress.tournament_paused && (
-                <span className="ml-2 text-amber-600 font-medium">PAUSED</span>
-              )}
-              {progress.global_paused && !progress.tournament_paused && (
-                <span className="ml-2 text-amber-600 font-medium">SYSTEM PAUSED</span>
-              )}
-              {!progress.tournament_paused && !progress.global_paused && (
-                <span className="ml-2">
-                  {progress.fetch_paused && <span className="text-amber-500 font-medium">Fetch paused</span>}
-                  {progress.fetch_paused && progress.compare_paused && " · "}
-                  {progress.compare_paused && <span className="text-amber-500 font-medium">Matches paused</span>}
-                  {!progress.fetch_paused && !progress.compare_paused && <span className="text-accent">Running</span>}
-                </span>
-              )}
-            </div>
-          )}
-
-          <div className="text-[10px] text-muted-foreground mt-1.5">
-            {status.total_matches} matches &middot; {progress.papers_with_pdf}/{progress.total_papers} PDFs
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={triggerFetch} disabled={loading.fetch} className="gap-2" data-testid="trigger-fetch">
-          <RefreshCw className={`h-4 w-4 ${loading.fetch ? "animate-spin" : ""}`} />
-          {loading.fetch ? "Fetching..." : "Fetch Papers"}
-        </Button>
-        <div className="flex items-center gap-1.5">
-          <Input
-            type="number" min="1" max="500"
-            value={manualMatches || ""}
-            onChange={(e) => setManualMatches(Math.min(500, Math.max(1, Number(e.target.value) || 20)))}
-            className="w-20 h-10 text-center font-mono text-sm"
-            data-testid="manual-matches-input"
-          />
-          <Button onClick={triggerCompare} disabled={loading.compare} variant="outline" className="gap-2" data-testid="trigger-compare">
-            <Swords className={`h-4 w-4 ${loading.compare ? "animate-spin" : ""}`} />
-            {loading.compare ? "Starting..." : "Run Matches"}
-          </Button>
-        </div>
-      </div>
-
-      {status.scheduler && (
-        <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="scheduler-status">
-          <h3 className="text-sm font-medium mb-2">Scheduler Status</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-muted-foreground">
-            <div>Activity: <span className="font-mono text-foreground">{status.scheduler.current_activity}</span></div>
-            {status.scheduler.last_fetch_at && (
-              <div>Last Fetch: <span className="font-mono text-foreground">{new Date(status.scheduler.last_fetch_at).toLocaleString()}</span></div>
-            )}
-            {status.scheduler.next_fetch_at && (
-              <div>Next Fetch: <span className="font-mono text-foreground">{new Date(status.scheduler.next_fetch_at).toLocaleString()}</span></div>
-            )}
-            <div>Processing: <span className="font-mono text-foreground">{status.scheduler.is_processing ? "Yes" : "No"}</span></div>
-            <div>Fetching: <span className="font-mono text-foreground">{status.scheduler.is_fetching ? "Yes" : "No"}</span></div>
-          </div>
-        </div>
-      )}
-
-      {usageStats && (
-        <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="usage-stats">
-          <h3 className="text-sm font-medium mb-3">Usage Statistics</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
-            <div className="text-xs text-muted-foreground">
-              <span className="block text-foreground font-mono font-medium">{(usageStats.totals?.input_tokens || 0).toLocaleString()}</span>
-              input tokens (est.)
-            </div>
-            <div className="text-xs text-muted-foreground">
-              <span className="block text-foreground font-mono font-medium">{(usageStats.totals?.output_tokens || 0).toLocaleString()}</span>
-              output tokens (est.)
-            </div>
-            <div className="text-xs text-muted-foreground">
-              <span className="block text-foreground font-mono font-medium">${usageStats.totals?.total_cost?.toFixed(2) || "0.00"}</span>
-              estimated cost
-            </div>
-            <div className="text-xs text-muted-foreground">
-              <span className="block text-foreground font-mono font-medium">{usageStats.storage?.size_mb || 0} MB</span>
-              PDF text storage
-            </div>
-            <div className="text-xs text-muted-foreground">
-              <span className="block text-foreground font-mono font-medium">{usageStats.totals?.total_matches || 0}</span>
-              API calls
-            </div>
-          </div>
-          {usageStats.models && Object.keys(usageStats.models).length > 0 && (
-            <div className="border-t border-border/50 pt-2">
-              <div className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wide">By model</div>
-              <div className="space-y-1.5">
-                {Object.entries(usageStats.models).sort((a, b) => b[1].matches - a[1].matches).map(([model, stats]) => (
-                  <div key={model} className="flex items-center justify-between text-xs gap-2">
-                    <span className="font-mono text-foreground shrink-0">{model.split("/").pop()}</span>
-                    <div className="flex items-center gap-3 text-muted-foreground text-[11px]">
-                      <span>{stats.matches} calls</span>
-                      <span className="font-mono">{stats.input_tokens.toLocaleString()} in</span>
-                      <span className="font-mono">{stats.output_tokens.toLocaleString()} out</span>
-                      <span className="font-mono text-foreground font-medium">${stats.cost_total?.toFixed(2) || "0.00"}</span>
+            <div className="space-y-1.5 mb-2">
+              {["goal1", "goal2", "goal3"].map(g => {
+                const goal = progress[g];
+                if (!goal) return null;
+                return (
+                  <div key={g} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      {goal.met
+                        ? <CheckCircle2 className="h-3 w-3 text-green-600" />
+                        : <Clock className="h-3 w-3 text-amber-500" />
+                      }
+                      <span className={goal.met ? "text-green-600" : "text-muted-foreground"}>{goal.label}</span>
                     </div>
+                    {!goal.met && (
+                      <span className="font-mono text-muted-foreground">
+                        {goal.median_margin != null && (
+                          <span className={goal.median_margin <= (progress.goal2?.label?.match(/\d+/)?.[0] || 12) ? "text-green-600" : "text-amber-500"}>
+                            median={goal.median_margin}%
+                          </span>
+                        )}
+                        {goal.median_margin != null && goal.done != null && " · "}
+                        {goal.done != null && goal.total != null && `${goal.done}/${goal.total}`}
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           )}
+
+          {/* Stats line */}
+          <div className="text-xs text-muted-foreground border-t border-border/50 pt-2 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span><span className="font-mono text-foreground font-medium">{status.total_matches?.toLocaleString()}</span> matches</span>
+            {status.failed_matches > 0 && <span><span className="font-mono text-red-500">{status.failed_matches}</span> failed</span>}
+            {!progress.goals_met && progress.estimated_matches_remaining > 0 && (
+              <span>~<span className="font-mono text-foreground font-medium">{progress.estimated_matches_remaining}</span> remaining</span>
+            )}
+            <span className="ml-auto">
+              {progress.tournament_paused ? (
+                <span className="text-amber-600 font-medium">Paused</span>
+              ) : progress.compare_paused ? (
+                <span className="text-amber-500 font-medium">Matches paused</span>
+              ) : progress.global_paused ? (
+                <span className="text-amber-600 font-medium">System paused</span>
+              ) : progress.goals_met ? (
+                <span className="text-green-600">Converged</span>
+              ) : (
+                <span className="text-accent">Running</span>
+              )}
+            </span>
+          </div>
         </div>
       )}
 
-      {status.recent_matches?.length > 0 && (
-        <div data-testid="recent-matches">
-          <h3 className="text-sm font-medium mb-3">Recent Comparisons</h3>
-          <div className="space-y-2">
-            {status.recent_matches.map((m, i) => {
-              const isExpanded = expandedLogs.has(i);
-              const toggle = () => setExpandedLogs(prev => {
-                const next = new Set(prev);
-                next.has(i) ? next.delete(i) : next.add(i);
-                return next;
-              });
-              return (
-                <div key={i} className="border border-border rounded-lg overflow-hidden" data-testid={`log-entry-${i}`}>
-                  <button
-                    onClick={toggle}
-                    className="w-full flex items-center gap-2 p-3 text-left text-sm hover:bg-secondary/20 transition-colors"
-                    data-testid={`log-toggle-${i}`}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                    <span className="font-medium truncate flex-1">{m.winner_title}</span>
-                    <span className="text-muted-foreground text-xs shrink-0 mx-1">beat</span>
-                    <span className="truncate text-muted-foreground flex-1">{m.paper1_title === m.winner_title ? m.paper2_title : m.paper1_title}</span>
-                    <ModelBadge model={m.model_used} />
-                    {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                  </button>
-                  {isExpanded && (
-                    <div className="px-3 pb-3 pt-0 border-t border-border/50 bg-secondary/10">
-                      <div className="pt-2 space-y-2">
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Winner: </span>
-                          <span className="font-medium">{m.winner_title}</span>
-                        </div>
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Loser: </span>
-                          <span>{m.paper1_title === m.winner_title ? m.paper2_title : m.paper1_title}</span>
-                        </div>
-                        {m.reasoning && (
-                          <div className="text-xs mt-2">
-                            <span className="text-muted-foreground block mb-1">Reasoning:</span>
-                            <p className="text-foreground leading-relaxed whitespace-pre-wrap">{m.reasoning}</p>
-                          </div>
-                        )}
-                        {m.created_at && (
-                          <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">{new Date(m.created_at).toLocaleString()}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+      {/* Recent matches log (collapsed by default) */}
+      {status.recent_matches && status.recent_matches.length > 0 && (
+        <details className="group">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+            Recent matches ({status.recent_matches.length})
+          </summary>
+          <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
+            {status.recent_matches.slice(0, 20).map((m, i) => (
+              <div key={m.id || i} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                {m.winner_title ? (
+                  <CheckCircle2 className="h-3 w-3 text-green-600 shrink-0" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-red-500 shrink-0" />
+                )}
+                <span className="truncate">{m.winner_title || "Failed"}</span>
+                {m.created_at && <span className="font-mono text-[10px] shrink-0 ml-auto">{timeAgo(m.created_at)}</span>}
+              </div>
+            ))}
           </div>
-        </div>
+        </details>
       )}
     </div>
   );
 }
-
-
