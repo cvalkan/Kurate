@@ -1005,8 +1005,9 @@ def _select_pairs(
         if len(pairs) >= max_pairs or not can_pair(p1):
             continue
 
-        # Alternate 50/50: even pairs → needy opponent (CI convergence), odd → established (calibration)
-        prefer_established = (pair_idx % 2 == 1) and len(established) > 0
+        # Calibration split: calibration_pct% against established, rest against needy
+        # Use modular arithmetic: e.g., 50% → every other match; 30% → 3 out of 10
+        prefer_established = len(established) > 0 and ((pair_idx * calibration_pct) % 100 < calibration_pct)
         pair_idx += 1
 
         best = None
