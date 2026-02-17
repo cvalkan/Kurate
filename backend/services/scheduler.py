@@ -740,6 +740,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             total_matches = len(all_matches)
 
             for i in range(0, len(pairs), parallel_agents):
+                # Check if system was paused mid-round
+                mid_settings = await get_settings()
+                if mid_settings.get("paused", False):
+                    logger.info(f"[{category}] System paused mid-round, stopping comparisons")
+                    break
+
                 batch = pairs[i:i + parallel_agents]
                 tasks = []
                 # Randomly flip pair order to eliminate positional bias
