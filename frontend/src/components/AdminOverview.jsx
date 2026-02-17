@@ -129,8 +129,8 @@ export function AdminOverview({
                 </div>
                 {!progress.goal2?.met && (
                   <span className="font-mono text-muted-foreground">
-                    {progress.goal2?.median_ci != null && <span className={progress.goal2.median_ci <= 0.15 ? "text-green-600" : "text-amber-500"}>median={progress.goal2.median_ci}</span>}
-                    {progress.goal2?.median_ci != null && " · "}
+                    {progress.goal2?.median_margin != null && <span className={progress.goal2.median_margin <= 12 ? "text-green-600" : "text-amber-500"}>median={progress.goal2.median_margin}%</span>}
+                    {progress.goal2?.median_margin != null && " · "}
                     {progress.goal2?.done}/{progress.goal2?.total}
                   </span>
                 )}
