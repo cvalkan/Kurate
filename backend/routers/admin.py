@@ -442,7 +442,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ).to_list(50000)
     bt_cis = calculate_bt_confidence_intervals(fresh_matches, all_paper_ids)
-    logger.info(f"[{category}] BT CI: {len(fresh_matches)} matches, {len(all_paper_ids)} papers, sample widths: {[round(bt_cis[pid]['bt_ci_width'],3) for pid in all_paper_ids[:5]]}")
+    # Debug: check BT scores
+    sample_scores = [bt_cis[pid].get("bt_score", -1) for pid in all_paper_ids[:5]]
+    logger.info(f"[{category}] BT CI: {len(fresh_matches)} matches, {len(all_paper_ids)} papers, scores={sample_scores}, widths={[round(bt_cis[pid]['bt_ci_width'],3) for pid in all_paper_ids[:5]]}")
 
     papers_converged = 0
     widest_ci = 0.0
