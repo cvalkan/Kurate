@@ -52,9 +52,9 @@ async def fetch_arxiv_papers(
                 break
             except httpx.HTTPStatusError as e:
                 last_error = e
-                if e.response.status_code == 429:
+                if e.response.status_code == 429 or e.response.status_code >= 500:
                     wait_time = (attempt + 1) * 5
-                    logger.warning(f"ArXiv rate limited, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
+                    logger.warning(f"ArXiv error {e.response.status_code}, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
                     await asyncio.sleep(wait_time)
                 else:
                     raise
