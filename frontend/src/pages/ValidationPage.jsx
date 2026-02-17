@@ -291,6 +291,36 @@ function StandardStats({ datasetId, isAdmin }) {
           )}
         </div>
       )}
+
+      {/* Tier-based ranking comparison */}
+      {activePairwise?.tier_metrics?.tier_ranking && (
+        <div className="border border-border rounded-lg overflow-hidden" data-testid="tier-ranking-section">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+            <h3 className="text-xs font-medium flex items-center gap-1.5">
+              <Trophy className="h-3 w-3" /> Acceptance Tier Ranking vs AI — {modeLabel}
+            </h3>
+          </div>
+          <div className="p-3 space-y-2">
+            {activePairwise.tier_metrics.tier_vs_ai_correlation && (
+              <div className="grid grid-cols-2 gap-2">
+                <CorrelationBadge value={activePairwise.tier_metrics.tier_vs_ai_correlation.spearman_rho} label="Spearman &rho;" />
+                <CorrelationBadge value={activePairwise.tier_metrics.tier_vs_ai_correlation.kendall_tau} label="Kendall &tau;" />
+              </div>
+            )}
+            <div className="text-[10px] text-muted-foreground flex flex-wrap gap-3">
+              <span>{activePairwise.tier_metrics.papers_with_tiers} papers with tiers</span>
+              <span>Accuracy: {activePairwise.tier_metrics.overall_accuracy}%</span>
+              {Object.entries(activePairwise.tier_metrics.tier_distribution || {}).map(([t, n]) => (
+                <span key={t} className="flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${t === "oral" ? "bg-emerald-500" : t === "spotlight" ? "bg-blue-500" : t === "poster" ? "bg-amber-400" : "bg-red-400"}`} />
+                  {t}: {n}
+                </span>
+              ))}
+            </div>
+            <TierRankingTable rows={activePairwise.tier_metrics.tier_ranking} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
