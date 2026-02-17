@@ -439,6 +439,75 @@ function ScoreGapSection({ scoreGap, modeLabels }) {
   );
 }
 
+const TIER_COLORS = {
+  oral: "bg-emerald-500",
+  spotlight: "bg-blue-500",
+  poster: "bg-amber-400",
+  reject: "bg-red-400",
+};
+const TIER_LABELS = { oral: "Oral", spotlight: "Spotlight", poster: "Poster", reject: "Reject" };
+const TIER_PAIR_ORDER = ["oral_vs_reject", "oral_vs_poster", "spotlight_vs_reject", "spotlight_vs_poster", "oral_vs_spotlight", "poster_vs_reject"];
+
+function TierAnalysisSection({ tierAnalysis, modeLabels }) {
+  const modes = Object.keys(tierAnalysis);
+  if (!modes.length) return null;
+
+  return (
+    <div className="border border-border rounded-lg p-4" data-testid="pw-tier-analysis">
+      <h3 className="text-xs font-medium mb-1 flex items-center gap-1.5">
+        <BarChart3 className="h-3 w-3" /> Acceptance Tier Validation
+      </h3>
+      <div className="text-[10px] text-muted-foreground mb-3">Does the AI tournament rank Oral papers above Spotlight above Poster above Reject?</div>
+      <div className="space-y-5">
+        {modes.map(mode => {
+          const t = tierAnalysis[mode];
+          return (
+            <div key={mode}>
+              {modes.length > 1 && <div className="text-[10px] font-medium text-muted-foreground mb-2">{modeLabels[mode] || mode}</div>}
+
+              {/* Overall accuracy */}
+              <div className="mb-3">
+                <HBar rate={t.overall_accuracy} label={`Overall tier accuracy`} sub={`${t.correct}/${t.total_pairs} cross-tier pairs`} color="bg-accent/70" />
+              </div>
+
+              {/* Tier distribution */}
+              <div className="flex items-center gap-3 mb-3 text-[10px] text-muted-foreground">
+                <span className="font-medium text-foreground">Distribution:</span>
+                {Object.entries(t.tier_distribution || {}).map(([tier, count]) => (
+                  <span key={tier} className="flex items-center gap-1">
+                    <span className={`w-2 h-2 rounded-full ${TIER_COLORS[tier] || "bg-gray-300"}`} />
+                    {TIER_LABELS[tier] || tier}: {count}
+                  </span>
+                ))}
+              </div>
+
+              {/* By tier pair */}
+              <div className="space-y-1.5 mb-3">
+                {TIER_PAIR_ORDER.filter(k => t.by_tier_pair?.[k]).map(k => {
+                  const b = t.by_tier_pair[k];
+                  const [t1, t2] = k.split("_vs_");
+                  return <HBar key={k} rate={b.accuracy} label={`${TIER_LABELS[t1]} vs ${TIER_LABELS[t2]}`} sub={`${b.correct}/${b.total} pairs`} color="bg-accent/50" />;
+                })}
+              </div>
+
+              {/* Top-K precision */}
+              <div className="flex items-center gap-4 text-[10px]">
+                {Object.entries(t.top_k_precision || {}).map(([k, v]) => (
+                  <div key={k} className="flex items-center gap-1">
+                    <span className="text-muted-foreground">{k.replace("_", " ")} precision:</span>
+                    <span className="font-mono font-medium text-foreground">{v.precision}%</span>
+                    <span className="text-muted-foreground">({v.hits}/{v.total} are Oral/Spotlight)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MethodologyNote() {
   return (
     <div className="border border-border rounded-lg p-4 bg-secondary/10" data-testid="pw-agreement-methodology">
