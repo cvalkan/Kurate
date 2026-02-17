@@ -132,8 +132,9 @@ export function AdminOverview({
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-muted-foreground">Auto-fetch</span>
             <Switch
-              checked={!progress?.fetch_paused}
+              checked={!progress?.fetch_paused && !progress?.global_paused}
               onCheckedChange={toggleAutoFetch}
+              disabled={progress?.global_paused}
               data-testid="auto-fetch-toggle"
             />
           </div>
