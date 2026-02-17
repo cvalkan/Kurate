@@ -151,9 +151,9 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "min_matches_per_paper", "max_matches_per_paper", "max_new_matches_per_round", "bt_ci_threshold"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "min_matches_per_paper", "max_matches_per_paper", "max_new_matches_per_round", "ci_target"]) {
         if (editSettings[key] !== settings[key]) {
-          updates[key] = key === "bt_ci_threshold" ? parseFloat(editSettings[key]) : Number(editSettings[key]);
+          updates[key] = Number(editSettings[key]);
         }
       }
       if (editSettings.summary_source && editSettings.summary_source !== settings.summary_source) {
