@@ -496,11 +496,11 @@ async def get_progress_estimate(category: str = "cs.RO"):
         },
         "goal2": {
             "met": bool(goal2_met),
-            "label": f"BT CI width \u2264 {bt_ci_threshold}",
+            "label": f"CI margin \u2264 {ci_target}%",
             "done": int(papers_converged),
             "total": int(total_papers),
-            "median_ci": round(median_ci, 4),
-            "widest_ci": round(widest_ci, 4),
+            "median_margin": round(median_margin, 1),
+            "widest_margin": round(widest_margin, 1),
         },
         "goal3": {
             "met": bool(goal3_met),
