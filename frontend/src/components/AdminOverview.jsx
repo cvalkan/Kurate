@@ -90,7 +90,10 @@ export function AdminOverview({
 
   const scheduler = status.scheduler || {};
   const lastFetch = scheduler.last_fetch_at;
-  const isGenerating = (scheduler.current_activity || "").includes("Generating summaries");
+  const activity = scheduler.current_activity || "";
+  const isGenerating = activity.includes("Generating summaries");
+  const isDownloading = activity.includes("downloading") || activity.includes("Fetching");
+  const isBusy = isGenerating || isDownloading;
 
   const totalPapers = progress?.total_papers || status.total_papers || 0;
   const papersWithPdf = progress?.papers_with_pdf || 0;
