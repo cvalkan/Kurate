@@ -511,6 +511,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     papers_converged = 0
     widest_margin = 0.0
     margins = []
+    goal2_per_paper_additional = 0
     for pid in all_paper_ids:
         n = paper_match_count.get(pid, 0)
         w = paper_wins.get(pid, 0)
@@ -518,13 +519,23 @@ async def get_progress_estimate(category: str = "cs.RO"):
         margins.append(margin)
         if margin <= ci_target or n >= max_matches:
             papers_converged += 1
+        else:
+            # Estimate additional matches needed using Wilson CI scaling (margin ~ 1/sqrt(n))
+            if n >= 2:
+                n_needed = n * (margin / ci_target) ** 2
+                additional = min(max(3, int(n_needed) - n), max_matches - n)
+            else:
+                additional = min(40, max_matches)  # No data, use historical average
+            goal2_per_paper_additional += additional
         if margin > widest_margin:
             widest_margin = margin
 
     margins_sorted = sorted(margins)
     median_margin = margins_sorted[len(margins_sorted) // 2] if margins_sorted else 100.0
     goal2_met = bool(papers_converged == total_papers) if total_papers > 0 else True
-    matches_for_goal2 = 0 if goal2_met else max(0, (total_papers - papers_converged) * 3)
+    # Each match serves 2 papers, but not every match pairs two unconverged papers.
+    # Use 60% efficiency factor (empirically ~1.5 papers helped per match for unconverged pool)
+    matches_for_goal2 = 0 if goal2_met else max(0, int(goal2_per_paper_additional * 0.6))
 
     # Goal 3: Cross-matches among top-K papers
     # ALL top-K papers should have played each other at least once
