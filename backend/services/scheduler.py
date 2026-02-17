@@ -474,15 +474,15 @@ async def run_fetch_cycle(category: str = "cs.RO"):
         # Update paper count immediately so admin dashboard reflects new papers
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
-        if new_count > 0:
-            await _download_pending_pdfs(category=category)
+        # Always attempt PDF downloads (catches retries for previously failed downloads)
+        await _download_pending_pdfs(category=category)
 
         # Update count again after PDF downloads
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
         # Generate AI summaries for papers with full text
         cat_status["current_activity"] = "Generating summaries..."
-        await _generate_paper_summaries(category=category)
+        await _generate_paper_summaries(category=category, force=force)
 
         cat_status["current_activity"] = "Idle"
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
