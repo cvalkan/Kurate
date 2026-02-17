@@ -729,6 +729,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 max_pairs, top_k_focus, max_new_per_round,
                 ci_target=settings.get("ci_target", 10),
                 ci_target_general=settings.get("ci_target_general", 15),
+                calibration_ratio=settings.get("calibration_ratio", 50),
             )
 
             if not pairs:
