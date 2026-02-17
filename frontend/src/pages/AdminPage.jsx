@@ -295,7 +295,7 @@ export default function AdminPage() {
               <Switch checked={editSettings.paused || false} onCheckedChange={(v) => setEditSettings({ ...editSettings, paused: v })} data-testid="setting-paused" />
               <Label className="text-xs">Paused</Label>
               <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-              <TooltipContent side="right"><p className="max-w-52 text-xs">Stop all automatic comparison rounds.</p></TooltipContent></Tooltip>
+              <TooltipContent side="right"><p className="max-w-52 text-xs">Stop all automatic processing (comparisons and paper fetching).</p></TooltipContent></Tooltip>
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
