@@ -63,22 +63,22 @@ export function AdminOverview({
     } catch { toast.error("Failed to toggle tournament"); }
   };
 
-  const checkForNewPapers = useCallback(async () => {
+  const checkForNewPapers = useCallback(async (silent = false) => {
     setChecking(true);
     try {
       const res = await axios.get(`${API}/api/admin/check-new-papers?category=${adminCat}`, { headers: getAdminHeaders() });
       setFetchableCount(res.data.available || 0);
     } catch {
-      toast.error("Failed to check for new papers");
+      if (!silent) toast.error("Failed to check for new papers");
     } finally {
       setChecking(false);
     }
   }, [adminCat]);
 
-  // Auto-check fetchable count on category switch
+  // Auto-check fetchable count on category switch (silent — don't toast on failure)
   useEffect(() => {
     setFetchableCount(null);
-    checkForNewPapers();
+    checkForNewPapers(true);
   }, [adminCat, checkForNewPapers]);
 
   const fetchAndSummarize = async () => {
