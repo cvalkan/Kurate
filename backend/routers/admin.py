@@ -465,19 +465,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
     compare_paused = bool(tournament_doc.get("compare_paused")) if tournament_doc else False
     is_paused = global_paused or tournament_paused
 
-    # Use leaderboard cache for paper IDs and match data
-    lb_cat_data = lb_cache.get("categories", {}).get(category, {})
-    raw_matches = lb_cache.get("_raw_matches", [])
-    raw_papers = lb_cache.get("_raw_papers", [])
-
-    if lb_cat_data and lb_cat_data.get("all") is not None:
-        all_paper_ids = [e["id"] for e in lb_cat_data["all"]]
-    elif raw_papers:
-        all_paper_ids = [p["id"] for p in raw_papers if p.get("categories", [None])[0] == category]
-    else:
-        # Fallback: query DB directly
-        direct_papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}).to_list(500)
-        all_paper_ids = [p["id"] for p in direct_papers]
+    # Always get fresh paper IDs from DB (leaderboard cache can be 60s stale)
+    direct_papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}).to_list(2000)
+    all_paper_ids = [p["id"] for p in direct_papers]
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
