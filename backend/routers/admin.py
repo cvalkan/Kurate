@@ -1550,7 +1550,7 @@ async def estimate_category(cat_id: str):
     else:
         # Theoretical estimate when no history: min_matches * ~4 (empirical multiplier
         # accounting for CI convergence rounds, top-K focus, and re-matching)
-        matches_per_paper = min_matches * 4
+        matches_per_paper = 30  # Conservative estimate for new categories
 
     matches_needed = round(weekly_papers * matches_per_paper)
 
