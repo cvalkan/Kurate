@@ -223,8 +223,8 @@ export default function AdminPage() {
         <AdminOverview
           status={status} progress={progress} usageStats={usageStats}
           categories={categories} adminCat={adminCat} setAdminCat={setAdminCat}
-          triggerFetch={triggerFetch} triggerCompare={triggerCompare} togglePause={togglePause}
-          loading={loading} manualMatches={manualMatches} setManualMatches={setManualMatches}
+          triggerFetch={triggerFetch}
+          loading={loading}
           onRefresh={fetchAll}
         />
       )}
