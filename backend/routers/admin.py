@@ -372,10 +372,14 @@ async def get_admin_status(category: str = "cs.RO"):
     raw_matches = lb_cache.get("_raw_matches", [])
     raw_papers = lb_cache.get("_raw_papers", [])
 
-    # All counts from scheduler (live) or leaderboard cache (background)
+    # All counts — prefer leaderboard cache (refreshed in background), fall back to scheduler
     cat_scheduler = _get_cat_status(category)
-    total_papers = cat_scheduler.get("papers_count", 0) or lb_cat_data.get("_papers", 0)
-    total_matches = cat_scheduler.get("matches_count", 0) or lb_cat_data.get("_matches", 0)
+    lb_papers = lb_cat_data.get("_papers", 0)
+    sched_papers = cat_scheduler.get("papers_count", 0)
+    total_papers = lb_papers or sched_papers
+    lb_matches = lb_cat_data.get("_matches", 0)
+    sched_matches = cat_scheduler.get("matches_count", 0)
+    total_matches = max(lb_matches, sched_matches)  # Use higher (scheduler updates live during rounds)
     failed_matches = lb_cache.get("_failed_by_cat", {}).get(category, 0)
 
     # Unranked from leaderboard data
