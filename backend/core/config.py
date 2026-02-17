@@ -78,14 +78,11 @@ DEFAULT_SETTINGS = {
     "max_papers_per_fetch": 50,
     "parallel_agents": 5,
     "top_k_focus": 10,
-    "min_matches_per_paper": 3,
-    "max_matches_per_paper": 20,
     "max_new_matches_per_round": 3,
-    "convergence_threshold": 0.95,  # Legacy — kept for backward compat
-    "convergence_rounds": 3,        # Legacy — kept for backward compat
-    "bt_ci_threshold": 0.30,        # BT CI width threshold (win-prob scale, 0.30 = ±15%)
+    "ci_target": 10,              # Wilson CI margin target for top-K papers (%)
+    "ci_target_general": 15,      # Wilson CI margin target for remaining papers (%)
     "min_papers_for_tournament": 8,
     "paused": False,
-    "summary_source": "round_robin",  # "claude", "gemini", "gpt", or "round_robin"
-    "summary_parallel": 10,           # Concurrent summary generation tasks
+    "summary_source": "round_robin",
+    "summary_parallel": 10,
 }
