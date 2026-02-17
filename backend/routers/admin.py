@@ -397,7 +397,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
     elif raw_papers:
         all_paper_ids = [p["id"] for p in raw_papers if p.get("categories", [None])[0] == category]
     else:
-        all_paper_ids = []
+        # Fallback: query DB directly
+        direct_papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}).to_list(500)
+        all_paper_ids = [p["id"] for p in direct_papers]
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
