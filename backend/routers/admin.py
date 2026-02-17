@@ -113,11 +113,6 @@ async def update_settings(update: SettingsUpdate):
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    # Validate bt_ci_threshold range
-    if "bt_ci_threshold" in update_dict:
-        ct = update_dict["bt_ci_threshold"]
-        update_dict["bt_ci_threshold"] = max(0.01, min(0.5, ct))
-
     await db.settings.update_one(
         {"key": "global"},
         {"$set": update_dict},
