@@ -288,6 +288,71 @@ export function AdminOverview({
           </div>
         </details>
       )}
+
+      {/* Usage Statistics */}
+      {usageStats && (
+        <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="usage-stats">
+          <h3 className="text-sm font-medium mb-3">Usage Statistics</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
+            <div className="text-xs text-muted-foreground">
+              <span className="block text-foreground font-mono font-medium">{(usageStats.totals?.input_tokens || 0).toLocaleString()}</span>
+              input tokens (est.)
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <span className="block text-foreground font-mono font-medium">{(usageStats.totals?.output_tokens || 0).toLocaleString()}</span>
+              output tokens (est.)
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <span className="block text-foreground font-mono font-medium">${usageStats.totals?.total_cost?.toFixed(2) || "0.00"}</span>
+              estimated cost
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <span className="block text-foreground font-mono font-medium">{usageStats.storage?.size_mb || 0} MB</span>
+              PDF text storage
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <span className="block text-foreground font-mono font-medium">{usageStats.totals?.total_matches || 0}</span>
+              API calls
+            </div>
+          </div>
+          {usageStats.models && Object.keys(usageStats.models).length > 0 && (
+            <div className="border-t border-border/50 pt-2">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">By Model</div>
+              <div className="space-y-1">
+                {Object.entries(usageStats.models).sort((a, b) => (b[1].cost_total || 0) - (a[1].cost_total || 0)).map(([model, stats]) => (
+                  <div key={model} className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-muted-foreground">{model.split("/").pop()}</span>
+                    <div className="flex items-center gap-4 text-muted-foreground font-mono text-[11px]">
+                      <span>{stats.matches} calls</span>
+                      <span>{(stats.input_tokens || 0).toLocaleString()} in</span>
+                      <span>{(stats.output_tokens || 0).toLocaleString()} out</span>
+                      <span className="text-foreground font-medium">${(stats.cost_total || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recent Comparisons */}
+      {status.recent_matches && status.recent_matches.length > 0 && (
+        <div data-testid="recent-comparisons">
+          <h3 className="text-sm font-medium mb-3">Recent Comparisons</h3>
+          <div className="space-y-2">
+            {status.recent_matches.slice(0, 10).map((m, i) => (
+              <div key={m.id || i} className="p-3 bg-secondary/30 rounded-lg border border-border flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                <span className="text-sm truncate flex-1 font-medium">{m.winner_title || "Unknown"}</span>
+                <span className="text-xs text-muted-foreground shrink-0">beat</span>
+                <span className="text-sm truncate flex-1 text-muted-foreground">{m.loser_title || "Unknown"}</span>
+                {m.model_used && <ModelBadge model={m.model_used} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
