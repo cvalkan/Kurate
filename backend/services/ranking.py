@@ -117,9 +117,12 @@ def calculate_bt_confidence_intervals(
         # Normalize
         total = new_scores.sum()
         if total > 0:
-            scores = new_scores / total * n
-        if np.max(np.abs(scores - new_scores / total * n if total > 0 else new_scores)) < 1e-8:
+            new_scores = new_scores / total * n
+        # Check convergence BEFORE overwriting scores
+        if np.max(np.abs(scores - new_scores)) < 1e-8:
+            scores = new_scores
             break
+        scores = new_scores
 
     # Fisher information matrix (n-1 free params, last is reference)
     m_size = n - 1
