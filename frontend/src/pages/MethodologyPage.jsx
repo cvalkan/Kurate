@@ -78,7 +78,7 @@ export default function MethodologyPage() {
             <li><span className="text-foreground">Top-K papers</span> — Wilson 95% CI margin &le; 10% (configurable). Tighter confidence for the papers that matter most in the leaderboard.</li>
             <li><span className="text-foreground">Top-K cross-matches</span> — Every pair of top-K papers must have played against each other at least once to ensure direct comparison.</li>
           </ul>
-          <p className="mt-2">Papers with the widest confidence intervals are matched first, so every comparison directly advances convergence. No match budget is wasted on random pairings. Once all goals are met, the tournament idles automatically.</p>
+          <p className="mt-2">Papers with the widest confidence intervals are matched first. To ensure new papers integrate into the existing ranking, a <span className="text-foreground font-medium">calibration ratio</span> (default 50%) controls what fraction of new-paper matches are against established (already-converged) papers vs. other new papers. This balances fast CI convergence with proper score calibration through transitive chains to known rankings.</p>
         </Step>
 
         <Step number={5} icon={Users} title="Multi-Model Consensus">
