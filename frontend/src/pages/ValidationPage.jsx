@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   FlaskConical, TrendingUp, TrendingDown, Minus, AlertCircle,
   Users, ChevronDown, ChevronRight, BarChart3, GitCompare,
-  RotateCcw, Play, Layers,
+  RotateCcw, Play, Layers, Trophy,
 } from "lucide-react";
 import { ValidationConvergence } from "@/components/ConvergenceSection";
 
