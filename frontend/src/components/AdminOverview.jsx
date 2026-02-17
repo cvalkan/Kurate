@@ -180,7 +180,6 @@ export function AdminOverview({
           </div>
           <div className="pt-0.5">
             Last fetched <span className="font-mono text-foreground">{timeAgo(lastFetch)}</span>
-            {!progress?.global_paused && progress?.fetch_paused && <span className="text-amber-500 ml-1">(auto-fetch off)</span>}
           </div>
         </div>
 
