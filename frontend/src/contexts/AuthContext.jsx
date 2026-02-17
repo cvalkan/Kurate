@@ -8,16 +8,25 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem("session_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
+
   const checkAuth = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/auth/me`, { withCredentials: true });
+      const res = await axios.get(`${API}/api/auth/me`, {
+        withCredentials: true,
+        headers: getAuthHeaders(),
+      });
       setUser(res.data);
     } catch {
       setUser(null);
+      localStorage.removeItem("session_token");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     checkAuth();
@@ -25,31 +34,41 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const res = await axios.post(`${API}/api/auth/login`, { email, password }, { withCredentials: true });
+    if (res.data.session_token) {
+      localStorage.setItem("session_token", res.data.session_token);
+    }
     setUser(res.data.user);
     return res.data;
   };
 
   const register = async (email, password, name) => {
     const res = await axios.post(`${API}/api/auth/register`, { email, password, name }, { withCredentials: true });
+    if (res.data.session_token) {
+      localStorage.setItem("session_token", res.data.session_token);
+    }
     setUser(res.data.user);
     return res.data;
   };
 
   const loginWithGoogle = async (sessionId) => {
     const res = await axios.post(`${API}/api/auth/google-session`, { session_id: sessionId }, { withCredentials: true });
+    if (res.data.session_token) {
+      localStorage.setItem("session_token", res.data.session_token);
+    }
     setUser(res.data.user);
     return res.data;
   };
 
   const logout = async () => {
     try {
-      await axios.post(`${API}/api/auth/logout`, {}, { withCredentials: true });
+      await axios.post(`${API}/api/auth/logout`, {}, { withCredentials: true, headers: getAuthHeaders() });
     } catch { /* ignore */ }
+    localStorage.removeItem("session_token");
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, logout, checkAuth, getAuthHeaders }}>
       {children}
     </AuthContext.Provider>
   );
