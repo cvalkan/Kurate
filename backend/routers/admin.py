@@ -1568,7 +1568,6 @@ async def estimate_category(cat_id: str):
         "existing_matches": existing_matches,
         "sample_size": total_fetched,
         "settings_used": {
-            "min_matches_per_paper": min_matches,
             "top_k_focus": top_k,
             "ci_target": ci_target,
             "matches_per_paper_ratio": round(matches_per_paper, 1),
