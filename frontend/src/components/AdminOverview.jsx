@@ -218,7 +218,7 @@ export function AdminOverview({
               )}
               <span className="text-[10px] text-muted-foreground">Tournament</span>
               <Switch
-                checked={!progress?.compare_paused && !progress?.tournament_paused}
+                checked={!progress?.compare_paused}
                 onCheckedChange={toggleTournament}
                 data-testid="tournament-toggle"
               />
