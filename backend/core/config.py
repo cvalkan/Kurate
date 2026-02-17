@@ -83,7 +83,7 @@ DEFAULT_SETTINGS = {
     "max_new_matches_per_round": 3,
     "convergence_threshold": 0.95,  # Legacy — kept for backward compat
     "convergence_rounds": 3,        # Legacy — kept for backward compat
-    "bt_ci_threshold": 0.15,        # BT CI width threshold (win-prob scale, 0.15 = ±7.5%)
+    "bt_ci_threshold": 0.30,        # BT CI width threshold (win-prob scale, 0.30 = ±15%)
     "min_papers_for_tournament": 8,
     "paused": False,
     "summary_source": "round_robin",  # "claude", "gemini", "gpt", or "round_robin"
