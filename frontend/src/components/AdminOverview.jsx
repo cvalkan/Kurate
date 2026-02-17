@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   RefreshCw, Swords, FileText, CheckCircle2, XCircle, Search,
-  ChevronDown, Clock, Download, Sparkles,
+  ChevronDown, Clock, Download, Sparkles, Activity,
 } from "lucide-react";
+import { ModelBadge } from "@/components/ModelBadge";
 import { toast } from "sonner";
 
 const API = process.env.REACT_APP_BACKEND_URL;
