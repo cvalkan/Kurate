@@ -1,0 +1,80 @@
+{
+  "summary": "Admin overview bug fixes verified - all 10 features tested successfully. Backend API tests pass (5/5). Frontend UI tests confirm no duplicate numbers, correct last_fetch display, and winner 'beat' loser format with model badges.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Paper Ingestion section shows only '103 new papers available' (NOT duplicate total 235)",
+    "Paper Ingestion shows '193/235 with summaries' summary coverage",
+    "Tournament section shows ONLY convergence goals (no duplicate matches/failed counts)",
+    "No 'Recent matches' collapsible section exists on page",
+    "'Recent Comparisons' section shows winner 'beat' loser format",
+    "Recent Comparisons includes model badges (gemini-3, claude-opus, gpt-5.2)",
+    "Last fetched shows relative time '6d ago' NOT 'never'",
+    "Switching to Game Theory shows different fetchable count (23 vs 103)",
+    "Backend /api/admin/check-new-papers?category=cs.RO returns source='arxiv_query'",
+    "Backend /api/admin/status includes non-null last_fetch_at in scheduler object",
+    "Backend /api/admin/status recent_matches includes loser_title field"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_admin_overview_bugfixes.py",
+    "/app/test_reports/pytest/admin_overview_bugfixes_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdminOverview.jsx: fetchableCount state correctly shows 'new papers available' (lines 46, 144-147)",
+    "AdminOverview.jsx: timeAgo() helper correctly formats last_fetch_at as relative time (lines 18-27)",
+    "AdminOverview.jsx: auto-check on category switch via useEffect with adminCat dependency (lines 79-82)",
+    "AdminOverview.jsx: No duplicate numbers - stat cards at top (119-123), ingestion shows only summary coverage (154-161), tournament shows only goals (215-248)",
+    "admin.py: _resolve_last_fetch helper correctly finds last_fetch_at from settings (lines 169-185)",
+    "admin.py: check-new-papers endpoint queries real arXiv API, returns source='arxiv_query' (lines 188-226)",
+    "admin.py: status endpoint enriched_recent includes loser_title (lines 407-419)",
+    "scheduler.py: start_scheduler hydrates last_fetch_at from settings into _category_status (lines 159-170)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_overview_bugfixes.py"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 tests passed)",
+    "frontend": "100% (all UI features verified)"
+  },
+  "seed_data_creation": "None - existing data used",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin overview bug fixes complete. AdminOverview.jsx fully rewritten - stat cards at top show papers/matches/failed/unranked. Paper Ingestion section shows 'X new papers available' (fetchable count from arXiv query) and 'Y/Z with summaries'. Tournament section shows only convergence goals without duplicate counts. Recent Comparisons shows 'winner beat loser' with model badges. Last fetched displays relative time like '6d ago'. Category switching triggers auto-check for new papers.",
+  "features_verified": {
+    "paper_ingestion_section": {
+      "no_duplicate_235": true,
+      "shows_new_papers_available": "103",
+      "shows_summary_coverage": "193/235",
+      "auto_check_on_category_switch": true
+    },
+    "tournament_section": {
+      "no_duplicate_matches_count": true,
+      "no_duplicate_failed_count": true,
+      "shows_convergence_goals": true,
+      "shows_remaining_estimate": "~158 matches remaining"
+    },
+    "last_fetched": {
+      "shows_relative_time": "6d ago",
+      "not_showing_never": true
+    },
+    "recent_comparisons": {
+      "no_collapsible_recent_matches": true,
+      "shows_winner_beat_loser": true,
+      "includes_model_badge": true
+    },
+    "backend_endpoints": {
+      "check_new_papers_source": "arxiv_query",
+      "check_new_papers_real_count": true,
+      "status_has_last_fetch_at": true,
+      "recent_matches_has_loser_title": true
+    }
+  }
+}
