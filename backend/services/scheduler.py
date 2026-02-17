@@ -961,6 +961,7 @@ def _select_pairs(
 
     ci_target = kwargs.get("ci_target", 10)
     ci_target_general = kwargs.get("ci_target_general", 15)
+    calibration_pct = kwargs.get("calibration_ratio", 50)  # % of matches against established papers
 
     comparisons = {}
     wins = {}
