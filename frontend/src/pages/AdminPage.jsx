@@ -251,6 +251,7 @@ export default function AdminPage() {
               { key: "max_new_matches_per_round", label: "Max Matches Per Paper Per Round", help: "Max new matches per paper per round." },
               { key: "ci_target", label: "Top-K CI Target (%)", help: "Tight Wilson CI margin target for top-K papers. Default: 10%", min: 1, max: 30 },
               { key: "ci_target_general", label: "General CI Target (%)", help: "Looser Wilson CI margin target for non-top-K papers. Default: 15%", min: 5, max: 50 },
+              { key: "calibration_ratio", label: "Calibration Ratio (%)", help: "% of new-paper matches paired against established (converged) papers for score calibration. 0=all needy-vs-needy, 100=all needy-vs-established. Default: 50%", min: 0, max: 100 },
             ].map(({ key, label, help, min, max, step }) => (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
