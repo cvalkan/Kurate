@@ -140,8 +140,9 @@ export function AdminOverview({
           </div>
         </div>
 
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div className="flex items-center gap-1.5">
+        {/* Pipeline status */}
+        <div className="text-xs text-muted-foreground space-y-1.5">
+          <div className="flex items-center gap-1.5" data-testid="fetchable-count">
             {fetchableCount !== null ? (
               <span>
                 <span className="font-mono text-foreground font-medium text-base">{fetchableCount}</span> new papers available
@@ -152,15 +153,20 @@ export function AdminOverview({
               <span>Checking...</span>
             )}
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {summaryInfo && (
-              <span>
-                <span className="font-mono">{summaryInfo.with_summaries}</span>/{totalPapers} with summaries
-              </span>
+          <div data-testid="downloaded-count">
+            <span className="font-mono text-foreground font-medium">{papersWithPdf}</span> papers downloaded
+            {papersWithPdf < totalPapers && (
+              <span className="text-amber-500 ml-1">({totalPapers - papersWithPdf} pending)</span>
             )}
-            {isGenerating && <span className="text-accent animate-pulse">generating...</span>}
           </div>
-          <div>
+          <div data-testid="summarized-count">
+            <span className="font-mono text-foreground font-medium">{summariesCount}</span> papers summarized
+            {summariesCount < papersWithPdf && (
+              <span className="text-amber-500 ml-1">({papersWithPdf - summariesCount} pending)</span>
+            )}
+            {isGenerating && <span className="text-accent animate-pulse ml-1">generating...</span>}
+          </div>
+          <div className="pt-0.5">
             Last fetched <span className="font-mono text-foreground">{timeAgo(lastFetch)}</span>
             {progress?.global_paused && <span className="text-amber-500 ml-1">(system paused)</span>}
             {!progress?.global_paused && progress?.fetch_paused && <span className="text-amber-500 ml-1">(auto-fetch off)</span>}
