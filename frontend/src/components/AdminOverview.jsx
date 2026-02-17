@@ -270,17 +270,11 @@ export function AdminOverview({
               )}
             </span>
             <span>
-              {progress.tournament_paused ? (
-                <span className="text-amber-600 font-medium">Paused</span>
-              ) : progress.compare_paused ? (
-                <span className="text-amber-500 font-medium">Matches paused</span>
-              ) : progress.global_paused ? (
-                <span className="text-amber-600 font-medium">System paused</span>
-              ) : progress.goals_met ? (
-                <span className="text-green-600">Converged</span>
-              ) : (
-                <span className="text-accent">Running</span>
-              )}
+              {progress.goals_met ? (
+                <span className="text-green-600 font-medium">Converged</span>
+              ) : !progress.compare_paused && !progress.global_paused ? (
+                <span className="text-accent font-medium">Running</span>
+              ) : null}
             </span>
           </div>
         </div>
