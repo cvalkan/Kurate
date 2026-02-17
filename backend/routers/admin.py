@@ -485,8 +485,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
     compared_pairs = set()
 
     for m in raw_matches:
-        if m.get("primary_category") != category:
-            continue
         p1, p2 = m["paper1_id"], m["paper2_id"]
         if p1 in pid_set and p2 in pid_set:
             paper_match_count[p1] += 1
