@@ -1,5 +1,6 @@
 import math
-from typing import Dict, List, Optional
+import numpy as np
+from typing import Dict, List, Optional, Tuple
 from scipy import stats as scipy_stats
 
 
