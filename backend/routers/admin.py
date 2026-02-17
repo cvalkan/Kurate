@@ -383,9 +383,12 @@ async def get_progress_estimate(category: str = "cs.RO"):
     global_paused = settings.get("paused", False)
     parallel_agents = settings.get("parallel_agents", 5)
 
-    # Check tournament-level pause status from scheduler (avoids DB query)
-    cat_sched = _get_cat_status(category)
-    tournament_paused = cat_sched.get("current_activity") == "Tournament paused"
+    # Check tournament-level pause status from DB directly (not scheduler memory)
+    tid = f"cat={category}|mode=standard"
+    tournament_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "status": 1, "fetch_paused": 1, "compare_paused": 1})
+    tournament_paused = tournament_doc.get("status") == "paused" if tournament_doc else False
+    fetch_paused = bool(tournament_doc.get("fetch_paused")) if tournament_doc else False
+    compare_paused = bool(tournament_doc.get("compare_paused")) if tournament_doc else False
     is_paused = global_paused or tournament_paused
 
     # Use leaderboard cache for paper IDs and match data
