@@ -251,8 +251,7 @@ export default function AdminPage() {
               { key: "min_matches_per_paper", label: "Min Matches Per Paper", help: "Minimum comparisons per paper. Highest priority for matchmaker." },
               { key: "max_matches_per_paper", label: "Max Matches Per Paper", help: "Stop comparing after this many matches." },
               { key: "max_new_matches_per_round", label: "Max New Matches Per Round", help: "Max new matches per paper per round." },
-              { key: "convergence_threshold", label: "Convergence Threshold (ρ)", help: "Spearman ρ threshold for ranking stability. Tournament stops when ρ > this for consecutive rounds. Default: 0.95", min: 0.5, max: 1.0, step: 0.01 },
-              { key: "convergence_rounds", label: "Convergence Rounds", help: "Number of consecutive rounds above threshold needed to stop. Default: 3", min: 1, max: 10 },
+              { key: "bt_ci_threshold", label: "BT CI Threshold", help: "Max Bradley-Terry confidence interval width (win-prob scale). Papers converge when their CI is narrower than this. Default: 0.15 (±7.5%)", min: 0.01, max: 0.5, step: 0.01 },
             ].map(({ key, label, help, min, max, step }) => (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
