@@ -81,8 +81,9 @@ DEFAULT_SETTINGS = {
     "min_matches_per_paper": 3,
     "max_matches_per_paper": 20,
     "max_new_matches_per_round": 3,
-    "convergence_threshold": 0.95,  # Spearman ρ threshold for ranking stability
-    "convergence_rounds": 3,        # Consecutive rounds above threshold to stop
+    "convergence_threshold": 0.95,  # Legacy — kept for backward compat
+    "convergence_rounds": 3,        # Legacy — kept for backward compat
+    "bt_ci_threshold": 0.15,        # BT CI width threshold (win-prob scale, 0.15 = ±7.5%)
     "min_papers_for_tournament": 8,
     "paused": False,
     "summary_source": "round_robin",  # "claude", "gemini", "gpt", or "round_robin"
