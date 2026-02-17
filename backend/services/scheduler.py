@@ -156,7 +156,18 @@ async def start_scheduler():
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
     for cat_id in active_cats:
-        _get_cat_status(cat_id)
+        cat_status = _get_cat_status(cat_id)
+        # Hydrate last_fetch_at from settings
+        flat_key = f"last_fetch_at_{cat_id.replace('.', '_')}"
+        val = settings.get(flat_key)
+        if val and isinstance(val, str):
+            cat_status["last_fetch_at"] = val
+        else:
+            parts = cat_id.split(".")
+            if len(parts) == 2:
+                nested = settings.get(f"last_fetch_at_{parts[0]}")
+                if isinstance(nested, dict) and parts[1] in nested:
+                    cat_status["last_fetch_at"] = nested[parts[1]]
     logger.info("Background scheduler started")
     asyncio.create_task(_scheduler_loop())
 
