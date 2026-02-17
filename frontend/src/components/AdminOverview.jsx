@@ -86,7 +86,14 @@ export function AdminOverview({
     setFetchableCount(null);
   };
 
-  if (!status) return null;
+  if (!status) return (
+    <div className="space-y-4 animate-pulse" data-testid="admin-overview-loading">
+      <div className="h-8 bg-secondary/30 rounded-lg" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[1,2,3,4].map(i => <div key={i} className="h-20 bg-secondary/30 rounded-lg" />)}
+      </div>
+    </div>
+  );
 
   const scheduler = status.scheduler || {};
   const lastFetch = scheduler.last_fetch_at;
