@@ -1832,10 +1832,16 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     if len(paper_tiers) >= 5:
         for mode in modes_with_results:
             ai_map = mode_ai_pairs.get(mode, {})
-            # Build AI ranking for papers that have tiers
             tier_paper_ids = set(paper_tiers.keys())
-            mode_matches = [m for m in matches if m.get("content_mode") == mode or (mode == "abstract" and not m.get("content_mode"))]
-            tier_matches = [m for m in mode_matches if m["paper1_id"] in tier_paper_ids and m["paper2_id"] in tier_paper_ids and m.get("completed") and not m.get("failed")]
+
+            # Fetch matches for this mode to build BT ranking
+            mode_match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+            mode_match_filter.update(_build_content_mode_filter(mode))
+            mode_matches_raw = await db.validation_matches.find(
+                mode_match_filter,
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
+            ).to_list(100000)
+            tier_matches = [m for m in mode_matches_raw if m["paper1_id"] in tier_paper_ids and m["paper2_id"] in tier_paper_ids]
 
             if len(tier_matches) < 5:
                 continue
