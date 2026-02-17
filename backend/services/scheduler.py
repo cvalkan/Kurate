@@ -412,7 +412,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     return True
 
 
-async def run_fetch_cycle(category: str = "cs.RO"):
+async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
     if category in _fetching_cats:
         return {"status": "already_fetching"}
 
