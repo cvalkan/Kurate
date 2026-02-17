@@ -54,8 +54,7 @@ class SettingsUpdate(BaseModel):
     min_matches_per_paper: Optional[int] = None
     max_matches_per_paper: Optional[int] = None
     max_new_matches_per_round: Optional[int] = None
-    convergence_threshold: Optional[float] = None
-    convergence_rounds: Optional[int] = None
+    bt_ci_threshold: Optional[float] = None
     summary_source: Optional[str] = None
     paused: Optional[bool] = None
     admin_password: Optional[str] = None
