@@ -81,6 +81,7 @@ DEFAULT_SETTINGS = {
     "max_new_matches_per_round": 3,
     "ci_target": 10,              # Wilson CI margin target for top-K papers (%)
     "ci_target_general": 15,      # Wilson CI margin target for remaining papers (%)
+    "calibration_ratio": 50,       # % of needy-paper matches paired with established papers (0-100)
     "min_papers_for_tournament": 8,
     "paused": False,
     "summary_source": "round_robin",
