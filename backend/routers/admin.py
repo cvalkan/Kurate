@@ -1354,9 +1354,11 @@ async def toggle_tournament_compare(tournament_id: str):
     if doc is None:
         raise HTTPException(404, "Tournament not found")
     new_state = not doc.get("compare_paused", False)
+    # Sync the legacy 'status' field to keep UI consistent
+    new_status = "paused" if new_state else "active"
     await db.tournaments.update_one(
         {"tournament_id": tournament_id},
-        {"$set": {"compare_paused": new_state, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"compare_paused": new_state, "status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
     _invalidate_admin_cache()
     if not new_state:
