@@ -492,6 +492,8 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "paused": is_paused,
         "global_paused": global_paused,
         "tournament_paused": bool(tournament_paused),
+        "fetch_paused": fetch_paused,
+        "compare_paused": compare_paused,
         "category": category,
         "goals_met": bool(goal1_met and goal2_met and goal3_met),
         "goal1": {
