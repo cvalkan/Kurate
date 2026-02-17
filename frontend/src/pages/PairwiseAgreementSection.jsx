@@ -324,6 +324,11 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
         <ScoreGapSection scoreGap={data.score_gap} modeLabels={MODE_LABELS} />
       )}
 
+      {/* Acceptance Tier Analysis */}
+      {data.tier_analysis && Object.keys(data.tier_analysis).length > 0 && (
+        <TierAnalysisSection tierAnalysis={data.tier_analysis} modeLabels={MODE_LABELS} />
+      )}
+
       {/* View AI Summaries */}
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7" onClick={async () => {
