@@ -403,18 +403,20 @@ async def get_admin_status(category: str = "cs.RO"):
     paper_ids_needed.discard("")
     paper_titles = {p["id"]: p["title"] for p in raw_papers if p["id"] in paper_ids_needed} if raw_papers else {}
 
-    enriched_recent = [
-        {
+    enriched_recent = []
+    for m in cat_matches_sorted:
+        winner_id = m.get("winner_id", "")
+        loser_id = m["paper2_id"] if winner_id == m["paper1_id"] else m["paper1_id"]
+        enriched_recent.append({
             "id": m.get("id", ""),
             "paper1_title": paper_titles.get(m["paper1_id"], "Unknown"),
             "paper2_title": paper_titles.get(m["paper2_id"], "Unknown"),
-            "winner_title": paper_titles.get(m.get("winner_id", ""), "Unknown"),
+            "winner_title": paper_titles.get(winner_id, "Unknown"),
+            "loser_title": paper_titles.get(loser_id, "Unknown"),
             "reasoning": m.get("reasoning", ""),
             "model_used": m.get("model_used", {}),
             "created_at": m.get("created_at", ""),
-        }
-        for m in cat_matches_sorted
-    ]
+        })
 
     # Resolve last_fetch_at from settings if scheduler doesn't have it
     sched_last_fetch = cat_scheduler.get("last_fetch_at")
