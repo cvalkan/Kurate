@@ -1114,6 +1114,59 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
         "rank_delta": a_rank[pid]["rank"] - h_rank[pid]["rank"],
     } for pid in common], key=lambda x: x["human_rank"])
 
+    # ─── Acceptance Tier Metrics ────────────────────────────────────────
+    TIER_ORDER = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "withdrawn": 4, "desk rejected": 4}
+    def _norm_tier(d):
+        if not d: return None
+        dl = d.lower().strip()
+        for t in TIER_ORDER:
+            if t in dl: return t
+        return None
+
+    paper_tiers = {}
+    for p in papers:
+        t = _norm_tier(p.get("decision"))
+        if t and t in ("oral", "spotlight", "poster", "reject"):
+            paper_tiers[p["id"]] = t
+
+    tier_metrics = None
+    if len(paper_tiers) >= 5:
+        # Enrich comparison with tier data
+        for entry in comparison:
+            entry["tier"] = paper_tiers.get(entry["id"])
+
+        # Tier pair accuracy from the AI ranking
+        tier_correct = 0
+        tier_total = 0
+        for i, a in enumerate(comparison):
+            for b in comparison[i+1:]:
+                ta, tb = paper_tiers.get(a["id"]), paper_tiers.get(b["id"])
+                if not ta or not tb or TIER_ORDER.get(ta) == TIER_ORDER.get(tb):
+                    continue
+                tier_total += 1
+                higher = a if TIER_ORDER[ta] < TIER_ORDER[tb] else b
+                lower = b if higher == a else a
+                if higher["ai_rank"] < lower["ai_rank"]:
+                    tier_correct += 1
+
+        # Top-K precision
+        top_tier_ids = {pid for pid, t in paper_tiers.items() if t in ("oral", "spotlight")}
+        ai_sorted = sorted(comparison, key=lambda e: e["ai_rank"])
+        top_k_precision = {}
+        for k in [5, 10]:
+            top_ids = {e["id"] for e in ai_sorted[:k]}
+            hits = len(top_ids & top_tier_ids)
+            top_k_precision[f"top_{k}"] = {"hits": hits, "total": min(k, len(ai_sorted)), "precision": round(hits / min(k, len(ai_sorted)) * 100, 1)}
+
+        tier_metrics = {
+            "overall_accuracy": round(tier_correct / max(tier_total, 1) * 100, 1),
+            "correct": tier_correct,
+            "total_pairs": tier_total,
+            "top_k_precision": top_k_precision,
+            "tier_distribution": {t: sum(1 for v in paper_tiers.values() if v == t) for t in ("oral", "spotlight", "poster", "reject") if any(v == t for v in paper_tiers.values())},
+            "papers_with_tiers": len(paper_tiers),
+        }
+
     return {
         "status": "ok", "method": "pairwise_bt",
         "papers_analyzed": len(cp), "human_matches_derived": len(ch),
@@ -1126,6 +1179,7 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
         },
         "interpretation": _interp(sp, sp_p, len(cp), "pairwise BT"),
         "comparison": comparison,
+        "tier_metrics": tier_metrics,
     }
 
 
