@@ -64,53 +64,73 @@ def calculate_bt_confidence_intervals(
 ) -> Dict[str, Dict]:
     """Compute Bradley-Terry confidence intervals using the observed Fisher information.
     
-    Returns per-paper: {bt_score, bt_ci_lower, bt_ci_upper, bt_ci_width, rank_stable}
-    
-    The Fisher information matrix for BT is:
-      I_{ij} = -sum over matches(i,j) of p_ij * (1 - p_ij) / (p_i + p_j)^2
-    where p_ij = score_i / (score_i + score_j).
-    
-    The diagonal of the inverse gives variance of each log-strength parameter.
+    Matches should be pre-filtered (completed=True, failed!=True).
+    Returns per-paper: {bt_score, win_prob, bt_ci_lower, bt_ci_upper, bt_ci_width}
     """
     n = len(paper_ids)
     if n < 2:
-        return {pid: {"bt_score": 1.0, "bt_ci_lower": 0.0, "bt_ci_upper": 1.0, "bt_ci_width": 1.0, "converged": False} for pid in paper_ids}
+        return {pid: {"bt_score": 1.0, "win_prob": 0.5, "bt_ci_lower": 0.0, "bt_ci_upper": 1.0, "bt_ci_width": 1.0} for pid in paper_ids}
 
-    # First get BT scores
-    scores = calculate_bradley_terry(matches, paper_ids)
-
-    # Build pairwise comparison counts: n_ij = times i beat j
+    # Build pairwise win counts
     pid_to_idx = {pid: i for i, pid in enumerate(paper_ids)}
+    pid_set = set(paper_ids)
+    wins = {pid: 0 for pid in paper_ids}
+    comparisons = {pid: 0 for pid in paper_ids}
     win_matrix = np.zeros((n, n))
 
     for m in matches:
-        if not (m.get("completed") and m.get("winner_id") and not m.get("failed")):
-            continue
-        p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
-        if p1 not in pid_to_idx or p2 not in pid_to_idx:
+        p1, p2 = m.get("paper1_id"), m.get("paper2_id")
+        w = m.get("winner_id")
+        if not (p1 and p2 and w and p1 in pid_set and p2 in pid_set):
             continue
         i, j = pid_to_idx[p1], pid_to_idx[p2]
+        comparisons[p1] = comparisons.get(p1, 0) + 1
+        comparisons[p2] = comparisons.get(p2, 0) + 1
+        wins[w] = wins.get(w, 0) + 1
         if w == p1:
             win_matrix[i][j] += 1
         else:
             win_matrix[j][i] += 1
 
-    # Compute Fisher information matrix on log-strength parameters
-    # Using the last paper as reference (fixing its log-strength to 0)
-    s = np.array([max(scores.get(pid, 1.0), 1e-6) for pid in paper_ids])
+    total_matches = sum(comparisons.values()) // 2
+    if total_matches < n:
+        return {pid: {"bt_score": 1.0, "win_prob": 0.5, "bt_ci_lower": 0.0, "bt_ci_upper": 1.0, "bt_ci_width": 1.0} for pid in paper_ids}
 
-    # Fisher information for the reduced system (n-1 free parameters)
-    m_size = n - 1  # Last paper is reference
+    # Compute BT scores via iterative algorithm (same as calculate_bradley_terry but inline)
+    scores = np.ones(n)
+    paper_opp = [[] for _ in range(n)]  # (opponent_idx, n_matches) pairs
+    for i in range(n):
+        for j in range(n):
+            n_ij = win_matrix[i][j] + win_matrix[j][i]
+            if n_ij > 0 and i != j:
+                paper_opp[i].append((j, n_ij))
+
+    for _ in range(100):
+        new_scores = np.zeros(n)
+        for i in range(n):
+            w_i = wins.get(paper_ids[i], 0)
+            if w_i == 0:
+                new_scores[i] = 1e-6
+                continue
+            denom = sum(n_ij / (scores[i] + scores[j]) for j, n_ij in paper_opp[i])
+            new_scores[i] = w_i / denom if denom > 0 else scores[i]
+        # Normalize
+        total = new_scores.sum()
+        if total > 0:
+            scores = new_scores / total * n
+        if np.max(np.abs(scores - new_scores / total * n if total > 0 else new_scores)) < 1e-8:
+            break
+
+    # Fisher information matrix (n-1 free params, last is reference)
+    m_size = n - 1
     fisher = np.zeros((m_size, m_size))
-
     for i in range(n):
         for j in range(i + 1, n):
             n_ij = win_matrix[i][j] + win_matrix[j][i]
             if n_ij == 0:
                 continue
-            p_ij = s[i] / (s[i] + s[j])
+            p_ij = scores[i] / (scores[i] + scores[j])
             info = n_ij * p_ij * (1 - p_ij)
-
             if i < m_size:
                 fisher[i][i] += info
             if j < m_size:
@@ -119,29 +139,19 @@ def calculate_bt_confidence_intervals(
                 fisher[i][j] -= info
                 fisher[j][i] -= info
 
-    # Invert to get covariance matrix
     z = scipy_stats.norm.ppf(1 - (1 - confidence_level) / 2)
     results = {}
 
     try:
-        # Add small ridge for numerical stability
         fisher += np.eye(m_size) * 1e-6
         cov = np.linalg.inv(fisher)
+        mean_score = scores.mean()
 
         for i, pid in enumerate(paper_ids):
-            sc = scores.get(pid, 1.0)
-            if i < m_size:
-                se = math.sqrt(max(cov[i][i], 0))
-            else:
-                se = 0  # Reference paper — no uncertainty in relative terms
+            sc = scores[i]
+            se = math.sqrt(max(cov[i][i], 0)) if i < m_size else 0
 
-            # CI on log-strength, then transform to win-probability scale
-            # Win prob vs average opponent ≈ score / (score + mean_score)
-            mean_score = sum(scores.values()) / len(scores)
             win_prob = sc / (sc + mean_score)
-
-            # Delta method: se of win_prob ≈ |d(win_prob)/d(log_score)| * se
-            # d(win_prob)/d(log_score) = score * mean_score / (score + mean_score)^2
             deriv = sc * mean_score / (sc + mean_score) ** 2
             win_prob_se = deriv * se
 
@@ -150,23 +160,15 @@ def calculate_bt_confidence_intervals(
             width = upper - lower
 
             results[pid] = {
-                "bt_score": round(sc, 4),
-                "win_prob": round(win_prob, 4),
-                "bt_ci_lower": round(lower, 4),
-                "bt_ci_upper": round(upper, 4),
-                "bt_ci_width": round(width, 4),
+                "bt_score": round(float(sc), 4),
+                "win_prob": round(float(win_prob), 4),
+                "bt_ci_lower": round(float(lower), 4),
+                "bt_ci_upper": round(float(upper), 4),
+                "bt_ci_width": round(float(width), 4),
             }
     except np.linalg.LinAlgError:
-        # Singular matrix — not enough data
         for pid in paper_ids:
-            sc = scores.get(pid, 1.0)
-            results[pid] = {
-                "bt_score": round(sc, 4),
-                "win_prob": 0.5,
-                "bt_ci_lower": 0.0,
-                "bt_ci_upper": 1.0,
-                "bt_ci_width": 1.0,
-            }
+            results[pid] = {"bt_score": 1.0, "win_prob": 0.5, "bt_ci_lower": 0.0, "bt_ci_upper": 1.0, "bt_ci_width": 1.0}
 
     return results
 
