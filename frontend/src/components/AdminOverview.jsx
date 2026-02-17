@@ -159,6 +159,7 @@ export function AdminOverview({
           </div>
           <div data-testid="downloaded-count">
             <span className="font-mono text-foreground font-medium">{papersWithPdf}</span>/<span className="font-mono">{totalPapers}</span> downloaded
+            {isDownloading && <span className="text-accent animate-pulse ml-1">downloading...</span>}
           </div>
           <div data-testid="summarized-count">
             <span className="font-mono text-foreground font-medium">{summariesCount}</span>/<span className="font-mono">{papersWithPdf}</span> summarized
