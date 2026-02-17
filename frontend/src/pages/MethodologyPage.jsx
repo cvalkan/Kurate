@@ -71,14 +71,14 @@ export default function MethodologyPage() {
           <p>The presentation order of each pair is <span className="text-foreground font-medium">randomly flipped with 50% probability</span> before sending to the LLM. This eliminates positional bias — a known issue where models tend to prefer the paper presented first.</p>
         </Step>
 
-        <Step number={4} icon={RefreshCw} title="Convergence-Based Stopping">
-          <p>A simplified <span className="text-foreground font-medium">round-robin matchmaker</span> selects pairs, with three convergence goals:</p>
+        <Step number={4} icon={RefreshCw} title="Two-Tier Convergence">
+          <p>The matchmaker uses a <span className="text-foreground font-medium">goal-directed</span> approach with two-tier convergence targets:</p>
           <ul className="list-disc list-inside space-y-1 text-xs mt-1">
-            <li><span className="text-foreground">Minimum matches</span> — Every paper gets at least 3 comparisons</li>
-            <li><span className="text-foreground">Ranking stability</span> — After each round, the system computes Spearman &rho; between the current ranking and the ranking from 2 rounds ago. The tournament stops when &rho; &ge; 0.95 for 3 consecutive rounds.</li>
-            <li><span className="text-foreground">Top-K cross-match</span> — Every pair of top-K papers must have played against each other at least once</li>
+            <li><span className="text-foreground">General papers</span> — Wilson 95% CI margin &le; 15% (configurable). Ensures all papers have stable win-rate estimates.</li>
+            <li><span className="text-foreground">Top-K papers</span> — Wilson 95% CI margin &le; 10% (configurable). Tighter confidence for the papers that matter most in the leaderboard.</li>
+            <li><span className="text-foreground">Top-K cross-matches</span> — Every pair of top-K papers must have played against each other at least once to ensure direct comparison.</li>
           </ul>
-          <p className="mt-2">This convergence-based approach is more efficient than fixed match budgets — rankings stabilize much faster when AI summaries are used as input.</p>
+          <p className="mt-2">Papers with the widest confidence intervals are matched first, so every comparison directly advances convergence. No match budget is wasted on random pairings. Once all goals are met, the tournament idles automatically.</p>
         </Step>
 
         <Step number={5} icon={Users} title="Multi-Model Consensus">
