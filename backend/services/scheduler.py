@@ -468,7 +468,7 @@ async def run_fetch_cycle(category: str = "cs.RO"):
                 await db.papers.insert_one(paper_doc)
                 new_count += 1
 
-        cat_status["current_activity"] = f"Fetched {new_count} new papers"
+        cat_status["current_activity"] = f"Fetched {new_count} new papers, downloading PDFs..."
         logger.info(f"Added {new_count} new {category} papers to DB")
 
         # Update paper count immediately so admin dashboard reflects new papers
@@ -481,8 +481,10 @@ async def run_fetch_cycle(category: str = "cs.RO"):
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
         # Generate AI summaries for papers with full text
+        cat_status["current_activity"] = "Generating summaries..."
         await _generate_paper_summaries(category=category)
 
+        cat_status["current_activity"] = "Idle"
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
 
     except Exception as e:
