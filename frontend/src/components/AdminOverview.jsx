@@ -111,14 +111,34 @@ export function AdminOverview({
                 </span>
               )}
               <Button
+                onClick={toggleFetchPause}
+                variant={progress.fetch_paused ? "default" : "outline"}
+                size="sm"
+                className="gap-1 h-7 text-[11px]"
+                data-testid="toggle-fetch-btn"
+              >
+                {progress.fetch_paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                Fetch
+              </Button>
+              <Button
+                onClick={toggleComparePause}
+                variant={progress.compare_paused ? "default" : "outline"}
+                size="sm"
+                className="gap-1 h-7 text-[11px]"
+                data-testid="toggle-compare-btn"
+              >
+                {progress.compare_paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                Matches
+              </Button>
+              <Button
                 onClick={handlePauseResume}
                 variant={progress.tournament_paused ? "default" : "outline"}
                 size="sm"
-                className="gap-1.5 h-8"
+                className="gap-1 h-7 text-[11px]"
                 data-testid="pause-resume-button"
               >
-                {progress.tournament_paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-                {progress.tournament_paused ? "Resume" : "Pause"}
+                {progress.tournament_paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                All
               </Button>
             </div>
           </div>
