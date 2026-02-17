@@ -162,7 +162,8 @@ export function AdminOverview({
           </div>
           <div>
             Last fetched <span className="font-mono text-foreground">{timeAgo(lastFetch)}</span>
-            {progress?.fetch_paused && <span className="text-amber-500 ml-1">(auto-fetch off)</span>}
+            {progress?.global_paused && <span className="text-amber-500 ml-1">(system paused)</span>}
+            {!progress?.global_paused && progress?.fetch_paused && <span className="text-amber-500 ml-1">(auto-fetch off)</span>}
           </div>
         </div>
 
