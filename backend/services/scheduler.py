@@ -995,31 +995,53 @@ def _select_pairs(
 
     needy = sorted(paper_ids, key=lambda pid: urgency(pid), reverse=True)
     needy = [pid for pid in needy if urgency(pid) > 0]
+    established = [pid for pid in paper_ids if urgency(pid) == 0]
+    needy_set = set(needy)
+    pair_idx = 0
 
     for p1 in needy:
         if len(pairs) >= max_pairs or not can_pair(p1):
             continue
+
+        # Alternate 50/50: even pairs → needy opponent (CI convergence), odd → established (calibration)
+        prefer_established = (pair_idx % 2 == 1) and len(established) > 0
+        pair_idx += 1
+
         best = None
         best_score = -1
-        # Prefer pairing with another needy paper (both benefit)
-        for p2 in needy:
-            if p2 == p1 or not can_pair(p2):
-                continue
-            pair_key = tuple(sorted([p1, p2]))
-            novel = pair_key not in compared_pairs
-            score = (1000 if novel else 0) + urgency(p2)
-            if score > best_score:
-                best_score = score
-                best = p2
-        # Fallback: any non-needy paper
+
+        if prefer_established:
+            # Pick an established (converged) opponent — anchors new paper to existing rankings
+            for p2 in established:
+                if p2 == p1 or not can_pair(p2):
+                    continue
+                pair_key = tuple(sorted([p1, p2]))
+                novel = pair_key not in compared_pairs
+                if novel:
+                    best = p2
+                    break
+        
+        # If no established opponent found (or it's a needy-pair turn), pick another needy paper
+        if best is None:
+            for p2 in needy:
+                if p2 == p1 or not can_pair(p2):
+                    continue
+                pair_key = tuple(sorted([p1, p2]))
+                novel = pair_key not in compared_pairs
+                score = (1000 if novel else 0) + urgency(p2)
+                if score > best_score:
+                    best_score = score
+                    best = p2
+
+        # Fallback: any paper with novel pair
         if best is None:
             for p2 in paper_ids:
-                if p2 != p1 and can_pair(p2) and p2 not in needy:
+                if p2 != p1 and can_pair(p2):
                     pair_key = tuple(sorted([p1, p2]))
                     if pair_key not in compared_pairs:
                         best = p2
                         break
-        # Last resort: any paper, even repeat pair
+        # Last resort: any paper
         if best is None:
             for p2 in paper_ids:
                 if p2 != p1 and can_pair(p2):
