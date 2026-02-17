@@ -26,6 +26,18 @@ function timeAgo(iso) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function StatCard({ label, value, icon: Icon }) {
+  return (
+    <div className="p-4 bg-secondary/30 rounded-lg border border-border">
+      <div className="flex items-center gap-2 mb-1">
+        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </div>
+      <div className="font-mono text-2xl font-bold">{typeof value === "number" ? value.toLocaleString() : value}</div>
+    </div>
+  );
+}
+
 export function AdminOverview({
   status, progress, usageStats, categories, adminCat, setAdminCat,
   triggerFetch, loading, onRefresh,
