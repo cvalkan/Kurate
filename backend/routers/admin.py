@@ -434,30 +434,23 @@ async def get_progress_estimate(category: str = "cs.RO"):
     matches_for_goal1 = max(0, (deficit + 1) // 2)
     goal1_met = papers_at_min == total_papers
 
-    # Goal 2: BT CI convergence — all papers' CI widths below threshold
-    from services.ranking import calculate_bt_confidence_intervals
-    # Query matches directly from DB for accurate BT computation (cache may have stale/incomplete data)
-    fresh_matches = await db.matches.find(
-        {"primary_category": category, "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(50000)
-    bt_cis = calculate_bt_confidence_intervals(fresh_matches, all_paper_ids)
-
+    # Goal 2: Wilson CI convergence — all papers' CI margins below ci_target
+    from services.ranking import wilson_margin_pct
     papers_converged = 0
-    widest_ci = 0.0
-    median_ci = 0.0
-    ci_widths = []
+    widest_margin = 0.0
+    margins = []
     for pid in all_paper_ids:
-        ci = bt_cis.get(pid, {})
-        w = ci.get("bt_ci_width", 1.0)
-        ci_widths.append(w)
-        if w <= bt_ci_threshold:
+        n = paper_match_count.get(pid, 0)
+        w = paper_wins.get(pid, 0)
+        margin = wilson_margin_pct(w, n)
+        margins.append(margin)
+        if margin <= ci_target or n >= max_matches:
             papers_converged += 1
-        if w > widest_ci:
-            widest_ci = w
+        if margin > widest_margin:
+            widest_margin = margin
 
-    ci_widths_sorted = sorted(ci_widths)
-    median_ci = ci_widths_sorted[len(ci_widths_sorted) // 2] if ci_widths_sorted else 1.0
+    margins_sorted = sorted(margins)
+    median_margin = margins_sorted[len(margins_sorted) // 2] if margins_sorted else 100.0
     goal2_met = bool(papers_converged == total_papers) if total_papers > 0 else True
     matches_for_goal2 = 0 if goal2_met else max(0, (total_papers - papers_converged) * 3)
 
