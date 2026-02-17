@@ -55,6 +55,7 @@ class SettingsUpdate(BaseModel):
     max_new_matches_per_round: Optional[int] = None
     ci_target: Optional[int] = None
     ci_target_general: Optional[int] = None
+    calibration_ratio: Optional[int] = None
     summary_source: Optional[str] = None
     paused: Optional[bool] = None
     admin_password: Optional[str] = None
