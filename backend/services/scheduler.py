@@ -637,8 +637,6 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             settings = await get_settings()
             parallel_agents = min(max(settings.get("parallel_agents", 5), 1), 20)
             top_k_focus = settings.get("top_k_focus", 10)
-            min_matches_per_paper = settings.get("min_matches_per_paper", 3)
-            max_matches_per_paper = settings.get("max_matches_per_paper", 20)
             max_new_per_round = settings.get("max_new_matches_per_round", 3)
             summary_source = settings.get("summary_source", "round_robin")
 
