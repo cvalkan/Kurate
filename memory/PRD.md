@@ -27,6 +27,8 @@ Build a robust system for validating AI model performance on scientific papers v
 - **Fixed "Last fetched: never"**: Resolved MongoDB nested key lookup issue for `last_fetch_at` settings; scheduler now hydrates from settings on startup
 - **Fixed "Check for new papers" returning 50**: Backend now queries real arXiv API to count new papers instead of crude estimate; each category returns its actual count
 - **Added loser_title to recent matches**: Backend enriches match data with both winner and loser titles
+- **Fixed toggle-fetch/toggle-compare 404 bug**: MongoDB `find_one` with projection returning empty dict `{}` was treated as falsy (not found). Fixed by checking `is None` and including `tournament_id` in projection.
+- **Global pause now disables auto-fetch**: Auto-fetch toggle is disabled when system is globally paused, with "(system paused)" indicator
 
 ## Prioritized Backlog
 
