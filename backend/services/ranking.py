@@ -148,25 +148,27 @@ def calculate_bt_confidence_intervals(
         mean_score = scores.mean()
 
         for i, pid in enumerate(paper_ids):
-            sc = scores[i]
-            se = math.sqrt(max(cov[i][i], 0)) if i < m_size else 0
+            sc = float(scores[i])
+            se = float(math.sqrt(max(float(cov[i][i]), 0))) if i < m_size else 0.0
 
             win_prob = sc / (sc + mean_score)
             deriv = sc * mean_score / (sc + mean_score) ** 2
             win_prob_se = deriv * se
 
-            lower = max(0, win_prob - z * win_prob_se)
-            upper = min(1, win_prob + z * win_prob_se)
+            lower = max(0.0, win_prob - z * win_prob_se)
+            upper = min(1.0, win_prob + z * win_prob_se)
             width = upper - lower
 
             results[pid] = {
-                "bt_score": round(float(sc), 4),
-                "win_prob": round(float(win_prob), 4),
-                "bt_ci_lower": round(float(lower), 4),
-                "bt_ci_upper": round(float(upper), 4),
-                "bt_ci_width": round(float(width), 4),
+                "bt_score": round(sc, 4),
+                "win_prob": round(win_prob, 4),
+                "bt_ci_lower": round(lower, 4),
+                "bt_ci_upper": round(upper, 4),
+                "bt_ci_width": round(width, 4),
             }
-    except np.linalg.LinAlgError:
+    except Exception as e:
+        import logging
+        logging.getLogger("papersumo").warning(f"BT CI computation failed: {type(e).__name__}: {e}")
         for pid in paper_ids:
             results[pid] = {"bt_score": 1.0, "win_prob": 0.5, "bt_ci_lower": 0.0, "bt_ci_upper": 1.0, "bt_ci_width": 1.0}
 
