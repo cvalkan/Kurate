@@ -135,6 +135,9 @@ export function AdminOverview({
             Paper Ingestion
           </h3>
           <div className="flex items-center gap-2">
+            {progress?.global_paused && (
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-medium">System paused</span>
+            )}
             <span className="text-[10px] text-muted-foreground">Auto-fetch</span>
             <Switch
               checked={!progress?.fetch_paused && !progress?.global_paused}
