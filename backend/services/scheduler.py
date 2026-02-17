@@ -344,23 +344,19 @@ async def _store_ranking_snapshot(category: str):
 async def _check_goals_met(category: str = "cs.RO") -> bool:
     """Check if ranking has converged for a category.
     
-    Uses Wilson confidence interval margins: each paper converges when its
-    95% CI margin is below ci_target%. Handles extreme win rates naturally.
-    BT model is still used for ranking, but Wilson drives the stopping decision.
-    
-    Three goals:
-    1. Min matches per paper
-    2. Top-K cross-matching
-    3. Wilson CI convergence — all papers' CI margins below threshold
+    Two-tier Wilson CI convergence:
+    1. General papers: CI margin ≤ ci_target_general (default 15%)
+    2. Top-K papers: CI margin ≤ ci_target (default 10%)
+    3. Top-K cross-matching: all top-K pairs compared
     """
     from services.ranking import wilson_margin_pct
 
     settings = await get_settings()
-    min_matches = settings.get("min_matches_per_paper", 3)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 12)  # Wilson margin in percentage points
+    ci_target = settings.get("ci_target", 10)
+    ci_target_general = settings.get("ci_target_general", 15)
 
-    papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1, "title": 1}).to_list(500)
+    papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}).to_list(500)
     paper_ids = [p["id"] for p in papers]
     if len(paper_ids) < 2:
         return True
@@ -384,29 +380,35 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
             if w and w in paper_wins:
                 paper_wins[w] += 1
 
-    # Goal 1: min matches per paper
-    for c in paper_match_count.values():
-        if c < min_matches:
-            return False
-
-    # Goal 2: top-K cross-matching
+    # Identify top-K
     sorted_papers = sorted(
         paper_ids,
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
         reverse=True,
     )
-    top_k_ids = sorted_papers[:min(top_k, len(sorted_papers))]
-    for i in range(len(top_k_ids)):
-        for j in range(i + 1, len(top_k_ids)):
-            pair = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
-            if pair not in compared_pairs:
-                return False
+    top_k_ids = set(sorted_papers[:min(top_k, len(sorted_papers))])
+    top_k_list = sorted_papers[:min(top_k, len(sorted_papers))]
 
-    # Goal 3: Wilson CI convergence — all papers' margins below ci_target
+    # Goal 1: General papers CI ≤ ci_target_general
     for pid in paper_ids:
+        if pid in top_k_ids:
+            continue
+        margin = wilson_margin_pct(paper_wins.get(pid, 0), paper_match_count.get(pid, 0))
+        if margin > ci_target_general:
+            return False
+
+    # Goal 2: Top-K papers CI ≤ ci_target
+    for pid in top_k_list:
         margin = wilson_margin_pct(paper_wins.get(pid, 0), paper_match_count.get(pid, 0))
         if margin > ci_target:
             return False
+
+    # Goal 3: Top-K cross-matching
+    for i in range(len(top_k_list)):
+        for j in range(i + 1, len(top_k_list)):
+            pair = tuple(sorted([top_k_list[i], top_k_list[j]]))
+            if pair not in compared_pairs:
+                return False
 
     return True
 
