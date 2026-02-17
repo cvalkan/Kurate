@@ -132,6 +132,8 @@ class FetchRequest(BaseModel):
 async def trigger_fetch(body: FetchRequest = FetchRequest()):
     result = await run_fetch_cycle(category=body.category)
     _invalidate_admin_cache(body.category)
+    # Wake scheduler so it immediately re-evaluates goals and starts comparisons
+    wake_scheduler()
     return result
 
 
