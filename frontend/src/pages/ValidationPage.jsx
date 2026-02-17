@@ -68,6 +68,57 @@ function RankingTable({ rows, mode }) {
   );
 }
 
+const TIER_BADGE = {
+  oral: "bg-emerald-100 text-emerald-800",
+  spotlight: "bg-blue-100 text-blue-800",
+  poster: "bg-amber-100 text-amber-800",
+  reject: "bg-red-100 text-red-800",
+};
+
+function TierRankingTable({ rows }) {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? rows : rows.slice(0, 15);
+  return (
+    <div className="border border-border/50 rounded overflow-hidden">
+      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+        <table className="w-full text-[11px]">
+          <thead className="sticky top-0 bg-background">
+            <tr className="border-b border-border text-[10px]">
+              <th className="text-left px-2 py-1.5 font-medium">Paper</th>
+              <th className="text-center px-1.5 py-1.5 font-medium">Tier</th>
+              <th className="text-right px-1.5 py-1.5 font-medium">Score</th>
+              <th className="text-right px-1.5 py-1.5 font-medium">Tier #</th>
+              <th className="text-right px-1.5 py-1.5 font-medium">AI #</th>
+              <th className="text-right px-1.5 py-1.5 font-medium">&Delta;</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(r => (
+              <tr key={r.id} className="border-b border-border/20 hover:bg-secondary/10">
+                <td className="px-2 py-1 max-w-[180px] truncate" title={r.title}>{r.title}</td>
+                <td className="text-center px-1.5 py-1">
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${TIER_BADGE[r.tier] || ""}`}>
+                    {r.tier}
+                  </span>
+                </td>
+                <td className="text-right px-1.5 py-1 font-mono">{r.avg_score}</td>
+                <td className="text-right px-1.5 py-1 font-mono">{r.tier_rank}</td>
+                <td className="text-right px-1.5 py-1 font-mono">{r.ai_rank}</td>
+                <td className="text-right px-1.5 py-1"><RankDelta delta={r.rank_delta} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > 15 && (
+        <button onClick={() => setShowAll(!showAll)} className="w-full py-1.5 text-[10px] text-muted-foreground hover:bg-secondary/20 border-t border-border/50">
+          {showAll ? "Show less" : `Show all ${rows.length} papers`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ProgressBar({ status }) {
   if (!status?.tournament_running) return null;
   const { completed_matches, total_matches } = status.tournament_progress || {};
