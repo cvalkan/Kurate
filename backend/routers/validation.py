@@ -102,7 +102,7 @@ class ImportICLRRequest(BaseModel):
 
 @router.post("/import-iclr", dependencies=[Depends(verify_admin)])
 async def import_iclr_dataset(body: ImportICLRRequest):
-    """Import ICLR papers from the berenslab dataset, filtered by label/keyword."""
+    """Import ICLR papers from the berenslab dataset, filtered by label/keyword. Runs in background."""
     import pandas as pd
 
     try:
@@ -141,29 +141,57 @@ async def import_iclr_dataset(body: ImportICLRRequest):
         samples.append(group.sample(min(len(group), per_bin), random_state=42))
     selected = pd.concat(samples)
 
-    # Download PDFs and import
+    total = len(selected)
+
+    # Save dataset metadata immediately
+    await db.validation_datasets.update_one(
+        {"dataset_id": body.dataset_id},
+        {"$set": {
+            "dataset_id": body.dataset_id,
+            "name": body.name,
+            "description": body.description,
+            "source": f"ICLR {body.years} / {body.label_filter or body.keyword_filter}",
+            "label_filter": body.label_filter,
+            "keyword_filter": body.keyword_filter,
+            "paper_count": total,
+            "import_status": "importing",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+    # Run import in background
+    asyncio.create_task(_run_iclr_import(body.dataset_id, selected))
+
+    return {"status": "started", "dataset_id": body.dataset_id, "papers_to_import": total}
+
+
+async def _run_iclr_import(dataset_id: str, selected):
+    """Background task to download PDFs and import ICLR papers."""
     imported = 0
     pdfs = 0
     for _, row in selected.iterrows():
         full_text = None
         try:
-            r = requests.get(f"https://openreview.net/pdf?id={row['id']}", timeout=30, allow_redirects=True)
-            if r.status_code == 200 and r.content[:5] == b'%PDF-':
-                from PyPDF2 import PdfReader
-                reader = PdfReader(io.BytesIO(r.content))
-                parts = [page.extract_text() or "" for page in reader.pages]
-                text = " ".join(" ".join(parts).split()).encode("utf-8", errors="replace").decode("utf-8")
-                if len(text) > 500:
-                    full_text = text
-                    pdfs += 1
-        except Exception:
-            pass
+            import httpx
+            async with httpx.AsyncClient() as client:
+                r = await client.get(f"https://openreview.net/pdf?id={row['id']}", timeout=30, follow_redirects=True)
+                if r.status_code == 200 and r.content[:5] == b'%PDF-':
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(io.BytesIO(r.content))
+                    parts = [page.extract_text() or "" for page in reader.pages]
+                    text = " ".join(" ".join(parts).split()).encode("utf-8", errors="replace").decode("utf-8")
+                    if len(text) > 500:
+                        full_text = text
+                        pdfs += 1
+        except Exception as e:
+            logger.warning(f"PDF download failed for {row['id']}: {e}")
 
         evaluations = [{"rating_value": float(s), "evaluator": f"Reviewer_{j+1}", "source": "ICLR"} for j, s in enumerate(row['parsed_scores'])]
 
         doc = {
             "id": str(uuid.uuid4()),
-            "dataset_id": body.dataset_id,
+            "dataset_id": dataset_id,
             "title": row["title"],
             "abstract": row["abstract"],
             "authors": [{"name": a} for a in row["authors"].split(", ")] if isinstance(row["authors"], str) else [],
@@ -180,28 +208,22 @@ async def import_iclr_dataset(body: ImportICLRRequest):
             "full_text": full_text,
         }
         await db.validation_papers.update_one(
-            {"dataset_id": body.dataset_id, "openreview_id": row["id"]},
+            {"dataset_id": dataset_id, "openreview_id": row["id"]},
             {"$set": doc}, upsert=True
         )
         imported += 1
-        _time.sleep(0.3)
+        if imported % 10 == 0:
+            await db.validation_datasets.update_one(
+                {"dataset_id": dataset_id},
+                {"$set": {"import_progress": imported, "import_pdfs": pdfs}},
+            )
+        await asyncio.sleep(0.3)
 
-    # Save dataset metadata
     await db.validation_datasets.update_one(
-        {"dataset_id": body.dataset_id},
-        {"$set": {
-            "dataset_id": body.dataset_id,
-            "name": body.name,
-            "description": body.description,
-            "source": f"ICLR {body.years} / {body.label_filter or body.keyword_filter}",
-            "label_filter": body.label_filter,
-            "keyword_filter": body.keyword_filter,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }},
-        upsert=True,
+        {"dataset_id": dataset_id},
+        {"$set": {"import_status": "complete", "paper_count": imported, "import_progress": imported, "import_pdfs": pdfs}},
     )
-
-    return {"status": "ok", "dataset_id": body.dataset_id, "imported": imported, "pdfs": pdfs}
+    logger.info(f"ICLR import complete: {dataset_id} — {imported} papers, {pdfs} PDFs")
 
 
 class ImportPeerReadRequest(BaseModel):
