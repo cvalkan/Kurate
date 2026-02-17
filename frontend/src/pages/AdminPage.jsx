@@ -247,11 +247,10 @@ export default function AdminPage() {
               { key: "fetch_interval_hours", label: "Fetch Interval (hours)", help: "How often to check arXiv for new papers. Default: 24h." },
               { key: "max_papers_per_fetch", label: "Max Papers Per Fetch", help: "Maximum papers to retrieve from arXiv per cycle." },
               { key: "parallel_agents", label: "Parallel Agents", help: "Concurrent LLM comparisons per batch (1-20).", min: 1, max: 20 },
-              { key: "top_k_focus", label: "Top-K Focus", help: "Focus comparisons on papers near this rank boundary." },
-              { key: "min_matches_per_paper", label: "Min Matches Per Paper", help: "Minimum comparisons per paper. Highest priority for matchmaker." },
-              { key: "max_matches_per_paper", label: "Max Matches Per Paper", help: "Stop comparing after this many matches." },
-              { key: "max_new_matches_per_round", label: "Max New Matches Per Round", help: "Max new matches per paper per round." },
-              { key: "ci_target", label: "CI Target (%)", help: "Target Wilson confidence interval margin for each paper. Tournament stops when all papers have CI ≤ this. Default: 12%", min: 1, max: 30 },
+              { key: "top_k_focus", label: "Top-K Focus", help: "Number of top papers to apply tight CI and cross-matching." },
+              { key: "max_new_matches_per_round", label: "Max Matches Per Paper Per Round", help: "Max new matches per paper per round." },
+              { key: "ci_target", label: "Top-K CI Target (%)", help: "Tight Wilson CI margin target for top-K papers. Default: 10%", min: 1, max: 30 },
+              { key: "ci_target_general", label: "General CI Target (%)", help: "Looser Wilson CI margin target for non-top-K papers. Default: 15%", min: 5, max: 50 },
             ].map(({ key, label, help, min, max, step }) => (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
