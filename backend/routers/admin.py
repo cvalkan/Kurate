@@ -443,10 +443,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
         return cached
 
     settings = await get_settings()
-    min_matches = settings.get("min_matches_per_paper", 3)
-    max_matches = settings.get("max_matches_per_paper", 20)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 12)
+    ci_target = settings.get("ci_target", 10)          # Tight CI for top-K papers
+    ci_target_general = settings.get("ci_target_general", 15)  # Looser CI for rest
     global_paused = settings.get("paused", False)
     parallel_agents = settings.get("parallel_agents", 5)
 
@@ -493,64 +492,83 @@ async def get_progress_estimate(category: str = "cs.RO"):
             if w and w in paper_wins:
                 paper_wins[w] += 1
 
-    # Goal 1: All papers at min matches
-    papers_at_min = sum(1 for c in paper_match_count.values() if c >= min_matches)
-    deficit = sum(max(0, min_matches - c) for c in paper_match_count.values())
-    matches_for_goal1 = max(0, (deficit + 1) // 2)
-    goal1_met = papers_at_min == total_papers
-
-    # Goal 2: Wilson CI convergence — all papers' CI margins below ci_target
+    # Identify top-K papers
     from services.ranking import wilson_margin_pct
-    papers_converged = 0
-    widest_margin = 0.0
-    margins = []
-    goal2_per_paper_additional = 0
-    for pid in all_paper_ids:
-        n = paper_match_count.get(pid, 0)
-        w = paper_wins.get(pid, 0)
-        margin = wilson_margin_pct(w, n)
-        margins.append(margin)
-        if margin <= ci_target or n >= max_matches:
-            papers_converged += 1
-        else:
-            # Estimate additional matches needed using Wilson CI scaling (margin ~ 1/sqrt(n))
-            if n >= 2:
-                n_needed = n * (margin / ci_target) ** 2
-                additional = min(max(3, int(n_needed) - n), max_matches - n)
-            else:
-                additional = min(40, max_matches)  # No data, use historical average
-            goal2_per_paper_additional += additional
-        if margin > widest_margin:
-            widest_margin = margin
-
-    margins_sorted = sorted(margins)
-    median_margin = margins_sorted[len(margins_sorted) // 2] if margins_sorted else 100.0
-    goal2_met = bool(papers_converged == total_papers) if total_papers > 0 else True
-    # Each match serves 2 papers, but not every match pairs two unconverged papers.
-    # Use 60% efficiency factor (empirically ~1.5 papers helped per match for unconverged pool)
-    matches_for_goal2 = 0 if goal2_met else max(0, int(goal2_per_paper_additional * 0.6))
-
-    # Goal 3: Cross-matches among top-K papers
-    # ALL top-K papers should have played each other at least once
-    # Capped papers (at max_matches) are included — they've played plenty
     sorted_papers = sorted(
         all_paper_ids,
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
         reverse=True,
     )
-    top_k_ids = sorted_papers[:min(top_k, total_papers)]
-    topk_total_pairs = len(top_k_ids) * (len(top_k_ids) - 1) // 2
+    top_k_ids = set(sorted_papers[:min(top_k, total_papers)])
+    top_k_list = sorted_papers[:min(top_k, total_papers)]
+
+    # Goal 1: All non-top-K papers CI ≤ ci_target_general
+    general_converged = 0
+    general_total = 0
+    general_additional = 0
+    widest_general = 0.0
+    general_margins = []
+    for pid in all_paper_ids:
+        if pid in top_k_ids:
+            continue
+        general_total += 1
+        n = paper_match_count.get(pid, 0)
+        w = paper_wins.get(pid, 0)
+        margin = wilson_margin_pct(w, n)
+        general_margins.append(margin)
+        if margin <= ci_target_general:
+            general_converged += 1
+        else:
+            if n >= 2:
+                n_needed = n * (margin / ci_target_general) ** 2
+                general_additional += max(3, int(n_needed) - n)
+            else:
+                general_additional += 30
+        if margin > widest_general:
+            widest_general = margin
+
+    goal1_met = general_converged == general_total if general_total > 0 else True
+    median_general = sorted(general_margins)[len(general_margins) // 2] if general_margins else 0.0
+    matches_for_goal1 = 0 if goal1_met else max(0, int(general_additional * 0.6))
+
+    # Goal 2: All top-K papers CI ≤ ci_target (tighter)
+    topk_converged = 0
+    topk_total = len(top_k_ids)
+    topk_additional = 0
+    widest_topk = 0.0
+    topk_margins = []
+    for pid in top_k_list:
+        n = paper_match_count.get(pid, 0)
+        w = paper_wins.get(pid, 0)
+        margin = wilson_margin_pct(w, n)
+        topk_margins.append(margin)
+        if margin <= ci_target:
+            topk_converged += 1
+        else:
+            if n >= 2:
+                n_needed = n * (margin / ci_target) ** 2
+                topk_additional += max(3, int(n_needed) - n)
+            else:
+                topk_additional += 40
+        if margin > widest_topk:
+            widest_topk = margin
+
+    goal2_met = topk_converged == topk_total if topk_total > 0 else True
+    median_topk = sorted(topk_margins)[len(topk_margins) // 2] if topk_margins else 0.0
+    matches_for_goal2 = 0 if goal2_met else max(0, int(topk_additional * 0.6))
+
+    # Goal 3: Cross-matches among top-K papers
+    topk_total_pairs = len(top_k_list) * (len(top_k_list) - 1) // 2
     topk_matched_pairs = 0
-    for i in range(len(top_k_ids)):
-        for j in range(i + 1, len(top_k_ids)):
-            pair = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
+    for i in range(len(top_k_list)):
+        for j in range(i + 1, len(top_k_list)):
+            pair = tuple(sorted([top_k_list[i], top_k_list[j]]))
             if pair in compared_pairs:
                 topk_matched_pairs += 1
     matches_for_goal3 = topk_total_pairs - topk_matched_pairs
     goal3_met = bool(topk_matched_pairs == topk_total_pairs)
 
-    # With goal-directed matching, Rule 1 (CI convergence) also handles Goal 1 (min matches).
-    # Use max() since these overlap — a match helping CI also helps min-matches.
+    # Estimation: goals overlap (CI matches help both tiers), use max for CI + add cross-matches
     total_est = max(matches_for_goal1, matches_for_goal2) + matches_for_goal3
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
@@ -572,19 +590,21 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "goals_met": bool(goal1_met and goal2_met and goal3_met),
         "goal1": {
             "met": bool(goal1_met),
-            "label": f"Min {min_matches} matches/paper",
+            "label": f"General CI \u2264 {ci_target_general}%",
+            "done": int(general_converged),
+            "total": int(general_total),
+            "median_margin": round(median_general, 1),
         },
         "goal2": {
             "met": bool(goal2_met),
-            "label": f"CI margin \u2264 {ci_target}%",
-            "done": int(papers_converged),
-            "total": int(total_papers),
-            "median_margin": round(median_margin, 1),
-            "widest_margin": round(widest_margin, 1),
+            "label": f"Top-{topk_total} CI \u2264 {ci_target}%",
+            "done": int(topk_converged),
+            "total": int(topk_total),
+            "median_margin": round(median_topk, 1),
         },
         "goal3": {
             "met": bool(goal3_met),
-            "label": f"Top-{len(top_k_ids)} cross-matches",
+            "label": f"Top-{len(top_k_list)} cross-matches",
             "done": int(topk_matched_pairs),
             "total": int(topk_total_pairs),
         },
