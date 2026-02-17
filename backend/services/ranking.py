@@ -315,7 +315,7 @@ def wilson_margin_pct(wins, comparisons):
     """Wilson CI half-width as percentage points (e.g. 5.2 means +/-5.2%). Single source of truth."""
     from scipy import stats as scipy_stats
     if comparisons == 0:
-        return 0
+        return 100  # No data = maximum uncertainty
     p = wins / comparisons
     n = comparisons
     z = scipy_stats.norm.ppf(0.975)
