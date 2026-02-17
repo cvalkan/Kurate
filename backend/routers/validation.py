@@ -1834,7 +1834,7 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
             ai_map = mode_ai_pairs.get(mode, {})
             # Build AI ranking for papers that have tiers
             tier_paper_ids = set(paper_tiers.keys())
-            mode_matches = [m for m in all_matches if m.get("content_mode") == mode or (mode == "abstract" and not m.get("content_mode"))]
+            mode_matches = [m for m in matches if m.get("content_mode") == mode or (mode == "abstract" and not m.get("content_mode"))]
             tier_matches = [m for m in mode_matches if m["paper1_id"] in tier_paper_ids and m["paper2_id"] in tier_paper_ids and m.get("completed") and not m.get("failed")]
 
             if len(tier_matches) < 5:
