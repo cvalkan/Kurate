@@ -312,20 +312,21 @@ async def _store_ranking_snapshot(category: str):
 async def _check_goals_met(category: str = "cs.RO") -> bool:
     """Check if ranking has converged for a category.
     
-    Uses temporal ranking stability: after each round, compute Spearman ρ
-    between the current ranking and the ranking from 2 rounds ago.
-    Tournament stops when ρ > threshold for `convergence_rounds` consecutive checks.
+    Uses Bradley-Terry confidence intervals: the tournament converges when
+    all papers (with min matches) have BT CI widths below the threshold.
+    This directly measures "how certain are we about each paper's position?"
     
-    Also ensures minimum matches per paper and top-K cross-matching.
+    Three goals:
+    1. Min matches per paper
+    2. Top-K cross-matching
+    3. BT CI convergence — all papers' CI widths below threshold
     """
-    from scipy import stats as scipy_stats
+    from services.ranking import calculate_bt_confidence_intervals
 
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
-    max_matches = settings.get("max_matches_per_paper", 20)
     top_k = settings.get("top_k_focus", 10)
-    convergence_threshold = settings.get("convergence_threshold", 0.95)
-    convergence_rounds = settings.get("convergence_rounds", 3)
+    ci_threshold = settings.get("bt_ci_threshold", 0.15)  # Max CI width in win-prob scale
 
     papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1, "title": 1}).to_list(500)
     paper_ids = [p["id"] for p in papers]
@@ -369,35 +370,16 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
             if pair not in compared_pairs:
                 return False
 
-    # Goal 3: ranking convergence via temporal snapshots
-    # Compare current ranking with ranking from 2 rounds ago
-    # Need at least convergence_rounds + 2 snapshots to check
-    snapshots = await db.ranking_snapshots.find(
-        {"category": category},
-        {"_id": 0, "round": 1, "rankings": 1},
-    ).sort("round", -1).to_list(convergence_rounds + 2)
-
-    if len(snapshots) < convergence_rounds + 2:
-        return False
-
-    # snapshots are sorted newest first: [round N, N-1, N-2, ...]
-    # Check: for the last `convergence_rounds` rounds, is ρ(round_i, round_{i-2}) > threshold?
-    consecutive_stable = 0
-    for i in range(convergence_rounds):
-        current = snapshots[i]["rankings"]
-        compare_with = snapshots[i + 2]["rankings"]  # 2 rounds before
-        common = [pid for pid in paper_ids if pid in current and pid in compare_with]
-        if len(common) < 3:
+    # Goal 3: BT CI convergence
+    bt_cis = calculate_bt_confidence_intervals(all_matches, paper_ids)
+    for pid in paper_ids:
+        if paper_match_count[pid] < min_matches:
+            continue  # Already caught by Goal 1
+        ci = bt_cis.get(pid, {})
+        if ci.get("bt_ci_width", 1.0) > ci_threshold:
             return False
-        sp, _ = scipy_stats.spearmanr(
-            [current[p] for p in common],
-            [compare_with[p] for p in common]
-        )
-        if sp != sp or sp < convergence_threshold:  # NaN check
-            return False
-        consecutive_stable += 1
 
-    return consecutive_stable >= convergence_rounds
+    return True
 
 
 async def run_fetch_cycle(category: str = "cs.RO"):
