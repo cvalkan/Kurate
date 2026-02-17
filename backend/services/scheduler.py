@@ -564,7 +564,7 @@ def _summary_model_key(model_info: dict) -> str:
     return f"{model_info['provider']}:{model_info['model']}".replace(".", "_")
 
 
-async def _generate_paper_summaries(category: str = None):
+async def _generate_paper_summaries(category: str = None, force: bool = False):
     """Generate AI impact summaries (3 models) for papers missing them."""
     from core.config import TOURNAMENT_MODELS
 
