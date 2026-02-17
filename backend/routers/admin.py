@@ -1376,12 +1376,10 @@ async def toggle_tournament_fetch(tournament_id: str):
 @router.post("/tournaments/{tournament_id}/toggle-compare", dependencies=[Depends(verify_admin)])
 async def toggle_tournament_compare(tournament_id: str):
     """Toggle comparison (matchmaking) pause for a tournament."""
-    doc = await db.tournaments.find_one({"tournament_id": tournament_id}, {"_id": 0, "tournament_id": 1, "compare_paused": 1, "status": 1})
+    doc = await db.tournaments.find_one({"tournament_id": tournament_id}, {"_id": 0, "tournament_id": 1, "compare_paused": 1})
     if doc is None:
         raise HTTPException(404, "Tournament not found")
-    # Use effective paused state: paused if EITHER status="paused" OR compare_paused=True
-    currently_paused = doc.get("compare_paused", False) or doc.get("status") == "paused"
-    new_paused = not currently_paused
+    new_paused = not doc.get("compare_paused", False)
     new_status = "paused" if new_paused else "active"
     await db.tournaments.update_one(
         {"tournament_id": tournament_id},
