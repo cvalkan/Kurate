@@ -434,8 +434,12 @@ async def get_progress_estimate(category: str = "cs.RO"):
 
     # Goal 2: BT CI convergence — all papers' CI widths below threshold
     from services.ranking import calculate_bt_confidence_intervals
-    cat_matches = [m for m in raw_matches if m.get("primary_category") == category]
-    bt_cis = calculate_bt_confidence_intervals(cat_matches, all_paper_ids)
+    # Query matches directly from DB for accurate BT computation (cache may have stale/incomplete data)
+    fresh_matches = await db.matches.find(
+        {"primary_category": category, "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(50000)
+    bt_cis = calculate_bt_confidence_intervals(fresh_matches, all_paper_ids)
 
     papers_converged = 0
     widest_ci = 0.0
