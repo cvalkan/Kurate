@@ -165,12 +165,30 @@ async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()
     return {"status": "started", "num_matches": num, "category": body.category}
 
 
+def _resolve_last_fetch(settings: dict, category: str):
+    """Resolve last_fetch_at for a category, handling both flat and nested MongoDB keys."""
+    # Try flat key (newer format: last_fetch_at_cs_RO)
+    flat_key = f"last_fetch_at_{category.replace('.', '_')}"
+    val = settings.get(flat_key)
+    if val and isinstance(val, str):
+        return val
+    # Try nested key (older MongoDB dot-notation created: last_fetch_at_cs → {RO: value})
+    parts = category.split(".")
+    if len(parts) == 2:
+        nested = settings.get(f"last_fetch_at_{parts[0]}")
+        if isinstance(nested, dict):
+            val = nested.get(parts[1])
+            if val and isinstance(val, str):
+                return val
+    # Fallback to global
+    return settings.get("last_fetch_at")
+
+
 @router.get("/check-new-papers", dependencies=[Depends(verify_admin)])
 async def check_new_papers(category: str = "cs.RO"):
-    """Estimate how many new papers are available since last fetch."""
+    """Count how many new papers are available since last fetch by querying the source."""
     settings = await get_settings()
-    last_fetch_key = f"last_fetch_at_{category.replace('.', '_')}"
-    last_fetch = settings.get(last_fetch_key)
+    last_fetch = _resolve_last_fetch(settings, category)
 
     if category.startswith("chemrxiv."):
         from services.chemrxiv import SEED_FILE
@@ -183,14 +201,28 @@ async def check_new_papers(category: str = "cs.RO"):
             return {"available": max(0, len(seeds) - existing), "source": "chemrxiv_seed", "category": category, "last_fetch": last_fetch}
         return {"available": 0, "source": "chemrxiv_seed", "category": category, "last_fetch": last_fetch}
     else:
-        # For arXiv: estimate based on time since last fetch
-        # arXiv publishes ~50-200 papers/day per category
-        if last_fetch:
-            hours_since = (datetime.now(timezone.utc) - datetime.fromisoformat(last_fetch)).total_seconds() / 3600
-            est = int(hours_since * 2)  # ~2 papers/hour average
-        else:
-            est = 50
-        return {"available": est, "source": "arxiv_estimate", "category": category, "last_fetch": last_fetch}
+        # For arXiv: query the API to get an accurate count of new papers
+        try:
+            date_from = last_fetch[:10] if last_fetch else None
+            papers = await fetch_arxiv_papers(category=category, max_results=200, date_from=date_from)
+            primary = [p for p in papers if p.get("categories", [None])[0] == category]
+            if primary:
+                arxiv_ids = [p["arxiv_id"] for p in primary]
+                existing = await db.papers.find({"arxiv_id": {"$in": arxiv_ids}}, {"_id": 0, "arxiv_id": 1}).to_list(500)
+                existing_ids = {e["arxiv_id"] for e in existing}
+                new_count = sum(1 for p in primary if p["arxiv_id"] not in existing_ids)
+            else:
+                new_count = 0
+            return {"available": new_count, "source": "arxiv_query", "category": category, "last_fetch": last_fetch}
+        except Exception as e:
+            logger.warning(f"Failed to query arXiv for {category}: {e}")
+            # Fallback to estimate
+            if last_fetch:
+                hours_since = (datetime.now(timezone.utc) - datetime.fromisoformat(last_fetch)).total_seconds() / 3600
+                est = int(hours_since * 2)
+            else:
+                est = 0
+            return {"available": est, "source": "arxiv_estimate", "category": category, "last_fetch": last_fetch}
 
 
 class GenerateSummariesRequest(BaseModel):
