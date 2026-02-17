@@ -1376,12 +1376,12 @@ async def toggle_tournament_compare(tournament_id: str):
     new_status = "paused" if new_paused else "active"
     await db.tournaments.update_one(
         {"tournament_id": tournament_id},
-        {"$set": {"compare_paused": new_state, "status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"compare_paused": new_paused, "status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
     _invalidate_admin_cache()
-    if not new_state:
+    if not new_paused:
         wake_scheduler()
-    return {"compare_paused": new_state}
+    return {"compare_paused": new_paused}
 
 
 
