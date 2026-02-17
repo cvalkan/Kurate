@@ -1167,6 +1167,43 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
             "papers_with_tiers": len(paper_tiers),
         }
 
+        # ─── Tier-derived ranking vs AI ranking correlation ─────────────
+        # Build a ground-truth ranking from tiers (Oral > Spotlight > Poster > Reject)
+        # Within each tier, use average reviewer score as tiebreaker
+        paper_avg_score = {}
+        for p in papers:
+            evs = [ev["rating_value"] for ev in p.get("evaluations", []) if ev.get("rating_value")]
+            paper_avg_score[p["id"]] = sum(evs) / len(evs) if evs else 0
+
+        tier_ranked_papers = sorted(
+            [pid for pid in paper_tiers if pid in a_rank],
+            key=lambda pid: (TIER_ORDER[paper_tiers[pid]], -paper_avg_score.get(pid, 0)),
+        )
+        if len(tier_ranked_papers) >= 5:
+            tier_rank_map = {pid: rank + 1 for rank, pid in enumerate(tier_ranked_papers)}
+            ai_r = [a_rank[pid]["rank"] for pid in tier_ranked_papers]
+            tier_r = [tier_rank_map[pid] for pid in tier_ranked_papers]
+            t_sp, t_sp_p = scipy_stats.spearmanr(ai_r, tier_r)
+            t_kt, t_kt_p = scipy_stats.kendalltau(ai_r, tier_r)
+
+            tier_metrics["tier_vs_ai_correlation"] = {
+                "spearman_rho": round(t_sp, 4), "spearman_p_value": round(t_sp_p, 6),
+                "kendall_tau": round(t_kt, 4), "kendall_p_value": round(t_kt_p, 6),
+                "papers": len(tier_ranked_papers),
+            }
+
+            # Build comparison table: tier rank vs AI rank
+            tier_metrics["tier_ranking"] = [{
+                "id": pid,
+                "title": next((p["title"] for p in papers if p["id"] == pid), "?"),
+                "tier": paper_tiers[pid],
+                "tier_rank": tier_rank_map[pid],
+                "avg_score": round(paper_avg_score.get(pid, 0), 2),
+                "ai_rank": a_rank[pid]["rank"],
+                "ai_score": a_rank[pid]["score"],
+                "rank_delta": a_rank[pid]["rank"] - tier_rank_map[pid],
+            } for pid in tier_ranked_papers]
+
     return {
         "status": "ok", "method": "pairwise_bt",
         "papers_analyzed": len(cp), "human_matches_derived": len(ch),
