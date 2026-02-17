@@ -1522,9 +1522,8 @@ async def estimate_category(cat_id: str):
 
     # Cost estimate based on historical matches-per-paper ratio
     settings = await get_settings()
-    min_matches = settings.get("min_matches_per_paper", 5)
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 12)
+    ci_target = settings.get("ci_target", 10)
 
     # Check if we already have papers for this category
     existing_papers = await db.papers.count_documents({"categories.0": cat_id})
