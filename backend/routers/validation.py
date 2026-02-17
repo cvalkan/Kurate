@@ -1755,6 +1755,101 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
         if buckets:
             score_gap[mode] = buckets
 
+    # ─── Acceptance Tier Analysis ───────────────────────────────────────
+    # For datasets with ICLR-style decisions (Oral/Spotlight/Poster/Reject)
+    TIER_ORDER = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "withdrawn": 4, "desk rejected": 4}
+
+    def _normalize_tier(decision):
+        if not decision:
+            return None
+        d = decision.lower().strip()
+        for tier_key in TIER_ORDER:
+            if tier_key in d:
+                return tier_key
+        return None
+
+    paper_tiers = {}
+    for p in papers:
+        tier = _normalize_tier(p.get("decision"))
+        if tier and tier in ("oral", "spotlight", "poster", "reject"):
+            paper_tiers[p["id"]] = tier
+
+    tier_analysis = {}
+    if len(paper_tiers) >= 5:
+        for mode in modes_with_results:
+            ai_map = mode_ai_pairs.get(mode, {})
+            # Build AI ranking for papers that have tiers
+            tier_paper_ids = set(paper_tiers.keys())
+            mode_matches = [m for m in all_matches if m.get("content_mode") == mode or (mode == "abstract" and not m.get("content_mode"))]
+            tier_matches = [m for m in mode_matches if m["paper1_id"] in tier_paper_ids and m["paper2_id"] in tier_paper_ids and m.get("completed") and not m.get("failed")]
+
+            if len(tier_matches) < 5:
+                continue
+
+            tier_papers_list = [p for p in papers if p["id"] in tier_paper_ids]
+            ai_lb = compute_leaderboard(tier_papers_list, tier_matches)
+            ai_rank_map = {e["id"]: e["rank"] for e in ai_lb}
+
+            # Tier pair accuracy: for each pair of papers in different tiers,
+            # does the AI rank the higher-tier paper higher?
+            tier_correct = 0
+            tier_total = 0
+            tier_pair_breakdown = {}  # e.g., "oral_vs_poster": {correct, total}
+            for pid_a in paper_tiers:
+                for pid_b in paper_tiers:
+                    if pid_a >= pid_b:
+                        continue
+                    tier_a = paper_tiers[pid_a]
+                    tier_b = paper_tiers[pid_b]
+                    if TIER_ORDER[tier_a] == TIER_ORDER[tier_b]:
+                        continue  # Same tier, skip
+                    if pid_a not in ai_rank_map or pid_b not in ai_rank_map:
+                        continue
+                    tier_total += 1
+                    # Higher tier = lower TIER_ORDER number = should have lower rank number
+                    higher_tier_pid = pid_a if TIER_ORDER[tier_a] < TIER_ORDER[tier_b] else pid_b
+                    lower_tier_pid = pid_b if higher_tier_pid == pid_a else pid_a
+                    if ai_rank_map[higher_tier_pid] < ai_rank_map[lower_tier_pid]:
+                        tier_correct += 1
+
+                    # Breakdown by tier pair
+                    tiers_sorted = sorted([tier_a, tier_b], key=lambda t: TIER_ORDER[t])
+                    pair_key = f"{tiers_sorted[0]}_vs_{tiers_sorted[1]}"
+                    if pair_key not in tier_pair_breakdown:
+                        tier_pair_breakdown[pair_key] = {"correct": 0, "total": 0}
+                    tier_pair_breakdown[pair_key]["total"] += 1
+                    if ai_rank_map[higher_tier_pid] < ai_rank_map[lower_tier_pid]:
+                        tier_pair_breakdown[pair_key]["correct"] += 1
+
+            for k in tier_pair_breakdown:
+                b = tier_pair_breakdown[k]
+                b["accuracy"] = round(b["correct"] / max(b["total"], 1) * 100, 1)
+
+            # Top-K precision: what fraction of AI's top-K are Oral or Spotlight?
+            top_tier_set = {pid for pid, t in paper_tiers.items() if t in ("oral", "spotlight")}
+            ai_sorted = sorted([e for e in ai_lb if e["id"] in tier_paper_ids], key=lambda e: e["rank"])
+            top_k_sizes = [5, 10]
+            top_k_precision = {}
+            for k in top_k_sizes:
+                top_k_ids = {e["id"] for e in ai_sorted[:k]}
+                hits = len(top_k_ids & top_tier_set)
+                top_k_precision[f"top_{k}"] = {"hits": hits, "total": min(k, len(ai_sorted)), "precision": round(hits / min(k, len(ai_sorted)) * 100, 1)}
+
+            # Tier distribution
+            tier_dist = {}
+            for t in paper_tiers.values():
+                tier_dist[t] = tier_dist.get(t, 0) + 1
+
+            tier_analysis[mode] = {
+                "overall_accuracy": round(tier_correct / max(tier_total, 1) * 100, 1),
+                "correct": tier_correct,
+                "total_pairs": tier_total,
+                "by_tier_pair": tier_pair_breakdown,
+                "top_k_precision": top_k_precision,
+                "tier_distribution": tier_dist,
+                "papers_with_tiers": len(paper_tiers),
+            }
+
     return {
         "status": "ok",
         "common_pairs": len(common_pairs),
@@ -1765,6 +1860,7 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
         "ai_majority_vs_expert": ai_majority_vs_expert,
         "mode_disagreements": mode_disagreements,
         "score_gap": score_gap,
+        "tier_analysis": tier_analysis if tier_analysis else None,
     }
 
 
