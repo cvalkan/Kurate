@@ -40,20 +40,36 @@ export function AdminOverview({
     const headers = getAdminHeaders();
 
     if (progress?.tournament_paused) {
-      // Resume this tournament
       try {
         await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "active" }, { headers });
         toast.success(`Tournament ${adminCat} resumed`);
         if (onRefresh) onRefresh();
       } catch { toast.error("Failed to resume tournament"); }
     } else {
-      // Pause this tournament
       try {
         await axios.post(`${API}/api/admin/tournaments/${tid}/status`, { status: "paused" }, { headers });
         toast.success(`Tournament ${adminCat} paused`);
         if (onRefresh) onRefresh();
       } catch { toast.error("Failed to pause tournament"); }
     }
+  };
+
+  const toggleFetchPause = async () => {
+    const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
+    try {
+      const res = await axios.post(`${API}/api/admin/tournaments/${tid}/toggle-fetch`, {}, { headers: getAdminHeaders() });
+      toast.success(res.data.fetch_paused ? "Fetching paused" : "Fetching resumed");
+      if (onRefresh) onRefresh();
+    } catch { toast.error("Failed to toggle fetch"); }
+  };
+
+  const toggleComparePause = async () => {
+    const tid = encodeURIComponent(`cat=${adminCat}|mode=standard`);
+    try {
+      const res = await axios.post(`${API}/api/admin/tournaments/${tid}/toggle-compare`, {}, { headers: getAdminHeaders() });
+      toast.success(res.data.compare_paused ? "Comparisons paused" : "Comparisons resumed");
+      if (onRefresh) onRefresh();
+    } catch { toast.error("Failed to toggle compare"); }
   };
 
   if (!status) return null;
