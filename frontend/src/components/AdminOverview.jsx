@@ -112,6 +112,14 @@ export function AdminOverview({
         </div>
       )}
 
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Papers" value={status.total_papers} icon={FileText} />
+        <StatCard label="Matches" value={status.total_matches} icon={Swords} />
+        <StatCard label="Failed" value={status.failed_matches} icon={XCircle} />
+        <StatCard label="Unranked" value={status.unranked_papers} icon={Activity} />
+      </div>
+
       {/* Section 1: Paper Ingestion */}
       <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="ingestion-section">
         <div className="flex items-center justify-between mb-3">
