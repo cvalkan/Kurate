@@ -96,9 +96,10 @@ export function AdminOverview({
   const papersWithPdf = progress?.papers_with_pdf || 0;
   const summariesCount = progress?.summary_coverage?.with_summaries || 0;
 
-  // Only show activity indicators when there's actual work remaining
-  const isDownloading = papersWithPdf < totalPapers && (activity.includes("downloading") || activity.includes("Fetching"));
-  const isGenerating = summariesCount < papersWithPdf && activity.includes("Generating summaries");
+  // Only show activity indicators when there's actual work remaining AND system is active
+  const systemActive = !progress?.global_paused;
+  const isDownloading = systemActive && papersWithPdf < totalPapers && (activity.includes("downloading") || activity.includes("Fetching"));
+  const isGenerating = systemActive && summariesCount < papersWithPdf && activity.includes("Generating summaries");
 
   return (
     <div className="space-y-4" data-testid="admin-overview">
