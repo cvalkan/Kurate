@@ -94,10 +94,9 @@ async def init_tournament_registry():
                 "mode": "standard",
                 "status": "active",
                 "goals": {
-                    "min_matches": settings.get("min_matches_per_paper", 5),
-                    "ci_target": settings.get("ci_target", 12),
+                    "ci_target": settings.get("ci_target", 10),
+                    "ci_target_general": settings.get("ci_target_general", 15),
                     "top_k": settings.get("top_k_focus", 10),
-                    "max_matches": settings.get("max_matches_per_paper", 150),
                 },
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }, "$set": {
