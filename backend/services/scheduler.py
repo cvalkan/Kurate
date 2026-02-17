@@ -185,9 +185,17 @@ async def _scheduler_loop():
             if not all_tournament_cats:
                 all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
-            # Fetch papers only for ACTIVE categories (paused categories don't fetch)
+            # Fetch papers only for ACTIVE categories (respecting per-tournament fetch_paused)
             for cat in active_cats:
                 cat_status = _get_cat_status(cat)
+                
+                # Check per-tournament fetch_paused flag
+                tid = f"cat={cat}|mode=standard"
+                t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "fetch_paused": 1})
+                if t_doc and t_doc.get("fetch_paused"):
+                    cat_status["current_activity"] = "Fetching paused"
+                    continue
+
                 last_fetch_key = f"last_fetch_at_{cat.replace('.', '_')}"
                 last_fetch = settings.get(last_fetch_key)
 
