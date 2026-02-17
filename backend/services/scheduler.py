@@ -209,6 +209,13 @@ async def _scheduler_loop():
 
                 last_fetch_key = f"last_fetch_at_{cat.replace('.', '_')}"
                 last_fetch = settings.get(last_fetch_key)
+                # Handle nested keys from older MongoDB dot-notation storage
+                if not last_fetch or not isinstance(last_fetch, str):
+                    parts = cat.split(".")
+                    if len(parts) == 2:
+                        nested = settings.get(f"last_fetch_at_{parts[0]}")
+                        if isinstance(nested, dict):
+                            last_fetch = nested.get(parts[1])
 
                 should_fetch = False
                 if not last_fetch:
