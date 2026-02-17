@@ -461,8 +461,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     direct_papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}).to_list(2000)
     all_paper_ids = [p["id"] for p in direct_papers]
 
-    # Use leaderboard cache for match data (matches don't change as fast as papers during fetch)
-    lb_cat_data = lb_cache.get("categories", {}).get(category, {})
+    # Use leaderboard cache for match data
     raw_matches = lb_cache.get("_raw_matches", [])
 
     total_papers = len(all_paper_ids)
