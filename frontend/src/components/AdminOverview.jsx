@@ -192,12 +192,19 @@ export function AdminOverview({
                 <span> &middot; ~<span className="font-mono text-foreground font-medium">{progress.estimated_minutes} min</span></span>
               )}
               {progress.tournament_paused && (
-                <span className="ml-2 text-amber-600 font-medium">TOURNAMENT PAUSED</span>
+                <span className="ml-2 text-amber-600 font-medium">PAUSED</span>
               )}
               {progress.global_paused && !progress.tournament_paused && (
                 <span className="ml-2 text-amber-600 font-medium">SYSTEM PAUSED</span>
               )}
-              {!progress.tournament_paused && !progress.global_paused && <span className="ml-2 text-accent">Running</span>}
+              {!progress.tournament_paused && !progress.global_paused && (
+                <span className="ml-2">
+                  {progress.fetch_paused && <span className="text-amber-500 font-medium">Fetch paused</span>}
+                  {progress.fetch_paused && progress.compare_paused && " · "}
+                  {progress.compare_paused && <span className="text-amber-500 font-medium">Matches paused</span>}
+                  {!progress.fetch_paused && !progress.compare_paused && <span className="text-accent">Running</span>}
+                </span>
+              )}
             </div>
           )}
 
