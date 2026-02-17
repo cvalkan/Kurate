@@ -556,7 +556,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
     matches_for_goal3 = topk_total_pairs - topk_matched_pairs
     goal3_met = bool(topk_matched_pairs == topk_total_pairs)
 
-    total_est = matches_for_goal1 + matches_for_goal2 + matches_for_goal3
+    # With goal-directed matching, Rule 1 (CI convergence) also handles Goal 1 (min matches).
+    # Use max() since these overlap — a match helping CI also helps min-matches.
+    total_est = max(matches_for_goal1, matches_for_goal2) + matches_for_goal3
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
