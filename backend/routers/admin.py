@@ -130,9 +130,8 @@ class FetchRequest(BaseModel):
 
 @router.post("/fetch", dependencies=[Depends(verify_admin)])
 async def trigger_fetch(body: FetchRequest = FetchRequest()):
-    result = await run_fetch_cycle(category=body.category)
+    result = await run_fetch_cycle(category=body.category, force=True)
     _invalidate_admin_cache(body.category)
-    # Wake scheduler so it immediately re-evaluates goals and starts comparisons
     wake_scheduler()
     return result
 
