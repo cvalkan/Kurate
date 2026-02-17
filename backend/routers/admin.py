@@ -549,9 +549,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
-    # Per-category counts
+    # Per-category counts — use DB directly for freshness
     cat_matches_done = sum(paper_match_count.values()) // 2
-    cat_papers_with_pdf = lb_cache.get("_pdf_by_cat", {}).get(category, 0)
+    cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
 
     result = {
         "total_papers": total_papers,
