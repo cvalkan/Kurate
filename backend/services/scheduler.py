@@ -587,10 +587,11 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
     async def gen_one(paper, model_info):
         nonlocal generated
-        # Check if system was paused mid-generation
-        s = await get_settings()
-        if s.get("paused", False):
-            return
+        # Check if system was paused mid-generation (skip for manual/forced operations)
+        if not force:
+            s = await get_settings()
+            if s.get("paused", False):
+                return
 
         mk = _summary_model_key(model_info)
         # Check if already exists and is a valid string > 50 chars
@@ -599,10 +600,10 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             return
 
         async with sem:
-            # Re-check pause before expensive LLM call
-            s2 = await get_settings()
-            if s2.get("paused", False):
-                return
+            if not force:
+                s2 = await get_settings()
+                if s2.get("paused", False):
+                    return
             result = await generate_precomparison_impact_summary(paper, model_override=model_info)
             if result and result.get("summary"):
                 summary_val = result["summary"]
