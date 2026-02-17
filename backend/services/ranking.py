@@ -149,15 +149,6 @@ def calculate_bt_confidence_intervals(
         fisher += np.eye(m_size) * 1e-6
         cov = np.linalg.inv(fisher)
         mean_score = scores.mean()
-        # Debug first 3
-        for dbg_i in range(min(3, m_size)):
-            dbg_se = float(math.sqrt(max(float(cov[dbg_i][dbg_i]), 0)))
-            dbg_sc = float(scores[dbg_i])
-            dbg_wp = dbg_sc / (dbg_sc + mean_score)
-            dbg_deriv = dbg_sc * mean_score / (dbg_sc + mean_score)**2
-            dbg_wpse = dbg_deriv * dbg_se
-            import logging
-            logging.getLogger("papersumo").info(f"  BT debug [{dbg_i}]: score={dbg_sc:.3f}, se={dbg_se:.3f}, wp={dbg_wp:.3f}, deriv={dbg_deriv:.4f}, wp_se={dbg_wpse:.4f}")
 
         for i, pid in enumerate(paper_ids):
             sc = float(scores[i])
