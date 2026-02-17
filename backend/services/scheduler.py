@@ -1002,6 +1002,21 @@ def _select_pairs(
                     if pair_key not in compared_pairs:
                         best = p2
                         break
+        # Last resort: pair with ANY paper (including capped) to ensure needy papers get matches
+        if best is None:
+            for p2 in paper_ids:
+                if p2 != p1 and can_pair(p2):
+                    pair_key = tuple(sorted([p1, p2]))
+                    novel = pair_key not in compared_pairs
+                    if novel:
+                        best = p2
+                        break
+            # Even repeat pairs if needed
+            if best is None:
+                for p2 in paper_ids:
+                    if p2 != p1 and can_pair(p2):
+                        best = p2
+                        break
         if best:
             pair_key = tuple(sorted([p1, best]))
             pairs.append((p1, best))
