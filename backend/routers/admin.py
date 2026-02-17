@@ -433,38 +433,28 @@ async def get_progress_estimate(category: str = "cs.RO"):
     matches_for_goal1 = max(0, (deficit + 1) // 2)
     goal1_met = papers_at_min == total_papers
 
-    # Goal 2: Ranking convergence (Spearman ρ stability)
-    # Check ranking snapshots: ρ between current and 2 rounds ago
-    from scipy import stats as scipy_stats
-    snapshots = await db.ranking_snapshots.find(
-        {"category": category},
-        {"_id": 0, "round": 1, "rankings": 1},
-    ).sort("round", -1).to_list(convergence_rounds + 2)
+    # Goal 2: BT CI convergence — all papers' CI widths below threshold
+    from services.ranking import calculate_bt_confidence_intervals
+    cat_matches = [m for m in raw_matches if m.get("primary_category") == category]
+    bt_cis = calculate_bt_confidence_intervals(cat_matches, all_paper_ids)
 
-    convergence_met_count = 0
-    latest_rho = None
-    if len(snapshots) >= 3:
-        # Check last convergence_rounds pairs (current vs 2-rounds-ago)
-        for i in range(min(convergence_rounds, len(snapshots) - 2)):
-            current_ranks = snapshots[i]["rankings"]
-            prev_ranks = snapshots[i + 2]["rankings"]
-            common = [pid for pid in all_paper_ids if pid in current_ranks and pid in prev_ranks]
-            if len(common) >= 3:
-                sp, _ = scipy_stats.spearmanr(
-                    [current_ranks[p] for p in common],
-                    [prev_ranks[p] for p in common]
-                )
-                if i == 0:
-                    latest_rho = round(float(sp), 4) if sp == sp else None
-                if sp == sp and sp >= convergence_threshold:
-                    convergence_met_count += 1
-                else:
-                    break  # Must be consecutive
-            else:
-                break
+    papers_converged = 0
+    widest_ci = 0.0
+    median_ci = 0.0
+    ci_widths = []
+    for pid in all_paper_ids:
+        ci = bt_cis.get(pid, {})
+        w = ci.get("bt_ci_width", 1.0)
+        ci_widths.append(w)
+        if w <= bt_ci_threshold:
+            papers_converged += 1
+        if w > widest_ci:
+            widest_ci = w
 
-    goal2_met = bool(convergence_met_count >= convergence_rounds)
-    matches_for_goal2 = 0 if goal2_met else max(0, (convergence_rounds - convergence_met_count) * len(all_paper_ids) // 2)
+    ci_widths_sorted = sorted(ci_widths)
+    median_ci = ci_widths_sorted[len(ci_widths_sorted) // 2] if ci_widths_sorted else 1.0
+    goal2_met = bool(papers_converged == total_papers) if total_papers > 0 else True
+    matches_for_goal2 = 0 if goal2_met else max(0, (total_papers - papers_converged) * 3)
 
     # Goal 3: Cross-matches among top-K papers
     # ALL top-K papers should have played each other at least once
