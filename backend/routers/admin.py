@@ -545,6 +545,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
         },
         "estimated_matches_remaining": int(total_est),
         "estimated_minutes": int(est_minutes),
+        "summary_coverage": {
+            "with_summaries": await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": None}}),
+        },
     }
     _set_admin_cached("progress", category, result)
     return result
