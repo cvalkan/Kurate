@@ -165,6 +165,35 @@ async def trigger_comparison(body: ManualCompareRequest = ManualCompareRequest()
     return {"status": "started", "num_matches": num, "category": body.category}
 
 
+@router.get("/check-new-papers", dependencies=[Depends(verify_admin)])
+async def check_new_papers(category: str = "cs.RO"):
+    """Check how many new papers are available on the source without fetching them."""
+    if category.startswith("chemrxiv."):
+        # ChemRxiv: count seed papers not yet in DB
+        from services.chemrxiv import SEED_FILE
+        import json
+        if SEED_FILE.exists():
+            with open(SEED_FILE) as f:
+                seeds = json.load(f)
+            seeds = [s for s in seeds if category in s.get("categories", [])]
+            existing = await db.papers.count_documents({"categories.0": category})
+            return {"available": max(0, len(seeds) - existing), "source": "chemrxiv_seed", "category": category}
+        return {"available": 0, "source": "chemrxiv_seed", "category": category}
+    else:
+        # arXiv: quick query to count recent papers
+        from services.arxiv_fetcher import fetch_arxiv_papers
+        try:
+            papers = await fetch_arxiv_papers(category=category, max_results=50)
+            existing_ids = set()
+            async for p in db.papers.find({"categories.0": category}, {"_id": 0, "arxiv_id": 1}):
+                if p.get("arxiv_id"):
+                    existing_ids.add(p["arxiv_id"])
+            new_count = sum(1 for p in papers if p.get("arxiv_id") not in existing_ids)
+            return {"available": new_count, "source": "arxiv", "category": category}
+        except Exception as e:
+            return {"available": 0, "source": "arxiv", "error": str(e), "category": category}
+
+
 class GenerateSummariesRequest(BaseModel):
     category: str = None  # None = all categories
 
