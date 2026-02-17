@@ -241,12 +241,18 @@ async def _scheduler_loop():
                 _get_cat_status(cat)["current_activity"] = "Tournament paused"
 
             if not is_paused and active_cats:
-                # Check which active categories need work (skip if below min papers threshold)
+                # Check which active categories need work (skip if below min papers threshold or compare_paused)
                 unmet_cats = []
                 for cat in active_cats:
                     paper_count = _get_cat_status(cat).get("papers_count", 0)
                     if paper_count < min_papers:
                         _get_cat_status(cat)["current_activity"] = f"Insufficient papers ({paper_count}/{min_papers})"
+                        continue
+                    # Check per-tournament compare_paused flag
+                    tid = f"cat={cat}|mode=standard"
+                    t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "compare_paused": 1})
+                    if t_doc and t_doc.get("compare_paused"):
+                        _get_cat_status(cat)["current_activity"] = "Comparisons paused"
                         continue
                     if not await _check_goals_met(category=cat):
                         unmet_cats.append(cat)
