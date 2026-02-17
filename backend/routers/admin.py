@@ -1346,22 +1346,17 @@ async def update_tournament_status(tournament_id: str, request: Request):
 @router.post("/tournaments/{tournament_id}/toggle-fetch", dependencies=[Depends(verify_admin)])
 async def toggle_tournament_fetch(tournament_id: str):
     """Toggle fetch (paper ingestion) pause for a tournament."""
-    doc = await db.tournaments.find_one({"tournament_id": tournament_id}, {"_id": 0, "tournament_id": 1, "fetch_paused": 1, "compare_paused": 1})
+    doc = await db.tournaments.find_one({"tournament_id": tournament_id}, {"_id": 0, "tournament_id": 1, "fetch_paused": 1, "status": 1})
     if doc is None:
         raise HTTPException(404, "Tournament not found")
-    new_fetch = not doc.get("fetch_paused", False)
-    # If both fetch and compare are now unpaused, set status to active
-    compare_paused = doc.get("compare_paused", False)
-    new_status = "paused" if (new_fetch and compare_paused) else "active" if (not new_fetch and not compare_paused) else None
-    update = {"fetch_paused": new_fetch, "updated_at": datetime.now(timezone.utc).isoformat()}
-    if new_status:
-        update["status"] = new_status
+    currently_paused = doc.get("fetch_paused", False) or doc.get("status") == "paused"
+    new_paused = not currently_paused
     await db.tournaments.update_one(
         {"tournament_id": tournament_id},
-        {"$set": update},
+        {"$set": {"fetch_paused": new_paused, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
     _invalidate_admin_cache()
-    return {"fetch_paused": new_fetch}
+    return {"fetch_paused": new_paused}
 
 
 @router.post("/tournaments/{tournament_id}/toggle-compare", dependencies=[Depends(verify_admin)])
