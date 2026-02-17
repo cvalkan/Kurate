@@ -312,21 +312,21 @@ async def _store_ranking_snapshot(category: str):
 async def _check_goals_met(category: str = "cs.RO") -> bool:
     """Check if ranking has converged for a category.
     
-    Uses Bradley-Terry confidence intervals: the tournament converges when
-    all papers (with min matches) have BT CI widths below the threshold.
-    This directly measures "how certain are we about each paper's position?"
+    Uses Wilson confidence interval margins: each paper converges when its
+    95% CI margin is below ci_target%. Handles extreme win rates naturally.
+    BT model is still used for ranking, but Wilson drives the stopping decision.
     
     Three goals:
     1. Min matches per paper
     2. Top-K cross-matching
-    3. BT CI convergence — all papers' CI widths below threshold
+    3. Wilson CI convergence — all papers' CI margins below threshold
     """
-    from services.ranking import calculate_bt_confidence_intervals
+    from services.ranking import wilson_margin_pct
 
     settings = await get_settings()
     min_matches = settings.get("min_matches_per_paper", 3)
     top_k = settings.get("top_k_focus", 10)
-    ci_threshold = settings.get("bt_ci_threshold", 0.15)  # Max CI width in win-prob scale
+    ci_target = settings.get("ci_target", 12)  # Wilson margin in percentage points
 
     papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1, "title": 1}).to_list(500)
     paper_ids = [p["id"] for p in papers]
@@ -357,7 +357,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         if c < min_matches:
             return False
 
-    # Goal 2: top-K cross-matching (ALL top-K must have played each other)
+    # Goal 2: top-K cross-matching
     sorted_papers = sorted(
         paper_ids,
         key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
@@ -370,13 +370,10 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
             if pair not in compared_pairs:
                 return False
 
-    # Goal 3: BT CI convergence
-    bt_cis = calculate_bt_confidence_intervals(all_matches, paper_ids)
+    # Goal 3: Wilson CI convergence — all papers' margins below ci_target
     for pid in paper_ids:
-        if paper_match_count[pid] < min_matches:
-            continue  # Already caught by Goal 1
-        ci = bt_cis.get(pid, {})
-        if ci.get("bt_ci_width", 1.0) > ci_threshold:
+        margin = wilson_margin_pct(paper_wins.get(pid, 0), paper_match_count.get(pid, 0))
+        if margin > ci_target:
             return False
 
     return True
