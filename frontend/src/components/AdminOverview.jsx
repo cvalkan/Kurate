@@ -155,16 +155,10 @@ export function AdminOverview({
             )}
           </div>
           <div data-testid="downloaded-count">
-            <span className="font-mono text-foreground font-medium">{papersWithPdf}</span> papers downloaded
-            {papersWithPdf < totalPapers && (
-              <span className="text-amber-500 ml-1">({totalPapers - papersWithPdf} pending)</span>
-            )}
+            <span className="font-mono text-foreground font-medium">{papersWithPdf}</span>/<span className="font-mono">{totalPapers}</span> downloaded
           </div>
           <div data-testid="summarized-count">
-            <span className="font-mono text-foreground font-medium">{summariesCount}</span> papers summarized
-            {summariesCount < papersWithPdf && (
-              <span className="text-amber-500 ml-1">({papersWithPdf - summariesCount} pending)</span>
-            )}
+            <span className="font-mono text-foreground font-medium">{summariesCount}</span>/<span className="font-mono">{papersWithPdf}</span> summarized
             {isGenerating && <span className="text-accent animate-pulse ml-1">generating...</span>}
           </div>
           <div className="pt-0.5">
