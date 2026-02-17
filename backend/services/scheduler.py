@@ -930,48 +930,97 @@ def _select_pairs(
     max_matches: int, max_per_round: int, **kwargs,
 ) -> List[tuple]:
     """
-    Simplified round-robin pair selection.
-
-    Priority:
-    1. Top-K cross-matches: ensure all top-K papers have been compared to each other
-    2. Deficit papers: papers below min_matches get paired first
-    3. General round-robin: new (uncompared) pairs preferred, balanced coverage
+    Goal-directed pair selection. Two simple rules:
+    1. Match neediest papers first (widest CI margin) — stabilizes rankings
+    2. Once rankings are stable, fill top-K cross-matches
+    Repeat pairs for cross-model agreement only after all goals are met.
     """
+    from services.ranking import wilson_margin_pct
+
     paper_ids = [p["id"] for p in papers]
     if len(paper_ids) < 2:
         return []
 
-    capped = set()
+    ci_target = kwargs.get("ci_target", 12)
     comparisons = {}
-    win_rates = {}
+    wins = {}
+    margins = {}
 
     for pid in paper_ids:
         s = stats.get(pid, {})
         c = s.get("comparisons", 0)
         w = s.get("wins", 0)
         comparisons[pid] = c
-        if c >= max_matches:
-            capped.add(pid)
-        win_rates[pid] = w / max(c, 1)
+        wins[pid] = w
+        margins[pid] = wilson_margin_pct(w, c)
 
+    capped = {pid for pid in paper_ids if comparisons[pid] >= max_matches}
     active = [pid for pid in paper_ids if pid not in capped]
-
-    # Rank ALL papers for top-K identification (including capped)
-    all_ranked = sorted(paper_ids, key=lambda pid: win_rates[pid], reverse=True)
-    top_k_ids = all_ranked[:min(top_k, len(all_ranked))]
 
     pairs = []
     round_count = {pid: 0 for pid in paper_ids}
 
-    # --- Phase 0: Top-K cross-matches (highest priority) ---
-    # Include ALL top-K papers even if capped — exceeding max_matches
-    # is acceptable to ensure top-K differentiation
+    def can_pair(p):
+        return round_count[p] < max_per_round
+
+    # --- Rule 1: Match neediest papers (widest CI margin first) ---
+    # Papers with 0 matches get margin=0 from wilson_margin_pct, so give them max priority
+    def urgency(pid):
+        if comparisons[pid] == 0:
+            return 999  # No data = most urgent
+        if margins[pid] > ci_target and pid not in capped:
+            return margins[pid]  # Wide margin = urgent
+        if comparisons[pid] < min_matches:
+            return 100 + (min_matches - comparisons[pid])  # Below minimum
+        return 0  # Converged
+
+    needy = sorted(active, key=lambda pid: urgency(pid), reverse=True)
+    needy = [pid for pid in needy if urgency(pid) > 0]
+
+    for p1 in needy:
+        if len(pairs) >= max_pairs or not can_pair(p1):
+            continue
+        # Find best opponent: also needy, prefer novel pair, prefer similar urgency
+        best = None
+        best_score = -1
+        for p2 in needy:
+            if p2 == p1 or not can_pair(p2):
+                continue
+            pair_key = tuple(sorted([p1, p2]))
+            novel = pair_key not in compared_pairs
+            # Score: novel pairs preferred, then by opponent urgency
+            score = (1000 if novel else 0) + urgency(p2)
+            if score > best_score:
+                best_score = score
+                best = p2
+        # If no needy opponent, pick any active paper
+        if best is None:
+            for p2 in active:
+                if p2 != p1 and can_pair(p2) and p2 not in needy:
+                    pair_key = tuple(sorted([p1, p2]))
+                    if pair_key not in compared_pairs:
+                        best = p2
+                        break
+        if best:
+            pair_key = tuple(sorted([p1, best]))
+            pairs.append((p1, best))
+            compared_pairs.add(pair_key)
+            round_count[p1] += 1
+            round_count[best] += 1
+
+    if len(pairs) >= max_pairs:
+        return pairs[:max_pairs]
+
+    # --- Rule 2: Top-K cross-matches (rankings should be more stable now) ---
+    all_ranked = sorted(paper_ids, key=lambda pid: wins.get(pid, 0) / max(comparisons.get(pid, 0), 1), reverse=True)
+    top_k_ids = all_ranked[:min(top_k, len(all_ranked))]
+
     for i in range(len(top_k_ids)):
         for j in range(i + 1, len(top_k_ids)):
+            if len(pairs) >= max_pairs:
+                break
             pair_key = tuple(sorted([top_k_ids[i], top_k_ids[j]]))
             if pair_key not in compared_pairs:
-                if len(pairs) >= max_pairs:
-                    break
                 pairs.append((top_k_ids[i], top_k_ids[j]))
                 compared_pairs.add(pair_key)
                 round_count[top_k_ids[i]] += 1
@@ -982,109 +1031,27 @@ def _select_pairs(
     if len(pairs) >= max_pairs:
         return pairs[:max_pairs]
 
-    # If no active (uncapped) papers remain, skip Phases 1-2a but still do 2b (repeats)
-    if len(active) < 2:
-        # Phase 2b: Repeat pairs using ALL papers (including capped)
-        repeat_budget = max(1, max_pairs - len(pairs))
-        repeat_count = 0
+    # --- Only when goals are likely met: repeat pairs for cross-model agreement ---
+    all_needy_done = len(needy) == 0
+    missing_topk = any(
+        tuple(sorted([top_k_ids[i], top_k_ids[j]])) not in compared_pairs
+        for i in range(len(top_k_ids)) for j in range(i + 1, len(top_k_ids))
+    )
+    if all_needy_done and not missing_topk:
         all_sorted = sorted(paper_ids, key=lambda pid: comparisons[pid])
         for p1 in all_sorted:
-            if repeat_count >= repeat_budget or len(pairs) >= max_pairs:
-                break
-            if round_count.get(p1, 0) >= max_per_round:
-                continue
-            repeat_opponents = [
-                p2 for p2 in all_sorted
-                if p2 != p1 and round_count.get(p2, 0) < max_per_round
-                and tuple(sorted([p1, p2])) in compared_pairs
-            ]
-            repeat_opponents.sort(key=lambda p2: comparisons[p2])
-            for p2 in repeat_opponents[:1]:
-                if round_count.get(p1, 0) >= max_per_round or len(pairs) >= max_pairs:
-                    break
-                pairs.append((p1, p2))
-                round_count[p1] = round_count.get(p1, 0) + 1
-                round_count[p2] = round_count.get(p2, 0) + 1
-                repeat_count += 1
-        return pairs[:max_pairs]
-
-    # --- Phase 1: Deficit papers (below min_matches) ---
-    deficit_papers = sorted(
-        [pid for pid in active if comparisons[pid] < min_matches],
-        key=lambda pid: comparisons[pid],
-    )
-    for p1 in deficit_papers:
-        if round_count[p1] >= max_per_round * 2 or len(pairs) >= max_pairs:
-            continue
-        candidates = [
-            p2 for p2 in active
-            if p2 != p1 and round_count[p2] < max_per_round * 2
-            and tuple(sorted([p1, p2])) not in compared_pairs
-        ]
-        candidates.sort(key=lambda p2: abs(comparisons[p1] - comparisons[p2]))
-        for p2 in candidates[:max_per_round]:
             if len(pairs) >= max_pairs:
                 break
-            pair_key = tuple(sorted([p1, p2]))
-            pairs.append((p1, p2))
-            compared_pairs.add(pair_key)
-            round_count[p1] += 1
-            round_count[p2] += 1
-
-    if len(pairs) >= max_pairs:
-        return pairs[:max_pairs]
-
-    # --- Phase 2: General round-robin ---
-    # Mix novel pairs (70%) with repeat pairs (30%) to enable cross-model agreement
-    active_sorted = sorted(active, key=lambda pid: comparisons[pid])
-
-    # 2a: Novel pairs first
-    for p1 in active_sorted:
-        if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
-            continue
-        new_opponents = [
-            p2 for p2 in active_sorted
-            if p2 != p1 and round_count[p2] < max_per_round
-            and tuple(sorted([p1, p2])) not in compared_pairs
-        ]
-        for p2 in new_opponents:
-            if round_count[p1] >= max_per_round or len(pairs) >= max_pairs:
-                break
-            if round_count[p2] >= max_per_round:
+            if not can_pair(p1):
                 continue
-            pair_key = tuple(sorted([p1, p2]))
-            pairs.append((p1, p2))
-            compared_pairs.add(pair_key)
-            round_count[p1] += 1
-            round_count[p2] += 1
-
-    if len(pairs) >= max_pairs:
-        return pairs[:max_pairs]
-
-    # 2b: Repeat pairs (for cross-model agreement) — re-match already-compared pairs
-    # Uses ALL papers including capped — this is specifically for generating
-    # overlapping judgments by different models, not for ranking
-    repeat_budget = max(1, (max_pairs - len(pairs)))
-    repeat_count = 0
-    all_sorted = sorted(paper_ids, key=lambda pid: comparisons[pid])
-    for p1 in all_sorted:
-        if repeat_count >= repeat_budget or len(pairs) >= max_pairs:
-            break
-        if round_count.get(p1, 0) >= max_per_round:
-            continue
-        repeat_opponents = [
-            p2 for p2 in all_sorted
-            if p2 != p1 and round_count.get(p2, 0) < max_per_round
-            and tuple(sorted([p1, p2])) in compared_pairs
-        ]
-        repeat_opponents.sort(key=lambda p2: comparisons[p2])
-        for p2 in repeat_opponents[:1]:
-            if round_count.get(p1, 0) >= max_per_round or len(pairs) >= max_pairs:
-                break
-            pairs.append((p1, p2))
-            round_count[p1] = round_count.get(p1, 0) + 1
-            round_count[p2] = round_count.get(p2, 0) + 1
-            repeat_count += 1
+            for p2 in all_sorted:
+                if p2 == p1 or not can_pair(p2):
+                    continue
+                if tuple(sorted([p1, p2])) in compared_pairs:
+                    pairs.append((p1, p2))
+                    round_count[p1] += 1
+                    round_count[p2] += 1
+                    break
 
     return pairs[:max_pairs]
 
