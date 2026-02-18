@@ -2376,6 +2376,44 @@ async def _run_targeted_pairwise(dataset_id: str, pairs: list, content_mode: str
 
 
 
+class CrossModeFillRequest(BaseModel):
+    dataset_id: str
+    source_mode: str  # mode to take pairs FROM
+    target_mode: str  # mode to evaluate IN
+    parallel: int = 30
+    max_pairs: int = 0  # 0 = all missing
+
+
+@router.post("/run-cross-mode-fill", dependencies=[Depends(verify_admin)])
+async def run_cross_mode_fill(body: CrossModeFillRequest):
+    """Evaluate pairs from one content mode in another mode, creating cross-format overlap."""
+    state = _get_state(body.dataset_id)
+    if state["running"]:
+        return {"status": "already_running", **state}
+
+    # Get source pairs
+    src_filter = {"dataset_id": body.dataset_id, "completed": True, "failed": {"$ne": True}}
+    src_filter.update(_build_content_mode_filter(body.source_mode))
+    src_matches = await db.validation_matches.find(src_filter, {"_id": 0, "paper1_id": 1, "paper2_id": 1}).to_list(100000)
+    src_pairs = {tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in src_matches}
+
+    # Get existing target pairs
+    tgt_filter = {"dataset_id": body.dataset_id, "completed": True, "failed": {"$ne": True}}
+    tgt_filter.update(_build_content_mode_filter(body.target_mode))
+    tgt_matches = await db.validation_matches.find(tgt_filter, {"_id": 0, "paper1_id": 1, "paper2_id": 1}).to_list(100000)
+    tgt_pairs = {tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in tgt_matches}
+
+    missing = list(src_pairs - tgt_pairs)
+    if body.max_pairs > 0:
+        missing = missing[:body.max_pairs]
+
+    if not missing:
+        return {"status": "complete", "message": f"All {len(src_pairs)} source pairs already exist in {body.target_mode}.", "overlap": len(src_pairs & tgt_pairs)}
+
+    asyncio.create_task(_run_targeted_pairwise(body.dataset_id, missing, body.target_mode, min(max(body.parallel, 1), 50)))
+    return {"status": "started", "dataset_id": body.dataset_id, "source_mode": body.source_mode, "target_mode": body.target_mode, "pairs_to_fill": len(missing), "already_overlap": len(src_pairs & tgt_pairs)}
+
+
 # ─── Reset ─────────────────────────────────────────────────────────────────────
 
 class ResetRequest(BaseModel):
