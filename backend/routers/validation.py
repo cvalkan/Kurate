@@ -1131,6 +1131,9 @@ async def get_status(dataset_id: str = Query(...)):
         "avg_matches_per_paper": avg_m,
         "min_matches_per_paper": min_m,
         "max_matches_per_paper": max_m,
+        "graph_connected_components": connected_components,
+        "graph_isolated_papers": isolated_papers,
+        "graph_is_connected": connected_components == 1 and isolated_papers == 0,
         "tournament_running": state["running"],
         "tournament_progress": state,
     }
