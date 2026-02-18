@@ -195,9 +195,11 @@ async def _scheduler_loop():
             if not all_tournament_cats:
                 all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
-            # Fetch papers for ALL tournament categories (not just active ones)
+            # Fetch papers for ALL user-configured categories (not just active tournaments)
             # Fetching is independent of tournament match-running status
-            for cat in all_tournament_cats:
+            # Use active_categories from settings as the user's intended list
+            fetch_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
+            for cat in fetch_cats:
                 cat_status = _get_cat_status(cat)
                 
                 # Check per-tournament fetch_paused flag
