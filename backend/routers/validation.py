@@ -1358,6 +1358,15 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
     curve = []
     seen_match_counts = set()
 
+    # Add baseline point at 0 matches (all papers at default score → random ranking → ρ≈0)
+    curve.append({
+        "matches": 0,
+        "avg_matches_per_paper": 0,
+        "papers_covered": 0,
+        "spearman": 0, "kendall": 0, "pearson": 0,
+        **{f"top_{k}": round(k / len(paper_ids) * 100, 1) if paper_ids else 0 for k in top_k_values},
+    })
+
     # Phase 1: absolute match count targets
     for n_matches in absolute_targets:
         if n_matches > total:
