@@ -1412,7 +1412,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
 
         point = {
             "matches": best_n,
-            "avg_matches_per_paper": round(avg_matches),
+            "avg_matches_per_paper": round(avg_matches, 1),
             "papers_covered": len(papers_with_matches),
             "spearman": round(sp, 4) if not np.isnan(sp) else 0,
             "kendall": round(kt, 4) if not np.isnan(kt) else 0,
