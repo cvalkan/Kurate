@@ -1422,6 +1422,9 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
                 hi = mid - 1
 
         subset = all_matches[:best_n]
+        if best_n in seen_match_counts:
+            continue
+        seen_match_counts.add(best_n)
         paper_match_count = defaultdict(int)
         for m in subset:
             if m["paper1_id"] in pid_set: paper_match_count[m["paper1_id"]] += 1
