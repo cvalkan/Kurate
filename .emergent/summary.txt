@@ -1,33 +1,44 @@
 <analysis>**original_problem_statement**:
 The user's primary goal is to build a robust system for validating AI model performance on scientific papers. This has evolved into a full-stack application featuring a leaderboard tournament where different LLMs act as judges to rank papers.
 
-Key user requests from this session included:
-1.  **Fix Core Architecture**: Resolve bugs and design flaws in the new summary-based tournament architecture, specifically the stopping criterion.
-2.  **Fix Data Integrity**: Correct data corruption issues with AI-generated summaries (especially from GPT) and ensure all papers have the required summaries.
-3.  **Fix Frontend Bugs**: Resolve UI crashes and rendering issues, particularly with LaTeX and tab switching on the paper detail page.
-4.  **Add New Data Source**: Implement a new pipeline to fetch papers from ChemRxiv, overcoming significant technical challenges with Cloudflare.
-5.  **Refine Admin UI**: Redesign the admin tournament management page for better usability, providing separate controls for fetching and evaluation, and improving information display.
-6.  **Fix User Authentication**: Resolve a persistent issue where users could not log in and stay logged in.
+This session's requests focused on:
+1.  **Fixing Admin UI/UX**: Resolving numerous data inconsistencies, improving clarity of the paper ingestion pipeline, and fixing buggy UI controls (toggles, pause states).
+2.  **Overhauling Matchmaking Logic**: Replacing a complex, inefficient matchmaking system with a simpler, goal-directed one. This included fixing bugs that caused tournaments to stall and improving the accuracy of match estimations.
+3.  **Adding New Validation Metrics**: Implementing more robust validation by comparing AI tournament rankings against ICLR acceptance tiers (Oral, Spotlight, Poster, Reject), in addition to existing reviewer score-based metrics.
+4.  **Improving Data Visualizations**: Increasing the resolution of convergence charts to show the critical early phase of a tournament and fixing statistical artifacts that produced misleading results.
+5.  **Running New Validation Tournaments**: Importing new datasets from OpenReview ('code generation', 'optimal transport') and running full validation tournaments to test the system and compare different comparison modes (e.g., 'abstract only' vs. 'abstract + summary').
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack paper ranking tournament system. The core logic has been refactored multiple times. It now uses a Wilson Confidence Interval-based stopping criterion, which is more robust for a continuously growing pool of papers. The system can fetch papers from arXiv and, for older papers, from ChemRxiv. User authentication has been switched from session cookies to localStorage JWTs to resolve cross-origin issues. The admin dashboard has been significantly redesigned to provide more granular control over fetching and tournament execution, and to display more relevant statistics, including a detailed cost analysis.
+The application is a full-stack paper ranking tournament system. The admin dashboard allows for granular control over paper fetching and tournament execution, including system-wide pause/resume. The matchmaking logic is highly sophisticated, using a two-tier Wilson Confidence Interval (CI) stopping criterion (one for top-K papers, one for the rest) and a tunable calibration ratio to balance matching new papers against other new papers vs. established, well-ranked papers. The validation suite has been significantly enhanced to include tier-based analysis (comparing AI rankings to ICLR acceptance tiers) and improved convergence charts that accurately show correlation build-up from zero. The system can import new datasets from OpenReview asynchronously.
 
 **Last working item**:
--   **Last item agent was working**: The agent was redesigning the Admin Overview page. After an initial redesign, the user requested that the large stat cards (Papers, Matches), Usage Statistics, and Recent Comparisons sections be added back. The agent has just finished re-implementing these components into the new layout.
+-   **Last item agent was working**: The agent was running a multimodel fill for the ICLR Optimal Transport dataset. This task populates the results for the remaining AI judge models for every paper pair, enabling fine-grained cross-model agreement analysis. The initial tournament for this dataset had completed successfully.
 -   **Status**: IN PROGRESS
--   **Agent Testing Done**: N (Only API verification and visual confirmation via logs, screenshots were blocked by auth modal)
--   **Which testing method agent to use?**: screenshot tool (to verify the final UI layout of the Admin page)
+-   **Agent Testing Done**: Y
+-   **Which testing method agent to use?**: manual testing by curl
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1**: (P1) Complete the data generation for the  dataset.
--   **Issue 2**: (P2) User action required to fix the production deployment.
--   **Issue 3**: (P2) Add missing HTTP security headers.
+-   **Issue 1**: (P0) Complete the multi-model data fill-in for the  dataset.
+-   **Issue 2**: (P1) Complete the data generation for the  dataset.
+-   **Issue 3**: (P2) User action required to fix the production deployment.
+-   **Issue 4**: (P2) Add missing HTTP security headers.
 
 **Issues Detail**:
--   **Issue 1: Complete the data generation for the  dataset.**
+-   **Issue 1: Complete the multi-model data fill-in for the  dataset.**
+    -   **Attempted fixes**: The process was started and was running in the background. It was confirmed to be working but was not yet complete.
+    -   **Next debug checklist**:
+        1.  Monitor the  task via .
+        2.  Or, check the  collection for the  dataset and confirm the number of matches approaches .
+    -   **Why fix this issue and what will be achieved with the fix?**: This will provide fine-grained, per-model data for the Optimal Transport validation set, allowing for detailed comparison charts similar to the Code Generation set.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: backend
+    -   **Blocked on other issue**: None.
+
+-   **Issue 2: Complete the data generation for the  dataset.**
     -   **Attempted fixes**: None in this session.
     -   **Next debug checklist**:
         1.  Confirm with the user if this is still a priority.
@@ -38,124 +49,110 @@ The application is a full-stack paper ranking tournament system. The core logic 
     -   **Should Test frontend/backend/both after fix?**: backend
     -   **Blocked on other issue**: User priority confirmation.
 
--   **Issue 2: User action required to fix the production deployment.**
+-   **Issue 3: User action required to fix the production deployment.**
     -   **Attempted fixes**: None.
     -   **Why fix this issue and what will be achieved with the fix?**: Restores the live production application to a working state. The preview environment has significantly diverged.
     -   **Status**: BLOCKED (on user action)
     -   **Is recurring issue?**: Y
     -   **Should Test frontend/backend/both after fix?**: N/A
 
--   **Issue 3: Add missing HTTP security headers.**
+-   **Issue 4: Add missing HTTP security headers.**
     -   **Attempted fixes**: None.
     -   **Why fix this issue and what will be achieved with the fix?**: Hardens the application against common web vulnerabilities like clickjacking and XSS.
     -   **Status**: NOT STARTED
     -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: frontend
+    -   **Should Test frontend/backend/both after fix?**: backend
 
 **In progress Task List**:
--   **Task 1**: (P0) Verify the Admin Page UI redesign.
-    -   **Where to resume**: The agent just finished adding back the requested components (, , ) to .
-    -   **What will be achieved with this?**: Completes the user's requested redesign of the admin tournament management interface.
-    -   **Status**: USER VERIFICATION PENDING
-    -   **Should Test frontend/backend/both after fix?**: frontend
-    -   **Blocked on something**: None.
+This section is covered by All Pending/In progress Issue list.
 
 **Upcoming and Future Tasks**
-- **Upcoming Tasks**:
+-   **Upcoming Tasks**:
     -   (P1) Deploy the extensive changes from the preview environment to production.
-- **Future Tasks**:
+-   **Future Tasks**:
+    -   (P2) Implement further validation experiments based on the user-provided paper analysis:
+        -   Rank usefulness vs. citations (global sanity check).
+        -   Hidden-gem detection (testing if the tournament surfaces papers with high expert disagreement but high later impact).
+        -   Graph robustness/cycle stress test.
     -   (P2) Experiment with different LLMs for generating summaries (e.g., Gemini 3 Flash).
-    -   (P2) Conduct a full review of the original security scan report for any other pending items.
     -   (P3) Refactor the data processing and evaluation logic from router files into a dedicated  layer.
 
 **Completed work in this session**
--   **Architectural Overhaul (Phase 2 & 3)**: Completed the architectural refactor started in the previous session.
--   **Stopping Criterion Rework**:
-    -   Initially implemented a temporal Spearman's Rho (ρ) based stopping criterion.
-    -   After user feedback highlighted its flaws in a continuous system, analyzed and replaced it first with a BT-CI based approach.
-    -   After identifying issues with BT-CIs for extreme-win-rate papers, finally reverted to a robust **Wilson Confidence Interval** based stopping criterion, matching the proven logic of the production system.
--   **ChemRxiv Integration**:
-    -   Successfully built a data pipeline to fetch papers from ChemRxiv.
-    -   Overcame Cloudflare protection by discovering and implementing a solution using the Cambridge Open Engage API for older ChemRxiv papers, which provides direct, unprotected PDF download links.
-    -   This involved extensive debugging of different scraping methods (, , , , ) before finding the working API-based solution.
--   **Matchmaking Algorithm Fixes**:
-    -   Fixed a bug where the round-robin matchmaker would never repeat pairs, preventing the calculation of pairwise model agreement stats.
-    -   Fixed a bug where the tournament would stall if all papers hit the  cap before convergence goals were met. The logic now allows capped papers to participate in critical top-K cross-matches.
--   **Data Integrity & Backfill**:
-    -   Diagnosed and fixed a critical bug where  in model names (e.g., ) was misinterpreted by MongoDB, leading to corrupted summary data.
-    -   Created and ran a migration script to repair the corrupted data.
-    -   Implemented a robust backfill process for summaries and ensured 100% summary coverage for all papers with available PDFs.
--   **Admin UI Redesign**:
-    -   Completely redesigned the Admin Overview page to provide clearer, more intuitive controls.
-    -   Implemented separate toggles for Automated Fetching and Tournament.
-    -   Added manual Check for new papers and Fetch papers buttons.
-    -   Improved the clarity of the goal status and information boxes.
--   **Frontend Fixes**:
-    -   Fixed a critical bug causing the Paper Details page to crash when switching between summary tabs.
-    -   Improved LaTeX rendering to support  and  delimiters.
--   **Authentication Fix**:
-    -   Resolved a long-standing user login issue by switching from cross-origin session cookies to using **localStorage for JWT tokens**.
--   **Cost Tracking**:
-    -   Integrated summary generation costs into the main cost tracking system and detailed admin charts, providing a complete picture of LLM expenses.
+-   **Matchmaking & Estimation Overhaul**:
+    -   Replaced the complex 4-phase matchmaking logic with a simpler, more efficient 2-rule system (target neediest papers, then top-K cross-matches).
+    -   Fixed a critical bug where tournaments would stall if only one unconverged paper remained.
+    -   Introduced a tunable Calibration Ratio setting to balance matching new papers against other new papers vs. established ones for better score calibration.
+    -   Significantly improved the accuracy of the matches remaining estimate by using a per-paper Wilson CI projection.
+-   **Admin UI & UX Fixes**:
+    -   Resolved numerous UI bugs and data inconsistencies on the Admin Overview page (e.g., duplicate stats, incorrect last fetched time, stale estimates).
+    -   Redesigned the Paper Ingestion section into a clear pipeline view: .
+    -   Added clear System running/System paused badges and made UI toggles work independently of the global pause state, fixing several double-click bugs.
+    -   Fixed a critical bug where manual fetches wouldn't correctly override the system pause for sub-tasks like PDF downloading and summary generation.
+-   **Validation & Visualization Enhancements**:
+    -   **Tier-Based Validation**: Implemented new validation metrics to compare AI rankings against ICLR acceptance tiers (Oral/Spotlight/Poster/Reject), providing a much stronger ground-truth signal than raw reviewer scores.
+    -   **Convergence Chart Improvements**: Fixed a statistical artifact that caused spurious correlation spikes at the start of charts. The charts now correctly show correlation building from ρ≈0 by including all papers from the start and using a deterministic tie-breaker. The chart resolution was also significantly increased for the critical early phase.
+-   **New Dataset Tournaments**:
+    -   Refactored the OpenReview import process to be asynchronous, preventing timeouts.
+    -   Successfully imported, processed, and ran full validation tournaments on two new datasets:  and .
+    -   Confirmed that using Abstract + AI Summary significantly outperforms Abstract Only for ranking accuracy.
 
 **Earlier issues found/mentioned but not fixed**
--   None from this session.
+-   None. The original pending issues from the previous handoff remain.
 
 **Known issue recurrence from previous fork**
 -   **Issue recurrence in previous fork**: User needs to redeploy the application to fix the production site; Missing HTTP security headers.
--   **Recurrence count**: 3+
+-   **Recurrence count**: 4+
 -   **Status**: BLOCKED / NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Tournament Stopping Criterion**: The session involved a deep dive into convergence metrics. It moved from a flawed Spearman's Rho (ρ) approach, to a theoretically better but practically problematic Bradley-Terry Confidence Interval (BT-CI) approach, and finally settled on reverting to the robust and proven **Wilson Confidence Interval** method. This ensures per-paper convergence and correctly handles papers with extreme win rates.
--   **Cloudflare Bypassing Strategy**: The agent systematically debugged multiple web scraping and automation tools (, , , ) to access ChemRxiv, ultimately discovering that the PDFs were mirrored on a non-Cloudflare-protected Cambridge University API. This highlights the importance of finding alternative data sources over fighting anti-bot measures directly.
--   **Authentication Flow**: Switched from  session cookies, which were failing due to cross-origin browser policies, to a **JWT token-based system using localStorage**. This is a standard and more reliable pattern for single-page applications.
--   **MongoDB Key Sanitization**: Diagnosed a subtle but critical bug where dots () in model names used as MongoDB field keys (e.g., ) were treated as path separators, corrupting the data structure. The fix involved sanitizing keys by replacing dots with underscores.
--   **Decoupled Admin Controls**: Refactored the scheduler and admin UI to allow for separate control over the Paper Fetching and Tournament processes, giving the admin more granular management capabilities.
+-   **Goal-Directed Matchmaking**: The system was refactored to prioritize matches that directly contribute to convergence goals (CI reduction, top-K cross-matches), making it much more efficient.
+-   **Calibration Ratio**: A new tunable parameter (0-100%) that controls the probability of matching a new, unranked paper against another new paper (for fast CI reduction) vs. an established, converged paper (for fast score calibration against the existing ranking).
+-   **Tier-Based Validation**: Using the final acceptance decisions from peer review (Oral, Spotlight, Poster, Reject) as a ground truth to validate the AI tournament's ranking. This is a stronger signal than using noisy, uncalibrated reviewer scores.
+-   **Asynchronous Data Ingestion**: Refactoring the OpenReview import into a background task to handle long-running operations without causing server timeouts.
+-   **Statistical Artifact Correction**: Fixing a small-sample-size artifact in the convergence charts by including all papers (even those with 0 matches) in the correlation calculation and using a deterministic tie-breaker (paper title hash) for identical scores.
 
 **key DB schema**
--   **papers**:  object now uses sanitized keys (e.g., ).  field is now sparse to allow nulls for non-arXiv papers.
--   **tournaments**: Schema updated to include  and  for granular control.
--   **settings**: Schema updated to remove  and  and re-introduce .
--   **ranking_snapshots**: New collection to store historical rankings for temporal analysis (though this is now deprecated by the switch back to Wilson CI).
+-   **settings**:
+    -   , , and  have been **REMOVED**.
+    -   , , and  have been **ADDED**.
+-   **tournaments**: The structure of the  array was simplified, removing min/max match goals.
 
 **All files of reference**
--   : Contains the core tournament logic, including matchmaking, stopping criteria, and pause controls.
--   : Contains the implementation of the Wilson and BT confidence interval calculations.
--   : The completely redesigned admin tournament management UI.
--   : The new token-based authentication logic.
--   : The successful implementation for fetching ChemRxiv papers.
+-   : Contains the new goal-directed matchmaking and calibration logic.
+-   : Contains the new tier-based validation metrics and the fixed convergence chart logic.
+-   : Contains the logic for the admin dashboard, including the improved progress endpoint and settings management.
+-   : The redesigned admin UI with the pipeline view and fixed controls.
+-   : The frontend for displaying the new tier-based analysis and rankings.
 
 **Critical Info for New Agent**
-1.  **Auth is Now Token-Based**: User authentication no longer uses session cookies. It uses JWTs stored in . All API requests from the frontend are authenticated via an  header.
-2.  **Stopping Criterion is Wilson CI**: After experimenting with Spearman's Rho and BT-CIs, the system is now using Wilson Confidence Intervals with a default threshold of 12% margin. This is a robust, per-paper metric that handles the continuous addition of new papers correctly. Do not re-introduce ρ or BT-CI logic.
-3.  **Admin UI is Redesigned**: The main tournament management page () has been completely overhauled. Familiarize yourself with the new layout, which includes separate toggles for automated fetching and the tournament itself.
-4.  **ChemRxiv Fetcher Works for Older Papers**: The pipeline for ChemRxiv is functional but relies on the Cambridge API, which only indexes papers with the older  DOI format. It will not work for the newest papers with the  format until Cambridge's index catches up.
+1.  **Matchmaking is Now Goal-Directed**: The old, complex 4-phase system is gone. The new logic is simpler and more efficient, driven by CI goals and a calibration ratio. Do not re-introduce the old logic.
+2.  **Match/Paper Caps are Removed**: The  and  settings are obsolete and have been removed. Convergence is now purely driven by the two-tier CI targets.
+3.  **Validation is Tier-Based**: The strongest validation signal is now the correlation with ICLR acceptance tiers. The raw reviewer scores are only used for the score gap analysis.
+4.  **Convergence Charts are Fixed**: The charts now correctly start at ρ≈0 and build up, thanks to the inclusion of all papers and a deterministic tie-breaker.
+5.  **Admin UI State is Complex**: The interaction between the global pause, per-tournament toggles, and manual override () is nuanced. Review  and the  endpoints in  to understand the state logic.
 
 **documents and test reports created in this job**
 -   
--   
--   
--   : A manually curated list of 50 ChemRxiv paper DOIs known to have downloadable PDFs via the Cambridge API.
+-   The agent also analyzed a user-provided PDF () to inform future validation strategies.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Asked to add back stat cards, usage stats, and recent comparisons to the redesigned admin page. **Status**: COMPLETED.
-2.  **User**: Pointed out redundancy in the proposed admin UI redesign. **Status**: COMPLETED (Agent acknowledged and adjusted the plan).
-3.  **User**: Requested a major redesign of the tournament page logic and UI. **Status**: IN PROGRESS.
-4.  **User**: Pointed out that the pause button for tournaments is unreliable and requested separate controls for fetching and evaluation. **Status**: COMPLETED.
-5.  **User**: Asked why the system keeps matching papers that seem converged and pointed out obsolete info on the admin page. **Status**: COMPLETED (Agent diagnosed the issue with BT-CIs and obsolete text).
-6.  **User**: Asked to revert to a CI-based stopping criterion and update settings accordingly. **Status**: COMPLETED.
-7.  **User**: Pointed out that user login is broken. **Status**: COMPLETED (Agent switched to token-based auth).
-8.  **User**: Raised fundamental concerns about using Spearman's Rho as a stopping criterion in a continuously growing system. **Status**: COMPLETED (Agent agreed and proposed alternatives).
-9.  **User**: Pointed out that summary costs were not updating automatically in the admin charts. **Status**: COMPLETED.
-10. **User**: Asked why the round-robin matchmaker wasn't generating overlapping pairs needed for pairwise stats. **Status**: COMPLETED (Agent fixed the matchmaking algorithm).
+1.  **User**: Asked for the Optimal Transport dataset to be added. **Status**: COMPLETED.
+2.  **User**: Asked to use a deterministic tie-breaker for papers with the same score to fix chart noise. **Status**: COMPLETED.
+3.  **User**: Pointed out that convergence charts should start at ρ≈0. **Status**: COMPLETED.
+4.  **User**: Pointed out a statistical artifact where convergence charts started with high correlation. **Status**: COMPLETED.
+5.  **User**: Asked why the convergence charts didn't show the very early phase. **Status**: COMPLETED (Agent implemented a hybrid step approach).
+6.  **User**: Asked for higher resolution on the convergence charts. **Status**: COMPLETED.
+7.  **User**: Asked why two validation charts had different resolutions. **Status**: COMPLETED.
+8.  **User**: Confirmed the agent should stop running the abstract-only tournament fill-in. **Status**: COMPLETED.
+9.  **User**: Provided a paper on peer-review datasets and asked for an analysis of which are suitable for validation. **Status**: COMPLETED.
+10. **User**: Asked to run a new tournament on the code generation dataset. **Status**: COMPLETED.
 
 **Project Health Check:**
 -   **Broken**:
-    -   The live **production deployment** remains non-functional and is now heavily diverged from the preview environment's features and architecture.
+    -   The live **production deployment** remains non-functional and is heavily diverged from the preview environment. This is BLOCKED on user action.
 -   **Mocked**: None.
 
 **3rd Party Integrations**
@@ -163,16 +160,16 @@ The application is a full-stack paper ranking tournament system. The core logic 
 -   **PyMuPDF**: Used for local PDF text extraction.
 -   **Semantic Scholar API**: Used to enrich papers with abstracts.
 -   **Unpaywall API**: Used to find open-access PDF URLs.
--   **paperscraper**: Installed, but its direct ChemRxiv functionality was superseded by a more targeted Cambridge API approach. It's still used as a fallback for PDF downloads.
+-   **OpenReview API**: Used via a new importer to fetch papers and review data for validation.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES, used multiple times to validate architectural changes and bug fixes.
+-   **Testing agent used after significant changes**: YES, a testing agent was called after major UI and backend fixes.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: None
--   **Known regressions**: None known. The latest changes have significantly improved robustness.
+-   **Known regressions**: None known.
 
 **Credentials to test flow:**
 N/A
 
 **What agent forgot to execute**
--   The agent successfully identified and addressed all user requests from this session. The long-standing pending tasks ( dataset, security headers) from the initial handoff remain unaddressed, as per prioritization of new feature requests and critical bug fixes.</analysis>
+-   The long-standing pending tasks ( dataset, security headers) from the initial handoff remain unaddressed, as per prioritization of new feature requests and critical bug fixes. All user requests from this session were addressed.</analysis>
