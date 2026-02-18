@@ -275,7 +275,13 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
         elo_ci[pid] = min(ci, 400)  # Cap at 400
 
     paper_lookup = {p["id"]: p for p in papers}
-    ranked = sorted(paper_ids, key=lambda pid: elo_scores.get(pid, ELO_BASE), reverse=True)
+    # Deterministic tiebreaker for papers with equal scores (e.g., all at 1200 with 0 matches)
+    # Uses title hash so the ordering is stable across subsample sizes
+    import hashlib
+    def _title_hash(pid):
+        title = paper_lookup.get(pid, {}).get("title", pid)
+        return hashlib.md5(title.encode()).hexdigest()
+    ranked = sorted(paper_ids, key=lambda pid: (elo_scores.get(pid, ELO_BASE), _title_hash(pid)), reverse=True)
 
     leaderboard = []
     for rank, pid in enumerate(ranked, 1):
