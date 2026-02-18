@@ -633,15 +633,63 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
         ).to_list(100000)
         compared = {tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in existing}
 
+        # Connectivity-aware pair selection:
+        # Phase 1 — Ensure every paper appears in at least min_per_paper matches
+        # Phase 2 — Fill remaining budget targeting least-matched papers
+        from collections import Counter
+        match_counts = Counter()
+        for m in existing:
+            match_counts[m["paper1_id"]] += 1
+            match_counts[m["paper2_id"]] += 1
+
         pairs = []
+        min_per_paper = max(3, min(8, max_pairs // len(pids)))
+
+        # Phase 1: Round-robin for under-matched papers
+        for _ in range(max_pairs):
+            if len(pairs) >= max_pairs:
+                break
+            # Find paper with fewest matches
+            neediest = sorted(pids, key=lambda p: match_counts[p])
+            placed = False
+            for p1 in neediest:
+                if match_counts[p1] >= min_per_paper and all(match_counts[p] >= min_per_paper for p in pids):
+                    break  # All papers have min coverage
+                candidates = [p for p in pids if p != p1 and tuple(sorted([p1, p])) not in compared]
+                if not candidates:
+                    continue
+                # Pick the least-matched candidate
+                candidates.sort(key=lambda p: match_counts[p])
+                p2 = candidates[0]
+                key = tuple(sorted([p1, p2]))
+                pairs.append((p1, p2))
+                compared.add(key)
+                match_counts[p1] += 1
+                match_counts[p2] += 1
+                placed = True
+                break
+            if not placed:
+                break
+
+        # Phase 2: Fill remaining with random pairs (biased toward least-matched)
         attempts = 0
         while len(pairs) < max_pairs and attempts < max_pairs * 20:
-            p1, p2 = random.sample(pids, 2)
+            # Weighted random: prefer papers with fewer matches
+            weights = [1.0 / (match_counts[p] + 1) for p in pids]
+            total_w = sum(weights)
+            weights = [w / total_w for w in weights]
+            p1 = random.choices(pids, weights=weights, k=1)[0]
+            p2 = random.choice([p for p in pids if p != p1])
             key = tuple(sorted([p1, p2]))
             if key not in compared:
                 pairs.append((p1, p2))
                 compared.add(key)
+                match_counts[p1] += 1
+                match_counts[p2] += 1
             attempts += 1
+
+        logger.info(f"Pair selection [{dataset_id}]: {len(pairs)} pairs, min_per_paper={min_per_paper}, "
+                     f"actual min={min(match_counts[p] for p in pids)}, max={max(match_counts[p] for p in pids)}")
 
         state["total_matches"] = len(pairs)
         prompt_config = DEFAULT_EVALUATION_PROMPT
