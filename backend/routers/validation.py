@@ -1368,13 +1368,16 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
             if m["paper1_id"] in pid_set: paper_match_count[m["paper1_id"]] += 1
             if m["paper2_id"] in pid_set: paper_match_count[m["paper2_id"]] += 1
         papers_with_matches = [pid for pid in paper_ids if paper_match_count[pid] > 0]
-        if len(papers_with_matches) < 15:
+        if len(papers_with_matches) < 2:
             continue
         avg_matches = sum(paper_match_count[pid] for pid in papers_with_matches) / len(papers_with_matches)
 
+        # Compute BT ranking on ALL papers (papers with 0 matches get default score)
         sub_lb = compute_leaderboard(papers, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
-        common = [pid for pid in papers_with_matches if pid in gt_rank and pid in sub_rank]
+
+        # Correlate ALL papers (not just matched ones) against ground truth
+        common = [pid for pid in paper_ids if pid in gt_rank and pid in sub_rank]
         if len(common) < 15:
             continue
 
