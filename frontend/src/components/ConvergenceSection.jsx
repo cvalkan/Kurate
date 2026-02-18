@@ -37,6 +37,7 @@ export function ValidationConvergence({ datasets }) {
 
   const CONTENT_MODES = [
     { id: "abstract", label: "Abstract" },
+    { id: "extract", label: "Abstract + Extract" },
     { id: "full_pdf", label: "Full PDF" },
     { id: "abstract_plus_summary", label: "Abstract + Summary" },
   ];
