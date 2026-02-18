@@ -887,7 +887,7 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
             if j <= i:
                 continue
             common = set(model_rankings[m1].keys()) & set(model_rankings[m2].keys())
-            if len(common) < 3:
+            if len(common) < 15:
                 continue
             ids = sorted(common)
             r1 = [model_rankings[m1][pid] for pid in ids]
@@ -1106,7 +1106,7 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
     h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
     a_ids = {m["paper1_id"] for m in ai_matches} | {m["paper2_id"] for m in ai_matches}
     common = h_ids & a_ids
-    if len(common) < 3:
+    if len(common) < 15:
         return {"status": "insufficient_data"}
 
     cp = [p for p in papers if p["id"] in common]
@@ -1368,14 +1368,14 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
             if m["paper1_id"] in pid_set: paper_match_count[m["paper1_id"]] += 1
             if m["paper2_id"] in pid_set: paper_match_count[m["paper2_id"]] += 1
         papers_with_matches = [pid for pid in paper_ids if paper_match_count[pid] > 0]
-        if len(papers_with_matches) < 3:
+        if len(papers_with_matches) < 15:
             continue
         avg_matches = sum(paper_match_count[pid] for pid in papers_with_matches) / len(papers_with_matches)
 
         sub_lb = compute_leaderboard(papers, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
         common = [pid for pid in papers_with_matches if pid in gt_rank and pid in sub_rank]
-        if len(common) < 3:
+        if len(common) < 15:
             continue
 
         sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common], [gt_rank[p] for p in common])
@@ -1431,7 +1431,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
             if m["paper2_id"] in pid_set: paper_match_count[m["paper2_id"]] += 1
 
         papers_with_matches = [pid for pid in paper_ids if paper_match_count[pid] > 0]
-        if len(papers_with_matches) < 3:
+        if len(papers_with_matches) < 15:
             continue
 
         avg_matches = sum(paper_match_count[pid] for pid in papers_with_matches) / len(papers_with_matches)
@@ -1441,7 +1441,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
 
         # Correlate AI subsampled ranking with HUMAN ground truth
         common = [pid for pid in papers_with_matches if pid in gt_rank and pid in sub_rank]
-        if len(common) < 3:
+        if len(common) < 15:
             continue
 
         sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common], [gt_rank[p] for p in common])
@@ -1533,7 +1533,7 @@ async def get_irt_results(dataset_id: str = Query(...), abstract_only: Optional[
 
     a_ids = {m["paper1_id"] for m in ai_matches} | {m["paper2_id"] for m in ai_matches}
     common = set(paper_scores.keys()) & a_ids
-    if len(common) < 3:
+    if len(common) < 15:
         return {"status": "insufficient_data"}
 
     cp = [p for p in papers if p["id"] in common]
