@@ -1072,8 +1072,10 @@ async def get_status(dataset_id: str = Query(...)):
     total_pairs = n * (n - 1) // 2 if n > 1 else 0
     with_text = await db.validation_papers.count_documents({"dataset_id": dataset_id, "full_text": {"$exists": True, "$nin": [None, ""]}})
 
-    # Match distribution
+    # Match distribution + connectivity
     avg_m = min_m = max_m = 0
+    connected_components = 0
+    isolated_papers = 0
     if m > 0:
         agg = await db.validation_matches.aggregate([
             {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
@@ -1084,6 +1086,32 @@ async def get_status(dataset_id: str = Query(...)):
             avg_m = round(sum(counts.values()) / max(len(counts), 1), 1)
             min_m = min(counts.values())
             max_m = max(counts.values())
+
+            # Graph connectivity via union-find
+            parent = {}
+            def find(x):
+                while parent.get(x, x) != x:
+                    parent[x] = parent.get(parent[x], parent[x])
+                    x = parent[x]
+                return x
+            def union(a, b):
+                ra, rb = find(a), find(b)
+                if ra != rb:
+                    parent[ra] = rb
+
+            for p1, p2 in zip(agg[0]["p1s"], agg[0]["p2s"]):
+                union(p1, p2)
+
+            # Count components among matched papers
+            matched_papers = set(agg[0]["p1s"] + agg[0]["p2s"])
+            roots = set(find(p) for p in matched_papers)
+            connected_components = len(roots)
+
+            # Papers with 0 matches
+            all_paper_ids = set()
+            async for p in db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0, "id": 1}):
+                all_paper_ids.add(p["id"])
+            isolated_papers = len(all_paper_ids - matched_papers)
 
     state = _get_state(dataset_id)
     meta = await db.validation_datasets.find_one({"dataset_id": dataset_id}, {"_id": 0}) or {}
