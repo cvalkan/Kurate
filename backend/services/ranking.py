@@ -215,6 +215,8 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     ELO_BASE = 1200
 
     if not paper_ids or not matches:
+        import hashlib
+        sorted_papers = sorted(papers, key=lambda p: hashlib.md5(p["title"].encode()).hexdigest(), reverse=True)
         return [
             {
                 "id": p["id"],
@@ -231,7 +233,7 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
                 "comparisons": 0,
                 "confidence": calculate_confidence_interval(0, 0),
             }
-            for i, p in enumerate(papers)
+            for i, p in enumerate(sorted_papers)
         ]
 
     _bt_scores = calculate_bradley_terry(matches, paper_ids)  # noqa: F841 — computed for model validation
