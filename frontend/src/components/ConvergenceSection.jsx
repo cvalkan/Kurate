@@ -41,13 +41,6 @@ export function ValidationConvergence({ datasets }) {
   const [metric, setMetric] = useState("spearman");
   const [showTopK, setShowTopK] = useState(false);
 
-  const CONTENT_MODES = [
-    { id: "abstract", label: "Abstract" },
-    { id: "extract", label: "Abstract + Extract" },
-    { id: "full_pdf", label: "Full PDF" },
-    { id: "abstract_plus_summary", label: "Abstract + Summary" },
-  ];
-
   useEffect(() => {
     if (!datasets?.length) return;
     // For each dataset, fetch convergence for ALL content modes
