@@ -49,7 +49,7 @@ export function ValidationConvergence({ datasets }) {
       CONTENT_MODES.forEach(mode => {
         fetches.push(
           axios.get(`${API}/api/validation/convergence`, {
-            params: { dataset_id: ds.dataset_id, content_mode: mode.id, steps: 20 }
+            params: { dataset_id: ds.dataset_id, content_mode: mode.id, steps: 50 }
           }).then(r => ({ dsId: ds.dataset_id, dsName: ds.name, mode: mode.id, modeLabel: mode.label, data: r.data }))
             .catch(() => null)
         );
