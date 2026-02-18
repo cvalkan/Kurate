@@ -1337,29 +1337,71 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         if m["paper2_id"] in pid_set: full_counts[m["paper2_id"]] += 1
     max_avg = sum(full_counts[pid] for pid in paper_ids if full_counts[pid] > 0) / max(sum(1 for pid in paper_ids if full_counts[pid] > 0), 1)
 
-    # Generate x-axis targets with high resolution in early phase
-    # Early phase (0-5 avg): steps of 0.5 for detailed buildup
-    # Mid phase (5-15 avg): steps of 1
-    # Late phase (15+): adaptive step_size based on total steps budget
-    x_targets = []
-    # Early: 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0
-    for t in [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]:
+    # Generate match-count targets for the curve
+    # Phase 1: Absolute match counts for the very start (every 3 matches up to 50)
+    # Phase 2: Average-per-paper targets for the rest
+    absolute_targets = list(range(3, min(51, total + 1), 3))  # 3, 6, 9, 12, ... 48
+    avg_targets = []
+    for t in [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]:
         if t <= max_avg:
-            x_targets.append(t)
-    # Mid: 6, 7, 8, ... 15
+            avg_targets.append(t)
     for t in range(6, min(16, int(max_avg) + 1)):
-        x_targets.append(float(t))
-    # Late: remaining budget
+        avg_targets.append(float(t))
     if max_avg > 15:
-        late_steps = max(steps - len(x_targets), 10)
+        late_steps = max(steps - 25, 10)
         late_step_size = max(1, int((max_avg - 15) / late_steps))
         for t in range(15 + late_step_size, int(max_avg) + late_step_size, late_step_size):
-            x_targets.append(float(t))
-    if not x_targets or x_targets[-1] < max_avg * 0.95:
-        x_targets.append(max_avg)
+            avg_targets.append(float(t))
+    if avg_targets and avg_targets[-1] < max_avg * 0.95:
+        avg_targets.append(max_avg)
 
     curve = []
-    for target_avg in x_targets:
+    seen_match_counts = set()
+
+    # Phase 1: absolute match count targets
+    for n_matches in absolute_targets:
+        if n_matches > total:
+            break
+        subset = all_matches[:n_matches]
+        paper_match_count = defaultdict(int)
+        for m in subset:
+            if m["paper1_id"] in pid_set: paper_match_count[m["paper1_id"]] += 1
+            if m["paper2_id"] in pid_set: paper_match_count[m["paper2_id"]] += 1
+        papers_with_matches = [pid for pid in paper_ids if paper_match_count[pid] > 0]
+        if len(papers_with_matches) < 3:
+            continue
+        avg_matches = sum(paper_match_count[pid] for pid in papers_with_matches) / len(papers_with_matches)
+
+        sub_lb = compute_leaderboard(papers, subset)
+        sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+        common = [pid for pid in papers_with_matches if pid in gt_rank and pid in sub_rank]
+        if len(common) < 3:
+            continue
+
+        sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common], [gt_rank[p] for p in common])
+        kt, _ = scipy_stats.kendalltau([sub_rank[p] for p in common], [gt_rank[p] for p in common])
+        sub_score_map = {e["id"]: e["score"] for e in sub_lb}
+        pr, _ = scipy_stats.pearsonr([sub_score_map.get(p, 0) for p in common], [gt_score.get(p, 0) for p in common])
+
+        topk = {}
+        for k in top_k_values:
+            sub_topk = set(e["id"] for e in sub_lb if e["rank"] <= k)
+            overlap = len(sub_topk & gt_topk[k])
+            topk[f"top_{k}"] = round(overlap / k * 100, 1)
+
+        curve.append({
+            "matches": n_matches,
+            "avg_matches_per_paper": round(avg_matches, 1),
+            "papers_covered": len(papers_with_matches),
+            "spearman": round(sp, 4) if not np.isnan(sp) else 0,
+            "kendall": round(kt, 4) if not np.isnan(kt) else 0,
+            "pearson": round(pr, 4) if not np.isnan(pr) else 0,
+            **{f"top_{k}": topk.get(f"top_{k}", 0) for k in top_k_values},
+        })
+        seen_match_counts.add(n_matches)
+
+    # Phase 2: avg-per-paper targets (skip if already covered by phase 1)
+    for target_avg in avg_targets:
         lo, hi = 1, total
         best_n = total
         while lo <= hi:
