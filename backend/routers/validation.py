@@ -1337,11 +1337,26 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         if m["paper2_id"] in pid_set: full_counts[m["paper2_id"]] += 1
     max_avg = sum(full_counts[pid] for pid in paper_ids if full_counts[pid] > 0) / max(sum(1 for pid in paper_ids if full_counts[pid] > 0), 1)
 
-    # Generate integer x-axis steps — use step_size=1 for max resolution when steps is high
-    step_size = max(1, int(max_avg / steps))
-    x_targets = list(range(step_size, int(max_avg) + step_size, step_size))
+    # Generate x-axis targets with high resolution in early phase
+    # Early phase (0-5 avg): steps of 0.5 for detailed buildup
+    # Mid phase (5-15 avg): steps of 1
+    # Late phase (15+): adaptive step_size based on total steps budget
+    x_targets = []
+    # Early: 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0
+    for t in [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]:
+        if t <= max_avg:
+            x_targets.append(t)
+    # Mid: 6, 7, 8, ... 15
+    for t in range(6, min(16, int(max_avg) + 1)):
+        x_targets.append(float(t))
+    # Late: remaining budget
+    if max_avg > 15:
+        late_steps = max(steps - len(x_targets), 10)
+        late_step_size = max(1, int((max_avg - 15) / late_steps))
+        for t in range(15 + late_step_size, int(max_avg) + late_step_size, late_step_size):
+            x_targets.append(float(t))
     if not x_targets or x_targets[-1] < max_avg * 0.95:
-        x_targets.append(int(max_avg) + 1)
+        x_targets.append(max_avg)
 
     curve = []
     for target_avg in x_targets:
