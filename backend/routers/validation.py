@@ -128,7 +128,8 @@ async def import_iclr_dataset(body: ImportICLRRequest):
     # Filter
     filtered = df[
         (df['year'].isin(body.years)) &
-        (df['n_reviews'] >= body.min_reviews)
+        (df['n_reviews'] >= body.min_reviews) &
+        (~df['decision'].isin(['Withdrawn', 'Desk rejected', '']))
     ].copy()
 
     if body.label_filter:
@@ -139,14 +140,17 @@ async def import_iclr_dataset(body: ImportICLRRequest):
     if len(filtered) == 0:
         return {"status": "error", "message": f"No papers match filters: label={body.label_filter}, keyword={body.keyword_filter}"}
 
-    # Stratified sample by score
-    bins = [0, 3, 4, 5, 5.5, 6, 7, 8, 11]
-    filtered['score_bin'] = pd.cut(filtered['avg_score'], bins=bins)
-    per_bin = max(body.max_papers // len(bins), 5)
-    samples = []
-    for _, group in filtered.groupby('score_bin', observed=True):
-        samples.append(group.sample(min(len(group), per_bin), random_state=42))
-    selected = pd.concat(samples)
+    # If pool fits within max_papers, take all; otherwise stratified sample
+    if len(filtered) <= body.max_papers:
+        selected = filtered
+    else:
+        bins = [0, 3, 4, 5, 5.5, 6, 7, 8, 11]
+        filtered['score_bin'] = pd.cut(filtered['avg_score'], bins=bins)
+        per_bin = max(body.max_papers // len(bins), 5)
+        samples = []
+        for _, group in filtered.groupby('score_bin', observed=True):
+            samples.append(group.sample(min(len(group), per_bin), random_state=42))
+        selected = pd.concat(samples)
 
     total = len(selected)
 
