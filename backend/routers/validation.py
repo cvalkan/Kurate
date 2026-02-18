@@ -105,10 +105,17 @@ async def import_iclr_dataset(body: ImportICLRRequest):
     """Import ICLR papers from the berenslab dataset, filtered by label/keyword. Runs in background."""
     import pandas as pd
 
-    try:
-        df = pd.read_parquet('/tmp/iclr-dataset/data/iclr25v2.parquet')
-    except FileNotFoundError:
-        return {"status": "error", "message": "ICLR dataset not found. Clone berenslab/iclr-dataset to /tmp/iclr-dataset/"}
+    # Try 26v1 first (has newer labels like PDEs, 3D scenes, molecules, speech), fall back to 25v2
+    parquet_path = None
+    for p in ['/tmp/iclr-dataset/data/iclr26v1.parquet', '/tmp/iclr-dataset/data/iclr25v2.parquet']:
+        try:
+            df = pd.read_parquet(p)
+            parquet_path = p
+            break
+        except FileNotFoundError:
+            continue
+    if parquet_path is None:
+        return {"status": "error", "message": "ICLR dataset not found. Download berenslab/iclr-dataset parquet to /tmp/iclr-dataset/data/"}
 
     def parse_scores(s):
         if isinstance(s, np.ndarray): return s.astype(float).tolist()
