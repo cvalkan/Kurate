@@ -1337,10 +1337,8 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         if m["paper2_id"] in pid_set: full_counts[m["paper2_id"]] += 1
     max_avg = sum(full_counts[pid] for pid in paper_ids if full_counts[pid] > 0) / max(sum(1 for pid in paper_ids if full_counts[pid] > 0), 1)
 
-    # Generate integer x-axis steps
+    # Generate integer x-axis steps — use step_size=1 for max resolution when steps is high
     step_size = max(1, int(max_avg / steps))
-    if step_size >= 5:
-        step_size = (step_size // 5) * 5
     x_targets = list(range(step_size, int(max_avg) + step_size, step_size))
     if not x_targets or x_targets[-1] < max_avg * 0.95:
         x_targets.append(int(max_avg) + 1)
