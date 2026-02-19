@@ -701,7 +701,6 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
                      f"actual min={min(match_counts[p] for p in pids)}, max={max(match_counts[p] for p in pids)}")
 
         state["total_matches"] = len(pairs)
-        prompt_config = DEFAULT_EVALUATION_PROMPT
         completed = 0
 
         for i in range(0, len(pairs), parallel):
@@ -723,9 +722,11 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
                     "paper1_id": p1_id, "paper2_id": p2_id,
                     "used_extraction": used_ext,
                     "abstract_only": abstract_only,
-                    "content_mode": content_mode,
+                    "content_mode": storage_mode,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
+                if prompt_tag:
+                    doc["prompt_tag"] = prompt_tag
                 if isinstance(result, Exception):
                     doc.update({"completed": False, "failed": True, "error": str(result)[:200]})
                 else:
