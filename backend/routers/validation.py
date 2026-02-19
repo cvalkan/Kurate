@@ -730,6 +730,8 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
 
         async def _run_one(p1_orig, p2_orig):
             nonlocal completed
+            if state.get("cancel_requested"):
+                return
             # Random flip for positional bias
             if random.random() < 0.5:
                 p1_id, p2_id = p2_orig, p1_orig
@@ -737,6 +739,8 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
                 p1_id, p2_id = p1_orig, p2_orig
 
             async with sem:
+                if state.get("cancel_requested"):
+                    return
                 result = await compare_papers(lookup[p1_id], lookup[p2_id], prompt_config, content_mode=content_mode)
 
             used_ext = content_mode == "extract" and bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
