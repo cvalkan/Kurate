@@ -624,7 +624,8 @@ async def run_tournament(body: TournamentRequest):
     if content_mode is None:
         content_mode = "abstract" if body.abstract_only else "extract"
 
-    asyncio.create_task(_run_tournament(body.dataset_id, min(max(body.num_matches, 1), 2000), min(max(body.parallel, 1), 50), content_mode=content_mode, custom_prompt=body.custom_prompt, prompt_tag=body.prompt_tag))
+    task = asyncio.create_task(_run_tournament(body.dataset_id, min(max(body.num_matches, 1), 2000), min(max(body.parallel, 1), 50), content_mode=content_mode, custom_prompt=body.custom_prompt, prompt_tag=body.prompt_tag))
+    _tournament_tasks[body.dataset_id] = task
     return {"status": "started", "dataset_id": body.dataset_id, "num_matches": body.num_matches, "content_mode": content_mode, "prompt_tag": body.prompt_tag}
 
 
