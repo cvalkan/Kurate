@@ -777,10 +777,15 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
                 logger.warning(f"Validation match task error: {r}")
 
         logger.info(f"Validation tournament [{dataset_id}] ({content_mode}): {completed}/{len(pairs)}")
-    except Exception as e:
-        logger.error(f"Validation tournament [{dataset_id}] error: {e}")
+    except (Exception, asyncio.CancelledError) as e:
+        if isinstance(e, asyncio.CancelledError):
+            logger.info(f"Validation tournament [{dataset_id}] cancelled at {completed}/{len(pairs)}")
+        else:
+            logger.error(f"Validation tournament [{dataset_id}] error: {e}")
     finally:
         state["running"] = False
+        state["cancel_requested"] = False
+        _tournament_tasks.pop(dataset_id, None)
 
 
 # ─── Multi-Model Tournament ───────────────────────────────────────────────────
