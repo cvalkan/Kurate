@@ -153,6 +153,24 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
     return row;
   }) : [];
 
+  // Check if any dataset has tier data
+  const hasTiers = dsIds.some(did => curves[did]?.has_tiers);
+
+  // Build tier correlation chart data
+  const TIER_METRICS = [
+    { id: "tier_spearman", label: "Tier Spearman ρ" },
+    { id: "tier_kendall", label: "Tier Kendall τ" },
+  ];
+  const tierChartData = hasTiers ? xValues.map(x => {
+    const row = { x };
+    dsIds.forEach(did => {
+      const pt = allPoints.find(p => p.x === x && p.dataset === did);
+      if (pt && pt.tier_spearman !== undefined) row[`${did}_tier_spearman`] = pt.tier_spearman;
+      if (pt && pt.tier_kendall !== undefined) row[`${did}_tier_kendall`] = pt.tier_kendall;
+    });
+    return row;
+  }) : [];
+
   const maxX = Math.max(...xValues, 1);
   // Nice x-axis ticks: 0, 5, 10, 15... or 0, 10, 20... depending on range
   const tickInterval = maxX > 60 ? 10 : maxX > 30 ? 5 : maxX > 15 ? 5 : 2;
