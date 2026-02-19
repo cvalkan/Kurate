@@ -270,130 +270,7 @@ class ImportMIDLRequest(BaseModel):
 
 @router.post("/import-midl", dependencies=[Depends(verify_admin)])
 async def import_midl_dataset(body: ImportMIDLRequest):
-    """Import papers from MIDL (Medical Imaging with Deep Learning) via OpenReview API."""
-    import httpx
-
-    OR_API = "https://api2.openreview.net"
-    headers = {"User-Agent": "PaperSumo/1.0"}
-
-    all_papers = []
-
-    for year in body.years:
-        inv_types = [f"MIDL.io/{year}/Conference/-/Submission"]
-        if body.include_short:
-            inv_types.append(f"MIDL.io/{year}/Short_Papers/-/Submission")
-
-        for inv in inv_types:
-            offset = 0
-            while True:
-                r = requests.get(f"{OR_API}/notes", params={
-                    "invitation": inv, "limit": 50, "offset": offset,
-                }, headers=headers, timeout=20)
-                if r.status_code != 200:
-                    break
-                notes = r.json().get("notes", [])
-                for n in notes:
-                    content = n.get("content", {})
-                    all_papers.append({
-                        "forum_id": n["forum"],
-                        "note_id": n["id"],
-                        "title": content.get("title", {}).get("value", ""),
-                        "abstract": content.get("abstract", {}).get("value", ""),
-                        "authors": content.get("authors", {}).get("value", []),
-                        "venue": content.get("venue", {}).get("value", ""),
-                        "keywords": content.get("keywords", {}).get("value", []),
-                        "year": year,
-                        "invitation": inv,
-                    })
-                if len(notes) < 50:
-                    break
-                offset += 50
-                _time.sleep(0.3)
-
-    if not all_papers:
-        return {"status": "error", "message": "No MIDL papers found on OpenReview"}
-
-    # Fetch reviews for each paper
-    logger.info(f"MIDL import [{body.dataset_id}]: found {len(all_papers)} papers, fetching reviews...")
-    papers_with_reviews = []
-    for i, paper in enumerate(all_papers):
-        _time.sleep(0.3)
-        try:
-            r = requests.get(f"{OR_API}/notes", params={
-                "forum": paper["forum_id"], "limit": 30,
-            }, headers=headers, timeout=15)
-            if r.status_code != 200:
-                continue
-            forum_notes = r.json().get("notes", [])
-
-            reviews = []
-            meta_recommendation = None
-            for fn in forum_notes:
-                inv_id = fn.get("invitations", [""])[0] if isinstance(fn.get("invitations"), list) else ""
-                content = fn.get("content", {})
-
-                if "Official_Review" in inv_id:
-                    prelim = content.get("preliminary_rating", {}).get("value")
-                    final = content.get("final_rating", {}).get("value")
-                    rating = content.get("rating", {}).get("value")
-                    conf = content.get("confidence", {}).get("value")
-                    rec = content.get("recommendation", {}).get("value")
-                    # Use best available score: final_rating > preliminary_rating > rating
-                    score = None
-                    if final is not None:
-                        score = float(final)
-                    elif prelim is not None:
-                        score = float(prelim)
-                    elif rating is not None:
-                        score = float(rating)
-                    if score is not None:
-                        reviews.append({
-                            "score": score,
-                            "preliminary": float(prelim) if prelim else None,
-                            "final": float(final) if final else None,
-                            "confidence": int(conf) if conf else None,
-                            "recommendation": rec,
-                        })
-
-                elif "Meta_Review" in inv_id:
-                    meta_recommendation = content.get("recommendation", {}).get("value", "")
-
-            if len(reviews) < 2:
-                continue
-
-            scores = [r["score"] for r in reviews]
-            paper["reviews"] = reviews
-            paper["scores"] = scores
-            paper["avg_score"] = sum(scores) / len(scores)
-            paper["meta_recommendation"] = meta_recommendation
-            # Derive decision from venue
-            venue = paper["venue"]
-            if "Oral" in venue:
-                paper["decision"] = "Oral"
-            elif "Poster" in venue:
-                paper["decision"] = "Poster"
-            elif "Short" in venue:
-                paper["decision"] = "Short Paper"
-            else:
-                paper["decision"] = venue
-            papers_with_reviews.append(paper)
-        except Exception as e:
-            logger.warning(f"MIDL review fetch failed for {paper['forum_id']}: {e}")
-
-    if not papers_with_reviews:
-        return {"status": "error", "message": "No papers with 2+ reviews found"}
-
-    logger.info(f"MIDL import [{body.dataset_id}]: {len(papers_with_reviews)} papers with reviews")
-
-    # Stratified sample if too many
-    if len(papers_with_reviews) > body.max_papers:
-        papers_with_reviews.sort(key=lambda p: p["avg_score"])
-        step = len(papers_with_reviews) / body.max_papers
-        selected = [papers_with_reviews[int(i * step)] for i in range(body.max_papers)]
-    else:
-        selected = papers_with_reviews
-
-    total = len(selected)
+    """Import papers from MIDL (Medical Imaging with Deep Learning) via OpenReview API. Runs entirely in background."""
 
     await db.validation_datasets.update_one(
         {"dataset_id": body.dataset_id},
@@ -402,16 +279,14 @@ async def import_midl_dataset(body: ImportMIDLRequest):
             "name": body.name,
             "description": body.description,
             "source": f"MIDL {body.years} / OpenReview",
-            "paper_count": total,
-            "import_status": "importing",
+            "import_status": "fetching_papers",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }},
         upsert=True,
     )
 
-    asyncio.create_task(_run_midl_import(body.dataset_id, selected))
-    return {"status": "started", "dataset_id": body.dataset_id, "papers_to_import": total,
-            "papers_with_reviews": len(papers_with_reviews)}
+    asyncio.create_task(_run_midl_full_import(body.dataset_id, body.name, body.description, body.years, body.max_papers, body.include_short))
+    return {"status": "started", "dataset_id": body.dataset_id}
 
 
 async def _run_midl_import(dataset_id: str, selected: list):
