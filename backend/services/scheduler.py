@@ -744,72 +744,85 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             failed = 0
             total_matches = len(all_matches)
 
-            for i in range(0, len(pairs), parallel_agents):
-                # Check if system was paused mid-round
-                mid_settings = await get_settings()
-                if mid_settings.get("paused", False):
-                    logger.info(f"[{category}] System paused mid-round, stopping comparisons")
-                    break
+            # Semaphore-based pipeline: results saved as each completes
+            sem = asyncio.Semaphore(parallel_agents)
+            _paused = False
 
-                batch = pairs[i:i + parallel_agents]
-                tasks = []
-                # Randomly flip pair order to eliminate positional bias
-                presented_batch = []
-                for p1_id, p2_id in batch:
-                    if random.random() < 0.5:
-                        presented_batch.append((p2_id, p1_id))
-                    else:
-                        presented_batch.append((p1_id, p2_id))
-                for p1_id, p2_id in presented_batch:
-                    # Inject AI summary into paper dict based on admin setting
-                    p1 = paper_lookup[p1_id]
-                    p2 = paper_lookup[p2_id]
-                    summary_model = _pick_summary_source(summary_source)
-                    smk = _summary_model_key(summary_model)
-                    p1_with_sum = {**p1, "ai_impact_summary": (p1.get("summaries") or {}).get(smk, "")}
-                    p2_with_sum = {**p2, "ai_impact_summary": (p2.get("summaries") or {}).get(smk, "")}
-                    tasks.append(compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary"))
+            async def _run_one(p1_orig, p2_orig):
+                nonlocal completed, failed, _paused
+                if _paused:
+                    return
 
-                results = await asyncio.gather(*tasks, return_exceptions=True)
+                # Random flip for positional bias
+                if random.random() < 0.5:
+                    p1_id, p2_id = p2_orig, p1_orig
+                else:
+                    p1_id, p2_id = p1_orig, p2_orig
 
-                for (p1_id, p2_id), result in zip(presented_batch, results):
-                    # Compute shared categories between the two papers (piggyback)
-                    p1_cats = set(paper_lookup[p1_id].get("categories", []))
-                    p2_cats = set(paper_lookup[p2_id].get("categories", []))
-                    shared_cats = sorted(p1_cats & p2_cats)
+                p1 = paper_lookup[p1_id]
+                p2 = paper_lookup[p2_id]
+                summary_model = _pick_summary_source(summary_source)
+                smk = _summary_model_key(summary_model)
+                p1_with_sum = {**p1, "ai_impact_summary": (p1.get("summaries") or {}).get(smk, "")}
+                p2_with_sum = {**p2, "ai_impact_summary": (p2.get("summaries") or {}).get(smk, "")}
 
-                    match_doc = {
-                        "id": str(uuid.uuid4()),
-                        "paper1_id": p1_id,
-                        "paper2_id": p2_id,
-                        "primary_category": category,
-                        "shared_categories": shared_cats,
-                        "content_mode": "abstract_plus_summary",
-                        "prompt_hash": current_prompt_hash,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    }
+                async with sem:
+                    # Check pause between acquiring semaphore and running
+                    if _paused:
+                        return
+                    result = await compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary")
 
-                    if isinstance(result, Exception):
-                        match_doc["completed"] = False
-                        match_doc["failed"] = True
-                        match_doc["error"] = str(result)[:200]
-                        match_doc["reasoning"] = f"Failed: {str(result)[:100]}"
-                        failed += 1
-                    else:
-                        winner_key = result.get("winner", "paper1")
-                        match_doc["winner_id"] = p1_id if winner_key == "paper1" else p2_id
-                        match_doc["reasoning"] = result.get("reasoning", "")
-                        match_doc["model_used"] = result.get("model_used", {})
-                        match_doc["tokens"] = result.get("tokens", {})
-                        match_doc["completed"] = True
-                        match_doc["failed"] = False
-                        completed += 1
+                p1_cats = set(paper_lookup[p1_id].get("categories", []))
+                p2_cats = set(paper_lookup[p2_id].get("categories", []))
+                shared_cats = sorted(p1_cats & p2_cats)
 
-                    await db.matches.insert_one(match_doc)
+                match_doc = {
+                    "id": str(uuid.uuid4()),
+                    "paper1_id": p1_id, "paper2_id": p2_id,
+                    "primary_category": category,
+                    "shared_categories": shared_cats,
+                    "content_mode": "abstract_plus_summary",
+                    "prompt_hash": current_prompt_hash,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
 
+                if isinstance(result, Exception):
+                    match_doc.update({"completed": False, "failed": True, "error": str(result)[:200], "reasoning": f"Failed: {str(result)[:100]}"})
+                    failed += 1
+                else:
+                    winner_key = result.get("winner", "paper1")
+                    match_doc.update({
+                        "winner_id": p1_id if winner_key == "paper1" else p2_id,
+                        "reasoning": result.get("reasoning", ""),
+                        "model_used": result.get("model_used", {}),
+                        "tokens": result.get("tokens", {}),
+                        "completed": True, "failed": False,
+                    })
+                    completed += 1
+
+                await db.matches.insert_one(match_doc)
                 cat_status["matches_count"] = total_matches + completed + failed
                 cat_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
-                await asyncio.sleep(0.5)
+
+            # Periodically check for pause
+            async def _pause_checker():
+                nonlocal _paused
+                while not _paused:
+                    await asyncio.sleep(5)
+                    mid_settings = await get_settings()
+                    if mid_settings.get("paused", False):
+                        _paused = True
+                        logger.info(f"[{category}] System paused mid-round, stopping new comparisons")
+
+            pause_task = asyncio.create_task(_pause_checker())
+            all_tasks = [_run_one(p1, p2) for p1, p2 in pairs]
+            results = await asyncio.gather(*all_tasks, return_exceptions=True)
+            _paused = True  # Stop pause checker
+            pause_task.cancel()
+
+            for r in results:
+                if isinstance(r, Exception):
+                    logger.warning(f"[{category}] Comparison task error: {r}")
 
             now_iso = datetime.now(timezone.utc).isoformat()
             cat_status["last_process_at"] = now_iso
