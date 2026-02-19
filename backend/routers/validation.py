@@ -1539,6 +1539,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         "avg_matches_per_paper": 0,
         "papers_covered": 0,
         "spearman": 0, "kendall": 0, "pearson": 0,
+        "tier_spearman": 0, "tier_kendall": 0,
         **{f"top_{k}": round(k / len(paper_ids) * 100, 1) if paper_ids else 0 for k in top_k_values},
     })
 
