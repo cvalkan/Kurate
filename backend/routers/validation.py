@@ -608,11 +608,15 @@ async def run_tournament(body: TournamentRequest):
     return {"status": "started", "dataset_id": body.dataset_id, "num_matches": body.num_matches, "content_mode": content_mode, "prompt_tag": body.prompt_tag}
 
 
-async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, content_mode: str = "extract"):
+async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, content_mode: str = "extract", custom_prompt: dict = None, prompt_tag: str = None):
     state = _get_state(dataset_id)
     state.update({"running": True, "completed_matches": 0, "total_matches": max_pairs, "current_pair": "Loading...", "started_at": _time.time()})
 
     abstract_only = content_mode == "abstract"
+    # Use custom prompt if provided, otherwise default
+    prompt_config = custom_prompt if custom_prompt else DEFAULT_EVALUATION_PROMPT
+    # Effective content_mode for storage: append prompt_tag if present
+    storage_mode = f"{content_mode}:{prompt_tag}" if prompt_tag else content_mode
 
     try:
         papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
