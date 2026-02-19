@@ -2453,43 +2453,47 @@ async def _run_targeted_pairwise(dataset_id: str, pairs: list, content_mode: str
         prompt_config = DEFAULT_EVALUATION_PROMPT
         completed = 0
 
-        for i in range(0, len(pairs), parallel):
-            batch = pairs[i:i + parallel]
-            presented = [(p2, p1) if random.random() < 0.5 else (p1, p2) for p1, p2 in batch]
-            state["current_pair"] = f"Batch {i // parallel + 1}/{(len(pairs) + parallel - 1) // parallel}"
+        sem = asyncio.Semaphore(parallel)
 
-            tasks = [
-                compare_papers(lookup[p1], lookup[p2], prompt_config, content_mode=content_mode)
-                for p1, p2 in presented
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+        async def _run_one(p1_orig, p2_orig):
+            nonlocal completed
+            if random.random() < 0.5:
+                p1_id, p2_id = p2_orig, p1_orig
+            else:
+                p1_id, p2_id = p1_orig, p2_orig
 
-            for (p1_id, p2_id), result in zip(presented, results):
-                used_ext = content_mode == "extract" and bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
-                doc = {
-                    "id": str(uuid.uuid4()), "dataset_id": dataset_id,
-                    "paper1_id": p1_id, "paper2_id": p2_id,
-                    "used_extraction": used_ext,
-                    "abstract_only": abstract_only,
-                    "content_mode": content_mode,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }
-                if isinstance(result, Exception):
-                    doc.update({"completed": False, "failed": True, "error": str(result)[:200]})
-                else:
-                    winner_key = result.get("winner", "paper1")
-                    doc.update({
-                        "winner_id": p1_id if winner_key == "paper1" else p2_id,
-                        "reasoning": result.get("reasoning", ""),
-                        "model_used": result.get("model_used", {}),
-                        "tokens": result.get("tokens", {}),
-                        "completed": True, "failed": False,
-                    })
-                    completed += 1
+            async with sem:
+                result = await compare_papers(lookup[p1_id], lookup[p2_id], prompt_config, content_mode=content_mode)
 
-                await db.validation_matches.insert_one(doc)
-                state["completed_matches"] = completed
-            await asyncio.sleep(0.2)
+            used_ext = content_mode == "extract" and bool(lookup[p1_id].get("full_text") and lookup[p2_id].get("full_text"))
+            doc = {
+                "id": str(uuid.uuid4()), "dataset_id": dataset_id,
+                "paper1_id": p1_id, "paper2_id": p2_id,
+                "used_extraction": used_ext,
+                "abstract_only": abstract_only,
+                "content_mode": content_mode,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if isinstance(result, Exception):
+                doc.update({"completed": False, "failed": True, "error": str(result)[:200]})
+            else:
+                winner_key = result.get("winner", "paper1")
+                doc.update({
+                    "winner_id": p1_id if winner_key == "paper1" else p2_id,
+                    "reasoning": result.get("reasoning", ""),
+                    "model_used": result.get("model_used", {}),
+                    "tokens": result.get("tokens", {}),
+                    "completed": True, "failed": False,
+                })
+                completed += 1
+            await db.validation_matches.insert_one(doc)
+            state["completed_matches"] = completed
+
+        all_tasks = [_run_one(p1, p2) for p1, p2 in pairs]
+        results = await asyncio.gather(*all_tasks, return_exceptions=True)
+        for r in results:
+            if isinstance(r, Exception):
+                logger.warning(f"Targeted pairwise task error: {r}")
 
         logger.info(f"Targeted pairwise [{dataset_id}] ({content_mode}): {completed}/{len(pairs)}")
     except Exception as e:
