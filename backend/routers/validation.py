@@ -30,6 +30,7 @@ router = APIRouter(prefix="/api/validation")
 
 # In-memory tournament state per dataset
 _tournament_states = {}  # dataset_id -> {running, completed, total, ...}
+_tournament_tasks = {}  # dataset_id -> asyncio.Task
 
 
 def _get_state(dataset_id: str) -> dict:
@@ -37,6 +38,7 @@ def _get_state(dataset_id: str) -> dict:
         _tournament_states[dataset_id] = {
             "running": False, "completed_matches": 0,
             "total_matches": 0, "current_pair": "", "started_at": None,
+            "cancel_requested": False,
         }
     return _tournament_states[dataset_id]
 
