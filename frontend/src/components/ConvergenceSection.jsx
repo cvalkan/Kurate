@@ -239,7 +239,29 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
         </div>
       )}
 
-      {/* Top-K overlap chart */}
+      {/* Tier convergence chart — shown below rank correlation when tiers available */}
+      {!showTopK && hasTiers && !isLeaderboard && (
+        <div className="border border-border rounded-lg p-3" data-testid="convergence-tier-chart">
+          <div className="mb-2">
+            <h3 className="text-sm font-semibold">Tier Ranking Convergence</h3>
+            <p className="text-[10px] text-muted-foreground">AI ranking correlation with ICLR acceptance tiers (Oral &gt; Spotlight &gt; Poster &gt; Reject)</p>
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={tierChartData}>
+              <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
+                label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
+              <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={v => v.toFixed(1)}
+                label={{ value: "Tier Spearman ρ", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
+              <Tooltip content={<Tip />} />
+              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+              {dsIds.map((did, i) => (
+                <Line key={did} type="monotone" dataKey={`${did}_tier_spearman`} name={curves[did].name}
+                  stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {showTopK && hasTopK && (
         <div className="border border-border rounded-lg p-3" data-testid="convergence-topk-chart">
           <ResponsiveContainer width="100%" height={compact ? 220 : 280}>
