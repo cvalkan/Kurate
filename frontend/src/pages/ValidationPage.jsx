@@ -151,29 +151,50 @@ function StandardStats({ datasetId, isAdmin }) {
   const [contentMode, setContentMode] = useState("abstract");
   const [modeData, setModeData] = useState({});  // { mode: { pairwise, irt, agreement } }
   const [isRunningTournament, setIsRunningTournament] = useState(false);
-
-  const MODES = [
+  const [allModes, setAllModes] = useState([
     { id: "abstract", label: "Abstract" },
     { id: "extract", label: "Extract" },
     { id: "full_pdf", label: "Full PDF" },
     { id: "ai_summary", label: "AI Summary" },
     { id: "abstract_plus_summary", label: "Abstract + Summary" },
-  ];
+  ]);
 
   const fetchAll = useCallback(async () => {
     try {
       const params = { dataset_id: datasetId };
-      const [s, ...modeResults] = await Promise.all([
+      // First discover available modes
+      const [s, modesRes] = await Promise.all([
         axios.get(`${API}/api/validation/status`, { params }),
-        ...MODES.flatMap(m => [
+        axios.get(`${API}/api/validation/available-modes`, { params }).catch(() => ({ data: { modes: [] } })),
+      ]);
+      setStatus(s.data);
+
+      // Merge static modes with discovered ones (prompt-tagged variants)
+      const staticIds = new Set(["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"]);
+      const merged = [
+        { id: "abstract", label: "Abstract" },
+        { id: "extract", label: "Extract" },
+        { id: "full_pdf", label: "Full PDF" },
+        { id: "ai_summary", label: "AI Summary" },
+        { id: "abstract_plus_summary", label: "Abstract + Summary" },
+      ];
+      for (const m of (modesRes.data.modes || [])) {
+        if (!staticIds.has(m.id) && m.id !== "none") {
+          merged.push({ id: m.id, label: m.prompt_tag ? `Editorial: ${m.prompt_tag}` : m.label });
+        }
+      }
+      setAllModes(merged);
+
+      // Fetch data for all modes
+      const modeResults = await Promise.all(
+        merged.flatMap(m => [
           axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
           axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
           axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
-        ]),
-      ]);
-      setStatus(s.data);
+        ])
+      );
       const newModeData = {};
-      MODES.forEach((m, idx) => {
+      merged.forEach((m, idx) => {
         const pw = modeResults[idx * 3];
         const ir = modeResults[idx * 3 + 1];
         const ag = modeResults[idx * 3 + 2];
@@ -185,7 +206,7 @@ function StandardStats({ datasetId, isAdmin }) {
       });
       setModeData(newModeData);
     } catch (e) { console.error(e); }
-  }, [datasetId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [datasetId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
