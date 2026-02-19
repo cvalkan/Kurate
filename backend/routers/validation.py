@@ -1070,6 +1070,29 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
     }
 
 
+
+@router.get("/available-modes")
+async def get_available_modes(dataset_id: str = Query(...)):
+    """List content modes that have match data for a dataset, including prompt-tagged variants."""
+    pipeline = [
+        {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
+        {"$group": {
+            "_id": {"content_mode": {"$ifNull": ["$content_mode", "none"]}, "prompt_tag": {"$ifNull": ["$prompt_tag", None]}},
+            "count": {"$sum": 1}
+        }},
+    ]
+    modes = []
+    async for doc in db.validation_matches.aggregate(pipeline):
+        cm = doc["_id"]["content_mode"]
+        pt = doc["_id"]["prompt_tag"]
+        mode_id = cm if cm != "none" else ("abstract" if doc["_id"].get("abstract_only") else "extract")
+        label = mode_id.replace("_", " ").replace(":", " — ").title()
+        if pt:
+            label = f"{label} ({pt})"
+        modes.append({"id": cm, "label": label, "prompt_tag": pt, "matches": doc["count"]})
+    return {"modes": sorted(modes, key=lambda m: -m["matches"])}
+
+
 # ─── Status ────────────────────────────────────────────────────────────────────
 
 @router.get("/status")
