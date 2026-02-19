@@ -233,10 +233,14 @@ function StandardStats({ datasetId, isAdmin }) {
   const activeIrt = active.irt;
   const activeAgreement = active.agreement;
   const hasActiveData = activePairwise || activeIrt;
-  const modeLabels = { extract: "Extract", abstract: "Abstract", full_pdf: "Full PDF", ai_summary: "AI Summary", abstract_plus_summary: "Abstract + Summary" };
-  const modeLabel = modeLabels[contentMode] || contentMode;
-  // Only show modes in toggle that have data or are the standard 3
-  const visibleModes = MODES.filter(m => !["ai_summary", "abstract_plus_summary"].includes(m.id) || modeData[m.id]?.pairwise || modeData[m.id]?.irt);
+  const modeLabel = allModes.find(m => m.id === contentMode)?.label || contentMode;
+  // Show modes that have data or are the standard 3
+  const visibleModes = allModes.filter(m => !["ai_summary", "abstract_plus_summary"].includes(m.id) || modeData[m.id]?.pairwise || modeData[m.id]?.irt)
+    .filter(m => {
+      // Always show standard modes; for discovered modes, only show if they have data
+      const isStandard = ["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"].includes(m.id);
+      return isStandard || modeData[m.id]?.pairwise || modeData[m.id]?.irt;
+    });
 
   return (
     <div className="space-y-5">
