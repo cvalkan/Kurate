@@ -89,6 +89,9 @@ export function ValidationConvergence({ datasets }) {
       }
       setCurves(c);
       setLoading(false);
+    }).catch(err => {
+      console.error("Convergence fetch error:", err);
+      setLoading(false);
     });
   }, [datasets]);
 
