@@ -1,44 +1,48 @@
-# PaperSumo PRD
+# PaperSumo — Scientific Paper Ranking Validation System
 
-## Original Problem Statement
-Build a robust system for validating AI model performance on scientific papers via a leaderboard tournament where different LLMs act as judges to rank papers.
+## Problem Statement
+Build a robust system for validating AI model performance on scientific papers. Features a leaderboard tournament where different LLMs act as judges to rank papers, with validation against human peer-review ground truth.
 
 ## Architecture
-- **Frontend**: React + Shadcn/UI + Tailwind CSS
+- **Frontend**: React + Shadcn UI (production build served via `serve`)
 - **Backend**: FastAPI + MongoDB
-- **LLMs**: GPT-5.2, Claude Opus 4.5, Gemini 3 Pro (round-robin judging)
-- **Auth**: JWT token-based (localStorage) for users, session token for admin
-- **Convergence**: Two-tier Wilson CI (10% top-K, 15% general)
+- **LLMs**: GPT-5.2, Claude Opus 4.5, Gemini 3 Pro (via Emergent LLM key)
 
-## Core Features (Implemented)
-- Multi-category paper tournaments (arXiv + ChemRxiv sources)
-- AI-powered pairwise paper comparison with 3 LLM judges
-- **Two-tier Wilson CI convergence** (tight for top-K, loose for general)
-- **Goal-directed matchmaking** (neediest papers first, then top-K cross-matches)
-- Leaderboard with ELO scoring and win rates
-- Admin dashboard with separate fetch/tournament controls
-- Cost tracking and usage statistics
-- Paper detail pages with LaTeX rendering and AI summaries
+## Core Features Implemented
+- Multi-dataset validation tournaments (ICLR, PeerRead, eLife, F1000, ResearchHub)
+- Tier-based validation (Oral/Spotlight/Poster/Reject vs AI rankings)
+- Convergence analysis with multi-mode comparison
+- Goal-directed matchmaking with Wilson CI stopping criteria
+- Connectivity-aware pair selection (ensures well-connected tournament graphs)
+- Custom prompt tournaments with prompt tagging
+- Dynamic mode discovery (auto-discovers prompt-tagged variants in UI)
+- Cross-mode fill endpoint for creating pair overlap between modes
+- Auto-fetch scheduler (fetches papers for all active_categories, independent of tournament status)
 
-## Convergence Model (Current)
-- **Goal 1**: General papers CI ≤ 15% (configurable via `ci_target_general`)
-- **Goal 2**: Top-K papers CI ≤ 10% (configurable via `ci_target`)
-- **Goal 3**: All top-K pairs cross-matched
-- No min/max match caps — papers get matched until CI converges
+## Datasets
+| Dataset | Papers | Status |
+|---|---|---|
+| ICLR LLMs | 73 | Complete |
+| ICLR Code Generation | 62 | Complete |
+| ICLR Optimal Transport | 52 | Complete |
+| ICLR PDEs & Dynamical Systems | 80 | New (Feb 2026) |
+| ICLR Protein Science | 46 | Complete |
+| PeerRead ACL 2017 | 80 | Complete + editorial_v1 running |
+| eLife Neuroscience | 100 | Complete |
+| F1000Prime Alzheimer's | 54 | Complete |
 
-## Matchmaking (Current)
-1. Match neediest papers first (widest CI margin vs their tier's target)
-2. Top-K cross-matches after rankings stabilize
-3. Repeat pairs only after all goals met
+## Key Technical Decisions
+- Matchmaking is goal-directed (CI-based), not match-count-based
+- Fetching is independent of tournament match-running status
+- Custom prompts stored via `prompt_tag` field on matches, queried as `content_mode:prompt_tag`
+- Convergence chart auto-discovers modes via `/api/validation/available-modes`
+- ICLR dataset uses berenslab/iclr-dataset parquet (v26v1 for newest labels)
 
-## Prioritized Backlog
-
-### P1 (High Priority)
-- Deploy to production (preview significantly diverged)
-
-### P2 (Medium)
-- Add HTTP security headers
-- Experiment with different LLMs for summaries
-
-### P3 (Low/Future)
-- Refactor data processing logic from routers into services layer
+## Recent Changes (Feb 2026)
+- Imported PDEs dataset from 26v1 parquet (new label)
+- Fixed auto-fetch bug: scheduler now uses active_categories from settings
+- Added custom prompt tournament support with prompt_tag
+- Added connectivity-aware pair selection for well-connected graphs
+- Added graph connectivity metrics to status endpoint
+- Fixed convergence chart missing "extract" mode
+- Added cross-mode fill endpoint for creating pair overlap
