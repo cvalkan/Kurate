@@ -623,9 +623,12 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
         lookup = {p["id"]: p for p in papers}
         pids = list(lookup.keys())
 
-        # Dedup: only check matches of the same mode
+        # Dedup: only check matches of the same storage mode
         match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-        if content_mode == "abstract":
+        if prompt_tag:
+            # Custom prompt matches are isolated by their storage_mode
+            match_filter["content_mode"] = storage_mode
+        elif content_mode == "abstract":
             match_filter["abstract_only"] = True
         elif content_mode == "full_pdf":
             match_filter["content_mode"] = "full_pdf"
