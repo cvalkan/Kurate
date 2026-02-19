@@ -1173,7 +1173,7 @@ def _build_content_mode_filter(content_mode: Optional[str] = None, abstract_only
     elif content_mode == "abstract":
         return {"abstract_only": True}
     elif content_mode == "extract" or abstract_only is False:
-        return {"abstract_only": {"$ne": True}, "content_mode": {"$nin": ["full_pdf", "ai_summary", "abstract_plus_summary", "abstract_plus_impact"]}}
+        return {"abstract_only": {"$ne": True}, "content_mode": {"$nin": ["full_pdf", "ai_summary", "abstract_plus_summary", "abstract_plus_impact"]}, "prompt_tag": {"$exists": False}}
     return {}
 
 
