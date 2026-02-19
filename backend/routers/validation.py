@@ -408,12 +408,13 @@ async def _run_midl_full_import(dataset_id: str, name: str, description: str, ye
     )
 
     # Phase 4: Download PDFs and import
+    import httpx as _httpx
     imported = 0
     pdfs = 0
     for paper in selected:
         full_text = None
         try:
-            async with httpx.AsyncClient() as client:
+            async with _httpx.AsyncClient() as client:
                 pdf_url = f"https://openreview.net/pdf?id={paper['forum_id']}"
                 r = await client.get(pdf_url, timeout=30, follow_redirects=True)
                 if r.status_code == 200 and r.content[:5] == b'%PDF-':
