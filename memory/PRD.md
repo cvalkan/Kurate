@@ -9,55 +9,48 @@ Build a robust system for validating AI model performance on scientific papers. 
 - **LLMs**: GPT-5.2, Claude Opus 4.5, Gemini 3 Pro (via Emergent LLM key)
 
 ## Core Features Implemented
-- Multi-dataset validation tournaments (ICLR, PeerRead, eLife, F1000, ResearchHub)
+- Multi-dataset validation tournaments (ICLR, MIDL, PeerRead, eLife, F1000, ResearchHub)
+- MIDL importer (fetches papers + reviews from OpenReview API)
 - Tier-based validation (Oral/Spotlight/Poster/Reject vs AI rankings)
 - Convergence analysis with multi-mode comparison
 - Goal-directed matchmaking with Wilson CI stopping criteria
-- Connectivity-aware pair selection (ensures well-connected tournament graphs)
-- Dynamic mode discovery (auto-discovers prompt-tagged variants in UI)
-- Cross-mode fill endpoint for creating pair overlap between modes
-- Auto-fetch scheduler (fetches papers for all active_categories, independent of tournament status)
-- Graph connectivity metrics in status endpoint
-- Stop-tournament endpoint for graceful cancellation
-- Semaphore-based parallel LLM pipeline (streaming, resilient)
-- Tier Convergence chart
+- Dynamic mode discovery, cross-mode fill, stop-tournament
+- Semaphore-based parallel LLM pipeline
 
 ## Datasets
-| Dataset | Papers | Status | abs+sum ρ | full_pdf ρ | Winner |
+| Dataset | Papers | Source | abs+sum ρ | full_pdf ρ | Winner |
 |---|---|---|---|---|---|
-| ICLR LLMs | 73 | Complete | 0.771 | 0.751 | abs+sum |
-| ICLR Protein Science | 46 | Complete | 0.770 | 0.743 | abs+sum |
-| ICLR Optimization | 42 | Complete | 0.742 | 0.716 | abs+sum |
-| ICLR Code Generation | 62 | Complete | 0.685 | 0.760 | full_pdf |
-| ICLR Optimal Transport | 52 | Complete | 0.528 | 0.516 | abs+sum |
-| ICLR Molecules | 46 | Complete | 0.513 | 0.544 | full_pdf |
-| ICLR PDEs & Dynamical Systems | 80 | Complete | 0.488 | 0.459 | abs+sum |
-| ICLR Fairness | 68 | Complete | 0.432 | 0.448 | full_pdf |
-| PeerRead ACL 2017 | 80 | Complete | — | — | — |
-| eLife Neuroscience | 100 | Complete | — | — | — |
-| F1000Prime Alzheimer's | 54 | Complete | — | — | — |
+| ICLR LLMs | 73 | ICLR | 0.771 | 0.751 | abs+sum |
+| ICLR Protein Science | 46 | ICLR | 0.770 | 0.743 | abs+sum |
+| ICLR Optimization | 42 | ICLR | 0.742 | 0.716 | abs+sum |
+| ICLR Code Generation | 62 | ICLR | 0.685 | 0.760 | full_pdf |
+| ICLR Optimal Transport | 52 | ICLR | 0.528 | 0.516 | abs+sum |
+| ICLR Molecules | 46 | ICLR | 0.513 | 0.544 | full_pdf |
+| ICLR PDEs & Dyn Systems | 80 | ICLR | 0.488 | 0.459 | abs+sum |
+| ICLR Fairness | 68 | ICLR | 0.432 | 0.448 | full_pdf |
+| MIDL Medical Imaging | 81 | MIDL/OpenReview | 0.270 | 0.339 | full_pdf |
+| PeerRead ACL 2017 | 80 | PeerRead | — | — | — |
+| eLife Neuroscience | 100 | eLife | — | — | — |
+| F1000Prime Alzheimer's | 54 | F1000 | — | — | — |
 
 ## Key Findings
-- **abstract+summary wins in 5/8 ICLR domains** (LLMs, Protein, Optimization, OT, PDEs)
-- **full_pdf wins in 3/8 domains** (Code Gen, Molecules, Fairness) — these are experimentally-dense, benchmark-heavy domains where critical quality signals live in the paper body
-- **Code Generation has the largest full_pdf advantage** (Δ=+0.075), likely because benchmark tables, code snippets, and ablation studies are lost in summarization
-- **Optimization has the highest abs+sum correlation** among theory-heavy domains (ρ=0.742), with 82.4% AI vs Expert Majority agreement
-- **Tier accuracy** sometimes favors full_pdf even when ρ favors abs+sum (e.g., Optimization: 84.3% vs 82.8%)
-
-## Available ICLR Labels (berenslab 26v1, not yet imported)
-- diffusion models, RL, graphs, 3D scenes, speech, safety, alignment, autonomous driving, knowledge graph, neuroscience, transformers, generative models, etc.
+- **abstract+summary wins in 5/9 domains** (LLMs, Protein, Optimization, OT, PDEs)
+- **full_pdf wins in 4/9 domains** (Code Gen, Molecules, Fairness, MIDL Medical) — these are experimentally-dense, methodology-heavy domains
+- **MIDL Medical Imaging has the largest full_pdf advantage** (Δ=+0.069) and lowest overall ρ (0.339), partly because expert-expert agreement is only 58%
+- **eLife Neuroscience** has poor ground truth (4-point consensus scale, no rejected papers) — not suitable for tournament validation
 
 ## Pending/Backlog
+- Import more eLife or medical datasets
 - Run abstract-only baselines for new datasets
 - Cross-mode fill for pairwise views
-- Import more domains if desired
 - Multi-model data fill for PDEs, iclr-llms, iclr-ot
 - HTTP security headers
 - Production deployment sync
 - Refactor data processing into backend/services layer
 
 ## Recent Changes (Feb 2026)
-- Imported ICLR Fairness (68 papers), Molecules (46 papers), Optimization (42 papers)
-- Ran abstract+summary and full_pdf tournaments for all three new datasets
-- Rebuilt frontend with correct REACT_APP_BACKEND_URL
-- Discovered pattern: experimentally-dense domains (Code Gen, Molecules, Fairness) favor full_pdf
+- Built MIDL importer (OpenReview API → papers + reviews + PDFs)
+- Imported MIDL Medical Imaging (81 papers, 2024-2025)
+- Imported ICLR Fairness (68), Molecules (46), Optimization (42)
+- Ran abstract+summary and full_pdf tournaments for all new datasets
+- Fixed frontend build with correct REACT_APP_BACKEND_URL
