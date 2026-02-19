@@ -19,6 +19,9 @@ Build a robust system for validating AI model performance on scientific papers. 
 - Cross-mode fill endpoint for creating pair overlap between modes
 - Auto-fetch scheduler (fetches papers for all active_categories, independent of tournament status)
 - Graph connectivity metrics in status endpoint
+- Stop-tournament endpoint for graceful cancellation
+- Semaphore-based parallel LLM pipeline (streaming, resilient)
+- Tier Convergence chart
 
 ## Datasets
 | Dataset | Papers | Status |
@@ -28,32 +31,47 @@ Build a robust system for validating AI model performance on scientific papers. 
 | ICLR Optimal Transport | 52 | Complete |
 | ICLR PDEs & Dynamical Systems | 80 | Complete (extract + abstract+summary + pairwise overlap) |
 | ICLR Protein Science | 46 | Complete |
+| ICLR Fairness | 68 | NEW — abstract+summary done (500 matches, ρ=0.432), full_pdf in progress |
 | PeerRead ACL 2017 | 80 | Complete |
 | eLife Neuroscience | 100 | Complete |
 | F1000Prime Alzheimer's | 54 | Complete |
+
+## Cross-Dataset Content Mode Comparison (ICLR)
+| Dataset | abstract+summary ρ | full_pdf ρ | Winner |
+|---|---|---|---|
+| LLMs | **0.771** | 0.751 | abstract+summary |
+| Code Generation | 0.685 | **0.760** | full_pdf (OUTLIER) |
+| Optimal Transport | **0.528** | 0.516 | abstract+summary |
+| PDEs | **0.488** | 0.459 | abstract+summary |
+| Protein Science | **0.770** | 0.743 | abstract+summary |
+| Fairness | 0.432 | TBD | TBD |
 
 ## Key Technical Decisions
 - Matchmaking is goal-directed (CI-based), not match-count-based
 - Fetching is independent of tournament match-running status (uses active_categories from settings)
 - Custom prompts stored via `prompt_tag` field on matches, queried as `content_mode:prompt_tag`
 - Convergence chart auto-discovers modes via `/api/validation/available-modes`
-- ICLR dataset uses berenslab/iclr-dataset parquet (v26v1 for newest labels like PDEs)
+- ICLR dataset uses berenslab/iclr-dataset parquet (v26v1 for newest labels like PDEs, fairness)
 - Cross-mode comparison threshold: 20% of largest mode (min 50 pairs)
+- Semaphore-based parallel pipeline replaces batch asyncio.gather
 
-## Recent Changes (Feb 2026)
-- Imported PDEs dataset from 26v1 parquet (80 papers, new label)
-- Fixed auto-fetch bug: scheduler now uses active_categories from settings, not tournament status
-- Added custom prompt tournament support with prompt_tag (tested editorial prompt; removed due to weaker ρ)
-- Added connectivity-aware pair selection for well-connected graphs
-- Added graph connectivity metrics to status endpoint
-- Fixed convergence chart missing "extract" mode
-- Added cross-mode fill endpoint for creating pair overlap
-- Completed PDEs cross-mode fill: 497 overlapping pairs between extract and abstract+summary
-- Lowered cross-mode core threshold from 50% to 20% for asymmetric datasets
+## Available ICLR Labels (berenslab 26v1, not yet imported)
+- optimization (292 eligible papers)
+- molecules (46 eligible papers)
+- diffusion models, RL, graphs, 3D scenes, speech, safety, alignment, autonomous driving, knowledge graph, neuroscience, transformers, generative models, etc.
 
 ## Pending/Backlog
-- Import more datasets (Diffusion Models, RL, Graphs)
+- Complete full_pdf tournament for fairness dataset
+- Run abstract-only baseline for fairness
+- Import optimization and/or molecules datasets
 - Multi-model fill for PDEs
 - HTTP security headers
 - Production deployment sync
 - Refactor data processing into backend/services layer
+
+## Recent Changes (Feb 2026)
+- Imported ICLR Fairness dataset (68 papers) from 26v1 parquet
+- Generated impact summaries for all 68 fairness papers
+- Completed 500-match abstract+summary tournament (ρ=0.432)
+- Started 500-match full_pdf tournament
+- Rebuilt frontend with correct REACT_APP_BACKEND_URL
