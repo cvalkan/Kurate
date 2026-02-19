@@ -584,7 +584,9 @@ class TournamentRequest(BaseModel):
     num_matches: int = 500
     parallel: int = 30
     abstract_only: bool = False
-    content_mode: Optional[str] = None  # "abstract", "extract", "full_pdf"
+    content_mode: Optional[str] = None  # "abstract", "extract", "full_pdf", "abstract_plus_summary"
+    custom_prompt: Optional[dict] = None  # {"system_prompt": "...", "user_prompt": "..."}
+    prompt_tag: Optional[str] = None  # Tag to identify this prompt variant (e.g., "editorial_v1")
 
 
 @router.post("/run-tournament", dependencies=[Depends(verify_admin)])
@@ -602,8 +604,8 @@ async def run_tournament(body: TournamentRequest):
     if content_mode is None:
         content_mode = "abstract" if body.abstract_only else "extract"
 
-    asyncio.create_task(_run_tournament(body.dataset_id, min(max(body.num_matches, 1), 2000), min(max(body.parallel, 1), 50), content_mode=content_mode))
-    return {"status": "started", "dataset_id": body.dataset_id, "num_matches": body.num_matches, "content_mode": content_mode}
+    asyncio.create_task(_run_tournament(body.dataset_id, min(max(body.num_matches, 1), 2000), min(max(body.parallel, 1), 50), content_mode=content_mode, custom_prompt=body.custom_prompt, prompt_tag=body.prompt_tag))
+    return {"status": "started", "dataset_id": body.dataset_id, "num_matches": body.num_matches, "content_mode": content_mode, "prompt_tag": body.prompt_tag}
 
 
 async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, content_mode: str = "extract"):
