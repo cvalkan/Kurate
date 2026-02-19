@@ -43,19 +43,37 @@ export function ValidationConvergence({ datasets }) {
 
   useEffect(() => {
     if (!datasets?.length) return;
-    // For each dataset, fetch convergence for ALL content modes
-    const fetches = [];
-    datasets.forEach(ds => {
-      CONTENT_MODES.forEach(mode => {
-        fetches.push(
-          axios.get(`${API}/api/validation/convergence`, {
-            params: { dataset_id: ds.dataset_id, content_mode: mode.id, steps: 50 }
-          }).then(r => ({ dsId: ds.dataset_id, dsName: ds.name, mode: mode.id, modeLabel: mode.label, data: r.data }))
-            .catch(() => null)
-        );
+    // First, discover all available modes per dataset, then fetch convergence for each
+    const modeDiscovery = datasets.map(ds =>
+      axios.get(`${API}/api/validation/available-modes`, { params: { dataset_id: ds.dataset_id } })
+        .then(r => ({ dsId: ds.dataset_id, dsName: ds.name, modes: r.data.modes || [] }))
+        .catch(() => ({ dsId: ds.dataset_id, dsName: ds.name, modes: [] }))
+    );
+
+    Promise.all(modeDiscovery).then(discovered => {
+      // Also always check the static modes as fallback
+      const allModes = new Map();
+      CONTENT_MODES.forEach(m => allModes.set(m.id, m.label));
+
+      const fetches = [];
+      discovered.forEach(d => {
+        // Add discovered modes (may include prompt-tagged variants)
+        d.modes.forEach(m => {
+          if (!allModes.has(m.id)) allModes.set(m.id, m.label);
+        });
+        // Fetch convergence for each known mode
+        allModes.forEach((label, modeId) => {
+          fetches.push(
+            axios.get(`${API}/api/validation/convergence`, {
+              params: { dataset_id: d.dsId, content_mode: modeId, steps: 50 }
+            }).then(r => ({ dsId: d.dsId, dsName: d.dsName, mode: modeId, modeLabel: label, data: r.data }))
+              .catch(() => null)
+          );
+        });
       });
-    });
-    Promise.all(fetches).then(results => {
+
+      return Promise.all(fetches);
+    }).then(results => {
       const c = {};
       for (const r of results) {
         if (!r || r.data.status !== "ok" || !r.data.curve?.length) continue;
