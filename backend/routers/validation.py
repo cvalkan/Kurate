@@ -289,12 +289,127 @@ async def import_midl_dataset(body: ImportMIDLRequest):
     return {"status": "started", "dataset_id": body.dataset_id}
 
 
-async def _run_midl_import(dataset_id: str, selected: list):
-    """Background task to download MIDL PDFs and import papers."""
-    import httpx
+async def _run_midl_full_import(dataset_id: str, name: str, description: str, years: list, max_papers: int, include_short: bool):
+    """Background task: fetch papers from OpenReview, get reviews, download PDFs, import."""
+    OR_API = "https://api2.openreview.net"
+    headers = {"User-Agent": "PaperSumo/1.0"}
+
+    # Phase 1: Fetch all submissions
+    all_papers = []
+    for year in years:
+        inv_types = [f"MIDL.io/{year}/Conference/-/Submission"]
+        if include_short:
+            inv_types.append(f"MIDL.io/{year}/Short_Papers/-/Submission")
+        for inv in inv_types:
+            offset = 0
+            while True:
+                try:
+                    r = requests.get(f"{OR_API}/notes", params={
+                        "invitation": inv, "limit": 50, "offset": offset,
+                    }, headers=headers, timeout=20)
+                    if r.status_code != 200:
+                        break
+                    notes = r.json().get("notes", [])
+                    for n in notes:
+                        content = n.get("content", {})
+                        all_papers.append({
+                            "forum_id": n["forum"],
+                            "title": content.get("title", {}).get("value", ""),
+                            "abstract": content.get("abstract", {}).get("value", ""),
+                            "authors": content.get("authors", {}).get("value", []),
+                            "venue": content.get("venue", {}).get("value", ""),
+                            "keywords": content.get("keywords", {}).get("value", []),
+                            "year": year,
+                        })
+                    if len(notes) < 50:
+                        break
+                    offset += 50
+                except Exception:
+                    break
+                await asyncio.sleep(0.3)
+
+    logger.info(f"MIDL import [{dataset_id}]: found {len(all_papers)} papers, fetching reviews...")
+    await db.validation_datasets.update_one(
+        {"dataset_id": dataset_id},
+        {"$set": {"import_status": "fetching_reviews", "papers_found": len(all_papers)}},
+    )
+
+    # Phase 2: Fetch reviews for each paper
+    papers_with_reviews = []
+    for i, paper in enumerate(all_papers):
+        await asyncio.sleep(0.3)
+        try:
+            r = requests.get(f"{OR_API}/notes", params={
+                "forum": paper["forum_id"], "limit": 30,
+            }, headers=headers, timeout=15)
+            if r.status_code != 200:
+                continue
+            forum_notes = r.json().get("notes", [])
+            reviews = []
+            meta_recommendation = None
+            for fn in forum_notes:
+                inv_id = fn.get("invitations", [""])[0] if isinstance(fn.get("invitations"), list) else ""
+                content = fn.get("content", {})
+                if "Official_Review" in inv_id:
+                    prelim = content.get("preliminary_rating", {}).get("value")
+                    final = content.get("final_rating", {}).get("value")
+                    rating = content.get("rating", {}).get("value")
+                    conf = content.get("confidence", {}).get("value")
+                    rec = content.get("recommendation", {}).get("value")
+                    score = float(final) if final is not None else (float(prelim) if prelim is not None else (float(rating) if rating is not None else None))
+                    if score is not None:
+                        reviews.append({
+                            "score": score,
+                            "preliminary": float(prelim) if prelim else None,
+                            "final": float(final) if final else None,
+                            "confidence": int(conf) if conf else None,
+                            "recommendation": rec,
+                        })
+                elif "Meta_Review" in inv_id:
+                    meta_recommendation = content.get("recommendation", {}).get("value", "")
+            if len(reviews) < 2:
+                continue
+            scores = [rv["score"] for rv in reviews]
+            paper["reviews"] = reviews
+            paper["scores"] = scores
+            paper["avg_score"] = sum(scores) / len(scores)
+            paper["meta_recommendation"] = meta_recommendation
+            venue = paper["venue"]
+            paper["decision"] = "Oral" if "Oral" in venue else ("Poster" if "Poster" in venue else ("Short Paper" if "Short" in venue else venue))
+            papers_with_reviews.append(paper)
+        except Exception as e:
+            logger.warning(f"MIDL review fetch failed for {paper['forum_id']}: {e}")
+        if (i + 1) % 20 == 0:
+            await db.validation_datasets.update_one(
+                {"dataset_id": dataset_id},
+                {"$set": {"import_progress_reviews": i + 1}},
+            )
+
+    if not papers_with_reviews:
+        await db.validation_datasets.update_one(
+            {"dataset_id": dataset_id},
+            {"$set": {"import_status": "error", "error": "No papers with 2+ reviews found"}},
+        )
+        return
+
+    logger.info(f"MIDL import [{dataset_id}]: {len(papers_with_reviews)} papers with reviews")
+
+    # Phase 3: Stratified sample
+    if len(papers_with_reviews) > max_papers:
+        papers_with_reviews.sort(key=lambda p: p["avg_score"])
+        step = len(papers_with_reviews) / max_papers
+        selected = [papers_with_reviews[int(i * step)] for i in range(max_papers)]
+    else:
+        selected = papers_with_reviews
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": dataset_id},
+        {"$set": {"import_status": "downloading_pdfs", "paper_count": len(selected)}},
+    )
+
+    # Phase 4: Download PDFs and import
     imported = 0
     pdfs = 0
-
     for paper in selected:
         full_text = None
         try:
