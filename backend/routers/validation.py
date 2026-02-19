@@ -89,6 +89,24 @@ async def list_datasets():
     return {"datasets": datasets}
 
 
+@router.post("/stop-tournament", dependencies=[Depends(verify_admin)])
+async def stop_tournament(body: dict):
+    """Stop a running tournament for a dataset."""
+    dataset_id = body.get("dataset_id")
+    if not dataset_id:
+        return {"status": "error", "message": "dataset_id required"}
+    state = _get_state(dataset_id)
+    if not state["running"]:
+        return {"status": "not_running"}
+    state["cancel_requested"] = True
+    # Cancel the asyncio task if we have a reference
+    task = _tournament_tasks.get(dataset_id)
+    if task and not task.done():
+        task.cancel()
+    return {"status": "stopping", "completed_so_far": state["completed_matches"]}
+
+
+
 # ─── Import ────────────────────────────────────────────────────────────────────
 
 class ImportICLRRequest(BaseModel):
