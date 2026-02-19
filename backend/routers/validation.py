@@ -1897,16 +1897,39 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     if len(available_modes) < 2:
         return {"status": "insufficient_modes", "available": available_modes}
 
-    # Find common pairs using only modes with substantial data.
-    # A mode must have at least 20% of the largest mode's pairs to be included.
-    max_pairs = max(len(mode_ai_pairs[m]) for m in available_modes)
-    core_modes = [m for m in available_modes if len(mode_ai_pairs[m]) >= max(max_pairs * 0.2, 50)]
+    # Find common pairs across modes. Use pairwise overlap between modes
+    # rather than requiring all modes to share the same pairs.
+    # Include any mode with at least 50 pairs.
+    core_modes = [m for m in available_modes if len(mode_ai_pairs[m]) >= 50]
     overlay_modes = [m for m in available_modes if m not in core_modes]
 
     if len(core_modes) < 2:
         return {"status": "insufficient_modes", "available": available_modes}
 
-    common_pairs = set.intersection(*[set(mode_ai_pairs[m].keys()) for m in core_modes])
+    # Find the pair of core modes with the most overlap to use as the comparison base
+    best_overlap = set()
+    best_pair = (core_modes[0], core_modes[1])
+    for i in range(len(core_modes)):
+        for j in range(i + 1, len(core_modes)):
+            overlap = set(mode_ai_pairs[core_modes[i]].keys()) & set(mode_ai_pairs[core_modes[j]].keys())
+            if len(overlap) > len(best_overlap):
+                best_overlap = overlap
+                best_pair = (core_modes[i], core_modes[j])
+
+    # Use the best overlap as the common pairs base, then include other modes that have enough of these pairs
+    common_pairs = best_overlap
+    comparison_modes = list(best_pair)
+    for m in core_modes:
+        if m not in comparison_modes:
+            m_overlap = set(mode_ai_pairs[m].keys()) & common_pairs
+            if len(m_overlap) >= min(50, len(common_pairs) * 0.3):
+                comparison_modes.append(m)
+                common_pairs = common_pairs & set(mode_ai_pairs[m].keys())
+
+    if len(common_pairs) < 20:
+        return {"status": "insufficient_overlap", "available": available_modes, "best_overlap": len(best_overlap), "best_modes": list(best_pair)}
+
+    core_modes = comparison_modes
 
     # For each mode, compute agreement on the common pairs
     def _compute_agreement(ai_map, pair_set):
