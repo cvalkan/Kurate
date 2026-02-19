@@ -1461,6 +1461,49 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
     pid_set = set(paper_ids)
     n_papers = len(paper_ids)
 
+    # Build tier-based ground truth (Oral > Spotlight > Poster > Reject)
+    TIER_ORDER_CONV = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3}
+    def _norm_tier_conv(d):
+        if not d: return None
+        dl = d.lower().strip()
+        for t in TIER_ORDER_CONV:
+            if t in dl: return t
+        return None
+
+    paper_tiers = {}
+    paper_avg_score = {}
+    for p in papers:
+        t = _norm_tier_conv(p.get("decision"))
+        if t:
+            paper_tiers[p["id"]] = t
+        evs = [ev["rating_value"] for ev in p.get("evaluations", []) if ev.get("rating_value")]
+        paper_avg_score[p["id"]] = sum(evs) / len(evs) if evs else 0
+
+    has_tiers = len(paper_tiers) >= 5
+    tier_ranked_papers = []
+    tier_rank_map = {}
+    if has_tiers:
+        tier_ranked_papers = sorted(
+            paper_tiers.keys(),
+            key=lambda pid: (TIER_ORDER_CONV[paper_tiers[pid]], -paper_avg_score.get(pid, 0)),
+        )
+        tier_rank_map = {pid: rank + 1 for rank, pid in enumerate(tier_ranked_papers)}
+
+    def _compute_tier_corr(sub_rank):
+        """Compute tier vs AI rank correlation for a given sub-ranking."""
+        if not has_tiers:
+            return 0, 0, 0
+        common_t = [pid for pid in tier_ranked_papers if pid in sub_rank]
+        if len(common_t) < 5:
+            return 0, 0, 0
+        ai_r = [sub_rank[pid] for pid in common_t]
+        tier_r = [tier_rank_map[pid] for pid in common_t]
+        t_sp, _ = scipy_stats.spearmanr(ai_r, tier_r)
+        t_kt, _ = scipy_stats.kendalltau(ai_r, tier_r)
+        return (round(t_sp, 4) if not np.isnan(t_sp) else 0,
+                round(t_kt, 4) if not np.isnan(t_kt) else 0,
+                len(common_t))
+
     # Compute max avg matches per paper
     total = len(all_matches)
     full_counts = defaultdict(int)
