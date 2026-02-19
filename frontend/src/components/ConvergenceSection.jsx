@@ -59,7 +59,13 @@ export function ValidationConvergence({ datasets }) {
       discovered.forEach(d => {
         // Add discovered modes (may include prompt-tagged variants)
         d.modes.forEach(m => {
-          if (!allModes.has(m.id)) allModes.set(m.id, m.label);
+          if (!allModes.has(m.id) && m.id !== "none") {
+            // Clean up label for prompt-tagged variants
+            const label = m.prompt_tag
+              ? `Editorial: ${m.prompt_tag}`
+              : m.label;
+            allModes.set(m.id, label);
+          }
         });
         // Fetch convergence for each known mode
         allModes.forEach((label, modeId) => {
