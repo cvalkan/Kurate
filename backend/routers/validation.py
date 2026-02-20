@@ -2797,6 +2797,97 @@ async def get_impact_summary_status(dataset_id: str = Query(...)):
     }
 
 
+@router.get("/dual-dimension-results")
+async def get_dual_dimension_results(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None)):
+    """Compute AI ranking correlation against BOTH significance and strength scores (for eLife datasets)."""
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+
+    # Check that papers have dual scores
+    has_dual = [p for p in papers if p.get("sig_score") is not None and p.get("str_score") is not None]
+    if not has_dual:
+        return {"status": "no_dual_scores", "message": "Papers don't have separate significance/strength scores"}
+
+    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    match_filter.update(_build_content_mode_filter(content_mode))
+
+    ai_matches = await db.validation_matches.find(
+        match_filter,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(100000)
+
+    if len(ai_matches) < 10:
+        return {"status": "insufficient_data"}
+
+    a_ids = {m["paper1_id"] for m in ai_matches} | {m["paper2_id"] for m in ai_matches}
+    cp = [p for p in has_dual if p["id"] in a_ids]
+    ca = [m for m in ai_matches if m["paper1_id"] in a_ids and m["paper2_id"] in a_ids]
+
+    if len(cp) < 10:
+        return {"status": "insufficient_data"}
+
+    # Compute AI BT ranking
+    a_lb = compute_leaderboard(cp, ca)
+    a_rank = {e["id"]: e for e in a_lb}
+
+    # Build score maps
+    sig_scores = {p["id"]: p["sig_score"] for p in cp}
+    str_scores = {p["id"]: p["str_score"] for p in cp}
+    pids = sorted(a_rank.keys())
+
+    ai_ranks = [a_rank[pid]["rank"] for pid in pids]
+    ai_bt = [a_rank[pid]["score"] for pid in pids]
+    sig_vals = [sig_scores[pid] for pid in pids]
+    str_vals = [str_scores[pid] for pid in pids]
+
+    # Correlations against significance
+    sp_sig, sp_sig_p = scipy_stats.spearmanr(ai_bt, sig_vals)
+    kt_sig, kt_sig_p = scipy_stats.kendalltau(ai_bt, sig_vals)
+    pr_sig, pr_sig_p = scipy_stats.pearsonr(ai_bt, sig_vals)
+
+    # Correlations against strength
+    sp_str, sp_str_p = scipy_stats.spearmanr(ai_bt, str_vals)
+    kt_str, kt_str_p = scipy_stats.kendalltau(ai_bt, str_vals)
+    pr_str, pr_str_p = scipy_stats.pearsonr(ai_bt, str_vals)
+
+    SIG_LABELS = {5: "landmark", 4: "fundamental", 3: "important", 2: "valuable", 1: "useful"}
+    STR_LABELS = {6: "exceptional", 5: "compelling", 4: "convincing", 3: "solid", 2: "incomplete", 1: "inadequate"}
+
+    comparison = sorted([{
+        "id": pid,
+        "title": next((p["title"] for p in cp if p["id"] == pid), "?"),
+        "ai_rank": a_rank[pid]["rank"],
+        "ai_score": a_rank[pid]["score"],
+        "sig_score": sig_scores[pid],
+        "sig_label": SIG_LABELS.get(sig_scores[pid], "?"),
+        "str_score": str_scores[pid],
+        "str_label": STR_LABELS.get(str_scores[pid], "?"),
+    } for pid in pids], key=lambda x: x["ai_rank"])
+
+    return {
+        "status": "ok",
+        "papers": len(cp),
+        "ai_matches": len(ca),
+        "significance_correlation": {
+            "spearman_rho": round(sp_sig, 4),
+            "spearman_p": round(sp_sig_p, 6),
+            "kendall_tau": round(kt_sig, 4),
+            "kendall_p": round(kt_sig_p, 6),
+            "pearson_r": round(pr_sig, 4),
+            "pearson_p": round(pr_sig_p, 6),
+        },
+        "strength_correlation": {
+            "spearman_rho": round(sp_str, 4),
+            "spearman_p": round(sp_str_p, 6),
+            "kendall_tau": round(kt_str, 4),
+            "kendall_p": round(kt_str_p, 6),
+            "pearson_r": round(pr_str, 4),
+            "pearson_p": round(pr_str_p, 6),
+        },
+        "comparison": comparison,
+    }
+
+
+
 
 @router.get("/paper-summaries")
 async def get_paper_summaries(dataset_id: str = Query(...)):
