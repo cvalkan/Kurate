@@ -2839,6 +2839,10 @@ async def get_dual_dimension_results(dataset_id: str = Query(...), content_mode:
     sig_vals = [sig_scores[pid] for pid in pids]
     str_vals = [str_scores[pid] for pid in pids]
 
+    def _safe(v):
+        import math
+        return 0.0 if (v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))) else float(v)
+
     # Correlations against significance
     sp_sig, sp_sig_p = scipy_stats.spearmanr(ai_bt, sig_vals)
     kt_sig, kt_sig_p = scipy_stats.kendalltau(ai_bt, sig_vals)
