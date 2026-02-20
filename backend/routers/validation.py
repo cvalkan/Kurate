@@ -2131,8 +2131,11 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
             "pearson": round(pr, 4) if not np.isnan(pr) else 0,
         }
         t_sp, t_kt, _ = _compute_tier_corr(sub_rank)
+        d_sig, d_str = _compute_dual_corr(sub_lb)
         point["tier_spearman"] = t_sp
         point["tier_kendall"] = t_kt
+        point["sig_spearman"] = d_sig
+        point["str_spearman"] = d_str
         point.update(topk)
         curve.append(point)
 
