@@ -380,7 +380,7 @@ async def _run_elife_import(dataset_id: str, subject: str, max_papers: int):
         # Download PDF
         full_text = None
         try:
-            pdf_url = f"https://elifesciences.org/reviewed-preprints/{paper['elife_id']}/pdf"
+            pdf_url = f"https://elifesciences.org/articles/{paper['elife_id']}.pdf"
             async with _httpx.AsyncClient() as client:
                 r = await client.get(pdf_url, timeout=30, follow_redirects=True)
                 if r.status_code == 200 and r.content[:5] == b'%PDF-':
