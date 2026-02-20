@@ -149,7 +149,7 @@ function shortModel(mk) {
 function StandardStats({ datasetId, isAdmin }) {
   const [status, setStatus] = useState(null);
   const [contentMode, setContentMode] = useState("abstract");
-  const [modeData, setModeData] = useState({});  // { mode: { pairwise, irt, agreement } }
+  const [modeData, setModeData] = useState({});  // { mode: { pairwise, irt, agreement, dual } }
   const [isRunningTournament, setIsRunningTournament] = useState(false);
   const [allModes, setAllModes] = useState([
     { id: "abstract", label: "Abstract" },
