@@ -2053,6 +2053,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
             topk[f"top_{k}"] = round(overlap / k * 100, 1)
 
         t_sp, t_kt, _ = _compute_tier_corr(sub_rank)
+        d_sig, d_str = _compute_dual_corr(sub_lb)
         curve.append({
             "matches": n_matches,
             "avg_matches_per_paper": round(avg_matches, 1),
@@ -2061,6 +2062,7 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
             "kendall": round(kt, 4) if not np.isnan(kt) else 0,
             "pearson": round(pr, 4) if not np.isnan(pr) else 0,
             "tier_spearman": t_sp, "tier_kendall": t_kt,
+            "sig_spearman": d_sig, "str_spearman": d_str,
             **{f"top_{k}": topk.get(f"top_{k}", 0) for k in top_k_values},
         })
         seen_match_counts.add(n_matches)
