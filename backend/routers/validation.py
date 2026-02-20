@@ -1954,6 +1954,30 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
                 round(t_kt, 4) if not np.isnan(t_kt) else 0,
                 len(common_t))
 
+    # Build dual-dimension maps (for eLife datasets with sig_score + str_score)
+    sig_map = {p["id"]: p["sig_score"] for p in papers if p.get("sig_score") is not None}
+    str_map = {p["id"]: p["str_score"] for p in papers if p.get("str_score") is not None}
+    has_dual = len(sig_map) >= 10 and len(str_map) >= 10
+
+    def _compute_dual_corr(sub_lb):
+        """Compute AI BT score vs significance and strength correlations."""
+        if not has_dual:
+            return 0, 0
+        score_map = {e["id"]: e["score"] for e in sub_lb}
+        common_d = [pid for pid in score_map if pid in sig_map and pid in str_map]
+        if len(common_d) < 10:
+            return 0, 0
+        ai_s = [score_map[pid] for pid in common_d]
+        sig_s = [sig_map[pid] for pid in common_d]
+        str_s = [str_map[pid] for pid in common_d]
+        # Check for constant input
+        if len(set(ai_s)) < 2:
+            return 0, 0
+        sp_sig, _ = scipy_stats.spearmanr(ai_s, sig_s)
+        sp_str, _ = scipy_stats.spearmanr(ai_s, str_s)
+        return (round(sp_sig, 4) if not np.isnan(sp_sig) else 0,
+                round(sp_str, 4) if not np.isnan(sp_str) else 0)
+
     # Compute max avg matches per paper
     total = len(all_matches)
     full_counts = defaultdict(int)
