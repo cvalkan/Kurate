@@ -257,6 +257,197 @@ async def _run_iclr_import(dataset_id: str, selected):
     logger.info(f"ICLR import complete: {dataset_id} — {imported} papers, {pdfs} PDFs")
 
 
+# ─── eLife Import ───────────────────────────────────────────────────────────────
+
+SIG_SCORE_MAP = {"landmark": 5, "fundamental": 4, "important": 3, "valuable": 2, "useful": 1}
+STR_SCORE_MAP = {"exceptional": 6, "compelling": 5, "convincing": 4, "solid": 3, "incomplete": 2, "inadequate": 1}
+
+
+class ImportELifeRequest(BaseModel):
+    dataset_id: str
+    name: str
+    description: str = ""
+    subject: str = "Microbiology and Infectious Disease"
+    max_papers: int = 80
+
+
+@router.post("/import-elife", dependencies=[Depends(verify_admin)])
+async def import_elife_dataset(body: ImportELifeRequest):
+    """Import eLife reviewed preprints with structured significance + strength assessments."""
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": body.dataset_id},
+        {"$set": {
+            "dataset_id": body.dataset_id,
+            "name": body.name,
+            "description": body.description,
+            "source": f"eLife / {body.subject}",
+            "import_status": "fetching_papers",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+    asyncio.create_task(_run_elife_import(body.dataset_id, body.subject, body.max_papers))
+    return {"status": "started", "dataset_id": body.dataset_id}
+
+
+async def _run_elife_import(dataset_id: str, subject: str, max_papers: int):
+    """Background: fetch eLife reviewed preprints, download PDFs, import."""
+    ELIFE_API = "https://api.elifesciences.org"
+
+    # Phase 1: Collect papers with assessments
+    candidates = []
+    for page in range(1, 200):
+        try:
+            r = requests.get(f"{ELIFE_API}/reviewed-preprints", params={
+                "page": page, "per-page": 50, "order": "desc",
+            }, timeout=15)
+            if r.status_code != 200:
+                break
+            items = r.json().get("items", [])
+            if not items:
+                break
+            for item in items:
+                subjects = [s["name"] for s in item.get("subjects", [])]
+                if subject not in subjects:
+                    continue
+                assessment = item.get("elifeAssessment", {})
+                sig = assessment.get("significance", [])
+                stren = assessment.get("strength", [])
+                if not sig or not stren:
+                    continue
+                sig_score = SIG_SCORE_MAP.get(sig[0])
+                str_score = STR_SCORE_MAP.get(stren[0])
+                if sig_score is None or str_score is None:
+                    continue
+                candidates.append({
+                    "elife_id": str(item["id"]),
+                    "doi": item.get("doi", ""),
+                    "title": item.get("title", ""),
+                    "author_line": item.get("authorLine", ""),
+                    "subjects": subjects,
+                    "sig_label": sig[0],
+                    "str_label": stren[0],
+                    "sig_score": sig_score,
+                    "str_score": str_score,
+                })
+        except Exception as e:
+            logger.warning(f"eLife fetch page {page} failed: {e}")
+            break
+        await asyncio.sleep(0.2)
+        if len(candidates) >= max_papers * 2:
+            break
+
+    logger.info(f"eLife import [{dataset_id}]: found {len(candidates)} candidates")
+    if not candidates:
+        await db.validation_datasets.update_one(
+            {"dataset_id": dataset_id},
+            {"$set": {"import_status": "error", "error": "No papers found"}},
+        )
+        return
+
+    # Stratified sample by significance score
+    if len(candidates) > max_papers:
+        candidates.sort(key=lambda p: p["sig_score"])
+        step = len(candidates) / max_papers
+        selected = [candidates[int(i * step)] for i in range(max_papers)]
+    else:
+        selected = candidates
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": dataset_id},
+        {"$set": {"import_status": "downloading", "paper_count": len(selected)}},
+    )
+
+    # Phase 2: Fetch full details + PDF for each paper
+    import httpx as _httpx
+    imported = 0
+    pdfs = 0
+    for paper in selected:
+        # Fetch abstract from article detail
+        abstract = ""
+        try:
+            r = requests.get(f"{ELIFE_API}/reviewed-preprints/{paper['elife_id']}", timeout=15)
+            if r.status_code == 200:
+                detail = r.json()
+                idx = detail.get("indexContent", "")
+                if idx and len(idx) > 100:
+                    abstract = idx[:3000]
+        except Exception:
+            pass
+
+        # Download PDF
+        full_text = None
+        try:
+            pdf_url = f"https://elifesciences.org/reviewed-preprints/{paper['elife_id']}/pdf"
+            async with _httpx.AsyncClient() as client:
+                r = await client.get(pdf_url, timeout=30, follow_redirects=True)
+                if r.status_code == 200 and r.content[:5] == b'%PDF-':
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(io.BytesIO(r.content))
+                    parts = [page.extract_text() or "" for page in reader.pages]
+                    text = " ".join(" ".join(parts).split()).encode("utf-8", errors="replace").decode("utf-8")
+                    if len(text) > 500:
+                        full_text = text
+                        pdfs += 1
+        except Exception as e:
+            logger.warning(f"eLife PDF failed for {paper['elife_id']}: {e}")
+
+        # Parse authors
+        authors = []
+        if paper.get("author_line"):
+            for name in paper["author_line"].split(", "):
+                name = name.strip().replace(" ... ", "").replace("...", "")
+                if name:
+                    authors.append({"name": name})
+
+        doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": dataset_id,
+            "title": paper["title"],
+            "abstract": abstract,
+            "authors": authors,
+            "elife_id": paper["elife_id"],
+            "doi": paper["doi"],
+            "subjects": paper["subjects"],
+            "sig_label": paper["sig_label"],
+            "str_label": paper["str_label"],
+            "sig_score": paper["sig_score"],
+            "str_score": paper["str_score"],
+            "h1_avg_rating": float(paper["sig_score"]),
+            "h1_rating_count": 1,
+            "evaluations": [{
+                "rating_value": float(paper["sig_score"]),
+                "significance": paper["sig_label"],
+                "strength": paper["str_label"],
+                "evaluator": "eLife Editorial Assessment",
+                "source": "eLife",
+            }],
+            "scores": [paper["sig_score"]],
+            "source": "elife_reviewed_preprint",
+            "full_text": full_text,
+        }
+        await db.validation_papers.update_one(
+            {"dataset_id": dataset_id, "elife_id": paper["elife_id"]},
+            {"$set": doc}, upsert=True,
+        )
+        imported += 1
+        if imported % 10 == 0:
+            await db.validation_datasets.update_one(
+                {"dataset_id": dataset_id},
+                {"$set": {"import_progress": imported, "import_pdfs": pdfs}},
+            )
+        await asyncio.sleep(0.3)
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": dataset_id},
+        {"$set": {"import_status": "complete", "paper_count": imported, "import_progress": imported, "import_pdfs": pdfs}},
+    )
+    logger.info(f"eLife import complete: {dataset_id} — {imported} papers, {pdfs} PDFs")
+
+
+
 # ─── MIDL Import ────────────────────────────────────────────────────────────────
 
 class ImportMIDLRequest(BaseModel):
