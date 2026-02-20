@@ -191,17 +191,20 @@ function StandardStats({ datasetId, isAdmin }) {
           axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
           axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
           axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
+          axios.get(`${API}/api/validation/dual-dimension-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
         ])
       );
       const newModeData = {};
       merged.forEach((m, idx) => {
-        const pw = modeResults[idx * 3];
-        const ir = modeResults[idx * 3 + 1];
-        const ag = modeResults[idx * 3 + 2];
+        const pw = modeResults[idx * 4];
+        const ir = modeResults[idx * 4 + 1];
+        const ag = modeResults[idx * 4 + 2];
+        const dd = modeResults[idx * 4 + 3];
         newModeData[m.id] = {
           pairwise: pw.data.status === "ok" ? pw.data : null,
           irt: ir.data.status === "ok" ? ir.data : null,
           agreement: ag.data.status === "ok" ? ag.data : null,
+          dual: dd.data.status === "ok" ? dd.data : null,
         };
       });
       setModeData(newModeData);
