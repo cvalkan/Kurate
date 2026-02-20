@@ -2812,7 +2812,7 @@ async def get_dual_dimension_results(dataset_id: str = Query(...), content_mode:
 
     ai_matches = await db.validation_matches.find(
         match_filter,
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
     ).to_list(100000)
 
     if len(ai_matches) < 10:
