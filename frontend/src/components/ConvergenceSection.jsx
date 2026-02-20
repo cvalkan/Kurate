@@ -155,6 +155,8 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
 
   // Check if any dataset has tier data
   const hasTiers = dsIds.some(did => curves[did]?.has_tiers);
+  // Check if any dataset has dual-dimension data (significance + strength)
+  const hasDual = dsIds.some(did => curves[did]?.has_dual);
 
   // Build tier correlation chart data
   const TIER_METRICS = [
