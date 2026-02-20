@@ -173,6 +173,17 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
     return row;
   }) : [];
 
+  // Build dual-dimension chart data (significance + strength)
+  const dualChartData = hasDual ? xValues.map(x => {
+    const row = { x };
+    dsIds.forEach(did => {
+      const pt = allPoints.find(p => p.x === x && p.dataset === did);
+      if (pt && pt.sig_spearman !== undefined) row[`${did}_sig`] = pt.sig_spearman;
+      if (pt && pt.str_spearman !== undefined) row[`${did}_str`] = pt.str_spearman;
+    });
+    return row;
+  }) : [];
+
   const maxX = Math.max(...xValues, 1);
   // Nice x-axis ticks: 0, 5, 10, 15... or 0, 10, 20... depending on range
   const tickInterval = maxX > 60 ? 10 : maxX > 30 ? 5 : maxX > 15 ? 5 : 2;
