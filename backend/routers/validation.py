@@ -1607,12 +1607,20 @@ async def get_status(dataset_id: str = Query(...)):
         {"$count": "total"},
     ]).to_list(1)
     n_evaluators = evaluator_agg[0]["total"] if evaluator_agg else 0
-    # For Qeios, sum up all individual reviewers across papers
+    # Sum of all individual review counts across papers
     reviewer_count_agg = await db.validation_papers.aggregate([
         {"$match": {"dataset_id": dataset_id}},
         {"$group": {"_id": None, "total": {"$sum": "$h1_rating_count"}}},
     ]).to_list(1)
     total_reviews = reviewer_count_agg[0]["total"] if reviewer_count_agg else 0
+    # For datasets with generic evaluator names (Reviewer_1, Qeios Community, etc.),
+    # total_reviews is the real expert count. For named evaluators, use unique count.
+    evaluator_names = set()
+    async for p in db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0, "evaluations": 1}):
+        for ev in p.get("evaluations", []):
+            evaluator_names.add(ev.get("evaluator", ""))
+    has_generic = any(n.startswith("Reviewer_") or n in ("Qeios Community", "eLife Editorial Assessment") for n in evaluator_names)
+    human_expert_count = total_reviews if has_generic else n_evaluators
 
     return {
         "dataset_id": dataset_id,
