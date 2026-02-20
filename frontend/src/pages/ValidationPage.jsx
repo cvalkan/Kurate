@@ -349,9 +349,10 @@ function StandardStats({ datasetId, isAdmin }) {
     <div className="space-y-5">
       {/* Status row */}
       {status && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-center">
           {[
             ["Papers", status.papers_imported, `${status.papers_with_full_text} full text`],
+            ["Human Experts", status.total_human_reviews || status.human_evaluators || "—", status.human_evaluators === 1 ? "consensus assessment" : `${status.human_evaluators} unique`],
             ["AI Matches", status.matches_completed, `${status.coverage_pct}% coverage`],
             ["Extraction", status.matches_with_extraction, `${status.matches_abstract_only} abstract-only`],
             ["Avg/Paper", status.avg_matches_per_paper, `${status.min_matches_per_paper}–${status.max_matches_per_paper}`],
