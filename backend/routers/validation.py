@@ -1634,6 +1634,8 @@ async def get_status(dataset_id: str = Query(...)):
         "graph_is_connected": connected_components == 1 and isolated_papers == 0,
         "tournament_running": state["running"],
         "tournament_progress": state,
+        "human_evaluators": n_evaluators,
+        "total_human_reviews": total_reviews,
     }
 
 
