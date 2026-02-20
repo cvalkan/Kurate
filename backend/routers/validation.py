@@ -1644,6 +1644,7 @@ async def get_status(dataset_id: str = Query(...)):
         "tournament_progress": state,
         "human_evaluators": n_evaluators,
         "total_human_reviews": total_reviews,
+        "human_expert_count": human_expert_count,
     }
 
 
