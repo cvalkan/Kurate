@@ -1599,6 +1599,21 @@ async def get_status(dataset_id: str = Query(...)):
     state = _get_state(dataset_id)
     meta = await db.validation_datasets.find_one({"dataset_id": dataset_id}, {"_id": 0}) or {}
 
+    # Count unique human evaluators
+    evaluator_agg = await db.validation_papers.aggregate([
+        {"$match": {"dataset_id": dataset_id}},
+        {"$unwind": "$evaluations"},
+        {"$group": {"_id": "$evaluations.evaluator"}},
+        {"$count": "total"},
+    ]).to_list(1)
+    n_evaluators = evaluator_agg[0]["total"] if evaluator_agg else 0
+    # For Qeios, sum up all individual reviewers across papers
+    reviewer_count_agg = await db.validation_papers.aggregate([
+        {"$match": {"dataset_id": dataset_id}},
+        {"$group": {"_id": None, "total": {"$sum": "$h1_rating_count"}}},
+    ]).to_list(1)
+    total_reviews = reviewer_count_agg[0]["total"] if reviewer_count_agg else 0
+
     return {
         "dataset_id": dataset_id,
         "name": meta.get("name", dataset_id),
