@@ -235,7 +235,8 @@ function StandardStats({ datasetId, isAdmin }) {
   const activePairwise = active.pairwise;
   const activeIrt = active.irt;
   const activeAgreement = active.agreement;
-  const hasActiveData = activePairwise || activeIrt;
+  const activeDual = active.dual;
+  const hasActiveData = activePairwise || activeIrt || activeDual;
   const modeLabel = allModes.find(m => m.id === contentMode)?.label || contentMode;
   // Show modes that have data or are the standard 3
   const visibleModes = allModes.filter(m => !["ai_summary", "abstract_plus_summary"].includes(m.id) || modeData[m.id]?.pairwise || modeData[m.id]?.irt)
