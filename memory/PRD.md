@@ -9,8 +9,10 @@ Build a robust system for validating AI model performance on scientific papers. 
 - **LLMs**: GPT-5.2, Claude Opus 4.5, Gemini 3 Pro (via Emergent LLM key)
 
 ## Core Features Implemented
-- Multi-dataset validation tournaments (ICLR, MIDL, PeerRead, eLife, F1000, ResearchHub)
-- MIDL importer (fetches papers + reviews from OpenReview API)
+- Multi-dataset validation tournaments (ICLR, MIDL, eLife, PeerRead, F1000, ResearchHub)
+- MIDL importer (OpenReview API → papers + reviews + PDFs)
+- eLife importer (eLife API → reviewed preprints with significance + strength assessments)
+- Dual-dimension correlation endpoint (AI ranking vs significance AND strength separately)
 - Tier-based validation (Oral/Spotlight/Poster/Reject vs AI rankings)
 - Convergence analysis with multi-mode comparison
 - Goal-directed matchmaking with Wilson CI stopping criteria
@@ -29,28 +31,17 @@ Build a robust system for validating AI model performance on scientific papers. 
 | ICLR PDEs & Dyn Systems | 80 | ICLR | 0.488 | 0.459 | abs+sum |
 | ICLR Fairness | 68 | ICLR | 0.432 | 0.448 | full_pdf |
 | MIDL Medical Imaging | 81 | MIDL/OpenReview | 0.270 | 0.339 | full_pdf |
-| PeerRead ACL 2017 | 80 | PeerRead | — | — | — |
-| eLife Neuroscience | 100 | eLife | — | — | — |
-| F1000Prime Alzheimer's | 54 | F1000 | — | — | — |
+| eLife Microbiology | 80 | eLife API | sig=0.418, str=0.477 | TBD | — |
 
 ## Key Findings
-- **abstract+summary wins in 5/9 domains** (LLMs, Protein, Optimization, OT, PDEs)
-- **full_pdf wins in 4/9 domains** (Code Gen, Molecules, Fairness, MIDL Medical) — these are experimentally-dense, methodology-heavy domains
-- **MIDL Medical Imaging has the largest full_pdf advantage** (Δ=+0.069) and lowest overall ρ (0.339), partly because expert-expert agreement is only 58%
-- **eLife Neuroscience** has poor ground truth (4-point consensus scale, no rejected papers) — not suitable for tournament validation
+- **abstract+summary wins in 5/9 ICLR+MIDL domains** — theory/conceptual domains
+- **full_pdf wins in 4/9 domains** — experimentally-dense, methodology-heavy domains
+- **NEW: AI correlates more with strength of evidence (ρ=0.477) than significance (ρ=0.418)** in eLife Microbiology — LLMs are better at judging "how well" than "how important"
 
 ## Pending/Backlog
-- Import more eLife or medical datasets
-- Run abstract-only baselines for new datasets
-- Cross-mode fill for pairwise views
-- Multi-model data fill for PDEs, iclr-llms, iclr-ot
+- Run full_pdf tournament on eLife Microbiology
+- Import more eLife subjects (Cancer Biology, Immunology)
+- Add dual-dimension visualization to frontend
+- Multi-model data fill for existing datasets
 - HTTP security headers
 - Production deployment sync
-- Refactor data processing into backend/services layer
-
-## Recent Changes (Feb 2026)
-- Built MIDL importer (OpenReview API → papers + reviews + PDFs)
-- Imported MIDL Medical Imaging (81 papers, 2024-2025)
-- Imported ICLR Fairness (68), Molecules (46), Optimization (42)
-- Ran abstract+summary and full_pdf tournaments for all new datasets
-- Fixed frontend build with correct REACT_APP_BACKEND_URL
