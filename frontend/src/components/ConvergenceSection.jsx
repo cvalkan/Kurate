@@ -275,6 +275,36 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
           </ResponsiveContainer>
         </div>
       )}
+
+      {/* Dual-dimension convergence: Significance vs Strength */}
+      {!showTopK && hasDual && !isLeaderboard && (
+        <div className="border border-border rounded-lg p-3" data-testid="convergence-dual-chart">
+          <div className="mb-2">
+            <h3 className="text-sm font-semibold">Significance vs Strength Convergence</h3>
+            <p className="text-[10px] text-muted-foreground">How AI ranking correlation evolves separately against editorial significance and strength of evidence</p>
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={dualChartData}>
+              <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
+                label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
+              <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={v => v.toFixed(1)}
+                label={{ value: "Spearman ρ", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
+              <Tooltip content={<Tip />} />
+              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+              {dsIds.map((did, i) => (
+                <>
+                  <Line key={`${did}_sig`} type="monotone" dataKey={`${did}_sig`}
+                    name={dsIds.length > 1 ? `${curves[did].name} (Significance)` : "Significance"}
+                    stroke="#f59e0b" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                  <Line key={`${did}_str`} type="monotone" dataKey={`${did}_str`}
+                    name={dsIds.length > 1 ? `${curves[did].name} (Strength)` : "Strength"}
+                    stroke="#3b82f6" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                </>
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {showTopK && hasTopK && (
         <div className="border border-border rounded-lg p-3" data-testid="convergence-topk-chart">
           <ResponsiveContainer width="100%" height={compact ? 220 : 280}>
