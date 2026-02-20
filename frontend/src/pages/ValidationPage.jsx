@@ -401,6 +401,11 @@ function StandardStats({ datasetId, isAdmin }) {
           </div>
         </div>
       )}
+
+      {/* Dual-Dimension: Significance + Strength (eLife datasets) */}
+      {activeDual && (
+        <DualDimensionSection dual={activeDual} modeLabel={modeLabel} />
+      )}
     </div>
   );
 }
