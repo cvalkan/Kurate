@@ -144,6 +144,105 @@ function shortModel(mk) {
   return m.split("-").slice(0, 2).join("-");
 }
 
+// ─── Dual-Dimension Section (Significance + Strength) ────────────────────────
+
+const SIG_COLORS = { landmark: "bg-emerald-100 text-emerald-800", fundamental: "bg-blue-100 text-blue-800", important: "bg-amber-100 text-amber-800", valuable: "bg-orange-100 text-orange-800", useful: "bg-red-100 text-red-800" };
+const STR_COLORS = { exceptional: "bg-emerald-100 text-emerald-800", compelling: "bg-blue-100 text-blue-800", convincing: "bg-sky-100 text-sky-800", solid: "bg-amber-100 text-amber-800", incomplete: "bg-orange-100 text-orange-800", inadequate: "bg-red-100 text-red-800" };
+
+function DualDimensionSection({ dual, modeLabel }) {
+  const [showAll, setShowAll] = useState(false);
+  const sig = dual.significance_correlation;
+  const str = dual.strength_correlation;
+  const rows = dual.comparison || [];
+  const visible = showAll ? rows : rows.slice(0, 10);
+
+  return (
+    <div className="space-y-4" data-testid="dual-dimension-section">
+      {/* Two correlation panels side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Significance */}
+        <div className="border border-border rounded-lg overflow-hidden">
+          <div className="px-3 py-2 bg-amber-50/50 border-b border-border">
+            <h3 className="text-xs font-medium flex items-center gap-1.5" data-testid="sig-correlation-title">
+              <TrendingUp className="h-3 w-3 text-amber-600" /> Significance — {modeLabel}
+            </h3>
+            <p className="text-[10px] text-muted-foreground mt-0.5">How important is the finding? (useful → landmark)</p>
+          </div>
+          <div className="p-3 space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <CorrelationBadge value={sig.spearman_rho} label="Spearman ρ" />
+              <CorrelationBadge value={sig.kendall_tau} label="Kendall τ" />
+              <CorrelationBadge value={sig.pearson_r} label="Pearson r" />
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              {dual.papers} papers · {dual.ai_matches} AI matches · p = {sig.spearman_p < 0.001 ? "<0.001" : sig.spearman_p.toFixed(4)}
+            </div>
+          </div>
+        </div>
+
+        {/* Strength */}
+        <div className="border border-border rounded-lg overflow-hidden">
+          <div className="px-3 py-2 bg-sky-50/50 border-b border-border">
+            <h3 className="text-xs font-medium flex items-center gap-1.5" data-testid="str-correlation-title">
+              <FlaskConical className="h-3 w-3 text-sky-600" /> Strength of Evidence — {modeLabel}
+            </h3>
+            <p className="text-[10px] text-muted-foreground mt-0.5">How strong is the evidence? (inadequate → exceptional)</p>
+          </div>
+          <div className="p-3 space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <CorrelationBadge value={str.spearman_rho} label="Spearman ρ" />
+              <CorrelationBadge value={str.kendall_tau} label="Kendall τ" />
+              <CorrelationBadge value={str.pearson_r} label="Pearson r" />
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              {dual.papers} papers · {dual.ai_matches} AI matches · p = {str.spearman_p < 0.001 ? "<0.001" : str.spearman_p.toFixed(4)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Combined ranking table */}
+      <div className="border border-border/50 rounded overflow-hidden" data-testid="dual-ranking-table">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+          <table className="w-full text-[11px]">
+            <thead className="sticky top-0 bg-background">
+              <tr className="border-b border-border text-[10px]">
+                <th className="text-right px-1.5 py-1.5 font-medium w-8">AI #</th>
+                <th className="text-left px-2 py-1.5 font-medium">Paper</th>
+                <th className="text-center px-1.5 py-1.5 font-medium">Significance</th>
+                <th className="text-center px-1.5 py-1.5 font-medium">Strength</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map(r => (
+                <tr key={r.id} className="border-b border-border/20 hover:bg-secondary/10">
+                  <td className="text-right px-1.5 py-1 font-mono">{r.ai_rank}</td>
+                  <td className="px-2 py-1 max-w-[250px] truncate" title={r.title}>{r.title}</td>
+                  <td className="text-center px-1.5 py-1">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${SIG_COLORS[r.sig_label] || "bg-secondary"}`}>
+                      {r.sig_label}
+                    </span>
+                  </td>
+                  <td className="text-center px-1.5 py-1">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${STR_COLORS[r.str_label] || "bg-secondary"}`}>
+                      {r.str_label}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {rows.length > 10 && (
+          <button onClick={() => setShowAll(!showAll)} className="w-full py-1.5 text-[10px] text-muted-foreground hover:bg-secondary/20 border-t border-border/50">
+            {showAll ? "Show less" : `Show all ${rows.length} papers`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Standard Stats (Pairwise + IRT + Agreement) ────────────────────────────
 
 function StandardStats({ datasetId, isAdmin }) {
