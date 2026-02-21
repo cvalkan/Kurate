@@ -10,6 +10,7 @@ import SciPostPage from "./SciPostPage";
 import SciPostPairwiseSection from "./SciPostPairwiseSection";
 import QeiosPairwiseSection from "./QeiosPairwiseSection";
 import PairwiseAgreementSection from "./PairwiseAgreementSection";
+import SummarizerComparisonSection from "./SummarizerComparisonSection";
 import SummaryBiasSection from "./SummaryBiasSection";
 import { DatasetView } from "./ValidationPage";
 
