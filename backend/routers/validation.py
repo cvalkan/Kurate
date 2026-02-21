@@ -3268,6 +3268,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
 
     cmp_tasks = [_run_one(p) for p in pairs]
     await asyncio.gather(*cmp_tasks, return_exceptions=True)
+    _summarizer_comparison_running = False
     logger.info(f"Summarizer comparison complete: {completed}/{len(pairs)}")
 
 
