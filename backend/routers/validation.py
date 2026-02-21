@@ -1561,10 +1561,14 @@ async def get_available_modes(dataset_id: str = Query(...)):
     async for doc in db.validation_matches.aggregate(pipeline):
         cm = doc["_id"]["content_mode"]
         pt = doc["_id"]["prompt_tag"]
+        # Also extract tag from content_mode if prompt_tag is missing (e.g. replayed matches)
+        if not pt and ":" in cm:
+            pt = cm.split(":", 1)[1]
+        if pt and pt in SUMMARY_TAG_LABELS:
+            has_summary_variants = True
         mode_id = cm if cm != "none" else "extract"
         if pt:
             label = SUMMARY_TAG_LABELS.get(pt, f"{BASE_LABELS.get(cm.split(':')[0], cm)} ({pt})")
-            # The content_mode already contains the tag, use as-is
             final_id = cm
         elif has_summary_variants and cm == "abstract_plus_summary":
             label = "Abstract + Summary (Opus 4.5)"
