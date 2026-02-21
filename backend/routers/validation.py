@@ -3285,9 +3285,10 @@ async def get_summarizer_comparison_results():
             "opus45_pct": round(v["opus45"] / max(v["total"], 1) * 100, 1),
             "opus46_pct": round(v["opus46"] / max(v["total"], 1) * 100, 1),
         } for ds, v in by_dataset.items()},
-        "by_tier_diff": {
-            "with_tier_diff": {"total": len(tier_diff), "opus45": sum(1 for d in tier_diff if d.get("opus45_correct")), "opus46": sum(1 for d in tier_diff if d.get("opus46_correct"))},
-            "same_tier": {"total": len(same_tier), "opus45": sum(1 for d in same_tier if d.get("opus45_correct")), "opus46": sum(1 for d in same_tier if d.get("opus46_correct"))},
+        "by_ground_truth": {
+            "committee_decision": _gt_stats(committee),
+            "reviewer_majority": _gt_stats(reviewer_maj),
+            "editorial_assessment": _gt_stats(editorial),
         },
         "by_gap": {k: {"total": len(v), "opus45": sum(1 for d in v if d.get("opus45_correct")), "opus46": sum(1 for d in v if d.get("opus46_correct"))} for k, v in gap_buckets.items()},
     }
