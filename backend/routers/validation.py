@@ -3162,6 +3162,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
 
     async def _gen_one(ds_id, paper_id):
         nonlocal summaries_generated
+        if _summarizer_comparison_cancel: return
         async with sem_gen:
             p = await db.validation_papers.find_one({"dataset_id": ds_id, "id": paper_id}, {"_id": 0})
             if not p or p.get("ai_impact_summary_opus46"):
