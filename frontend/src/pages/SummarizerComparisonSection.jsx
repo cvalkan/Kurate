@@ -49,7 +49,9 @@ export default function SummarizerComparisonSection() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground">
-            For each paper pair with a clear human preference, the AI judge runs twice — once with Opus 4.5 summaries, once with Opus 4.6. Which summarizer helps the AI agree with human experts more often?
+            Each paper pair has a known correct answer from <strong>committee decisions</strong> (ICLR accept/reject tiers),{" "}
+            <strong>reviewer majority</strong> (score consensus), or <strong>editorial assessment</strong> (eLife significance).{" "}
+            The AI judge sees abstract + summary and picks a winner — we measure which summarizer leads to more correct picks.
           </p>
         </div>
         {isAdmin && (
