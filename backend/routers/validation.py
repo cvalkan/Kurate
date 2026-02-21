@@ -3260,6 +3260,14 @@ async def get_summarizer_comparison_results():
     reviewer_maj = [d for d in docs if d.get("ground_truth") == "reviewer_majority"]
     editorial = [d for d in docs if d.get("ground_truth") == "editorial_assessment"]
 
+    def _gt_stats(subset):
+        if not subset:
+            return {"total": 0, "opus45": 0, "opus46": 0, "opus45_pct": 0, "opus46_pct": 0}
+        t = len(subset)
+        o45 = sum(1 for d in subset if d.get("opus45_correct"))
+        o46 = sum(1 for d in subset if d.get("opus46_correct"))
+        return {"total": t, "opus45": o45, "opus46": o46, "opus45_pct": round(o45/t*100, 1), "opus46_pct": round(o46/t*100, 1)}
+
     # By score gap buckets
     gap_buckets = {"small (<0.5)": [], "medium (0.5-1.5)": [], "large (>1.5)": []}
     for d in docs:
