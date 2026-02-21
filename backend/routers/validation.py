@@ -3067,11 +3067,31 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
                 })
 
     if not all_pairs:
-        return {"status": "error", "message": "No eligible pairs found. Need datasets with both Opus 4.5 and 4.6 summaries."}
+        return {"status": "error", "message": "No eligible pairs found. Need datasets with Opus 4.5 summaries."}
 
-    # Sort: tier-different pairs first, then by score gap
-    all_pairs.sort(key=lambda p: (p["priority"], -p["score_gap"]))
-    selected = all_pairs[:body.num_pairs]
+    # Balance across datasets: take proportional samples from each
+    from collections import defaultdict
+    by_dataset = defaultdict(list)
+    for p in all_pairs:
+        by_dataset[p["dataset_id"]].append(p)
+    
+    # Sort within each dataset: tier-diff first, then by score gap
+    for ds_pairs in by_dataset.values():
+        ds_pairs.sort(key=lambda p: (p["priority"], -p["score_gap"]))
+    
+    # Round-robin across datasets
+    selected = []
+    ds_keys = sorted(by_dataset.keys())
+    per_ds = max(1, body.num_pairs // len(ds_keys))
+    for ds in ds_keys:
+        selected.extend(by_dataset[ds][:per_ds])
+    # Fill remaining budget with highest-gap pairs from any dataset
+    remaining = body.num_pairs - len(selected)
+    if remaining > 0:
+        used = set((p["paper1_id"], p["paper2_id"]) for p in selected)
+        leftovers = [p for p in all_pairs if (p["paper1_id"], p["paper2_id"]) not in used]
+        leftovers.sort(key=lambda p: (p["priority"], -p["score_gap"]))
+        selected.extend(leftovers[:remaining])
 
     # Check existing completed comparisons to avoid re-running
     existing = set()
