@@ -3353,7 +3353,12 @@ async def get_summarizer_comparison_results():
             "reviewer_majority": _gt_stats(reviewer_maj),
             "editorial_assessment": _gt_stats(editorial),
         },
-        "by_gap": {k: {"total": len(v), "opus45": sum(1 for d in v if d.get("opus45_correct")), "opus46": sum(1 for d in v if d.get("opus46_correct"))} for k, v in gap_buckets.items()},
+        "by_gap": {k: {
+            "total": len(v),
+            "opus45": sum(1 for d in v if d.get("opus45_correct")),
+            "opus46": sum(1 for d in v if d.get("opus46_correct")),
+            "human_pct": round(sum(d.get("single_reviewer_correct", 0) / d["single_reviewer_total"] for d in v if d.get("single_reviewer_total", 0) > 0) / max(sum(1 for d in v if d.get("single_reviewer_total", 0) > 0), 1) * 100, 1) if any(d.get("single_reviewer_total", 0) > 0 for d in v) else None,
+        } for k, v in gap_buckets.items()},
     }
 
 
