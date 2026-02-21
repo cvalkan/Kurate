@@ -3351,11 +3351,22 @@ async def get_summarizer_comparison_results():
     }
 
 
+_summarizer_comparison_running = False
+_summarizer_comparison_cancel = False
+
 @router.get("/summarizer-comparison/status")
 async def get_summarizer_comparison_status():
     """Get progress of summarizer comparison."""
     total = await db.summarizer_comparisons.count_documents({})
-    return {"total_completed": total}
+    return {"total_completed": total, "is_running": _summarizer_comparison_running}
+
+
+@router.post("/summarizer-comparison/stop")
+async def stop_summarizer_comparison():
+    """Stop the running summarizer comparison."""
+    global _summarizer_comparison_cancel
+    _summarizer_comparison_cancel = True
+    return {"status": "stopping"}
 
 
 
