@@ -759,6 +759,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
     model_info = model_override or {"provider": "anthropic", "model": "claude-opus-4-5-20251101"}
     provider = model_info["provider"]
     model = model_info["model"]
+    extra_params = model_info.get("extra_params", {})
 
     full_text = paper.get("full_text", "")
     abstract = paper.get("abstract", "")
@@ -779,6 +780,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
         session_id=f"impact-{uuid.uuid4()}",
         system_message=IMPACT_ASSESSMENT_PROMPT["system_prompt"],
     ).with_model(provider, model)
+    if extra_params:
+        chat = chat.with_params(**extra_params)
 
     max_retries = 3
     for attempt in range(max_retries):
