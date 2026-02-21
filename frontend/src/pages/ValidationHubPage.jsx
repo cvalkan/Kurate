@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import {
   FlaskConical, GitCompare, Beaker, Trophy, ChevronRight, FlaskRound,
+  ChevronDown,
 } from "lucide-react";
 
 import PairwisePage from "./PairwisePage";
@@ -14,42 +15,71 @@ import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-const STATIC_SECTIONS = [
-  {
-    group: "Pairwise",
-    icon: GitCompare,
-    description: "Head-to-head: AI picks which paper is better, compared with human verdict",
-    items: [
-      { id: "pw-qeios", label: "Qeios" },
-      { id: "pw-scipost", label: "SciPost" },
-    ],
-    dynamicItems: true,
-  },
-  {
-    group: "Single-item",
-    icon: Beaker,
-    description: "AI rates individual papers on specific dimensions, compared with human ratings",
-    items: [
-      { id: "si-scipost", label: "SciPost" },
-    ],
-  },
-  {
-    group: "Tournament",
-    icon: Trophy,
-    description: "Full ranking correlation: AI tournament ranking vs human peer-review ranking",
-    items: [], // populated dynamically
-  },
-  {
-    group: "Experiments",
-    icon: FlaskRound,
-    description: "Controlled experiments testing AI evaluation robustness",
-    items: [
-      { id: "exp-summary-bias", label: "Summary Bias", sub: "Biomolecules", category: "q-bio.BM" },
-      { id: "exp-summary-bias-econ", label: "Summary Bias", sub: "Economics", category: "econ.GN" },
-      { id: "exp-summary-bias-phys", label: "Summary Bias", sub: "Comp Physics", category: "physics.comp-ph" },
-    ],
-  },
-];
+function groupDatasets(datasets) {
+  const groups = {};
+  for (const ds of datasets) {
+    const name = ds.name || "";
+    let source;
+    if (name.startsWith("ICLR ")) source = "ICLR";
+    else if (name.startsWith("eLife ")) source = "eLife";
+    else if (name.startsWith("MIDL ")) source = "MIDL";
+    else if (name.startsWith("Qeios ")) source = "Qeios";
+    else if (name.startsWith("PeerRead ")) source = "PeerRead";
+    else if (name.startsWith("F1000")) source = "F1000";
+    else if (name.startsWith("ResearchHub")) source = "ResearchHub";
+    else source = "Other";
+    if (!groups[source]) groups[source] = [];
+    groups[source].push(ds);
+  }
+  return groups;
+}
+
+function CollapsibleGroup({ label, children, defaultOpen = false, icon: Icon }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {Icon && <Icon className="h-3 w-3" />}
+        <span className="flex-1 text-left">{label}</span>
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && <div className="space-y-0.5 mt-0.5">{children}</div>}
+    </div>
+  );
+}
+
+function NavItem({ item, selected, onSelect }) {
+  return (
+    <button
+      onClick={() => onSelect(item.id)}
+      className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center justify-between ${
+        selected === item.id
+          ? "bg-accent/10 text-accent font-medium border border-accent/20"
+          : "text-muted-foreground hover:bg-secondary/30 hover:text-foreground border border-transparent"
+      }`}
+      data-testid={`nav-${item.id}`}
+    >
+      <div>
+        <div className="text-[11px] font-medium">{item.label}</div>
+        {item.sub && <div className="text-[9px] opacity-60 mt-0.5">{item.sub}</div>}
+      </div>
+      {selected === item.id && <ChevronRight className="h-3 w-3 shrink-0" />}
+    </button>
+  );
+}
+
+function SourceGroup({ source, items, selected, onSelect, defaultOpen }) {
+  return (
+    <CollapsibleGroup label={source} defaultOpen={defaultOpen}>
+      {items.map(item => (
+        <NavItem key={item.id} item={item} selected={selected} onSelect={onSelect} />
+      ))}
+    </CollapsibleGroup>
+  );
+}
 
 export default function ValidationHubPage() {
   const [selected, setSelected] = useState("pw-qeios");
@@ -65,43 +95,20 @@ export default function ValidationHubPage() {
 
   useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 
-  // Datasets that have pairwise head-to-head data potential — all validation datasets
   const pairwiseDatasets = datasets;
+  const tournamentGroups = groupDatasets(datasets);
+  const pairwiseGroups = groupDatasets(datasets);
 
-  // Build sections with dynamic items
-  const sections = STATIC_SECTIONS.map(s => {
-    if (s.group === "Pairwise") {
-      return {
-        ...s,
-        items: [
-          ...s.items,
-          ...pairwiseDatasets.map(ds => ({
-            id: `pw-h2h-${ds.dataset_id}`,
-            label: ds.name,
-            datasetId: ds.dataset_id,
-            sub: `${ds.papers} papers`,
-          })),
-        ],
-      };
-    }
-    if (s.group === "Tournament") {
-      return {
-        ...s,
-        items: datasets.map(ds => ({
-          id: `t-${ds.dataset_id}`,
-          label: ds.name,
-          datasetId: ds.dataset_id,
-          sub: `${ds.papers} papers`,
-        })),
-      };
-    }
-    return s;
-  });
+  // Auto-open the group containing the selected item
+  const selectedTournamentSource = Object.entries(tournamentGroups).find(
+    ([, items]) => items.some(ds => `t-${ds.dataset_id}` === selected)
+  )?.[0];
+  const selectedPairwiseSource = Object.entries(pairwiseGroups).find(
+    ([, items]) => items.some(ds => `pw-h2h-${ds.dataset_id}` === selected)
+  )?.[0];
 
-  // Find the active dataset for tournament views
   const activeDataset = datasets.find(ds => selected === `t-${ds.dataset_id}`);
 
-  // Section descriptions for the content header
   const sectionMeta = {
     "pw-qeios": { title: "Pairwise — Qeios", desc: "Head-to-head AI comparison using Qeios open peer review data. 3 AI models, majority-vote agreement with human expert." },
     "pw-scipost": { title: "Pairwise — SciPost", desc: "Per-dimension head-to-head comparison (validity, significance, originality, clarity) using SciPost peer review data." },
@@ -110,11 +117,10 @@ export default function ValidationHubPage() {
     "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
     "exp-summary-bias-phys": { title: "Summary Bias — Comp Physics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
   };
-  // Add H2H dataset metas
   pairwiseDatasets.forEach(ds => {
     sectionMeta[`pw-h2h-${ds.dataset_id}`] = {
       title: `Pairwise — ${ds.name}`,
-      desc: `How often do different input formats (Abstract, Extract, Full PDF) and AI models agree with human expert judgments?`,
+      desc: `How often do different input formats and AI models agree with human expert judgments?`,
     };
   });
   if (activeDataset) {
@@ -124,7 +130,6 @@ export default function ValidationHubPage() {
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-7xl py-6 md:py-10">
-      {/* Page header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <FlaskConical className="h-5 w-5 text-accent" />
@@ -136,46 +141,51 @@ export default function ValidationHubPage() {
       </div>
 
       <div className="flex gap-5">
-        {/* Sidebar */}
-        <nav className="w-52 shrink-0 space-y-4" data-testid="validation-sidebar">
-          {sections.map(section => (
-            <div key={section.group}>
-              <div className="flex items-center gap-1.5 px-2 mb-1">
-                <section.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {section.group}
-                </span>
-              </div>
-              <div className="space-y-0.5">
-                {section.items.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => setSelected(item.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
-                      selected === item.id
-                        ? "bg-accent/10 text-accent font-medium border border-accent/20"
-                        : "text-muted-foreground hover:bg-secondary/30 hover:text-foreground border border-transparent"
-                    }`}
-                    data-testid={`nav-${item.id}`}
-                  >
-                    <div>
-                      <div className="text-xs font-medium">{item.label}</div>
-                      {item.sub && <div className="text-[10px] opacity-60 mt-0.5">{item.sub}</div>}
-                    </div>
-                    {selected === item.id && <ChevronRight className="h-3 w-3 shrink-0" />}
-                  </button>
-                ))}
-                {section.items.length === 0 && (
-                  <div className="px-3 py-2 text-[10px] text-muted-foreground/50 italic">No datasets yet</div>
-                )}
-              </div>
-            </div>
-          ))}
+        <nav className="w-56 shrink-0 space-y-3 max-h-[calc(100vh-120px)] overflow-y-auto" data-testid="validation-sidebar">
+          {/* Pairwise */}
+          <CollapsibleGroup label="Pairwise" icon={GitCompare} defaultOpen={selected.startsWith("pw-")}>
+            <NavItem item={{ id: "pw-qeios", label: "Qeios" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "pw-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
+            {Object.entries(pairwiseGroups).map(([source, items]) => (
+              <SourceGroup
+                key={`pw-${source}`}
+                source={source}
+                items={items.map(ds => ({ id: `pw-h2h-${ds.dataset_id}`, label: ds.name.replace(`${source} `, ""), sub: `${ds.papers} papers` }))}
+                selected={selected}
+                onSelect={setSelected}
+                defaultOpen={selectedPairwiseSource === source}
+              />
+            ))}
+          </CollapsibleGroup>
+
+          {/* Single-item */}
+          <CollapsibleGroup label="Single-item" icon={Beaker} defaultOpen={selected === "si-scipost"}>
+            <NavItem item={{ id: "si-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
+          </CollapsibleGroup>
+
+          {/* Tournament */}
+          <CollapsibleGroup label="Tournament" icon={Trophy} defaultOpen={selected.startsWith("t-")}>
+            {Object.entries(tournamentGroups).map(([source, items]) => (
+              <SourceGroup
+                key={`t-${source}`}
+                source={source}
+                items={items.map(ds => ({ id: `t-${ds.dataset_id}`, label: ds.name.replace(`${source} `, ""), sub: `${ds.papers} papers` }))}
+                selected={selected}
+                onSelect={setSelected}
+                defaultOpen={selectedTournamentSource === source}
+              />
+            ))}
+          </CollapsibleGroup>
+
+          {/* Experiments */}
+          <CollapsibleGroup label="Experiments" icon={FlaskRound} defaultOpen={selected.startsWith("exp-")}>
+            <NavItem item={{ id: "exp-summary-bias", label: "Summary Bias", sub: "Biomolecules" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-summary-bias-econ", label: "Summary Bias", sub: "Economics" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-summary-bias-phys", label: "Summary Bias", sub: "Comp Physics" }} selected={selected} onSelect={setSelected} />
+          </CollapsibleGroup>
         </nav>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Section header */}
           {meta.title && (
             <div className="mb-4 pb-3 border-b border-border">
               <h2 className="font-heading text-lg font-semibold" data-testid="section-title">{meta.title}</h2>
@@ -183,7 +193,6 @@ export default function ValidationHubPage() {
             </div>
           )}
 
-          {/* Section content */}
           {selected === "pw-qeios" && <QeiosPairwiseSection />}
           {selected === "pw-scipost" && <SciPostPairwiseSection />}
           {selected.startsWith("pw-h2h-") && (() => {
