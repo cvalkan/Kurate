@@ -3059,7 +3059,7 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
                 t1, t2 = _norm_tier(p1.get("decision")), _norm_tier(p2.get("decision"))
                 has_tier_diff = t1 and t2 and t1 != t2 and TIER_ORDER.get(t1, 99) != 99 and TIER_ORDER.get(t2, 99) != 99
 
-                # Ground truth 2: Reviewer score majority (need clear gap)
+                # Ground truth 2: Reviewer score majority (need clear gap with multiple reviewers)
                 s1, s2 = p1.get("h1_avg_rating", 0), p2.get("h1_avg_rating", 0)
                 score_gap = abs(s1 - s2)
                 n1, n2 = p1.get("h1_rating_count", 0), p2.get("h1_rating_count", 0)
@@ -3084,8 +3084,12 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
                     human_winner_id = p1["id"] if sig1 > sig2 else p2["id"]
                     ground_truth = "editorial_assessment"
 
-                # Priority: committee > reviewer majority > editorial
-                priority = 0 if has_tier_diff else (1 if has_reviewer_majority else 2)
+                # Priority: prefer HARD pairs (small score gaps) for committee decisions
+                # For committee: small gap = controversial = more informative
+                if has_tier_diff:
+                    priority = score_gap  # lower gap = higher priority (sorted ascending)
+                else:
+                    priority = 100 + (10 - score_gap)  # non-committee pairs come after
 
                 all_pairs.append({
                     "dataset_id": ds_id,
