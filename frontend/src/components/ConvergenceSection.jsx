@@ -51,24 +51,16 @@ export function ValidationConvergence({ datasets }) {
     );
 
     Promise.all(modeDiscovery).then(discovered => {
-      // Also always check the static modes as fallback
-      const allModes = new Map();
-      CONTENT_MODES.forEach(m => allModes.set(m.id, m.label));
-
       const fetches = [];
       discovered.forEach(d => {
-        // Add discovered modes (may include prompt-tagged variants)
+        // Only fetch convergence for modes that have actual match data
+        const activeModes = new Map();
         d.modes.forEach(m => {
-          if (!allModes.has(m.id) && m.id !== "none") {
-            allModes.set(m.id, m.label);
-          }
-          // Also update static mode labels if API provides better ones (e.g. with model name)
-          if (allModes.has(m.id) && m.label && m.label !== allModes.get(m.id)) {
-            allModes.set(m.id, m.label);
+          if (m.id !== "none" && m.matches > 0) {
+            activeModes.set(m.id, m.label);
           }
         });
-        // Fetch convergence for each known mode
-        allModes.forEach((label, modeId) => {
+        activeModes.forEach((label, modeId) => {
           fetches.push(
             axios.get(`${API}/api/validation/convergence`, {
               params: { dataset_id: d.dsId, content_mode: modeId, steps: 50 }
