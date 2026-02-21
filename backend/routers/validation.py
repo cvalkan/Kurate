@@ -1555,12 +1555,16 @@ async def get_available_modes(dataset_id: str = Query(...)):
         pt = doc["_id"]["prompt_tag"]
         mode_id = cm if cm != "none" else "extract"
         if pt:
-            label = SUMMARY_TAG_LABELS.get(pt, f"{BASE_LABELS.get(cm, cm)} ({pt})")
+            label = SUMMARY_TAG_LABELS.get(pt, f"{BASE_LABELS.get(cm.split(':')[0], cm)} ({pt})")
+            # The content_mode already contains the tag, use as-is
+            final_id = cm
         elif has_summary_variants and cm == "abstract_plus_summary":
             label = "Abstract + Summary (Opus 4.5)"
+            final_id = cm
         else:
             label = BASE_LABELS.get(cm, mode_id.replace("_", " ").title())
-        modes.append({"id": f"{cm}:{pt}" if pt else cm, "label": label, "prompt_tag": pt, "matches": doc["count"]})
+            final_id = cm
+        modes.append({"id": final_id, "label": label, "prompt_tag": pt, "matches": doc["count"]})
     return {"modes": sorted(modes, key=lambda m: -m["matches"])}
 
 
