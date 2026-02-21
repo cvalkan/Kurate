@@ -3185,6 +3185,10 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
             p1_opus45 = p1.get("ai_impact_summary_claude") or p1.get("ai_impact_summary", "")
             p2_opus45 = p2.get("ai_impact_summary_claude") or p2.get("ai_impact_summary", "")
 
+            # Pin the same judge model for both runs (fair comparison)
+            from services.llm import _pick_round_robin_model
+            judge_model = _pick_round_robin_model()
+
             results = {}
             for model_key, p1_sum, p2_sum in [
                 ("opus45", p1_opus45, p2_opus45),
@@ -3195,7 +3199,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                 p1_copy = {**p1, "ai_impact_summary": p1_sum}
                 p2_copy = {**p2, "ai_impact_summary": p2_sum}
                 try:
-                    result = await compare_papers(p1_copy, p2_copy, content_mode="abstract_plus_summary")
+                    result = await compare_papers(p1_copy, p2_copy, content_mode="abstract_plus_summary", model_override=judge_model)
                     if result and not result.get("failed"):
                         winner_label = result.get("winner")  # "paper1" or "paper2"
                         winner_id = p1["id"] if winner_label == "paper1" else p2["id"] if winner_label == "paper2" else None
