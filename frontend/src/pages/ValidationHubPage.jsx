@@ -114,6 +114,7 @@ export default function ValidationHubPage() {
     "pw-qeios": { title: "Pairwise — Qeios", desc: "Head-to-head AI comparison using Qeios open peer review data. 3 AI models, majority-vote agreement with human expert." },
     "pw-scipost": { title: "Pairwise — SciPost", desc: "Per-dimension head-to-head comparison (validity, significance, originality, clarity) using SciPost peer review data." },
     "si-scipost": { title: "Single-item — SciPost", desc: "AI rates each paper on 4 dimensions (1-6 scale), compared against human referee ratings." },
+    "exp-summarizer-ab": { title: "Summarizer A/B Test — Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across all ICLR and eLife datasets." },
     "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
     "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
     "exp-summary-bias-phys": { title: "Summary Bias — Comp Physics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
