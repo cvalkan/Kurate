@@ -129,19 +129,20 @@ export default function SummarizerComparisonSection() {
             </div>
           )}
 
-          {/* By tier difference */}
-          {results.by_tier_diff && (
-            <div className="grid grid-cols-2 gap-3">
+          {/* By ground truth type */}
+          {results.by_ground_truth && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
-                ["Committee Decision Pairs", results.by_tier_diff.with_tier_diff, "Papers with different ICLR tiers (Oral vs Poster etc.)"],
-                ["Same-Tier Pairs", results.by_tier_diff.same_tier, "Papers in the same tier, ranked by reviewer scores"],
+                ["Committee Decision", results.by_ground_truth.committee_decision, "Oral vs Spotlight vs Poster vs Reject (ICLR/MIDL)"],
+                ["Reviewer Majority", results.by_ground_truth.reviewer_majority, "Clear score gap between papers with 2+ reviewers"],
+                ["Editorial Assessment", results.by_ground_truth.editorial_assessment, "eLife significance labels (useful vs important etc.)"],
               ].map(([label, data, desc]) => data?.total > 0 && (
                 <div key={label} className="border border-border rounded-lg p-3">
                   <div className="text-[10px] font-medium mb-1">{label}</div>
                   <div className="text-[9px] text-muted-foreground mb-2">{desc}</div>
                   <div className="flex gap-4 text-xs">
-                    <span>Opus 4.5: <strong>{(data.opus45 / data.total * 100).toFixed(1)}%</strong></span>
-                    <span>Opus 4.6: <strong>{(data.opus46 / data.total * 100).toFixed(1)}%</strong></span>
+                    <span className="text-amber-600">4.5: <strong>{data.opus45_pct}%</strong></span>
+                    <span className="text-blue-600">4.6: <strong>{data.opus46_pct}%</strong></span>
                     <span className="text-muted-foreground">{data.total} pairs</span>
                   </div>
                 </div>
