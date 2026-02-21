@@ -1860,8 +1860,10 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
             t_kt, t_kt_p = scipy_stats.kendalltau(ai_r, tier_r)
 
             tier_metrics["tier_vs_ai_correlation"] = {
-                "spearman_rho": round(t_sp, 4), "spearman_p_value": round(t_sp_p, 6),
-                "kendall_tau": round(t_kt, 4), "kendall_p_value": round(t_kt_p, 6),
+                "spearman_rho": round(t_sp, 4) if not np.isnan(t_sp) else 0,
+                "spearman_p_value": round(t_sp_p, 6) if not np.isnan(t_sp_p) else 1,
+                "kendall_tau": round(t_kt, 4) if not np.isnan(t_kt) else 0,
+                "kendall_p_value": round(t_kt_p, 6) if not np.isnan(t_kt_p) else 1,
                 "papers": len(tier_ranked_papers),
             }
 
