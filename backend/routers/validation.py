@@ -3211,7 +3211,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                 except Exception as e:
                     logger.warning(f"Summarizer comparison failed ({model_key}): {e}")
 
-            if results:
+                if results:
                 doc = {
                     "dataset_id": ds_id,
                     "paper1_id": pair["paper1_id"],
@@ -3226,6 +3226,17 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                 }
                 for mk, r in results.items():
                     doc[f"{mk}_correct"] = r["winner_id"] == pair["human_winner_id"]
+
+                # Compute human reviewer baseline: do avg reviewer scores predict the committee winner?
+                if pair.get("ground_truth") == "committee":
+                    s1 = p1.get("h1_avg_rating", 0)
+                    s2 = p2.get("h1_avg_rating", 0)
+                    if s1 != s2:
+                        reviewer_winner_id = p1["id"] if s1 > s2 else p2["id"]
+                        doc["reviewer_agrees_with_committee"] = reviewer_winner_id == pair["human_winner_id"]
+                    else:
+                        doc["reviewer_agrees_with_committee"] = None  # tie
+
                 await db.summarizer_comparisons.update_one(
                     {"paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"]},
                     {"$set": doc}, upsert=True,
