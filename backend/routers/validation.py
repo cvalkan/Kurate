@@ -3084,13 +3084,6 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
                     human_winner_id = p1["id"] if sig1 > sig2 else p2["id"]
                     ground_truth = "editorial_assessment"
 
-                # Priority: prefer HARD pairs (small score gaps) for committee decisions
-                # For committee: small gap = controversial = more informative
-                if has_tier_diff:
-                    priority = score_gap  # lower gap = higher priority (sorted ascending)
-                else:
-                    priority = 100 + (10 - score_gap)  # non-committee pairs come after
-
                 all_pairs.append({
                     "dataset_id": ds_id,
                     "paper1_id": p1["id"], "paper2_id": p2["id"],
@@ -3098,7 +3091,6 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
                     "score_gap": score_gap,
                     "has_tier_diff": has_tier_diff,
                     "ground_truth": ground_truth,
-                    "priority": priority,
                 })
 
     if not all_pairs:
