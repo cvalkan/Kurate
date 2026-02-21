@@ -1877,17 +1877,23 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
                 "rank_delta": a_rank[pid]["rank"] - tier_rank_map[pid],
             } for pid in tier_ranked_papers]
 
+    import math
+    def _safe_round(v, n=4):
+        if v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v))):
+            return 0.0
+        return round(float(v), n)
+
     return {
         "status": "ok", "method": "pairwise_bt",
         "papers_analyzed": len(cp), "human_matches_derived": len(ch),
         "human_matches_ties_excluded": ties, "ai_matches": len(ca),
         "experts_contributing": experts_used,
         "correlation": {
-            "spearman_rho": round(sp, 4), "spearman_p_value": round(sp_p, 6),
-            "kendall_tau": round(kt, 4), "kendall_p_value": round(kt_p, 6),
-            "pearson_r": round(pr, 4), "pearson_p_value": round(pr_p, 6),
+            "spearman_rho": _safe_round(sp), "spearman_p_value": _safe_round(sp_p, 6),
+            "kendall_tau": _safe_round(kt), "kendall_p_value": _safe_round(kt_p, 6),
+            "pearson_r": _safe_round(pr), "pearson_p_value": _safe_round(pr_p, 6),
         },
-        "interpretation": _interp(sp, sp_p, len(cp), "pairwise BT"),
+        "interpretation": _interp(sp if not math.isnan(sp) else 0, sp_p if not math.isnan(sp_p) else 1, len(cp), "pairwise BT"),
         "comparison": comparison,
         "tier_metrics": tier_metrics,
     }
