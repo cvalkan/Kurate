@@ -291,14 +291,17 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
                 label={{ value: "Spearman ρ", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
               <Tooltip content={<Tip />} />
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-              {dsIds.flatMap((did, i) => [
-                <Line key={`${did}_sig`} type="monotone" dataKey={`${did}_sig`}
-                  name={dsIds.length > 1 ? `${curves[did].name} (Significance)` : "Significance"}
-                  stroke="#f59e0b" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />,
-                <Line key={`${did}_str`} type="monotone" dataKey={`${did}_str`}
-                  name={dsIds.length > 1 ? `${curves[did].name} (Strength)` : "Strength"}
-                  stroke="#3b82f6" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />,
-              ])}
+              {dsIds.flatMap((did, i) => {
+                const color = COLORS[i % COLORS.length];
+                return [
+                  <Line key={`${did}_sig`} type="monotone" dataKey={`${did}_sig`}
+                    name={`${curves[did].name} (Significance)`}
+                    stroke={color} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />,
+                  <Line key={`${did}_str`} type="monotone" dataKey={`${did}_str`}
+                    name={`${curves[did].name} (Strength)`}
+                    stroke={color} strokeWidth={2} strokeDasharray="6 3" dot={{ r: 2.5, strokeDasharray: "" }} connectNulls />,
+                ];
+              })}
             </LineChart>
           </ResponsiveContainer>
         </div>
