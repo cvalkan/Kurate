@@ -60,11 +60,11 @@ export function ValidationConvergence({ datasets }) {
         // Add discovered modes (may include prompt-tagged variants)
         d.modes.forEach(m => {
           if (!allModes.has(m.id) && m.id !== "none") {
-            // Clean up label for prompt-tagged variants
-            const label = m.prompt_tag
-              ? `Editorial: ${m.prompt_tag}`
-              : m.label;
-            allModes.set(m.id, label);
+            allModes.set(m.id, m.label);
+          }
+          // Also update static mode labels if API provides better ones (e.g. with model name)
+          if (allModes.has(m.id) && m.label && m.label !== allModes.get(m.id)) {
+            allModes.set(m.id, m.label);
           }
         });
         // Fetch convergence for each known mode
