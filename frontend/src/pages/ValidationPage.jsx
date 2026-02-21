@@ -340,14 +340,11 @@ function StandardStats({ datasetId, isAdmin }) {
   const activeAgreement = active.agreement;
   const activeDual = active.dual;
   const hasActiveData = activePairwise || activeIrt || activeDual;
+  const isLoading = contentMode && !modeData[contentMode];
   const modeLabel = allModes.find(m => m.id === contentMode)?.label || contentMode;
-  // Show modes that have data or are the standard 3
-  const visibleModes = allModes.filter(m => !["ai_summary", "abstract_plus_summary"].includes(m.id) || modeData[m.id]?.pairwise || modeData[m.id]?.irt)
-    .filter(m => {
-      // Always show standard modes; for discovered modes, only show if they have data
-      const isStandard = ["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"].includes(m.id);
-      return isStandard || modeData[m.id]?.pairwise || modeData[m.id]?.irt;
-    });
+  // Show standard modes + any discovered modes (discovered = has match data in DB)
+  const standardIds = new Set(["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"]);
+  const visibleModes = allModes.filter(m => standardIds.has(m.id) || !standardIds.has(m.id));
 
   return (
     <div className="space-y-5">
