@@ -2808,6 +2808,7 @@ class GenerateSummariesRequest(BaseModel):
     parallel: int = 5
     model_provider: str = "anthropic"
     model_name: str = "claude-opus-4-5-20251101"
+    extra_params: dict = {}
 
 
 @router.post("/generate-impact-summaries", dependencies=[Depends(verify_admin)])
@@ -2830,6 +2831,8 @@ async def generate_impact_summaries(body: GenerateSummariesRequest):
         return {"status": "complete", "message": f"All {has_summary} papers already have impact summaries.", "total": len(papers), "missing": 0}
 
     model_info = {"provider": body.model_provider, "model": body.model_name}
+    if body.extra_params:
+        model_info["extra_params"] = body.extra_params
     asyncio.create_task(_generate_summaries(body.dataset_id, missing, model_info, min(max(body.parallel, 1), 15)))
     return {"status": "started", "dataset_id": body.dataset_id, "total_papers": len(papers), "missing": len(missing), "model": model_info}
 
