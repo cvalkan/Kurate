@@ -200,19 +200,31 @@ export default function SummarizerComparisonSection() {
             <div className="border border-border rounded-lg overflow-hidden">
               <div className="px-3 py-2 bg-secondary/10 border-b border-border">
                 <h3 className="text-xs font-medium">Accuracy by Human Score Gap</h3>
+                <p className="text-[9px] text-muted-foreground">Harder pairs (small gap) test whether the AI can distinguish papers that even human reviewers disagree on</p>
               </div>
-              <div className="grid grid-cols-3 divide-x divide-border">
-                {Object.entries(results.by_gap).map(([gap, data]) => data.total > 0 && (
-                  <div key={gap} className="p-3 text-center">
-                    <div className="text-[10px] text-muted-foreground mb-1">{gap}</div>
-                    <div className="text-xs">
-                      <span className="text-amber-600 font-medium">4.5: {(data.opus45 / data.total * 100).toFixed(0)}%</span>
-                      <span className="mx-2 text-muted-foreground">vs</span>
-                      <span className="text-blue-600 font-medium">4.6: {(data.opus46 / data.total * 100).toFixed(0)}%</span>
-                    </div>
-                    <div className="text-[9px] text-muted-foreground mt-0.5">{data.total} pairs</div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-border text-[10px]">
+                      <th className="text-left px-3 py-1.5">Score Gap</th>
+                      <th className="text-right px-3 py-1.5">Pairs</th>
+                      <th className="text-right px-3 py-1.5">Human</th>
+                      <th className="text-right px-3 py-1.5">Opus 4.5</th>
+                      <th className="text-right px-3 py-1.5">Opus 4.6</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(results.by_gap).filter(([,d]) => d.total > 0).map(([gap, data]) => (
+                      <tr key={gap} className="border-b border-border/20">
+                        <td className="px-3 py-1.5 font-medium">{gap}</td>
+                        <td className="text-right px-3 py-1.5">{data.total}</td>
+                        <td className="text-right px-3 py-1.5 font-mono text-muted-foreground">{data.human_pct != null ? `${data.human_pct}%` : "—"}</td>
+                        <td className="text-right px-3 py-1.5 font-mono text-amber-600">{(data.opus45 / data.total * 100).toFixed(1)}%</td>
+                        <td className="text-right px-3 py-1.5 font-mono text-blue-600">{(data.opus46 / data.total * 100).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
