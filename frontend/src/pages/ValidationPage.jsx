@@ -314,7 +314,7 @@ function StandardStats({ datasetId, isAdmin }) {
     });
   }, [datasetId, contentMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { fetchAll(); setModeData({}); }, [fetchAll]);
   useEffect(() => {
     if (!status?.tournament_running && !isRunningTournament) return;
     const iv = setInterval(fetchAll, 5000);
