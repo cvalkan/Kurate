@@ -632,6 +632,18 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
             return "\n\n".join(parts)
         p1_content = _build_multi_summary(paper1)
         p2_content = _build_multi_summary(paper2)
+    elif content_mode == "abstract_plus_random_summary":
+        import random as _rnd
+        _sum_keys = ["ai_impact_summary_claude", "ai_impact_summary_gpt", "ai_impact_summary_gemini"]
+        def _pick_random_summary(paper):
+            available = [paper.get(k, '') for k in _sum_keys if paper.get(k)]
+            return _rnd.choice(available) if available else ''
+        p1_abs = paper1.get('abstract', '')[:1500]
+        p1_sum = _pick_random_summary(paper1)
+        p1_content = f"Abstract: {p1_abs}\n\nAI Impact Assessment:\n{p1_sum}" if p1_sum else f"Abstract: {p1_abs}"
+        p2_abs = paper2.get('abstract', '')[:1500]
+        p2_sum = _pick_random_summary(paper2)
+        p2_content = f"Abstract: {p2_abs}\n\nAI Impact Assessment:\n{p2_sum}" if p2_sum else f"Abstract: {p2_abs}"
     elif content_mode == "abstract_plus_impact":
         p1_abs = paper1.get('abstract', '')[:1500]
         p1_imp = paper1.get('impact_statement', '')
