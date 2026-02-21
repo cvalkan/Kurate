@@ -3479,17 +3479,14 @@ async def _run_replay(dataset_id: str, matches: list, target_mode: str, summary_
             p1_copy = {**p1, "ai_impact_summary": p1_sum}
             p2_copy = {**p2, "ai_impact_summary": p2_sum}
 
-            # Pin the same judge as the source match
-            judge_key = match_info.get("judge_model", "")
-            judge_model = None
-            for key, model in MODEL_MAP.items():
-                if key in judge_key:
-                    judge_model = model
-                    break
+            # Pin judge: use round-robin (source matches don't store judge model)
+            from services.llm import _pick_round_robin_model
+            judge_model = _pick_round_robin_model()
 
             try:
                 result = await compare_papers(p1_copy, p2_copy, content_mode="abstract_plus_summary", model_override=judge_model)
                 if result and not result.get("failed"):
+                    result["id"] = str(uuid.uuid4())
                     result["dataset_id"] = dataset_id
                     result["content_mode"] = target_mode
                     result["paper1_id"] = match_info["paper1_id"]
