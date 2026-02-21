@@ -3381,6 +3381,136 @@ async def stop_summarizer_comparison():
 
 
 
+# ─── Tournament Replay (same pairs + same judges) ──────────────────────────
+
+class ReplayTournamentRequest(BaseModel):
+    dataset_id: str
+    source_mode: str = "abstract_plus_summary"
+    target_tag: str = "opus46"
+    summary_field: str = "ai_impact_summary_opus46"
+    max_matches_per_paper: int = 15
+    parallel: int = 8
+
+
+@router.post("/replay-tournament", dependencies=[Depends(verify_admin)])
+async def replay_tournament(body: ReplayTournamentRequest):
+    """Replay an existing tournament's matches with different summaries but same pairs and judges."""
+    target_mode = f"{body.source_mode}:{body.target_tag}"
+
+    # Get source matches (the Opus 4.5 tournament)
+    source_matches = await db.validation_matches.find(
+        {"dataset_id": body.dataset_id, "content_mode": body.source_mode, "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "model_key": 1},
+    ).to_list(100000)
+
+    if not source_matches:
+        return {"status": "error", "message": f"No source matches found for {body.dataset_id} / {body.source_mode}"}
+
+    # Already completed target matches
+    existing = set()
+    async for doc in db.validation_matches.find(
+        {"dataset_id": body.dataset_id, "content_mode": target_mode, "completed": True},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        existing.add((doc["paper1_id"], doc["paper2_id"]))
+
+    # Filter: skip already done, cap at max_matches_per_paper
+    papers = await db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0, "id": 1}).to_list(5000)
+    n_papers = len(papers)
+    max_total = n_papers * body.max_matches_per_paper
+    match_counts = {p["id"]: 0 for p in papers}
+    for (p1, p2) in existing:
+        match_counts[p1] = match_counts.get(p1, 0) + 1
+        match_counts[p2] = match_counts.get(p2, 0) + 1
+
+    to_replay = []
+    for m in source_matches:
+        pair = (m["paper1_id"], m["paper2_id"])
+        if pair in existing or (pair[1], pair[0]) in existing:
+            continue
+        if match_counts.get(m["paper1_id"], 0) >= body.max_matches_per_paper * 2:
+            continue
+        if match_counts.get(m["paper2_id"], 0) >= body.max_matches_per_paper * 2:
+            continue
+        to_replay.append({"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "judge_model": m.get("model_key", "")})
+        match_counts[m["paper1_id"]] = match_counts.get(m["paper1_id"], 0) + 1
+        match_counts[m["paper2_id"]] = match_counts.get(m["paper2_id"], 0) + 1
+        if len(to_replay) >= max_total:
+            break
+
+    asyncio.create_task(_run_replay(body.dataset_id, to_replay, target_mode, body.summary_field, body.parallel))
+    return {
+        "status": "started",
+        "dataset_id": body.dataset_id,
+        "source_matches": len(source_matches),
+        "already_done": len(existing),
+        "to_replay": len(to_replay),
+        "target_mode": target_mode,
+        "max_per_paper": body.max_matches_per_paper,
+    }
+
+
+async def _run_replay(dataset_id: str, matches: list, target_mode: str, summary_field: str, parallel: int):
+    """Replay matches with different summaries but pinned judge models."""
+    from services.llm import compare_papers
+
+    MODEL_MAP = {
+        "gpt-5.2": {"provider": "openai", "model": "gpt-5.2"},
+        "claude-opus-4-5-20251101": {"provider": "anthropic", "model": "claude-opus-4-5-20251101"},
+        "gemini-3-pro-preview": {"provider": "google", "model": "gemini/gemini-3-pro-preview"},
+    }
+
+    sem = asyncio.Semaphore(parallel)
+    completed = 0
+
+    async def _run_one(match_info):
+        nonlocal completed
+        async with sem:
+            p1 = await db.validation_papers.find_one({"dataset_id": dataset_id, "id": match_info["paper1_id"]}, {"_id": 0})
+            p2 = await db.validation_papers.find_one({"dataset_id": dataset_id, "id": match_info["paper2_id"]}, {"_id": 0})
+            if not p1 or not p2:
+                return
+
+            # Swap in the target summaries
+            p1_sum = p1.get(summary_field, "")
+            p2_sum = p2.get(summary_field, "")
+            if not p1_sum or not p2_sum:
+                return
+            p1_copy = {**p1, "ai_impact_summary": p1_sum}
+            p2_copy = {**p2, "ai_impact_summary": p2_sum}
+
+            # Pin the same judge as the source match
+            judge_key = match_info.get("judge_model", "")
+            judge_model = None
+            for key, model in MODEL_MAP.items():
+                if key in judge_key:
+                    judge_model = model
+                    break
+
+            try:
+                result = await compare_papers(p1_copy, p2_copy, content_mode="abstract_plus_summary", model_override=judge_model)
+                if result and not result.get("failed"):
+                    result["dataset_id"] = dataset_id
+                    result["content_mode"] = target_mode
+                    result["paper1_id"] = match_info["paper1_id"]
+                    result["paper2_id"] = match_info["paper2_id"]
+                    result["completed"] = True
+                    result["failed"] = False
+                    result["replayed_from"] = "abstract_plus_summary"
+                    result["pinned_judge"] = judge_key
+                    # Remove _id if present
+                    result.pop("_id", None)
+                    await db.validation_matches.insert_one(result)
+                    completed += 1
+            except Exception as e:
+                logger.warning(f"Replay failed: {e}")
+
+    tasks = [_run_one(m) for m in matches]
+    await asyncio.gather(*tasks, return_exceptions=True)
+    logger.info(f"Replay complete for {dataset_id}/{target_mode}: {completed}/{len(matches)}")
+
+
+
 # ─── Targeted Pairwise Run ──────────────────────────────────────────────────
 
 class TargetedPairwiseRequest(BaseModel):
