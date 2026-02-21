@@ -3280,12 +3280,17 @@ async def get_summarizer_comparison_results():
         o46 = sum(1 for d in subset if d.get("opus46_correct"))
         result = {"total": t, "opus45": o45, "opus46": o46,
                   "opus45_pct": round(o45/t*100, 1), "opus46_pct": round(o46/t*100, 1)}
-        # Single reviewer baseline: aggregate all individual reviewer pair comparisons
-        sr_correct = sum(d.get("single_reviewer_correct", 0) for d in subset)
-        sr_total = sum(d.get("single_reviewer_total", 0) for d in subset)
-        if sr_total > 0:
-            result["single_reviewer_pct"] = round(sr_correct / sr_total * 100, 1)
-            result["single_reviewer_pairs"] = sr_total
+        # Single reviewer baseline: average per-pair agreement rate
+        # For each paper pair, what fraction of reviewer cross-pairs agree with the ground truth?
+        pair_rates = []
+        for d in subset:
+            sr_c = d.get("single_reviewer_correct", 0)
+            sr_t = d.get("single_reviewer_total", 0)
+            if sr_t > 0:
+                pair_rates.append(sr_c / sr_t)
+        if pair_rates:
+            result["single_reviewer_pct"] = round(sum(pair_rates) / len(pair_rates) * 100, 1)
+            result["single_reviewer_paper_pairs"] = len(pair_rates)
         return result
 
     # By score gap buckets
