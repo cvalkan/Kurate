@@ -3232,12 +3232,24 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                         doc["single_reviewer_correct"] = sc
                         doc["single_reviewer_total"] = st
                 elif pair.get("ground_truth") == "editorial_assessment":
-                    # eLife: use strength as independent dimension vs significance ground truth
+                    # eLife: use both dimensions as independent opinions
+                    # Ground truth is significance; check if strength AND significance individually agree
+                    sig1, sig2 = p1.get("sig_score"), p2.get("sig_score")
                     str1, str2 = p1.get("str_score"), p2.get("str_score")
+                    sc, st = 0, 0
+                    # Strength dimension as independent reviewer
                     if str1 is not None and str2 is not None and str1 != str2:
-                        strength_agrees = (str1 > str2 and pair["human_winner_id"] == p1["id"]) or (str2 > str1 and pair["human_winner_id"] == p2["id"])
-                        doc["single_reviewer_correct"] = 1 if strength_agrees else 0
-                        doc["single_reviewer_total"] = 1
+                        st += 1
+                        if (str1 > str2 and pair["human_winner_id"] == p1["id"]) or (str2 > str1 and pair["human_winner_id"] == p2["id"]):
+                            sc += 1
+                    # Significance dimension as independent reviewer (cross-check against itself)
+                    if sig1 is not None and sig2 is not None and sig1 != sig2:
+                        st += 1
+                        if (sig1 > sig2 and pair["human_winner_id"] == p1["id"]) or (sig2 > sig1 and pair["human_winner_id"] == p2["id"]):
+                            sc += 1
+                    if st > 0:
+                        doc["single_reviewer_correct"] = sc
+                        doc["single_reviewer_total"] = st
                 await db.summarizer_comparisons.update_one(
                     {"paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"]},
                     {"$set": doc}, upsert=True,
