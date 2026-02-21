@@ -3218,7 +3218,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                 }
                 for mk, r in results.items():
                     doc[f"{mk}_correct"] = r["winner_id"] == pair["human_winner_id"]
-                # Single reviewer baseline on these exact pairs
+                # Single reviewer baseline on these exact paper pairs
                 if pair.get("ground_truth") in ("committee", "reviewer_majority"):
                     scores1, scores2 = p1.get("scores", []), p2.get("scores", [])
                     if scores1 and scores2:
@@ -3231,6 +3231,13 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                                     sc += 1
                         doc["single_reviewer_correct"] = sc
                         doc["single_reviewer_total"] = st
+                elif pair.get("ground_truth") == "editorial_assessment":
+                    # eLife: use strength as independent dimension vs significance ground truth
+                    str1, str2 = p1.get("str_score"), p2.get("str_score")
+                    if str1 is not None and str2 is not None and str1 != str2:
+                        strength_agrees = (str1 > str2 and pair["human_winner_id"] == p1["id"]) or (str2 > str1 and pair["human_winner_id"] == p2["id"])
+                        doc["single_reviewer_correct"] = 1 if strength_agrees else 0
+                        doc["single_reviewer_total"] = 1
                 await db.summarizer_comparisons.update_one(
                     {"paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"]},
                     {"$set": doc}, upsert=True,
