@@ -1524,6 +1524,16 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
 @router.get("/available-modes")
 async def get_available_modes(dataset_id: str = Query(...)):
     """List content modes that have match data for a dataset, including prompt-tagged variants."""
+    SUMMARY_TAG_LABELS = {
+        "gpt_summary": "Abstract + Summary (GPT-5.2)",
+        "gemini_summary": "Abstract + Summary (Gemini 3 Pro)",
+    }
+    BASE_LABELS = {
+        "none": "Extract", "extract": "Extract", "abstract": "Abstract",
+        "full_pdf": "Full PDF", "ai_summary": "AI Summary",
+        "abstract_plus_summary": "Abstract + Summary (Opus 4.5)",
+        "abstract_plus_impact": "Abstract + Impact",
+    }
     pipeline = [
         {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
         {"$group": {
@@ -1532,14 +1542,25 @@ async def get_available_modes(dataset_id: str = Query(...)):
         }},
     ]
     modes = []
+    has_summary_variants = False
     async for doc in db.validation_matches.aggregate(pipeline):
         cm = doc["_id"]["content_mode"]
         pt = doc["_id"]["prompt_tag"]
-        mode_id = cm if cm != "none" else ("abstract" if doc["_id"].get("abstract_only") else "extract")
-        label = mode_id.replace("_", " ").replace(":", " — ").title()
+        if pt and pt in SUMMARY_TAG_LABELS:
+            has_summary_variants = True
+
+    # Re-run to build list (now we know if variants exist)
+    async for doc in db.validation_matches.aggregate(pipeline):
+        cm = doc["_id"]["content_mode"]
+        pt = doc["_id"]["prompt_tag"]
+        mode_id = cm if cm != "none" else "extract"
         if pt:
-            label = f"{label} ({pt})"
-        modes.append({"id": cm, "label": label, "prompt_tag": pt, "matches": doc["count"]})
+            label = SUMMARY_TAG_LABELS.get(pt, f"{BASE_LABELS.get(cm, cm)} ({pt})")
+        elif has_summary_variants and cm == "abstract_plus_summary":
+            label = "Abstract + Summary (Opus 4.5)"
+        else:
+            label = BASE_LABELS.get(cm, mode_id.replace("_", " ").title())
+        modes.append({"id": f"{cm}:{pt}" if pt else cm, "label": label, "prompt_tag": pt, "matches": doc["count"]})
     return {"modes": sorted(modes, key=lambda m: -m["matches"])}
 
 
