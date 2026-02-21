@@ -3033,7 +3033,7 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
     all_pairs = []
     for ds_id in target_ds:
         papers = await db.validation_papers.find(
-            {"dataset_id": ds_id, "ai_impact_summary_claude": {"$ne": None}, "ai_impact_summary_opus46": {"$ne": None}},
+            {"dataset_id": ds_id, "ai_impact_summary_claude": {"$ne": None}},
             {"_id": 0},
         ).to_list(5000)
         if len(papers) < 2:
