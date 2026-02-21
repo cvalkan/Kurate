@@ -135,17 +135,30 @@ export default function SummarizerComparisonSection() {
           {results.by_ground_truth && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
-                ["Committee Decision", results.by_ground_truth.committee_decision, "Oral vs Spotlight vs Poster vs Reject (ICLR/MIDL)"],
-                ["Reviewer Majority", results.by_ground_truth.reviewer_majority, "Clear score gap between papers with 2+ reviewers"],
-                ["Editorial Assessment", results.by_ground_truth.editorial_assessment, "eLife significance labels (useful vs important etc.)"],
+                ["Committee Decision", results.by_ground_truth.committee_decision, "ICLR/MIDL accept tiers (Oral > Spotlight > Poster > Reject)"],
+                ["Reviewer Majority", results.by_ground_truth.reviewer_majority, "Consensus of 2+ reviewer scores"],
+                ["Editorial Assessment", results.by_ground_truth.editorial_assessment, "eLife significance labels (useful < valuable < important < fundamental)"],
               ].map(([label, data, desc]) => data?.total > 0 && (
                 <div key={label} className="border border-border rounded-lg p-3">
                   <div className="text-[10px] font-medium mb-1">{label}</div>
                   <div className="text-[9px] text-muted-foreground mb-2">{desc}</div>
-                  <div className="flex gap-4 text-xs">
-                    <span className="text-amber-600">4.5: <strong>{data.opus45_pct}%</strong></span>
-                    <span className="text-blue-600">4.6: <strong>{data.opus46_pct}%</strong></span>
-                    <span className="text-muted-foreground">{data.total} pairs</span>
+                  <div className="space-y-1.5">
+                    {data.single_reviewer_pct !== undefined && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="w-28 text-muted-foreground">Single reviewer:</span>
+                        <span className="font-mono font-medium">{data.single_reviewer_pct}%</span>
+                        <span className="text-[9px] text-muted-foreground">({data.single_reviewer_pairs} reviewer pairs)</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="w-28 text-amber-600">AI + Opus 4.5:</span>
+                      <span className={`font-mono font-medium ${data.opus45_pct >= (data.single_reviewer_pct || 0) ? "text-green-600" : ""}`}>{data.opus45_pct}%</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="w-28 text-blue-600">AI + Opus 4.6:</span>
+                      <span className={`font-mono font-medium ${data.opus46_pct >= (data.single_reviewer_pct || 0) ? "text-green-600" : ""}`}>{data.opus46_pct}%</span>
+                    </div>
+                    <div className="text-[9px] text-muted-foreground mt-1">{data.total} paper pairs</div>
                   </div>
                 </div>
               ))}
