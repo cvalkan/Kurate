@@ -147,7 +147,7 @@ export default function SummarizerComparisonSection() {
                       <div className="flex items-center gap-2 text-xs">
                         <span className="w-28 text-muted-foreground">Single reviewer:</span>
                         <span className="font-mono font-medium">{data.single_reviewer_pct}%</span>
-                        <span className="text-[9px] text-muted-foreground">({data.single_reviewer_paper_pairs}/{data.total} paper pairs)</span>
+                        <span className="text-[9px] text-muted-foreground">({data.single_reviewer_paper_pairs} paper pairs)</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-xs">
