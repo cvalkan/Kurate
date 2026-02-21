@@ -3118,7 +3118,7 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
     if remaining > 0:
         used = set((p["paper1_id"], p["paper2_id"]) for p in selected)
         leftovers = [p for p in all_pairs if (p["paper1_id"], p["paper2_id"]) not in used]
-        leftovers.sort(key=lambda p: (p["priority"], -p["score_gap"]))
+        _rnd.shuffle(leftovers)
         selected.extend(leftovers[:remaining])
 
     # Check existing completed comparisons to avoid re-running
