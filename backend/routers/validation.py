@@ -3029,8 +3029,17 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
         async for d in db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1}):
             target_ds.append(d["dataset_id"])
 
-    # Collect eligible pairs: papers with both summaries AND clear human preference
+    # Collect eligible pairs: papers with Opus 4.5 summaries AND clear human ground truth
     all_pairs = []
+    TIER_ORDER = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "short paper": 2}
+
+    def _norm_tier(d):
+        if not d: return None
+        dl = d.lower().strip()
+        for t in TIER_ORDER:
+            if t in dl: return t
+        return None
+
     for ds_id in target_ds:
         papers = await db.validation_papers.find(
             {"dataset_id": ds_id, "ai_impact_summary_claude": {"$ne": None}},
@@ -3039,30 +3048,52 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
         if len(papers) < 2:
             continue
 
-        # Build pairs with clear human winner
         paper_map = {p["id"]: p for p in papers}
         pids = list(paper_map.keys())
 
         for i in range(len(pids)):
             for j in range(i + 1, len(pids)):
                 p1, p2 = paper_map[pids[i]], paper_map[pids[j]]
+
+                # Ground truth 1: Committee/tier decision (strongest)
+                t1, t2 = _norm_tier(p1.get("decision")), _norm_tier(p2.get("decision"))
+                has_tier_diff = t1 and t2 and t1 != t2 and TIER_ORDER.get(t1, 99) != 99 and TIER_ORDER.get(t2, 99) != 99
+
+                # Ground truth 2: Reviewer score majority (need clear gap)
                 s1, s2 = p1.get("h1_avg_rating", 0), p2.get("h1_avg_rating", 0)
-                if abs(s1 - s2) < 0.3:
-                    continue  # Skip near-ties
-                human_winner_id = p1["id"] if s1 > s2 else p2["id"]
-                # Check for decision-based tiers (committee decisions)
-                d1, d2 = (p1.get("decision") or "").lower(), (p2.get("decision") or "").lower()
-                tier_order = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "short paper": 2}
-                t1, t2 = tier_order.get(d1, 99), tier_order.get(d2, 99)
-                has_tier_diff = t1 != t2 and t1 != 99 and t2 != 99
-                # Prefer pairs with tier differences (committee decisions)
-                priority = 0 if has_tier_diff else 1
+                score_gap = abs(s1 - s2)
+                n1, n2 = p1.get("h1_rating_count", 0), p2.get("h1_rating_count", 0)
+                has_reviewer_majority = score_gap >= 0.5 and min(n1, n2) >= 2
+
+                # Ground truth 3: eLife significance label difference
+                sig1, sig2 = p1.get("sig_score"), p2.get("sig_score")
+                has_sig_diff = sig1 is not None and sig2 is not None and sig1 != sig2
+
+                # Require at least one clear ground truth signal
+                if not (has_tier_diff or has_reviewer_majority or has_sig_diff):
+                    continue
+
+                # Determine human winner
+                if has_tier_diff:
+                    human_winner_id = p1["id"] if TIER_ORDER[t1] < TIER_ORDER[t2] else p2["id"]
+                    ground_truth = "committee"
+                elif has_reviewer_majority:
+                    human_winner_id = p1["id"] if s1 > s2 else p2["id"]
+                    ground_truth = "reviewer_majority"
+                else:
+                    human_winner_id = p1["id"] if sig1 > sig2 else p2["id"]
+                    ground_truth = "editorial_assessment"
+
+                # Priority: committee > reviewer majority > editorial
+                priority = 0 if has_tier_diff else (1 if has_reviewer_majority else 2)
+
                 all_pairs.append({
                     "dataset_id": ds_id,
                     "paper1_id": p1["id"], "paper2_id": p2["id"],
                     "human_winner_id": human_winner_id,
-                    "score_gap": abs(s1 - s2),
+                    "score_gap": score_gap,
                     "has_tier_diff": has_tier_diff,
+                    "ground_truth": ground_truth,
                     "priority": priority,
                 })
 
