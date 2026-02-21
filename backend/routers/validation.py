@@ -1696,6 +1696,8 @@ def _build_content_mode_filter(content_mode: Optional[str] = None, abstract_only
         return {"content_mode": "abstract_plus_summary"}
     elif content_mode == "abstract_plus_3summaries":
         return {"content_mode": "abstract_plus_3summaries"}
+    elif content_mode == "abstract_plus_random_summary":
+        return {"content_mode": "abstract_plus_random_summary"}
     elif content_mode == "abstract_plus_impact":
         return {"content_mode": "abstract_plus_impact"}
     elif content_mode == "abstract":
