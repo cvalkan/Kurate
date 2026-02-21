@@ -3140,57 +3140,61 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
 
 
 async def _run_summarizer_comparison(pairs: list, parallel: int):
-    """Background: run A/B comparisons for Opus 4.5 vs 4.6 summaries.
-    Generates Opus 4.6 summaries on-the-fly for papers that don't have them yet."""
+    """Background: Phase 1 = generate missing Opus 4.6 summaries in parallel, Phase 2 = run comparisons."""
     from services.llm import compare_papers, generate_precomparison_impact_summary
 
-    sem = asyncio.Semaphore(parallel)
-    completed = 0
+    # Phase 1: Pre-generate all missing Opus 4.6 summaries in parallel
+    paper_ids_needed = set()
+    for pair in pairs:
+        paper_ids_needed.add((pair["dataset_id"], pair["paper1_id"]))
+        paper_ids_needed.add((pair["dataset_id"], pair["paper2_id"]))
+
+    sem_gen = asyncio.Semaphore(parallel)
     summaries_generated = 0
 
-    async def _ensure_opus46_summary(paper):
-        """Generate Opus 4.6 summary if missing, save to DB."""
+    async def _gen_one(ds_id, paper_id):
         nonlocal summaries_generated
-        if paper.get("ai_impact_summary_opus46"):
-            return paper["ai_impact_summary_opus46"]
-        # Generate on the fly
-        model_info = {"provider": "anthropic", "model": "claude-opus-4-6"}
-        result = await generate_precomparison_impact_summary(paper, model_override=model_info)
-        if result and result.get("summary"):
-            await db.validation_papers.update_one(
-                {"dataset_id": paper["dataset_id"], "id": paper["id"]},
-                {"$set": {"ai_impact_summary_opus46": result["summary"]}},
-            )
-            summaries_generated += 1
-            return result["summary"]
-        return None
+        async with sem_gen:
+            p = await db.validation_papers.find_one({"dataset_id": ds_id, "id": paper_id}, {"_id": 0})
+            if not p or p.get("ai_impact_summary_opus46"):
+                return
+            model_info = {"provider": "anthropic", "model": "claude-opus-4-6"}
+            result = await generate_precomparison_impact_summary(p, model_override=model_info)
+            if result and result.get("summary"):
+                await db.validation_papers.update_one(
+                    {"dataset_id": ds_id, "id": paper_id},
+                    {"$set": {"ai_impact_summary_opus46": result["summary"]}},
+                )
+                summaries_generated += 1
+
+    gen_tasks = [_gen_one(ds_id, pid) for ds_id, pid in paper_ids_needed]
+    logger.info(f"Summarizer comparison: generating Opus 4.6 summaries for up to {len(gen_tasks)} papers...")
+    await asyncio.gather(*gen_tasks, return_exceptions=True)
+    logger.info(f"Summarizer comparison: {summaries_generated} new summaries generated")
+
+    # Phase 2: Run comparisons in parallel
+    sem_cmp = asyncio.Semaphore(parallel)
+    completed = 0
 
     async def _run_one(pair):
         nonlocal completed
-        async with sem:
+        async with sem_cmp:
             ds_id = pair["dataset_id"]
             p1 = await db.validation_papers.find_one({"dataset_id": ds_id, "id": pair["paper1_id"]}, {"_id": 0})
             p2 = await db.validation_papers.find_one({"dataset_id": ds_id, "id": pair["paper2_id"]}, {"_id": 0})
             if not p1 or not p2:
                 return
 
-            # Ensure both papers have Opus 4.6 summaries
-            p1_opus46 = await _ensure_opus46_summary(p1)
-            p2_opus46 = await _ensure_opus46_summary(p2)
-
-            # Get Opus 4.5 summaries (already exist as ai_impact_summary_claude)
             p1_opus45 = p1.get("ai_impact_summary_claude") or p1.get("ai_impact_summary", "")
             p2_opus45 = p2.get("ai_impact_summary_claude") or p2.get("ai_impact_summary", "")
+            p1_opus46 = p1.get("ai_impact_summary_opus46", "")
+            p2_opus46 = p2.get("ai_impact_summary_opus46", "")
 
-            # Pin the same judge model for both runs (fair comparison)
             from services.llm import _pick_round_robin_model
             judge_model = _pick_round_robin_model()
 
             results = {}
-            for model_key, p1_sum, p2_sum in [
-                ("opus45", p1_opus45, p2_opus45),
-                ("opus46", p1_opus46, p2_opus46),
-            ]:
+            for model_key, p1_sum, p2_sum in [("opus45", p1_opus45, p2_opus45), ("opus46", p1_opus46, p2_opus46)]:
                 if not p1_sum or not p2_sum:
                     continue
                 p1_copy = {**p1, "ai_impact_summary": p1_sum}
@@ -3198,59 +3202,45 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                 try:
                     result = await compare_papers(p1_copy, p2_copy, content_mode="abstract_plus_summary", model_override=judge_model)
                     if result and not result.get("failed"):
-                        winner_label = result.get("winner")  # "paper1" or "paper2"
+                        winner_label = result.get("winner")
                         winner_id = p1["id"] if winner_label == "paper1" else p2["id"] if winner_label == "paper2" else None
-                        results[model_key] = {
-                            "winner_id": winner_id,
-                            "model_key": result.get("model_used", {}).get("model", ""),
-                            "reasoning": result.get("reasoning", "")[:500],
-                        }
+                        results[model_key] = {"winner_id": winner_id, "model_key": result.get("model_used", {}).get("model", ""), "reasoning": result.get("reasoning", "")[:500]}
                 except Exception as e:
                     logger.warning(f"Summarizer comparison failed ({model_key}): {e}")
 
-                if results:
-                    doc = {
-                        "dataset_id": ds_id,
-                        "paper1_id": pair["paper1_id"],
-                        "paper2_id": pair["paper2_id"],
-                        "human_winner_id": pair["human_winner_id"],
-                        "score_gap": pair["score_gap"],
-                        "has_tier_diff": pair["has_tier_diff"],
-                        "ground_truth": pair.get("ground_truth", "unknown"),
-                        "judge_model": judge_model.get("model", ""),
-                        "results": results,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                    for mk, r in results.items():
-                        doc[f"{mk}_correct"] = r["winner_id"] == pair["human_winner_id"]
+            if results:
+                doc = {
+                    "dataset_id": ds_id, "paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"],
+                    "human_winner_id": pair["human_winner_id"], "score_gap": pair["score_gap"],
+                    "has_tier_diff": pair["has_tier_diff"], "ground_truth": pair.get("ground_truth", "unknown"),
+                    "judge_model": judge_model.get("model", ""),
+                    "results": results, "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                for mk, r in results.items():
+                    doc[f"{mk}_correct"] = r["winner_id"] == pair["human_winner_id"]
+                # Single reviewer baseline on these exact pairs
+                if pair.get("ground_truth") in ("committee", "reviewer_majority"):
+                    scores1, scores2 = p1.get("scores", []), p2.get("scores", [])
+                    if scores1 and scores2:
+                        sc, st = 0, 0
+                        for r1 in scores1:
+                            for r2 in scores2:
+                                if r1 == r2: continue
+                                st += 1
+                                if (r1 > r2 and pair["human_winner_id"] == p1["id"]) or (r2 > r1 and pair["human_winner_id"] == p2["id"]):
+                                    sc += 1
+                        doc["single_reviewer_correct"] = sc
+                        doc["single_reviewer_total"] = st
+                await db.summarizer_comparisons.update_one(
+                    {"paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"]},
+                    {"$set": doc}, upsert=True,
+                )
+                completed += 1
 
-                    # Single reviewer baseline: for each cross-paper reviewer pair, does the higher score predict the winner?
-                    if pair.get("ground_truth") in ("committee", "reviewer_majority"):
-                        scores1 = p1.get("scores", [])
-                        scores2 = p2.get("scores", [])
-                        if scores1 and scores2:
-                            single_correct = 0
-                            single_total = 0
-                            for r1 in scores1:
-                                for r2 in scores2:
-                                    if r1 == r2:
-                                        continue
-                                    single_total += 1
-                                    reviewer_pick = p1["id"] if r1 > r2 else p2["id"]
-                                    if reviewer_pick == pair["human_winner_id"]:
-                                        single_correct += 1
-                            doc["single_reviewer_correct"] = single_correct
-                            doc["single_reviewer_total"] = single_total
+    cmp_tasks = [_run_one(p) for p in pairs]
+    await asyncio.gather(*cmp_tasks, return_exceptions=True)
+    logger.info(f"Summarizer comparison complete: {completed}/{len(pairs)}")
 
-                    await db.summarizer_comparisons.update_one(
-                        {"paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"]},
-                        {"$set": doc}, upsert=True,
-                    )
-                    completed += 1
-
-    tasks = [_run_one(p) for p in pairs]
-    await asyncio.gather(*tasks, return_exceptions=True)
-    logger.info(f"Summarizer comparison complete: {completed}/{len(pairs)}, {summaries_generated} new Opus 4.6 summaries generated")
 
 
 @router.get("/summarizer-comparison/results")
