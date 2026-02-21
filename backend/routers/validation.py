@@ -3102,9 +3102,10 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
     for p in all_pairs:
         by_dataset[p["dataset_id"]].append(p)
     
-    # Sort within each dataset: hard committee pairs first (small score gap), then others
+    # Shuffle within each dataset, then round-robin
+    import random as _rnd
     for ds_pairs in by_dataset.values():
-        ds_pairs.sort(key=lambda p: p["priority"])
+        _rnd.shuffle(ds_pairs)
     
     # Round-robin across datasets
     selected = []
