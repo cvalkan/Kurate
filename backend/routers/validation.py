@@ -3110,9 +3110,9 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
     for p in all_pairs:
         by_dataset[p["dataset_id"]].append(p)
     
-    # Sort within each dataset: tier-diff first, then by score gap
+    # Sort within each dataset: hard committee pairs first (small score gap), then others
     for ds_pairs in by_dataset.values():
-        ds_pairs.sort(key=lambda p: (p["priority"], -p["score_gap"]))
+        ds_pairs.sort(key=lambda p: p["priority"])
     
     # Round-robin across datasets
     selected = []
