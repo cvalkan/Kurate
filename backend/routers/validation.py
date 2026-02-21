@@ -1060,7 +1060,6 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
         # Dedup: only check matches of the same storage mode
         match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
         if prompt_tag:
-            # Custom prompt matches are isolated by their storage_mode
             match_filter["content_mode"] = storage_mode
         elif content_mode in ("abstract_plus_3summaries", "abstract_plus_random_summary"):
             match_filter["content_mode"] = content_mode
@@ -1068,9 +1067,12 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
             match_filter["abstract_only"] = True
         elif content_mode == "full_pdf":
             match_filter["content_mode"] = "full_pdf"
+        elif content_mode in ("abstract_plus_summary", "ai_summary", "abstract_plus_impact"):
+            match_filter["content_mode"] = content_mode
         else:
+            # "extract" mode: exclude abstract, named modes, and tagged variants
             match_filter["abstract_only"] = {"$ne": True}
-            match_filter["content_mode"] = {"$ne": "full_pdf"}
+            match_filter["content_mode"] = {"$nin": ["full_pdf", "ai_summary", "abstract_plus_summary", "abstract_plus_impact"], "$not": {"$regex": ":"}}
 
         existing = await db.validation_matches.find(
             match_filter,
@@ -1549,7 +1551,8 @@ async def get_available_modes(dataset_id: str = Query(...)):
             "count": {"$sum": 1}
         }},
     ]
-    modes = []
+    # Single pass: collect raw results and detect variants
+    raw_results = []
     has_summary_variants = False
     async for doc in db.validation_matches.aggregate(pipeline):
         cm = doc["_id"]["content_mode"]
@@ -1558,16 +1561,10 @@ async def get_available_modes(dataset_id: str = Query(...)):
             pt = cm.split(":", 1)[1]
         if pt and pt in SUMMARY_TAG_LABELS:
             has_summary_variants = True
+        raw_results.append((cm, pt, doc["count"]))
 
-    # Re-run to build list (now we know if variants exist)
-    async for doc in db.validation_matches.aggregate(pipeline):
-        cm = doc["_id"]["content_mode"]
-        pt = doc["_id"]["prompt_tag"]
-        # Also extract tag from content_mode if prompt_tag is missing (e.g. replayed matches)
-        if not pt and ":" in cm:
-            pt = cm.split(":", 1)[1]
-        if pt and pt in SUMMARY_TAG_LABELS:
-            has_summary_variants = True
+    modes = []
+    for cm, pt, count in raw_results:
         mode_id = cm if cm != "none" else "extract"
         if pt:
             label = SUMMARY_TAG_LABELS.get(pt, f"{BASE_LABELS.get(cm.split(':')[0], cm)} ({pt})")
@@ -1578,7 +1575,7 @@ async def get_available_modes(dataset_id: str = Query(...)):
         else:
             label = BASE_LABELS.get(cm, mode_id.replace("_", " ").title())
             final_id = cm
-        modes.append({"id": final_id, "label": label, "prompt_tag": pt, "matches": doc["count"]})
+        modes.append({"id": final_id, "label": label, "prompt_tag": pt, "matches": count})
     return {"modes": sorted(modes, key=lambda m: -m["matches"])}
 
 
@@ -2365,10 +2362,15 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
             name = ev.get("evaluator", "")
             if name: expert_ratings[name][p["id"]] = ev["rating_value"]
 
-    # Expert-expert pairwise agreement — filtered to pairs where AI has data
-    ai_pair = {}
+    # AI pair winners — use majority vote when multiple judges evaluated the same pair
+    _ai_pair_votes = defaultdict(list)
     for m in ai_matches:
-        ai_pair[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
+        if m.get("winner_id"):
+            _ai_pair_votes[tuple(sorted([m["paper1_id"], m["paper2_id"]]))].append(m["winner_id"])
+    ai_pair = {}
+    for pair, votes in _ai_pair_votes.items():
+        c = Counter(votes)
+        ai_pair[pair] = c.most_common(1)[0][0]
 
     pair_votes = defaultdict(list)
     for exp, ratings in expert_ratings.items():
