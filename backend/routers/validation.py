@@ -3220,6 +3220,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                     "score_gap": pair["score_gap"],
                     "has_tier_diff": pair["has_tier_diff"],
                     "ground_truth": pair.get("ground_truth", "unknown"),
+                    "judge_model": judge_model.get("model", ""),
                     "results": results,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
