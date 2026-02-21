@@ -1062,6 +1062,8 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
         if prompt_tag:
             # Custom prompt matches are isolated by their storage_mode
             match_filter["content_mode"] = storage_mode
+        elif content_mode in ("abstract_plus_3summaries", "abstract_plus_random_summary"):
+            match_filter["content_mode"] = content_mode
         elif content_mode == "abstract":
             match_filter["abstract_only"] = True
         elif content_mode == "full_pdf":
