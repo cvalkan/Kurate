@@ -3146,6 +3146,9 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
 
 async def _run_summarizer_comparison(pairs: list, parallel: int):
     """Background: Phase 1 = generate missing Opus 4.6 summaries in parallel, Phase 2 = run comparisons."""
+    global _summarizer_comparison_running, _summarizer_comparison_cancel
+    _summarizer_comparison_running = True
+    _summarizer_comparison_cancel = False
     from services.llm import compare_papers, generate_precomparison_impact_summary
 
     # Phase 1: Pre-generate all missing Opus 4.6 summaries in parallel
