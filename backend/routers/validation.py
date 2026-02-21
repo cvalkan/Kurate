@@ -3508,7 +3508,7 @@ async def _run_replay(dataset_id: str, matches: list, target_mode: str, summary_
                     result["completed"] = True
                     result["failed"] = False
                     result["replayed_from"] = "abstract_plus_summary"
-                    result["pinned_judge"] = judge_key
+                    result["pinned_judge"] = judge_model
                     # Remove _id if present
                     result.pop("_id", None)
                     await db.validation_matches.insert_one(result)
