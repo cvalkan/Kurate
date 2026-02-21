@@ -3146,9 +3146,11 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                 try:
                     result = await compare_papers(p1_copy, p2_copy, content_mode="abstract_plus_summary")
                     if result and not result.get("failed"):
+                        winner_label = result.get("winner")  # "paper1" or "paper2"
+                        winner_id = p1["id"] if winner_label == "paper1" else p2["id"] if winner_label == "paper2" else None
                         results[model_key] = {
-                            "winner_id": result.get("winner_id"),
-                            "model_key": result.get("model_key"),
+                            "winner_id": winner_id,
+                            "model_key": result.get("model_used", {}).get("model", ""),
                             "reasoning": result.get("reasoning", "")[:500],
                         }
                 except Exception as e:
