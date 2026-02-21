@@ -54,14 +54,12 @@ export default function SummarizerComparisonSection() {
             The AI judge sees abstract + summary and picks a winner — we measure which summarizer leads to more correct picks.
           </p>
         </div>
-        {isAdmin && (
-          <div className="flex gap-2 shrink-0">
-            <Button size="sm" className="gap-1.5 text-xs" onClick={() => runComparison(200)} disabled={running}>
-              <Play className="h-3 w-3" /> {total > 0 ? "+200 pairs" : "Run 200 pairs"}
-            </Button>
-            {running && <span className="text-xs text-muted-foreground animate-pulse">{statusMsg}</span>}
-          </div>
-        )}
+        <div className="flex gap-2 shrink-0">
+          <Button size="sm" className="gap-1.5 text-xs" onClick={() => runComparison(200)} disabled={running}>
+            <Play className="h-3 w-3" /> {total > 0 ? "+200 pairs" : "Run 200 pairs"}
+          </Button>
+          {running && <span className="text-xs text-muted-foreground animate-pulse">{statusMsg}</span>}
+        </div>
       </div>
 
       {!hasData && !running && (
