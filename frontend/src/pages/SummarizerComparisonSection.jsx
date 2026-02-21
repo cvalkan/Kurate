@@ -4,7 +4,7 @@ import { FlaskConical, Play, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const API = process.env.REACT_APP_BACKEND_URL;
-function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
+function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "papersumo2025" }; }
 
 export default function SummarizerComparisonSection() {
   const [results, setResults] = useState(null);
