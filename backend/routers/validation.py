@@ -1554,6 +1554,8 @@ async def get_available_modes(dataset_id: str = Query(...)):
     async for doc in db.validation_matches.aggregate(pipeline):
         cm = doc["_id"]["content_mode"]
         pt = doc["_id"]["prompt_tag"]
+        if not pt and ":" in cm:
+            pt = cm.split(":", 1)[1]
         if pt and pt in SUMMARY_TAG_LABELS:
             has_summary_variants = True
 
