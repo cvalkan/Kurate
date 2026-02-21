@@ -3212,7 +3212,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                     logger.warning(f"Summarizer comparison failed ({model_key}): {e}")
 
                 if results:
-                doc = {
+                    doc = {
                     "dataset_id": ds_id,
                     "paper1_id": pair["paper1_id"],
                     "paper2_id": pair["paper2_id"],
