@@ -1,44 +1,66 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
-import { FlaskConical, Play, RefreshCw } from "lucide-react";
+import { Play, Square, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const API = process.env.REACT_APP_BACKEND_URL;
-function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "papersumo2025" }; }
+const ADMIN_HEADERS = { "X-Admin-Token": sessionStorage.getItem("admin_token") || "papersumo2025" };
 
 export default function SummarizerComparisonSection() {
   const [results, setResults] = useState(null);
   const [running, setRunning] = useState(false);
-  const [statusMsg, setStatusMsg] = useState("");
-  const isAdmin = !!sessionStorage.getItem("admin_token");
+  const [prevCount, setPrevCount] = useState(0);
+  const pollRef = useRef(null);
 
   const fetchResults = useCallback(async () => {
     try {
       const r = await axios.get(`${API}/api/validation/summarizer-comparison/results`);
       setResults(r.data);
-    } catch (e) { console.error(e); }
+      return r.data.total_pairs || 0;
+    } catch (e) { console.error(e); return 0; }
   }, []);
 
   useEffect(() => { fetchResults(); }, [fetchResults]);
-  useEffect(() => {
-    if (!running) return;
-    const iv = setInterval(fetchResults, 5000);
-    return () => clearInterval(iv);
-  }, [running, fetchResults]);
 
-  const runComparison = async (numPairs = 200) => {
+  // Poll while running
+  useEffect(() => {
+    if (!running) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      return;
+    }
+    pollRef.current = setInterval(async () => {
+      const count = await fetchResults();
+      // Stop polling if no progress for 2 consecutive polls
+      if (count > 0 && count === prevCount) {
+        // Could be done — check status
+        const s = await axios.get(`${API}/api/validation/summarizer-comparison/status`);
+        if (!s.data.is_running) {
+          setRunning(false);
+        }
+      }
+      setPrevCount(count);
+    }, 5000);
+    return () => clearInterval(pollRef.current);
+  }, [running, prevCount, fetchResults]);
+
+  const runComparison = async () => {
+    setPrevCount(results?.total_pairs || 0);
     setRunning(true);
-    setStatusMsg("Starting...");
     try {
-      const r = await axios.post(`${API}/api/validation/summarizer-comparison/run`,
-        { num_pairs: numPairs, parallel: 8 },
-        { headers: adminHeaders() });
-      setStatusMsg(`Running: ${r.data.new_to_run} new pairs (${r.data.already_done} already done)`);
-      setTimeout(() => { setRunning(false); fetchResults(); }, 3000);
+      await axios.post(`${API}/api/validation/summarizer-comparison/run`,
+        { num_pairs: 200, parallel: 8 },
+        { headers: ADMIN_HEADERS });
     } catch (e) {
-      setStatusMsg(`Error: ${e.message}`);
       setRunning(false);
     }
+  };
+
+  const stopComparison = async () => {
+    try {
+      await axios.post(`${API}/api/validation/summarizer-comparison/stop`, {}, { headers: ADMIN_HEADERS });
+    } catch (e) { console.error(e); }
+    setRunning(false);
+    fetchResults();
   };
 
   const total = results?.total_pairs || 0;
@@ -54,17 +76,27 @@ export default function SummarizerComparisonSection() {
             The AI judge sees abstract + summary and picks a winner — we measure which summarizer leads to more correct picks.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <Button size="sm" className="gap-1.5 text-xs" onClick={() => runComparison(200)} disabled={running}>
-            <Play className="h-3 w-3" /> {total > 0 ? "+200 pairs" : "Run 200 pairs"}
-          </Button>
-          {running && <span className="text-xs text-muted-foreground animate-pulse">{statusMsg}</span>}
+        <div className="flex gap-2 shrink-0 items-center">
+          {running ? (
+            <>
+              <span className="text-xs text-muted-foreground animate-pulse flex items-center gap-1">
+                <RefreshCw className="h-3 w-3 animate-spin" /> Running... {total} pairs done
+              </span>
+              <Button size="sm" variant="destructive" className="gap-1.5 text-xs" onClick={stopComparison}>
+                <Square className="h-3 w-3" /> Stop
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" className="gap-1.5 text-xs" onClick={runComparison}>
+              <Play className="h-3 w-3" /> {total > 0 ? "+200 pairs" : "Run 200 pairs"}
+            </Button>
+          )}
         </div>
       </div>
 
       {!hasData && !running && (
         <div className="border border-border rounded-lg p-6 text-center text-sm text-muted-foreground">
-          No comparison data yet. {isAdmin ? "Click 'Run 200 pairs' to start." : "Ask an admin to run the comparison."}
+          No comparison data yet. Click 'Run 200 pairs' to start.
         </div>
       )}
 
