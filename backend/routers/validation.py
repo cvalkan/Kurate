@@ -3256,8 +3256,9 @@ async def get_summarizer_comparison_results():
             by_dataset[ds]["opus46"] += 1
 
     # By tier-diff vs same-tier
-    tier_diff = [d for d in docs if d.get("has_tier_diff")]
-    same_tier = [d for d in docs if not d.get("has_tier_diff")]
+    committee = [d for d in docs if d.get("ground_truth") == "committee"]
+    reviewer_maj = [d for d in docs if d.get("ground_truth") == "reviewer_majority"]
+    editorial = [d for d in docs if d.get("ground_truth") == "editorial_assessment"]
 
     # By score gap buckets
     gap_buckets = {"small (<0.5)": [], "medium (0.5-1.5)": [], "large (>1.5)": []}
