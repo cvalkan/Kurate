@@ -3012,6 +3012,211 @@ async def get_paper_summaries(dataset_id: str = Query(...)):
 
 
 
+# ─── Summarizer Comparison (Pairwise A/B Test) ─────────────────────────────
+
+class SummarizerComparisonRequest(BaseModel):
+    num_pairs: int = 200
+    parallel: int = 8
+    datasets: list = []  # empty = all ICLR + eLife datasets
+
+
+@router.post("/summarizer-comparison/run", dependencies=[Depends(verify_admin)])
+async def run_summarizer_comparison(body: SummarizerComparisonRequest):
+    """Run pairwise A/B test: Opus 4.5 vs Opus 4.6 summaries across multiple datasets."""
+    # Find all datasets with both summary versions
+    target_ds = body.datasets or []
+    if not target_ds:
+        async for d in db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1}):
+            target_ds.append(d["dataset_id"])
+
+    # Collect eligible pairs: papers with both summaries AND clear human preference
+    all_pairs = []
+    for ds_id in target_ds:
+        papers = await db.validation_papers.find(
+            {"dataset_id": ds_id, "ai_impact_summary_claude": {"$ne": None}, "ai_impact_summary_opus46": {"$ne": None}},
+            {"_id": 0},
+        ).to_list(5000)
+        if len(papers) < 2:
+            continue
+
+        # Build pairs with clear human winner
+        paper_map = {p["id"]: p for p in papers}
+        pids = list(paper_map.keys())
+
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                p1, p2 = paper_map[pids[i]], paper_map[pids[j]]
+                s1, s2 = p1.get("h1_avg_rating", 0), p2.get("h1_avg_rating", 0)
+                if abs(s1 - s2) < 0.3:
+                    continue  # Skip near-ties
+                human_winner_id = p1["id"] if s1 > s2 else p2["id"]
+                # Check for decision-based tiers (committee decisions)
+                d1, d2 = (p1.get("decision") or "").lower(), (p2.get("decision") or "").lower()
+                tier_order = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "short paper": 2}
+                t1, t2 = tier_order.get(d1, 99), tier_order.get(d2, 99)
+                has_tier_diff = t1 != t2 and t1 != 99 and t2 != 99
+                # Prefer pairs with tier differences (committee decisions)
+                priority = 0 if has_tier_diff else 1
+                all_pairs.append({
+                    "dataset_id": ds_id,
+                    "paper1_id": p1["id"], "paper2_id": p2["id"],
+                    "human_winner_id": human_winner_id,
+                    "score_gap": abs(s1 - s2),
+                    "has_tier_diff": has_tier_diff,
+                    "priority": priority,
+                })
+
+    if not all_pairs:
+        return {"status": "error", "message": "No eligible pairs found. Need datasets with both Opus 4.5 and 4.6 summaries."}
+
+    # Sort: tier-different pairs first, then by score gap
+    all_pairs.sort(key=lambda p: (p["priority"], -p["score_gap"]))
+    selected = all_pairs[:body.num_pairs]
+
+    # Check existing completed comparisons to avoid re-running
+    existing = set()
+    async for doc in db.summarizer_comparisons.find({}, {"_id": 0, "paper1_id": 1, "paper2_id": 1}):
+        existing.add((doc["paper1_id"], doc["paper2_id"]))
+
+    new_pairs = [p for p in selected if (p["paper1_id"], p["paper2_id"]) not in existing and (p["paper2_id"], p["paper1_id"]) not in existing]
+
+    asyncio.create_task(_run_summarizer_comparison(new_pairs, body.parallel))
+    return {
+        "status": "started",
+        "total_eligible": len(all_pairs),
+        "selected": len(selected),
+        "new_to_run": len(new_pairs),
+        "already_done": len(selected) - len(new_pairs),
+        "datasets": list(set(p["dataset_id"] for p in selected)),
+    }
+
+
+async def _run_summarizer_comparison(pairs: list, parallel: int):
+    """Background: run A/B comparisons for Opus 4.5 vs 4.6 summaries."""
+    from services.llm import compare_papers
+
+    sem = asyncio.Semaphore(parallel)
+    completed = 0
+
+    async def _run_one(pair):
+        nonlocal completed
+        async with sem:
+            ds_id = pair["dataset_id"]
+            p1 = await db.validation_papers.find_one({"dataset_id": ds_id, "id": pair["paper1_id"]}, {"_id": 0})
+            p2 = await db.validation_papers.find_one({"dataset_id": ds_id, "id": pair["paper2_id"]}, {"_id": 0})
+            if not p1 or not p2:
+                return
+
+            results = {}
+            for model_key, sum_field in [("opus45", "ai_impact_summary_claude"), ("opus46", "ai_impact_summary_opus46")]:
+                # Temporarily swap summary for comparison
+                p1_copy = {**p1, "ai_impact_summary": p1.get(sum_field, "")}
+                p2_copy = {**p2, "ai_impact_summary": p2.get(sum_field, "")}
+                try:
+                    result = await compare_papers(p1_copy, p2_copy, content_mode="abstract_plus_summary")
+                    if result and not result.get("failed"):
+                        results[model_key] = {
+                            "winner_id": result.get("winner_id"),
+                            "model_key": result.get("model_key"),
+                            "reasoning": result.get("reasoning", "")[:500],
+                        }
+                except Exception as e:
+                    logger.warning(f"Summarizer comparison failed ({model_key}): {e}")
+
+            if results:
+                doc = {
+                    "dataset_id": ds_id,
+                    "paper1_id": pair["paper1_id"],
+                    "paper2_id": pair["paper2_id"],
+                    "human_winner_id": pair["human_winner_id"],
+                    "score_gap": pair["score_gap"],
+                    "has_tier_diff": pair["has_tier_diff"],
+                    "results": results,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                # Check which summarizer agreed with human
+                for mk, r in results.items():
+                    doc[f"{mk}_correct"] = r["winner_id"] == pair["human_winner_id"]
+                await db.summarizer_comparisons.update_one(
+                    {"paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"]},
+                    {"$set": doc}, upsert=True,
+                )
+                completed += 1
+
+    tasks = [_run_one(p) for p in pairs]
+    await asyncio.gather(*tasks, return_exceptions=True)
+    logger.info(f"Summarizer comparison complete: {completed}/{len(pairs)}")
+
+
+@router.get("/summarizer-comparison/results")
+async def get_summarizer_comparison_results():
+    """Get results of Opus 4.5 vs 4.6 summarizer A/B test."""
+    docs = await db.summarizer_comparisons.find({}, {"_id": 0}).to_list(10000)
+    if not docs:
+        return {"status": "no_data", "total": 0}
+
+    total = len(docs)
+    opus45_correct = sum(1 for d in docs if d.get("opus45_correct"))
+    opus46_correct = sum(1 for d in docs if d.get("opus46_correct"))
+    both_correct = sum(1 for d in docs if d.get("opus45_correct") and d.get("opus46_correct"))
+    neither_correct = sum(1 for d in docs if not d.get("opus45_correct") and not d.get("opus46_correct"))
+
+    # By dataset
+    from collections import defaultdict
+    by_dataset = defaultdict(lambda: {"total": 0, "opus45": 0, "opus46": 0})
+    for d in docs:
+        ds = d.get("dataset_id", "?")
+        by_dataset[ds]["total"] += 1
+        if d.get("opus45_correct"):
+            by_dataset[ds]["opus45"] += 1
+        if d.get("opus46_correct"):
+            by_dataset[ds]["opus46"] += 1
+
+    # By tier-diff vs same-tier
+    tier_diff = [d for d in docs if d.get("has_tier_diff")]
+    same_tier = [d for d in docs if not d.get("has_tier_diff")]
+
+    # By score gap buckets
+    gap_buckets = {"small (<0.5)": [], "medium (0.5-1.5)": [], "large (>1.5)": []}
+    for d in docs:
+        gap = d.get("score_gap", 0)
+        if gap < 0.5:
+            gap_buckets["small (<0.5)"].append(d)
+        elif gap < 1.5:
+            gap_buckets["medium (0.5-1.5)"].append(d)
+        else:
+            gap_buckets["large (>1.5)"].append(d)
+
+    return {
+        "status": "ok",
+        "total_pairs": total,
+        "opus45_accuracy": round(opus45_correct / max(total, 1) * 100, 1),
+        "opus46_accuracy": round(opus46_correct / max(total, 1) * 100, 1),
+        "both_correct": both_correct,
+        "neither_correct": neither_correct,
+        "opus45_only": opus45_correct - both_correct,
+        "opus46_only": opus46_correct - both_correct,
+        "by_dataset": {ds: {
+            "total": v["total"],
+            "opus45_pct": round(v["opus45"] / max(v["total"], 1) * 100, 1),
+            "opus46_pct": round(v["opus46"] / max(v["total"], 1) * 100, 1),
+        } for ds, v in by_dataset.items()},
+        "by_tier_diff": {
+            "with_tier_diff": {"total": len(tier_diff), "opus45": sum(1 for d in tier_diff if d.get("opus45_correct")), "opus46": sum(1 for d in tier_diff if d.get("opus46_correct"))},
+            "same_tier": {"total": len(same_tier), "opus45": sum(1 for d in same_tier if d.get("opus45_correct")), "opus46": sum(1 for d in same_tier if d.get("opus46_correct"))},
+        },
+        "by_gap": {k: {"total": len(v), "opus45": sum(1 for d in v if d.get("opus45_correct")), "opus46": sum(1 for d in v if d.get("opus46_correct"))} for k, v in gap_buckets.items()},
+    }
+
+
+@router.get("/summarizer-comparison/status")
+async def get_summarizer_comparison_status():
+    """Get progress of summarizer comparison."""
+    total = await db.summarizer_comparisons.count_documents({})
+    return {"total_completed": total}
+
+
+
 # ─── Targeted Pairwise Run ──────────────────────────────────────────────────
 
 class TargetedPairwiseRequest(BaseModel):
