@@ -3283,7 +3283,15 @@ async def get_summarizer_comparison_results():
         t = len(subset)
         o45 = sum(1 for d in subset if d.get("opus45_correct"))
         o46 = sum(1 for d in subset if d.get("opus46_correct"))
-        return {"total": t, "opus45": o45, "opus46": o46, "opus45_pct": round(o45/t*100, 1), "opus46_pct": round(o46/t*100, 1)}
+        # Human reviewer baseline (only for committee decisions)
+        reviewer_agrees = [d for d in subset if d.get("reviewer_agrees_with_committee") is not None]
+        reviewer_correct = sum(1 for d in reviewer_agrees if d.get("reviewer_agrees_with_committee"))
+        result = {"total": t, "opus45": o45, "opus46": o46,
+                  "opus45_pct": round(o45/t*100, 1), "opus46_pct": round(o46/t*100, 1)}
+        if reviewer_agrees:
+            result["human_reviewer_pct"] = round(reviewer_correct / len(reviewer_agrees) * 100, 1)
+            result["human_reviewer_total"] = len(reviewer_agrees)
+        return result
 
     # By score gap buckets
     gap_buckets = {"small (<0.5)": [], "medium (0.5-1.5)": [], "large (>1.5)": []}
