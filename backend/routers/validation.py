@@ -2487,7 +2487,19 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
             pair_majority[pair] = best
 
     # Fetch AI winners per content mode (and per-model data)
-    modes = ["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"]
+    # Dynamically discover all modes with data instead of a hardcoded list
+    mode_pipeline = [
+        {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
+        {"$group": {"_id": {"$ifNull": ["$content_mode", "extract"]}, "count": {"$sum": 1}}},
+    ]
+    modes = []
+    async for doc in db.validation_matches.aggregate(mode_pipeline):
+        cm = doc["_id"]
+        # Normalize legacy entries without content_mode
+        if cm in ("none", None, ""):
+            cm = "extract"
+        modes.append(cm)
+
     mode_ai_pairs = {}
     mode_model_pairs = {}  # mode -> model_key -> {pair: winner}
     for mode in modes:
