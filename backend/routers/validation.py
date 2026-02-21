@@ -1533,6 +1533,7 @@ async def get_available_modes(dataset_id: str = Query(...)):
         "full_pdf": "Full PDF", "ai_summary": "AI Summary",
         "abstract_plus_summary": "Abstract + Summary (Opus 4.5)",
         "abstract_plus_impact": "Abstract + Impact",
+        "abstract_plus_3summaries": "Abstract + 3 Summaries",
     }
     pipeline = [
         {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
