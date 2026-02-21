@@ -180,6 +180,7 @@ export default function ValidationHubPage() {
 
           {/* Experiments */}
           <CollapsibleGroup label="Experiments" icon={FlaskRound} defaultOpen={selected.startsWith("exp-")}>
+            <NavItem item={{ id: "exp-summarizer-ab", label: "Opus 4.5 vs 4.6", sub: "Summarizer A/B test" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-summary-bias", label: "Summary Bias", sub: "Biomolecules" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-summary-bias-econ", label: "Summary Bias", sub: "Economics" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-summary-bias-phys", label: "Summary Bias", sub: "Comp Physics" }} selected={selected} onSelect={setSelected} />
