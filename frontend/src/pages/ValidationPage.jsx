@@ -272,7 +272,7 @@ function StandardStats({ datasetId, isAdmin }) {
       const staticIds = new Set(["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"]);
       const discoveredModes = modesRes.data.modes || [];
       // Check if there are summary model variants — if so, use API label for abstract_plus_summary
-      const hasSummaryVariants = discoveredModes.some(m => m.prompt_tag && (m.prompt_tag.includes("summary") || m.prompt_tag.includes("gpt") || m.prompt_tag.includes("gemini")));
+      const hasSummaryVariants = discoveredModes.some(m => m.prompt_tag && (m.prompt_tag.includes("summary") || m.prompt_tag.includes("gpt") || m.prompt_tag.includes("gemini") || m.prompt_tag.includes("thinking")));
       const absLabel = hasSummaryVariants
         ? (discoveredModes.find(m => m.id === "abstract_plus_summary")?.label || "Abstract + Summary (Opus 4.5)")
         : "Abstract + Summary";
@@ -289,32 +289,30 @@ function StandardStats({ datasetId, isAdmin }) {
         }
       }
       setAllModes(merged);
+    } catch (e) { console.error(e); }
+  }, [datasetId]);
 
-      // Fetch data for all modes
-      const modeResults = await Promise.all(
-        merged.flatMap(m => [
-          axios.get(`${API}/api/validation/pairwise-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
-          axios.get(`${API}/api/validation/irt-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
-          axios.get(`${API}/api/validation/agreement-analysis`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
-          axios.get(`${API}/api/validation/dual-dimension-results`, { params: { ...params, content_mode: m.id } }).catch(() => ({ data: {} })),
-        ])
-      );
-      const newModeData = {};
-      merged.forEach((m, idx) => {
-        const pw = modeResults[idx * 4];
-        const ir = modeResults[idx * 4 + 1];
-        const ag = modeResults[idx * 4 + 2];
-        const dd = modeResults[idx * 4 + 3];
-        newModeData[m.id] = {
+  // Lazy-load data for the active content mode only
+  useEffect(() => {
+    if (!contentMode || modeData[contentMode]) return; // already loaded
+    const params = { dataset_id: datasetId, content_mode: contentMode };
+    Promise.all([
+      axios.get(`${API}/api/validation/pairwise-results`, { params }).catch(() => ({ data: {} })),
+      axios.get(`${API}/api/validation/irt-results`, { params }).catch(() => ({ data: {} })),
+      axios.get(`${API}/api/validation/agreement-analysis`, { params }).catch(() => ({ data: {} })),
+      axios.get(`${API}/api/validation/dual-dimension-results`, { params }).catch(() => ({ data: {} })),
+    ]).then(([pw, ir, ag, dd]) => {
+      setModeData(prev => ({
+        ...prev,
+        [contentMode]: {
           pairwise: pw.data.status === "ok" ? pw.data : null,
           irt: ir.data.status === "ok" ? ir.data : null,
           agreement: ag.data.status === "ok" ? ag.data : null,
           dual: dd.data.status === "ok" ? dd.data : null,
-        };
-      });
-      setModeData(newModeData);
-    } catch (e) { console.error(e); }
-  }, [datasetId]);
+        },
+      }));
+    });
+  }, [datasetId, contentMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
