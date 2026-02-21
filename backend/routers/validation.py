@@ -3092,11 +3092,30 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
 
 
 async def _run_summarizer_comparison(pairs: list, parallel: int):
-    """Background: run A/B comparisons for Opus 4.5 vs 4.6 summaries."""
-    from services.llm import compare_papers
+    """Background: run A/B comparisons for Opus 4.5 vs 4.6 summaries.
+    Generates Opus 4.6 summaries on-the-fly for papers that don't have them yet."""
+    from services.llm import compare_papers, generate_precomparison_impact_summary
 
     sem = asyncio.Semaphore(parallel)
     completed = 0
+    summaries_generated = 0
+
+    async def _ensure_opus46_summary(paper):
+        """Generate Opus 4.6 summary if missing, save to DB."""
+        nonlocal summaries_generated
+        if paper.get("ai_impact_summary_opus46"):
+            return paper["ai_impact_summary_opus46"]
+        # Generate on the fly
+        model_info = {"provider": "anthropic", "model": "claude-opus-4-6"}
+        result = await generate_precomparison_impact_summary(paper, model_override=model_info)
+        if result and result.get("summary"):
+            await db.validation_papers.update_one(
+                {"dataset_id": paper["dataset_id"], "id": paper["id"]},
+                {"$set": {"ai_impact_summary_opus46": result["summary"]}},
+            )
+            summaries_generated += 1
+            return result["summary"]
+        return None
 
     async def _run_one(pair):
         nonlocal completed
@@ -3107,11 +3126,23 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
             if not p1 or not p2:
                 return
 
+            # Ensure both papers have Opus 4.6 summaries
+            p1_opus46 = await _ensure_opus46_summary(p1)
+            p2_opus46 = await _ensure_opus46_summary(p2)
+
+            # Get Opus 4.5 summaries (already exist as ai_impact_summary_claude)
+            p1_opus45 = p1.get("ai_impact_summary_claude") or p1.get("ai_impact_summary", "")
+            p2_opus45 = p2.get("ai_impact_summary_claude") or p2.get("ai_impact_summary", "")
+
             results = {}
-            for model_key, sum_field in [("opus45", "ai_impact_summary_claude"), ("opus46", "ai_impact_summary_opus46")]:
-                # Temporarily swap summary for comparison
-                p1_copy = {**p1, "ai_impact_summary": p1.get(sum_field, "")}
-                p2_copy = {**p2, "ai_impact_summary": p2.get(sum_field, "")}
+            for model_key, p1_sum, p2_sum in [
+                ("opus45", p1_opus45, p2_opus45),
+                ("opus46", p1_opus46, p2_opus46),
+            ]:
+                if not p1_sum or not p2_sum:
+                    continue
+                p1_copy = {**p1, "ai_impact_summary": p1_sum}
+                p2_copy = {**p2, "ai_impact_summary": p2_sum}
                 try:
                     result = await compare_papers(p1_copy, p2_copy, content_mode="abstract_plus_summary")
                     if result and not result.get("failed"):
@@ -3134,7 +3165,6 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
                     "results": results,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
-                # Check which summarizer agreed with human
                 for mk, r in results.items():
                     doc[f"{mk}_correct"] = r["winner_id"] == pair["human_winner_id"]
                 await db.summarizer_comparisons.update_one(
@@ -3145,7 +3175,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
 
     tasks = [_run_one(p) for p in pairs]
     await asyncio.gather(*tasks, return_exceptions=True)
-    logger.info(f"Summarizer comparison complete: {completed}/{len(pairs)}")
+    logger.info(f"Summarizer comparison complete: {completed}/{len(pairs)}, {summaries_generated} new Opus 4.6 summaries generated")
 
 
 @router.get("/summarizer-comparison/results")
