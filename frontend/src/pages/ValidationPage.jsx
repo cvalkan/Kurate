@@ -270,16 +270,22 @@ function StandardStats({ datasetId, isAdmin }) {
 
       // Merge static modes with discovered ones (prompt-tagged variants)
       const staticIds = new Set(["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"]);
+      const discoveredModes = modesRes.data.modes || [];
+      // Check if there are summary model variants — if so, use API label for abstract_plus_summary
+      const hasSummaryVariants = discoveredModes.some(m => m.prompt_tag && (m.prompt_tag.includes("summary") || m.prompt_tag.includes("gpt") || m.prompt_tag.includes("gemini")));
+      const absLabel = hasSummaryVariants
+        ? (discoveredModes.find(m => m.id === "abstract_plus_summary")?.label || "Abstract + Summary (Opus 4.5)")
+        : "Abstract + Summary";
       const merged = [
         { id: "abstract", label: "Abstract" },
         { id: "extract", label: "Extract" },
         { id: "full_pdf", label: "Full PDF" },
         { id: "ai_summary", label: "AI Summary" },
-        { id: "abstract_plus_summary", label: "Abstract + Summary" },
+        { id: "abstract_plus_summary", label: absLabel },
       ];
-      for (const m of (modesRes.data.modes || [])) {
+      for (const m of discoveredModes) {
         if (!staticIds.has(m.id) && m.id !== "none") {
-          merged.push({ id: m.id, label: m.prompt_tag ? `Editorial: ${m.prompt_tag}` : m.label });
+          merged.push({ id: m.id, label: m.label });
         }
       }
       setAllModes(merged);
