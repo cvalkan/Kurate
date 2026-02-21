@@ -46,15 +46,14 @@ Build a robust system for validating AI model performance on scientific papers. 
 - eLife (eLife API with dual-dimension scoring)
 - Qeios (Crossref + page scraping for aggregate ratings)
 
-## Completed (This Session — Feb 21 2026)
-- Fixed corrupted ICLR Code Generation opus46 tournament data (root cause: missing `winner_id` field)
-- Backfilled `winner_id` for all 7,688 opus46 matches across 8 ICLR datasets
-- Fixed bug in replay code (`judge_key` → `judge_model`)
-- Fixed replay code to store `winner_id` going forward
-- Rebuilt frontend with correct API URL
+## Completed (Feb 21 2026)
+- **P0 Fix**: Opus 4.6 matches missing `winner_id` field — backfilled 7,688 matches across 8 datasets
+- **Bug fix**: `judge_key` → `judge_model` in replay code; replay now stores `winner_id`
+- **Bug fix**: Extract content mode filter was including tagged variants (`:opus46`, `:gpt_thinking` etc.) — added `$not: {$regex: ":"}` to exclude them
+- Rebuilt frontend with correct API URL (was serving stale build pointing to old domain)
 
 ## Pending/Backlog
-- (P1) Complete fair replay of Opus 4.6 tournaments for remaining ICLR datasets (some have fewer matches than source)
+- (P1) Complete fair replay of Opus 4.6 tournaments for remaining ICLR datasets (coverage 39-94%)
 - (P2) Add UI visualization for gap-stratified human accuracy in A/B test section
 - (P2) Complete data generation for `iclr-llms` dataset
 - (P2) Add missing HTTP security headers
