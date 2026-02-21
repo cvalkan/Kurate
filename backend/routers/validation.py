@@ -3213,44 +3213,43 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
 
                 if results:
                     doc = {
-                    "dataset_id": ds_id,
-                    "paper1_id": pair["paper1_id"],
-                    "paper2_id": pair["paper2_id"],
-                    "human_winner_id": pair["human_winner_id"],
-                    "score_gap": pair["score_gap"],
-                    "has_tier_diff": pair["has_tier_diff"],
-                    "ground_truth": pair.get("ground_truth", "unknown"),
-                    "judge_model": judge_model.get("model", ""),
-                    "results": results,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }
-                for mk, r in results.items():
-                    doc[f"{mk}_correct"] = r["winner_id"] == pair["human_winner_id"]
+                        "dataset_id": ds_id,
+                        "paper1_id": pair["paper1_id"],
+                        "paper2_id": pair["paper2_id"],
+                        "human_winner_id": pair["human_winner_id"],
+                        "score_gap": pair["score_gap"],
+                        "has_tier_diff": pair["has_tier_diff"],
+                        "ground_truth": pair.get("ground_truth", "unknown"),
+                        "judge_model": judge_model.get("model", ""),
+                        "results": results,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    for mk, r in results.items():
+                        doc[f"{mk}_correct"] = r["winner_id"] == pair["human_winner_id"]
 
-                # Compute human reviewer baseline: would a random single reviewer pair predict the winner?
-                # For each pair of individual scores (one from each paper), does the higher score predict the committee winner?
-                if pair.get("ground_truth") in ("committee", "reviewer_majority"):
-                    scores1 = p1.get("scores", [])
-                    scores2 = p2.get("scores", [])
-                    if scores1 and scores2:
-                        single_correct = 0
-                        single_total = 0
-                        for r1 in scores1:
-                            for r2 in scores2:
-                                if r1 == r2:
-                                    continue  # skip ties
-                                single_total += 1
-                                reviewer_pick = p1["id"] if r1 > r2 else p2["id"]
-                                if reviewer_pick == pair["human_winner_id"]:
-                                    single_correct += 1
-                        doc["single_reviewer_correct"] = single_correct
-                        doc["single_reviewer_total"] = single_total
+                    # Single reviewer baseline: for each cross-paper reviewer pair, does the higher score predict the winner?
+                    if pair.get("ground_truth") in ("committee", "reviewer_majority"):
+                        scores1 = p1.get("scores", [])
+                        scores2 = p2.get("scores", [])
+                        if scores1 and scores2:
+                            single_correct = 0
+                            single_total = 0
+                            for r1 in scores1:
+                                for r2 in scores2:
+                                    if r1 == r2:
+                                        continue
+                                    single_total += 1
+                                    reviewer_pick = p1["id"] if r1 > r2 else p2["id"]
+                                    if reviewer_pick == pair["human_winner_id"]:
+                                        single_correct += 1
+                            doc["single_reviewer_correct"] = single_correct
+                            doc["single_reviewer_total"] = single_total
 
-                await db.summarizer_comparisons.update_one(
-                    {"paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"]},
-                    {"$set": doc}, upsert=True,
-                )
-                completed += 1
+                    await db.summarizer_comparisons.update_one(
+                        {"paper1_id": pair["paper1_id"], "paper2_id": pair["paper2_id"]},
+                        {"$set": doc}, upsert=True,
+                    )
+                    completed += 1
 
     tasks = [_run_one(p) for p in pairs]
     await asyncio.gather(*tasks, return_exceptions=True)
