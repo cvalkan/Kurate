@@ -3187,6 +3187,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
 
     async def _run_one(pair):
         nonlocal completed
+        if _summarizer_comparison_cancel: return
         async with sem_cmp:
             ds_id = pair["dataset_id"]
             p1 = await db.validation_papers.find_one({"dataset_id": ds_id, "id": pair["paper1_id"]}, {"_id": 0})
