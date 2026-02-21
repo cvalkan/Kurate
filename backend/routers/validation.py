@@ -3103,6 +3103,17 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
         by_dataset[p["dataset_id"]].append(p)
     
     # Shuffle within each dataset, then round-robin
+    # Filter out already-completed pairs BEFORE selecting
+    existing = set()
+    async for doc in db.summarizer_comparisons.find({}, {"_id": 0, "paper1_id": 1, "paper2_id": 1}):
+        existing.add((doc["paper1_id"], doc["paper2_id"]))
+        existing.add((doc["paper2_id"], doc["paper1_id"]))
+
+    by_dataset = defaultdict(list)
+    for p in all_pairs:
+        if (p["paper1_id"], p["paper2_id"]) not in existing:
+            by_dataset[p["dataset_id"]].append(p)
+
     import random as _rnd
     for ds_pairs in by_dataset.values():
         _rnd.shuffle(ds_pairs)
@@ -3110,31 +3121,25 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
     # Round-robin across datasets
     selected = []
     ds_keys = sorted(by_dataset.keys())
+    if not ds_keys:
+        return {"status": "no_new_pairs", "total_eligible": len(all_pairs), "already_done": len(existing) // 2}
     per_ds = max(1, body.num_pairs // len(ds_keys))
     for ds in ds_keys:
         selected.extend(by_dataset[ds][:per_ds])
-    # Fill remaining budget with highest-gap pairs from any dataset
     remaining = body.num_pairs - len(selected)
     if remaining > 0:
         used = set((p["paper1_id"], p["paper2_id"]) for p in selected)
-        leftovers = [p for p in all_pairs if (p["paper1_id"], p["paper2_id"]) not in used]
+        leftovers = [p for ds_pairs in by_dataset.values() for p in ds_pairs if (p["paper1_id"], p["paper2_id"]) not in used]
         _rnd.shuffle(leftovers)
         selected.extend(leftovers[:remaining])
 
-    # Check existing completed comparisons to avoid re-running
-    existing = set()
-    async for doc in db.summarizer_comparisons.find({}, {"_id": 0, "paper1_id": 1, "paper2_id": 1}):
-        existing.add((doc["paper1_id"], doc["paper2_id"]))
-
-    new_pairs = [p for p in selected if (p["paper1_id"], p["paper2_id"]) not in existing and (p["paper2_id"], p["paper1_id"]) not in existing]
-
-    asyncio.create_task(_run_summarizer_comparison(new_pairs, body.parallel))
+    asyncio.create_task(_run_summarizer_comparison(selected, body.parallel))
     return {
         "status": "started",
         "total_eligible": len(all_pairs),
         "selected": len(selected),
-        "new_to_run": len(new_pairs),
-        "already_done": len(selected) - len(new_pairs),
+        "new_to_run": len(selected),
+        "already_done": len(existing) // 2,
         "datasets": list(set(p["dataset_id"] for p in selected)),
     }
 
