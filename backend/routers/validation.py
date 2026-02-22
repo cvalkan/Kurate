@@ -1697,12 +1697,12 @@ _build_content_mode_filter = build_content_mode_filter
 @router.get("/pairwise-results")
 async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Optional[bool] = Query(None), content_mode: Optional[str] = Query(None)):
     cache_mode = content_mode or ("abstract" if abstract_only else "extract")
-    cached = await _cache_get("pairwise", dataset_id, cache_mode)
+    cached = await cache_get("pairwise", dataset_id, cache_mode)
     if cached:
         return cached
     result = await _compute_pairwise_results(dataset_id, abstract_only, content_mode)
     if result.get("status") == "ok":
-        await _cache_set("pairwise", dataset_id, cache_mode, result)
+        await cache_set("pairwise", dataset_id, cache_mode, result)
     return result
 
 async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[bool], content_mode: Optional[str]):
@@ -1892,12 +1892,12 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
 @router.get("/convergence")
 async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None), steps: int = Query(20)):
     """Analyze how AI ranking correlation with HUMAN ground truth improves as more matches are added."""
-    cached = await _cache_get("convergence", dataset_id, content_mode or "")
+    cached = await cache_get("convergence", dataset_id, content_mode or "")
     if cached:
         return cached
     result = await _compute_convergence(dataset_id, content_mode, steps)
     if result.get("status") == "ok":
-        await _cache_set("convergence", dataset_id, content_mode or "", result)
+        await cache_set("convergence", dataset_id, content_mode or "", result)
     return result
 
 async def _compute_convergence(dataset_id: str, content_mode: Optional[str], steps: int):
@@ -2191,12 +2191,12 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 @router.get("/irt-results")
 async def get_irt_results(dataset_id: str = Query(...), abstract_only: Optional[bool] = Query(None), content_mode: Optional[str] = Query(None)):
     cache_mode = content_mode or ("abstract" if abstract_only else "extract")
-    cached = await _cache_get("irt", dataset_id, cache_mode)
+    cached = await cache_get("irt", dataset_id, cache_mode)
     if cached:
         return cached
     result = await _compute_irt_results(dataset_id, abstract_only, content_mode)
     if result.get("status") == "ok":
-        await _cache_set("irt", dataset_id, cache_mode, result)
+        await cache_set("irt", dataset_id, cache_mode, result)
     return result
 
 async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
@@ -2296,12 +2296,12 @@ async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
 @router.get("/agreement-analysis")
 async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bool] = Query(None), content_mode: Optional[str] = Query(None)):
     cache_mode = content_mode or ("abstract" if abstract_only else "extract")
-    cached = await _cache_get("agreement", dataset_id, cache_mode)
+    cached = await cache_get("agreement", dataset_id, cache_mode)
     if cached:
         return cached
     result = await _compute_agreement(dataset_id, abstract_only, content_mode)
     if result.get("status") == "ok":
-        await _cache_set("agreement", dataset_id, cache_mode, result)
+        await cache_set("agreement", dataset_id, cache_mode, result)
     return result
 
 async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
@@ -2409,12 +2409,12 @@ async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
 @router.get("/cross-mode-agreement")
 async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     """Compute AI-expert agreement on the EXACT SAME set of paper pairs across all available content modes."""
-    cached = await _cache_get("cross-mode", dataset_id, "")
+    cached = await cache_get("cross-mode", dataset_id, "")
     if cached:
         return cached
     result = await _compute_cross_mode_agreement(dataset_id)
     if result.get("status") == "ok":
-        await _cache_set("cross-mode", dataset_id, "", result)
+        await cache_set("cross-mode", dataset_id, "", result)
     return result
 
 async def _compute_cross_mode_agreement(dataset_id: str):
@@ -2899,12 +2899,12 @@ async def get_impact_summary_status(dataset_id: str = Query(...)):
 @router.get("/dual-dimension-results")
 async def get_dual_dimension_results(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None)):
     """Compute AI ranking correlation against BOTH significance and strength scores (for eLife datasets)."""
-    cached = await _cache_get("dual-dim", dataset_id, content_mode or "")
+    cached = await cache_get("dual-dim", dataset_id, content_mode or "")
     if cached:
         return cached
     result = await _compute_dual_dimension_results(dataset_id, content_mode)
     if result.get("status") == "ok":
-        await _cache_set("dual-dim", dataset_id, content_mode or "", result)
+        await cache_set("dual-dim", dataset_id, content_mode or "", result)
     return result
 
 async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optional[str]):
