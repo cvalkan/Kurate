@@ -1965,19 +1965,11 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
     n_papers = len(paper_ids)
 
     # Build tier-based ground truth (Oral > Spotlight > Poster > Reject)
-    TIER_ORDER_CONV = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3}
-    def _norm_tier_conv(d):
-        if not d: return None
-        dl = d.lower().strip()
-        for t in TIER_ORDER_CONV:
-            if t in dl: return t
-        return None
-
     paper_tiers = {}
     paper_avg_score = {}
     for p in papers:
-        t = _norm_tier_conv(p.get("decision"))
-        if t:
+        t = norm_tier(p.get("decision"))
+        if t and t in RANKABLE_TIERS:
             paper_tiers[p["id"]] = t
         evs = [ev["rating_value"] for ev in p.get("evaluations", []) if ev.get("rating_value")]
         paper_avg_score[p["id"]] = sum(evs) / len(evs) if evs else 0
@@ -1988,7 +1980,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
     if has_tiers:
         tier_ranked_papers = sorted(
             paper_tiers.keys(),
-            key=lambda pid: (TIER_ORDER_CONV[paper_tiers[pid]], -paper_avg_score.get(pid, 0)),
+            key=lambda pid: (TIER_ORDER[paper_tiers[pid]], -paper_avg_score.get(pid, 0)),
         )
         tier_rank_map = {pid: rank + 1 for rank, pid in enumerate(tier_ranked_papers)}
 
