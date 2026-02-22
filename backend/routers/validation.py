@@ -2669,22 +2669,10 @@ async def _compute_cross_mode_agreement(dataset_id: str):
             score_gap[mode] = buckets
 
     # ─── Acceptance Tier Analysis ───────────────────────────────────────
-    # For datasets with ICLR-style decisions (Oral/Spotlight/Poster/Reject)
-    TIER_ORDER = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "withdrawn": 4, "desk rejected": 4}
-
-    def _normalize_tier(decision):
-        if not decision:
-            return None
-        d = decision.lower().strip()
-        for tier_key in TIER_ORDER:
-            if tier_key in d:
-                return tier_key
-        return None
-
     paper_tiers = {}
     for p in papers:
-        tier = _normalize_tier(p.get("decision"))
-        if tier and tier in ("oral", "spotlight", "poster", "reject"):
+        tier = norm_tier(p.get("decision"))
+        if tier and tier in RANKABLE_TIERS:
             paper_tiers[p["id"]] = tier
 
     tier_analysis = {}
