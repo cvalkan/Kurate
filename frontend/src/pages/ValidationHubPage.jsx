@@ -97,8 +97,14 @@ export default function ValidationHubPage() {
   useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 
   const pairwiseDatasets = datasets;
-  const tournamentGroups = groupDatasets(datasets);
+  const allTournamentGroups = groupDatasets(datasets);
   const pairwiseGroups = groupDatasets(datasets);
+
+  // Public users only see ICLR, eLife, MIDL tournaments
+  const PUBLIC_SOURCES = new Set(["ICLR", "eLife", "MIDL"]);
+  const tournamentGroups = isAdmin
+    ? allTournamentGroups
+    : Object.fromEntries(Object.entries(allTournamentGroups).filter(([source]) => PUBLIC_SOURCES.has(source)));
 
   // Auto-open the group containing the selected item
   const selectedTournamentSource = Object.entries(tournamentGroups).find(
