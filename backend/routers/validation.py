@@ -3043,7 +3043,7 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
 
                 # Determine human winner
                 if has_tier_diff:
-                    human_winner_id = p1["id"] if TIER_ORDER[t1] < TIER_ORDER[t2] else p2["id"]
+                    human_winner_id = p1["id"] if _TIER_ORDER_EXT[t1] < _TIER_ORDER_EXT[t2] else p2["id"]
                     ground_truth = "committee"
                 elif has_reviewer_majority:
                     human_winner_id = p1["id"] if s1 > s2 else p2["id"]
