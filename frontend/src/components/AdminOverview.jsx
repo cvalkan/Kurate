@@ -100,6 +100,7 @@ export function AdminOverview({
   const activity = scheduler.current_activity || "";
 
   const totalPapers = progress?.total_papers || status.total_papers || 0;
+  const totalPapersInDb = progress?.papers_with_pdf || totalPapers;
   const papersWithPdf = progress?.papers_with_pdf || 0;
   const summariesCount = progress?.summary_coverage?.with_summaries || 0;
 
