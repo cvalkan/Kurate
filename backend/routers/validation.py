@@ -3006,14 +3006,7 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
 
     # Collect eligible pairs: papers with Opus 4.5 summaries AND clear human ground truth
     all_pairs = []
-    TIER_ORDER = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "short paper": 2}
-
-    def _norm_tier(d):
-        if not d: return None
-        dl = d.lower().strip()
-        for t in TIER_ORDER:
-            if t in dl: return t
-        return None
+    _TIER_ORDER_EXT = {**TIER_ORDER, "short paper": 2}  # extend with MIDL-style tiers
 
     for ds_id in target_ds:
         papers = await db.validation_papers.find(
