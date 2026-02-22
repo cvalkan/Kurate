@@ -32,6 +32,39 @@ router = APIRouter(prefix="/api/validation")
 _tournament_states = {}  # dataset_id -> {running, completed, total, ...}
 _tournament_tasks = {}  # dataset_id -> asyncio.Task
 
+# ─── Result Cache ──────────────────────────────────────────────────────────────
+# Caches expensive computation results (pairwise, IRT, agreement, convergence, dual-dim).
+# Invalidated when new matches are added for a dataset.
+_result_cache = {}  # (endpoint, dataset_id, content_mode) -> {"data": ..., "ts": float, "match_count": int}
+_CACHE_TTL = 300  # 5 minutes
+
+async def _cache_get(endpoint: str, dataset_id: str, content_mode: str = ""):
+    key = (endpoint, dataset_id, content_mode or "")
+    entry = _result_cache.get(key)
+    if not entry:
+        return None
+    # Check TTL
+    if _time.time() - entry["ts"] > _CACHE_TTL:
+        del _result_cache[key]
+        return None
+    # Check if match count changed (instant invalidation)
+    current_count = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    )
+    if current_count != entry["match_count"]:
+        del _result_cache[key]
+        return None
+    return entry["data"]
+
+async def _cache_set(endpoint: str, dataset_id: str, content_mode: str, data, match_count: int = None):
+    if match_count is None:
+        match_count = await db.validation_matches.count_documents(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+        )
+    _result_cache[(endpoint, dataset_id, content_mode or "")] = {
+        "data": data, "ts": _time.time(), "match_count": match_count,
+    }
+
 
 def _get_state(dataset_id: str) -> dict:
     if dataset_id not in _tournament_states:
