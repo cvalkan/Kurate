@@ -244,7 +244,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               )}
               {dsIds.map((did, i) => (
                 <Line key={did} type="monotone" dataKey={`${did}_${metric}`} name={curves[did].name}
-                  stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                  stroke={getModeColor(did, i)} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
               ))}
             </LineChart>
           </ResponsiveContainer>
@@ -268,7 +268,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
               {dsIds.map((did, i) => (
                 <Line key={did} type="monotone" dataKey={`${did}_tier_spearman`} name={curves[did].name}
-                  stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                  stroke={getModeColor(did, i)} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
               ))}
             </LineChart>
           </ResponsiveContainer>
@@ -291,7 +291,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               <Tooltip content={<Tip />} />
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
               {dsIds.flatMap((did, i) => {
-                const color = COLORS[i % COLORS.length];
+                const color = getModeColor(did, i);
                 return [
                   <Line key={`${did}_sig`} type="monotone" dataKey={`${did}_sig`}
                     name={`${curves[did].name} (Significance)`}
@@ -321,7 +321,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
                 return (
                   <Line key={did} type="monotone" dataKey={`${did}_top_${k}`}
                     name={dsIds.length > 1 ? `${curves[did].name}` : `Top ${k}`}
-                    stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                    stroke={getModeColor(did, i)} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                 );
               })}
             </LineChart>
@@ -337,7 +337,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
           const gc = c.graph_connectivity;
           return (
             <div key={did} className="border border-border rounded-lg p-2.5 text-[10px]" data-testid={`convergence-summary-${did}`}>
-              <div className="font-medium text-xs mb-0.5" style={{ color: COLORS[i % COLORS.length] }}>{c.name}</div>
+              <div className="font-medium text-xs mb-0.5" style={{ color: getModeColor(did, i) }}>{c.name}</div>
               <div className="text-muted-foreground">
                 {c.total_papers} papers, {c.total_matches} AI matches{c.human_matches ? `, ${c.human_matches} human pairs` : ""}{c.human_evaluators ? `, ${c.human_evaluators} experts` : ""}
               </div>
