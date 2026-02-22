@@ -53,7 +53,8 @@ def _apply_period_filter(full_leaderboard, period):
 async def _refresh_cache():
     """Heavy computation — runs in background, never on the request path."""
     all_papers = await db.papers.find(
-        {}, {"_id": 0, "full_text": 0, "abstract": 0}
+        {"summaries": {"$exists": True, "$ne": {}}},
+        {"_id": 0, "full_text": 0, "abstract": 0}
     ).to_list(5000)
 
     all_matches_raw = await db.matches.find(
