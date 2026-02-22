@@ -459,8 +459,11 @@ async def get_progress_estimate(category: str = "cs.RO"):
     compare_paused = bool(tournament_doc.get("compare_paused")) if tournament_doc else False
     is_paused = global_paused or tournament_paused
 
-    # Always get fresh paper IDs from DB (leaderboard cache can be 60s stale)
-    direct_papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}).to_list(2000)
+    # Always get fresh paper IDs from DB — only papers with summaries (ready for matchmaking)
+    direct_papers = await db.papers.find(
+        {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
+        {"_id": 0, "id": 1}
+    ).to_list(2000)
     all_paper_ids = [p["id"] for p in direct_papers]
 
     # Query matches directly from DB for fresh data (lb_cache is 60s stale)
