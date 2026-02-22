@@ -129,12 +129,61 @@ class FetchRequest(BaseModel):
     category: str = "cs.RO"
 
 
+# In-memory tracker for background fetch tasks
+_fetch_tasks: dict = {}  # {category: {"status": "running"|"completed"|"failed", "started_at": str, "result": dict|None, "error": str|None}}
+
+
+async def _run_fetch_in_background(category: str):
+    """Wrapper that runs fetch cycle and records result."""
+    try:
+        result = await run_fetch_cycle(category=category, force=True)
+        _fetch_tasks[category] = {
+            "status": "completed",
+            "started_at": _fetch_tasks[category]["started_at"],
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "result": result,
+            "error": None,
+        }
+    except Exception as e:
+        logger.error(f"Background fetch failed for {category}: {e}")
+        _fetch_tasks[category] = {
+            "status": "failed",
+            "started_at": _fetch_tasks[category]["started_at"],
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "result": None,
+            "error": str(e),
+        }
+    finally:
+        _invalidate_admin_cache(category)
+
+
 @router.post("/fetch", dependencies=[Depends(verify_admin)])
 async def trigger_fetch(body: FetchRequest = FetchRequest()):
-    result = await run_fetch_cycle(category=body.category, force=True)
-    _invalidate_admin_cache(body.category)
+    # Check if a fetch is already running for this category
+    existing = _fetch_tasks.get(body.category)
+    if existing and existing["status"] == "running":
+        return {"status": "already_running", "started_at": existing["started_at"]}
+
+    # Mark as running and launch background task
+    _fetch_tasks[body.category] = {
+        "status": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": None,
+        "result": None,
+        "error": None,
+    }
+    asyncio.create_task(_run_fetch_in_background(body.category))
     wake_scheduler()
-    return result
+    return {"status": "accepted", "message": f"Fetch & generate task started for {body.category}"}
+
+
+@router.get("/fetch-status/{category}", dependencies=[Depends(verify_admin)])
+async def get_fetch_status(category: str):
+    """Poll this endpoint to check the status of a background fetch task."""
+    task = _fetch_tasks.get(category)
+    if not task:
+        return {"status": "no_task", "message": "No fetch task has been run for this category."}
+    return task
 
 
 @router.post("/toggle-pause", dependencies=[Depends(verify_admin)])
