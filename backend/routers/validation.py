@@ -1345,6 +1345,7 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, co
         logger.error(f"Multi-model [{dataset_id}] error: {e}")
     finally:
         state["running"] = False
+        invalidate_dataset_cache(dataset_id)
 
 
 # ─── Multi-Model Analysis ─────────────────────────────────────────────────────
