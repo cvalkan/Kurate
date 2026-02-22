@@ -788,7 +788,10 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     # Check pause between acquiring semaphore and running
                     if _paused:
                         return
-                    result = await compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary")
+                    try:
+                        result = await compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary")
+                    except Exception as e:
+                        result = e
 
                 p1_cats = set(paper_lookup[p1_id].get("categories", []))
                 p2_cats = set(paper_lookup[p2_id].get("categories", []))
