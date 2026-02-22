@@ -1866,7 +1866,7 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
             "kendall_tau": safe_round(kt), "kendall_p_value": safe_round(kt_p, 6),
             "pearson_r": safe_round(pr), "pearson_p_value": safe_round(pr_p, 6),
         },
-        "interpretation": interp(sp if not math.isnan(sp) else 0, sp_p if not math.isnan(sp_p) else 1, len(cp), "pairwise BT"),
+        "interpretation": interp(safe_round(sp), safe_round(sp_p, 6), len(cp), "pairwise BT"),
         "comparison": comparison,
         "tier_metrics": tier_metrics,
     }
