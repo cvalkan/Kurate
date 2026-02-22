@@ -72,7 +72,7 @@ Which paper has higher estimated scientific impact? Respond with JSON only."""
 # Default settings
 DEFAULT_SETTINGS = {
     "key": "global",
-    "admin_password": "papersumo2025",
+    "admin_password": os.environ.get("ADMIN_PASSWORD", "papersumo2025"),
     "active_categories": list(CATEGORIES.keys()),
     "fetch_interval_hours": 24,
     "max_papers_per_fetch": 50,
