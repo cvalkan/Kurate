@@ -121,16 +121,22 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
   const topKValues = curves[dsIds[0]]?.top_k_values || [];
   const hasTopK = topKValues.length > 0 && curves[dsIds[0]]?.curve?.[0]?.[`top_${topKValues[0]}`] !== undefined;
 
-  // Build correlation chart data
-  const allPoints = [];
-  dsIds.forEach(did => { curves[did].curve.forEach(pt => { allPoints.push({ x: pt.avg_matches_per_paper, dataset: did, ...pt }); }); });
-  const xValues = [...new Set(allPoints.map(p => p.x))].sort((a, b) => a - b);
+  // Build correlation chart data (O(n) using Map lookup instead of O(n²) .find())
+  const pointMap = new Map();
+  dsIds.forEach(did => {
+    curves[did].curve.forEach(pt => {
+      const x = pt.avg_matches_per_paper;
+      if (!pointMap.has(x)) pointMap.set(x, {});
+      pointMap.get(x)[did] = pt;
+    });
+  });
+  const xValues = [...pointMap.keys()].sort((a, b) => a - b);
 
   const corrChartData = xValues.map(x => {
     const row = { x };
+    const pts = pointMap.get(x);
     dsIds.forEach(did => {
-      const pt = allPoints.find(p => p.x === x && p.dataset === did);
-      if (pt) row[`${did}_${metric}`] = pt[metric];
+      if (pts[did]) row[`${did}_${metric}`] = pts[did][metric];
     });
     return row;
   });
@@ -138,9 +144,9 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
   // Build top-k chart data
   const topkChartData = hasTopK ? xValues.map(x => {
     const row = { x };
+    const pts = pointMap.get(x);
     dsIds.forEach(did => {
-      const pt = allPoints.find(p => p.x === x && p.dataset === did);
-      if (pt) topKValues.forEach(k => { if (pt[`top_${k}`] !== undefined) row[`${did}_top_${k}`] = pt[`top_${k}`]; });
+      if (pts[did]) topKValues.forEach(k => { if (pts[did][`top_${k}`] !== undefined) row[`${did}_top_${k}`] = pts[did][`top_${k}`]; });
     });
     return row;
   }) : [];
