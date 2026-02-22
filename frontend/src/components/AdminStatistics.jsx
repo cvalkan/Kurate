@@ -225,15 +225,24 @@ export function AdminStatistics({ categories }) {
   const mergedModelStats = { ...modelStats };
   if (summaryStats?.models) {
     for (const [mk, ss] of Object.entries(summaryStats.models)) {
-      // Map summary model key (e.g. "openai:gpt-5_2") to match model key (e.g. "openai/gpt-5.2")
+      // Map summary model key (e.g. "anthropic:claude-opus-4-6") to match model key (e.g. "anthropic/claude-opus-4-6")
       const provider = mk.split(":")[0];
       const model = mk.split(":").slice(1).join(":").replace(/_/g, ".");
       const matchKey = `${provider}/${model}`;
-      // Find the matching key in modelStats
-      const existingKey = Object.keys(mergedModelStats).find(k => k.includes(model) || k.includes(provider));
+      // Find by exact model name first, then by matchKey
+      const existingKey = Object.keys(mergedModelStats).find(k => k === matchKey)
+        || Object.keys(mergedModelStats).find(k => k.includes(model));
       if (existingKey) {
         mergedModelStats[existingKey] = {
           ...mergedModelStats[existingKey],
+          summary_cost: (mergedModelStats[existingKey].summary_cost || 0) + (ss.cost_total || 0),
+          summary_count: (mergedModelStats[existingKey].summary_count || 0) + (ss.summaries || 0),
+          summary_tokens: (mergedModelStats[existingKey].summary_tokens || 0) + (ss.input_tokens || 0) + (ss.output_tokens || 0),
+        };
+      } else {
+        // New model with summaries but no match history yet — create entry
+        mergedModelStats[matchKey] = {
+          matches: 0, input_tokens: 0, output_tokens: 0, cost_total: 0,
           summary_cost: ss.cost_total || 0,
           summary_count: ss.summaries || 0,
           summary_tokens: (ss.input_tokens || 0) + (ss.output_tokens || 0),
