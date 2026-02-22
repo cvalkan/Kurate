@@ -2469,10 +2469,16 @@ async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
 
 @router.get("/cross-mode-agreement")
 async def get_cross_mode_agreement(dataset_id: str = Query(...)):
-    """
-    Compute AI-expert agreement on the EXACT SAME set of paper pairs across
-    all available content modes, enabling apples-to-apples comparison.
-    """
+    """Compute AI-expert agreement on the EXACT SAME set of paper pairs across all available content modes."""
+    cached = await _cache_get("cross-mode", dataset_id, "")
+    if cached:
+        return cached
+    result = await _compute_cross_mode_agreement(dataset_id)
+    if result.get("status") == "ok":
+        await _cache_set("cross-mode", dataset_id, "", result)
+    return result
+
+async def _compute_cross_mode_agreement(dataset_id: str):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
     if not papers:
         return {"status": "no_data"}
