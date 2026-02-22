@@ -263,10 +263,10 @@ function StandardStats({ datasetId, isAdmin }) {
       const params = { dataset_id: datasetId };
       // First discover available modes
       const [s, modesRes] = await Promise.all([
-        axios.get(`${API}/api/validation/status`, { params }),
+        axios.get(`${API}/api/validation/status`, { params }).catch(() => ({ data: {} })),
         axios.get(`${API}/api/validation/available-modes`, { params }).catch(() => ({ data: { modes: [] } })),
       ]);
-      setStatus(s.data);
+      if (s.data?.dataset_id) setStatus(s.data);
 
       // Merge static modes with discovered ones (prompt-tagged variants)
       const staticIds = new Set(["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"]);
