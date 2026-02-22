@@ -76,11 +76,13 @@ export default function CorrelationPage() {
         <p className="text-muted-foreground text-sm max-w-2xl">
           How well do GPT-5.2, Claude Opus 4.6, and Gemini 3 Pro agree on paper rankings?
         </p>
-        <p className="text-xs text-muted-foreground mt-2 max-w-2xl">
-          <span className="font-medium text-foreground">Note:</span> The tournament uses adaptive matchmaking that over-samples contested pairs to converge rankings faster.
-          Agreement rates below are biased downward — models are disproportionately tested on the hardest cases.
-          On a random sample of pairs, agreement would be substantially higher.
-        </p>
+        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg max-w-2xl">
+          <p className="text-xs text-amber-900">
+            <span className="font-semibold">Matchmaking bias:</span> The tournament uses adaptive matchmaking that over-samples contested pairs to converge rankings faster.
+            Agreement rates below are biased downward — models are disproportionately tested on the hardest cases.
+            On a random sample of pairs, agreement would be substantially higher.
+          </p>
+        </div>
       </div>
 
       {categories.length > 1 && (
