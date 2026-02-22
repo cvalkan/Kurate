@@ -2746,7 +2746,6 @@ async def _compute_cross_mode_agreement(dataset_id: str):
     # Score gap breakdown: AI agreement rate by expert score difference
     # Only meaningful for datasets with numeric scores (1-5 or similar)
     score_gap = {}
-    paper_lookup = {p["id"]: p for p in papers}
     for mode in modes_with_results:
         ai_map = mode_ai_pairs.get(mode, {})
         pair_set = common_pairs if mode in core_modes else (common_pairs & set(ai_map.keys()))
