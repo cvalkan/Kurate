@@ -1952,11 +1952,16 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
 
 @router.get("/convergence")
 async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None), steps: int = Query(20)):
-    """Analyze how AI ranking correlation with HUMAN ground truth improves as more matches are added.
-    
-    Uses human expert pairwise preferences (derived from review scores) as ground truth.
-    Subsamples AI matches to measure convergence toward human ranking.
-    """
+    """Analyze how AI ranking correlation with HUMAN ground truth improves as more matches are added."""
+    cached = await _cache_get("convergence", dataset_id, content_mode or "")
+    if cached:
+        return cached
+    result = await _compute_convergence(dataset_id, content_mode, steps)
+    if result.get("status") == "ok":
+        await _cache_set("convergence", dataset_id, content_mode or "", result)
+    return result
+
+async def _compute_convergence(dataset_id: str, content_mode: Optional[str], steps: int):
     settings = await get_settings()
     top_k_focus = settings.get("top_k_focus", 10)
 
