@@ -83,16 +83,28 @@ function SourceGroup({ source, items, selected, onSelect, defaultOpen }) {
 }
 
 export default function ValidationHubPage() {
-  const [selected, setSelected] = useState("pw-qeios");
+  const [selected, setSelected] = useState(null);
   const [datasets, setDatasets] = useState([]);
   const isAdmin = !!sessionStorage.getItem("admin_token");
 
   const fetchDatasets = useCallback(async () => {
     try {
       const r = await axios.get(`${API}/api/validation/datasets`);
-      setDatasets(r.data.datasets || []);
+      const ds = r.data.datasets || [];
+      setDatasets(ds);
+      // Auto-select first available item
+      if (!selected && ds.length) {
+        if (isAdmin) {
+          setSelected("pw-qeios");
+        } else {
+          // Public: default to first ICLR tournament dataset
+          const iclr = ds.find(d => d.name?.startsWith("ICLR "));
+          if (iclr) setSelected(`t-${iclr.dataset_id}`);
+          else setSelected(`t-${ds[0].dataset_id}`);
+        }
+      }
     } catch (e) { console.error(e); }
-  }, []);
+  }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 
