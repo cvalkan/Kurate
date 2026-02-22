@@ -2941,9 +2941,7 @@ async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optiona
     sig_vals = [sig_scores[pid] for pid in pids]
     str_vals = [str_scores[pid] for pid in pids]
 
-    def _safe(v):
-        import math
-        return 0.0 if (v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))) else float(v)
+    _safe = lambda v: safe_round(v, 10)  # reuse shared safe_round
 
     # Correlations against significance
     sp_sig, sp_sig_p = scipy_stats.spearmanr(ai_bt, sig_vals)
