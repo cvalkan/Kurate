@@ -58,6 +58,11 @@ async def rate_limit_middleware(request: Request, call_next):
     forwarded = request.headers.get("x-forwarded-for", "")
     ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
     path = request.url.path
+
+    # Exempt admin endpoints from rate limiting (already auth-protected)
+    if path.startswith("/api/admin/"):
+        return await call_next(request)
+
     max_requests, window = _RATE_LIMITS.get(path, _DEFAULT_RATE)
     key = f"{ip}:{path}" if path in _RATE_LIMITS else ip
 
