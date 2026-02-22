@@ -342,7 +342,7 @@ async def _prewarm_result_cache():
     """Pre-warm the validation result cache for datasets with the most matches."""
     await asyncio.sleep(5)
     try:
-        from routers.validation import get_pairwise_results, get_convergence
+        from routers.validation import get_pairwise_results, get_convergence_all
         # Find top datasets by match count
         pipeline = [
             {"$match": {"completed": True, "failed": {"$ne": True}}},
@@ -357,12 +357,20 @@ async def _prewarm_result_cache():
         warmed = 0
         for ds_id in top_datasets:
             try:
-                # Pre-warm the default mode (abstract) for each dataset
                 await get_pairwise_results(dataset_id=ds_id, content_mode="abstract")
                 warmed += 1
             except Exception:
                 pass
-        logger.info(f"Result cache pre-warmed: {warmed}/{len(top_datasets)} datasets")
+
+        # Pre-warm convergence-all in background (heavy but important)
+        conv_warmed = 0
+        for ds_id in top_datasets[:4]:  # Top 4 only to keep startup fast
+            try:
+                await get_convergence_all(dataset_id=ds_id)
+                conv_warmed += 1
+            except Exception:
+                pass
+        logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence")
     except Exception as e:
         logger.warning(f"Result cache prewarm failed: {e}")
 
