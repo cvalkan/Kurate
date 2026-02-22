@@ -104,7 +104,7 @@ export function LeaderboardTable({
 
   const scoreLabel = isGlobal ? "Score (G)" : "Score";
   const winLabel = isGlobal ? "Win % (G)" : "Win %";
-  const matchLabel = isGlobal ? "Mtch (G)" : "Mtch";
+  const matchLabel = isGlobal ? "Mtch (G)" : "Match";
 
   if (loading) {
     return (

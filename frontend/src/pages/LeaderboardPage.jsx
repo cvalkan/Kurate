@@ -169,7 +169,7 @@ export default function LeaderboardPage() {
 
   const title = hasSelectedTags
     ? `${selectedTags.join(tagMode === "and" ? " \u2229 " : " \u222A ")} Papers`
-    : isTagMode ? "All Papers" : `${categoryName} Preprint Rankings`;
+    : isTagMode ? "All Papers" : `${categoryName} Paper Rankings`;
 
   return (
     <TooltipProvider delayDuration={200}>
