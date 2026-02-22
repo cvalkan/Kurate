@@ -10,69 +10,55 @@ Build a robust system for validating AI model performance on scientific papers. 
 
 ## Datasets & Results
 
-### ICLR Tournaments — Opus 4.5 vs 4.6 (Controlled A/B on same pairs)
-| Dataset | Papers | Opus 4.5 ρ | Opus 4.6 ρ | Winner |
-|---|---|---|---|---|
-| Code Generation | 62 | 0.685 | **0.690** | 4.6 |
-| Fairness | 68 | 0.432 | **0.562** | 4.6 |
-| LLMs | 73 | **0.771** | 0.746 | 4.5 |
-| Molecules | 46 | 0.513 | **0.637** | 4.6 |
-| Optimization | 42 | **0.742** | 0.738 | ~tie |
-| Optimal Transport | 52 | 0.528 | **0.690** | 4.6 |
-| PDEs | 80 | 0.488 | **0.552** | 4.6 |
-| Protein Science | 46 | 0.770 | **0.785** | 4.6 |
+### ICLR — Opus 4.5 vs 4.6 (Controlled A/B)
+| Dataset | 4.5 ρ | 4.6 ρ | Winner |
+|---|---|---|---|
+| Code Gen | 0.685 | **0.690** | 4.6 |
+| Fairness | 0.432 | **0.562** | 4.6 |
+| LLMs | **0.771** | 0.746 | 4.5 |
+| Molecules | 0.513 | **0.637** | 4.6 |
+| Optimization | **0.742** | 0.738 | ~tie |
+| Optimal Transport | 0.528 | **0.690** | 4.6 |
+| PDEs | 0.488 | **0.552** | 4.6 |
+| Protein | 0.770 | **0.785** | 4.6 |
 
 ### eLife — Opus 4.5 vs 4.6
-| Dataset | Opus 4.5 ρ | Opus 4.6 ρ | Winner |
-|---|---|---|---|
-| Microbiology | 0.394 | **0.472** | 4.6 |
-| Cancer Biology | **0.269** | 0.253 | 4.5 |
-| Neuroscience | **0.398** | 0.394 | ~tie |
-
-### eLife Dual-Dimension (Opus 4.6)
-| Dataset | Sig ρ | Str ρ |
+| Dataset | 4.5 ρ | 4.6 ρ |
 |---|---|---|
-| Microbiology | **0.512** | 0.460 |
-| Cancer Biology | 0.299 | **0.441** |
-| Neuroscience | **0.352** | 0.137 |
+| Microbiology | 0.394 | **0.472** |
+| Cancer | **0.269** | 0.253 |
+| Neuroscience | **0.398** | 0.394 |
 
-### MIDL Medical Imaging — Opus 4.5 vs 4.6
-| Opus 4.5 ρ=0.270 | Opus 4.6 ρ=0.314 | 4.6 wins |
+### MIDL Medical Imaging
+| 4.5 ρ=0.270 | 4.6 ρ=**0.314** |
 
-### Qeios Per-Domain (50 papers each, abs+sum)
-| Domain | ρ |
-|---|---|
-| Social Sciences | 0.542 |
-| Physical Sciences | 0.443 |
-| Life Sciences | 0.441 |
-| Health Sciences | 0.414 |
+## Completed (Feb 22 2026)
+### Data Fixes
+- Opus 4.6 `winner_id` backfill (7,688 matches)
+- `judge_key` → `judge_model` bug fix in replay code
+- Extract filter excluding tagged modes (`$not: {$regex: ":"}`)
 
-## Key Importers Built
-- ICLR (berenslab parquet)
-- MIDL (OpenReview API)
-- eLife (eLife API with dual-dimension scoring)
-- Qeios (Crossref + page scraping)
+### Bug Fixes (Phase 1)
+- `cross-mode-agreement` now dynamically discovers all modes
+- `agreement-analysis` uses majority vote for multi-judge pairs
+- `run-tournament` dedup filter excludes tagged modes
 
-## Completed (Feb 21 2026)
-- **P0 Fix**: Opus 4.6 matches missing `winner_id` — backfilled 7,688 matches across 8 datasets
-- **Bug fix**: `judge_key` → `judge_model` in replay code; replay now stores `winner_id`
-- **Bug fix**: Extract filter was including tagged variants — added `$not: {$regex: ":"}`
-- **Bug fix**: `cross-mode-agreement` hardcoded 5 modes — now dynamically discovers all modes
-- **Bug fix**: `agreement-analysis` last-writer-wins — now uses majority vote for multi-judge pairs
-- **Bug fix**: `run-tournament` dedup filter included tagged modes in extract — now excludes them
-- **Perf**: Convergence endpoint optimized from 10-30s → ~1s (replaced binary search with pre-computed cumulative stats)
-- **Perf**: `available-modes` reduced from 2 aggregate pipelines to 1
-- Rebuilt frontend with correct API URL
-- Ran Opus 4.6 tournaments for elife-cancer, elife-microbiology, elife-neuro-100, midl-medical-imaging
+### Performance (Phase 2)
+- Convergence: 10-30s → ~1s (bisect pre-compute replaces binary search)
+- Server-side result cache (5min TTL, match-count invalidation)
+- Startup cache pre-warming for top 8 datasets
+- `available-modes` single aggregate pass
+- Frontend: smart default tab (selects mode with most data)
+- Convergence chart: disabled animations, O(1) data lookups
+
+### Cleanup (Phase 3)
+- Extracted `validation_utils.py`: shared TIER_ORDER, norm_tier, expert ratings builders, content mode filter, safe_round, interp, cache layer
+- Removed 4x duplicated `_norm_tier`/`TIER_ORDER`, 2x `_safe_round`, 2x `_build_content_mode_filter`
 
 ## Pending/Backlog
-- (P1) Complete fair replay of Opus 4.6 for remaining ICLR datasets (coverage 39-94%)
-- (P2) Add UI visualization for gap-stratified human accuracy in A/B test section
-- (P2) Complete data generation for `iclr-llms` dataset
-- (P2) Add missing HTTP security headers
+- (P1) Complete remaining Opus 4.6 ICLR replays (coverage 39-94%)
+- (P2) Gap-stratified human accuracy UI in A/B test section
+- (P2) HTTP security headers
 - (P2) Production deployment (user action required)
-- (P3) Extract shared utilities (`_norm_tier`, `TIER_ORDER`, expert ratings builder)
-- (P3) Split validation.py (3800+ lines) into modules (importers, tournament, analysis, experiments)
+- (P3) Further split validation.py into importers/analysis/experiments modules
 - Run full_pdf tournaments for Qeios domains
-- Strip HTML tags from paper titles
-- Hide 0% Expert-Expert for single-evaluator datasets
