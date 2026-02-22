@@ -32,10 +32,18 @@ function getSummaryEntries(summaries) {
       return { key, tabId: provider, provider, text, ...meta };
     })
     .filter(e => typeof e.text === "string" && e.text.length > 50);
+  // Deduplicate by provider — prefer newer model keys (4.6 over 4.5)
+  const byProvider = {};
+  for (const e of entries) {
+    if (!byProvider[e.provider] || e.key > byProvider[e.provider].key) {
+      byProvider[e.provider] = e;
+    }
+  }
+  const deduped = Object.values(byProvider);
   // Sort so Claude (anthropic) is first
   const order = { anthropic: 0, openai: 1, gemini: 2 };
-  entries.sort((a, b) => (order[a.provider] ?? 9) - (order[b.provider] ?? 9));
-  return entries;
+  deduped.sort((a, b) => (order[a.provider] ?? 9) - (order[b.provider] ?? 9));
+  return deduped;
 }
 
 /** Render LaTeX expressions in a string. Handles $...$, $$...$$, \(...\), and \[...\] delimiters. */
