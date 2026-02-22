@@ -4,7 +4,26 @@ import { TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#22c55e", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1"];
+
+// Stable color assignments: same mode always gets the same color across all charts
+const MODE_COLORS = {
+  "abstract":                          "#22c55e",  // green
+  "extract":                           "#f59e0b",  // amber
+  "full_pdf":                          "#ef4444",  // red
+  "ai_summary":                        "#06b6d4",  // cyan
+  "abstract_plus_summary":             "#3b82f6",  // blue
+  "abstract_plus_summary:opus46":      "#8b5cf6",  // purple
+  "abstract_plus_summary:opus_thinking":"#a855f7",  // violet
+  "abstract_plus_summary:gpt_thinking": "#ec4899",  // pink
+  "abstract_plus_summary:gpt_summary":  "#f97316",  // orange
+  "abstract_plus_summary:gemini_summary":"#14b8a6",  // teal
+  "abstract_plus_summary:gemini_thinking":"#84cc16", // lime
+};
+const FALLBACK_COLORS = ["#6366f1", "#d946ef", "#0ea5e9", "#a3e635", "#fb923c", "#38bdf8"];
+function getModeColor(modeId, fallbackIdx = 0) {
+  return MODE_COLORS[modeId] || FALLBACK_COLORS[fallbackIdx % FALLBACK_COLORS.length];
+}
+
 const TOPK_COLORS = { top_3: "#ef4444", top_5: "#f59e0b", top_10: "#3b82f6", top_20: "#8b5cf6" };
 const METRICS = [
   { id: "spearman", label: "Spearman \u03C1" },
