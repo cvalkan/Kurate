@@ -3736,11 +3736,7 @@ async def seed_validation_data():
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
-def _interp(rho, p_val, n, method):
-    strength = "strong" if abs(rho) >= 0.7 else "moderate" if abs(rho) >= 0.4 else "weak" if abs(rho) >= 0.2 else "negligible"
-    direction = "positive" if rho > 0 else "negative"
-    sig = "statistically significant" if p_val < 0.05 else "not statistically significant"
-    return f"Using {method} ranking ({n} papers): Spearman ρ = {rho:.3f} ({strength} {direction}, {sig}, p = {p_val:.4f})."
+_interp = interp  # alias for backward compatibility with existing references
 
 
 # ─── F1000Prime Alzheimer's Scraper ─────────────────────────────────────────
