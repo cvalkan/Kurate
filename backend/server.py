@@ -137,6 +137,15 @@ async def startup():
         await db.validation_matches.create_index("id", unique=True)
         await db.validation_matches.create_index([("completed", 1), ("failed", 1)])
         await db.validation_matches.create_index([("dataset_id", 1), ("completed", 1), ("failed", 1)])
+        # Compound index for content_mode queries (most common query pattern)
+        await db.validation_matches.create_index(
+            [("dataset_id", 1), ("content_mode", 1), ("completed", 1), ("failed", 1)],
+            name="dataset_mode_completed_failed"
+        )
+        await db.validation_matches.create_index([("dataset_id", 1), ("completed", 1)])
+        # Summarizer comparisons indexes
+        await db.summarizer_comparisons.create_index("dataset_id")
+        await db.summarizer_comparisons.create_index([("paper1_id", 1), ("paper2_id", 1)])
         # Pairwise comparison indexes
         await db.pairwise_comparisons.create_index("id", unique=True)
         await db.pairwise_comparisons.create_index([("reviewer", 1), ("source", 1)])
