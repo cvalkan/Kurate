@@ -160,9 +160,9 @@ def interp(rho, p_val, n, method):
 # Invalidated explicitly when tournaments add matches, or by TTL expiry.
 
 _result_cache = {}
-_CACHE_TTL = 600  # 10 minutes — safe because data changes only during active tournaments
+_CACHE_TTL = 900  # 15 minutes — data changes only during active tournaments
 _match_count_cache = {}  # dataset_id -> (count, timestamp)
-_COUNT_CHECK_INTERVAL = 30  # Only re-check match count every 30 seconds
+_COUNT_CHECK_INTERVAL = 120  # Only re-check match count every 2 minutes
 
 
 async def _get_match_count(dataset_id: str) -> int:
