@@ -3579,6 +3579,7 @@ async def _run_replay(dataset_id: str, matches: list, target_mode: str, summary_
     tasks = [_run_one(m) for m in matches]
     await asyncio.gather(*tasks, return_exceptions=True)
     logger.info(f"Replay complete for {dataset_id}/{target_mode}: {completed}/{len(matches)}")
+    invalidate_dataset_cache(dataset_id)
 
 
 
