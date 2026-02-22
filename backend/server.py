@@ -348,7 +348,7 @@ async def _prewarm_result_cache():
             {"$match": {"completed": True, "failed": {"$ne": True}}},
             {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
-            {"$limit": 8},
+            {"$limit": 30},
         ]
         top_datasets = []
         async for doc in db.validation_matches.aggregate(pipeline):
