@@ -20,11 +20,10 @@ const SUMMARY_LABELS = {
 
 function getSummaryEntries(summaries) {
   if (!summaries || typeof summaries !== "object") return [];
-  return Object.entries(summaries)
+  const entries = Object.entries(summaries)
     .map(([key, val]) => {
       const provider = key.split(":")[0];
       const meta = SUMMARY_LABELS[provider] || { label: provider, color: "text-foreground" };
-      // Handle dict values (MongoDB dot-notation artifact): extract longest string value
       let text = val;
       if (typeof val === "object" && val !== null) {
         const strs = Object.values(val).filter(v => typeof v === "string" && v.length > 50);
@@ -33,6 +32,10 @@ function getSummaryEntries(summaries) {
       return { key, tabId: provider, provider, text, ...meta };
     })
     .filter(e => typeof e.text === "string" && e.text.length > 50);
+  // Sort so Claude (anthropic) is first
+  const order = { anthropic: 0, openai: 1, gemini: 2 };
+  entries.sort((a, b) => (order[a.provider] ?? 9) - (order[b.provider] ?? 9));
+  return entries;
 }
 
 /** Render LaTeX expressions in a string. Handles $...$, $$...$$, \(...\), and \[...\] delimiters. */
