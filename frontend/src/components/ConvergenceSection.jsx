@@ -243,7 +243,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               )}
               {dsIds.map((did, i) => (
                 <Line key={did} type="monotone" dataKey={`${did}_${metric}`} name={curves[did].name}
-                  stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                  stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
               ))}
             </LineChart>
           </ResponsiveContainer>
@@ -267,7 +267,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
               {dsIds.map((did, i) => (
                 <Line key={did} type="monotone" dataKey={`${did}_tier_spearman`} name={curves[did].name}
-                  stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                  stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
               ))}
             </LineChart>
           </ResponsiveContainer>
@@ -294,10 +294,10 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
                 return [
                   <Line key={`${did}_sig`} type="monotone" dataKey={`${did}_sig`}
                     name={`${curves[did].name} (Significance)`}
-                    stroke={color} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />,
+                    stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />,
                   <Line key={`${did}_str`} type="monotone" dataKey={`${did}_str`}
                     name={`${curves[did].name} (Strength)`}
-                    stroke={color} strokeWidth={2} strokeDasharray="6 3" dot={{ r: 2.5, strokeDasharray: "" }} connectNulls />,
+                    stroke={color} strokeWidth={2} strokeDasharray="6 3" dot={false} isAnimationActive={false} connectNulls />,
                 ];
               })}
             </LineChart>
@@ -320,7 +320,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
                 return (
                   <Line key={did} type="monotone" dataKey={`${did}_top_${k}`}
                     name={dsIds.length > 1 ? `${curves[did].name}` : `Top ${k}`}
-                    stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                    stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                 );
               })}
             </LineChart>
