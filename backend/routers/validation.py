@@ -3448,7 +3448,7 @@ async def get_summarizer_comparison_status():
     return {"total_completed": total, "is_running": _summarizer_comparison_running}
 
 
-@router.post("/summarizer-comparison/stop")
+@router.post("/summarizer-comparison/stop", dependencies=[Depends(verify_admin)])
 async def stop_summarizer_comparison():
     """Stop the running summarizer comparison."""
     global _summarizer_comparison_cancel
