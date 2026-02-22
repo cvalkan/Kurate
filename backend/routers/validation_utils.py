@@ -156,10 +156,25 @@ def interp(rho, p_val, n, method):
 
 
 # ─── Result Cache ──────────────────────────────────────────────────────────────
-# Caches expensive computation results. Invalidated when match count changes.
+# Caches expensive computation results. Uses TTL only (no per-request DB queries).
+# Invalidated explicitly when tournaments add matches, or by TTL expiry.
 
 _result_cache = {}
-_CACHE_TTL = 300  # 5 minutes
+_CACHE_TTL = 600  # 10 minutes — safe because data changes only during active tournaments
+_match_count_cache = {}  # dataset_id -> (count, timestamp)
+_COUNT_CHECK_INTERVAL = 30  # Only re-check match count every 30 seconds
+
+
+async def _get_match_count(dataset_id: str) -> int:
+    """Get match count with its own 30-second cache to avoid repeated DB queries."""
+    cached = _match_count_cache.get(dataset_id)
+    if cached and _time.time() - cached[1] < _COUNT_CHECK_INTERVAL:
+        return cached[0]
+    count = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    )
+    _match_count_cache[dataset_id] = (count, _time.time())
+    return count
 
 
 async def cache_get(endpoint: str, dataset_id: str, content_mode: str = ""):
@@ -170,20 +185,20 @@ async def cache_get(endpoint: str, dataset_id: str, content_mode: str = ""):
     if _time.time() - entry["ts"] > _CACHE_TTL:
         del _result_cache[key]
         return None
-    current_count = await db.validation_matches.count_documents(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    )
+    current_count = await _get_match_count(dataset_id)
     if current_count != entry["match_count"]:
-        del _result_cache[key]
+        # Invalidate ALL entries for this dataset
+        to_del = [k for k in _result_cache if k[1] == dataset_id]
+        for k in to_del:
+            del _result_cache[k]
+        _match_count_cache.pop(dataset_id, None)
         return None
     return entry["data"]
 
 
 async def cache_set(endpoint: str, dataset_id: str, content_mode: str, data, match_count: int = None):
     if match_count is None:
-        match_count = await db.validation_matches.count_documents(
-            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-        )
+        match_count = await _get_match_count(dataset_id)
     _result_cache[(endpoint, dataset_id, content_mode or "")] = {
         "data": data, "ts": _time.time(), "match_count": match_count,
     }
