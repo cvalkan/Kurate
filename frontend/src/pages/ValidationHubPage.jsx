@@ -140,6 +140,10 @@ export default function ValidationHubPage() {
         <p className="text-sm text-muted-foreground max-w-3xl">
           Does AI agree with human peer reviewers? Three methods, multiple datasets — pairwise comparison, single-item rating, and full tournament ranking.
         </p>
+        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium">
+          <FlaskConical className="h-3 w-3" />
+          Work in progress — results are preliminary and actively being refined
+        </div>
       </div>
 
       <div className="flex gap-5">
