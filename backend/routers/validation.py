@@ -1208,6 +1208,7 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
         state["running"] = False
         state["cancel_requested"] = False
         _tournament_tasks.pop(dataset_id, None)
+        invalidate_dataset_cache(dataset_id)
 
 
 # ─── Multi-Model Tournament ───────────────────────────────────────────────────
