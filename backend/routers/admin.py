@@ -330,8 +330,8 @@ async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSu
 
     needs_work = 0
     for p in all_papers:
-        existing = p.get("summaries") or {}
-        missing = [mk for mk in model_keys if mk not in existing or not isinstance(existing.get(mk), str) or len(existing.get(mk, "")) < 50]
+        from services.scheduler import _get_paper_summary
+        missing = [mk for mk in model_keys if not _get_paper_summary(p, mk)]
         if missing:
             needs_work += 1
 
