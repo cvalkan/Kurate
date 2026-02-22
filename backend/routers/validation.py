@@ -1590,6 +1590,18 @@ async def get_available_modes(dataset_id: str = Query(...)):
 
 @router.get("/status")
 async def get_status(dataset_id: str = Query(...)):
+    cached = await cache_get("status", dataset_id, "")
+    if cached:
+        # Always update tournament_running from live state
+        state = _get_state(dataset_id)
+        cached["tournament_running"] = state["running"]
+        cached["tournament_progress"] = state
+        return cached
+    result = await _compute_status(dataset_id)
+    await cache_set("status", dataset_id, "", result)
+    return result
+
+async def _compute_status(dataset_id: str):
     # Single aggregation for all match counts (replaces 5 separate count_documents calls)
     match_stats_pipeline = [
         {"$match": {"dataset_id": dataset_id}},
