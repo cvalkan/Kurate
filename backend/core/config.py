@@ -31,7 +31,7 @@ logger = logging.getLogger("papersumo")
 # Models used for random selection in automated tournaments
 TOURNAMENT_MODELS = [
     {"provider": "openai", "model": "gpt-5.2"},
-    {"provider": "anthropic", "model": "claude-opus-4-5-20251101"},
+    {"provider": "anthropic", "model": "claude-opus-4-6"},
     {"provider": "gemini", "model": "gemini-3-pro-preview"},
 ]
 
