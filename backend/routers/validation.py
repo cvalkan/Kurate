@@ -2890,7 +2890,7 @@ class GenerateSummariesRequest(BaseModel):
     dataset_id: str
     parallel: int = 5
     model_provider: str = "anthropic"
-    model_name: str = "claude-opus-4-5-20251101"
+    model_name: str = "claude-opus-4-6"
     extra_params: dict = {}
 
 
