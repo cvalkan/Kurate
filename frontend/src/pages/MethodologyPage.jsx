@@ -48,20 +48,20 @@ export default function MethodologyPage() {
           Methodology
         </h1>
         <p className="text-muted-foreground text-sm max-w-2xl">
-          How PaperSumo ranks academic papers across {categories.length || "multiple"} categories using AI-powered pairwise comparison.
+          How PaperSumo ranks arXiv preprints across {categories.length || "multiple"} categories using AI-powered pairwise comparison.
         </p>
       </div>
 
       <div>
         <Step number={1} icon={Search} title="Paper Discovery & AI Impact Assessment">
-          <p>The system queries the arXiv API for the latest papers across {catList || "Robotics, Distributed Computing, Economics, Computational Physics, Biomolecules"}. For each paper, the full PDF is downloaded and three independent <span className="text-foreground font-medium">AI Impact Assessments</span> are generated — one each from GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro — analyzing the paper's novelty, methodology, potential impact, and limitations. These pre-computed summaries power both the pairwise tournament and the paper detail pages.</p>
+          <p>The system queries the arXiv API for the latest preprints across {catList || "Robotics, Distributed Computing, Economics, Computational Physics, Biomolecules"}. For each preprint, the full PDF is downloaded and three independent <span className="text-foreground font-medium">AI Impact Assessments</span> are generated — one each from GPT-5.2, Claude Opus 4.6, and Gemini 3 Pro — analyzing the paper's novelty, methodology, potential impact, and limitations. These pre-computed summaries power both the pairwise tournament and the paper detail pages.</p>
         </Step>
 
         <Step number={2} icon={Swords} title="Pairwise Tournament">
           <p>Papers are compared head-to-head in pairs using their <span className="text-foreground font-medium">abstract + AI summary</span> as input. Each comparison is assigned to one of three AI models via <span className="text-foreground font-medium">round-robin rotation</span>, ensuring every paper is evaluated by all three models equally:</p>
           <div className="flex flex-wrap gap-2 my-2">
             <span className="text-xs font-mono px-2 py-1 rounded border bg-green-50 text-green-700 border-green-200">GPT-5.2</span>
-            <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-50 text-orange-700 border-orange-200">Claude Opus 4.5</span>
+            <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-50 text-orange-700 border-orange-200">Claude Opus 4.6</span>
             <span className="text-xs font-mono px-2 py-1 rounded border bg-blue-50 text-blue-700 border-blue-200">Gemini 3 Pro</span>
           </div>
           <p>Each model evaluates which paper has higher potential scientific impact across five dimensions: novelty, real-world applications, methodological rigor, breadth of impact, and timeliness. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-evaluation">View the evaluation prompt &rarr;</Link></p>
