@@ -1773,18 +1773,10 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
     } for pid in common], key=lambda x: x["human_rank"])
 
     # ─── Acceptance Tier Metrics ────────────────────────────────────────
-    TIER_ORDER = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "withdrawn": 4, "desk rejected": 4}
-    def _norm_tier(d):
-        if not d: return None
-        dl = d.lower().strip()
-        for t in TIER_ORDER:
-            if t in dl: return t
-        return None
-
     paper_tiers = {}
     for p in papers:
-        t = _norm_tier(p.get("decision"))
-        if t and t in ("oral", "spotlight", "poster", "reject"):
+        t = norm_tier(p.get("decision"))
+        if t and t in RANKABLE_TIERS:
             paper_tiers[p["id"]] = t
 
     tier_metrics = None
