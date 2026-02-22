@@ -1146,14 +1146,14 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
 
         state["total_matches"] = len(pairs)
         completed = 0
+        _max_duration = 3600  # 1 hour max tournament duration
 
         # Semaphore-based pipeline: each result saved immediately as it completes
-        # No batch blocking — a slow/failing call never holds up successful ones
         sem = asyncio.Semaphore(parallel)
 
         async def _run_one(p1_orig, p2_orig):
             nonlocal completed
-            if state.get("cancel_requested"):
+            if state.get("cancel_requested") or (_time.time() - state["started_at"] > _max_duration):
                 return
             # Random flip for positional bias
             if random.random() < 0.5:
