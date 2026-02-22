@@ -2164,6 +2164,69 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 
 
 
+@router.get("/convergence-all")
+async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(20)):
+    """Return convergence data for ALL available modes in a single response."""
+    cached = await cache_get("convergence-all", dataset_id, "")
+    if cached:
+        return cached
+
+    # Discover modes
+    mode_pipeline = [
+        {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
+        {"$group": {"_id": {"$ifNull": ["$content_mode", "none"]}, "count": {"$sum": 1}}},
+    ]
+    SUMMARY_TAG_LABELS = {
+        "gpt_summary": "GPT-5.2", "gemini_summary": "Gemini 3 Pro",
+        "opus_thinking": "Opus 4.5 Thinking", "gpt_thinking": "GPT-5.2 Thinking",
+        "gemini_thinking": "Gemini 3 Thinking", "opus46": "Opus 4.6",
+    }
+    BASE_LABELS = {
+        "none": "Extract", "extract": "Extract", "abstract": "Abstract",
+        "full_pdf": "Full PDF", "ai_summary": "AI Summary",
+        "abstract_plus_summary": "Abstract + Summary",
+    }
+    modes = []
+    async for doc in db.validation_matches.aggregate(mode_pipeline):
+        cm = doc["_id"]
+        if cm in ("none", None, ""):
+            cm = "extract"
+        if doc["count"] >= 10:
+            tag = cm.split(":", 1)[1] if ":" in cm else None
+            label = SUMMARY_TAG_LABELS.get(tag, BASE_LABELS.get(cm, cm.replace("_", " ").title()))
+            if tag:
+                base = cm.split(":")[0].replace("_", " ").title()
+                label = f"{base} ({label})"
+            modes.append({"id": cm, "label": label, "matches": doc["count"]})
+
+    if not modes:
+        return {"status": "no_data"}
+
+    # Compute convergence for all modes in parallel
+    async def _get_one(mode_id):
+        c = await cache_get("convergence", dataset_id, mode_id)
+        if c:
+            return (mode_id, c)
+        r = await _compute_convergence(dataset_id, mode_id, steps)
+        if r.get("status") == "ok":
+            await cache_set("convergence", dataset_id, mode_id, r)
+        return (mode_id, r)
+
+    results = await asyncio.gather(*[_get_one(m["id"]) for m in modes])
+
+    by_mode = {}
+    for mode_id, data in results:
+        if data.get("status") == "ok" and data.get("curve"):
+            mode_info = next((m for m in modes if m["id"] == mode_id), {})
+            by_mode[mode_id] = {**data, "name": mode_info.get("label", mode_id)}
+
+    result = {"status": "ok", "dataset_id": dataset_id, "modes": by_mode}
+    if by_mode:
+        await cache_set("convergence-all", dataset_id, "", result)
+    return result
+
+
+
 # ─── Results: IRT Direct Score ─────────────────────────────────────────────────
 
 @router.get("/irt-results")
