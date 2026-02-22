@@ -718,7 +718,7 @@ async def get_usage_stats(category: str = None):
             if "openai" in provider:
                 pricing_key = "openai/gpt-5.2"
             elif "anthropic" in provider:
-                pricing_key = "anthropic/claude-opus-4-5-20251101"
+                pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
             elif "gemini" in provider:
                 pricing_key = "gemini/gemini-3-pro-preview"
             else:
@@ -1202,7 +1202,7 @@ async def get_timeseries(category: Optional[str] = None):
             if "openai" in provider:
                 pricing_key = "openai/gpt-5.2"
             elif "anthropic" in provider:
-                pricing_key = "anthropic/claude-opus-4-5-20251101"
+                pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
             elif "gemini" in provider:
                 pricing_key = "gemini/gemini-3-pro-preview"
             else:
