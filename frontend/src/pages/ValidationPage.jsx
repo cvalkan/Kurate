@@ -351,7 +351,7 @@ function StandardStats({ datasetId, isAdmin }) {
   const activeDual = active.dual;
   const hasActiveData = activePairwise || activeIrt || activeDual;
   const isLoading = contentMode && !modeData[contentMode];
-  const modeLabel = allModes.find(m => m.id === contentMode)?.label || contentMode;
+  const modeLabel = allModes.find(m => m.id === contentMode)?.label || contentMode || "Loading";
   // Show standard modes + any discovered modes (discovered = has match data in DB)
   const standardIds = new Set(["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"]);
   const visibleModes = allModes.filter(m => standardIds.has(m.id) || !standardIds.has(m.id));
