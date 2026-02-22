@@ -8,6 +8,10 @@ import time as _time
 from collections import defaultdict, Counter
 from typing import Optional
 
+
+# Projection for paper queries in analysis endpoints — excludes large text fields
+PAPER_LIGHT_PROJECTION = {"_id": 0, "full_text": 0, "ai_impact_summary_opus46": 0, "ai_impact_summary_fairness_v1": 0}
+
 from core.config import db
 
 
