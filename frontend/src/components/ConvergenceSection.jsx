@@ -43,41 +43,23 @@ export function ValidationConvergence({ datasets }) {
 
   useEffect(() => {
     if (!datasets?.length) return;
-    // First, discover all available modes per dataset, then fetch convergence for each
-    const modeDiscovery = datasets.map(ds =>
-      axios.get(`${API}/api/validation/available-modes`, { params: { dataset_id: ds.dataset_id } })
-        .then(r => ({ dsId: ds.dataset_id, dsName: ds.name, modes: r.data.modes || [] }))
-        .catch(() => ({ dsId: ds.dataset_id, dsName: ds.name, modes: [] }))
-    );
-
-    Promise.all(modeDiscovery).then(discovered => {
-      const fetches = [];
-      discovered.forEach(d => {
-        // Only fetch convergence for modes that have actual match data
-        const activeModes = new Map();
-        d.modes.forEach(m => {
-          if (m.id !== "none" && m.matches > 0) {
-            activeModes.set(m.id, m.label);
-          }
-        });
-        activeModes.forEach((label, modeId) => {
-          fetches.push(
-            axios.get(`${API}/api/validation/convergence`, {
-              params: { dataset_id: d.dsId, content_mode: modeId, steps: 50 }
-            }).then(r => ({ dsId: d.dsId, dsName: d.dsName, mode: modeId, modeLabel: label, data: r.data }))
-              .catch(() => null)
-          );
-        });
-      });
-
-      return Promise.all(fetches);
-    }).then(results => {
+    // Single batch call per dataset — returns all modes at once
+    Promise.all(
+      datasets.map(ds =>
+        axios.get(`${API}/api/validation/convergence-all`, { params: { dataset_id: ds.dataset_id } })
+          .then(r => ({ dsId: ds.dataset_id, dsName: ds.name, data: r.data }))
+          .catch(() => null)
+      )
+    ).then(results => {
       const c = {};
       for (const r of results) {
-        if (!r || r.data.status !== "ok" || !r.data.curve?.length) continue;
-        const key = datasets.length === 1 ? r.mode : `${r.dsId}__${r.mode}`;
-        const label = datasets.length === 1 ? r.modeLabel : `${r.dsName} (${r.modeLabel})`;
-        c[key] = { ...r.data, name: label };
+        if (!r || r.data?.status !== "ok" || !r.data.modes) continue;
+        for (const [modeId, modeData] of Object.entries(r.data.modes)) {
+          if (!modeData.curve?.length) continue;
+          const key = datasets.length === 1 ? modeId : `${r.dsId}__${modeId}`;
+          const label = datasets.length === 1 ? modeData.name : `${r.dsName} (${modeData.name})`;
+          c[key] = { ...modeData, name: label };
+        }
       }
       setCurves(c);
       setLoading(false);
