@@ -169,7 +169,7 @@ export default function LeaderboardPage() {
 
   const title = hasSelectedTags
     ? `${selectedTags.join(tagMode === "and" ? " \u2229 " : " \u222A ")} Papers`
-    : isTagMode ? "All Papers" : `${categoryName} Paper Rankings`;
+    : isTagMode ? "All Papers" : `${categoryName} Preprint Rankings`;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -181,7 +181,7 @@ export default function LeaderboardPage() {
             ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}.`
             : isTagMode
             ? "Showing all papers across all categories. Select tags below to filter."
-            : <>AI-estimated scientific impact ranking of the latest arXiv {categoryName} papers. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link></>}
+            : <>AI-estimated scientific impact ranking of the latest arXiv {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link></>}
         </p>
       </div>
 
