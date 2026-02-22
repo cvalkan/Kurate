@@ -247,7 +247,7 @@ function DualDimensionSection({ dual, modeLabel }) {
 
 function StandardStats({ datasetId, isAdmin }) {
   const [status, setStatus] = useState(null);
-  const [contentMode, setContentMode] = useState("abstract");
+  const [contentMode, setContentMode] = useState(null);  // null until best mode auto-selected
   const [modeData, setModeData] = useState({});  // { mode: { pairwise, irt, agreement, dual } }
   const [isRunningTournament, setIsRunningTournament] = useState(false);
   const [allModes, setAllModes] = useState([
