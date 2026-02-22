@@ -3024,8 +3024,8 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
                 p1, p2 = paper_map[pids[i]], paper_map[pids[j]]
 
                 # Ground truth 1: Committee/tier decision (strongest)
-                t1, t2 = _norm_tier(p1.get("decision")), _norm_tier(p2.get("decision"))
-                has_tier_diff = t1 and t2 and t1 != t2 and TIER_ORDER.get(t1, 99) != 99 and TIER_ORDER.get(t2, 99) != 99
+                t1, t2 = norm_tier(p1.get("decision")), norm_tier(p2.get("decision"))
+                has_tier_diff = t1 and t2 and t1 != t2 and _TIER_ORDER_EXT.get(t1, 99) != 99 and _TIER_ORDER_EXT.get(t2, 99) != 99
 
                 # Ground truth 2: Reviewer score majority (need clear gap with multiple reviewers)
                 s1, s2 = p1.get("h1_avg_rating", 0), p2.get("h1_avg_rating", 0)
