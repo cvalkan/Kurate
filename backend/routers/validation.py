@@ -1691,40 +1691,7 @@ async def get_status(dataset_id: str = Query(...)):
 
 # ─── Results: Pairwise BT ─────────────────────────────────────────────────────
 
-def _build_content_mode_filter(content_mode: Optional[str] = None, abstract_only: Optional[bool] = None) -> dict:
-    """Build a MongoDB match filter for content_mode, with backward compatibility."""
-    # Shared filter for "extract" mode: exclude abstract, named modes, AND tagged variants (containing ':')
-    _extract_filter = {
-        "abstract_only": {"$ne": True},
-        "content_mode": {"$nin": ["full_pdf", "ai_summary", "abstract_plus_summary", "abstract_plus_impact"], "$not": {"$regex": ":"}},
-        "prompt_tag": {"$exists": False},
-    }
-    if not content_mode:
-        if abstract_only is True:
-            return {"abstract_only": True}
-        elif abstract_only is False:
-            return _extract_filter
-        return {}
-    # Tagged prompt variants (e.g., "abstract_plus_summary:opus46")
-    if ":" in content_mode:
-        return {"content_mode": content_mode}
-    if content_mode == "full_pdf":
-        return {"content_mode": "full_pdf"}
-    elif content_mode == "ai_summary":
-        return {"content_mode": "ai_summary"}
-    elif content_mode == "abstract_plus_summary":
-        return {"content_mode": "abstract_plus_summary"}
-    elif content_mode == "abstract_plus_3summaries":
-        return {"content_mode": "abstract_plus_3summaries"}
-    elif content_mode == "abstract_plus_random_summary":
-        return {"content_mode": "abstract_plus_random_summary"}
-    elif content_mode == "abstract_plus_impact":
-        return {"content_mode": "abstract_plus_impact"}
-    elif content_mode == "abstract":
-        return {"abstract_only": True}
-    elif content_mode == "extract" or abstract_only is False:
-        return _extract_filter
-    return {}
+_build_content_mode_filter = build_content_mode_filter
 
 
 @router.get("/pairwise-results")
