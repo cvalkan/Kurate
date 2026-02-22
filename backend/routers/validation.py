@@ -3705,6 +3705,7 @@ async def _run_targeted_pairwise(dataset_id: str, pairs: list, content_mode: str
         logger.error(f"Targeted pairwise [{dataset_id}] error: {e}")
     finally:
         state["running"] = False
+        invalidate_dataset_cache(dataset_id)
 
 
 
