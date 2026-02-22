@@ -126,14 +126,6 @@ export default function CorrelationPage() {
         <LeaderboardConvergence category={category || null} />
       </div>
 
-      <div className="space-y-3 mb-6">
-        <div className="p-4 bg-secondary/30 border border-border rounded-lg text-sm">
-          <h3 className="font-medium text-foreground mb-2">Pair difficulty breakdown</h3>
-          <p className="text-xs text-muted-foreground">
-            Each model pair's agreement is broken down by difficulty. Hover <span className="font-medium text-foreground cursor-help border-b border-dotted border-muted-foreground" title="Papers with a win rate difference ≥10 percentage points. One paper is clearly stronger. Models tend to agree more here (typically 70-90%).">clear-cut</span> and <span className="font-medium text-foreground cursor-help border-b border-dotted border-muted-foreground" title="Papers with similar win rates (<10pp difference). Genuine toss-ups where reasonable judges can disagree. Agreement drops to ~50% (near random).">contested</span> labels in the cards above for definitions.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }
