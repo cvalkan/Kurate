@@ -1356,7 +1356,7 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
     """Inter-model agreement + majority-vote vs expert analysis."""
     from core.config import TOURNAMENT_MODELS
 
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
     match_filter.update(build_content_mode_filter(content_mode))
@@ -1747,7 +1747,7 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
     return result
 
 async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[bool], content_mode: Optional[str]):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
     match_filter.update(build_content_mode_filter(content_mode, abstract_only))
@@ -1931,7 +1931,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
     settings = await get_settings()
     top_k_focus = settings.get("top_k_focus", 10)
 
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
     if not papers:
         return {"status": "no_data"}
 
@@ -2292,7 +2292,7 @@ async def get_irt_results(dataset_id: str = Query(...), abstract_only: Optional[
     return result
 
 async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
     match_filter.update(build_content_mode_filter(content_mode, abstract_only))
@@ -2397,7 +2397,7 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
     return result
 
 async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
     match_filter.update(build_content_mode_filter(content_mode, abstract_only))
@@ -2510,7 +2510,7 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     return result
 
 async def _compute_cross_mode_agreement(dataset_id: str):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
     if not papers:
         return {"status": "no_data"}
 
@@ -2986,7 +2986,7 @@ async def get_dual_dimension_results(dataset_id: str = Query(...), content_mode:
     return result
 
 async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optional[str]):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
 
     # Check that papers have dual scores
     has_dual = [p for p in papers if p.get("sig_score") is not None and p.get("str_score") is not None]
