@@ -2589,7 +2589,6 @@ async def _compute_cross_mode_agreement(dataset_id: str):
     # rather than requiring all modes to share the same pairs.
     # Include any mode with at least 50 pairs.
     core_modes = [m for m in available_modes if len(mode_ai_pairs[m]) >= 50]
-    overlay_modes = [m for m in available_modes if m not in core_modes]
 
     if len(core_modes) < 2:
         return {"status": "insufficient_modes", "available": available_modes}
