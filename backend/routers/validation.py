@@ -29,6 +29,7 @@ from routers.validation_utils import (
     TIER_ORDER, RANKABLE_TIERS, norm_tier,
     build_expert_ratings, build_human_pairwise_matches, build_expert_majority, build_ai_majority,
     build_content_mode_filter, safe_round, interp, cache_get, cache_set,
+    PAPER_LIGHT_PROJECTION,
 )
 
 router = APIRouter(prefix="/api/validation")
