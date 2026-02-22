@@ -331,8 +331,40 @@ async def _prewarm_validation_cache():
         async for _ in db.validation_matches.aggregate(pipeline2):
             pass
         logger.info("Validation cache pre-warmed")
+
+        # Pre-warm result cache for common datasets (background, non-blocking)
+        asyncio.create_task(_prewarm_result_cache())
     except Exception as e:
         logger.warning(f"Validation cache prewarm failed: {e}")
+
+
+async def _prewarm_result_cache():
+    """Pre-warm the validation result cache for datasets with the most matches."""
+    await asyncio.sleep(5)
+    try:
+        from routers.validation import get_pairwise_results, get_convergence
+        # Find top datasets by match count
+        pipeline = [
+            {"$match": {"completed": True, "failed": {"$ne": True}}},
+            {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 8},
+        ]
+        top_datasets = []
+        async for doc in db.validation_matches.aggregate(pipeline):
+            top_datasets.append(doc["_id"])
+
+        warmed = 0
+        for ds_id in top_datasets:
+            try:
+                # Pre-warm the default mode (abstract) for each dataset
+                await get_pairwise_results(dataset_id=ds_id, content_mode="abstract")
+                warmed += 1
+            except Exception:
+                pass
+        logger.info(f"Result cache pre-warmed: {warmed}/{len(top_datasets)} datasets")
+    except Exception as e:
+        logger.warning(f"Result cache prewarm failed: {e}")
 
 
 @app.on_event("shutdown")
