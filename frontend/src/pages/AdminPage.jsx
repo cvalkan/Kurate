@@ -124,10 +124,33 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, fetch: true }));
     try {
       const res = await axios.post(`${API}/api/admin/fetch`, { category: adminCat }, { headers: getAdminHeaders() });
-      toast.success(`Fetch complete: ${res.data.new_papers || 0} new ${adminCat} papers`);
-      fetchAll();
-    } catch (err) { toast.error("Fetch failed: " + (err.response?.data?.detail || err.message)); }
-    finally { setLoading(l => ({ ...l, fetch: false })); }
+      if (res.data.status === "already_running") {
+        toast.info(`Fetch already running for ${adminCat} (started ${new Date(res.data.started_at).toLocaleTimeString()})`);
+        setLoading(l => ({ ...l, fetch: false }));
+        return;
+      }
+      toast.info(`Fetch & generate task started for ${adminCat}. Polling for completion...`);
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await axios.get(`${API}/api/admin/fetch-status/${adminCat}`, { headers: getAdminHeaders() });
+          const s = statusRes.data;
+          if (s.status === "completed") {
+            clearInterval(pollInterval);
+            toast.success(`Fetch complete: ${s.result?.new_papers || 0} new ${adminCat} papers`);
+            setLoading(l => ({ ...l, fetch: false }));
+            fetchAll();
+          } else if (s.status === "failed") {
+            clearInterval(pollInterval);
+            toast.error(`Fetch failed: ${s.error}`);
+            setLoading(l => ({ ...l, fetch: false }));
+          }
+        } catch { /* keep polling */ }
+      }, 5000);
+    } catch (err) {
+      toast.error("Fetch failed: " + (err.response?.data?.detail || err.message));
+      setLoading(l => ({ ...l, fetch: false }));
+    }
   };
 
   const triggerCompare = async () => {
