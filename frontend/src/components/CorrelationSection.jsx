@@ -139,8 +139,30 @@ export function CorrelationSection({ sectionData, title, description }) {
                   </div>
                   {(clear.total > 0 || contested.total > 0) && (
                     <div className="border-t border-border/50 pt-1.5 space-y-0.5">
-                      {clear.total > 0 && <div className="flex justify-between text-[10px]"><span className="text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/50" title="Win rate difference ≥10pp — one paper is clearly stronger (70-90% agreement typical)">Clear-cut</span><span className="font-mono text-green-600">{clear.rate}% ({clear.agree}/{clear.total})</span></div>}
-                      {contested.total > 0 && <div className="flex justify-between text-[10px]"><span className="text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/50" title="Win rate difference <10pp — genuine toss-up, ~50% agreement expected">Contested</span><span className={`font-mono ${contested.rate >= 50 ? "text-amber-600" : "text-red-500"}`}>{contested.rate}% ({contested.agree}/{contested.total})</span></div>}
+                      <TooltipProvider delayDuration={0}>
+                        {clear.total > 0 && (
+                          <div className="flex justify-between text-[10px]">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-muted-foreground inline-flex items-center gap-0.5 cursor-help">Clear-cut <HelpCircle className="h-2.5 w-2.5" /></span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-52 text-xs">Win rate difference &ge;10pp — one paper is clearly stronger (70-90% agreement typical)</TooltipContent>
+                            </Tooltip>
+                            <span className="font-mono text-green-600">{clear.rate}% ({clear.agree}/{clear.total})</span>
+                          </div>
+                        )}
+                        {contested.total > 0 && (
+                          <div className="flex justify-between text-[10px]">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-muted-foreground inline-flex items-center gap-0.5 cursor-help">Contested <HelpCircle className="h-2.5 w-2.5" /></span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-52 text-xs">Win rate difference &lt;10pp — genuine toss-up, ~50% agreement expected</TooltipContent>
+                            </Tooltip>
+                            <span className={`font-mono ${contested.rate >= 50 ? "text-amber-600" : "text-red-500"}`}>{contested.rate}% ({contested.agree}/{contested.total})</span>
+                          </div>
+                        )}
+                      </TooltipProvider>
                     </div>
                   )}
                 </div>
