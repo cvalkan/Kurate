@@ -24,6 +24,9 @@ _rate_buckets = defaultdict(list)  # ip -> [timestamps]
 _RATE_LIMITS = {
     "/api/admin/login": (5, 60),       # 5 per 60s
     "/api/model-correlation": (10, 60), # 10 per 60s
+    "/api/validation/convergence-all": (20, 60),  # expensive computation
+    "/api/validation/convergence": (20, 60),
+    "/api/validation/cross-mode-agreement": (20, 60),
 }
 _DEFAULT_RATE = (120, 60)  # 120 per 60s for all other endpoints
 
