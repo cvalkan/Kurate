@@ -1,4 +1,5 @@
-import { Bot, CheckCircle2, XCircle } from "lucide-react";
+import { Bot, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MODEL_COLORS = {
   "gpt-5.2": { bg: "bg-green-50", text: "text-green-700", border: "border-green-200", dot: "#16a34a" },
