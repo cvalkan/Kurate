@@ -2954,6 +2954,15 @@ async def get_impact_summary_status(dataset_id: str = Query(...)):
 @router.get("/dual-dimension-results")
 async def get_dual_dimension_results(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None)):
     """Compute AI ranking correlation against BOTH significance and strength scores (for eLife datasets)."""
+    cached = await _cache_get("dual-dim", dataset_id, content_mode or "")
+    if cached:
+        return cached
+    result = await _compute_dual_dimension_results(dataset_id, content_mode)
+    if result.get("status") == "ok":
+        await _cache_set("dual-dim", dataset_id, content_mode or "", result)
+    return result
+
+async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optional[str]):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
 
     # Check that papers have dual scores
