@@ -49,8 +49,16 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Agreement analysis uses majority vote
 - Cache invalidation on tournament completion
 
+### Background Tasks (Feb 22 2026)
+- Converted `/api/admin/fetch` endpoint from synchronous to background task
+- Returns immediate `202 Accepted` response, eliminating `520 Proxy Timeout`
+- Added `/api/admin/fetch-status/{category}` polling endpoint
+- Frontend polls every 5s and shows toast on completion/failure
+- Duplicate-request guard prevents concurrent fetches per category
+
 ## Pending
 - Deploy to production on kurate.org
 - Complete remaining Opus 4.6 ICLR replays (coverage 39-94%)
 - Gap-stratified human accuracy UI
 - Further split validation.py into modules
+- Add remaining HTTP security headers (CSP refinement)
