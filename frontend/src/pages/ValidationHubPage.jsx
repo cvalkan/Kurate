@@ -226,7 +226,7 @@ export default function ValidationHubPage() {
 
           {selected === "pw-qeios" && <QeiosPairwiseSection />}
           {selected === "pw-scipost" && <SciPostPairwiseSection />}
-          {selected.startsWith("pw-h2h-") && (() => {
+          {selected?.startsWith("pw-h2h-") && (() => {
             const ds = pairwiseDatasets.find(d => `pw-h2h-${d.dataset_id}` === selected);
             return ds ? <PairwiseAgreementSection key={ds.dataset_id} datasetId={ds.dataset_id} datasetName={ds.name} /> : null;
           })()}
