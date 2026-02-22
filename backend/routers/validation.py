@@ -1244,7 +1244,7 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, co
 
         # Get completed matches filtered by content_mode
         match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-        match_filter.update(_build_content_mode_filter(content_mode))
+        match_filter.update(build_content_mode_filter(content_mode))
 
         matches = await db.validation_matches.find(
             match_filter,
@@ -1358,7 +1358,7 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(_build_content_mode_filter(content_mode))
+    match_filter.update(build_content_mode_filter(content_mode))
 
     matches = await db.validation_matches.find(
         match_filter,
@@ -1750,7 +1750,7 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(_build_content_mode_filter(content_mode, abstract_only))
+    match_filter.update(build_content_mode_filter(content_mode, abstract_only))
 
     ai_matches = await db.validation_matches.find(
         match_filter,
@@ -1936,7 +1936,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         return {"status": "no_data"}
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(_build_content_mode_filter(content_mode))
+    match_filter.update(build_content_mode_filter(content_mode))
 
     all_matches = await db.validation_matches.find(
         match_filter,
@@ -2295,7 +2295,7 @@ async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(_build_content_mode_filter(content_mode, abstract_only))
+    match_filter.update(build_content_mode_filter(content_mode, abstract_only))
 
     ai_matches = await db.validation_matches.find(
         match_filter,
@@ -2378,7 +2378,7 @@ async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
             "raw_avg_vs_ai": {"spearman_rho": round(sp_raw, 4), "spearman_p": round(sp_raw_p, 6)},
         },
         "improvement": {"raw_spearman": round(sp_raw, 4), "irt_spearman": round(sp_irt, 4), "delta": round(sp_irt - sp_raw, 4), "distinct_scores_raw": distinct_raw, "distinct_scores_irt": distinct_irt},
-        "interpretation": _interp(sp_irt, sp_irt_p, len(cp), "IRT score"),
+        "interpretation": interp(sp_irt, sp_irt_p, len(cp), "IRT score"),
         "comparison": comparison,
     }
 
@@ -2400,7 +2400,7 @@ async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(_build_content_mode_filter(content_mode, abstract_only))
+    match_filter.update(build_content_mode_filter(content_mode, abstract_only))
 
     ai_matches = await db.validation_matches.find(
         match_filter,
@@ -2564,7 +2564,7 @@ async def _compute_cross_mode_agreement(dataset_id: str):
     mode_model_pairs = {}  # mode -> model_key -> {pair: winner}
     for mode in modes:
         match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-        match_filter.update(_build_content_mode_filter(mode))
+        match_filter.update(build_content_mode_filter(mode))
         matches = await db.validation_matches.find(
             match_filter,
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
@@ -2797,7 +2797,7 @@ async def _compute_cross_mode_agreement(dataset_id: str):
 
             # Fetch matches for this mode to build BT ranking
             mode_match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-            mode_match_filter.update(_build_content_mode_filter(mode))
+            mode_match_filter.update(build_content_mode_filter(mode))
             mode_matches_raw = await db.validation_matches.find(
                 mode_match_filter,
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
@@ -2996,7 +2996,7 @@ async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optiona
         return {"status": "no_dual_scores", "message": "Papers don't have separate significance/strength scores"}
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(_build_content_mode_filter(content_mode))
+    match_filter.update(build_content_mode_filter(content_mode))
 
     ai_matches = await db.validation_matches.find(
         match_filter,
@@ -3648,7 +3648,7 @@ async def run_targeted_pairwise(body: TargetedPairwiseRequest):
 
     # Find which pairs are already evaluated in this mode
     match_filter = {"dataset_id": body.dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(_build_content_mode_filter(body.content_mode))
+    match_filter.update(build_content_mode_filter(body.content_mode))
     existing = await db.validation_matches.find(match_filter, {"_id": 0, "paper1_id": 1, "paper2_id": 1}).to_list(100000)
     existing_pairs = {tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in existing}
 
@@ -3739,13 +3739,13 @@ async def run_cross_mode_fill(body: CrossModeFillRequest):
 
     # Get source pairs
     src_filter = {"dataset_id": body.dataset_id, "completed": True, "failed": {"$ne": True}}
-    src_filter.update(_build_content_mode_filter(body.source_mode))
+    src_filter.update(build_content_mode_filter(body.source_mode))
     src_matches = await db.validation_matches.find(src_filter, {"_id": 0, "paper1_id": 1, "paper2_id": 1}).to_list(100000)
     src_pairs = {tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in src_matches}
 
     # Get existing target pairs
     tgt_filter = {"dataset_id": body.dataset_id, "completed": True, "failed": {"$ne": True}}
-    tgt_filter.update(_build_content_mode_filter(body.target_mode))
+    tgt_filter.update(build_content_mode_filter(body.target_mode))
     tgt_matches = await db.validation_matches.find(tgt_filter, {"_id": 0, "paper1_id": 1, "paper2_id": 1}).to_list(100000)
     tgt_pairs = {tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in tgt_matches}
 
