@@ -1588,79 +1588,106 @@ async def get_available_modes(dataset_id: str = Query(...)):
 
 @router.get("/status")
 async def get_status(dataset_id: str = Query(...)):
-    n = await db.validation_papers.count_documents({"dataset_id": dataset_id})
-    m = await db.validation_matches.count_documents({"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}})
-    m_ext = await db.validation_matches.count_documents({"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, "used_extraction": True})
-    m_abs_only = await db.validation_matches.count_documents({"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, "abstract_only": True})
-    failed = await db.validation_matches.count_documents({"dataset_id": dataset_id, "failed": True})
-    total_pairs = n * (n - 1) // 2 if n > 1 else 0
-    with_text = await db.validation_papers.count_documents({"dataset_id": dataset_id, "full_text": {"$exists": True, "$nin": [None, ""]}})
+    # Single aggregation for all match counts (replaces 5 separate count_documents calls)
+    match_stats_pipeline = [
+        {"$match": {"dataset_id": dataset_id}},
+        {"$facet": {
+            "completed": [
+                {"$match": {"completed": True, "failed": {"$ne": True}}},
+                {"$group": {"_id": None, "count": {"$sum": 1},
+                            "ext": {"$sum": {"$cond": ["$used_extraction", 1, 0]}},
+                            "abs_only": {"$sum": {"$cond": ["$abstract_only", 1, 0]}},
+                            "p1s": {"$push": "$paper1_id"}, "p2s": {"$push": "$paper2_id"}}},
+            ],
+            "failed": [
+                {"$match": {"failed": True}},
+                {"$count": "count"},
+            ],
+        }},
+    ]
+    # Paper counts in parallel
+    paper_stats_pipeline = [
+        {"$match": {"dataset_id": dataset_id}},
+        {"$facet": {
+            "total": [{"$count": "n"}],
+            "with_text": [{"$match": {"full_text": {"$exists": True, "$nin": [None, ""]}}}, {"$count": "n"}],
+            "evaluators": [
+                {"$unwind": "$evaluations"},
+                {"$group": {"_id": "$evaluations.evaluator"}},
+                {"$count": "total"},
+            ],
+            "reviews": [
+                {"$group": {"_id": None, "total": {"$sum": "$h1_rating_count"}}},
+            ],
+        }},
+    ]
 
-    # Match distribution + connectivity
+    match_agg, paper_agg = await asyncio.gather(
+        db.validation_matches.aggregate(match_stats_pipeline).to_list(1),
+        db.validation_papers.aggregate(paper_stats_pipeline).to_list(1),
+    )
+
+    # Parse match stats
+    ms = match_agg[0] if match_agg else {}
+    comp = ms.get("completed", [{}])[0] if ms.get("completed") else {}
+    m = comp.get("count", 0)
+    m_ext = comp.get("ext", 0)
+    m_abs_only = comp.get("abs_only", 0)
+    failed = ms.get("failed", [{}])[0].get("count", 0) if ms.get("failed") else 0
+
+    # Parse paper stats
+    ps = paper_agg[0] if paper_agg else {}
+    n = ps.get("total", [{}])[0].get("n", 0) if ps.get("total") else 0
+    with_text = ps.get("with_text", [{}])[0].get("n", 0) if ps.get("with_text") else 0
+    n_evaluators = ps.get("evaluators", [{}])[0].get("total", 0) if ps.get("evaluators") else 0
+    total_reviews = ps.get("reviews", [{}])[0].get("total", 0) if ps.get("reviews") else 0
+
+    total_pairs = n * (n - 1) // 2 if n > 1 else 0
+
+    # Match distribution + connectivity (from the aggregation data we already have)
     avg_m = min_m = max_m = 0
     connected_components = 0
     isolated_papers = 0
-    if m > 0:
-        agg = await db.validation_matches.aggregate([
-            {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
-            {"$group": {"_id": None, "p1s": {"$push": "$paper1_id"}, "p2s": {"$push": "$paper2_id"}}},
-        ]).to_list(1)
-        if agg:
-            counts = Counter(agg[0]["p1s"] + agg[0]["p2s"])
-            avg_m = round(sum(counts.values()) / max(len(counts), 1), 1)
-            min_m = min(counts.values())
-            max_m = max(counts.values())
+    if m > 0 and comp.get("p1s"):
+        counts = Counter(comp["p1s"] + comp["p2s"])
+        avg_m = round(sum(counts.values()) / max(len(counts), 1), 1)
+        min_m = min(counts.values())
+        max_m = max(counts.values())
 
-            # Graph connectivity via union-find
-            parent = {}
-            def find(x):
-                while parent.get(x, x) != x:
-                    parent[x] = parent.get(parent[x], parent[x])
-                    x = parent[x]
-                return x
-            def union(a, b):
-                ra, rb = find(a), find(b)
-                if ra != rb:
-                    parent[ra] = rb
+        # Graph connectivity via union-find
+        parent = {}
+        def find(x):
+            while parent.get(x, x) != x:
+                parent[x] = parent.get(parent[x], parent[x])
+                x = parent[x]
+            return x
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
 
-            for p1, p2 in zip(agg[0]["p1s"], agg[0]["p2s"]):
-                union(p1, p2)
+        for p1, p2 in zip(comp["p1s"], comp["p2s"]):
+            union(p1, p2)
 
-            # Count components among matched papers
-            matched_papers = set(agg[0]["p1s"] + agg[0]["p2s"])
-            roots = set(find(p) for p in matched_papers)
-            connected_components = len(roots)
+        matched_papers = set(comp["p1s"] + comp["p2s"])
+        roots = set(find(p) for p in matched_papers)
+        connected_components = len(roots)
 
-            # Papers with 0 matches
-            all_paper_ids = set()
-            async for p in db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0, "id": 1}):
-                all_paper_ids.add(p["id"])
-            isolated_papers = len(all_paper_ids - matched_papers)
+        # Isolated papers
+        all_paper_ids = set()
+        async for p in db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0, "id": 1}):
+            all_paper_ids.add(p["id"])
+        isolated_papers = len(all_paper_ids - matched_papers)
 
     state = _get_state(dataset_id)
     meta = await db.validation_datasets.find_one({"dataset_id": dataset_id}, {"_id": 0}) or {}
 
-    # Count unique human evaluators
-    evaluator_agg = await db.validation_papers.aggregate([
-        {"$match": {"dataset_id": dataset_id}},
-        {"$unwind": "$evaluations"},
-        {"$group": {"_id": "$evaluations.evaluator"}},
-        {"$count": "total"},
-    ]).to_list(1)
-    n_evaluators = evaluator_agg[0]["total"] if evaluator_agg else 0
-    # Sum of all individual review counts across papers
-    reviewer_count_agg = await db.validation_papers.aggregate([
-        {"$match": {"dataset_id": dataset_id}},
-        {"$group": {"_id": None, "total": {"$sum": "$h1_rating_count"}}},
-    ]).to_list(1)
-    total_reviews = reviewer_count_agg[0]["total"] if reviewer_count_agg else 0
-    # For datasets with generic evaluator names (Reviewer_1, Qeios Community, etc.),
-    # total_reviews is the real expert count. For named evaluators, use unique count.
+    # Evaluator type detection
     evaluator_names = set()
     async for p in db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0, "evaluations": 1}):
         for ev in p.get("evaluations", []):
             evaluator_names.add(ev.get("evaluator", ""))
-    has_generic = any(n.startswith("Reviewer_") or n in ("Qeios Community", "eLife Editorial Assessment") for n in evaluator_names)
+    has_generic = any(nm.startswith("Reviewer_") or nm in ("Qeios Community", "eLife Editorial Assessment") for nm in evaluator_names)
     human_expert_count = total_reviews if has_generic else n_evaluators
 
     return {
