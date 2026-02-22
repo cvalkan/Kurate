@@ -358,12 +358,11 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
 
-    papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1, "summaries": 1}).to_list(500)
-    # Skip papers without summaries — they can't participate in matchmaking
-    # and would block convergence with CI=100% forever
-    paper_ids = [p["id"] for p in papers if any(
-        isinstance(v, str) and len(v) > 50 for v in (p.get("summaries") or {}).values()
-    )]
+    papers = await db.papers.find(
+        {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
+        {"_id": 0, "id": 1}
+    ).to_list(500)
+    paper_ids = [p["id"] for p in papers]
     if len(paper_ids) < 2:
         return True
 
