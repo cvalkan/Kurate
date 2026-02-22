@@ -2188,7 +2188,7 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     BASE_LABELS = {
         "none": "Extract", "extract": "Extract", "abstract": "Abstract",
         "full_pdf": "Full PDF", "ai_summary": "AI Summary",
-        "abstract_plus_summary": "Abstract + Summary",
+        "abstract_plus_summary": "Abstract + Summary (Opus 4.5)",
     }
     modes = []
     async for doc in db.validation_matches.aggregate(mode_pipeline):
@@ -2197,10 +2197,15 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
             cm = "extract"
         if doc["count"] >= 10:
             tag = cm.split(":", 1)[1] if ":" in cm else None
-            label = SUMMARY_TAG_LABELS.get(tag, BASE_LABELS.get(cm, cm.replace("_", " ").title()))
             if tag:
-                base = cm.split(":")[0].replace("_", " ").title()
-                label = f"{base} ({label})"
+                base_id = cm.split(":")[0]
+                base_label = BASE_LABELS.get(base_id, base_id.replace("_", " + ").replace("abstract + plus", "Abstract +")).rstrip(")")
+                # Strip "(Opus 4.5)" from base when adding a different tag
+                base_label = base_label.split(" (")[0]
+                tag_label = SUMMARY_TAG_LABELS.get(tag, tag)
+                label = f"{base_label} ({tag_label})"
+            else:
+                label = BASE_LABELS.get(cm, cm.replace("_", " ").title())
             modes.append({"id": cm, "label": label, "matches": doc["count"]})
 
     if not modes:
