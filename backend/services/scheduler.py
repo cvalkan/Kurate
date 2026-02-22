@@ -567,6 +567,25 @@ def _summary_model_key(model_info: dict) -> str:
     return f"{model_info['provider']}:{model_info['model']}".replace(".", "_")
 
 
+# Legacy key fallbacks (e.g., papers with Opus 4.5 summaries used before Opus 4.6 upgrade)
+_SUMMARY_KEY_FALLBACKS = {
+    "anthropic:claude-opus-4-6": ["anthropic:claude-opus-4-5-20251101"],
+}
+
+
+def _get_paper_summary(paper: dict, model_key: str) -> str:
+    """Get a paper's summary for the given model key, with fallback to legacy keys."""
+    summaries = paper.get("summaries") or {}
+    text = summaries.get(model_key, "")
+    if isinstance(text, str) and len(text) > 50:
+        return text
+    for fallback_key in _SUMMARY_KEY_FALLBACKS.get(model_key, []):
+        text = summaries.get(fallback_key, "")
+        if isinstance(text, str) and len(text) > 50:
+            return text
+    return ""
+
+
 async def _generate_paper_summaries(category: str = None, force: bool = False):
     """Generate AI impact summaries (3 models) for papers missing them."""
     from core.config import TOURNAMENT_MODELS
