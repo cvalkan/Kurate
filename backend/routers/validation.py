@@ -3532,12 +3532,6 @@ async def _run_replay(dataset_id: str, matches: list, target_mode: str, summary_
     """Replay matches with different summaries but pinned judge models."""
     from services.llm import compare_papers
 
-    MODEL_MAP = {
-        "gpt-5.2": {"provider": "openai", "model": "gpt-5.2"},
-        "claude-opus-4-5-20251101": {"provider": "anthropic", "model": "claude-opus-4-5-20251101"},
-        "gemini-3-pro-preview": {"provider": "google", "model": "gemini/gemini-3-pro-preview"},
-    }
-
     sem = asyncio.Semaphore(parallel)
     completed = 0
 
