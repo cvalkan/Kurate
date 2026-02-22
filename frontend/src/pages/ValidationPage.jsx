@@ -289,6 +289,16 @@ function StandardStats({ datasetId, isAdmin }) {
         }
       }
       setAllModes(merged);
+      // Auto-select the mode with the most matches if no mode selected yet
+      if (!contentMode) {
+        const sorted = [...discoveredModes].sort((a, b) => (b.matches || 0) - (a.matches || 0));
+        const best = sorted[0];
+        if (best) {
+          setContentMode(best.id);
+        } else {
+          setContentMode("abstract");
+        }
+      }
     } catch (e) { console.error(e); }
   }, [datasetId]);
 
