@@ -2173,7 +2173,9 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     """Return convergence data for ALL available modes in a single response."""
     entry = _convergence_all_cache.get(dataset_id)
     if entry and _time.time() - entry["ts"] < _CONV_CACHE_TTL:
+        logger.info(f"convergence-all CACHE HIT for {dataset_id} (age={_time.time()-entry['ts']:.0f}s, keys={list(_convergence_all_cache.keys())})")
         return entry["data"]
+    logger.info(f"convergence-all CACHE MISS for {dataset_id} (keys={list(_convergence_all_cache.keys())}, has_entry={entry is not None})")
 
     # Discover modes
     mode_pipeline = [
