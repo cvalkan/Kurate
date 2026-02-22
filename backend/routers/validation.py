@@ -1732,7 +1732,6 @@ async def _compute_status(dataset_id: str):
 
 # ─── Results: Pairwise BT ─────────────────────────────────────────────────────
 
-_build_content_mode_filter = build_content_mode_filter
 
 
 @router.get("/pairwise-results")
@@ -3816,8 +3815,6 @@ async def seed_validation_data():
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
-
-_interp = interp  # alias for backward compatibility with existing references
 
 
 # ─── F1000Prime Alzheimer's Scraper ─────────────────────────────────────────
