@@ -1757,6 +1757,16 @@ def _build_content_mode_filter(content_mode: Optional[str] = None, abstract_only
 
 @router.get("/pairwise-results")
 async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Optional[bool] = Query(None), content_mode: Optional[str] = Query(None)):
+    cache_mode = content_mode or ("abstract" if abstract_only else "extract")
+    cached = await _cache_get("pairwise", dataset_id, cache_mode)
+    if cached:
+        return cached
+    result = await _compute_pairwise_results(dataset_id, abstract_only, content_mode)
+    if result.get("status") == "ok":
+        await _cache_set("pairwise", dataset_id, cache_mode, result)
+    return result
+
+async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[bool], content_mode: Optional[str]):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
 
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
