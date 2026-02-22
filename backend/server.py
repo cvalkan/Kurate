@@ -362,10 +362,10 @@ async def _prewarm_result_cache():
             except Exception:
                 pass
 
-        # Pre-warm convergence-all in background (heavy but important)
+        # Pre-warm convergence-all for ALL datasets (background, non-blocking)
         conv_warmed = 0
         from routers.validation import get_convergence_all, _convergence_all_cache
-        for ds_id in top_datasets[:4]:  # Top 4 only
+        for ds_id in top_datasets:
             try:
                 if ds_id not in _convergence_all_cache:
                     await get_convergence_all(dataset_id=ds_id, steps=20)
