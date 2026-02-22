@@ -358,8 +358,17 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
 
-    papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}).to_list(500)
-    paper_ids = [p["id"] for p in papers]
+    papers = await db.papers.find({"categories.0": category}, {"_id": 0, "id": 1, "summaries": 1}).to_list(500)
+    # Only include papers that can participate in matchmaking (have summaries)
+    eligible_papers = []
+    for p in papers:
+        has_any_summary = any(
+            isinstance(v, str) and len(v) > 50
+            for v in (p.get("summaries") or {}).values()
+        )
+        if has_any_summary or paper_match_count.get(p["id"], 0) > 0:
+            eligible_papers.append(p)
+    paper_ids = [p["id"] for p in eligible_papers]
     if len(paper_ids) < 2:
         return True
 
