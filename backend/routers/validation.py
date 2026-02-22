@@ -2164,12 +2164,16 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 
 
 
+# Simple in-memory cache for convergence-all (TTL-only, no DB match-count checks)
+_convergence_all_cache = {}  # dataset_id -> {"data": ..., "ts": float}
+_CONV_CACHE_TTL = 900  # 15 minutes
+
 @router.get("/convergence-all")
 async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(20)):
     """Return convergence data for ALL available modes in a single response."""
-    cached = await cache_get("convergence-all", dataset_id, "")
-    if cached:
-        return cached
+    entry = _convergence_all_cache.get(dataset_id)
+    if entry and _time.time() - entry["ts"] < _CONV_CACHE_TTL:
+        return entry["data"]
 
     # Discover modes
     mode_pipeline = [
