@@ -3021,7 +3021,6 @@ async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optiona
     str_scores = {p["id"]: p["str_score"] for p in cp}
     pids = sorted(a_rank.keys())
 
-    ai_ranks = [a_rank[pid]["rank"] for pid in pids]
     ai_bt = [a_rank[pid]["score"] for pid in pids]
     sig_vals = [sig_scores[pid] for pid in pids]
     str_vals = [str_scores[pid] for pid in pids]
