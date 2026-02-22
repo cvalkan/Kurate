@@ -163,10 +163,10 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
   ];
   const tierChartData = hasTiers ? xValues.map(x => {
     const row = { x };
+    const pts = pointMap.get(x);
     dsIds.forEach(did => {
-      const pt = allPoints.find(p => p.x === x && p.dataset === did);
-      if (pt && pt.tier_spearman !== undefined) row[`${did}_tier_spearman`] = pt.tier_spearman;
-      if (pt && pt.tier_kendall !== undefined) row[`${did}_tier_kendall`] = pt.tier_kendall;
+      if (pts[did]?.tier_spearman !== undefined) row[`${did}_tier_spearman`] = pts[did].tier_spearman;
+      if (pts[did]?.tier_kendall !== undefined) row[`${did}_tier_kendall`] = pts[did].tier_kendall;
     });
     return row;
   }) : [];
@@ -174,10 +174,10 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
   // Build dual-dimension chart data (significance + strength)
   const dualChartData = hasDual ? xValues.map(x => {
     const row = { x };
+    const pts = pointMap.get(x);
     dsIds.forEach(did => {
-      const pt = allPoints.find(p => p.x === x && p.dataset === did);
-      if (pt && pt.sig_spearman !== undefined) row[`${did}_sig`] = pt.sig_spearman;
-      if (pt && pt.str_spearman !== undefined) row[`${did}_str`] = pt.str_spearman;
+      if (pts[did]?.sig_spearman !== undefined) row[`${did}_sig`] = pts[did].sig_spearman;
+      if (pts[did]?.str_spearman !== undefined) row[`${did}_str`] = pts[did].str_spearman;
     });
     return row;
   }) : [];
