@@ -247,7 +247,7 @@ async def _scheduler_loop():
             # Update per-category paper/match counts and tournament stats for ALL categories
             for cat in all_tournament_cats:
                 cat_status = _get_cat_status(cat)
-                cat_paper_count = await db.papers.count_documents({"categories.0": cat})
+                cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
                 cat_status["papers_count"] = cat_paper_count
                 cat_match_count = await db.matches.count_documents(
                     {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
