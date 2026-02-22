@@ -364,12 +364,19 @@ async def _prewarm_result_cache():
 
         # Pre-warm convergence-all in background (heavy but important)
         conv_warmed = 0
+        from routers.validation import _compute_convergence
+        from routers.validation_utils import cache_set, cache_get
         for ds_id in top_datasets[:4]:  # Top 4 only to keep startup fast
             try:
-                await get_convergence_all(dataset_id=ds_id)
+                # Call internal compute function directly (avoids FastAPI Query() parameter issues)
+                cached = await cache_get("convergence-all", ds_id, "")
+                if not cached:
+                    from routers.validation import get_convergence_all
+                    # Call the endpoint function directly with positional args
+                    result = await get_convergence_all(dataset_id=ds_id, steps=20)
                 conv_warmed += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Convergence prewarm failed for {ds_id}: {e}")
         logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence")
     except Exception as e:
         logger.warning(f"Result cache prewarm failed: {e}")
