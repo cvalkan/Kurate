@@ -782,8 +782,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 p2 = paper_lookup[p2_id]
                 summary_model = _pick_summary_source(summary_source)
                 smk = _summary_model_key(summary_model)
-                p1_with_sum = {**p1, "ai_impact_summary": (p1.get("summaries") or {}).get(smk, "")}
-                p2_with_sum = {**p2, "ai_impact_summary": (p2.get("summaries") or {}).get(smk, "")}
+                p1_with_sum = {**p1, "ai_impact_summary": _get_paper_summary(p1, smk)}
+                p2_with_sum = {**p2, "ai_impact_summary": _get_paper_summary(p2, smk)}
 
                 async with sem:
                     # Check pause between acquiring semaphore and running
