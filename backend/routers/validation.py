@@ -2195,6 +2195,17 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 _convergence_all_cache = {}  # dataset_id -> {"data": ..., "ts": float}
 _CONV_CACHE_TTL = 900  # 15 minutes
 
+
+def invalidate_dataset_cache(dataset_id: str):
+    """Invalidate all caches for a dataset (call after tournament adds matches)."""
+    _convergence_all_cache.pop(dataset_id, None)
+    # Also invalidate the general result cache entries for this dataset
+    from routers.validation_utils import _result_cache, _match_count_cache
+    to_del = [k for k in _result_cache if k[1] == dataset_id]
+    for k in to_del:
+        del _result_cache[k]
+    _match_count_cache.pop(dataset_id, None)
+
 @router.get("/convergence-all")
 async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(20)):
     """Return convergence data for ALL available modes in a single response."""
