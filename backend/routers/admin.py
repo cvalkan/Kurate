@@ -1105,6 +1105,7 @@ async def get_experiment_comparison(category: str = "cs.RO"):
 MODEL_PRICING = {
     "openai/gpt-5.2": {"input": 1.75, "output": 14.00},
     "anthropic/claude-opus-4-5-20251101": {"input": 5.00, "output": 25.00},
+    "anthropic/claude-opus-4-6": {"input": 5.00, "output": 25.00},
     "gemini/gemini-3-pro-preview": {"input": 2.00, "output": 12.00},
 }
 
