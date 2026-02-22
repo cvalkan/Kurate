@@ -616,9 +616,8 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                 return
 
         mk = _summary_model_key(model_info)
-        # Check if already exists and is a valid string > 50 chars
-        existing = (paper.get("summaries") or {}).get(mk)
-        if existing and isinstance(existing, str) and len(existing) > 50:
+        # Check if already exists (including fallback keys) — don't regenerate
+        if _get_paper_summary(paper, mk):
             return
 
         async with sem:
