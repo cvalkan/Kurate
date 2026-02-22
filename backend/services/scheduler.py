@@ -543,7 +543,7 @@ async def _download_pending_pdfs(category: str = None):
 
 # Summary model mapping
 _SUMMARY_MODELS = {
-    "claude": {"provider": "anthropic", "model": "claude-opus-4-5-20251101"},
+    "claude": {"provider": "anthropic", "model": "claude-opus-4-6"},
     "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
     "gpt": {"provider": "openai", "model": "gpt-5.2"},
 }
