@@ -126,27 +126,9 @@ export default function CorrelationPage() {
 
       <div className="space-y-3 mb-6">
         <div className="p-4 bg-secondary/30 border border-border rounded-lg text-sm">
-          <h3 className="font-medium text-foreground mb-2">Understanding Clear-cut vs Contested pairs</h3>
-          <p className="text-xs text-muted-foreground mb-2">
-            Each paper pair is classified based on how different their overall win rates are:
-          </p>
-          <ul className="text-xs text-muted-foreground space-y-1.5 ml-4 list-disc">
-            <li>
-              <span className="font-medium text-foreground">Clear-cut</span> — papers with a win rate difference &ge;10 percentage points.
-              One paper is clearly stronger. Models tend to agree more here (typically 70-90%) because the quality gap is obvious.
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Contested</span> — papers with similar win rates (&lt;10pp difference).
-              Genuine toss-ups where reasonable judges can disagree. Agreement drops to ~50% (near random) because there's no objectively "better" paper.
-            </li>
-          </ul>
-        </div>
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
-          <h3 className="font-medium text-amber-900 mb-2">Matchmaking bias</h3>
-          <p className="text-xs text-amber-800">
-            The standard tournament uses <span className="font-medium">adaptive matchmaking</span> that deliberately over-samples contested pairs
-            to converge rankings faster. This means the agreement rates above are <span className="font-medium">biased downward</span> — models are being
-            tested disproportionately on the hardest cases. On a random sample of pairs, agreement would be substantially higher.
+          <h3 className="font-medium text-foreground mb-2">Pair difficulty breakdown</h3>
+          <p className="text-xs text-muted-foreground">
+            Each model pair's agreement is broken down by difficulty. Hover <span className="font-medium text-foreground cursor-help border-b border-dotted border-muted-foreground" title="Papers with a win rate difference ≥10 percentage points. One paper is clearly stronger. Models tend to agree more here (typically 70-90%).">clear-cut</span> and <span className="font-medium text-foreground cursor-help border-b border-dotted border-muted-foreground" title="Papers with similar win rates (<10pp difference). Genuine toss-ups where reasonable judges can disagree. Agreement drops to ~50% (near random).">contested</span> labels in the cards above for definitions.
           </p>
         </div>
       </div>
