@@ -756,7 +756,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
     
     Uses the full PDF text as input. Returns dict with 'summary' and 'model_used', or None on failure.
     """
-    model_info = model_override or {"provider": "anthropic", "model": "claude-opus-4-5-20251101"}
+    model_info = model_override or {"provider": "anthropic", "model": "claude-opus-4-6"}
     provider = model_info["provider"]
     model = model_info["model"]
     extra_params = model_info.get("extra_params", {})
