@@ -166,29 +166,33 @@ export default function ValidationHubPage() {
 
       <div className="flex gap-5">
         <nav className="w-56 shrink-0 space-y-3 max-h-[calc(100vh-120px)] overflow-y-auto" data-testid="validation-sidebar">
-          {/* Pairwise */}
-          <CollapsibleGroup label="Pairwise" icon={GitCompare} defaultOpen={selected.startsWith("pw-")}>
-            <NavItem item={{ id: "pw-qeios", label: "Qeios" }} selected={selected} onSelect={setSelected} />
-            <NavItem item={{ id: "pw-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
-            {Object.entries(pairwiseGroups).map(([source, items]) => (
-              <SourceGroup
-                key={`pw-${source}`}
-                source={source}
-                items={items.map(ds => ({ id: `pw-h2h-${ds.dataset_id}`, label: ds.name.replace(`${source} `, ""), sub: `${ds.papers} papers` }))}
-                selected={selected}
-                onSelect={setSelected}
-                defaultOpen={selectedPairwiseSource === source}
-              />
-            ))}
-          </CollapsibleGroup>
+          {/* Pairwise — admin only */}
+          {isAdmin && (
+            <CollapsibleGroup label="Pairwise" icon={GitCompare} defaultOpen={selected?.startsWith("pw-")}>
+              <NavItem item={{ id: "pw-qeios", label: "Qeios" }} selected={selected} onSelect={setSelected} />
+              <NavItem item={{ id: "pw-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
+              {Object.entries(pairwiseGroups).map(([source, items]) => (
+                <SourceGroup
+                  key={`pw-${source}`}
+                  source={source}
+                  items={items.map(ds => ({ id: `pw-h2h-${ds.dataset_id}`, label: ds.name.replace(`${source} `, ""), sub: `${ds.papers} papers` }))}
+                  selected={selected}
+                  onSelect={setSelected}
+                  defaultOpen={selectedPairwiseSource === source}
+                />
+              ))}
+            </CollapsibleGroup>
+          )}
 
-          {/* Single-item */}
-          <CollapsibleGroup label="Single-item" icon={Beaker} defaultOpen={selected === "si-scipost"}>
-            <NavItem item={{ id: "si-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
-          </CollapsibleGroup>
+          {/* Single-item — admin only */}
+          {isAdmin && (
+            <CollapsibleGroup label="Single-item" icon={Beaker} defaultOpen={selected === "si-scipost"}>
+              <NavItem item={{ id: "si-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
+            </CollapsibleGroup>
+          )}
 
-          {/* Tournament */}
-          <CollapsibleGroup label="Tournament" icon={Trophy} defaultOpen={selected.startsWith("t-")}>
+          {/* Tournament — public shows ICLR/eLife/MIDL only */}
+          <CollapsibleGroup label="Tournament" icon={Trophy} defaultOpen={!selected || selected?.startsWith("t-")}>
             {Object.entries(tournamentGroups).map(([source, items]) => (
               <SourceGroup
                 key={`t-${source}`}
