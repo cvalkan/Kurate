@@ -2207,26 +2207,16 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
         return {"status": "no_data"}
 
     # Compute convergence for all modes in parallel
-    async def _get_one(mode_id):
-        c = await cache_get("convergence", dataset_id, mode_id)
-        if c:
-            return (mode_id, c)
-        r = await _compute_convergence(dataset_id, mode_id, steps)
-        if r.get("status") == "ok":
-            await cache_set("convergence", dataset_id, mode_id, r)
-        return (mode_id, r)
-
-    results = await asyncio.gather(*[_get_one(m["id"]) for m in modes])
+    results = await asyncio.gather(*[_compute_convergence(dataset_id, m["id"], steps) for m in modes])
 
     by_mode = {}
-    for mode_id, data in results:
+    for mode_info, data in zip(modes, results):
         if data.get("status") == "ok" and data.get("curve"):
-            mode_info = next((m for m in modes if m["id"] == mode_id), {})
-            by_mode[mode_id] = {**data, "name": mode_info.get("label", mode_id)}
+            by_mode[mode_info["id"]] = {**data, "name": mode_info["label"]}
 
     result = {"status": "ok", "dataset_id": dataset_id, "modes": by_mode}
     if by_mode:
-        await cache_set("convergence-all", dataset_id, "", result)
+        _convergence_all_cache[dataset_id] = {"data": result, "ts": _time.time()}
     return result
 
 
