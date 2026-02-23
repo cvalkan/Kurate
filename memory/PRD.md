@@ -82,6 +82,11 @@ Build a robust system for ranking and validating AI model performance on scienti
 - When budget error detected: waits 15s for auto-topup before retrying (was 1-4s generic backoff)
 - Prevents burst of ~60 failed matches when credits hit zero with 20 parallel agents
 
+### Scheduler Decoupling (Feb 23 2026)
+- Split single `_scheduler_loop` into independent `_fetch_loop` (60s interval) and `_compare_loop` (30s/wake)
+- Fetching papers + PDF downloads + summary generation no longer blocks tournament comparisons
+- Previously: 5+ minute stalls when 8 categories triggered fetch cycle simultaneously
+
 ## Pending
 - Deploy to production on kurate.org
 - **Run dedup on production after deploy** (POST /api/admin/dedup-papers)
@@ -89,4 +94,3 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Gap-stratified human accuracy UI
 - Further split validation.py into modules
 - Add remaining HTTP security headers (CSP refinement)
-- Decouple fetch from compare in scheduler (postponed)
