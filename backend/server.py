@@ -93,10 +93,16 @@ app.include_router(scipost_router)
 app.include_router(qeios_router)
 app.include_router(summary_bias_router)
 
+_cors_raw = os.environ.get("CORS_ORIGINS", "https://kurate.org,https://www.kurate.org,https://papersumo.kurate.org")
+_cors_allow_all = _cors_raw.strip() == "*"
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "https://kurate.org,https://www.kurate.org,https://papersumo.kurate.org").split(","),
+    # When CORS_ORIGINS="*", use allow_origin_regex to echo the request origin
+    # (allow_origins=["*"] + allow_credentials=True is invalid per CORS spec)
+    allow_origins=[] if _cors_allow_all else _cors_raw.split(","),
+    allow_origin_regex=".*" if _cors_allow_all else None,
     allow_methods=["*"],
     allow_headers=["*"],
 )
