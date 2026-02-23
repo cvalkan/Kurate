@@ -752,66 +752,45 @@ async def get_usage_stats(category: str = None):
         papers_with_text = storage_cache.get("total_with_text", 0)
         total_papers = lb_cache.get("total_papers", 0)
 
-    # --- Summary generation stats ---
+    # --- Summary generation stats from pre-computed cache ---
+    precomputed_summary = lb_cache.get("_summary_stats", {}).get(cache_cat, {})
     summary_stats = {}
-    summary_query = {"summaries": {"$exists": True, "$ne": None}}
-    if category:
-        summary_query["categories.0"] = category
+    papers_with_summaries = precomputed_summary.get("papers_with_summaries", 0)
+    papers_with_all_3 = precomputed_summary.get("papers_with_all_3", 0)
     summary_total_input = 0
     summary_total_output = 0
     summary_total_cost = 0.0
-    papers_with_summaries = 0
-    papers_with_all_3 = 0
 
-    async for p in db.papers.find(
-        summary_query,
-        {"_id": 0, "summaries": 1, "full_text": 1, "abstract": 1}
-    ):
-        sums = p.get("summaries", {})
-        if not sums:
-            continue
-        papers_with_summaries += 1
-        # Estimate input: abstract (1500) + full text (up to 40K) + prompt overhead (~500)
-        ft_len = len(p.get("full_text", "") or "")
-        abs_len = len(p.get("abstract", "") or "")
-        input_chars_per_call = min(ft_len, 40000) + min(abs_len, 1500) + 500
+    for mk, info in precomputed_summary.get("models", {}).items():
+        count = info["summaries"]
+        # Estimate tokens: ~10K input chars/call (abstract+text+prompt) => ~2500 tokens, ~500 output tokens avg
+        input_tokens = count * 2500
+        output_tokens = count * 500
+        # Determine provider for pricing
+        provider = mk.split(":")[0] if ":" in mk else mk
+        if "openai" in provider:
+            pricing_key = "openai/gpt-5.2"
+        elif "anthropic" in provider:
+            pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
+        elif "gemini" in provider:
+            pricing_key = "gemini/gemini-3-pro-preview"
+        else:
+            pricing_key = None
 
-        model_count = 0
-        for mk, text in sums.items():
-            if not isinstance(text, str) or len(text) < 50:
-                continue
-            model_count += 1
-            # Determine provider for pricing
-            provider = mk.split(":")[0]
-            if "openai" in provider:
-                pricing_key = "openai/gpt-5.2"
-            elif "anthropic" in provider:
-                pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
-            elif "gemini" in provider:
-                pricing_key = "gemini/gemini-3-pro-preview"
-            else:
-                pricing_key = None
+        cost = 0.0
+        if pricing_key:
+            pricing = MODEL_PRICING.get(pricing_key, {"input": 2.0, "output": 10.0})
+            cost = (input_tokens / 1_000_000) * pricing["input"] + (output_tokens / 1_000_000) * pricing["output"]
 
-            input_tokens = input_chars_per_call // 4
-            output_tokens = len(text) // 4
-
-            if mk not in summary_stats:
-                summary_stats[mk] = {"summaries": 0, "input_tokens": 0, "output_tokens": 0, "cost_total": 0.0}
-            summary_stats[mk]["summaries"] += 1
-            summary_stats[mk]["input_tokens"] += input_tokens
-            summary_stats[mk]["output_tokens"] += output_tokens
-
-            if pricing_key:
-                pricing = MODEL_PRICING.get(pricing_key, {"input": 2.0, "output": 10.0})
-                cost = (input_tokens / 1_000_000) * pricing["input"] + (output_tokens / 1_000_000) * pricing["output"]
-                summary_stats[mk]["cost_total"] = round(summary_stats[mk]["cost_total"] + cost, 4)
-                summary_total_cost += cost
-
-            summary_total_input += input_tokens
-            summary_total_output += output_tokens
-
-        if model_count >= 3:
-            papers_with_all_3 += 1
+        summary_stats[mk] = {
+            "summaries": count,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_total": round(cost, 4),
+        }
+        summary_total_input += input_tokens
+        summary_total_output += output_tokens
+        summary_total_cost += cost
 
     result = {
         "models": model_stats,
