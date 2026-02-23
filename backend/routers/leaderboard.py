@@ -867,35 +867,37 @@ async def _compute_model_correlation(category, mode):
     import numpy as np
     from scipy import stats as scipy_stats
 
+    # Use leaderboard cache when possible (standard matches, no mode filter)
+    use_cache = not mode
     cat_paper_ids = None
-    if category:
-        cat_paper_ids = set()
-        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-            cat_paper_ids.add(p["id"])
 
-    matches_raw = await db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1, "mode": 1},
-    ).to_list(100000)
-
-    # Filter by mode
-    if mode:
-        matches_raw = [m for m in matches_raw if m.get("mode") == mode]
+    if use_cache and _cache.get("_raw_matches"):
+        matches_raw = _cache["_raw_matches"]  # Already filtered: completed=True, failed!=True, no mode
+        if category:
+            cat_data = _cache.get("categories", {}).get(category, {})
+            cat_paper_ids = {e["id"] for e in cat_data.get("all", [])} if cat_data else set()
+        matches = [m for m in matches_raw if not cat_paper_ids or (m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids)]
+        paper_titles = {p["id"]: p["title"] for p in _cache.get("_raw_papers", [])}
     else:
-        # Default: standard matches only (exclude experiments)
-        matches_raw = [m for m in matches_raw if not m.get("mode")]
+        if category:
+            cat_paper_ids = set()
+            async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+                cat_paper_ids.add(p["id"])
 
-    if cat_paper_ids is not None:
-        matches = [m for m in matches_raw if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids]
-    else:
-        matches = matches_raw
+        matches_raw = await db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1, "mode": 1},
+        ).to_list(100000)
 
-    if not matches:
-        return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category, "mode": mode}
+        if mode:
+            matches_raw = [m for m in matches_raw if m.get("mode") == mode]
+        else:
+            matches_raw = [m for m in matches_raw if not m.get("mode")]
 
-    paper_titles = {}
-    async for p in db.papers.find({}, {"_id": 0, "id": 1, "title": 1}):
-        paper_titles[p["id"]] = p["title"]
+        matches = [m for m in matches_raw if not cat_paper_ids or (m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids)]
+        paper_titles = {}
+        async for p in db.papers.find({}, {"_id": 0, "id": 1, "title": 1}):
+            paper_titles[p["id"]] = p["title"]
 
     model_keys = set()
     for m in matches:
