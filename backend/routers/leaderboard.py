@@ -1055,13 +1055,30 @@ async def _compute_model_correlation(category, mode):
             "papers_judged": len(model_paper_stats[mk]),
         }
 
-    scatter_data = []
-    for pid in common_papers:
-        entry = {"id": pid, "title": paper_titles.get(pid, "Unknown")[:50]}
-        for mk in model_keys:
-            short_name = mk.split("/")[-1]
-            entry[short_name] = round(model_win_rates[mk].get(pid, 0.5) * 100, 1)
-        scatter_data.append(entry)
+    # Scatter data PER MODEL PAIR (each pair gets its own data points)
+    scatter_data = {}
+    for i, m1 in enumerate(model_keys):
+        for j, m2 in enumerate(model_keys):
+            if i >= j:
+                continue
+            pair_key = f"{m1} vs {m2}"
+            pair_papers = sorted(set(model_win_rates[m1].keys()) & set(model_win_rates[m2].keys()))
+            short1 = m1.split("/")[-1]
+            short2 = m2.split("/")[-1]
+            pair_points = []
+            for pid in pair_papers:
+                pair_points.append({
+                    "id": pid,
+                    "title": paper_titles.get(pid, "Unknown")[:50],
+                    short1: round(model_win_rates[m1][pid] * 100, 1),
+                    short2: round(model_win_rates[m2][pid] * 100, 1),
+                })
+            scatter_data[pair_key] = pair_points
+
+    # Also compute total common papers (intersection of ALL models) for backward compat
+    common_papers = set(paper_ids)
+    for mk in model_keys:
+        common_papers &= set(model_win_rates[mk].keys())
 
     # Sort correlations and agreement by the same key order
     sorted_corr_keys = sorted(correlations.keys())
