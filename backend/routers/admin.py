@@ -1068,7 +1068,7 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
 @router.get("/experiment-comparison", dependencies=[Depends(verify_admin)])
 async def get_experiment_comparison(category: str = "cs.RO"):
     """Compare standard vs prediction rankings for the Surprisingly Popular experiment."""
-    from services.ranking import compute_leaderboard
+    from services.ranking import compute_leaderboard_async
 
     # Load papers
     all_papers = await db.papers.find(
