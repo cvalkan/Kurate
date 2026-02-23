@@ -488,19 +488,15 @@ async def get_admin_status(category: str = "cs.RO"):
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate(category: str = "cs.RO"):
-    """Triple-goal progress with estimated remaining matches and time."""
+    """Triple-goal progress — served from pre-computed leaderboard cache."""
     cached = _get_admin_cached("progress", category)
     if cached:
         return cached
 
     settings = await get_settings()
-    top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 10)          # Tight CI for top-K papers
-    ci_target_general = settings.get("ci_target_general", 15)  # Looser CI for rest
     global_paused = settings.get("paused", False)
-    parallel_agents = settings.get("parallel_agents", 5)
 
-    # Check tournament-level pause status from DB directly (not scheduler memory)
+    # Live tournament pause status (single fast query)
     tid = f"cat={category}|mode=standard"
     tournament_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "status": 1, "fetch_paused": 1, "compare_paused": 1})
     tournament_paused = tournament_doc.get("status") == "paused" if tournament_doc else False
@@ -508,14 +504,35 @@ async def get_progress_estimate(category: str = "cs.RO"):
     compare_paused = bool(tournament_doc.get("compare_paused")) if tournament_doc else False
     is_paused = global_paused or tournament_paused
 
-    # Always get fresh paper IDs from DB — only papers with summaries (ready for matchmaking)
+    # Use pre-computed progress from leaderboard background cache
+    precomputed = lb_cache.get("_progress", {}).get(category)
+    if precomputed:
+        result = {
+            **precomputed,
+            "paused": is_paused,
+            "global_paused": global_paused,
+            "tournament_paused": bool(tournament_paused),
+            "fetch_paused": fetch_paused,
+            "compare_paused": compare_paused,
+            "summary_coverage": {
+                "with_summaries": lb_cache.get("categories", {}).get(category, {}).get("_papers", 0),
+            },
+        }
+        _set_admin_cached("progress", category, result)
+        return result
+
+    # Fallback: compute from DB (only during cold start before leaderboard cache is ready)
+    top_k = settings.get("top_k_focus", 10)
+    ci_target = settings.get("ci_target", 10)
+    ci_target_general = settings.get("ci_target_general", 15)
+    parallel_agents = settings.get("parallel_agents", 5)
+
     direct_papers = await db.papers.find(
         {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
         {"_id": 0, "id": 1}
     ).to_list(2000)
     all_paper_ids = [p["id"] for p in direct_papers]
 
-    # Query matches directly from DB for fresh data (lb_cache is 60s stale)
     raw_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
@@ -526,6 +543,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         result = {
             "total_papers": 0, "goals_met": True, "paused": is_paused,
             "global_paused": global_paused, "tournament_paused": bool(tournament_paused),
+            "fetch_paused": fetch_paused, "compare_paused": compare_paused,
             "category": category,
         }
         _set_admin_cached("progress", category, result)
@@ -622,12 +640,10 @@ async def get_progress_estimate(category: str = "cs.RO"):
     matches_for_goal3 = topk_total_pairs - topk_matched_pairs
     goal3_met = bool(topk_matched_pairs == topk_total_pairs)
 
-    # Estimation: goals overlap (CI matches help both tiers), use max for CI + add cross-matches
     total_est = max(matches_for_goal1, matches_for_goal2) + matches_for_goal3
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
-    # Per-category counts — use DB directly for freshness
     cat_matches_done = sum(paper_match_count.values()) // 2
     cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
 
@@ -665,7 +681,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "estimated_matches_remaining": int(total_est),
         "estimated_minutes": int(est_minutes),
         "summary_coverage": {
-            "with_summaries": await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": None}}),
+            "with_summaries": total_papers,
         },
     }
     _set_admin_cached("progress", category, result)
