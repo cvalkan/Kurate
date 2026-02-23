@@ -24,7 +24,7 @@ from scipy import stats as scipy_stats
 from core.config import db, logger, DEFAULT_EVALUATION_PROMPT
 from core.auth import verify_admin, get_settings
 from services.llm import compare_papers
-from services.ranking import compute_leaderboard
+from services.ranking import compute_leaderboard, compute_leaderboard_async
 from routers.validation_utils import (
     TIER_ORDER, RANKABLE_TIERS, norm_tier,
     build_expert_ratings, build_human_pairwise_matches, build_expert_majority, build_ai_majority,

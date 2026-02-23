@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from core.config import db, logger, TOURNAMENT_MODELS, DEFAULT_EVALUATION_PROMPT
 from core.auth import verify_admin
 from services.llm import generate_precomparison_impact_summary, compare_papers
-from services.ranking import compute_leaderboard
+from services.ranking import compute_leaderboard, compute_leaderboard_async
 
 router = APIRouter(prefix="/api/summary-bias")
 
