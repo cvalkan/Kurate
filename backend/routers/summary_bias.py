@@ -755,7 +755,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
     ).to_list(100000)
-    extract_lb = compute_leaderboard(papers, main_matches)
+    extract_lb = await compute_leaderboard_async(papers, main_matches)
     extract_rank = {e["id"]: e["rank"] for e in extract_lb}
 
     # ── Get summary-bias matches (consensus) ──
@@ -804,11 +804,11 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
             "winner_id": pick["winner_id"], "completed": True, "failed": False,
         })
 
-    fullpdf_lb = compute_leaderboard(papers, fullpdf_single_matches) if fullpdf_single_matches else []
+    fullpdf_lb = await compute_leaderboard_async(papers, fullpdf_single_matches) if fullpdf_single_matches else []
     fullpdf_rank = {e["id"]: e["rank"] for e in fullpdf_lb}
 
     # ── Final summary ranking (all random-single matches) ──
-    final_lb = compute_leaderboard(papers, random_single_matches)
+    final_lb = await compute_leaderboard_async(papers, random_single_matches)
     final_rank = {e["id"]: e["rank"] for e in final_lb}
 
     # ── Convergence curve (random-single: 1 call per match) ──
@@ -824,7 +824,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
     curve = []
     for n_matches in x_values:
         subset = random_single_matches[:n_matches]
-        sub_lb = compute_leaderboard(papers, subset)
+        sub_lb = await compute_leaderboard_async(papers, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
 
         # Papers that have matches in this subset
@@ -886,7 +886,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
             "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
             "winner_id": m["winner_id"], "completed": True, "failed": False,
         } for m in summary_docs if f"{m['judge_key']}|{m['summary_key']}" == ck]
-        ck_lb = compute_leaderboard(papers, ck_matches)
+        ck_lb = await compute_leaderboard_async(papers, ck_matches)
         config_final_ranks[ck] = {e["id"]: e["rank"] for e in ck_lb}
 
     # Correlation of each config's ranking with extract and full-PDF
@@ -951,7 +951,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
                     hi = mid - 1
 
             subset = shuffled_extract[:best_n]
-            sub_lb = compute_leaderboard(papers, subset)
+            sub_lb = await compute_leaderboard_async(papers, subset)
             sub_rank = {e["id"]: e["rank"] for e in sub_lb}
             active = {m["paper1_id"] for m in subset if m["paper1_id"] in paper_ids} | {m["paper2_id"] for m in subset if m["paper2_id"] in paper_ids}
 
@@ -997,7 +997,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
 
         for n_m in abs_x:
             subset = abs_matches[:n_m]
-            sub_lb = compute_leaderboard(papers, subset)
+            sub_lb = await compute_leaderboard_async(papers, subset)
             sub_rank = {e["id"]: e["rank"] for e in sub_lb}
             active = ({m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}) & paper_ids
             counts = defaultdict(int)
@@ -1055,7 +1055,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         sk_curve = []
         for n_m in sk_x:
             subset = sk_consensus[:n_m]
-            sub_lb = compute_leaderboard(papers, subset)
+            sub_lb = await compute_leaderboard_async(papers, subset)
             sub_rank = {e["id"]: e["rank"] for e in sub_lb}
             active = ({m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}) & paper_ids
 
@@ -1107,7 +1107,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
             ck_curve = []
             for n_m in ck_x:
                 subset = ck_matches[:n_m]
-                sub_lb = compute_leaderboard(papers, subset)
+                sub_lb = await compute_leaderboard_async(papers, subset)
                 sub_rank = {e["id"]: e["rank"] for e in sub_lb}
                 active = ({m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}) & paper_ids
                 counts = defaultdict(int)
@@ -1166,7 +1166,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         sk_curve = []
         for n_m in sk_x:
             subset = sk_matches[:n_m]
-            sub_lb = compute_leaderboard(papers, subset)
+            sub_lb = await compute_leaderboard_async(papers, subset)
             sub_rank = {e["id"]: e["rank"] for e in sub_lb}
             active = ({m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}) & paper_ids
             counts = defaultdict(int)
@@ -1225,7 +1225,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
         jk_curve = []
         for n_m in jk_x:
             subset = jk_matches[:n_m]
-            sub_lb = compute_leaderboard(papers, subset)
+            sub_lb = await compute_leaderboard_async(papers, subset)
             sub_rank = {e["id"]: e["rank"] for e in sub_lb}
             active = ({m["paper1_id"] for m in subset} | {m["paper2_id"] for m in subset}) & paper_ids
             counts = defaultdict(int)
