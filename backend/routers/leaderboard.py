@@ -956,7 +956,7 @@ async def _compute_model_correlation(category, mode):
     model_paper_stats = {mk: {} for mk in model_keys}
     for m in matches:
         mu = m.get("model_used", {})
-        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
         p1, p2, w = m["paper1_id"], m["paper2_id"], m.get("winner_id")
         for pid in [p1, p2]:
             if pid not in model_paper_stats[key]:
