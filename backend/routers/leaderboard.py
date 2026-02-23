@@ -1098,9 +1098,7 @@ async def get_convergence(
 
 
 async def _compute_convergence(category, steps):
-    """Convergence analysis: how ranking stability improves as matches accumulate.
-    Uses the final ranking (all matches) as ground truth.
-    """
+    """Convergence analysis: how ranking stability improves as matches accumulate."""
     from scipy import stats as scipy_stats
     from collections import defaultdict
     from core.auth import get_settings
@@ -1108,29 +1106,33 @@ async def _compute_convergence(category, steps):
     settings = await get_settings()
     top_k_focus = settings.get("top_k_focus", 10)
 
-    # Get papers
-    paper_query = {}
-    if category:
-        paper_query["categories.0"] = category
-    papers = await db.papers.find(paper_query, {"_id": 0, "id": 1, "title": 1}).to_list(10000)
+    # Use leaderboard cache when available (avoids DB queries)
+    if category and _cache.get("categories", {}).get(category):
+        cat_data = _cache["categories"][category]
+        papers = [{"id": e["id"], "title": e["title"]} for e in cat_data.get("all", [])]
+    else:
+        paper_query = {"categories.0": category} if category else {}
+        papers = await db.papers.find(paper_query, {"_id": 0, "id": 1, "title": 1}).to_list(10000)
+
     if len(papers) < 5:
         return {"status": "no_data"}
 
     pid_set = {p["id"] for p in papers}
 
-    # Get all standard matches, sorted by creation time
-    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-    if category:
-        # Filter matches to only those between papers in this category
-        match_query["paper1_id"] = {"$in": list(pid_set)}
-
-    all_matches = await db.matches.find(
-        match_query,
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
-    ).to_list(200000)
-
-    # Filter to matches where both papers are in the category
-    all_matches = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
+    # Use _raw_matches_all from cache (has created_at), fall back to DB
+    raw_from_cache = _cache.get("_raw_matches_all", [])
+    if raw_from_cache:
+        all_matches = [m for m in raw_from_cache if not m.get("mode")
+                       and m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
+    else:
+        match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        if category:
+            match_query["paper1_id"] = {"$in": list(pid_set)}
+        all_matches = await db.matches.find(
+            match_query,
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
+        ).to_list(200000)
+        all_matches = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
 
     if len(all_matches) < 20:
         return {"status": "no_data"}
