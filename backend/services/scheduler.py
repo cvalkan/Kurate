@@ -464,28 +464,28 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 if title_dupe:
                     logger.info(f"[{category}] Skipping duplicate (title+author match): {rp['title'][:60]}")
                     continue
-                paper_doc = {
-                    "id": str(uuid.uuid4()),
-                    "title": rp["title"],
-                    "authors": rp["authors"],
-                    "abstract": rp["abstract"],
-                    "categories": rp["categories"],
-                    "published": rp["published"],
-                    "link": rp["link"],
-                    "pdf_link": rp.get("pdf_link"),
-                    "full_text": None,
-                    "added_at": datetime.now(timezone.utc).isoformat(),
-                    "needs_pdf": True,
-                }
-                # Store source-specific IDs
-                if rp.get("arxiv_id"):
-                    paper_doc["arxiv_id"] = rp["arxiv_id"]
-                if rp.get("chemrxiv_id"):
-                    paper_doc["chemrxiv_id"] = rp["chemrxiv_id"]
-                if rp.get("doi"):
-                    paper_doc["doi"] = rp["doi"]
-                await db.papers.insert_one(paper_doc)
-                new_count += 1
+            paper_doc = {
+                "id": str(uuid.uuid4()),
+                "title": rp["title"],
+                "authors": rp["authors"],
+                "abstract": rp["abstract"],
+                "categories": rp["categories"],
+                "published": rp["published"],
+                "link": rp["link"],
+                "pdf_link": rp.get("pdf_link"),
+                "full_text": None,
+                "added_at": datetime.now(timezone.utc).isoformat(),
+                "needs_pdf": True,
+            }
+            # Store source-specific IDs
+            if rp.get("arxiv_id"):
+                paper_doc["arxiv_id"] = rp["arxiv_id"]
+            if rp.get("chemrxiv_id"):
+                paper_doc["chemrxiv_id"] = rp["chemrxiv_id"]
+            if rp.get("doi"):
+                paper_doc["doi"] = rp["doi"]
+            await db.papers.insert_one(paper_doc)
+            new_count += 1
 
         cat_status["current_activity"] = f"Fetched {new_count} new papers, downloading PDFs..."
         logger.info(f"Added {new_count} new {category} papers to DB")
