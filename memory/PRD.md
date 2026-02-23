@@ -82,11 +82,6 @@ Build a robust system for ranking and validating AI model performance on scienti
 - When budget error detected: waits 15s for auto-topup before retrying (was 1-4s generic backoff)
 - Prevents burst of ~60 failed matches when credits hit zero with 20 parallel agents
 
-### Event Loop Yield Points (Feb 23 2026)
-- Added `asyncio.sleep(0)` yield points in leaderboard cache refresh after CPU-bound computations
-- Prevents the background cache refresh from blocking HTTP request handling
-- Added timing instrumentation for cache refresh diagnostics
-
 ## Pending
 - Deploy to production on kurate.org
 - **Run dedup on production after deploy** (POST /api/admin/dedup-papers)
