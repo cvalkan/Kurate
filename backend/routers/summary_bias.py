@@ -525,6 +525,16 @@ async def get_status(category: str = Query("q-bio.BM")):
 
 @router.get("/results")
 async def get_results(category: str = Query("q-bio.BM")):
+    key = ("results", category)
+    cached = _sb_cache.get(key)
+    if cached and _time.time() - cached["ts"] < _SB_CACHE_TTL:
+        return cached["data"]
+    result = await _compute_results(category)
+    _sb_cache[key] = {"data": result, "ts": _time.time()}
+    return result
+
+
+async def _compute_results(category: str):
     all_docs = await db.summary_bias_matches.find(
         {"category": category, "completed": True, "failed": {"$ne": True}},
         {"_id": 0}
