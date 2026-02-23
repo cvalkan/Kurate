@@ -211,7 +211,6 @@ async def _refresh_cache():
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
-    global_paused = settings.get("paused", False)
     parallel_agents = settings.get("parallel_agents", 5)
 
     progress_by_cat = {}
