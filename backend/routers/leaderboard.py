@@ -197,6 +197,155 @@ async def _refresh_cache():
         "chars_by_cat": dict(storage_chars_by_cat),
     }
 
+    # --- Pre-compute progress data per category (avoids DB queries on admin panel) ---
+    top_k = settings.get("top_k_focus", 10)
+    ci_target = settings.get("ci_target", 10)
+    ci_target_general = settings.get("ci_target_general", 15)
+    global_paused = settings.get("paused", False)
+    parallel_agents = settings.get("parallel_agents", 5)
+
+    progress_by_cat = {}
+    for cat_id in active_cats:
+        cat_data = categories_data.get(cat_id, {})
+        entries = cat_data.get("all", [])
+        total_papers = len(entries)
+        if total_papers == 0:
+            progress_by_cat[cat_id] = {
+                "total_papers": 0, "goals_met": True, "category": cat_id,
+            }
+            continue
+
+        # Build compared_pairs set from matches
+        cat_paper_ids = {e["id"] for e in entries}
+        compared_pairs = set()
+        for m in all_matches:
+            p1, p2 = m["paper1_id"], m["paper2_id"]
+            if p1 in cat_paper_ids and p2 in cat_paper_ids:
+                compared_pairs.add(tuple(sorted([p1, p2])))
+
+        # Sort by win rate for top-K identification
+        sorted_entries = sorted(
+            entries,
+            key=lambda e: e.get("wins", 0) / max(e.get("comparisons", 0), 1),
+            reverse=True,
+        )
+        top_k_list = sorted_entries[:min(top_k, total_papers)]
+        top_k_ids = {e["id"] for e in top_k_list}
+
+        # Goal 1: General CI
+        general_converged = general_total = general_additional = 0
+        widest_general = 0.0
+        general_margins = []
+        for e in entries:
+            if e["id"] in top_k_ids:
+                continue
+            general_total += 1
+            n, w = e.get("comparisons", 0), e.get("wins", 0)
+            margin = wilson_margin_pct(w, n)
+            general_margins.append(margin)
+            if margin <= ci_target_general:
+                general_converged += 1
+            else:
+                general_additional += max(3, int(n * (margin / ci_target_general) ** 2) - n) if n >= 2 else 30
+            widest_general = max(widest_general, margin)
+
+        goal1_met = general_converged == general_total if general_total > 0 else True
+        median_general = sorted(general_margins)[len(general_margins) // 2] if general_margins else 0.0
+        matches_for_goal1 = 0 if goal1_met else max(0, int(general_additional * 0.6))
+
+        # Goal 2: Top-K CI
+        topk_converged = topk_additional = 0
+        topk_total = len(top_k_ids)
+        widest_topk = 0.0
+        topk_margins = []
+        for e in top_k_list:
+            n, w = e.get("comparisons", 0), e.get("wins", 0)
+            margin = wilson_margin_pct(w, n)
+            topk_margins.append(margin)
+            if margin <= ci_target:
+                topk_converged += 1
+            else:
+                topk_additional += max(3, int(n * (margin / ci_target) ** 2) - n) if n >= 2 else 40
+            widest_topk = max(widest_topk, margin)
+
+        goal2_met = topk_converged == topk_total if topk_total > 0 else True
+        median_topk = sorted(topk_margins)[len(topk_margins) // 2] if topk_margins else 0.0
+        matches_for_goal2 = 0 if goal2_met else max(0, int(topk_additional * 0.6))
+
+        # Goal 3: Cross-matches among top-K
+        topk_id_list = [e["id"] for e in top_k_list]
+        topk_total_pairs = len(topk_id_list) * (len(topk_id_list) - 1) // 2
+        topk_matched_pairs = sum(
+            1 for i in range(len(topk_id_list))
+            for j in range(i + 1, len(topk_id_list))
+            if tuple(sorted([topk_id_list[i], topk_id_list[j]])) in compared_pairs
+        )
+        goal3_met = topk_matched_pairs == topk_total_pairs
+        matches_for_goal3 = topk_total_pairs - topk_matched_pairs
+
+        total_est = max(matches_for_goal1, matches_for_goal2) + matches_for_goal3
+        est_minutes = max(0, round(total_est * (10.0 / max(parallel_agents, 1)) / 60))
+
+        cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
+
+        progress_by_cat[cat_id] = {
+            "total_papers": total_papers,
+            "total_matches": cat_matches_done,
+            "papers_with_pdf": pdf_by_cat.get(cat_id, 0),
+            "category": cat_id,
+            "goals_met": bool(goal1_met and goal2_met and goal3_met),
+            "goal1": {
+                "met": bool(goal1_met),
+                "label": f"General CI \u2264 {ci_target_general}%",
+                "done": int(general_converged),
+                "total": int(general_total),
+                "median_margin": round(median_general, 1),
+            },
+            "goal2": {
+                "met": bool(goal2_met),
+                "label": f"Top-{topk_total} CI \u2264 {ci_target}%",
+                "done": int(topk_converged),
+                "total": int(topk_total),
+                "median_margin": round(median_topk, 1),
+            },
+            "goal3": {
+                "met": bool(goal3_met),
+                "label": f"Top-{len(topk_id_list)} cross-matches",
+                "done": int(topk_matched_pairs),
+                "total": int(topk_total_pairs),
+            },
+            "estimated_matches_remaining": int(total_est),
+            "estimated_minutes": int(est_minutes),
+        }
+
+    _cache["_progress"] = progress_by_cat
+
+    # --- Pre-compute summary stats (avoids expensive DB scan on /stats) ---
+    summary_stats_by_cat = {"__all__": {"models": {}, "papers_with_summaries": 0, "papers_with_all_3": 0}}
+    for p in all_papers:
+        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
+        sums = p.get("summaries", {})
+        if not sums:
+            continue
+        if cat not in summary_stats_by_cat:
+            summary_stats_by_cat[cat] = {"models": {}, "papers_with_summaries": 0, "papers_with_all_3": 0}
+        summary_stats_by_cat[cat]["papers_with_summaries"] += 1
+        summary_stats_by_cat["__all__"]["papers_with_summaries"] += 1
+        model_count = 0
+        for mk, text in sums.items():
+            if not isinstance(text, str) or len(text) < 50:
+                continue
+            model_count += 1
+            for bucket in (cat, "__all__"):
+                if mk not in summary_stats_by_cat[bucket]["models"]:
+                    summary_stats_by_cat[bucket]["models"][mk] = {"summaries": 0}
+                summary_stats_by_cat[bucket]["models"][mk]["summaries"] += 1
+        if model_count >= 3:
+            summary_stats_by_cat[cat]["papers_with_all_3"] += 1
+            summary_stats_by_cat["__all__"]["papers_with_all_3"] += 1
+
+    _cache["_summary_stats"] = summary_stats_by_cat
+
     # Invalidate tag cache on data refresh
     _tag_cache.clear()
 
