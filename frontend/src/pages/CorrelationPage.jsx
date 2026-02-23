@@ -29,10 +29,19 @@ export default function CorrelationPage() {
     }).catch(() => setCategory(""));
   }, []);
 
+  const dataCache = useRef({});
+
   const fetchData = useCallback(async () => {
+    // Use client-side cache for instant category switching
+    const cacheKey = category || "__all__";
+    if (dataCache.current[cacheKey]) {
+      setData(dataCache.current[cacheKey]);
+      setLoading(false);
+    }
     try {
       const params = category ? { category } : {};
       const res = await axios.get(`${API}/api/model-correlation`, { params });
+      dataCache.current[cacheKey] = res.data;
       setData(res.data);
     } catch (err) {
       console.error("Failed to fetch correlation data:", err);
