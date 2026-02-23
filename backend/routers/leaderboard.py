@@ -1087,7 +1087,10 @@ async def _compute_model_correlation(category, mode):
 
     model_summaries = {}
     for mk in model_keys:
-        total_by_model = sum(1 for m in matches if f"{m.get('model_used',{}).get('provider','')}/{m.get('model_used',{}).get('model','')}" == mk)
+        total_by_model = sum(
+            1 for m in matches
+            if (m.get("model_used", {}).get("_merged_key") or f"{m.get('model_used',{}).get('provider','')}/{m.get('model_used',{}).get('model','')}") == mk
+        )
         model_summaries[mk] = {
             "total_matches": total_by_model,
             "papers_judged": len(model_paper_stats[mk]),
