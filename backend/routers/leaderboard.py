@@ -833,7 +833,7 @@ async def get_public_prompts():
 
 # Cache for model-correlation and convergence endpoints (keyed by category+mode)
 _analysis_cache = {}  # (endpoint, category, mode) -> {"data": ..., "ts": float}
-_ANALYSIS_CACHE_TTL = 300  # 5 minutes
+_ANALYSIS_CACHE_TTL = 3600  # 1 hour — data only changes when new matches are added
 
 
 def _get_analysis_cached(endpoint: str, category: str, mode: str = ""):
