@@ -2214,11 +2214,8 @@ def invalidate_dataset_cache(dataset_id: str):
     """Invalidate all caches for a dataset (call after tournament adds matches)."""
     _convergence_all_cache.pop(dataset_id, None)
     # Also invalidate the general result cache entries for this dataset
-    from routers.validation_utils import _result_cache, _match_count_cache
-    to_del = [k for k in _result_cache if k[1] == dataset_id]
-    for k in to_del:
-        del _result_cache[k]
-    _match_count_cache.pop(dataset_id, None)
+    from routers.validation_utils import invalidate_dataset_cache as _invalidate_utils_cache
+    _invalidate_utils_cache(dataset_id)
 
 @router.get("/convergence-all")
 async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(20)):
