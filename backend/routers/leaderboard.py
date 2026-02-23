@@ -148,6 +148,7 @@ async def _refresh_cache():
 
     # --- Pre-compute "all papers" leaderboard (used by show_all=true) ---
     all_full = compute_leaderboard(all_papers, all_matches)
+    await asyncio.sleep(0)  # Yield after CPU-bound computation
     paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in all_papers}
     for entry in all_full:
         entry["primary_category"] = paper_cat_lookup.get(entry["id"], "unknown")
@@ -170,6 +171,8 @@ async def _refresh_cache():
         "_paper_cat_lookup": paper_cat_lookup,
         "_all_papers_leaderboard": all_periods,
     })
+    _t1 = time.time()
+    logger.debug(f"Cache refresh core took {_t1 - _t0:.1f}s ({len(all_papers)} papers, {len(all_matches)} matches, {len(categories_data)} categories)")
 
     # Pre-compute failed match counts per category (for admin panel)
     failed_by_cat = Counter()
