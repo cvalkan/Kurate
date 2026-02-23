@@ -111,6 +111,8 @@ async def _refresh_cache():
                        and all_matches[i]["paper2_id"] in cat_paper_ids]
 
         full = compute_leaderboard(cat_papers, cat_matches)
+        # Yield to event loop after CPU-bound leaderboard computation
+        await asyncio.sleep(0)
 
         paper_dates = {}
         for entry in full:
