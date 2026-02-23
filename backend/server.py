@@ -290,6 +290,46 @@ async def startup():
     logger.info("PaperSumo Leaderboard started")
 
 
+
+async def _startup_dedup():
+    """Auto-deduplicate papers on startup (merges duplicates by title+author)."""
+    await asyncio.sleep(10)  # Wait for DB + caches to be ready
+    try:
+        from collections import defaultdict
+        all_papers = await db.papers.find(
+            {}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "summaries": 1, "full_text": 1}
+        ).to_list(5000)
+        groups = defaultdict(list)
+        for p in all_papers:
+            title_norm = p["title"].strip().lower()
+            first_author = (p.get("authors") or [""])[0].strip().lower() if p.get("authors") else ""
+            groups[(title_norm, first_author)].append(p)
+
+        merged = 0
+        for key, papers in groups.items():
+            if len(papers) < 2:
+                continue
+            for p in papers:
+                p["_mc"] = await db.matches.count_documents({"$or": [{"paper1_id": p["id"]}, {"paper2_id": p["id"]}]})
+                p["_hs"] = bool(p.get("summaries"))
+                p["_ht"] = bool(p.get("full_text"))
+            papers.sort(key=lambda p: (p["_hs"], p["_ht"], p["_mc"]), reverse=True)
+            keeper = papers[0]
+            for dup in papers[1:]:
+                await db.matches.update_many({"paper1_id": dup["id"]}, {"$set": {"paper1_id": keeper["id"]}})
+                await db.matches.update_many({"paper2_id": dup["id"]}, {"$set": {"paper2_id": keeper["id"]}})
+                await db.matches.update_many({"winner_id": dup["id"]}, {"$set": {"winner_id": keeper["id"]}})
+                if dup.get("summaries") and not keeper.get("summaries"):
+                    await db.papers.update_one({"id": keeper["id"]}, {"$set": {"summaries": dup["summaries"]}})
+                await db.papers.delete_one({"id": dup["id"]})
+                merged += 1
+        if merged > 0:
+            await db.matches.delete_many({"$expr": {"$eq": ["$paper1_id", "$paper2_id"]}})
+            logger.info(f"Startup dedup: merged {merged} duplicate papers")
+    except Exception as e:
+        logger.warning(f"Startup dedup failed: {e}")
+
+
 async def _prewarm_extraction_cache():
     """Pre-warm the extraction stats cache in background to avoid slow first load."""
     await asyncio.sleep(5)  # Wait for other startup tasks
