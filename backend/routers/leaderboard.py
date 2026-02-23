@@ -5,7 +5,7 @@ from collections import Counter
 import asyncio
 import time
 from core.config import db, logger, CATEGORIES
-from services.ranking import compute_leaderboard, calculate_confidence_interval, wilson_margin_pct
+from services.ranking import compute_leaderboard, compute_leaderboard_async, calculate_confidence_interval, wilson_margin_pct
 
 router = APIRouter(prefix="/api")
 
