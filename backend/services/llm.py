@@ -810,9 +810,15 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                     summary_text = max(vals, key=len) if vals else str(response)
                 return {"summary": summary_text, "model_used": model_info, "char_count": len(summary_text), "word_count": len(summary_text.split())}
         except Exception as e:
-            logger.warning(f"Impact assessment attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2 ** attempt)
+            err_str = str(e).lower()
+            is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
+            if is_budget:
+                logger.warning(f"Budget/credit error during impact assessment ({provider}/{model}): {e}. Waiting 15s...")
+                await asyncio.sleep(15)
+            else:
+                logger.warning(f"Impact assessment attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
 
     logger.error(f"Impact assessment failed for {paper.get('title', '')[:50]}")
     return None
