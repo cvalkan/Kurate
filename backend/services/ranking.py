@@ -1,7 +1,13 @@
 import math
+import asyncio
+import concurrent.futures
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 from scipy import stats as scipy_stats
+
+# Shared thread pool for CPU-bound leaderboard computations.
+# This keeps heavy math OFF the async event loop so HTTP requests never stall.
+_compute_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="lb-compute")
 
 
 def calculate_bradley_terry(matches: List[dict], paper_ids: List[str]) -> Dict[str, float]:
