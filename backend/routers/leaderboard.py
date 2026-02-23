@@ -409,6 +409,33 @@ def start_cache_bg():
     global _bg_task_started
     if not _bg_task_started:
         asyncio.create_task(_bg_cache_loop())
+        asyncio.create_task(_bg_analysis_cache_loop())
+
+
+async def _bg_analysis_cache_loop():
+    """Background loop that keeps model-correlation and convergence caches warm."""
+    await asyncio.sleep(15)  # Wait for leaderboard cache to be ready first
+    while True:
+        try:
+            from core.auth import get_settings
+            settings = await get_settings()
+            cats = settings.get("active_categories", [])
+            for cat in cats:
+                try:
+                    result = await _compute_model_correlation(cat, None)
+                    _set_analysis_cached("model-correlation", cat, "", result)
+                except Exception:
+                    pass
+                try:
+                    result = await _compute_convergence(cat, 20)
+                    _set_analysis_cached("convergence", cat, "20", result)
+                except Exception:
+                    pass
+                await asyncio.sleep(0)  # Yield between categories
+            logger.info(f"Analysis cache refreshed: {len(cats)} categories")
+        except Exception as e:
+            logger.warning(f"Analysis cache refresh failed: {e}")
+        await asyncio.sleep(300)  # Refresh every 5 minutes
 
 
 async def _get_cached_leaderboard():
