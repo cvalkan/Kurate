@@ -1013,7 +1013,7 @@ async def _compute_model_correlation(category, mode):
     pair_model_votes = {}  # {(p1,p2): {model: [winner_id, ...]}}
     for m in matches:
         mu = m.get("model_used", {})
-        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
         pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
         if pair not in pair_model_votes:
             pair_model_votes[pair] = {}
