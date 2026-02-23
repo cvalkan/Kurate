@@ -65,8 +65,12 @@ export function CorrelationSection({ sectionData, title, description }) {
     for (let j = i + 1; j < models.length; j++) {
       const m1 = models[i].short;
       const m2 = models[j].short;
-      const points = (scatter_data || []).map(d => ({ x: d[m1] || 50, y: d[m2] || 50, title: d.title }));
-      scatterPairs.push({ m1, m2, points, c1: getColor(m1).dot, c2: getColor(m2).dot });
+      const pairKey = `${models[i].key} vs ${models[j].key}`;
+      // scatter_data is per-pair dict or legacy flat array
+      const pairData = scatter_data?.[pairKey] || (Array.isArray(scatter_data) ? scatter_data : []);
+      const points = pairData.map(d => ({ x: d[m1] ?? 50, y: d[m2] ?? 50, title: d.title }));
+      const nPapers = scatter_data?.[pairKey]?.length ?? n_common_papers;
+      scatterPairs.push({ m1, m2, points, nPapers, c1: getColor(m1).dot, c2: getColor(m2).dot });
     }
   }
 
