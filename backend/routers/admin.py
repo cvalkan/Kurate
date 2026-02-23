@@ -1970,6 +1970,12 @@ async def deduplicate_papers():
             removed_ids.append(dup_id)
             merged += 1
 
+    # Clean up self-matches (where paper1_id == paper2_id after reassignment)
+    self_match_result = await db.matches.delete_many(
+        {"$expr": {"$eq": ["$paper1_id", "$paper2_id"]}}
+    )
+    self_matches_deleted = self_match_result.deleted_count
+
     # Invalidate caches after cleanup
     _invalidate_admin_cache()
     lb_cache.clear()
@@ -1979,5 +1985,6 @@ async def deduplicate_papers():
         "status": "ok",
         "merged": merged,
         "removed_paper_ids": removed_ids,
+        "self_matches_deleted": self_matches_deleted,
     }
 
