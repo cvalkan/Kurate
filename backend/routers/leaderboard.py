@@ -1083,6 +1083,16 @@ async def get_convergence(
     category: Optional[str] = Query(None),
     steps: int = Query(20),
 ):
+    """Convergence analysis: how ranking stability improves as matches accumulate."""
+    cached = _get_analysis_cached("convergence", category, str(steps))
+    if cached:
+        return cached
+    result = await _compute_convergence(category, steps)
+    _set_analysis_cached("convergence", category, str(steps), result)
+    return result
+
+
+async def _compute_convergence(category, steps):
     """Convergence analysis: how ranking stability improves as matches accumulate.
     Uses the final ranking (all matches) as ground truth.
     """
