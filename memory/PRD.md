@@ -63,9 +63,27 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Frontend polling aligned: 15s active / 30s idle (was 5s/15s, causing redundant DB hits)
 - Result: category switching drops from ~2s to ~90-120ms; cached hits ~85ms
 
+### Paper Deduplication (Feb 23 2026)
+- Added title+first-author dedup check during paper fetching (prevents future duplicates)
+- Added `/api/admin/dedup-papers` endpoint to merge existing duplicates: keeps paper with most matches, reassigns all matches, cleans up self-matches
+- Merged 11 duplicates on preview, 0 remaining across all categories
+- Production needs dedup run after deployment (POST /api/admin/dedup-papers)
+
+### LLM Budget Error Resilience (Feb 23 2026)
+- Added budget/credit error detection in LLM comparison and impact assessment functions
+- When budget error detected: waits 15s for auto-topup before retrying (was 1-4s generic backoff)
+- Prevents burst of ~60 failed matches when credits hit zero with 20 parallel agents
+
+### Event Loop Yield Points (Feb 23 2026)
+- Added `asyncio.sleep(0)` yield points in leaderboard cache refresh after CPU-bound computations
+- Prevents the background cache refresh from blocking HTTP request handling
+- Added timing instrumentation for cache refresh diagnostics
+
 ## Pending
 - Deploy to production on kurate.org
+- **Run dedup on production after deploy** (POST /api/admin/dedup-papers)
 - Complete remaining Opus 4.6 ICLR replays (coverage 39-94%)
 - Gap-stratified human accuracy UI
 - Further split validation.py into modules
 - Add remaining HTTP security headers (CSP refinement)
+- Decouple fetch from compare in scheduler (postponed)
