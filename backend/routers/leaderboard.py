@@ -325,6 +325,7 @@ async def _refresh_cache():
         }
 
     _cache["_progress"] = progress_by_cat
+    await asyncio.sleep(0)  # Yield after progress computation
 
     # --- Pre-compute summary stats (avoids expensive DB scan on /stats) ---
     summary_stats_by_cat = {"__all__": {"models": {}, "papers_with_summaries": 0, "papers_with_all_3": 0}}
