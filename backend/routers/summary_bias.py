@@ -24,6 +24,10 @@ router = APIRouter(prefix="/api/summary-bias")
 
 _state = {"phase": "idle", "progress": {}}
 
+# Cache for summary bias results/convergence (keyed by category)
+_sb_cache = {}  # (endpoint, category) -> {"data": ..., "ts": float}
+_SB_CACHE_TTL = 300  # 5 minutes
+
 MODEL_SHORT = {
     "anthropic:claude-opus-4-5-20251101": "Claude Opus",
     "gemini:gemini-3-pro-preview": "Gemini 3",
