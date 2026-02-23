@@ -1134,11 +1134,8 @@ async def _compute_model_correlation(category, mode):
     sorted_agree_keys = sorted(agreement.keys())
     sorted_agreement = {k: agreement[k] for k in sorted_agree_keys}
 
-    # Short name mapping for merged models
-    _SHORT_NAMES = {"anthropic/claude-opus": "Claude Opus"}
-
     return {
-        "models": [{"key": mk, "short": _SHORT_NAMES.get(mk, mk.split("/")[-1]), **model_summaries.get(mk, {})} for mk in model_keys],
+        "models": [{"key": mk, "short": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
         "correlations": sorted_correlations,
         "agreement": sorted_agreement,
         "scatter_data": scatter_data,
