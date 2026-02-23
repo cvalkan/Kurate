@@ -629,7 +629,7 @@ async def _compute_tag_leaderboard(
                        if raw_matches[i]["paper1_id"] in display_ids
                        and raw_matches[i]["paper2_id"] in display_ids]
 
-    full = compute_leaderboard(display_papers, display_matches)
+    full = await compute_leaderboard_async(display_papers, display_matches)
 
     # Add primary_category and matches_tag flag
     for entry in full:
@@ -1098,7 +1098,7 @@ async def get_convergence(
 
     # Ground truth ranking
     paper_dicts = [{"id": p["id"], "title": p.get("title", "")} for p in papers]
-    gt_lb = compute_leaderboard(paper_dicts, all_matches)
+    gt_lb = await compute_leaderboard_async(paper_dicts, all_matches)
     gt_rank = {e["id"]: e["rank"] for e in gt_lb}
     gt_score = {e["id"]: e["score"] for e in gt_lb}
     n_papers = len(pid_set)
@@ -1156,7 +1156,7 @@ async def get_convergence(
 
         avg_mpp = sum(paper_match_count[pid] for pid in active) / len(active)
 
-        sub_lb = compute_leaderboard(paper_dicts, subset)
+        sub_lb = await compute_leaderboard_async(paper_dicts, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
         sub_score = {e["id"]: e["score"] for e in sub_lb}
 
