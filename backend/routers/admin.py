@@ -1629,7 +1629,7 @@ async def estimate_category(cat_id: str):
 
 # Simple cache for extraction stats (expensive to compute)
 _extraction_cache = {"data": None, "timestamp": 0, "computing": False, "warming_up": True}
-_EXTRACTION_CACHE_TTL = 600  # 10 minutes (increased from 5 to reduce recomputation)
+_EXTRACTION_CACHE_TTL = 3600  # 1 hour
 
 
 async def _compute_extraction_stats_bg(category: str = None):
