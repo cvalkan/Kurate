@@ -105,7 +105,7 @@ export default function CorrelationPage() {
               {moreOpen && (
                 <div className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-48 py-1" style={{ top: moreCatsRef.current?.getBoundingClientRect().bottom + 4, left: moreCatsRef.current?.getBoundingClientRect().left }}>
                   {categories.slice(5).map((c2) => (
-                    <button key={c2.id} className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${category === c2.id ? "bg-accent/10 text-accent font-medium" : ""}`} onClick={() => { setCategory(c2.id); setMoreOpen(false); setLoading(true); }}>
+                    <button key={c2.id} className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${category === c2.id ? "bg-accent/10 text-accent font-medium" : ""}`} onClick={() => { setCategory(c2.id); setMoreOpen(false); }}>
                       <span className="font-mono text-[11px] text-muted-foreground mr-2">{c2.id}</span>{c2.name}
                     </button>
                   ))}
