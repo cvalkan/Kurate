@@ -804,7 +804,7 @@ async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(
             "winner_id": pick["winner_id"], "completed": True, "failed": False,
         })
 
-    fullpdf_lb = await compute_leaderboard_async(papers, fullpdf_single_matches) if fullpdf_single_matches else []
+    fullpdf_lb = (await compute_leaderboard_async(papers, fullpdf_single_matches)) if fullpdf_single_matches else []
     fullpdf_rank = {e["id"]: e["rank"] for e in fullpdf_lb}
 
     # ── Final summary ranking (all random-single matches) ──
