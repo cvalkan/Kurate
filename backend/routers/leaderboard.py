@@ -146,12 +146,16 @@ async def _refresh_cache():
             "_is_ranking": is_ranking,
         }
 
-    # --- Pre-compute "all papers" leaderboard (used by show_all=true) ---
-    all_full = compute_leaderboard(all_papers, all_matches)
-    await asyncio.sleep(0)  # Yield after CPU-bound computation
+    # --- Derive "all papers" leaderboard from per-category results (no extra compute_leaderboard call) ---
     paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in all_papers}
-    for entry in all_full:
-        entry["primary_category"] = paper_cat_lookup.get(entry["id"], "unknown")
+    all_full = []
+    for cat_id, cat_data in categories_data.items():
+        for entry in cat_data.get("all", []):
+            all_full.append({**entry, "primary_category": cat_id})
+    # Re-rank by score globally
+    all_full.sort(key=lambda e: (e.get("score", 0), e.get("wins", 0)), reverse=True)
+    for i, entry in enumerate(all_full):
+        entry["rank"] = i + 1
 
     all_periods = {"all": all_full}
     for period_key in ("recent", "week", "month"):
@@ -172,7 +176,7 @@ async def _refresh_cache():
         "_all_papers_leaderboard": all_periods,
     })
     _t1 = time.time()
-    logger.debug(f"Cache refresh core took {_t1 - _t0:.1f}s ({len(all_papers)} papers, {len(all_matches)} matches, {len(categories_data)} categories)")
+    logger.info(f"Cache refresh took {_t1 - _t0:.1f}s ({len(all_papers)} papers, {len(all_matches)} matches, {len(categories_data)} categories)")
 
     # Pre-compute failed match counts per category (for admin panel)
     failed_by_cat = Counter()
