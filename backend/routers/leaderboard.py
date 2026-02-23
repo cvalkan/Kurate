@@ -52,6 +52,7 @@ def _apply_period_filter(full_leaderboard, period):
 
 async def _refresh_cache():
     """Heavy computation — runs in background, never on the request path."""
+    _t0 = time.time()
     all_papers = await db.papers.find(
         {"summaries": {"$exists": True, "$ne": {}}},
         {"_id": 0, "full_text": 0, "abstract": 0}
