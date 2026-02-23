@@ -94,6 +94,9 @@ export function CorrelationSection({ sectionData, title, description }) {
               </div>
               <div className="text-[11px] text-muted-foreground">
                 <span className="font-mono text-foreground">{m.total_matches}</span> matches
+                {m.short === "Claude Opus" && (
+                  <span className="block text-[10px] mt-0.5 opacity-70">Opus 4.5 + 4.6 combined</span>
+                )}
               </div>
             </div>
           );
