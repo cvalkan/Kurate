@@ -88,7 +88,7 @@ export default function CorrelationPage() {
       {categories.length > 1 && (
         <div className="flex items-center gap-1 mb-6 p-1 bg-primary/5 rounded-lg overflow-x-auto scrollbar-none" data-testid="corr-cat-tabs">
           {categories.slice(0, 5).map((c) => (
-            <Button key={c.id} variant={category === c.id ? "default" : "ghost"} size="sm" onClick={() => { setCategory(c.id); setMoreOpen(false); setLoading(true); }} className="text-xs h-8 shrink-0">
+            <Button key={c.id} variant={category === c.id ? "default" : "ghost"} size="sm" onClick={() => { setCategory(c.id); setMoreOpen(false); }} className="text-xs h-8 shrink-0">
               {c.name}
             </Button>
           ))}
