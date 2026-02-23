@@ -78,7 +78,7 @@ export function CorrelationSection({ sectionData, title, description }) {
     <div className="mb-10">
       <div className="mb-4 pb-2 border-b border-border">
         <h2 className="font-heading text-lg font-medium">{title}</h2>
-        <p className="text-xs text-muted-foreground">{description} Based on {n_common_papers} papers.</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
