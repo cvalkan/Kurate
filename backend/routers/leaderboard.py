@@ -899,6 +899,9 @@ async def _compute_model_correlation(category, mode):
         async for p in db.papers.find({}, {"_id": 0, "id": 1, "title": 1}):
             paper_titles[p["id"]] = p["title"]
 
+    if not matches:
+        return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category, "mode": mode}
+
     model_keys = set()
     for m in matches:
         mu = m.get("model_used", {})
