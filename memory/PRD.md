@@ -63,6 +63,14 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Frontend polling aligned: 15s active / 30s idle (was 5s/15s, causing redundant DB hits)
 - Result: category switching drops from ~2s to ~90-120ms; cached hits ~85ms
 
+### Fundamental Performance Architecture Fix (Feb 23 2026)
+**Root cause**: `compute_leaderboard()` (Bradley-Terry + Wilson CI) is CPU-bound and was running on the async event loop, blocking ALL HTTP requests for 1-10+ seconds.
+- **Thread pool executor** for ALL 25+ `compute_leaderboard` calls via `compute_leaderboard_async()`
+- **Eliminated redundant "all papers" leaderboard** — derived from per-category results
+- **Removed DB query from validation `cache_get()`** — pure TTL + explicit invalidation
+- **Pre-computed scipy z-value** — avoids repeated `norm.ppf(0.975)` in hot path
+- Benchmarks: 0.8s cache refresh (non-blocking), 90ms p99 for 20 concurrent requests, <5ms category switch
+
 ### Paper Deduplication (Feb 23 2026)
 - Added title+first-author dedup check during paper fetching (prevents future duplicates)
 - Added `/api/admin/dedup-papers` endpoint to merge existing duplicates: keeps paper with most matches, reassigns all matches, cleans up self-matches
