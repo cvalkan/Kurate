@@ -1408,7 +1408,7 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
             for p, v in full_pairs.items() if mk in v
         ]
         mp = [p for p in papers if p["id"] in paper_ids]
-        lb = compute_leaderboard(mp, model_matches)
+        lb = await compute_leaderboard_async(mp, model_matches)
         model_rankings[mk] = {e["id"]: e["rank"] for e in lb}
 
     # Inter-model rank correlation
@@ -1507,8 +1507,8 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
         cp = [p for p in papers if p["id"] in common]
         ch = [m for m in human_matches if m["paper1_id"] in common and m["paper2_id"] in common]
         cm = [m for m in maj_matches if m["paper1_id"] in common and m["paper2_id"] in common]
-        h_lb = compute_leaderboard(cp, ch)
-        m_lb = compute_leaderboard(cp, cm)
+        h_lb = await compute_leaderboard_async(cp, ch)
+        m_lb = await compute_leaderboard_async(cp, cm)
         h_rank = {e["id"]: e["rank"] for e in h_lb}
         m_rank = {e["id"]: e["rank"] for e in m_lb}
         ids = sorted(common)
@@ -1790,8 +1790,8 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
     ch = [m for m in human_matches if m["paper1_id"] in common and m["paper2_id"] in common]
     ca = [m for m in ai_matches if m["paper1_id"] in common and m["paper2_id"] in common]
 
-    h_lb = compute_leaderboard(cp, ch)
-    a_lb = compute_leaderboard(cp, ca)
+    h_lb = await compute_leaderboard_async(cp, ch)
+    a_lb = await compute_leaderboard_async(cp, ca)
     h_rank = {e["id"]: e for e in h_lb}
     a_rank = {e["id"]: e for e in a_lb}
 
@@ -1995,7 +1995,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 
     # Ground truth: human ranking from expert pairwise preferences
     h_papers = [p for p in papers if p["id"] in h_ids]
-    gt_lb = compute_leaderboard(h_papers, human_matches)
+    gt_lb = await compute_leaderboard_async(h_papers, human_matches)
     gt_rank = {e["id"]: e["rank"] for e in gt_lb}
     gt_score = {e["id"]: e["score"] for e in gt_lb}
     top_k_values = [top_k_focus] if top_k_focus < len(h_ids) else [min(10, len(h_ids) - 1)]
@@ -2148,7 +2148,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         avg_matches = round(_cum_avg[n_matches], 1)
         papers_covered = _cum_active[n_matches]
 
-        sub_lb = compute_leaderboard(papers, subset)
+        sub_lb = await compute_leaderboard_async(papers, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
 
         common = [pid for pid in paper_ids if pid in gt_rank and pid in sub_rank]
@@ -2341,7 +2341,7 @@ async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
     raw_sorted = sorted(common, key=lambda pid: -paper_raw.get(pid, 0))
     raw_rank = {pid: i + 1 for i, pid in enumerate(raw_sorted)}
 
-    a_lb = compute_leaderboard(cp, ca)
+    a_lb = await compute_leaderboard_async(cp, ca)
     a_lookup = {e["id"]: e for e in a_lb}
 
     ids = sorted(common)
@@ -2803,7 +2803,7 @@ async def _compute_cross_mode_agreement(dataset_id: str):
                 continue
 
             tier_papers_list = [p for p in papers if p["id"] in tier_paper_ids]
-            ai_lb = compute_leaderboard(tier_papers_list, tier_matches)
+            ai_lb = await compute_leaderboard_async(tier_papers_list, tier_matches)
             ai_rank_map = {e["id"]: e["rank"] for e in ai_lb}
 
             # Tier pair accuracy: for each pair of papers in different tiers,
@@ -3009,7 +3009,7 @@ async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optiona
         return {"status": "insufficient_data"}
 
     # Compute AI BT ranking
-    a_lb = compute_leaderboard(cp, ca)
+    a_lb = await compute_leaderboard_async(cp, ca)
     a_rank = {e["id"]: e for e in a_lb}
 
     # Build score maps
