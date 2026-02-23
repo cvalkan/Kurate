@@ -292,6 +292,31 @@ async def startup():
 
 
 
+async def _prewarm_analysis_cache():
+    """Pre-warm model-correlation and convergence caches for all active categories."""
+    await asyncio.sleep(8)  # Wait for leaderboard cache to be ready
+    try:
+        from routers.leaderboard import _compute_model_correlation, _compute_convergence, _set_analysis_cached
+        from core.auth import get_settings
+        settings = await get_settings()
+        cats = settings.get("active_categories", [])
+        for cat in cats:
+            try:
+                result = await _compute_model_correlation(cat, None)
+                _set_analysis_cached("model-correlation", cat, "", result)
+            except Exception:
+                pass
+            try:
+                result = await _compute_convergence(cat, 20)
+                _set_analysis_cached("convergence", cat, "20", result)
+            except Exception:
+                pass
+        logger.info(f"Analysis cache pre-warmed: {len(cats)} categories")
+    except Exception as e:
+        logger.warning(f"Analysis cache prewarm failed: {e}")
+
+
+
 async def _startup_dedup():
     """Auto-deduplicate papers on startup (merges duplicates by title+author)."""
     await asyncio.sleep(10)  # Wait for DB + caches to be ready
