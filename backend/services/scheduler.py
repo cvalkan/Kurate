@@ -10,7 +10,7 @@ from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
 from core.auth import get_settings
 from services.arxiv import fetch_arxiv_papers
 from services.llm import download_and_extract_pdf, compare_papers, generate_precomparison_impact_summary
-from services.ranking import compute_leaderboard
+from services.ranking import compute_leaderboard, compute_leaderboard_async
 
 
 def _re_escape(s: str) -> str:
