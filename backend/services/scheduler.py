@@ -330,7 +330,7 @@ async def _store_ranking_snapshot(category: str):
     if not filtered:
         return
 
-    lb = compute_leaderboard(papers, filtered)
+    lb = await compute_leaderboard_async(papers, filtered)
     rankings = {e["id"]: e["rank"] for e in lb}
 
     # Get next round number for this category
