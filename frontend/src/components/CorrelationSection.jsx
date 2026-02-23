@@ -95,7 +95,7 @@ export function CorrelationSection({ sectionData, title, description }) {
               <div className="text-[11px] text-muted-foreground">
                 <span className="font-mono text-foreground">{m.total_matches}</span> matches
                 {m.short === "Claude Opus" && (
-                  <span className="block text-[10px] mt-0.5 opacity-70">Opus 4.5, later replaced by 4.6</span>
+                  <span className="block text-[10px] mt-0.5 opacity-70">Opus 4.6 (and 4.5 until Feb 22, 2026)</span>
                 )}
               </div>
             </div>
