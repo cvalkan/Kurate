@@ -322,6 +322,12 @@ async def _refresh_cache():
         }
 
     _cache["_progress"] = progress_by_cat
+
+    # Update _is_ranking from freshly computed progress (not stale DB)
+    for cat_id, prog in progress_by_cat.items():
+        if cat_id in categories_data:
+            categories_data[cat_id]["_is_ranking"] = not prog.get("goals_met", False)
+
     await asyncio.sleep(0)  # Yield after progress computation
 
     # --- Pre-compute summary stats (avoids expensive DB scan on /stats) ---
