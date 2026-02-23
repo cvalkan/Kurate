@@ -2207,7 +2207,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 
 # Simple in-memory cache for convergence-all (TTL-only, no DB match-count checks)
 _convergence_all_cache = {}  # dataset_id -> {"data": ..., "ts": float}
-_CONV_CACHE_TTL = 900  # 15 minutes
+_CONV_CACHE_TTL = 3600  # 1 hour
 
 
 def invalidate_dataset_cache(dataset_id: str):

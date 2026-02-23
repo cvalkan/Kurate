@@ -164,7 +164,7 @@ def interp(rho, p_val, n, method):
 # tournaments add matches, or by TTL expiry.
 
 _result_cache = {}
-_CACHE_TTL = 900  # 15 minutes — data changes only during active tournaments
+_CACHE_TTL = 3600  # 1 hour — background refresh keeps it warm, explicit invalidation on new matches
 
 
 async def cache_get(endpoint: str, dataset_id: str, content_mode: str = ""):
