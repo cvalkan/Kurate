@@ -1899,3 +1899,85 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         return result
     finally:
         _extraction_cache["computing"] = False
+
+
+@router.post("/dedup-papers", dependencies=[Depends(verify_admin)])
+async def deduplicate_papers():
+    """Find and merge duplicate papers (same title + first author).
+    Keeps the paper with more matches, reassigns matches from the duplicate."""
+    all_papers = await db.papers.find(
+        {}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "summaries": 1, "full_text": 1}
+    ).to_list(5000)
+
+    # Group by normalized title + first author
+    groups = defaultdict(list)
+    for p in all_papers:
+        title_norm = p["title"].strip().lower()
+        first_author = (p.get("authors") or [""])[0].strip().lower() if p.get("authors") else ""
+        key = (title_norm, first_author)
+        groups[key].append(p)
+
+    merged = 0
+    removed_ids = []
+    for key, papers in groups.items():
+        if len(papers) < 2:
+            continue
+
+        # Count matches for each duplicate
+        for p in papers:
+            p["_match_count"] = await db.matches.count_documents(
+                {"$or": [{"paper1_id": p["id"]}, {"paper2_id": p["id"]}]}
+            )
+            # Prefer paper with summaries and full_text
+            p["_has_summaries"] = bool(p.get("summaries"))
+            p["_has_text"] = bool(p.get("full_text"))
+
+        # Sort: prefer summaries > full_text > more matches
+        papers.sort(key=lambda p: (p["_has_summaries"], p["_has_text"], p["_match_count"]), reverse=True)
+        keeper = papers[0]
+        duplicates = papers[1:]
+
+        for dup in duplicates:
+            dup_id = dup["id"]
+            keeper_id = keeper["id"]
+            logger.info(f"Merging duplicate: '{key[0][:50]}' — keeping {keeper_id[:8]} ({keeper['_match_count']} matches), removing {dup_id[:8]} ({dup['_match_count']} matches)")
+
+            # Reassign matches: paper1_id
+            await db.matches.update_many(
+                {"paper1_id": dup_id},
+                {"$set": {"paper1_id": keeper_id}},
+            )
+            # Reassign matches: paper2_id
+            await db.matches.update_many(
+                {"paper2_id": dup_id},
+                {"$set": {"paper2_id": keeper_id}},
+            )
+            # Reassign winner_id
+            await db.matches.update_many(
+                {"winner_id": dup_id},
+                {"$set": {"winner_id": keeper_id}},
+            )
+
+            # If keeper is missing summaries but dup has them, copy them over
+            if dup.get("summaries") and not keeper.get("summaries"):
+                await db.papers.update_one(
+                    {"id": keeper_id},
+                    {"$set": {"summaries": dup["summaries"]}},
+                )
+
+            # Delete the duplicate paper
+            await db.papers.delete_one({"id": dup_id})
+            removed_ids.append(dup_id)
+            merged += 1
+
+    # Invalidate caches after cleanup
+    _invalidate_admin_cache()
+    lb_cache.clear()
+    lb_cache.update({"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "warming_up": True})
+
+    return {
+        "status": "ok",
+        "merged": merged,
+        "removed_paper_ids": removed_ids,
+    }
+
