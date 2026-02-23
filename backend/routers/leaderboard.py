@@ -831,12 +831,39 @@ async def get_public_prompts():
     }
 
 
+# Cache for model-correlation and convergence endpoints (keyed by category+mode)
+_analysis_cache = {}  # (endpoint, category, mode) -> {"data": ..., "ts": float}
+_ANALYSIS_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_analysis_cached(endpoint: str, category: str, mode: str = ""):
+    key = (endpoint, category or "__all__", mode or "")
+    entry = _analysis_cache.get(key)
+    if entry and time.time() - entry["ts"] < _ANALYSIS_CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def _set_analysis_cached(endpoint: str, category: str, mode: str, data):
+    key = (endpoint, category or "__all__", mode or "")
+    _analysis_cache[key] = {"data": data, "ts": time.time()}
+
+
 @router.get("/model-correlation")
 async def get_model_correlation(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
     mode: Optional[str] = Query(None, description="Match mode: None=standard, 'prediction', 'prediction-fulltext'"),
 ):
     """Correlation analysis between the 3 LLMs used for rankings."""
+    cached = _get_analysis_cached("model-correlation", category, mode)
+    if cached:
+        return cached
+    result = await _compute_model_correlation(category, mode)
+    _set_analysis_cached("model-correlation", category, mode, result)
+    return result
+
+
+async def _compute_model_correlation(category, mode):
     import numpy as np
     from scipy import stats as scipy_stats
 
