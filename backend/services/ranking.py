@@ -325,14 +325,23 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     return leaderboard
 
 
+async def compute_leaderboard_async(papers: List[dict], matches: List[dict]) -> List[dict]:
+    """Run compute_leaderboard in a thread pool so the event loop is never blocked."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_compute_pool, compute_leaderboard, papers, matches)
+
+
+# Pre-compute the z-value (constant) to avoid repeated scipy calls
+_WILSON_Z = scipy_stats.norm.ppf(0.975)
+
+
 def wilson_margin_pct(wins, comparisons):
     """Wilson CI half-width as percentage points (e.g. 5.2 means +/-5.2%). Single source of truth."""
-    from scipy import stats as scipy_stats
     if comparisons == 0:
         return 100  # No data = maximum uncertainty
     p = wins / comparisons
     n = comparisons
-    z = scipy_stats.norm.ppf(0.975)
+    z = _WILSON_Z
     denom = 1 + z**2 / n
     center = (p + z**2 / (2 * n)) / denom
     spread = z * ((p * (1 - p) + z**2 / (4 * n)) / n) ** 0.5 / denom
