@@ -56,6 +56,13 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Frontend polls every 5s and shows toast on completion/failure
 - Duplicate-request guard prevents concurrent fetches per category
 
+### Admin Performance Optimization (Feb 23 2026)
+- Pre-computed progress data (Wilson CI, cross-matches, goals) in leaderboard background loop — `/progress` no longer queries DB
+- Pre-computed summary stats in leaderboard background loop — `/stats` no longer scans all papers from DB
+- Increased admin cache TTL from 10s to 30s (aligned with background refresh cadence)
+- Frontend polling aligned: 15s active / 30s idle (was 5s/15s, causing redundant DB hits)
+- Result: category switching drops from ~2s to ~90-120ms; cached hits ~85ms
+
 ## Pending
 - Deploy to production on kurate.org
 - Complete remaining Opus 4.6 ICLR replays (coverage 39-94%)
