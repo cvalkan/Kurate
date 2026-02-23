@@ -1099,10 +1099,12 @@ async def get_experiment_comparison(category: str = "cs.RO"):
                              if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids
                              and m.get("mode") == "prediction-fulltext"]
 
-    # Compute rankings for each mode
-    std_ranking = compute_leaderboard(all_papers, standard_matches)
-    pred_ranking = compute_leaderboard(all_papers, prediction_matches)
-    pred_ft_ranking = compute_leaderboard(all_papers, prediction_ft_matches)
+    # Compute rankings for each mode (in thread pool to avoid blocking event loop)
+    std_ranking, pred_ranking, pred_ft_ranking = await asyncio.gather(
+        compute_leaderboard_async(all_papers, standard_matches),
+        compute_leaderboard_async(all_papers, prediction_matches),
+        compute_leaderboard_async(all_papers, prediction_ft_matches),
+    )
 
     # Build lookup
     std_lookup = {p["id"]: p for p in std_ranking}
