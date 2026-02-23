@@ -717,9 +717,19 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
 
         except Exception as e:
             last_error = e
-            logger.warning(f"LLM comparison attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2 ** attempt)
+            err_str = str(e).lower()
+            is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
+            is_overloaded = "overloaded" in err_str or "rate" in err_str
+            if is_budget:
+                logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Waiting 15s for auto-topup...")
+                await asyncio.sleep(15)
+            elif is_overloaded:
+                logger.warning(f"LLM overloaded ({provider}/{model}), attempt {attempt+1}/{max_retries}")
+                await asyncio.sleep(5 * (attempt + 1))
+            else:
+                logger.warning(f"LLM comparison attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
 
     logger.error(f"Comparison failed after {max_retries} attempts: {last_error}")
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
