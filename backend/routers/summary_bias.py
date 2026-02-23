@@ -748,13 +748,17 @@ async def _compute_results(category: str):
 
 @router.get("/convergence")
 async def get_convergence(category: str = Query("q-bio.BM"), steps: int = Query(15)):
-    """How fast does the summary-based tournament ranking converge?
+    key = ("convergence", category)
+    cached = _sb_cache.get(key)
+    if cached and _time.time() - cached["ts"] < _SB_CACHE_TTL:
+        return cached["data"]
+    result = await _compute_sb_convergence(category, steps)
+    _sb_cache[key] = {"data": result, "ts": _time.time()}
+    return result
 
-    Compares against:
-    1. Extract-based tournament ranking (from main matches, ~2000 matches) as ground truth
-    2. Full-PDF baseline ranking (from 200 matches × 3 judges)
-    3. Internal stability (ranking at N vs final ranking)
-    """
+
+async def _compute_sb_convergence(category: str, steps: int):
+    """How fast does the summary-based tournament ranking converge?"""
     from scipy import stats as scipy_stats
 
     # Get papers
