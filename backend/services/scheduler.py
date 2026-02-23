@@ -174,50 +174,31 @@ async def start_scheduler():
                 if isinstance(nested, dict) and parts[1] in nested:
                     cat_status["last_fetch_at"] = nested[parts[1]]
     logger.info("Background scheduler started")
-    asyncio.create_task(_scheduler_loop())
+    asyncio.create_task(_fetch_loop())
+    asyncio.create_task(_compare_loop())
 
 
-async def _scheduler_loop():
-    global _scheduler_running, _wake_event
-    await asyncio.sleep(5)
+async def _fetch_loop():
+    """Independent loop for fetching papers + generating summaries. Never blocks comparisons."""
+    await asyncio.sleep(8)  # Let compare loop start first
 
     while _scheduler_running:
         try:
             settings = await get_settings()
             interval_hours = settings.get("fetch_interval_hours", 24)
-            is_paused = settings.get("paused", False)
-            min_papers = settings.get("min_papers_for_tournament", 8)
 
-            # Get active tournaments from registry (single source of truth for what to run)
-            tournaments = await get_active_tournaments()
-            active_cats = list({t["category"] for t in tournaments})
-
-            # Also track ALL known categories for fetch/stats (even paused ones)
-            all_tournament_cats = set()
-            all_tournaments_raw = await db.tournaments.find({}, {"_id": 0, "category": 1}).to_list(500)
-            for t in all_tournaments_raw:
-                all_tournament_cats.add(t["category"])
-            # Fallback only if no tournaments exist at all (fresh install)
-            if not all_tournament_cats:
-                all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
-
-            # Fetch papers for ALL user-configured categories (not just active tournaments)
-            # Fetching is independent of tournament match-running status
-            # Use active_categories from settings as the user's intended list
             fetch_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
             for cat in fetch_cats:
                 cat_status = _get_cat_status(cat)
-                
+
                 # Check per-tournament fetch_paused flag
                 tid = f"cat={cat}|mode=standard"
                 t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "fetch_paused": 1})
                 if t_doc and t_doc.get("fetch_paused"):
-                    cat_status["current_activity"] = "Fetching paused"
                     continue
 
                 last_fetch_key = f"last_fetch_at_{cat.replace('.', '_')}"
                 last_fetch = settings.get(last_fetch_key)
-                # Handle nested keys from older MongoDB dot-notation storage
                 if not last_fetch or not isinstance(last_fetch, str):
                     parts = cat.split(".")
                     if len(parts) == 2:
@@ -243,14 +224,43 @@ async def _scheduler_loop():
                     )
                     cat_status["last_fetch_at"] = now_iso
 
-                # Compute next fetch time for this category
+                # Compute next fetch time
                 settings_refreshed = await get_settings()
                 cat_last = settings_refreshed.get(last_fetch_key)
                 if cat_last:
                     last_dt = datetime.fromisoformat(cat_last)
                     cat_status["next_fetch_at"] = (last_dt + timedelta(hours=interval_hours)).isoformat()
 
-            # Update per-category paper/match counts and tournament stats for ALL categories
+        except Exception as e:
+            logger.error(f"Fetch loop error: {e}")
+
+        # Check every 60s whether any category needs fetching
+        await asyncio.sleep(60)
+
+
+async def _compare_loop():
+    """Independent loop for running tournament comparisons. Never waits for fetches."""
+    global _wake_event
+    await asyncio.sleep(5)
+
+    while _scheduler_running:
+        try:
+            settings = await get_settings()
+            is_paused = settings.get("paused", False)
+            min_papers = settings.get("min_papers_for_tournament", 8)
+
+            tournaments = await get_active_tournaments()
+            active_cats = list({t["category"] for t in tournaments})
+
+            # Track ALL known categories for stats
+            all_tournament_cats = set()
+            all_tournaments_raw = await db.tournaments.find({}, {"_id": 0, "category": 1}).to_list(500)
+            for t in all_tournaments_raw:
+                all_tournament_cats.add(t["category"])
+            if not all_tournament_cats:
+                all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
+
+            # Update per-category paper/match counts and tournament stats
             for cat in all_tournament_cats:
                 cat_status = _get_cat_status(cat)
                 cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
@@ -261,20 +271,18 @@ async def _scheduler_loop():
                 cat_status["matches_count"] = cat_match_count
                 await update_tournament_stats(cat)
 
-            # Mark paused categories in status
+            # Mark paused categories
             paused_cats = all_tournament_cats - set(active_cats)
             for cat in paused_cats:
                 _get_cat_status(cat)["current_activity"] = "Tournament paused"
 
             if not is_paused and active_cats:
-                # Check which active categories need work (skip if below min papers threshold or compare_paused)
                 unmet_cats = []
                 for cat in active_cats:
                     paper_count = _get_cat_status(cat).get("papers_count", 0)
                     if paper_count < min_papers:
                         _get_cat_status(cat)["current_activity"] = f"Insufficient papers ({paper_count}/{min_papers})"
                         continue
-                    # Check per-tournament compare_paused flag
                     tid = f"cat={cat}|mode=standard"
                     t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "compare_paused": 1})
                     if t_doc and t_doc.get("compare_paused"):
@@ -284,7 +292,6 @@ async def _scheduler_loop():
                         unmet_cats.append(cat)
 
                 if unmet_cats:
-                    # Run all unmet categories in parallel
                     tasks = [run_comparison_round(category=cat) for cat in unmet_cats]
                     await asyncio.gather(*tasks, return_exceptions=True)
                     await asyncio.sleep(5)
@@ -298,7 +305,7 @@ async def _scheduler_loop():
                     _get_cat_status(cat)["current_activity"] = "System paused"
 
         except Exception as e:
-            logger.error(f"Scheduler loop error: {e}")
+            logger.error(f"Compare loop error: {e}")
 
         # Wait up to 30s, but wake immediately if signaled
         _wake_event.clear()
