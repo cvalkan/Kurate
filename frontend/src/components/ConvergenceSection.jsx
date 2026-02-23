@@ -100,16 +100,17 @@ export function LeaderboardConvergence({ category }) {
   const [showTopK, setShowTopK] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
     const params = { steps: 20 };
     if (category) params.category = category;
     axios.get(`${API}/api/convergence`, { params }).then(r => {
-      if (r.data.status === "ok") setCurve(r.data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+      if (!cancelled && r.data.status === "ok") setCurve(r.data);
+      if (!cancelled) setLoading(false);
+    }).catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [category]);
 
-  if (loading || !curve) return null;
+  if (!curve) return loading ? <div className="h-64 bg-secondary/20 rounded-lg animate-pulse" /> : null;
   const label = category || "All Categories";
   return <ConvergenceChart curves={{ all: { ...curve, name: label } }} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} compact isLeaderboard />;
 }
