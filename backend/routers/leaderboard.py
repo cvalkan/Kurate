@@ -929,10 +929,21 @@ async def _compute_model_correlation(category, mode):
     if not matches:
         return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category, "mode": mode}
 
+    # Merge Opus 4.5 and 4.6 into unified "Claude Opus"
+    _OPUS_MERGE = {
+        "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
+        "anthropic/claude-opus-4-6": "anthropic/claude-opus",
+    }
+    for m in matches:
+        mu = m.get("model_used", {})
+        raw_key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        if raw_key in _OPUS_MERGE:
+            mu["_merged_key"] = _OPUS_MERGE[raw_key]
+
     model_keys = set()
     for m in matches:
         mu = m.get("model_used", {})
-        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
         model_keys.add(key)
     model_keys = sorted(model_keys)
 
