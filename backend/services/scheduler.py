@@ -450,7 +450,20 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             if not dedup_value:
                 continue
             exists = await db.papers.find_one({dedup_key: dedup_value}, {"_id": 0, "id": 1})
-            if not exists:
+            if exists:
+                continue
+            # Additional dedup: check title + first author to catch cross-listings
+            title_norm = rp["title"].strip().lower()
+            first_author = (rp.get("authors") or [""])[0].strip().lower() if rp.get("authors") else ""
+            if first_author:
+                title_dupe = await db.papers.find_one(
+                    {"title": {"$regex": f"^{_re_escape(title_norm)}$", "$options": "i"},
+                     "authors.0": {"$regex": f"^{_re_escape(first_author)}$", "$options": "i"}},
+                    {"_id": 0, "id": 1},
+                )
+                if title_dupe:
+                    logger.info(f"[{category}] Skipping duplicate (title+author match): {rp['title'][:60]}")
+                    continue
                 paper_doc = {
                     "id": str(uuid.uuid4()),
                     "title": rp["title"],
