@@ -927,27 +927,26 @@ async def _compute_model_correlation(category, mode):
         if w and w in model_paper_stats[key]:
             model_paper_stats[key][w]["wins"] += 1
 
+    MIN_MATCHES_PER_MODEL = 5  # Minimum matches per model to include a paper (reduces quantization artifacts)
+
     model_win_rates = {}
-    common_papers = set(paper_ids)
     for mk in model_keys:
         model_win_rates[mk] = {}
-        papers_with_data = set()
         for pid in paper_ids:
             s = model_paper_stats[mk].get(pid)
-            if s and s["total"] >= 3:
+            if s and s["total"] >= MIN_MATCHES_PER_MODEL:
                 model_win_rates[mk][pid] = s["wins"] / s["total"]
-                papers_with_data.add(pid)
-        common_papers &= papers_with_data
-    common_papers = sorted(common_papers)
 
+    # Compute correlations PER MODEL PAIR (not requiring all models to have data)
     correlations = {}
     for i, m1 in enumerate(model_keys):
         for j, m2 in enumerate(model_keys):
             if i >= j:
                 continue
-            rates1 = [model_win_rates[m1].get(pid, 0.5) for pid in common_papers]
-            rates2 = [model_win_rates[m2].get(pid, 0.5) for pid in common_papers]
-            if len(rates1) >= 5:
+            pair_papers = sorted(set(model_win_rates[m1].keys()) & set(model_win_rates[m2].keys()))
+            if len(pair_papers) >= 5:
+                rates1 = [model_win_rates[m1][pid] for pid in pair_papers]
+                rates2 = [model_win_rates[m2][pid] for pid in pair_papers]
                 spearman_r, spearman_p = scipy_stats.spearmanr(rates1, rates2)
                 pearson_r, pearson_p = scipy_stats.pearsonr(rates1, rates2)
                 correlations[f"{m1} vs {m2}"] = {
@@ -955,7 +954,7 @@ async def _compute_model_correlation(category, mode):
                     "spearman_p": round(float(spearman_p), 4),
                     "pearson_r": round(float(pearson_r), 3),
                     "pearson_p": round(float(pearson_p), 4),
-                    "n_papers": len(common_papers),
+                    "n_papers": len(pair_papers),
                 }
 
     # Agreement rate: for pairs judged by multiple models,
