@@ -318,6 +318,25 @@ async def _prewarm_analysis_cache():
             except Exception:
                 pass
         logger.info(f"Analysis cache pre-warmed: {len(cats)} categories")
+
+        # Also prewarm summary bias caches
+        from routers.summary_bias import _compute_results, _compute_sb_convergence, _sb_cache
+        sb_cats = set()
+        async for r in db.summary_bias_matches.aggregate([{"$group": {"_id": "$category"}}]):
+            sb_cats.add(r["_id"])
+        for cat in sb_cats:
+            try:
+                result = await _compute_results(cat)
+                _sb_cache[("results", cat)] = {"data": result, "ts": __import__("time").time()}
+            except Exception:
+                pass
+            try:
+                result = await _compute_sb_convergence(cat, 15)
+                _sb_cache[("convergence", cat)] = {"data": result, "ts": __import__("time").time()}
+            except Exception:
+                pass
+        if sb_cats:
+            logger.info(f"Summary bias cache pre-warmed: {len(sb_cats)} categories")
     except Exception as e:
         logger.warning(f"Analysis cache prewarm failed: {e}")
 
