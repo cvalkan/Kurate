@@ -110,7 +110,7 @@ async def _refresh_cache():
                        if all_matches[i]["paper1_id"] in cat_paper_ids
                        and all_matches[i]["paper2_id"] in cat_paper_ids]
 
-        full = compute_leaderboard(cat_papers, cat_matches)
+        full = await compute_leaderboard_async(cat_papers, cat_matches)
         # Yield to event loop after CPU-bound leaderboard computation
         await asyncio.sleep(0)
 
