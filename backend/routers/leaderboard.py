@@ -1096,6 +1096,12 @@ async def _compute_model_correlation(category, mode):
             "papers_judged": len(model_paper_stats[mk]),
         }
 
+    # Short name mapping for merged models
+    _SHORT_NAMES = {"anthropic/claude-opus": "Claude Opus"}
+
+    def _short(mk):
+        return _SHORT_NAMES.get(mk, mk.split("/")[-1])
+
     # Scatter data PER MODEL PAIR (each pair gets its own data points)
     scatter_data = {}
     for i, m1 in enumerate(model_keys):
@@ -1104,8 +1110,8 @@ async def _compute_model_correlation(category, mode):
                 continue
             pair_key = f"{m1} vs {m2}"
             pair_papers = sorted(set(model_win_rates[m1].keys()) & set(model_win_rates[m2].keys()))
-            short1 = m1.split("/")[-1]
-            short2 = m2.split("/")[-1]
+            short1 = _short(m1)
+            short2 = _short(m2)
             pair_points = []
             for pid in pair_papers:
                 pair_points.append({
