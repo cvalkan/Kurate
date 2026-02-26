@@ -3911,14 +3911,15 @@ async def get_deeper_dive_results():
     if not doc or not doc.get("results"):
         return {"status": "no_data", "results": [], "summary": {}}
 
-    # Include enhanced assessment generation progress
     enhance_prog = await db.settings.find_one({"key": "deeper_dive_enhance_progress"}, {"_id": 0})
+    experiment_prog = await db.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
 
     return {
         "status": "ok",
         "results": doc["results"],
         "summary": doc.get("summary", {}),
         "enhance_progress": enhance_prog or {"running": False, "done": 0, "total": 0},
+        "experiment_progress": experiment_prog or {"running": False, "done": 0, "total": 0},
     }
 
 
