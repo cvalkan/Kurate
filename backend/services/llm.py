@@ -727,10 +727,10 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                 await asyncio.sleep(15)
             elif is_token_limit and content_mode == "full_pdf":
                 # Rebuild with halved content
-                cur_limit = _MODEL_CHAR_LIMITS.get(model, _DEFAULT_CHAR_LIMIT)
-                new_limit = max(cur_limit // 2, 40_000)
-                p1_content = _build_full_pdf_content(paper1, char_limit=new_limit, model=model)
-                p2_content = _build_full_pdf_content(paper2, char_limit=new_limit, model=model)
+                cur_len = max(len(paper1.get("full_text", "")), len(paper2.get("full_text", "")))
+                new_limit = max(cur_len // 2, 40_000)
+                p1_content = _build_full_pdf_content(paper1, char_limit=new_limit)
+                p2_content = _build_full_pdf_content(paper2, char_limit=new_limit)
                 prompt = user_template.format(paper1_title=paper1["title"], paper1_content=p1_content, paper2_title=paper2["title"], paper2_content=p2_content)
                 input_chars = len(system_msg) + len(prompt)
                 input_tokens_est = input_chars // 4
