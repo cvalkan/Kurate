@@ -90,14 +90,21 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Previously only set `status: "paused"`, causing frontend to show toggle ON while backend skipped comparisons
 - Activated cs.CR tournament on production
 
-### Raised LLM Input Char Limit (40k → Model-Aware)
+### Raised LLM Input Char Limit (40k → No Limit)
 - **Problem**: 81.3% of papers exceeded the 40k char limit; median paper lost ~34% of content; 24.8% of summaries had truncation complaints
-- Added `_MODEL_CHAR_LIMITS` per-model config (GPT-5.2: 480k, Claude/Gemini: 720k chars)
-- Updated `generate_precomparison_impact_summary` to use full text up to model limit
-- Updated `_build_full_pdf_content` to accept model name for limit lookup
-- Updated `compare_papers` (full_pdf mode) to pass model
-- **Error handling**: On token-limit errors, automatically halves content and retries (floor at 40k chars)
+- Removed the hard 40k character limit entirely — full paper text is now sent to LLMs
+- **Token-limit error handling**: On context-length errors, automatically halves content and retries (floor at 20k chars)
+- Updated `_build_full_pdf_content`, `generate_precomparison_impact_summary`, and `compare_papers` (full_pdf mode)
 - Cost impact: ~+54% per summary ($0.04 → $0.06 avg)
+
+### One-Time Summary Regeneration (auto on deploy)
+- Added `_startup_regen_truncated_summaries` to server.py startup — runs once on first production deploy
+- Scans all summaries for truncation complaints (excluding false positives like "truncated normal distribution")
+- Regenerates each affected summary with the same model that produced the original
+- Gated by DB flag `regen_truncated_summaries_v1` — won't re-run after completion
+- Past match results are unaffected (matches store their own winner/reasoning at comparison time)
+- Admin endpoints: `POST /api/admin/regen-summaries` (manual trigger, supports dry_run) + `GET /api/admin/regen-summaries/status`
+- Estimated cost: ~$26 for 278 summaries across 208 papers
 
 ## Pending
 - Deploy to production on kurate.org
