@@ -611,8 +611,8 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
         p1_content = f"Abstract: {paper1.get('abstract', '')[:1500]}"
         p2_content = f"Abstract: {paper2.get('abstract', '')[:1500]}"
     elif content_mode == "full_pdf":
-        p1_content = _build_full_pdf_content(paper1, model=model)
-        p2_content = _build_full_pdf_content(paper2, model=model)
+        p1_content = _build_full_pdf_content(paper1)
+        p2_content = _build_full_pdf_content(paper2)
     elif content_mode == "ai_summary":
         p1_content = f"AI Impact Assessment:\n{paper1.get('ai_impact_summary', paper1.get('abstract', '')[:1500])}"
         p2_content = f"AI Impact Assessment:\n{paper2.get('ai_impact_summary', paper2.get('abstract', '')[:1500])}"
@@ -774,9 +774,9 @@ Write your impact assessment (up to 1000 words):""",
 
 
 async def generate_precomparison_impact_summary(paper: dict, model_override: dict = None) -> Optional[Dict]:
-    """Generate a scientific impact assessment from the paper's full text, to be used as input for pairwise comparison.
+    """Generate a scientific impact assessment from the paper's full text.
     
-    Uses the full PDF text as input (up to model context limit). On token-limit errors,
+    Sends the complete paper text with no truncation. On token-limit errors,
     retries with halved content until it fits.
     Returns dict with 'summary' and 'model_used', or None on failure.
     """
@@ -790,7 +790,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
     if not full_text and not abstract:
         return None
 
-    char_limit = _MODEL_CHAR_LIMITS.get(model, _DEFAULT_CHAR_LIMIT)
+    # Start with the full text, no limit
+    char_limit = len(full_text) if full_text else len(abstract)
 
     def _build_content(limit: int) -> str:
         if full_text:
@@ -821,7 +822,6 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             )
             if response and response.strip():
                 summary_text = response.strip() if isinstance(response, str) else str(response)
-                # GPT-5.2 sometimes returns structured dict responses — extract the text
                 if isinstance(response, dict):
                     vals = [v for v in response.values() if isinstance(v, str)]
                     summary_text = max(vals, key=len) if vals else str(response)
@@ -834,9 +834,9 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             if is_budget:
                 logger.warning(f"Budget/credit error during impact assessment ({provider}/{model}): {e}. Waiting 15s...")
                 await asyncio.sleep(15)
-            elif is_token_limit and char_limit > 40_000:
+            elif is_token_limit:
                 # Halve the content and retry
-                char_limit = char_limit // 2
+                char_limit = max(char_limit // 2, 20_000)
                 content = _build_content(char_limit)
                 logger.warning(f"Token limit hit for '{paper.get('title', '')[:50]}' ({provider}/{model}), retrying with {char_limit:,} chars")
             else:
