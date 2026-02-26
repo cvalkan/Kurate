@@ -12,6 +12,8 @@ export default function DeeperDiveSection() {
   const [catFilter, setCatFilter] = useState("all");
   const [sortBy, setSortBy] = useState("category");
   const [expandedIdx, setExpandedIdx] = useState(null);
+  const [replay, setReplay] = useState(null);
+  const [replayStatus, setReplayStatus] = useState(null);
 
   const fetchResults = () => {
     axios.get(`${API}/api/validation/deeper-dive/results`).then(r => {
@@ -20,13 +22,18 @@ export default function DeeperDiveSection() {
     }).catch(() => setLoading(false));
   };
 
-  useEffect(() => { fetchResults(); }, []);
+  const fetchReplay = () => {
+    axios.get(`${API}/api/validation/deeper-dive/replay/results`).then(r => setReplay(r.data)).catch(() => {});
+    axios.get(`${API}/api/validation/deeper-dive/replay/status`).then(r => setReplayStatus(r.data)).catch(() => {});
+  };
 
-  // Auto-refresh while experiment or enhancement is running
-  const isRunning = data?.enhance_progress?.running || data?.experiment_progress?.running || data?.status === "no_data";
+  useEffect(() => { fetchResults(); fetchReplay(); }, []);
+
+  // Auto-refresh while anything is running
+  const isRunning = data?.enhance_progress?.running || data?.experiment_progress?.running || data?.status === "no_data" || replayStatus?.running;
   useEffect(() => {
     if (!isRunning) return;
-    const iv = setInterval(fetchResults, 8000);
+    const iv = setInterval(() => { fetchResults(); fetchReplay(); }, 8000);
     return () => clearInterval(iv);
   }, [isRunning]);
 
