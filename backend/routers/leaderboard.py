@@ -1301,3 +1301,36 @@ async def _compute_convergence(category, steps):
         "curve": curve,
     }
 
+
+
+@router.get("/sitemap.xml", response_class=None)
+async def sitemap():
+    """Dynamic XML sitemap including all paper detail pages."""
+    from fastapi.responses import Response
+
+    base = "https://kurate.org"
+    static_pages = [
+        ("", "daily", "1.0"),
+        ("/correlation", "daily", "0.8"),
+        ("/methodology", "monthly", "0.6"),
+        ("/validation", "weekly", "0.7"),
+        ("/prompts", "monthly", "0.4"),
+    ]
+
+    urls = []
+    for path, freq, priority in static_pages:
+        urls.append(f"  <url><loc>{base}{path}</loc><changefreq>{freq}</changefreq><priority>{priority}</priority></url>")
+
+    # Add paper pages from cache
+    papers = _cache.get("_raw_papers", [])
+    for p in papers:
+        pid = p.get("id", "")
+        if pid:
+            urls.append(f"  <url><loc>{base}/paper/{pid}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>")
+
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    xml += "\n".join(urls)
+    xml += "\n</urlset>"
+
+    return Response(content=xml, media_type="application/xml")
