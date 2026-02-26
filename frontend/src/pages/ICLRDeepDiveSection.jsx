@@ -10,7 +10,7 @@ const STEP_LABELS = {
   step4: "Tournament replay",
 };
 
-export default function ICLRDeepDiveSection() {
+export default function ICLRDeepDiveSection({ datasetId = "iclr-codegen", label = "ICLR Code Generation" }) {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,12 +19,12 @@ export default function ICLRDeepDiveSection() {
 
   const fetchAll = () => {
     Promise.all([
-      axios.get(`${API}/api/validation/iclr-deep-dive/status`).then(r => setStatus(r.data)).catch(() => {}),
-      axios.get(`${API}/api/validation/iclr-deep-dive/results`).then(r => setResults(r.data)).catch(() => {}),
+      axios.get(`${API}/api/validation/deep-dive-pipeline/status?dataset_id=${datasetId}`).then(r => setStatus(r.data)).catch(() => {}),
+      axios.get(`${API}/api/validation/deep-dive-pipeline/results?dataset_id=${datasetId}`).then(r => setResults(r.data)).catch(() => {}),
     ]).then(() => setLoading(false));
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(); }, [datasetId]);
 
   const isRunning = status?.running;
   useEffect(() => {
