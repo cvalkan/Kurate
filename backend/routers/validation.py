@@ -3931,7 +3931,6 @@ async def run_deeper_dive_experiment(request: Request):
     # Check not already running
     prog = await db.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
     if prog and prog.get("running"):
-        from fastapi import HTTPException
         raise HTTPException(409, "Experiment already running")
 
     await db.settings.update_one(
