@@ -408,51 +408,6 @@ async def run_step4():
                 await _update_progress("step4", counter["done"], total, errors=counter["errors"])
 
     await asyncio.gather(*[replay_one(m) for m in remaining])
-                else:
-                    raise ValueError(f"No JSON: {resp_text[:100]}")
-
-            result = json.loads(resp_text)
-            winner = result.get("winner")
-            if winner not in ("paper1", "paper2"):
-                raise ValueError(f"Invalid winner: {result}")
-
-            winner_id = p1["id"] if winner == "paper1" else p2["id"]
-
-            # Human ground truth
-            d1 = _decision_tier(p1.get("decision", ""))
-            d2 = _decision_tier(p2.get("decision", ""))
-            if d1 >= 0 and d2 >= 0 and d1 != d2:
-                gt_winner = p1["id"] if d1 > d2 else p2["id"]
-                orig_agrees = m.get("winner_id") == gt_winner
-                replay_agrees = winner_id == gt_winner
-            else:
-                gt_winner = None
-                orig_agrees = None
-                replay_agrees = None
-
-            record = {
-                "id": str(uuid.uuid4()),
-                "original_match_id": m["id"],
-                "paper1_id": m["paper1_id"],
-                "paper2_id": m["paper2_id"],
-                "original_winner_id": m.get("winner_id"),
-                "replay_winner_id": winner_id,
-                "flipped": winner_id != m.get("winner_id"),
-                "reasoning": result.get("reasoning", ""),
-                "human_gt_winner": gt_winner,
-                "original_agrees_human": orig_agrees,
-                "replay_agrees_human": replay_agrees,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-            await db[REPLAY_COLLECTION].insert_one(record)
-
-        except Exception as e:
-            errors += 1
-            logger.warning(f"Step 4 replay failed: {m['id'][:20]}: {e}")
-
-        done += 1
-        if done % 5 == 0:
-            await _update_progress("step4", done, total, errors=errors)
 
     # Compute final analysis
     analysis = await compute_analysis()
@@ -460,8 +415,8 @@ async def run_step4():
         {"key": EXPERIMENT_KEY},
         {"$set": {"analysis": analysis, "completed_at": datetime.now(timezone.utc).isoformat()}},
     )
-    await _update_progress("step4", total, total, errors=errors, finished=True)
-    logger.info(f"Step 4 complete: {done} replays, {errors} errors")
+    await _update_progress("step4", total, total, errors=counter["errors"], finished=True)
+    logger.info(f"Step 4 complete: {counter['done']} replays, {counter['errors']} errors")
 
 
 _TIER = {"accept (oral)": 4, "accept (spotlight)": 3, "accept (poster)": 2,
