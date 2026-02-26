@@ -440,7 +440,6 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
         "conclusion": False,
     }
     
-    half_limit = char_limit // 2
     sections_found = sum(1 for s in sections.values() if s)
     if sections_found == 0:
         # No sections detected - use fallback strategy
