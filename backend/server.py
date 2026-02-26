@@ -293,6 +293,7 @@ async def startup():
     asyncio.create_task(_prewarm_validation_cache())
     asyncio.create_task(_prewarm_analysis_cache())
     asyncio.create_task(_startup_dedup())
+    asyncio.create_task(_startup_regen_truncated_summaries())
 
     logger.info("PaperSumo Leaderboard started")
 
