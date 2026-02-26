@@ -130,89 +130,74 @@ async def run_step2():
         {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1},
     ).to_list(200)
 
-    # Load existing progress
     doc = await db.settings.find_one({"key": EXPERIMENT_KEY}, {"_id": 0})
-    existing = {}
+    existing = set()
     if doc and doc.get("papers"):
-        existing = {p["paper_id"]: p for p in doc["papers"]}
+        existing = {p["paper_id"] for p in doc["papers"] if p.get("step2_assessment")}
 
-    done = sum(1 for p in existing.values() if p.get("step2_assessment"))
+    todo = [p for p in papers if p["id"] not in existing]
     total = len(papers)
+    done = total - len(todo)
     await _update_progress("step2", done, total)
 
-    for paper in papers:
-        pid = paper["id"]
-        if pid in existing and existing[pid].get("step2_assessment"):
-            continue
+    sem = asyncio.Semaphore(PARALLEL)
+    counter = {"done": done, "errors": 0}
 
+    async def process_one(paper):
+        pid = paper["id"]
         title = paper["title"]
         full_text = paper.get("full_text", "")
         abstract = paper.get("abstract", "")
         content = f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text}" if full_text else f"Abstract: {abstract[:3000]}"
-
         prompt = STEP2_PROMPT["user"].format(title=title, content=content)
 
-        try:
-            response = await _llm_call(STEP2_PROMPT["system"], prompt, label=f"step2:{title[:30]}")
+        async with sem:
+            try:
+                response = await _llm_call(STEP2_PROMPT["system"], prompt, label=f"step2:{title[:30]}")
 
-            # Parse focus areas JSON
-            focus_areas = []
-            m = re.search(r'```json\s*(\{.*?\})\s*```', response, re.DOTALL)
-            if m:
-                try:
-                    focus_areas = json.loads(m.group(1)).get("focus_areas", [])
-                except json.JSONDecodeError:
-                    pass
-            if not focus_areas:
-                for line in reversed(response.split('\n')):
-                    line = line.strip()
-                    if line.startswith('{') and 'focus_areas' in line:
-                        try:
-                            focus_areas = json.loads(line).get("focus_areas", [])
-                        except json.JSONDecodeError:
-                            pass
-                        break
+                focus_areas = []
+                m = re.search(r'```json\s*(\{.*?\})\s*```', response, re.DOTALL)
+                if m:
+                    try:
+                        focus_areas = json.loads(m.group(1)).get("focus_areas", [])
+                    except json.JSONDecodeError:
+                        pass
+                if not focus_areas:
+                    for line in reversed(response.split('\n')):
+                        line = line.strip()
+                        if line.startswith('{') and 'focus_areas' in line:
+                            try:
+                                focus_areas = json.loads(line).get("focus_areas", [])
+                            except json.JSONDecodeError:
+                                pass
+                            break
 
-            # Remove the JSON block from the assessment text
-            assessment = re.sub(r'```json\s*\{.*?\}\s*```', '', response, flags=re.DOTALL).strip()
-            if not assessment:
-                assessment = response
+                assessment = re.sub(r'```json\s*\{.*?\}\s*```', '', response, flags=re.DOTALL).strip() or response
 
-            entry = {
-                "paper_id": pid,
-                "title": title,
-                "step2_assessment": assessment,
-                "focus_areas": focus_areas,
-            }
+                entry = {"paper_id": pid, "title": title, "step2_assessment": assessment, "focus_areas": focus_areas}
 
-            # Save incrementally
-            await db.settings.update_one(
-                {"key": EXPERIMENT_KEY, "papers.paper_id": pid},
-                {"$set": {"papers.$.step2_assessment": assessment, "papers.$.focus_areas": focus_areas}},
-            )
-            # If paper doesn't exist yet, push it
-            result = await db.settings.update_one(
-                {"key": EXPERIMENT_KEY, "papers.paper_id": {"$ne": pid}},
-                {"$push": {"papers": entry}},
-            )
-            if result.matched_count == 0 and pid not in existing:
-                await db.settings.update_one(
-                    {"key": EXPERIMENT_KEY},
-                    {"$push": {"papers": entry}},
-                    upsert=True,
+                # Upsert: update if exists, push if not
+                res = await db.settings.update_one(
+                    {"key": EXPERIMENT_KEY, "papers.paper_id": pid},
+                    {"$set": {"papers.$.step2_assessment": assessment, "papers.$.focus_areas": focus_areas}},
                 )
+                if res.matched_count == 0:
+                    await db.settings.update_one(
+                        {"key": EXPERIMENT_KEY},
+                        {"$push": {"papers": entry}},
+                        upsert=True,
+                    )
+                counter["done"] += 1
+                logger.info(f"Step 2: {counter['done']}/{total} — {title[:50]} ({len(focus_areas)} focus areas)")
+            except Exception as e:
+                counter["errors"] += 1
+                counter["done"] += 1
+                logger.warning(f"Step 2 failed: {title[:50]}: {e}")
 
-            existing[pid] = entry
-            done += 1
-            logger.info(f"Step 2: {done}/{total} — {title[:50]} ({len(focus_areas)} focus areas)")
+            if counter["done"] % 3 == 0:
+                await _update_progress("step2", counter["done"], total, errors=counter["errors"])
 
-        except Exception as e:
-            logger.warning(f"Step 2 failed: {title[:50]}: {e}")
-            done += 1
-
-        if done % 3 == 0:
-            await _update_progress("step2", done, total)
-
+    await asyncio.gather(*[process_one(p) for p in todo])
     await _update_progress("step2", total, total, finished=True)
     logger.info(f"Step 2 complete: {total} papers")
 
