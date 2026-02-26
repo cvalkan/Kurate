@@ -3862,6 +3862,50 @@ async def _run_rescrape(database):
 
 
 
+
+_BUDGET_KEYWORDS = ("budget", "balance", "insufficient", "credit", "quota")
+_LLM_CALL_TIMEOUT = 120  # seconds
+
+
+async def _call_llm_with_budget_retry(chat, prompt, max_retries=5, label=""):
+    """Call LLM with timeout and budget-aware retry.
+    
+    On budget errors, waits with exponential backoff (30s, 60s, 120s, 240s, 480s)
+    and retries. On timeout, retries once. Returns response text or raises.
+    """
+    from emergentintegrations.llm.chat import UserMessage
+
+    for attempt in range(max_retries):
+        try:
+            loop = asyncio.get_event_loop()
+            response = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
+                ),
+                timeout=_LLM_CALL_TIMEOUT,
+            )
+            return response.strip() if isinstance(response, str) else str(response)
+
+        except asyncio.TimeoutError:
+            logger.warning(f"LLM timeout ({label}), attempt {attempt+1}/{max_retries}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(5)
+
+        except Exception as e:
+            err_str = str(e).lower()
+            is_budget = any(kw in err_str for kw in _BUDGET_KEYWORDS)
+            if is_budget:
+                wait = 30 * (2 ** attempt)  # 30s, 60s, 120s, 240s, 480s
+                logger.warning(f"Budget error ({label}), waiting {wait}s before retry {attempt+1}/{max_retries}")
+                await asyncio.sleep(wait)
+            else:
+                logger.warning(f"LLM error ({label}): {e}")
+                raise
+
+    raise Exception(f"LLM call failed after {max_retries} retries ({label})")
+
+
 # --- Deeper Dive Experiment ---
 
 _DEEPER_DIVE_PROMPT = {
