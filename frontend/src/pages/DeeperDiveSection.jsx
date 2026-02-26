@@ -221,6 +221,9 @@ export default function DeeperDiveSection() {
       </div>
       {filtered.length === 0 && <p className="text-center text-xs text-muted-foreground py-6">No results match filters.</p>}
 
+      {/* === Match Replay Section === */}
+      <ReplaySection replay={replay} status={replayStatus} />
+
       <p className="text-[10px] text-muted-foreground">
         Model: {summary.model} · {summary.total} papers across {Object.keys(summary.by_category || {}).length} categories
         {enhancedCount > 0 && ` · ${enhancedCount} enhanced assessments`}
