@@ -3934,28 +3934,31 @@ async def get_deeper_dive_status():
 
 
 _ENHANCE_PROMPT = {
-    "system_prompt": """You are a scientific impact analyst performing a detailed follow-up review. You previously wrote an initial assessment of this paper and identified specific areas that warrant deeper analysis. Now re-read the relevant sections carefully and produce a revised, more thorough assessment.
+    "system_prompt": """You are a scientific impact analyst. Your task is to write a detailed scientific impact assessment of a research paper. This assessment will later be used in a pairwise tournament to compare papers' scientific impact.
 
-Your revised assessment should:
-- Keep observations from the initial assessment that remain valid
-- Deepen, correct, or add nuance based on your focused re-analysis of the flagged areas
-- Be specific about what changed vs your initial assessment
-- Remain structured: Core Contribution, Methodological Rigor, Potential Impact, Timeliness, Strengths & Limitations
+Write up to 1200 words (can be shorter if the paper warrants it). Structure your assessment around:
 
-Write up to 1200 words.""",
+1. **Core Contribution**: What is the main novelty? What problem does it solve and how?
+2. **Methodological Rigor**: How sound is the approach? Are the experiments/proofs convincing?
+3. **Potential Impact**: What are the real-world applications? How broadly could this influence the field or adjacent fields?
+4. **Timeliness & Relevance**: Does this address a current bottleneck or emerging need?
+5. **Strengths & Limitations**: Key strengths that make this paper stand out, and notable weaknesses or gaps.
 
-    "user_prompt": """Paper: "{title}"
+Be specific and analytical — avoid generic praise. Your assessment should give enough detail for another evaluator to judge this paper's impact without reading the full text.
 
-Full paper text:
+IMPORTANT: Write this as a standalone assessment. Do NOT reference any prior analysis, revision process, or re-reading. Do NOT use language like "upon closer inspection", "re-reading", "revised", "deepened", "looking more carefully", etc. Write as if this is your first and only analysis of the paper.""",
+
+    "user_prompt": """Write a scientific impact assessment for the following paper. Pay particular attention to: {focus_areas}
+
+**Title:** {title}
+
+**Content:**
 {content}
 
-Your initial assessment:
+For context, here are preliminary notes on this paper:
 {original_assessment}
 
-You flagged these areas for deeper analysis:
-{focus_areas}
-
-Now perform that deeper analysis. Re-read the relevant sections of the paper carefully and produce your revised assessment (up to 1200 words):""",
+Now write your own complete, standalone impact assessment (up to 1200 words):""",
 }
 
 
