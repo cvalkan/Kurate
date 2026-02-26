@@ -326,14 +326,16 @@ async def run_step4():
 
     from core.config import DEFAULT_EVALUATION_PROMPT
 
-    for m in remaining:
+    sem = asyncio.Semaphore(PARALLEL)
+    counter = {"done": 0, "errors": 0}
+
+    async def replay_one(m):
         p1 = papers.get(m["paper1_id"])
         p2 = papers.get(m["paper2_id"])
         if not p1 or not p2:
-            done += 1
-            continue
+            counter["done"] += 1
+            return
 
-        # Use deep-dive assessment if available, else original
         p1_summary = dd_lookup.get(p1["id"]) or p1.get("ai_impact_summary_claude") or p1.get("ai_impact_summary", "")
         p2_summary = dd_lookup.get(p2["id"]) or p2.get("ai_impact_summary_claude") or p2.get("ai_impact_summary", "")
 
@@ -347,19 +349,65 @@ async def run_step4():
             paper2_title=p2["title"], paper2_content=p2_content,
         )
 
-        try:
-            response = await _llm_call(DEFAULT_EVALUATION_PROMPT["system_prompt"], prompt, label=f"replay:{m['id'][:12]}")
+        async with sem:
+            try:
+                response = await _llm_call(DEFAULT_EVALUATION_PROMPT["system_prompt"], prompt, label=f"replay:{m['id'][:12]}")
 
-            # Parse
-            resp_text = response
-            if resp_text.startswith("```"):
-                parts = resp_text.split("```")
-                if len(parts) >= 2:
-                    resp_text = parts[1].lstrip("json").strip()
-            if not resp_text.startswith("{"):
-                jm = re.search(r'\{[^{}]*"winner"[^{}]*\}', resp_text, re.DOTALL)
-                if jm:
-                    resp_text = jm.group()
+                resp_text = response
+                if resp_text.startswith("```"):
+                    parts = resp_text.split("```")
+                    if len(parts) >= 2:
+                        resp_text = parts[1].lstrip("json").strip()
+                if not resp_text.startswith("{"):
+                    jm = re.search(r'\{[^{}]*"winner"[^{}]*\}', resp_text, re.DOTALL)
+                    if jm:
+                        resp_text = jm.group()
+                    else:
+                        raise ValueError(f"No JSON: {resp_text[:100]}")
+
+                result = json.loads(resp_text)
+                winner = result.get("winner")
+                if winner not in ("paper1", "paper2"):
+                    raise ValueError(f"Invalid winner: {result}")
+
+                winner_id = p1["id"] if winner == "paper1" else p2["id"]
+
+                d1 = _decision_tier(p1.get("decision", ""))
+                d2 = _decision_tier(p2.get("decision", ""))
+                if d1 >= 0 and d2 >= 0 and d1 != d2:
+                    gt_winner = p1["id"] if d1 > d2 else p2["id"]
+                    orig_agrees = m.get("winner_id") == gt_winner
+                    replay_agrees = winner_id == gt_winner
+                else:
+                    gt_winner = None
+                    orig_agrees = None
+                    replay_agrees = None
+
+                record = {
+                    "id": str(uuid.uuid4()),
+                    "original_match_id": m["id"],
+                    "paper1_id": m["paper1_id"],
+                    "paper2_id": m["paper2_id"],
+                    "original_winner_id": m.get("winner_id"),
+                    "replay_winner_id": winner_id,
+                    "flipped": winner_id != m.get("winner_id"),
+                    "reasoning": result.get("reasoning", ""),
+                    "human_gt_winner": gt_winner,
+                    "original_agrees_human": orig_agrees,
+                    "replay_agrees_human": replay_agrees,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                await db[REPLAY_COLLECTION].insert_one(record)
+
+            except Exception as e:
+                counter["errors"] += 1
+                logger.warning(f"Step 4 replay failed: {m['id'][:20]}: {e}")
+
+            counter["done"] += 1
+            if counter["done"] % 5 == 0:
+                await _update_progress("step4", counter["done"], total, errors=counter["errors"])
+
+    await asyncio.gather(*[replay_one(m) for m in remaining])
                 else:
                     raise ValueError(f"No JSON: {resp_text[:100]}")
 
