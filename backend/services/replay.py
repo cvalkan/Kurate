@@ -1,332 +1,245 @@
 """
 Match Replay Pipeline — Deeper Dive Experiment Phase 2
 
-Replays existing ICLR validation matches under three conditions:
-  1. Control: Same original assessments, re-run (measures LLM stochasticity)
+Replays existing main-tournament matches under two conditions:
+  1. Control: Same original summaries, re-run (measures LLM stochasticity)
   2. Treatment: Enhanced assessments where available, original otherwise
-  
-Compares verdict flip rates between control and treatment to isolate
-the effect of deeper analysis from random LLM variance.
 
-Statistical analysis: McNemar's test, human agreement lift, per-category breakdown.
+Each replay is saved to DB individually (resumable on restart).
+Statistical analysis: McNemar's test, flip rates, directional consistency, rank shift.
 """
 import asyncio
 import uuid
 import random
-import json
-import re
+import math
 from datetime import datetime, timezone
 from collections import defaultdict, Counter
-from typing import Optional
 from core.config import db, logger
 
-
-# --- Configuration ---
-
-# Which ICLR datasets to replay
-REPLAY_DATASETS = [
-    "iclr-codegen", "iclr-fairness", "iclr-llm", "iclr-molecules",
-    "iclr-optimization", "iclr-ot", "iclr-pdes", "iclr-protein",
-]
-
-# Source content modes to replay (Opus 4.5 and 4.6 experiments)
-SOURCE_MODES = ["abstract_plus_summary", "abstract_plus_summary:opus46"]
-
-# How many matches to replay per condition (None = all available)
-MAX_MATCHES_PER_CONDITION = None
-
-# Collection for storing replay results
 REPLAY_COLLECTION = "deeper_dive_replays"
 
 
-# --- Pair Selection ---
-
-async def select_replay_pairs(max_pairs: int = None) -> dict:
-    """Select match pairs to replay, stratified by deeper-dive recommendation status.
-    
-    Returns:
-        {
-            "pairs": [{"paper1_id", "paper2_id", "dataset_id", "original_winner_id",
-                        "original_match_id", "content_mode", "stratum", "human_ground_truth"}],
-            "strata": {"both_recommended": N, "one_recommended": N, "neither_recommended": N},
-            "papers": {paper_id: {"has_enhanced": bool, "recommended": bool, "decision": str}}
-        }
-    """
-    # Load deeper dive experiment results to know which papers are recommended
+async def _load_experiment_meta() -> dict:
+    """Load deeper dive experiment results and build paper metadata."""
     experiment = await db.settings.find_one({"key": "deeper_dive_experiment"}, {"_id": 0})
-    experiment_results = experiment.get("results", []) if experiment else []
-    
-    # Build lookup: title -> recommendation status + enhanced assessment
+    results = experiment.get("results", []) if experiment else []
+
     recommended_titles = set()
-    enhanced_titles = {}
-    for r in experiment_results:
+    enhanced_by_title = {}
+    original_by_title = {}
+    for r in results:
         if r.get("parse_ok") and r.get("deeper_dive_recommended"):
             recommended_titles.add(r["title"])
             if r.get("enhanced_assessment"):
-                enhanced_titles[r["title"]] = r["enhanced_assessment"]
+                enhanced_by_title[r["title"]] = r["enhanced_assessment"]
+            if r.get("original_assessment"):
+                original_by_title[r["title"]] = r["original_assessment"]
 
-    # Load all ICLR validation papers
-    paper_lookup = {}  # id -> paper data
-    title_to_id = {}
-    async for p in db.validation_papers.find(
-        {"dataset_id": {"$in": REPLAY_DATASETS}},
-        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "decision": 1, "dataset_id": 1,
-         "ai_impact_summary_claude": 1, "ai_impact_summary_opus46": 1, "ai_impact_summary": 1},
+    # Map titles to tournament paper IDs
+    title_to_meta = {}
+    async for p in db.papers.find(
+        {"title": {"$in": list(recommended_titles)}},
+        {"_id": 0, "id": 1, "title": 1},
     ):
-        paper_lookup[p["id"]] = p
-        title_to_id[p["title"]] = p["id"]
-
-    # Map recommendation status to validation paper IDs
-    paper_meta = {}
-    for pid, p in paper_lookup.items():
-        title = p["title"]
-        is_rec = title in recommended_titles
-        has_enhanced = title in enhanced_titles
-        paper_meta[pid] = {
-            "recommended": is_rec,
-            "has_enhanced": has_enhanced,
-            "enhanced_assessment": enhanced_titles.get(title),
-            "decision": p.get("decision", ""),
+        title_to_meta[p["id"]] = {
+            "recommended": True,
+            "has_enhanced": p["title"] in enhanced_by_title,
+            "enhanced_assessment": enhanced_by_title.get(p["title"]),
+            "original_assessment": original_by_title.get(p["title"]),
         }
 
-    # Load existing matches to replay
-    match_query = {
-        "completed": True,
-        "failed": {"$ne": True},
-        "dataset_id": {"$in": REPLAY_DATASETS},
-        "content_mode": {"$in": SOURCE_MODES},
+    return {
+        "paper_meta": title_to_meta,
+        "recommended_ids": set(title_to_meta.keys()),
     }
-    matches = await db.validation_matches.find(match_query, {"_id": 0}).to_list(50000)
 
-    # Deduplicate pairs (same two papers may have been compared multiple times)
+
+async def select_replay_pairs(max_pairs: int = 200) -> dict:
+    """Select main-tournament match pairs to replay, prioritizing pairs
+    involving deeper-dive-recommended papers.
+
+    Returns dict with pairs list, strata counts, and paper metadata.
+    """
+    meta = await _load_experiment_meta()
+    rec_ids = meta["recommended_ids"]
+
+    if not rec_ids:
+        return {"pairs": [], "strata": {}, "paper_meta": {}}
+
+    # Load already-replayed pair+condition combos to skip
+    existing_replays = set()
+    async for r in db[REPLAY_COLLECTION].find({}, {"_id": 0, "original_match_id": 1, "condition": 1}):
+        existing_replays.add((r["original_match_id"], r["condition"]))
+
+    # Find completed matches involving at least one recommended paper
+    matches = await db.matches.find(
+        {
+            "completed": True, "failed": {"$ne": True},
+            "mode": {"$exists": False},
+            "$or": [
+                {"paper1_id": {"$in": list(rec_ids)}},
+                {"paper2_id": {"$in": list(rec_ids)}},
+            ],
+        },
+        {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+         "primary_category": 1, "model_used": 1},
+    ).to_list(50000)
+
+    # Deduplicate by paper pair (keep first match per unique pair)
     seen_pairs = set()
     pairs = []
     for m in matches:
-        p1, p2 = m["paper1_id"], m["paper2_id"]
-        pair_key = tuple(sorted([p1, p2])) + (m.get("content_mode", ""),)
+        pair_key = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
         if pair_key in seen_pairs:
             continue
         seen_pairs.add(pair_key)
 
-        if p1 not in paper_meta or p2 not in paper_meta:
-            continue
-
-        # Determine stratum
-        p1_rec = paper_meta[p1]["recommended"]
-        p2_rec = paper_meta[p2]["recommended"]
+        p1_rec = m["paper1_id"] in rec_ids
+        p2_rec = m["paper2_id"] in rec_ids
         if p1_rec and p2_rec:
-            stratum = "both_recommended"
+            stratum = "both_enhanced"
         elif p1_rec or p2_rec:
-            stratum = "one_recommended"
+            stratum = "one_enhanced"
         else:
-            stratum = "neither_recommended"
-
-        # Human ground truth: which paper has higher ICLR acceptance tier?
-        human_gt = _compute_human_ground_truth(
-            paper_lookup.get(p1, {}), paper_lookup.get(p2, {})
-        )
+            stratum = "neither"
 
         pairs.append({
-            "paper1_id": p1,
-            "paper2_id": p2,
-            "dataset_id": m["dataset_id"],
-            "content_mode": m.get("content_mode", "abstract_plus_summary"),
+            "paper1_id": m["paper1_id"],
+            "paper2_id": m["paper2_id"],
             "original_winner_id": m.get("winner_id"),
             "original_match_id": m["id"],
+            "category": m.get("primary_category", ""),
             "stratum": stratum,
-            "human_ground_truth": human_gt,  # "paper1" | "paper2" | "tie" | "unknown"
         })
 
-    random.shuffle(pairs)
+    # Prioritize: both_enhanced first, then one_enhanced, then neither (for control)
+    priority = {"both_enhanced": 0, "one_enhanced": 1, "neither": 2}
+    pairs.sort(key=lambda p: priority.get(p["stratum"], 9))
+
+    # Filter out already-replayed pairs (both conditions done)
+    pairs = [p for p in pairs
+             if (p["original_match_id"], "control") not in existing_replays
+             or (p["original_match_id"], "treatment") not in existing_replays]
+
     if max_pairs:
         pairs = pairs[:max_pairs]
 
     strata = Counter(p["stratum"] for p in pairs)
-
-    return {
-        "pairs": pairs,
-        "strata": dict(strata),
-        "paper_meta": paper_meta,
-    }
+    return {"pairs": pairs, "strata": dict(strata), "paper_meta": meta["paper_meta"]}
 
 
-# ICLR decision tier ordering (higher = better)
-_DECISION_TIER = {
-    "accept (oral)": 4,
-    "accept (spotlight)": 3,
-    "accept (poster)": 2,
-    "withdrawn": 1,
-    "desk rejected": 0,
-    "reject": 0,
-}
+async def run_replay_experiment(max_pairs: int = 200, parallel: int = 3):
+    """Run the match replay experiment: control + treatment for each pair.
 
-
-def _compute_human_ground_truth(paper1: dict, paper2: dict) -> str:
-    """Determine which paper humans ranked higher based on ICLR acceptance tier."""
-    d1 = _DECISION_TIER.get(paper1.get("decision", "").lower().strip(), -1)
-    d2 = _DECISION_TIER.get(paper2.get("decision", "").lower().strip(), -1)
-    if d1 < 0 or d2 < 0:
-        return "unknown"
-    if d1 > d2:
-        return "paper1"
-    elif d2 > d1:
-        return "paper2"
-    return "tie"
-
-
-# --- Match Replay ---
-
-async def replay_match(
-    paper1: dict, paper2: dict,
-    condition: str,  # "control" or "treatment"
-    paper_meta: dict,
-    prompt_config: dict = None,
-) -> dict:
-    """Replay a single match under the given condition.
-    
-    - control: uses original assessments (ai_impact_summary_claude or ai_impact_summary_opus46)
-    - treatment: uses enhanced assessment where available, original otherwise
+    Each replay result is saved to DB immediately (resumable).
     """
-    from services.llm import compare_papers
-    from core.config import DEFAULT_EVALUATION_PROMPT
-
-    if prompt_config is None:
-        prompt_config = DEFAULT_EVALUATION_PROMPT
-
-    # Build paper dicts with the appropriate summary
-    def _get_assessment(paper, meta):
-        if condition == "treatment" and meta.get("enhanced_assessment"):
-            return meta["enhanced_assessment"]
-        # Fall back to original assessment
-        return (paper.get("ai_impact_summary_opus46")
-                or paper.get("ai_impact_summary_claude")
-                or paper.get("ai_impact_summary")
-                or paper.get("abstract", "")[:1500])
-
-    meta1 = paper_meta.get(paper1["id"], {})
-    meta2 = paper_meta.get(paper2["id"], {})
-
-    p1_with_summary = {**paper1, "ai_impact_summary": _get_assessment(paper1, meta1)}
-    p2_with_summary = {**paper2, "ai_impact_summary": _get_assessment(paper2, meta2)}
-
-    result = await compare_papers(
-        p1_with_summary, p2_with_summary,
-        prompt_config=prompt_config,
-        content_mode="abstract_plus_summary",
-    )
-
-    winner_id = paper1["id"] if result["winner"] == "paper1" else paper2["id"]
-
-    return {
-        "winner_id": winner_id,
-        "winner": result["winner"],
-        "reasoning": result.get("reasoning", ""),
-        "model_used": result.get("model_used", {}),
-        "tokens": result.get("tokens", {}),
-        "condition": condition,
-        "p1_used_enhanced": condition == "treatment" and bool(meta1.get("enhanced_assessment")),
-        "p2_used_enhanced": condition == "treatment" and bool(meta2.get("enhanced_assessment")),
-    }
-
-
-async def run_replay_experiment(
-    max_pairs: int = 200,
-    conditions: list = None,
-    parallel: int = 3,
-):
-    """Run the full replay experiment.
-    
-    Args:
-        max_pairs: Max pairs to replay per condition
-        conditions: ["control", "treatment"] or subset
-        parallel: Concurrent LLM calls
-    """
-    if conditions is None:
-        conditions = ["control", "treatment"]
-
-    logger.info(f"Replay experiment starting: max_pairs={max_pairs}, conditions={conditions}")
-
-    # Select pairs
     selection = await select_replay_pairs(max_pairs=max_pairs)
     pairs = selection["pairs"]
     paper_meta = selection["paper_meta"]
 
-    logger.info(f"Selected {len(pairs)} pairs. Strata: {selection['strata']}")
+    if not pairs:
+        logger.info("Replay: no pairs to replay")
+        await db.settings.update_one(
+            {"key": "replay_progress"},
+            {"$set": {"key": "replay_progress", "running": False, "done": 0, "total": 0, "message": "No pairs available"}},
+            upsert=True,
+        )
+        return
 
-    # Load paper data for selected pairs
+    conditions = ["control", "treatment"]
+    total = len(pairs) * len(conditions)
+    logger.info(f"Replay starting: {len(pairs)} pairs × {len(conditions)} conditions = {total} replays. Strata: {selection['strata']}")
+
+    await db.settings.update_one(
+        {"key": "replay_progress"},
+        {"$set": {"key": "replay_progress", "running": True, "done": 0, "total": total,
+                  "errors": 0, "strata": selection["strata"]}},
+        upsert=True,
+    )
+
+    # Load paper data for all selected pairs
     paper_ids = set()
     for p in pairs:
         paper_ids.add(p["paper1_id"])
         paper_ids.add(p["paper2_id"])
 
     papers = {}
-    async for p in db.validation_papers.find(
+    async for p in db.papers.find(
         {"id": {"$in": list(paper_ids)}},
-        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "decision": 1, "dataset_id": 1,
-         "ai_impact_summary_claude": 1, "ai_impact_summary_opus46": 1, "ai_impact_summary": 1},
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "summaries": 1},
     ):
         papers[p["id"]] = p
 
-    # Initialize progress tracking
-    total_replays = len(pairs) * len(conditions)
-    await db.settings.update_one(
-        {"key": "replay_progress"},
-        {"$set": {"key": "replay_progress", "running": True, "done": 0,
-                  "total": total_replays, "errors": 0,
-                  "strata": selection["strata"],
-                  "conditions": conditions}},
-        upsert=True,
-    )
+    # Check which replays are already done (for resumability)
+    existing = set()
+    async for r in db[REPLAY_COLLECTION].find({}, {"_id": 0, "original_match_id": 1, "condition": 1}):
+        existing.add((r["original_match_id"], r["condition"]))
 
-    sem = asyncio.Semaphore(parallel)
-    results = []
+    from services.llm import compare_papers
+    from core.config import DEFAULT_EVALUATION_PROMPT
+
     done = 0
     errors = 0
+    sem = asyncio.Semaphore(parallel)
 
     for pair in pairs:
         p1 = papers.get(pair["paper1_id"])
         p2 = papers.get(pair["paper2_id"])
         if not p1 or not p2:
+            done += len(conditions)
             continue
 
         for condition in conditions:
+            # Skip if already done
+            if (pair["original_match_id"], condition) in existing:
+                done += 1
+                continue
+
             async with sem:
                 try:
-                    replay_result = await replay_match(p1, p2, condition, paper_meta)
+                    # Build paper dicts with appropriate summary
+                    p1_summary = _get_summary(p1, paper_meta.get(p1["id"], {}), condition)
+                    p2_summary = _get_summary(p2, paper_meta.get(p2["id"], {}), condition)
+
+                    p1_input = {**p1, "ai_impact_summary": p1_summary}
+                    p2_input = {**p2, "ai_impact_summary": p2_summary}
+
+                    result = await compare_papers(
+                        p1_input, p2_input,
+                        prompt_config=DEFAULT_EVALUATION_PROMPT,
+                        content_mode="abstract_plus_summary",
+                    )
+
+                    winner_id = p1["id"] if result["winner"] == "paper1" else p2["id"]
+                    flipped = winner_id != pair["original_winner_id"]
+
+                    meta1 = paper_meta.get(p1["id"], {})
+                    meta2 = paper_meta.get(p2["id"], {})
 
                     record = {
                         "id": str(uuid.uuid4()),
-                        "pair_id": pair["original_match_id"],
+                        "original_match_id": pair["original_match_id"],
                         "paper1_id": pair["paper1_id"],
                         "paper2_id": pair["paper2_id"],
-                        "dataset_id": pair["dataset_id"],
-                        "content_mode": pair["content_mode"],
+                        "category": pair["category"],
                         "stratum": pair["stratum"],
-                        "human_ground_truth": pair["human_ground_truth"],
-                        "original_winner_id": pair["original_winner_id"],
-                        "replay_winner_id": replay_result["winner_id"],
-                        "flipped": replay_result["winner_id"] != pair["original_winner_id"],
                         "condition": condition,
-                        "reasoning": replay_result["reasoning"],
-                        "model_used": replay_result["model_used"],
-                        "tokens": replay_result["tokens"],
-                        "p1_used_enhanced": replay_result["p1_used_enhanced"],
-                        "p2_used_enhanced": replay_result["p2_used_enhanced"],
+                        "original_winner_id": pair["original_winner_id"],
+                        "replay_winner_id": winner_id,
+                        "flipped": flipped,
+                        "reasoning": result.get("reasoning", ""),
+                        "model_used": result.get("model_used", {}),
+                        "tokens": result.get("tokens", {}),
+                        "p1_used_enhanced": condition == "treatment" and bool(meta1.get("enhanced_assessment")),
+                        "p2_used_enhanced": condition == "treatment" and bool(meta2.get("enhanced_assessment")),
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }
 
-                    # Check agreement with human ground truth
-                    if pair["human_ground_truth"] in ("paper1", "paper2"):
-                        gt_winner = pair["paper1_id"] if pair["human_ground_truth"] == "paper1" else pair["paper2_id"]
-                        record["original_agrees_human"] = pair["original_winner_id"] == gt_winner
-                        record["replay_agrees_human"] = replay_result["winner_id"] == gt_winner
-
-                    results.append(record)
-                    await db[REPLAY_COLLECTION].insert_one({**record, "_id": None})
+                    await db[REPLAY_COLLECTION].insert_one(record)
 
                 except Exception as e:
                     errors += 1
-                    logger.warning(f"Replay failed: {pair['original_match_id']} [{condition}]: {e}")
+                    logger.warning(f"Replay failed [{condition}]: {pair['original_match_id']}: {e}")
 
                 done += 1
                 if done % 10 == 0:
@@ -335,30 +248,42 @@ async def run_replay_experiment(
                         {"$set": {"done": done, "errors": errors}},
                     )
 
-    # Compute and save analysis
-    analysis = compute_replay_analysis(results)
-
+    # Save final analysis
+    analysis = await compute_replay_analysis()
     await db.settings.update_one(
         {"key": "replay_results"},
         {"$set": {"key": "replay_results", "analysis": analysis,
-                  "total_replays": len(results),
                   "completed_at": datetime.now(timezone.utc).isoformat()}},
         upsert=True,
     )
-
     await db.settings.update_one(
         {"key": "replay_progress"},
         {"$set": {"running": False, "done": done, "errors": errors}},
     )
-
-    logger.info(f"Replay experiment complete: {len(results)} replays, {errors} errors")
-    return analysis
+    logger.info(f"Replay complete: {done} replays, {errors} errors")
 
 
-# --- Statistical Analysis ---
+def _get_summary(paper: dict, meta: dict, condition: str) -> str:
+    """Get the appropriate summary for a paper given the condition."""
+    if condition == "treatment" and meta.get("enhanced_assessment"):
+        return meta["enhanced_assessment"]
+    # Original: use the best available summary from the paper's summaries dict
+    summaries = paper.get("summaries", {})
+    for key in ["anthropic:claude-opus-4-6", "anthropic:claude-opus-4-5-20251101"]:
+        s = summaries.get(key, "")
+        if isinstance(s, str) and len(s) > 50:
+            return s
+    # Fallback to any summary
+    for v in summaries.values():
+        if isinstance(v, str) and len(v) > 50:
+            return v
+    return paper.get("abstract", "")[:1500]
 
-def compute_replay_analysis(results: list) -> dict:
-    """Compute statistical analysis of replay results."""
+
+async def compute_replay_analysis() -> dict:
+    """Compute statistical analysis from all replay results in DB."""
+    results = await db[REPLAY_COLLECTION].find({}, {"_id": 0}).to_list(100000)
+
     control = [r for r in results if r["condition"] == "control"]
     treatment = [r for r in results if r["condition"] == "treatment"]
 
@@ -369,120 +294,102 @@ def compute_replay_analysis(results: list) -> dict:
     }
 
     # --- Flip rates ---
-    control_flips = sum(1 for r in control if r["flipped"])
-    treatment_flips = sum(1 for r in treatment if r["flipped"])
+    c_flips = sum(1 for r in control if r["flipped"])
+    t_flips = sum(1 for r in treatment if r["flipped"])
 
     analysis["flip_rates"] = {
-        "control": round(control_flips / max(len(control), 1) * 100, 1),
-        "treatment": round(treatment_flips / max(len(treatment), 1) * 100, 1),
-        "control_flips": control_flips,
-        "treatment_flips": treatment_flips,
+        "control": round(c_flips / max(len(control), 1) * 100, 1),
+        "treatment": round(t_flips / max(len(treatment), 1) * 100, 1),
+        "control_flips": c_flips,
+        "treatment_flips": t_flips,
         "net_effect": round(
-            (treatment_flips / max(len(treatment), 1) - control_flips / max(len(control), 1)) * 100, 1
+            (t_flips / max(len(treatment), 1) - c_flips / max(len(control), 1)) * 100, 1
         ),
     }
 
     # --- Flip rates by stratum ---
-    strata_analysis = {}
-    for stratum in ["both_recommended", "one_recommended", "neither_recommended"]:
+    by_stratum = {}
+    for stratum in ["both_enhanced", "one_enhanced", "neither"]:
         c = [r for r in control if r["stratum"] == stratum]
         t = [r for r in treatment if r["stratum"] == stratum]
-        c_flips = sum(1 for r in c if r["flipped"])
-        t_flips = sum(1 for r in t if r["flipped"])
-        strata_analysis[stratum] = {
-            "control": {"total": len(c), "flips": c_flips, "rate": round(c_flips / max(len(c), 1) * 100, 1)},
-            "treatment": {"total": len(t), "flips": t_flips, "rate": round(t_flips / max(len(t), 1) * 100, 1)},
+        cf = sum(1 for r in c if r["flipped"])
+        tf = sum(1 for r in t if r["flipped"])
+        by_stratum[stratum] = {
+            "control": {"total": len(c), "flips": cf, "rate": round(cf / max(len(c), 1) * 100, 1)},
+            "treatment": {"total": len(t), "flips": tf, "rate": round(tf / max(len(t), 1) * 100, 1)},
         }
-    analysis["by_stratum"] = strata_analysis
+    analysis["by_stratum"] = by_stratum
 
-    # --- Human agreement ---
-    def _agreement_stats(matches):
-        with_gt = [r for r in matches if "original_agrees_human" in r]
-        if not with_gt:
-            return {"total": 0, "original_agreement": 0, "replay_agreement": 0}
-        orig_agree = sum(1 for r in with_gt if r.get("original_agrees_human"))
-        replay_agree = sum(1 for r in with_gt if r.get("replay_agrees_human"))
-        return {
-            "total": len(with_gt),
-            "original_agreement": round(orig_agree / len(with_gt) * 100, 1),
-            "replay_agreement": round(replay_agree / len(with_gt) * 100, 1),
-            "lift": round((replay_agree - orig_agree) / len(with_gt) * 100, 1),
-        }
+    # --- McNemar's test (paired: same pair, control vs treatment) ---
+    control_by_pair = {r["original_match_id"]: r["flipped"] for r in control}
+    treatment_by_pair = {r["original_match_id"]: r["flipped"] for r in treatment}
+    common = set(control_by_pair) & set(treatment_by_pair)
 
-    analysis["human_agreement"] = {
-        "control": _agreement_stats(control),
-        "treatment": _agreement_stats(treatment),
-    }
+    a = sum(1 for p in common if control_by_pair[p] and treatment_by_pair[p])
+    b = sum(1 for p in common if control_by_pair[p] and not treatment_by_pair[p])
+    c_val = sum(1 for p in common if not control_by_pair[p] and treatment_by_pair[p])
+    d = sum(1 for p in common if not control_by_pair[p] and not treatment_by_pair[p])
 
-    # --- McNemar's test ---
-    # For paired binary outcomes: did the verdict flip?
-    # Compare control vs treatment for the same pairs
-    control_by_pair = {r["pair_id"]: r["flipped"] for r in control}
-    treatment_by_pair = {r["pair_id"]: r["flipped"] for r in treatment}
-
-    # Build contingency: control_flip/no_flip × treatment_flip/no_flip
-    common_pairs = set(control_by_pair.keys()) & set(treatment_by_pair.keys())
-    a = sum(1 for p in common_pairs if control_by_pair[p] and treatment_by_pair[p])      # both flip
-    b = sum(1 for p in common_pairs if control_by_pair[p] and not treatment_by_pair[p])   # only control flips
-    c = sum(1 for p in common_pairs if not control_by_pair[p] and treatment_by_pair[p])   # only treatment flips
-    d = sum(1 for p in common_pairs if not control_by_pair[p] and not treatment_by_pair[p])  # neither flips
-
-    analysis["mcnemar"] = {
-        "common_pairs": len(common_pairs),
-        "both_flip": a,
-        "only_control_flips": b,
-        "only_treatment_flips": c,
-        "neither_flips": d,
-    }
-
-    # McNemar's chi-squared statistic
-    if b + c > 0:
-        chi2 = (abs(b - c) - 1) ** 2 / (b + c)  # with continuity correction
-        # Approximate p-value from chi2 with 1 df
-        # Using normal approximation: p ≈ erfc(sqrt(chi2/2))
-        import math
+    mcnemar = {"pairs": len(common), "both_flip": a, "only_control": b, "only_treatment": c_val, "neither": d}
+    if b + c_val > 0:
+        chi2 = (abs(b - c_val) - 1) ** 2 / (b + c_val)
         p_value = math.erfc(math.sqrt(chi2 / 2))
-        analysis["mcnemar"]["chi2"] = round(chi2, 3)
-        analysis["mcnemar"]["p_value"] = round(p_value, 4)
-        analysis["mcnemar"]["significant"] = p_value < 0.05
+        mcnemar.update({"chi2": round(chi2, 3), "p_value": round(p_value, 4), "significant": p_value < 0.05})
     else:
-        analysis["mcnemar"]["chi2"] = 0
-        analysis["mcnemar"]["p_value"] = 1.0
-        analysis["mcnemar"]["significant"] = False
+        mcnemar.update({"chi2": 0, "p_value": 1.0, "significant": False})
+    analysis["mcnemar"] = mcnemar
 
-    # --- Flip directionality (toward or away from human GT) ---
-    flips_toward_human = 0
-    flips_away_from_human = 0
+    # --- Directional consistency per paper ---
+    # For each recommended paper, track: how often does it win/lose differently in treatment?
+    paper_shifts = defaultdict(lambda: {"treatment_wins_gained": 0, "treatment_wins_lost": 0, "total": 0})
     for r in treatment:
-        if not r["flipped"] or r.get("human_ground_truth") not in ("paper1", "paper2"):
+        if not r["flipped"]:
             continue
-        gt_winner = r["paper1_id"] if r["human_ground_truth"] == "paper1" else r["paper2_id"]
-        orig_correct = r["original_winner_id"] == gt_winner
-        replay_correct = r["replay_winner_id"] == gt_winner
-        if not orig_correct and replay_correct:
-            flips_toward_human += 1
-        elif orig_correct and not replay_correct:
-            flips_away_from_human += 1
+        # Which paper gained a win?
+        if r["p1_used_enhanced"]:
+            pid = r["paper1_id"]
+            if r["replay_winner_id"] == pid and r["original_winner_id"] != pid:
+                paper_shifts[pid]["treatment_wins_gained"] += 1
+            elif r["replay_winner_id"] != pid and r["original_winner_id"] == pid:
+                paper_shifts[pid]["treatment_wins_lost"] += 1
+        if r["p2_used_enhanced"]:
+            pid = r["paper2_id"]
+            if r["replay_winner_id"] == pid and r["original_winner_id"] != pid:
+                paper_shifts[pid]["treatment_wins_gained"] += 1
+            elif r["replay_winner_id"] != pid and r["original_winner_id"] == pid:
+                paper_shifts[pid]["treatment_wins_lost"] += 1
 
-    analysis["flip_direction"] = {
-        "toward_human": flips_toward_human,
-        "away_from_human": flips_away_from_human,
-        "net_toward": flips_toward_human - flips_away_from_human,
-    }
+    # Enrich with paper titles
+    shifted_ids = list(paper_shifts.keys())
+    title_lookup = {}
+    if shifted_ids:
+        async for p in db.papers.find({"id": {"$in": shifted_ids}}, {"_id": 0, "id": 1, "title": 1}):
+            title_lookup[p["id"]] = p["title"]
 
-    # --- Per-dataset breakdown ---
-    by_dataset = {}
-    for ds in set(r["dataset_id"] for r in results):
-        ds_control = [r for r in control if r["dataset_id"] == ds]
-        ds_treatment = [r for r in treatment if r["dataset_id"] == ds]
-        by_dataset[ds] = {
-            "control_flips": sum(1 for r in ds_control if r["flipped"]),
-            "control_total": len(ds_control),
-            "treatment_flips": sum(1 for r in ds_treatment if r["flipped"]),
-            "treatment_total": len(ds_treatment),
-            "human_agreement_control": _agreement_stats(ds_control),
-            "human_agreement_treatment": _agreement_stats(ds_treatment),
+    paper_shift_list = []
+    for pid, shifts in paper_shifts.items():
+        net = shifts["treatment_wins_gained"] - shifts["treatment_wins_lost"]
+        paper_shift_list.append({
+            "paper_id": pid,
+            "title": title_lookup.get(pid, pid),
+            "wins_gained": shifts["treatment_wins_gained"],
+            "wins_lost": shifts["treatment_wins_lost"],
+            "net_shift": net,
+        })
+    paper_shift_list.sort(key=lambda x: abs(x["net_shift"]), reverse=True)
+    analysis["paper_shifts"] = paper_shift_list[:20]
+
+    # --- Per-category breakdown ---
+    by_category = {}
+    for cat in set(r.get("category", "") for r in results):
+        if not cat:
+            continue
+        cc = [r for r in control if r.get("category") == cat]
+        tt = [r for r in treatment if r.get("category") == cat]
+        by_category[cat] = {
+            "control": {"total": len(cc), "flips": sum(1 for r in cc if r["flipped"])},
+            "treatment": {"total": len(tt), "flips": sum(1 for r in tt if r["flipped"])},
         }
-    analysis["by_dataset"] = by_dataset
+    analysis["by_category"] = by_category
 
     return analysis
