@@ -257,6 +257,11 @@ export default function PaperPage() {
             {summaryEntries.map(e => (
               <TabsContent key={e.tabId} value={e.tabId} data-testid={`summary-content-${e.provider}`}>
                 <SummaryText text={e.text} />
+                {e.date && (
+                  <p className="text-[10px] text-muted-foreground mt-3">
+                    Generated {new Date(e.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                  </p>
+                )}
               </TabsContent>
             ))}
           </Tabs>
