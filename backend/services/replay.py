@@ -240,7 +240,17 @@ async def run_replay_experiment(max_pairs: int = 200, parallel: int = 3):
 
                     await db[REPLAY_COLLECTION].insert_one(record)
 
+                except asyncio.TimeoutError:
+                    errors += 1
+                    logger.warning(f"Replay timeout [{condition}]: {pair['original_match_id']}")
                 except Exception as e:
+                    err_str = str(e).lower()
+                    is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
+                    if is_budget:
+                        logger.warning(f"Replay budget error, waiting 60s...")
+                        await asyncio.sleep(60)
+                        done -= 1  # Don't count this as done, will retry on next run
+                        continue
                     errors += 1
                     logger.warning(f"Replay failed [{condition}]: {pair['original_match_id']}: {e}")
 
