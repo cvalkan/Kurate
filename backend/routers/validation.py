@@ -3907,7 +3907,7 @@ Write your impact assessment (up to 1000 words), then the meta-evaluation JSON b
 @router.get("/deeper-dive/results")
 async def get_deeper_dive_results():
     """Return results of the deeper dive experiment."""
-    doc = await database.settings.find_one({"key": "deeper_dive_experiment"}, {"_id": 0})
+    doc = await db.settings.find_one({"key": "deeper_dive_experiment"}, {"_id": 0})
     if not doc or not doc.get("results"):
         return {"status": "no_data", "results": [], "summary": {}}
     return {"status": "ok", "results": doc["results"], "summary": doc.get("summary", {})}
@@ -3916,7 +3916,7 @@ async def get_deeper_dive_results():
 @router.get("/deeper-dive/status")
 async def get_deeper_dive_status():
     """Check progress of the running experiment."""
-    doc = await database.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
+    doc = await db.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
     return doc or {"running": False, "done": 0, "total": 0, "errors": 0}
 
 
@@ -3929,12 +3929,12 @@ async def run_deeper_dive_experiment(request: Request):
     provider = body.get("provider", "anthropic")
 
     # Check not already running
-    prog = await database.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
+    prog = await db.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
     if prog and prog.get("running"):
         from fastapi import HTTPException
         raise HTTPException(409, "Experiment already running")
 
-    await database.settings.update_one(
+    await db.settings.update_one(
         {"key": "deeper_dive_progress"},
         {"$set": {"key": "deeper_dive_progress", "running": True, "done": 0, "total": total_papers, "errors": 0}},
         upsert=True,
@@ -3952,7 +3952,7 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
     try:
         # Sample papers evenly across categories
         papers_by_cat = defaultdict(list)
-        async for p in database.papers.find(
+        async for p in db.papers.find(
             {"full_text": {"$exists": True, "$ne": None}, "summaries": {"$exists": True, "$ne": {}}},
             {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1},
         ):
@@ -4039,7 +4039,7 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
             results.append(entry)
             done += 1
             if done % 5 == 0:
-                await database.settings.update_one(
+                await db.settings.update_one(
                     {"key": "deeper_dive_progress"},
                     {"$set": {"done": done, "errors": errors}},
                 )
@@ -4075,7 +4075,7 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
             "model": f"{provider}/{model_name}",
         }
 
-        await database.settings.update_one(
+        await db.settings.update_one(
             {"key": "deeper_dive_experiment"},
             {"$set": {"key": "deeper_dive_experiment", "results": results, "summary": summary,
                        "completed_at": datetime.now(timezone.utc).isoformat()}},
@@ -4086,7 +4086,7 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
     except Exception as e:
         logger.error(f"Deeper dive experiment failed: {e}")
     finally:
-        await database.settings.update_one(
+        await db.settings.update_one(
             {"key": "deeper_dive_progress"},
             {"$set": {"running": False, "done": done, "total": len(selected), "errors": errors}},
         )
