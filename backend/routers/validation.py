@@ -4324,3 +4324,61 @@ async def _save_experiment_results(merged: list, errors: int, model: str):
         upsert=True,
     )
     logger.info(f"Deeper dive saved: {len(merged)} total ({len(recommended)} recommended)")
+
+
+# --- Match Replay Experiment Endpoints ---
+
+@router.post("/deeper-dive/replay", dependencies=[Depends(verify_admin)])
+async def start_replay_experiment(request: Request):
+    """Start the match replay experiment (control + treatment conditions)."""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    max_pairs = body.get("max_pairs", 200)
+    conditions = body.get("conditions", ["control", "treatment"])
+    parallel = body.get("parallel", 3)
+
+    prog = await db.settings.find_one({"key": "replay_progress"}, {"_id": 0})
+    if prog and prog.get("running"):
+        raise HTTPException(409, "Replay experiment already running")
+
+    # Preview mode
+    if body.get("dry_run"):
+        from services.replay import select_replay_pairs
+        selection = await select_replay_pairs(max_pairs=max_pairs)
+        return {
+            "dry_run": True,
+            "pairs": len(selection["pairs"]),
+            "strata": selection["strata"],
+            "conditions": conditions,
+            "total_replays": len(selection["pairs"]) * len(conditions),
+        }
+
+    asyncio.create_task(_run_replay_bg(max_pairs, conditions, parallel))
+    return {"status": "started", "max_pairs": max_pairs, "conditions": conditions}
+
+
+async def _run_replay_bg(max_pairs, conditions, parallel):
+    try:
+        from services.replay import run_replay_experiment
+        await run_replay_experiment(max_pairs=max_pairs, conditions=conditions, parallel=parallel)
+    except Exception as e:
+        logger.error(f"Replay experiment failed: {e}")
+        await db.settings.update_one(
+            {"key": "replay_progress"},
+            {"$set": {"running": False, "error": str(e)[:500]}},
+        )
+
+
+@router.get("/deeper-dive/replay/status")
+async def replay_status():
+    """Check progress of the replay experiment."""
+    prog = await db.settings.find_one({"key": "replay_progress"}, {"_id": 0})
+    return prog or {"running": False, "done": 0, "total": 0}
+
+
+@router.get("/deeper-dive/replay/results")
+async def replay_results():
+    """Get the statistical analysis of the replay experiment."""
+    doc = await db.settings.find_one({"key": "replay_results"}, {"_id": 0})
+    if not doc or not doc.get("analysis"):
+        return {"status": "no_data"}
+    return {"status": "ok", "analysis": doc["analysis"], "total_replays": doc.get("total_replays", 0)}
