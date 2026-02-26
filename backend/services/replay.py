@@ -204,10 +204,13 @@ async def run_replay_experiment(max_pairs: int = 200, parallel: int = 3):
                     p1_input = {**p1, "ai_impact_summary": p1_summary}
                     p2_input = {**p2, "ai_impact_summary": p2_summary}
 
-                    result = await compare_papers(
-                        p1_input, p2_input,
-                        prompt_config=DEFAULT_EVALUATION_PROMPT,
-                        content_mode="abstract_plus_summary",
+                    result = await asyncio.wait_for(
+                        compare_papers(
+                            p1_input, p2_input,
+                            prompt_config=DEFAULT_EVALUATION_PROMPT,
+                            content_mode="abstract_plus_summary",
+                        ),
+                        timeout=120,
                     )
 
                     winner_id = p1["id"] if result["winner"] == "paper1" else p2["id"]
