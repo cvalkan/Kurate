@@ -4409,8 +4409,10 @@ async def replay_status():
 
 @router.get("/deeper-dive/replay/results")
 async def replay_results():
-    """Get the statistical analysis of the replay experiment."""
-    doc = await db.settings.find_one({"key": "replay_results"}, {"_id": 0})
-    if not doc or not doc.get("analysis"):
+    """Get the statistical analysis of the replay experiment. Computes live from DB."""
+    count = await db.deeper_dive_replays.count_documents({})
+    if count == 0:
         return {"status": "no_data"}
-    return {"status": "ok", "analysis": doc["analysis"], "total_replays": doc.get("total_replays", 0)}
+    from services.replay import compute_replay_analysis
+    analysis = await compute_replay_analysis()
+    return {"status": "ok", "analysis": analysis, "total_replays": count}
