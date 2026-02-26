@@ -112,7 +112,7 @@ def build_content_mode_filter(content_mode: Optional[str] = None, abstract_only:
     """Build a MongoDB match filter for content_mode, with backward compatibility."""
     _extract_filter = {
         "abstract_only": {"$ne": True},
-        "content_mode": {"$nin": ["full_pdf", "ai_summary", "abstract_plus_summary", "abstract_plus_impact"], "$not": {"$regex": ":"}},
+        "content_mode": {"$nin": ["full_pdf", "ai_summary", "abstract_plus_summary", "abstract_plus_impact", "deep_dive"], "$not": {"$regex": ":"}},
         "prompt_tag": {"$exists": False},
     }
     if not content_mode:
