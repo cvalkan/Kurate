@@ -262,7 +262,7 @@ function ReplaySection({ replay, status }) {
   if (!isRunning && !hasResults) return null;
 
   return (
-    <div className="border-t border-border pt-6 mt-6 space-y-4" data-testid="replay-section">
+    <div className="space-y-4" data-testid="replay-section">
       <div>
         <h2 className="text-base font-semibold">Match Replay Experiment</h2>
         <p className="text-[11px] text-muted-foreground">
