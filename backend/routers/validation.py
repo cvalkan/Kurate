@@ -4098,12 +4098,7 @@ async def _run_enhance_assessments():
                     system_message=_ENHANCE_PROMPT["system_prompt"],
                 ).with_model("anthropic", "claude-opus-4-6")
 
-                loop = asyncio.get_event_loop()
-                response = await loop.run_in_executor(
-                    None,
-                    lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
-                )
-                enhanced_text = response.strip() if isinstance(response, str) else str(response)
+                enhanced_text = await _call_llm_with_budget_retry(chat, prompt, label=f"enhance:{r['title'][:30]}")
 
                 if enhanced_text and len(enhanced_text) > 100:
                     results[i]["enhanced_assessment"] = enhanced_text
