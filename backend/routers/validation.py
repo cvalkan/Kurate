@@ -15,7 +15,7 @@ import os
 import requests
 from datetime import datetime, timezone
 from collections import defaultdict, Counter
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import numpy as np
