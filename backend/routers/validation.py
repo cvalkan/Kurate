@@ -3860,3 +3860,233 @@ async def _run_rescrape(database):
     result = await rescrape_all_evaluations(database)
     logger.info(f"F1000 rescrape complete: {result}")
 
+
+
+# --- Deeper Dive Experiment ---
+
+_DEEPER_DIVE_PROMPT = {
+    "system_prompt": """You are a scientific impact analyst. Your task is to write a detailed scientific impact assessment of a research paper. This assessment will later be used in a pairwise tournament to compare papers' scientific impact.
+
+Write up to 1000 words (can be shorter if the paper warrants it). Structure your assessment around:
+
+1. **Core Contribution**: What is the main novelty? What problem does it solve and how?
+2. **Methodological Rigor**: How sound is the approach? Are the experiments/proofs convincing?
+3. **Potential Impact**: What are the real-world applications? How broadly could this influence the field or adjacent fields?
+4. **Timeliness & Relevance**: Does this address a current bottleneck or emerging need?
+5. **Strengths & Limitations**: Key strengths that make this paper stand out, and notable weaknesses or gaps.
+
+Be specific and analytical — avoid generic praise.
+
+After your assessment, on a new line, output EXACTLY one JSON block (and nothing else after it) with your meta-evaluation of whether a deeper analysis pass would be valuable:
+
+```json
+{"deeper_dive_recommended": true/false, "confidence": "high/medium/low", "focus_areas": ["area1", "area2"]}
+```
+
+Set `deeper_dive_recommended` to `true` ONLY if you believe extended analysis (e.g., step-by-step proof verification, detailed methodology audit, cross-referencing claims against cited results) could plausibly reveal important strengths, weaknesses, or nuances that your first-pass assessment is likely to miss. Common reasons include:
+- Complex mathematical proofs that need step-by-step verification
+- Subtle methodological issues that require careful reasoning
+- Claims that seem strong but lack sufficient evidence in the paper
+- Interdisciplinary work where domain expertise gaps may cause blind spots
+- Dense experimental sections where result validity needs careful checking
+
+Set `confidence` to how confident you are in the completeness of YOUR assessment (not the paper's quality).
+List `focus_areas` as the specific aspects a deeper dive should examine.""",
+
+    "user_prompt": """Write a scientific impact assessment for the following paper:
+
+**Title:** {title}
+
+**Content:**
+{content}
+
+Write your impact assessment (up to 1000 words), then the meta-evaluation JSON block:""",
+}
+
+
+@router.get("/deeper-dive/results")
+async def get_deeper_dive_results():
+    """Return results of the deeper dive experiment."""
+    doc = await database.settings.find_one({"key": "deeper_dive_experiment"}, {"_id": 0})
+    if not doc or not doc.get("results"):
+        return {"status": "no_data", "results": [], "summary": {}}
+    return {"status": "ok", "results": doc["results"], "summary": doc.get("summary", {})}
+
+
+@router.get("/deeper-dive/status")
+async def get_deeper_dive_status():
+    """Check progress of the running experiment."""
+    doc = await database.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
+    return doc or {"running": False, "done": 0, "total": 0, "errors": 0}
+
+
+@router.post("/deeper-dive/run", dependencies=[Depends(verify_admin)])
+async def run_deeper_dive_experiment(request: Request):
+    """Run the deeper dive experiment on random papers from every category."""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    total_papers = body.get("total_papers", 100)
+    model_name = body.get("model", "claude-opus-4-6")
+    provider = body.get("provider", "anthropic")
+
+    # Check not already running
+    prog = await database.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
+    if prog and prog.get("running"):
+        from fastapi import HTTPException
+        raise HTTPException(409, "Experiment already running")
+
+    await database.settings.update_one(
+        {"key": "deeper_dive_progress"},
+        {"$set": {"key": "deeper_dive_progress", "running": True, "done": 0, "total": total_papers, "errors": 0}},
+        upsert=True,
+    )
+
+    asyncio.create_task(_run_deeper_dive_experiment(total_papers, provider, model_name))
+    return {"status": "started", "total_papers": total_papers, "model": f"{provider}/{model_name}"}
+
+
+async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_name: str):
+    """Background task: run deeper dive experiment on random papers."""
+    from core.config import EMERGENT_LLM_KEY
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    try:
+        # Sample papers evenly across categories
+        papers_by_cat = defaultdict(list)
+        async for p in database.papers.find(
+            {"full_text": {"$exists": True, "$ne": None}, "summaries": {"$exists": True, "$ne": {}}},
+            {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1},
+        ):
+            cat = (p.get("categories") or ["unknown"])[0]
+            papers_by_cat[cat].append(p)
+
+        cats = sorted(papers_by_cat.keys())
+        per_cat = max(1, total_papers // len(cats))
+        remainder = total_papers - per_cat * len(cats)
+
+        selected = []
+        for i, cat in enumerate(cats):
+            n = per_cat + (1 if i < remainder else 0)
+            sample = random.sample(papers_by_cat[cat], min(n, len(papers_by_cat[cat])))
+            selected.extend([(cat, p) for p in sample])
+
+        random.shuffle(selected)
+        selected = selected[:total_papers]
+
+        results = []
+        done = 0
+        errors = 0
+
+        for cat, paper in selected:
+            title = paper["title"]
+            abstract = paper.get("abstract", "")
+            full_text = paper.get("full_text", "")
+            content = f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text}" if full_text else f"Abstract: {abstract[:3000]}"
+            prompt = _DEEPER_DIVE_PROMPT["user_prompt"].format(title=title, content=content)
+
+            entry = {
+                "category": cat,
+                "title": title,
+                "paper_id": paper.get("id", ""),
+                "full_text_len": len(full_text),
+                "deeper_dive_recommended": None,
+                "confidence": None,
+                "focus_areas": [],
+            }
+
+            try:
+                chat = LlmChat(
+                    api_key=EMERGENT_LLM_KEY,
+                    session_id=f"deepdive-{uuid.uuid4()}",
+                    system_message=_DEEPER_DIVE_PROMPT["system_prompt"],
+                ).with_model(provider, model_name)
+
+                response = await chat.send_message(UserMessage(text=prompt))
+                response_text = response.strip() if isinstance(response, str) else str(response)
+
+                # Extract JSON block
+                meta = None
+                import re as _re
+                m = _re.search(r'```json\s*(\{.*?\})\s*```', response_text, _re.DOTALL)
+                if m:
+                    try:
+                        meta = json.loads(m.group(1))
+                    except json.JSONDecodeError:
+                        pass
+                if not meta:
+                    for line in reversed(response_text.split('\n')):
+                        line = line.strip()
+                        if line.startswith('{') and 'deeper_dive' in line:
+                            try:
+                                meta = json.loads(line)
+                            except json.JSONDecodeError:
+                                pass
+                            break
+
+                if meta:
+                    entry["deeper_dive_recommended"] = meta.get("deeper_dive_recommended")
+                    entry["confidence"] = meta.get("confidence")
+                    entry["focus_areas"] = meta.get("focus_areas", [])
+                    entry["parse_ok"] = True
+                else:
+                    entry["parse_ok"] = False
+                    errors += 1
+
+            except Exception as e:
+                entry["parse_ok"] = False
+                entry["error"] = str(e)[:200]
+                errors += 1
+
+            results.append(entry)
+            done += 1
+            if done % 5 == 0:
+                await database.settings.update_one(
+                    {"key": "deeper_dive_progress"},
+                    {"$set": {"done": done, "errors": errors}},
+                )
+
+        # Compute summary
+        parsed = [r for r in results if r.get("parse_ok")]
+        recommended = [r for r in parsed if r.get("deeper_dive_recommended")]
+        conf_dist = Counter(r.get("confidence") for r in parsed)
+        cat_stats = {}
+        for r in parsed:
+            cat = r["category"]
+            if cat not in cat_stats:
+                cat_stats[cat] = {"total": 0, "recommended": 0}
+            cat_stats[cat]["total"] += 1
+            if r.get("deeper_dive_recommended"):
+                cat_stats[cat]["recommended"] += 1
+
+        all_areas = []
+        for r in recommended:
+            all_areas.extend(r.get("focus_areas", []))
+        area_counts = Counter(a.lower().strip() for a in all_areas)
+
+        summary = {
+            "total": len(results),
+            "parsed": len(parsed),
+            "recommended": len(recommended),
+            "not_recommended": len(parsed) - len(recommended),
+            "errors": errors,
+            "recommend_rate": round(len(recommended) / max(len(parsed), 1) * 100, 1),
+            "confidence_distribution": dict(conf_dist),
+            "by_category": cat_stats,
+            "top_focus_areas": [{"area": a, "count": c} for a, c in area_counts.most_common(20)],
+            "model": f"{provider}/{model_name}",
+        }
+
+        await database.settings.update_one(
+            {"key": "deeper_dive_experiment"},
+            {"$set": {"key": "deeper_dive_experiment", "results": results, "summary": summary,
+                       "completed_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
+        logger.info(f"Deeper dive experiment complete: {len(recommended)}/{len(parsed)} recommended ({summary['recommend_rate']}%)")
+
+    except Exception as e:
+        logger.error(f"Deeper dive experiment failed: {e}")
+    finally:
+        await database.settings.update_one(
+            {"key": "deeper_dive_progress"},
+            {"$set": {"running": False, "done": done, "total": len(selected), "errors": errors}},
+        )
