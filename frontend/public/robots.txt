@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Allow: /correlation
+Allow: /methodology
+Allow: /validation
+Allow: /paper/
+Allow: /prompts
+
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/admin/
+
+Sitemap: https://kurate.org/sitemap.xml
