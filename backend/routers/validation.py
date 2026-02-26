@@ -3933,6 +3933,163 @@ async def get_deeper_dive_status():
     }
 
 
+_ENHANCE_PROMPT = {
+    "system_prompt": """You are a scientific impact analyst performing a detailed follow-up review. You previously wrote an initial assessment of this paper and identified specific areas that warrant deeper analysis. Now re-read the relevant sections carefully and produce a revised, more thorough assessment.
+
+Your revised assessment should:
+- Keep observations from the initial assessment that remain valid
+- Deepen, correct, or add nuance based on your focused re-analysis of the flagged areas
+- Be specific about what changed vs your initial assessment
+- Remain structured: Core Contribution, Methodological Rigor, Potential Impact, Timeliness, Strengths & Limitations
+
+Write up to 1200 words.""",
+
+    "user_prompt": """Paper: "{title}"
+
+Full paper text:
+{content}
+
+Your initial assessment:
+{original_assessment}
+
+You flagged these areas for deeper analysis:
+{focus_areas}
+
+Now perform that deeper analysis. Re-read the relevant sections of the paper carefully and produce your revised assessment (up to 1200 words):""",
+}
+
+
+@router.post("/deeper-dive/enhance", dependencies=[Depends(verify_admin)])
+async def run_enhance_assessments(request: Request):
+    """Generate enhanced assessments for papers recommended for deeper dive."""
+    prog = await db.settings.find_one({"key": "deeper_dive_enhance_progress"}, {"_id": 0})
+    if prog and prog.get("running"):
+        raise HTTPException(409, "Enhancement already running")
+
+    doc = await db.settings.find_one({"key": "deeper_dive_experiment"}, {"_id": 0})
+    if not doc or not doc.get("results"):
+        raise HTTPException(404, "No experiment results to enhance")
+
+    recommended = [r for r in doc["results"] if r.get("deeper_dive_recommended") and r.get("parse_ok") and not r.get("enhanced_assessment")]
+    if not recommended:
+        return {"status": "nothing_to_do", "message": "All recommended papers already enhanced"}
+
+    await db.settings.update_one(
+        {"key": "deeper_dive_enhance_progress"},
+        {"$set": {"key": "deeper_dive_enhance_progress", "running": True, "done": 0, "total": len(recommended), "errors": 0}},
+        upsert=True,
+    )
+    asyncio.create_task(_run_enhance_assessments())
+    return {"status": "started", "papers_to_enhance": len(recommended)}
+
+
+async def _run_enhance_assessments():
+    """Background: generate revised assessments for deeper-dive-recommended papers."""
+    from core.config import EMERGENT_LLM_KEY
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    done = 0
+    errors = 0
+    try:
+        doc = await db.settings.find_one({"key": "deeper_dive_experiment"}, {"_id": 0})
+        results = doc.get("results", [])
+
+        # Build title→paper lookup for fetching full text + original summaries
+        titles_needed = [r["title"] for r in results if r.get("deeper_dive_recommended") and r.get("parse_ok") and not r.get("enhanced_assessment")]
+        paper_lookup = {}
+        async for p in db.papers.find(
+            {"title": {"$in": titles_needed}},
+            {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "summaries": 1},
+        ):
+            paper_lookup[p["title"]] = p
+
+        total = len(titles_needed)
+        await db.settings.update_one(
+            {"key": "deeper_dive_enhance_progress"},
+            {"$set": {"total": total}},
+        )
+
+        for i, r in enumerate(results):
+            if not (r.get("deeper_dive_recommended") and r.get("parse_ok") and not r.get("enhanced_assessment")):
+                continue
+
+            paper = paper_lookup.get(r["title"])
+            if not paper:
+                errors += 1
+                done += 1
+                continue
+
+            # Get the original Claude assessment
+            summaries = paper.get("summaries", {})
+            original = ""
+            for key in ["anthropic:claude-opus-4-6", "anthropic:claude-opus-4-5-20251101"]:
+                if key in summaries and isinstance(summaries[key], str) and len(summaries[key]) > 50:
+                    original = summaries[key]
+                    break
+            if not original:
+                # Fallback to any summary
+                for v in summaries.values():
+                    if isinstance(v, str) and len(v) > 50:
+                        original = v
+                        break
+
+            full_text = paper.get("full_text", "")
+            abstract = paper.get("abstract", "")
+            content = f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text}" if full_text else f"Abstract: {abstract[:3000]}"
+            focus_str = "\n".join(f"- {a}" for a in r.get("focus_areas", []))
+
+            prompt = _ENHANCE_PROMPT["user_prompt"].format(
+                title=r["title"], content=content,
+                original_assessment=original, focus_areas=focus_str,
+            )
+
+            try:
+                chat = LlmChat(
+                    api_key=EMERGENT_LLM_KEY,
+                    session_id=f"enhance-{uuid.uuid4()}",
+                    system_message=_ENHANCE_PROMPT["system_prompt"],
+                ).with_model("anthropic", "claude-opus-4-6")
+
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
+                )
+                enhanced_text = response.strip() if isinstance(response, str) else str(response)
+
+                if enhanced_text and len(enhanced_text) > 100:
+                    results[i]["enhanced_assessment"] = enhanced_text
+                    results[i]["original_assessment"] = original
+                    # Save after each successful enhancement
+                    await db.settings.update_one(
+                        {"key": "deeper_dive_experiment"},
+                        {"$set": {f"results.{i}.enhanced_assessment": enhanced_text,
+                                   f"results.{i}.original_assessment": original}},
+                    )
+                else:
+                    errors += 1
+            except Exception as e:
+                errors += 1
+                logger.warning(f"Enhance failed: {r['title'][:50]}: {e}")
+
+            done += 1
+            if done % 3 == 0:
+                await db.settings.update_one(
+                    {"key": "deeper_dive_enhance_progress"},
+                    {"$set": {"done": done, "errors": errors}},
+                )
+
+    except Exception as e:
+        logger.error(f"Enhance task crashed: {e}")
+    finally:
+        await db.settings.update_one(
+            {"key": "deeper_dive_enhance_progress"},
+            {"$set": {"running": False, "done": done, "total": done + errors, "errors": errors}},
+        )
+        logger.info(f"Enhancement complete: {done} done, {errors} errors")
+
+
+
 @router.post("/deeper-dive/run", dependencies=[Depends(verify_admin)])
 async def run_deeper_dive_experiment(request: Request):
     """Run the deeper dive experiment on random papers from every category."""
