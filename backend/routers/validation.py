@@ -4419,60 +4419,76 @@ async def replay_results():
     return {"status": "ok", "analysis": analysis, "total_replays": count}
 
 
-# --- ICLR Deep Dive Full Pipeline ---
+# --- Deep Dive Full Pipeline (parameterized) ---
 
-@router.post("/iclr-deep-dive/run", dependencies=[Depends(verify_admin)])
-async def start_iclr_deep_dive():
-    """Run the full ICLR deep dive pipeline (steps 2-4)."""
-    prog = await db.settings.find_one({"key": "iclr_deep_dive_progress"}, {"_id": 0})
+@router.post("/deep-dive-pipeline/run", dependencies=[Depends(verify_admin)])
+async def start_deep_dive_pipeline(request: Request):
+    """Run the full deep dive pipeline for a dataset."""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    dataset_id = body.get("dataset_id", "iclr-codegen")
+    source_mode = body.get("source_mode", "abstract_plus_summary:opus46")
+
+    from services.iclr_deep_dive import _keys
+    keys = _keys(dataset_id)
+
+    prog = await db.settings.find_one({"key": keys["progress"]}, {"_id": 0})
     if prog and prog.get("running"):
-        raise HTTPException(409, "Pipeline already running")
+        raise HTTPException(409, f"Pipeline already running for {dataset_id}")
 
     async def _bg():
         try:
             from services.iclr_deep_dive import run_full_pipeline
-            await run_full_pipeline()
+            await run_full_pipeline(dataset_id=dataset_id, source_mode=source_mode)
         except Exception as e:
-            logger.error(f"ICLR deep dive pipeline failed: {e}")
-            await db.settings.update_one(
-                {"key": "iclr_deep_dive_progress"},
-                {"$set": {"running": False, "error": str(e)[:500]}},
-            )
+            logger.error(f"Deep dive pipeline failed ({dataset_id}): {e}")
+            await db.settings.update_one({"key": keys["progress"]}, {"$set": {"running": False, "error": str(e)[:500]}})
 
     asyncio.create_task(_bg())
-    return {"status": "started", "dataset": "iclr-codegen", "steps": ["step2", "step3", "step4"]}
+    return {"status": "started", "dataset": dataset_id, "source_mode": source_mode}
 
 
-@router.get("/iclr-deep-dive/status")
-async def iclr_deep_dive_status():
-    """Check pipeline progress."""
-    prog = await db.settings.find_one({"key": "iclr_deep_dive_progress"}, {"_id": 0})
+@router.get("/deep-dive-pipeline/status")
+async def deep_dive_pipeline_status(dataset_id: str = Query("iclr-codegen")):
+    from services.iclr_deep_dive import _keys
+    keys = _keys(dataset_id)
+    prog = await db.settings.find_one({"key": keys["progress"]}, {"_id": 0})
     return prog or {"running": False, "step": None, "done": 0, "total": 0}
 
 
-@router.get("/iclr-deep-dive/results")
-async def iclr_deep_dive_results():
-    """Get experiment data and analysis."""
-    doc = await db.settings.find_one({"key": "iclr_deep_dive_experiment"}, {"_id": 0})
+@router.get("/deep-dive-pipeline/results")
+async def deep_dive_pipeline_results(dataset_id: str = Query("iclr-codegen")):
+    from services.iclr_deep_dive import _keys, compute_analysis
+    keys = _keys(dataset_id)
+    doc = await db.settings.find_one({"key": keys["experiment"]}, {"_id": 0})
     if not doc:
         return {"status": "no_data"}
 
-    # Live analysis from replay collection
-    from services.iclr_deep_dive import compute_analysis
-    replay_count = await db.iclr_deep_dive_replays.count_documents({})
-    analysis = await compute_analysis() if replay_count > 0 else None
+    replay_count = await db[keys["replays"]].count_documents({})
+    analysis = await compute_analysis(dataset_id) if replay_count > 0 else None
 
     papers = doc.get("papers", [])
-    step2_done = sum(1 for p in papers if p.get("step2_assessment"))
-    step3_done = sum(1 for p in papers if p.get("step3_assessment"))
-
     return {
         "status": "ok",
-        "dataset": doc.get("dataset_id", "iclr-codegen"),
+        "dataset": doc.get("dataset_id", dataset_id),
         "total_papers": len(papers),
-        "step2_done": step2_done,
-        "step3_done": step3_done,
+        "step2_done": sum(1 for p in papers if p.get("step2_assessment")),
+        "step3_done": sum(1 for p in papers if p.get("step3_assessment")),
         "replay_count": replay_count,
         "analysis": analysis,
         "papers": papers,
     }
+
+
+# Backward compat aliases for iclr-codegen
+@router.post("/iclr-deep-dive/run", dependencies=[Depends(verify_admin)])
+async def start_iclr_deep_dive():
+    from starlette.requests import Request as _R
+    return await start_deep_dive_pipeline(type("R", (), {"json": lambda s: {"dataset_id": "iclr-codegen"}, "headers": {}})())
+
+@router.get("/iclr-deep-dive/status")
+async def iclr_deep_dive_status():
+    return await deep_dive_pipeline_status("iclr-codegen")
+
+@router.get("/iclr-deep-dive/results")
+async def iclr_deep_dive_results():
+    return await deep_dive_pipeline_results("iclr-codegen")
