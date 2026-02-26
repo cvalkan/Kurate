@@ -1,0 +1,1082 @@
+{
+  "summary": {
+    "total": 48,
+    "parsed": 45,
+    "recommended": 17,
+    "not_recommended": 28,
+    "recommend_rate": "37.8%",
+    "confidence_distribution": {
+      "medium": 15,
+      "high": 30
+    },
+    "focus_area_frequency": {
+      "quantitative assessment of ionic conductivity claims versus comparable systems in literature": 1,
+      "verification of rietveld refinement quality and phase fraction accuracy given acknowledged limitations with incl3 and unknown phases": 1,
+      "critical evaluation of the polar-ionic interaction mechanism without computational support": 1,
+      "assessment of whether the conductivity improvements over toluene-based films are statistically significant given limited error reporting": 1,
+      "quantitative consistency between nmr deconvolution and proposed structural models": 1,
+      "whether the 800\u00b0c recalcination requirement truly limits or enables practical applications": 1,
+      "comparison of reversibility claims with ador chemistry precedents in germanosilicates": 1,
+      "validity of the assumption that all defects are localized in t4r units": 1,
+      "verification of optimality claims for sample complexity bounds": 1,
+      "tightness of the lower bound constructions in theorems 2 and 4": 1,
+      "practical implications of the optimization error epsilon_opt and convergence properties of coordinate descent": 1,
+      "validity of ehrenfest dynamics for quantitative vibrational population predictions": 1,
+      "scaling of the mechanism to macroscopic molecular ensembles": 1,
+      "robustness of the srs analogy - whether the e^4 scaling uniquely identifies a raman process": 1,
+      "role of decoherence and thermal effects on vibrational activation efficiency": 1,
+      "consistency between htc linear-response predictions and semiclassical nonlinear scaling": 1,
+      "validity of cvar estimation with s=100 samples at alpha=0.05": 1,
+      "whether the deterministic human model invalidates the multimodal belief framework claims": 1,
+      "mathematical consistency between the optimization formulation and the mpc implementation described": 1,
+      "statistical significance of reported improvements over baselines": 1
+    }
+  },
+  "results": [
+    {
+      "category": "chemrxiv.IC",
+      "title": "Orthogonal Solvent Mediation for Solid Composite Electrolyte Synthesis: Phase Integration via Particle Dispersion",
+      "full_text_len": 81613,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "Quantitative assessment of ionic conductivity claims versus comparable systems in literature",
+        "Verification of Rietveld refinement quality and phase fraction accuracy given acknowledged limitations with InCl3 and unknown phases",
+        "Critical evaluation of the polar-ionic interaction mechanism without computational support",
+        "Assessment of whether the conductivity improvements over toluene-based films are statistically significant given limited error reporting"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "Quantitative assessment of ionic conductivity claims versus comparable systems in literature",
+          "Verification of Rietveld refinement quality and phase fraction accuracy given acknowledged limitations with InCl3 and unknown phases",
+          "Critical evaluation of the polar-ionic interaction mechanism without computational support",
+          "Assessment of whether the conductivity improvements over toluene-based films are statistically significant given limited error reporting"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "chemrxiv.IC",
+      "title": "Adsorbate-Induced Reversible Changes in Zeolite ZEO-5 Attributed to its Triple-Four-Silicate-Rings",
+      "full_text_len": 59588,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "quantitative consistency between NMR deconvolution and proposed structural models",
+        "whether the 800\u00b0C recalcination requirement truly limits or enables practical applications",
+        "comparison of reversibility claims with ADOR chemistry precedents in germanosilicates",
+        "validity of the assumption that all defects are localized in t4r units"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "quantitative consistency between NMR deconvolution and proposed structural models",
+          "whether the 800\u00b0C recalcination requirement truly limits or enables practical applications",
+          "comparison of reversibility claims with ADOR chemistry precedents in germanosilicates",
+          "validity of the assumption that all defects are localized in t4r units"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.GT",
+      "title": "Offline Learning of Nash Stable Coalition Structures with Possibly Overlapping Coalitions",
+      "full_text_len": 155641,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "verification of optimality claims for sample complexity bounds",
+        "tightness of the lower bound constructions in Theorems 2 and 4",
+        "practical implications of the optimization error epsilon_opt and convergence properties of coordinate descent"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "verification of optimality claims for sample complexity bounds",
+          "tightness of the lower bound constructions in Theorems 2 and 4",
+          "practical implications of the optimization error epsilon_opt and convergence properties of coordinate descent"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "chemrxiv.IC",
+      "title": "Facet-Dependent Catalytic Performance of Solution-Derived Epitaxial Bismuth Vanadate Photoanodes",
+      "full_text_len": 56847,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "DFT claims verification",
+        "organic oxidation mechanistic details",
+        "polycrystalline vs epitaxial confounding variables"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "DFT claims verification",
+          "organic oxidation mechanistic details",
+          "polycrystalline vs epitaxial confounding variables"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.comp-ph",
+      "title": "Auxiliary field quantum Monte Carlo at the basis set limit: application to lattice constants",
+      "full_text_len": 75841,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "PAW overlap operator inversion correctness",
+        "comparison with periodic CCSD(T) for these systems",
+        "scalability analysis for larger/more complex systems"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "PAW overlap operator inversion correctness",
+          "comparison with periodic CCSD(T) for these systems",
+          "scalability analysis for larger/more complex systems"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "How to Train a Shallow Ensemble",
+      "full_text_len": 87557,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "BaTiO3 instability analysis",
+        "scaling to larger architectures"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "BaTiO3 instability analysis",
+          "scaling to larger architectures"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "A Framework for Combining Optimization-Based and Analytic Inverse Kinematics",
+      "full_text_len": 108455,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "domain handling robustness analysis",
+        "scaling behavior theoretical justification"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "domain handling robustness analysis",
+          "scaling behavior theoretical justification"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "chemrxiv.IC",
+      "title": "Structure-property relationship in cubic Zr7Ru6+\u0445Ga17-x (0 \u2264 x \u2264 2.0): disorder, electrical transport and bonding",
+      "full_text_len": 53128,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "validity of ordered approximant for electronic structure",
+        "Debye temperature discrepancy",
+        "k-point convergence"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "validity of ordered approximant for electronic structure",
+          "Debye temperature discrepancy",
+          "k-point convergence"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "AdaptManip: Learning Adaptive Whole-Body Object Lifting and Delivery with Online Recurrent State Estimation",
+      "full_text_len": 44996,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "hardware experimental validation depth",
+        "baseline fairness analysis",
+        "statistical significance of simulation results"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "hardware experimental validation depth",
+          "baseline fairness analysis",
+          "statistical significance of simulation results"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.comp-ph",
+      "title": "Collective Rabi-driven vibrational activation in molecular polaritons",
+      "full_text_len": 65956,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "Validity of Ehrenfest dynamics for quantitative vibrational population predictions",
+        "Scaling of the mechanism to macroscopic molecular ensembles",
+        "Robustness of the SRS analogy - whether the E^4 scaling uniquely identifies a Raman process",
+        "Role of decoherence and thermal effects on vibrational activation efficiency",
+        "Consistency between HTC linear-response predictions and semiclassical nonlinear scaling"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "Validity of Ehrenfest dynamics for quantitative vibrational population predictions",
+          "Scaling of the mechanism to macroscopic molecular ensembles",
+          "Robustness of the SRS analogy - whether the E^4 scaling uniquely identifies a Raman process",
+          "Role of decoherence and thermal effects on vibrational activation efficiency",
+          "Consistency between HTC linear-response predictions and semiclassical nonlinear scaling"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.comp-ph",
+      "title": "Level set-based topology optimization of micropolar solids under thermo-mechanical loading",
+      "full_text_len": 112642,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "validation against experimental or analytical benchmarks",
+        "mesh convergence and numerical parameter sensitivity",
+        "computational cost comparison with classical methods"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "validation against experimental or analytical benchmarks",
+          "mesh convergence and numerical parameter sensitivity",
+          "computational cost comparison with classical methods"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "Multimodal Covariance Steering in Belief Space with Active Probing and Influence for Autonomous Driving",
+      "full_text_len": 44232,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "validity of CVaR estimation with S=100 samples at alpha=0.05",
+        "whether the deterministic human model invalidates the multimodal belief framework claims",
+        "mathematical consistency between the optimization formulation and the MPC implementation described",
+        "statistical significance of reported improvements over baselines"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "validity of CVaR estimation with S=100 samples at alpha=0.05",
+          "whether the deterministic human model invalidates the multimodal belief framework claims",
+          "mathematical consistency between the optimization formulation and the MPC implementation described",
+          "statistical significance of reported improvements over baselines"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "The unintended effects of universalizing social pensions: Evidence from Mexico",
+      "full_text_len": 59243,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "statistical significance and robustness of the extreme poverty DDD result",
+        "validity of DDD identifying assumptions given systematic differences between contributory and non-contributory pension holders",
+        "adequacy of subgroup sample sizes for income-quartile mechanism analysis",
+        "whether labor force exit represents welfare loss or welfare gain for affected individuals"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "statistical significance and robustness of the extreme poverty DDD result",
+          "validity of DDD identifying assumptions given systematic differences between contributory and non-contributory pension holders",
+          "adequacy of subgroup sample sizes for income-quartile mechanism analysis",
+          "whether labor force exit represents welfare loss or welfare gain for affected individuals"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Modeling Dabrafenib Response Using Multi-Omics Modality Fusion and Protein Network Embeddings Based on Graph Convolutional Networks",
+      "full_text_len": 32283,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "sample size adequacy",
+        "overfitting assessment",
+        "statistical validity of R\u00b2 claims on tiny test sets"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "sample size adequacy",
+          "overfitting assessment",
+          "statistical validity of R\u00b2 claims on tiny test sets"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "How Well Are State-Dependent Local Projections Capturing Nonlinearities?",
+      "full_text_len": 113796,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "robustness to non-Gaussian shocks",
+        "finite sample performance comparison across specifications",
+        "extension beyond QVAR DGP class"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "robustness to non-Gaussian shocks",
+          "finite sample performance comparison across specifications",
+          "extension beyond QVAR DGP class"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "Evaluation of Dynamic Vector Bin Packing for Virtual Machine Placement",
+      "full_text_len": 85317,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "competitive ratio proof verification",
+        "lower bound tightness analysis",
+        "comparison with production systems"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "competitive ratio proof verification",
+          "lower bound tightness analysis",
+          "comparison with production systems"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Entropy Transfer Throughout the Structure of PDZ-2 and TIM-Barrel Proteins. A Dynamic Gaussian Network Model Study",
+      "full_text_len": 31553,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "methodological rigor of donor classification thresholds",
+        "sensitivity analysis to tau parameter",
+        "statistical validation of functional hierarchy claim"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "methodological rigor of donor classification thresholds",
+          "sensitivity analysis to tau parameter",
+          "statistical validation of functional hierarchy claim"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Consistent Synthetic Sequences Unlock Structural Diversity in Fully Atomistic De Novo Protein Design",
+      "full_text_len": 117143,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "circularity between ESMFold-based dataset construction and ESMFold-based evaluation metrics",
+        "statistical significance of improvements given sample sizes (100 proteins per length)",
+        "whether ProteinMPNN sequence distribution bias limits biological applicability",
+        "comparison fairness given different dataset sizes across ablation conditions"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "circularity between ESMFold-based dataset construction and ESMFold-based evaluation metrics",
+          "statistical significance of improvements given sample sizes (100 proteins per length)",
+          "whether ProteinMPNN sequence distribution bias limits biological applicability",
+          "comparison fairness given different dataset sizes across ablation conditions"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.comp-ph",
+      "title": "Ab initio quantum embedding at finite temperature with density matrix embedding theory",
+      "full_text_len": 58810,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "comparison with independent finite-temperature methods",
+        "systematic convergence analysis",
+        "scalability to complex materials"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "comparison with independent finite-temperature methods",
+          "systematic convergence analysis",
+          "scalability to complex materials"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "FCDP: Fully Cached Data Parallel for Communication-Avoiding Large-Scale Training",
+      "full_text_len": 65797,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "PCIe contention analysis under multi-GPU sharing",
+        "convergence verification",
+        "scaling behavior beyond 4 nodes"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "PCIe contention analysis under multi-GPU sharing",
+          "convergence verification",
+          "scaling behavior beyond 4 nodes"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "UBio-MolFM: A Universal Molecular Foundation Model for Bio-Systems",
+      "full_text_len": 83203,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "validity of basis set mismatch between training and testing",
+        "statistical significance of MD observables with only 200ps trajectories",
+        "EAAS mathematical derivation verification",
+        "comparison fairness across different models with different simulation lengths",
+        "curriculum learning stage transitions and DNA regression root cause"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "validity of basis set mismatch between training and testing",
+          "statistical significance of MD observables with only 200ps trajectories",
+          "EAAS mathematical derivation verification",
+          "comparison fairness across different models with different simulation lengths",
+          "curriculum learning stage transitions and DNA regression root cause"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "Agentic Fog: A Policy-driven Framework for Distributed Intelligence in Fog Computing",
+      "full_text_len": 41809,
+      "deeper_dive_recommended": true,
+      "confidence": "high",
+      "focus_areas": [
+        "potential game proof validity under partial observability",
+        "correctness of additive decomposition assumption with inter-agent coupling",
+        "stability theorem under structural changes from node failures",
+        "fairness and completeness of baseline comparisons"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "high",
+        "focus_areas": [
+          "potential game proof validity under partial observability",
+          "correctness of additive decomposition assumption with inter-agent coupling",
+          "stability theorem under structural changes from node failures",
+          "fairness and completeness of baseline comparisons"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.GT",
+      "title": "Scale-Invariant Fast Convergence in Games",
+      "full_text_len": 94629,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "verification of stopping-time analysis correctness in Lemma 3 and its application",
+        "whether the \u221an gap in general-sum games is fundamental or an artifact",
+        "correctness of the doubling clipping bias analysis (Lemmas 18-20 and their use in bounding swap regret)"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "verification of stopping-time analysis correctness in Lemma 3 and its application",
+          "whether the \u221an gap in general-sum games is fundamental or an artifact",
+          "correctness of the doubling clipping bias analysis (Lemmas 18-20 and their use in bounding swap regret)"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "Some properties of a production function",
+      "full_text_len": 10013,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "verification of concavity proof completeness",
+        "comparison with existing VES literature"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "verification of concavity proof completeness",
+          "comparison with existing VES literature"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "The Strategic Foresight of LLMs: Evidence from a Fully Prospective Venture Tournament",
+      "full_text_len": 129962,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "potential confound from GPT-5-High generating summaries that all LLMs then evaluate",
+        "adequacy of 3-expert human benchmark and whether information standardization systematically disadvantages humans",
+        "statistical robustness given n=30 projects and borderline significance levels",
+        "whether value capture results actually undermine the correlation-based narrative of clear LLM superiority"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "potential confound from GPT-5-High generating summaries that all LLMs then evaluate",
+          "adequacy of 3-expert human benchmark and whether information standardization systematically disadvantages humans",
+          "statistical robustness given n=30 projects and borderline significance levels",
+          "whether value capture results actually undermine the correlation-based narrative of clear LLM superiority"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "Macroscopic Spin-Orbit Interaction through Strong-Field Pumping of Inhomogeneously Aligned Molecular Ensemble",
+      "full_text_len": 24418,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "experimental feasibility of the proposed scheme at realistic ensemble sizes",
+        "validity of the far-field computation with sub-wavelength source geometry",
+        "quantitative OAM purity analysis and comparison with competing XUV OAM generation methods",
+        "analytical model verification in supplementary material"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "experimental feasibility of the proposed scheme at realistic ensemble sizes",
+          "validity of the far-field computation with sub-wavelength source geometry",
+          "quantitative OAM purity analysis and comparison with competing XUV OAM generation methods",
+          "analytical model verification in supplementary material"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.comp-ph",
+      "title": "A constrained-transport embedded boundary method for compressible resistive magnetohydrodynamics",
+      "full_text_len": 94916,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "3D extension feasibility",
+        "quantification of numerical resistivity at material interfaces",
+        "conservation error scaling with resolution"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "3D extension feasibility",
+          "quantification of numerical resistivity at material interfaces",
+          "conservation error scaling with resolution"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Conformational landscapes in cryo-ET data based on MD simulations",
+      "full_text_len": 40912,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "breadth of literature coverage",
+        "quantitative method comparisons",
+        "critical analysis of method limitations"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "breadth of literature coverage",
+          "quantitative method comparisons",
+          "critical analysis of method limitations"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Disentangling multispecific antibody function with graph neural networks",
+      "full_text_len": 51742,
+      "deeper_dive_recommended": true,
+      "confidence": "high",
+      "focus_areas": [
+        "validation of synthetic landscape biological plausibility",
+        "circularity in evaluation methodology",
+        "assessment of whether transfer learning claims are substantiated",
+        "examination of global readout function design choices and their biological justification"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "high",
+        "focus_areas": [
+          "validation of synthetic landscape biological plausibility",
+          "circularity in evaluation methodology",
+          "assessment of whether transfer learning claims are substantiated",
+          "examination of global readout function design choices and their biological justification"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "A CPD-enabled low-scaling environment solver in a coupled cluster based static quantum embedding theory",
+      "full_text_len": 84464,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "verification of scaling claims for Step 6 workaround",
+        "assessment of CPD optimization cost overhead"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "verification of scaling claims for Step 6 workaround",
+          "assessment of CPD optimization cost overhead"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "Contact-Anchored Policies: Contact Conditioning Creates Strong Robot Utility Models",
+      "full_text_len": 67008,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "baseline comparison fairness",
+        "scalability to more complex tasks",
+        "sim-to-real correlation statistical significance"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "baseline comparison fairness",
+          "scalability to more complex tasks",
+          "sim-to-real correlation statistical significance"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.GT",
+      "title": "Stable Matching with Predictions: Robustness and Efficiency under Pruned Preferences",
+      "full_text_len": 60305,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "proof verification of Theorem 3.4",
+        "lower bound construction details"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "proof verification of Theorem 3.4",
+          "lower bound construction details"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "How Swarms Differ: Challenges in Collective Behaviour Comparison",
+      "full_text_len": 24450,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "SOM hyperparameter sensitivity analysis",
+        "statistical significance of similarity score differences"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "SOM hyperparameter sensitivity analysis",
+          "statistical significance of similarity score differences"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "Human-AI Collaboration in Radiology: The Case of Pulmonary Embolism",
+      "full_text_len": 91487,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "validity of NLP-based PE diagnosis extraction",
+        "selection bias in follow-up imaging analysis",
+        "whether order-to-diagnosis time captures meaningful workflow efficiency",
+        "missing AI predictions for 14.4% of AI-period scans",
+        "confounding in pre-post comparisons of mortality and efficiency"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "validity of NLP-based PE diagnosis extraction",
+          "selection bias in follow-up imaging analysis",
+          "whether order-to-diagnosis time captures meaningful workflow efficiency",
+          "missing AI predictions for 14.4% of AI-period scans",
+          "confounding in pre-post comparisons of mortality and efficiency"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "DeepFRI Demystified: Interpretability vs. Accuracy in AI Protein Function Prediction",
+      "full_text_len": 15895,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "ground truth validation methodology",
+        "statistical rigor of claims across 124 proteins",
+        "adversarial testing methodology details"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "ground truth validation methodology",
+          "statistical rigor of claims across 124 proteins",
+          "adversarial testing methodology details"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "ML-ECS: A Collaborative Multimodal Learning Framework for Edge-Cloud Synergies",
+      "full_text_len": 53742,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "statistical significance of reported improvements",
+        "validity of MMA mechanism and comparison with alternative aggregation strategies",
+        "whether model-structure heterogeneity is truly addressed given identical SLM backbones across devices",
+        "scalability claims beyond 20 devices",
+        "formal privacy analysis"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "statistical significance of reported improvements",
+          "validity of MMA mechanism and comparison with alternative aggregation strategies",
+          "whether model-structure heterogeneity is truly addressed given identical SLM backbones across devices",
+          "scalability claims beyond 20 devices",
+          "formal privacy analysis"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "chemrxiv.IC",
+      "title": "An integrative approach towards bio-inspired sequestration of rare earth elements",
+      "full_text_len": 52545,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "selectivity data between lanthanides",
+        "comparison with existing chelators and lanmodulin peptides",
+        "MD force field validation for lanthanide coordination"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "selectivity data between lanthanides",
+          "comparison with existing chelators and lanmodulin peptides",
+          "MD force field validation for lanthanide coordination"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.comp-ph",
+      "title": "Electrohydrodynamic instability of Cu, W and Ti metal nanomelts under radiofrequency E-fields from multiphysics molecular dynamics simulations with coarse-grained density field analysis",
+      "full_text_len": 83411,
+      "deeper_dive_recommended": null,
+      "confidence": null,
+      "focus_areas": [],
+      "meta_raw": null,
+      "parse_ok": false,
+      "error": "Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 5352.221944450011, Max budget: 5351.602686690502"
+    },
+    {
+      "category": "cs.GT",
+      "title": "Fair Allocation with Initial Utilities",
+      "full_text_len": 101859,
+      "deeper_dive_recommended": null,
+      "confidence": null,
+      "focus_areas": [],
+      "meta_raw": null,
+      "parse_ok": false,
+      "error": "Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 5352.221944450011, Max budget: 5351.602686690502"
+    },
+    {
+      "category": "cs.GT",
+      "title": "Alliance Mechanisms in General Lotto Games",
+      "full_text_len": 56494,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "verification of case-by-case conditions in Theorem 1 proof for internal consistency",
+        "whether the measure-zero claim in Theorem 1(d) is fully substantiated or relies critically on the deferred conference paper argument",
+        "checking whether the equivalence in Theorem 2 extends naturally to asymmetric or multi-player settings"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "verification of case-by-case conditions in Theorem 1 proof for internal consistency",
+          "whether the measure-zero claim in Theorem 1(d) is fully substantiated or relies critically on the deferred conference paper argument",
+          "checking whether the equivalence in Theorem 2 extends naturally to asymmetric or multi-player settings"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "System-Level Performance Modeling of Photonic In-Memory Computing",
+      "full_text_len": 33704,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "energy model completeness",
+        "comparison with electronic CIM alternatives",
+        "scalability practical constraints"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "energy model completeness",
+          "comparison with electronic CIM alternatives",
+          "scalability practical constraints"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "Pack it in: Packing into Partially Filled Containers Through Contact",
+      "full_text_len": 43994,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "statistical significance of 40-trial experiments",
+        "generalization claims vs. actual object diversity tested"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "statistical significance of 40-trial experiments",
+          "generalization claims vs. actual object diversity tested"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.GT",
+      "title": "Interbank Lending Games",
+      "full_text_len": 58799,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "convergence rate analysis",
+        "economic model realism assessment",
+        "comparison with established interbank market models"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "convergence rate analysis",
+          "economic model realism assessment",
+          "comparison with established interbank market models"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "Harmonic-to-anharmonic thermodynamic integration made simple using REG TI",
+      "full_text_len": 30821,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "novelty relative to Ref 23 (Abrams/Tuckerman adiabatic free energy dynamics)",
+        "validity of paracetamol error analysis and comparison with prior work",
+        "analytical proof verification in Appendix A",
+        "whether alternative switching functions from alchemical FE literature would outperform the proposed family"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "novelty relative to Ref 23 (Abrams/Tuckerman adiabatic free energy dynamics)",
+          "validity of paracetamol error analysis and comparison with prior work",
+          "analytical proof verification in Appendix A",
+          "whether alternative switching functions from alchemical FE literature would outperform the proposed family"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "chemrxiv.IC",
+      "title": "A Crystalline In(II) Hydride",
+      "full_text_len": 57202,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "yield optimization details",
+        "catalytic cycle feasibility",
+        "thermodynamic hydricity measurements"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "yield optimization details",
+          "catalytic cycle feasibility",
+          "thermodynamic hydricity measurements"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "The Economics of Digital Intelligence Capital: Endogenous Depreciation and the Structural Jevons Paradox",
+      "full_text_len": 98646,
+      "deeper_dive_recommended": null,
+      "confidence": null,
+      "focus_areas": [],
+      "meta_raw": null,
+      "parse_ok": false,
+      "error": "Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 5358.152810650009, Max budget: 5357.602686690502"
+    },
+    {
+      "category": "cs.DC",
+      "title": "LAER-MoE: Load-Adaptive Expert Re-layout for Efficient Mixture-of-Experts Training",
+      "full_text_len": 99861,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "scalability validation beyond simulation",
+        "planner optimality gap analysis",
+        "sensitivity to expert capacity C"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "scalability validation beyond simulation",
+          "planner optimality gap analysis",
+          "sensitivity to expert capacity C"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "Early-warning the compact-to-dendritic transition via spatiotemporal learning of two-dimensional growth images",
+      "full_text_len": 78215,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "transferability analysis details",
+        "statistical significance of slowing-down claims",
+        "sensitivity to trajectory-specific Rc determination"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "transferability analysis details",
+          "statistical significance of slowing-down claims",
+          "sensitivity to trajectory-specific Rc determination"
+        ]
+      },
+      "parse_ok": true
+    }
+  ]
+}
