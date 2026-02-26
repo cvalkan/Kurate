@@ -2137,7 +2137,10 @@ async def _run_regen():
                     if result and result.get("summary"):
                         await db.papers.update_one(
                             {"id": paper["id"]},
-                            {"$set": {f"summaries.{key}": result["summary"]}},
+                            {"$set": {
+                                f"summaries.{key}": result["summary"],
+                                f"summary_dates.{key}": datetime.now(timezone.utc).isoformat(),
+                            }},
                         )
                         logger.info(f"Regen OK: {paper['title'][:50]} [{key}]")
                     else:
