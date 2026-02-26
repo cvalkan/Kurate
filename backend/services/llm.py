@@ -15,6 +15,20 @@ from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_
 # Dedicated thread pool for LLM calls — default pool (8 threads) bottlenecks parallel evals
 _llm_executor = ThreadPoolExecutor(max_workers=100, thread_name_prefix="llm")
 
+# Conservative context-window limits per model (chars). ~4 chars/token.
+# Leaves headroom for system prompt + output tokens.
+_MODEL_CHAR_LIMITS = {
+    "gpt-5.2":                  480_000,   # 128k ctx → ~120k input tokens
+    "claude-opus-4-6":          720_000,   # 200k ctx → ~180k input tokens
+    "claude-opus-4-5-20251101": 720_000,
+    "gemini-3-pro-preview":     720_000,   # 1M ctx, but stay conservative
+}
+_DEFAULT_CHAR_LIMIT = 480_000  # safe fallback
+
+_TOKEN_LIMIT_KEYWORDS = ("token", "context_length", "context length", "too long", "too many tokens",
+                         "maximum context", "max_tokens", "content_too_large", "request too large",
+                         "rate_limit", "input too long", "payload too large")
+
 
 async def download_and_extract_pdf(pdf_url: str, doi: str = None) -> Optional[str]:
     try:
