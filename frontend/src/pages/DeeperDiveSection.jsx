@@ -174,7 +174,7 @@ export default function DeeperDiveSection() {
                   <span className="text-muted-foreground">{(r.full_text_len / 1000).toFixed(0)}k chars</span>
                 </div>
               </div>
-              {r.focus_areas?.length > 0 && (
+              {r.deeper_dive_recommended && r.focus_areas?.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {r.focus_areas.map((a, j) => (
                     <span key={j} className="text-[10px] px-1.5 py-0.5 bg-secondary/50 rounded text-muted-foreground">{a}</span>
