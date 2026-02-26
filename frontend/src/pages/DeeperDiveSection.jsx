@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { FlaskConical, Search, ArrowUpDown, RefreshCw } from "lucide-react";
+import { FlaskConical, ArrowUpDown, RefreshCw, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -8,65 +8,48 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export default function DeeperDiveSection() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState(null);
-  const [filter, setFilter] = useState("all"); // all | recommended | not
+  const [filter, setFilter] = useState("all");
   const [catFilter, setCatFilter] = useState("all");
   const [sortBy, setSortBy] = useState("category");
+  const [expandedIdx, setExpandedIdx] = useState(null);
 
-  useEffect(() => {
+  const fetchResults = () => {
     axios.get(`${API}/api/validation/deeper-dive/results`).then(r => {
       setData(r.data);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  };
 
-  // Poll progress if experiment is running
+  useEffect(() => { fetchResults(); }, []);
+
+  // Auto-refresh while experiment or enhancement is running
+  const isRunning = data?.enhance_progress?.running || data?.status === "no_data";
   useEffect(() => {
-    if (data?.status === "no_data" || !data) {
-      const iv = setInterval(() => {
-        axios.get(`${API}/api/validation/deeper-dive/status`).then(r => {
-          setProgress(r.data);
-          if (!r.data.running && r.data.done > 0) {
-            // Experiment finished — reload results
-            axios.get(`${API}/api/validation/deeper-dive/results`).then(r2 => {
-              setData(r2.data);
-              setProgress(null);
-            });
-          }
-        });
-      }, 5000);
-      return () => clearInterval(iv);
-    }
-  }, [data]);
+    if (!isRunning) return;
+    const iv = setInterval(fetchResults, 8000);
+    return () => clearInterval(iv);
+  }, [isRunning]);
 
   if (loading) {
     return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-secondary/20 rounded-lg animate-pulse" />)}</div>;
   }
 
-  // Show progress if running
-  if (data?.status === "no_data" && progress?.running) {
-    return (
-      <div className="text-center py-12">
-        <RefreshCw className="h-8 w-8 mx-auto mb-3 animate-spin text-muted-foreground" />
-        <p className="text-sm font-medium">Experiment running...</p>
-        <p className="text-xs text-muted-foreground mt-1">{progress.done}/{progress.total} papers processed ({progress.errors} errors)</p>
-      </div>
-    );
-  }
-
   if (data?.status === "no_data") {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <FlaskConical className="h-8 w-8 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">No experiment data yet. Run the experiment from the admin panel.</p>
+        <RefreshCw className="h-8 w-8 mx-auto mb-3 animate-spin opacity-30" />
+        <p className="text-sm">Experiment running... checking for results</p>
       </div>
     );
   }
 
-  const { summary, results } = data;
+  const { summary, results, enhance_progress } = data;
   const categories = [...new Set(results.map(r => r.category))].sort();
+  const enhancing = enhance_progress?.running;
+  const enhanceDone = enhance_progress?.done || 0;
+  const enhanceTotal = enhance_progress?.total || 0;
 
-  // Filter results
+  // Filter
   let filtered = results.filter(r => r.parse_ok !== false);
   if (filter === "recommended") filtered = filtered.filter(r => r.deeper_dive_recommended);
   if (filter === "not") filtered = filtered.filter(r => !r.deeper_dive_recommended);
@@ -76,26 +59,38 @@ export default function DeeperDiveSection() {
   if (sortBy === "category") filtered.sort((a, b) => a.category.localeCompare(b.category) || a.title.localeCompare(b.title));
   if (sortBy === "confidence") filtered.sort((a, b) => (a.confidence || "").localeCompare(b.confidence || ""));
   if (sortBy === "length") filtered.sort((a, b) => b.full_text_len - a.full_text_len);
+  if (sortBy === "enhanced") filtered.sort((a, b) => (b.enhanced_assessment ? 1 : 0) - (a.enhanced_assessment ? 1 : 0));
 
   const recRate = summary.recommend_rate;
   const confDist = summary.confidence_distribution || {};
+  const enhancedCount = results.filter(r => r.enhanced_assessment).length;
+  const recommendedCount = summary.recommended || 0;
 
   return (
     <div className="space-y-6" data-testid="deeper-dive-experiment">
+      {/* Enhancement progress banner */}
+      {enhancing && (
+        <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <RefreshCw className="h-4 w-4 animate-spin text-amber-600" />
+          <span className="text-sm text-amber-900">Generating enhanced assessments... {enhanceDone}/{enhanceTotal}</span>
+        </div>
+      )}
+
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Papers Analyzed" value={summary.parsed} sub={`${summary.errors} parse failures`} />
-        <StatCard label="Deeper Dive Recommended" value={`${summary.recommended}/${summary.parsed}`} sub={`${recRate}% recommend rate`} accent />
-        <StatCard label="High Confidence" value={confDist.high || 0} sub="Assessment complete" />
-        <StatCard label="Medium Confidence" value={confDist.medium || 0} sub="Gaps identified" />
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <StatCard label="Papers Analyzed" value={summary.parsed} sub={`${summary.errors} failures`} />
+        <StatCard label="Deeper Dive" value={`${recommendedCount}/${summary.parsed}`} sub={`${recRate}% rate`} accent />
+        <StatCard label="High Confidence" value={confDist.high || 0} sub="Complete" />
+        <StatCard label="Medium Confidence" value={confDist.medium || 0} sub="Gaps found" />
+        <StatCard label="Enhanced" value={`${enhancedCount}/${recommendedCount}`} sub={enhancing ? "In progress..." : enhancedCount > 0 ? "Revised" : "Not started"} enhanced={enhancedCount > 0} />
       </div>
 
-      {/* Confidence × Recommendation matrix */}
+      {/* Two-column: confidence matrix + category bars */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="border border-border rounded-lg p-4">
           <h3 className="text-sm font-semibold mb-3">Confidence vs Recommendation</h3>
           <div className="space-y-2 text-xs">
-            {[["Recommended + medium", summary.recommended, "text-amber-600"],
+            {[["Recommended + medium", recommendedCount, "text-amber-600"],
               ["Not recommended + high", summary.not_recommended, "text-green-600"]].map(([label, val, cls]) => (
               <div key={label} className="flex items-center justify-between">
                 <span className="text-muted-foreground">{label}</span>
@@ -129,72 +124,147 @@ export default function DeeperDiveSection() {
             {summary.top_focus_areas.slice(0, 15).map((a, i) => (
               <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 border border-amber-200 rounded text-[10px] text-amber-900">
                 {a.area.length > 60 ? a.area.slice(0, 57) + "..." : a.area}
-                {a.count > 1 && <span className="font-mono font-bold">×{a.count}</span>}
+                {a.count > 1 && <span className="font-mono font-bold">x{a.count}</span>}
               </span>
             ))}
           </div>
         </div>
       )}
 
-      {/* Filters + Table */}
-      <div>
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="dive-filter">
-            {[["all", "All"], ["recommended", "Recommended"], ["not", "Not Recommended"]].map(([val, label]) => (
-              <button key={val} onClick={() => setFilter(val)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${filter === val ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
-                {label} {val === "recommended" ? `(${summary.recommended})` : val === "not" ? `(${summary.not_recommended})` : ""}
-              </button>
-            ))}
-          </div>
-          <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
-            className="text-[11px] border border-border rounded-lg px-2 py-1.5 bg-background" data-testid="dive-cat-filter">
-            <option value="all">All categories</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <button onClick={() => setSortBy(s => s === "category" ? "length" : s === "length" ? "confidence" : "category")}
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground ml-auto">
-            <ArrowUpDown className="h-3 w-3" /> Sort: {sortBy}
-          </button>
+      {/* Filters */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="dive-filter">
+          {[["all", "All"], ["recommended", "Recommended"], ["not", "Not Recommended"]].map(([val, label]) => (
+            <button key={val} onClick={() => setFilter(val)}
+              className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${filter === val ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+              {label} {val === "recommended" ? `(${recommendedCount})` : val === "not" ? `(${summary.not_recommended})` : ""}
+            </button>
+          ))}
         </div>
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
+          className="text-[11px] border border-border rounded-lg px-2 py-1.5 bg-background" data-testid="dive-cat-filter">
+          <option value="all">All categories</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={() => setSortBy(s => s === "category" ? "enhanced" : s === "enhanced" ? "length" : "category")}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground ml-auto">
+          <ArrowUpDown className="h-3 w-3" /> Sort: {sortBy}
+        </button>
+      </div>
 
-        <div className="space-y-2" data-testid="dive-results-list">
-          {filtered.map((r, i) => (
-            <div key={i} className={`border rounded-lg p-3 text-xs transition-colors ${r.deeper_dive_recommended ? "border-amber-300 bg-amber-50/50" : "border-border"}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-mono text-[10px] text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded">{r.category}</span>
-                    {r.deeper_dive_recommended && <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">DEEPER DIVE</span>}
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${r.confidence === "high" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                      {r.confidence} confidence
-                    </span>
+      {/* Results list */}
+      <div className="space-y-2" data-testid="dive-results-list">
+        {filtered.map((r, i) => {
+          const globalIdx = results.indexOf(r);
+          const isExpanded = expandedIdx === globalIdx;
+          const hasEnhanced = !!r.enhanced_assessment;
+          const hasOriginal = !!r.original_assessment;
+
+          return (
+            <div key={globalIdx} className={`border rounded-lg transition-colors ${r.deeper_dive_recommended ? "border-amber-300 bg-amber-50/50" : "border-border"}`}>
+              {/* Header row */}
+              <div className="p-3 text-xs cursor-pointer" onClick={() => setExpandedIdx(isExpanded ? null : globalIdx)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="font-mono text-[10px] text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded">{r.category}</span>
+                      {r.deeper_dive_recommended && <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">DEEPER DIVE</span>}
+                      {hasEnhanced && <span className="text-[10px] font-medium text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5"><Sparkles className="h-2.5 w-2.5" />ENHANCED</span>}
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${r.confidence === "high" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                        {r.confidence} confidence
+                      </span>
+                    </div>
+                    <p className="font-medium text-foreground">{r.title}</p>
+                    <span className="text-muted-foreground">{(r.full_text_len / 1000).toFixed(0)}k chars</span>
+                    {r.deeper_dive_recommended && r.focus_areas?.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {r.focus_areas.map((a, j) => (
+                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-secondary/50 rounded text-muted-foreground">{a}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <p className="font-medium text-foreground truncate">{r.title}</p>
-                  <span className="text-muted-foreground">{(r.full_text_len / 1000).toFixed(0)}k chars</span>
+                  <div className="shrink-0 mt-1">
+                    {(hasOriginal || hasEnhanced) ? (
+                      isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : null}
+                  </div>
                 </div>
               </div>
-              {r.deeper_dive_recommended && r.focus_areas?.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {r.focus_areas.map((a, j) => (
-                    <span key={j} className="text-[10px] px-1.5 py-0.5 bg-secondary/50 rounded text-muted-foreground">{a}</span>
-                  ))}
+
+              {/* Expanded: show assessments */}
+              {isExpanded && (hasOriginal || hasEnhanced) && (
+                <div className="border-t border-border/50 p-3">
+                  <AssessmentComparison original={r.original_assessment} enhanced={r.enhanced_assessment} />
                 </div>
               )}
             </div>
-          ))}
-        </div>
-        {filtered.length === 0 && <p className="text-center text-xs text-muted-foreground py-6">No results match the current filters.</p>}
+          );
+        })}
       </div>
+      {filtered.length === 0 && <p className="text-center text-xs text-muted-foreground py-6">No results match filters.</p>}
 
-      <p className="text-[10px] text-muted-foreground">Model: {summary.model} · {summary.total} papers sampled across {Object.keys(summary.by_category || {}).length} categories</p>
+      <p className="text-[10px] text-muted-foreground">
+        Model: {summary.model} · {summary.total} papers across {Object.keys(summary.by_category || {}).length} categories
+        {enhancedCount > 0 && ` · ${enhancedCount} enhanced assessments`}
+      </p>
     </div>
   );
 }
 
-function StatCard({ label, value, sub, accent }) {
+/** Side-by-side or tabbed view of original vs enhanced assessment */
+function AssessmentComparison({ original, enhanced }) {
+  const [tab, setTab] = useState(enhanced ? "enhanced" : "original");
+
+  if (!original && !enhanced) return null;
+
   return (
-    <div className={`border rounded-lg p-3 ${accent ? "border-amber-300 bg-amber-50/50" : "border-border"}`}>
+    <div className="space-y-2">
+      <div className="flex gap-1 border border-border rounded-lg p-0.5 w-fit">
+        {original && (
+          <button onClick={() => setTab("original")}
+            className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${tab === "original" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            Original Assessment
+          </button>
+        )}
+        {enhanced && (
+          <button onClick={() => setTab("enhanced")}
+            className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${tab === "enhanced" ? "bg-blue-100 text-blue-800" : "text-muted-foreground hover:text-foreground"}`}>
+            Enhanced Assessment
+          </button>
+        )}
+      </div>
+      <div className="text-xs leading-relaxed text-foreground/90 max-h-96 overflow-y-auto whitespace-pre-wrap">
+        {tab === "original" && original && <FormattedAssessment text={original} />}
+        {tab === "enhanced" && enhanced && <FormattedAssessment text={enhanced} />}
+      </div>
+    </div>
+  );
+}
+
+/** Render markdown-like assessment text with bold and headers */
+function FormattedAssessment({ text }) {
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => {
+        if (line.startsWith("### ") || line.startsWith("## ") || line.startsWith("# ")) {
+          const clean = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+          return <p key={i} className="font-semibold text-foreground mt-2">{clean}</p>;
+        }
+        if (line.match(/^\*\*.*\*\*$/)) {
+          return <p key={i} className="font-semibold text-foreground mt-2">{line.replace(/\*\*/g, "")}</p>;
+        }
+        const html = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+      })}
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub, accent, enhanced }) {
+  return (
+    <div className={`border rounded-lg p-3 ${accent ? "border-amber-300 bg-amber-50/50" : enhanced ? "border-blue-300 bg-blue-50/50" : "border-border"}`}>
       <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
       <p className="text-xl font-bold">{value}</p>
       {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
