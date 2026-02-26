@@ -1993,39 +1993,30 @@ async def deduplicate_papers():
 
 
 # --- Temporary: Regenerate truncated summaries ---
+# Progress is persisted in DB (settings.regen_progress) to survive server restarts.
 
-_regen_status = {"running": False, "done": 0, "total": 0, "errors": 0, "cost_est": 0.0, "finished": False}
-
-
-@router.get("/regen-summaries/status", dependencies=[Depends(verify_admin)])
-async def regen_summaries_status():
-    """Check progress of the summary regeneration task."""
-    return _regen_status
+_REGEN_PROGRESS_KEY = "regen_progress"
 
 
-@router.post("/regen-summaries", dependencies=[Depends(verify_admin)])
-async def regen_summaries(request: Request):
-    """One-time task: regenerate all AI impact summaries that mention truncation.
-    
-    Runs as a background task. Each summary is regenerated with the same model
-    that produced the original, using the full (untruncated) paper text.
-    """
-    import re as _re
-    if _regen_status["running"]:
-        raise HTTPException(409, "Regeneration already in progress")
+async def _get_regen_progress() -> dict:
+    doc = await db.settings.find_one({"key": _REGEN_PROGRESS_KEY}, {"_id": 0})
+    return doc or {"running": False, "done": 0, "started_total": 0, "errors": 0, "cost_est": 0.0, "finished": False}
 
-    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
-    dry_run = body.get("dry_run", False)
 
-    FALSE_POS = _re.compile(r'truncated (normal|distribution|gaussian|Gaussian|power|series)', _re.IGNORECASE)
-
-    # Scan for papers with truncation complaints
-    papers = []
-    cursor = db.papers.find(
-        {"summaries": {"$exists": True, "$ne": {}}, "full_text": {"$exists": True, "$ne": None}},
-        {"_id": 0, "id": 1, "title": 1, "summaries": 1, "full_text": 1, "abstract": 1, "categories": 1},
+async def _set_regen_progress(**fields):
+    await db.settings.update_one(
+        {"key": _REGEN_PROGRESS_KEY},
+        {"$set": {**fields, "key": _REGEN_PROGRESS_KEY}},
+        upsert=True,
     )
-    async for p in cursor:
+
+
+def _find_truncated_summaries_sync(papers_cursor) -> list:
+    """Shared logic: find papers whose summaries mention truncation (excluding false positives)."""
+    import re as _re
+    FALSE_POS = _re.compile(r'truncated (normal|distribution|gaussian|Gaussian|power|series)', _re.IGNORECASE)
+    results = []
+    for p in papers_cursor:
         ft = p.get("full_text") or ""
         if not ft:
             continue
@@ -2038,14 +2029,61 @@ async def regen_summaries(request: Request):
                     continue
                 keys_to_regen.append(key)
         if keys_to_regen:
-            papers.append({"paper": p, "keys": keys_to_regen})
+            results.append({"paper": p, "keys": keys_to_regen})
+    return results
 
+
+async def _scan_truncated_papers() -> list:
+    """Async scan: find all papers with truncation complaints in summaries."""
+    import re as _re
+    FALSE_POS = _re.compile(r'truncated (normal|distribution|gaussian|Gaussian|power|series)', _re.IGNORECASE)
+    results = []
+    async for p in db.papers.find(
+        {"summaries": {"$exists": True, "$ne": {}}, "full_text": {"$exists": True, "$ne": None}},
+        {"_id": 0, "id": 1, "title": 1, "summaries": 1, "full_text": 1, "abstract": 1, "categories": 1},
+    ):
+        ft = p.get("full_text") or ""
+        if not ft:
+            continue
+        keys_to_regen = []
+        for key, summary in p.get("summaries", {}).items():
+            text = summary if isinstance(summary, str) else summary.get("text", "") if isinstance(summary, dict) else str(summary)
+            if "truncat" in text.lower():
+                cleaned = FALSE_POS.sub("", text)
+                if "truncat" not in cleaned.lower():
+                    continue
+                keys_to_regen.append(key)
+        if keys_to_regen:
+            results.append({"paper": p, "keys": keys_to_regen})
+    return results
+
+
+@router.get("/regen-summaries/status", dependencies=[Depends(verify_admin)])
+async def regen_summaries_status():
+    """Check progress of the summary regeneration task."""
+    return await _get_regen_progress()
+
+
+@router.post("/regen-summaries", dependencies=[Depends(verify_admin)])
+async def regen_summaries(request: Request):
+    """One-time task: regenerate all AI impact summaries that mention truncation.
+    
+    Runs as a background task. Each summary is regenerated with the same model
+    that produced the original, using the full (untruncated) paper text.
+    Progress survives server restarts.
+    """
+    progress = await _get_regen_progress()
+    if progress.get("running"):
+        raise HTTPException(409, "Regeneration already in progress")
+
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    dry_run = body.get("dry_run", False)
+
+    papers = await _scan_truncated_papers()
     total_summaries = sum(len(item["keys"]) for item in papers)
 
     # Cost estimate
-    pricing = {
-        "openai": 1.75, "anthropic": 5.00, "gemini": 2.00,
-    }
+    pricing = {"openai": 1.75, "anthropic": 5.00, "gemini": 2.00}
     est_cost = 0.0
     for item in papers:
         ft_len = len(item["paper"].get("full_text", ""))
@@ -2053,47 +2091,44 @@ async def regen_summaries(request: Request):
             provider = key.split(":")[0] if ":" in key else "anthropic"
             price = pricing.get(provider, 2.0)
             input_tokens = (ft_len + 2000) / 4
-            est_cost += (input_tokens / 1_000_000) * price + (800 / 1_000_000) * 17.0  # avg output price
+            est_cost += (input_tokens / 1_000_000) * price + (800 / 1_000_000) * 17.0
 
     if dry_run:
-        return {
-            "dry_run": True,
-            "papers": len(papers),
-            "summaries": total_summaries,
-            "estimated_cost": round(est_cost, 2),
-        }
+        return {"dry_run": True, "papers": len(papers), "summaries": total_summaries, "estimated_cost": round(est_cost, 2)}
 
-    # Launch background task
-    _regen_status.update({"running": True, "done": 0, "total": total_summaries, "errors": 0, "cost_est": round(est_cost, 2), "finished": False})
-    asyncio.create_task(_run_regen(papers))
-
-    return {
-        "status": "started",
-        "papers": len(papers),
-        "summaries": total_summaries,
-        "estimated_cost": round(est_cost, 2),
-    }
+    await _set_regen_progress(running=True, done=0, started_total=total_summaries, errors=0, cost_est=round(est_cost, 2), finished=False)
+    asyncio.create_task(_run_regen())
+    return {"status": "started", "papers": len(papers), "summaries": total_summaries, "estimated_cost": round(est_cost, 2)}
 
 
-async def _run_regen(papers: list):
-    """Background task: regenerate summaries for papers with truncation complaints."""
+async def _run_regen():
+    """Background task: regenerate summaries with truncation complaints.
+    
+    Rescans the DB each time so it naturally resumes after a restart
+    (already-regenerated papers no longer contain 'truncat').
+    """
     from services.llm import generate_precomparison_impact_summary
     from core.config import TOURNAMENT_MODELS
 
     MODEL_MAP = {}
     for m in TOURNAMENT_MODELS:
-        if m["provider"] == "openai":
-            MODEL_MAP["openai"] = m
-        elif m["provider"] == "anthropic":
-            MODEL_MAP["anthropic"] = m
-        elif m["provider"] == "gemini":
-            MODEL_MAP["gemini"] = m
+        MODEL_MAP[m["provider"]] = m
 
     try:
+        papers = await _scan_truncated_papers()
+        total = sum(len(item["keys"]) for item in papers)
+        if total == 0:
+            await _set_regen_progress(running=False, finished=True, done=0, started_total=0)
+            logger.info("Regen: no truncated summaries remaining")
+            return
+
+        await _set_regen_progress(running=True, started_total=total, done=0, errors=0)
+        done = 0
+        errors = 0
+
         for item in papers:
             paper = item["paper"]
             for key in item["keys"]:
-                # Resolve model from summary key (e.g., "anthropic:claude-opus-4-6")
                 provider = key.split(":")[0] if ":" in key else "anthropic"
                 model_info = MODEL_MAP.get(provider, TOURNAMENT_MODELS[0])
 
@@ -2106,14 +2141,17 @@ async def _run_regen(papers: list):
                         )
                         logger.info(f"Regen OK: {paper['title'][:50]} [{key}]")
                     else:
-                        _regen_status["errors"] += 1
+                        errors += 1
                         logger.warning(f"Regen empty: {paper['title'][:50]} [{key}]")
                 except Exception as e:
-                    _regen_status["errors"] += 1
+                    errors += 1
                     logger.error(f"Regen failed: {paper['title'][:50]} [{key}]: {e}")
 
-                _regen_status["done"] += 1
+                done += 1
+                if done % 5 == 0:
+                    await _set_regen_progress(done=done, errors=errors)
+    except Exception as e:
+        logger.error(f"Regen task crashed: {e}")
     finally:
-        _regen_status["running"] = False
-        _regen_status["finished"] = True
-        logger.info(f"Summary regeneration complete: {_regen_status['done']}/{_regen_status['total']} done, {_regen_status['errors']} errors")
+        await _set_regen_progress(running=False, finished=True, done=done, errors=errors)
+        logger.info(f"Summary regeneration complete: {done}/{total} done, {errors} errors")
