@@ -24,6 +24,7 @@ PROGRESS_KEY = "iclr_deep_dive_progress"
 REPLAY_COLLECTION = "iclr_deep_dive_replays"
 DATASET_ID = "iclr-codegen"
 MODEL = {"provider": "anthropic", "model": "claude-opus-4-6"}
+PARALLEL = 5
 
 _BUDGET_KEYWORDS = ("budget", "balance", "insufficient", "credit", "quota")
 
