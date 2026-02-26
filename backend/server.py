@@ -382,6 +382,94 @@ async def _startup_dedup():
         logger.warning(f"Startup dedup failed: {e}")
 
 
+async def _startup_regen_truncated_summaries():
+    """One-time migration: regenerate summaries that were truncated by the old 40k char limit.
+    
+    Gated by a DB flag so it only runs once. New summaries replace old ones in-place;
+    past match results are unaffected (they store their own winner/reasoning).
+    """
+    await asyncio.sleep(60)  # Wait for caches + scheduler to be fully ready
+    try:
+        flag = await db.settings.find_one({"key": "regen_truncated_summaries_v1"}, {"_id": 0})
+        if flag and flag.get("done"):
+            return  # Already completed
+
+        import re as _re
+        from services.llm import generate_precomparison_impact_summary
+        from core.config import TOURNAMENT_MODELS
+
+        FALSE_POS = _re.compile(r'truncated (normal|distribution|gaussian|Gaussian|power|series)', _re.IGNORECASE)
+
+        # Scan for papers with truncation complaints
+        papers = []
+        async for p in db.papers.find(
+            {"summaries": {"$exists": True, "$ne": {}}, "full_text": {"$exists": True, "$ne": None}},
+            {"_id": 0, "id": 1, "title": 1, "summaries": 1, "full_text": 1, "abstract": 1, "categories": 1},
+        ):
+            ft = p.get("full_text") or ""
+            if not ft:
+                continue
+            keys_to_regen = []
+            for key, summary in p.get("summaries", {}).items():
+                text = summary if isinstance(summary, str) else summary.get("text", "") if isinstance(summary, dict) else str(summary)
+                if "truncat" in text.lower():
+                    cleaned = FALSE_POS.sub("", text)
+                    if "truncat" not in cleaned.lower():
+                        continue
+                    keys_to_regen.append(key)
+            if keys_to_regen:
+                papers.append({"paper": p, "keys": keys_to_regen})
+
+        total = sum(len(item["keys"]) for item in papers)
+        if total == 0:
+            await db.settings.update_one(
+                {"key": "regen_truncated_summaries_v1"},
+                {"$set": {"key": "regen_truncated_summaries_v1", "done": True, "total": 0}},
+                upsert=True,
+            )
+            logger.info("Summary regen: no truncated summaries found")
+            return
+
+        logger.info(f"Summary regen: starting regeneration of {total} summaries across {len(papers)} papers")
+
+        MODEL_MAP = {}
+        for m in TOURNAMENT_MODELS:
+            MODEL_MAP[m["provider"]] = m
+
+        done = 0
+        errors = 0
+        for item in papers:
+            paper = item["paper"]
+            for key in item["keys"]:
+                provider = key.split(":")[0] if ":" in key else "anthropic"
+                model_info = MODEL_MAP.get(provider, TOURNAMENT_MODELS[0])
+                try:
+                    result = await generate_precomparison_impact_summary(paper, model_override=model_info)
+                    if result and result.get("summary"):
+                        await db.papers.update_one(
+                            {"id": paper["id"]},
+                            {"$set": {f"summaries.{key}": result["summary"]}},
+                        )
+                    else:
+                        errors += 1
+                except Exception as e:
+                    errors += 1
+                    logger.warning(f"Summary regen failed: {paper['title'][:50]} [{key}]: {e}")
+                done += 1
+                if done % 25 == 0:
+                    logger.info(f"Summary regen progress: {done}/{total}")
+
+        await db.settings.update_one(
+            {"key": "regen_truncated_summaries_v1"},
+            {"$set": {"key": "regen_truncated_summaries_v1", "done": True, "total": total, "errors": errors}},
+            upsert=True,
+        )
+        logger.info(f"Summary regen complete: {done}/{total} done, {errors} errors")
+    except Exception as e:
+        logger.error(f"Summary regen startup task failed: {e}")
+
+
+
 async def _prewarm_extraction_cache():
     """Pre-warm the extraction stats cache in background to avoid slow first load."""
     await asyncio.sleep(5)  # Wait for other startup tasks
