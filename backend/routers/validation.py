@@ -3944,23 +3944,48 @@ async def run_deeper_dive_experiment(request: Request):
 
 
 async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_name: str):
-    """Background task: run deeper dive experiment on random papers."""
+    """Background task: run deeper dive experiment on random papers.
+    
+    Merges with any existing results (deduped by title) and stops once
+    the combined successful count reaches total_papers.
+    """
     from core.config import EMERGENT_LLM_KEY
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+    done = 0
+    errors = 0
+    selected = []
+
     try:
-        # Sample papers evenly across categories
+        # Load existing results to merge with
+        existing_doc = await db.settings.find_one({"key": "deeper_dive_experiment"}, {"_id": 0})
+        existing_results = existing_doc.get("results", []) if existing_doc else []
+        existing_ok = [r for r in existing_results if r.get("parse_ok")]
+        existing_titles = set(r["title"] for r in existing_ok)
+        needed = total_papers - len(existing_ok)
+
+        if needed <= 0:
+            logger.info(f"Deeper dive: already have {len(existing_ok)} successful results, target is {total_papers}")
+            return
+
+        logger.info(f"Deeper dive: have {len(existing_ok)}, need {needed} more to reach {total_papers}")
+
+        # Sample papers evenly across categories, excluding already-analyzed ones
         papers_by_cat = defaultdict(list)
         async for p in db.papers.find(
             {"full_text": {"$exists": True, "$ne": None}, "summaries": {"$exists": True, "$ne": {}}},
             {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1},
         ):
+            if p["title"] in existing_titles:
+                continue
             cat = (p.get("categories") or ["unknown"])[0]
             papers_by_cat[cat].append(p)
 
         cats = sorted(papers_by_cat.keys())
-        per_cat = max(1, total_papers // len(cats))
-        remainder = total_papers - per_cat * len(cats)
+        # Over-sample by 20% to account for errors
+        sample_target = int(needed * 1.2)
+        per_cat = max(1, sample_target // len(cats))
+        remainder = sample_target - per_cat * len(cats)
 
         selected = []
         for i, cat in enumerate(cats):
@@ -3969,13 +3994,20 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
             selected.extend([(cat, p) for p in sample])
 
         random.shuffle(selected)
-        selected = selected[:total_papers]
 
-        results = []
-        done = 0
-        errors = 0
+        await db.settings.update_one(
+            {"key": "deeper_dive_progress"},
+            {"$set": {"total": len(selected), "done": 0, "errors": 0}},
+        )
+
+        new_results = []
+        successful = 0
 
         for cat, paper in selected:
+            # Stop once we have enough
+            if successful >= needed:
+                break
+
             title = paper["title"]
             abstract = paper.get("abstract", "")
             full_text = paper.get("full_text", "")
@@ -4030,6 +4062,7 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
                     entry["confidence"] = meta.get("confidence")
                     entry["focus_areas"] = meta.get("focus_areas", [])
                     entry["parse_ok"] = True
+                    successful += 1
                 else:
                     entry["parse_ok"] = False
                     errors += 1
@@ -4039,7 +4072,7 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
                 entry["error"] = str(e)[:200]
                 errors += 1
 
-            results.append(entry)
+            new_results.append(entry)
             done += 1
             if done % 5 == 0:
                 await db.settings.update_one(
@@ -4047,8 +4080,17 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
                     {"$set": {"done": done, "errors": errors}},
                 )
 
-        # Compute summary
-        parsed = [r for r in results if r.get("parse_ok")]
+        # Merge: existing + new, dedup by title
+        all_results = existing_ok + [r for r in new_results if r.get("parse_ok")]
+        seen = set()
+        merged = []
+        for r in all_results:
+            if r["title"] not in seen:
+                seen.add(r["title"])
+                merged.append(r)
+
+        # Compute summary from merged results
+        parsed = merged
         recommended = [r for r in parsed if r.get("deeper_dive_recommended")]
         conf_dist = Counter(r.get("confidence") for r in parsed)
         cat_stats = {}
@@ -4066,7 +4108,7 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
         area_counts = Counter(a.lower().strip() for a in all_areas)
 
         summary = {
-            "total": len(results),
+            "total": len(merged),
             "parsed": len(parsed),
             "recommended": len(recommended),
             "not_recommended": len(parsed) - len(recommended),
@@ -4080,11 +4122,11 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
 
         await db.settings.update_one(
             {"key": "deeper_dive_experiment"},
-            {"$set": {"key": "deeper_dive_experiment", "results": results, "summary": summary,
+            {"$set": {"key": "deeper_dive_experiment", "results": merged, "summary": summary,
                        "completed_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )
-        logger.info(f"Deeper dive experiment complete: {len(recommended)}/{len(parsed)} recommended ({summary['recommend_rate']}%)")
+        logger.info(f"Deeper dive experiment complete: {len(merged)} total ({len(recommended)} recommended, {summary['recommend_rate']}%)")
 
     except Exception as e:
         logger.error(f"Deeper dive experiment failed: {e}")
