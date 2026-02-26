@@ -217,6 +217,7 @@ export default function ValidationHubPage() {
               <NavItem item={{ id: "exp-deeper-dive", label: "Deeper Dive", sub: "Meta-evaluation" }} selected={selected} onSelect={setSelected} />
               <NavItem item={{ id: "exp-iclr-deep-dive", label: "ICLR Deep Dive", sub: "Code Generation" }} selected={selected} onSelect={setSelected} />
               <NavItem item={{ id: "exp-midl-deep-dive", label: "MIDL Deep Dive", sub: "Medical Imaging" }} selected={selected} onSelect={setSelected} />
+              <NavItem item={{ id: "exp-pdes-deep-dive", label: "ICLR Deep Dive", sub: "PDEs & Dyn. Systems" }} selected={selected} onSelect={setSelected} />
             </CollapsibleGroup>
           )}
         </nav>
