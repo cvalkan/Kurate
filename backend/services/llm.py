@@ -589,8 +589,13 @@ def _pick_round_robin_model() -> Dict[str, str]:
     return model
 
 
-def _build_full_pdf_content(paper: dict, char_limit: int = 40000) -> str:
-    """Build paper content using the full PDF text (no section extraction)."""
+def _build_full_pdf_content(paper: dict, char_limit: int = None, model: str = None) -> str:
+    """Build paper content using the full PDF text (no section extraction).
+    
+    If char_limit is not provided, uses the model-specific context limit.
+    """
+    if char_limit is None:
+        char_limit = _MODEL_CHAR_LIMITS.get(model, _DEFAULT_CHAR_LIMIT) if model else _DEFAULT_CHAR_LIMIT
     abstract = paper.get("abstract", "")
     full_text = paper.get("full_text", "")
     if full_text:
