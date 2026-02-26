@@ -1990,3 +1990,130 @@ async def deduplicate_papers():
         "self_matches_deleted": self_matches_deleted,
     }
 
+
+
+# --- Temporary: Regenerate truncated summaries ---
+
+_regen_status = {"running": False, "done": 0, "total": 0, "errors": 0, "cost_est": 0.0, "finished": False}
+
+
+@router.get("/regen-summaries/status", dependencies=[Depends(verify_admin)])
+async def regen_summaries_status():
+    """Check progress of the summary regeneration task."""
+    return _regen_status
+
+
+@router.post("/regen-summaries", dependencies=[Depends(verify_admin)])
+async def regen_summaries(request: Request):
+    """One-time task: regenerate all AI impact summaries that mention truncation.
+    
+    Runs as a background task. Each summary is regenerated with the same model
+    that produced the original, using the full (untruncated) paper text.
+    """
+    import re as _re
+    if _regen_status["running"]:
+        raise HTTPException(409, "Regeneration already in progress")
+
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    dry_run = body.get("dry_run", False)
+
+    FALSE_POS = _re.compile(r'truncated (normal|distribution|gaussian|Gaussian|power|series)', _re.IGNORECASE)
+
+    # Scan for papers with truncation complaints
+    papers = []
+    cursor = db.papers.find(
+        {"summaries": {"$exists": True, "$ne": {}}, "full_text": {"$exists": True, "$ne": None}},
+        {"_id": 0, "id": 1, "title": 1, "summaries": 1, "full_text": 1, "abstract": 1, "categories": 1},
+    )
+    async for p in cursor:
+        ft = p.get("full_text") or ""
+        if not ft:
+            continue
+        keys_to_regen = []
+        for key, summary in p.get("summaries", {}).items():
+            text = summary if isinstance(summary, str) else summary.get("text", "") if isinstance(summary, dict) else str(summary)
+            if "truncat" in text.lower():
+                cleaned = FALSE_POS.sub("", text)
+                if "truncat" not in cleaned.lower():
+                    continue
+                keys_to_regen.append(key)
+        if keys_to_regen:
+            papers.append({"paper": p, "keys": keys_to_regen})
+
+    total_summaries = sum(len(item["keys"]) for item in papers)
+
+    # Cost estimate
+    pricing = {
+        "openai": 1.75, "anthropic": 5.00, "gemini": 2.00,
+    }
+    est_cost = 0.0
+    for item in papers:
+        ft_len = len(item["paper"].get("full_text", ""))
+        for key in item["keys"]:
+            provider = key.split(":")[0] if ":" in key else "anthropic"
+            price = pricing.get(provider, 2.0)
+            input_tokens = (ft_len + 2000) / 4
+            est_cost += (input_tokens / 1_000_000) * price + (800 / 1_000_000) * 17.0  # avg output price
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "papers": len(papers),
+            "summaries": total_summaries,
+            "estimated_cost": round(est_cost, 2),
+        }
+
+    # Launch background task
+    _regen_status.update({"running": True, "done": 0, "total": total_summaries, "errors": 0, "cost_est": round(est_cost, 2), "finished": False})
+    asyncio.create_task(_run_regen(papers))
+
+    return {
+        "status": "started",
+        "papers": len(papers),
+        "summaries": total_summaries,
+        "estimated_cost": round(est_cost, 2),
+    }
+
+
+async def _run_regen(papers: list):
+    """Background task: regenerate summaries for papers with truncation complaints."""
+    from services.llm import generate_precomparison_impact_summary
+    from core.config import TOURNAMENT_MODELS
+
+    MODEL_MAP = {}
+    for m in TOURNAMENT_MODELS:
+        if m["provider"] == "openai":
+            MODEL_MAP["openai"] = m
+        elif m["provider"] == "anthropic":
+            MODEL_MAP["anthropic"] = m
+        elif m["provider"] == "gemini":
+            MODEL_MAP["gemini"] = m
+
+    try:
+        for item in papers:
+            paper = item["paper"]
+            for key in item["keys"]:
+                # Resolve model from summary key (e.g., "anthropic:claude-opus-4-6")
+                provider = key.split(":")[0] if ":" in key else "anthropic"
+                model_info = MODEL_MAP.get(provider, TOURNAMENT_MODELS[0])
+
+                try:
+                    result = await generate_precomparison_impact_summary(paper, model_override=model_info)
+                    if result and result.get("summary"):
+                        await db.papers.update_one(
+                            {"id": paper["id"]},
+                            {"$set": {f"summaries.{key}": result["summary"]}},
+                        )
+                        logger.info(f"Regen OK: {paper['title'][:50]} [{key}]")
+                    else:
+                        _regen_status["errors"] += 1
+                        logger.warning(f"Regen empty: {paper['title'][:50]} [{key}]")
+                except Exception as e:
+                    _regen_status["errors"] += 1
+                    logger.error(f"Regen failed: {paper['title'][:50]} [{key}]: {e}")
+
+                _regen_status["done"] += 1
+    finally:
+        _regen_status["running"] = False
+        _regen_status["finished"] = True
+        logger.info(f"Summary regeneration complete: {_regen_status['done']}/{_regen_status['total']} done, {_regen_status['errors']} errors")
