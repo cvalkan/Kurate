@@ -232,6 +232,158 @@ export default function DeeperDiveSection() {
   );
 }
 
+/** Match Replay experiment results */
+function ReplaySection({ replay, status }) {
+  const isRunning = status?.running;
+  const done = status?.done || 0;
+  const total = status?.total || 0;
+  const errors = status?.errors || 0;
+  const strata = status?.strata || {};
+  const a = replay?.analysis;
+  const hasResults = replay?.status === "ok" && a;
+
+  if (!isRunning && !hasResults) return null;
+
+  return (
+    <div className="border-t border-border pt-6 mt-6 space-y-4" data-testid="replay-section">
+      <div>
+        <h2 className="text-base font-semibold">Match Replay Experiment</h2>
+        <p className="text-[11px] text-muted-foreground">
+          Do enhanced assessments change match outcomes beyond random LLM variance?
+        </p>
+      </div>
+
+      {/* Progress banner */}
+      {isRunning && (
+        <div className="flex items-center gap-3 p-3 bg-violet-50 border border-violet-200 rounded-lg">
+          <RefreshCw className="h-4 w-4 animate-spin text-violet-600" />
+          <div>
+            <span className="text-sm text-violet-900 font-medium">Replaying matches... {done}/{total}</span>
+            {errors > 0 && <span className="text-xs text-red-600 ml-2">({errors} errors)</span>}
+            {Object.keys(strata).length > 0 && (
+              <span className="text-[10px] text-violet-700 ml-2">
+                ({Object.entries(strata).map(([k, v]) => `${v} ${k.replace("_", " ")}`).join(", ")})
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {hasResults && (
+        <>
+          {/* Headline cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="Replays" value={a.total_replays} sub={`${a.control_count} control + ${a.treatment_count} treatment`} />
+            <StatCard
+              label="Control Flip Rate"
+              value={`${a.flip_rates.control}%`}
+              sub={`${a.flip_rates.control_flips} flips (stochasticity)`}
+            />
+            <StatCard
+              label="Treatment Flip Rate"
+              value={`${a.flip_rates.treatment}%`}
+              sub={`${a.flip_rates.treatment_flips} flips (enhanced)`}
+              accent={a.flip_rates.net_effect > 0}
+            />
+            <StatCard
+              label="Net Effect"
+              value={`${a.flip_rates.net_effect > 0 ? "+" : ""}${a.flip_rates.net_effect}pp`}
+              sub={a.mcnemar?.significant ? `p=${a.mcnemar.p_value} (significant)` : `p=${a.mcnemar?.p_value || "—"} (not sig.)`}
+              accent={a.mcnemar?.significant}
+            />
+          </div>
+
+          {/* McNemar contingency */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="border border-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-3">McNemar's Test (Paired Outcomes)</h3>
+              <div className="text-xs space-y-1.5">
+                <div className="flex justify-between"><span className="text-muted-foreground">Paired matches</span><span className="font-mono">{a.mcnemar?.pairs}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Both flipped</span><span className="font-mono">{a.mcnemar?.both_flip}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Only control flipped</span><span className="font-mono">{a.mcnemar?.only_control}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Only treatment flipped</span><span className="font-mono">{a.mcnemar?.only_treatment}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Neither flipped</span><span className="font-mono">{a.mcnemar?.neither}</span></div>
+                <div className="border-t border-border pt-1.5 flex justify-between font-medium">
+                  <span>Chi² = {a.mcnemar?.chi2}, p = {a.mcnemar?.p_value}</span>
+                  <span className={a.mcnemar?.significant ? "text-green-600" : "text-muted-foreground"}>
+                    {a.mcnemar?.significant ? "Significant" : "Not significant"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* By stratum */}
+            <div className="border border-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-3">Flip Rate by Stratum</h3>
+              <div className="text-xs space-y-2">
+                {Object.entries(a.by_stratum || {}).map(([stratum, s]) => (
+                  <div key={stratum}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-muted-foreground capitalize">{stratum.replace(/_/g, " ")}</span>
+                      <span className="font-mono">
+                        C: {s.control.rate}% ({s.control.flips}/{s.control.total})
+                        {" · "}
+                        T: {s.treatment.rate}% ({s.treatment.flips}/{s.treatment.total})
+                      </span>
+                    </div>
+                    <div className="flex gap-1 h-3">
+                      <div className="bg-secondary/50 rounded-full overflow-hidden flex-1" title="Control">
+                        <div className="h-full bg-gray-400 rounded-full" style={{ width: `${s.control.rate}%` }} />
+                      </div>
+                      <div className="bg-violet-100 rounded-full overflow-hidden flex-1" title="Treatment">
+                        <div className="h-full bg-violet-500 rounded-full" style={{ width: `${s.treatment.rate}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Per-paper rank shifts */}
+          {a.paper_shifts?.length > 0 && (
+            <div className="border border-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-3">Paper Rank Shifts (Treatment vs Original)</h3>
+              <p className="text-[10px] text-muted-foreground mb-2">Papers most affected by enhanced assessments — positive = gained wins, negative = lost wins</p>
+              <div className="space-y-1 text-xs">
+                {a.paper_shifts.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className={`font-mono w-10 text-right font-medium ${p.net_shift > 0 ? "text-green-600" : p.net_shift < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                      {p.net_shift > 0 ? "+" : ""}{p.net_shift}
+                    </span>
+                    <span className="text-muted-foreground w-6 text-right">{p.wins_gained > 0 && `+${p.wins_gained}`}</span>
+                    <span className="text-muted-foreground w-6 text-right">{p.wins_lost > 0 && `-${p.wins_lost}`}</span>
+                    <span className="truncate">{p.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Per-category */}
+          {Object.keys(a.by_category || {}).length > 0 && (
+            <div className="border border-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-3">By Category</h3>
+              <div className="text-xs space-y-1">
+                {Object.entries(a.by_category).map(([cat, s]) => (
+                  <div key={cat} className="flex items-center justify-between">
+                    <span className="font-mono text-muted-foreground">{cat}</span>
+                    <span className="font-mono">
+                      Control: {s.control.flips}/{s.control.total}
+                      {" · "}
+                      Treatment: {s.treatment.flips}/{s.treatment.total}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Side-by-side or tabbed view of original vs enhanced assessment */
 function AssessmentComparison({ original, enhanced }) {
   const [tab, setTab] = useState(enhanced ? "enhanced" : "original");
