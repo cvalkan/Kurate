@@ -135,6 +135,8 @@ def build_content_mode_filter(content_mode: Optional[str] = None, abstract_only:
         return {"content_mode": "abstract_plus_random_summary"}
     elif content_mode == "abstract_plus_impact":
         return {"content_mode": "abstract_plus_impact"}
+    elif content_mode == "deep_dive":
+        return {"content_mode": "deep_dive"}
     elif content_mode == "abstract":
         return {"abstract_only": True}
     elif content_mode == "extract" or abstract_only is False:
