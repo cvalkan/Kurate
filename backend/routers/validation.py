@@ -4244,64 +4244,79 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
 
             new_results.append(entry)
             done += 1
-            if done % 5 == 0:
+
+            # Save incrementally: merge new results into DB after each successful one
+            if entry.get("parse_ok") or done % 5 == 0:
+                all_results = existing_ok + [r for r in new_results if r.get("parse_ok")]
+                seen = set()
+                merged = []
+                for r in all_results:
+                    if r["title"] not in seen:
+                        seen.add(r["title"])
+                        merged.append(r)
+                await _save_experiment_results(merged, errors, f"{provider}/{model_name}")
                 await db.settings.update_one(
                     {"key": "deeper_dive_progress"},
                     {"$set": {"done": done, "errors": errors}},
                 )
 
-        # Merge: existing + new, dedup by title
-        all_results = existing_ok + [r for r in new_results if r.get("parse_ok")]
-        seen = set()
-        merged = []
-        for r in all_results:
-            if r["title"] not in seen:
-                seen.add(r["title"])
-                merged.append(r)
-
-        # Compute summary from merged results
-        parsed = merged
-        recommended = [r for r in parsed if r.get("deeper_dive_recommended")]
-        conf_dist = Counter(r.get("confidence") for r in parsed)
-        cat_stats = {}
-        for r in parsed:
-            cat = r["category"]
-            if cat not in cat_stats:
-                cat_stats[cat] = {"total": 0, "recommended": 0}
-            cat_stats[cat]["total"] += 1
-            if r.get("deeper_dive_recommended"):
-                cat_stats[cat]["recommended"] += 1
-
-        all_areas = []
-        for r in recommended:
-            all_areas.extend(r.get("focus_areas", []))
-        area_counts = Counter(a.lower().strip() for a in all_areas)
-
-        summary = {
-            "total": len(merged),
-            "parsed": len(parsed),
-            "recommended": len(recommended),
-            "not_recommended": len(parsed) - len(recommended),
-            "errors": errors,
-            "recommend_rate": round(len(recommended) / max(len(parsed), 1) * 100, 1),
-            "confidence_distribution": dict(conf_dist),
-            "by_category": cat_stats,
-            "top_focus_areas": [{"area": a, "count": c} for a, c in area_counts.most_common(20)],
-            "model": f"{provider}/{model_name}",
-        }
-
-        await db.settings.update_one(
-            {"key": "deeper_dive_experiment"},
-            {"$set": {"key": "deeper_dive_experiment", "results": merged, "summary": summary,
-                       "completed_at": datetime.now(timezone.utc).isoformat()}},
-            upsert=True,
-        )
-        logger.info(f"Deeper dive experiment complete: {len(merged)} total ({len(recommended)} recommended, {summary['recommend_rate']}%)")
-
     except Exception as e:
         logger.error(f"Deeper dive experiment failed: {e}")
     finally:
+        # Final save with all results
+        try:
+            all_results = existing_ok + [r for r in new_results if r.get("parse_ok")]
+            seen = set()
+            merged = []
+            for r in all_results:
+                if r["title"] not in seen:
+                    seen.add(r["title"])
+                    merged.append(r)
+            await _save_experiment_results(merged, errors, f"{provider}/{model_name}")
+        except Exception:
+            pass
         await db.settings.update_one(
             {"key": "deeper_dive_progress"},
             {"$set": {"running": False, "done": done, "total": len(selected), "errors": errors}},
         )
+
+
+async def _save_experiment_results(merged: list, errors: int, model: str):
+    """Compute summary and save experiment results to DB."""
+    parsed = merged
+    recommended = [r for r in parsed if r.get("deeper_dive_recommended")]
+    conf_dist = Counter(r.get("confidence") for r in parsed)
+    cat_stats = {}
+    for r in parsed:
+        cat = r["category"]
+        if cat not in cat_stats:
+            cat_stats[cat] = {"total": 0, "recommended": 0}
+        cat_stats[cat]["total"] += 1
+        if r.get("deeper_dive_recommended"):
+            cat_stats[cat]["recommended"] += 1
+
+    all_areas = []
+    for r in recommended:
+        all_areas.extend(r.get("focus_areas", []))
+    area_counts = Counter(a.lower().strip() for a in all_areas)
+
+    summary = {
+        "total": len(merged),
+        "parsed": len(parsed),
+        "recommended": len(recommended),
+        "not_recommended": len(parsed) - len(recommended),
+        "errors": errors,
+        "recommend_rate": round(len(recommended) / max(len(parsed), 1) * 100, 1),
+        "confidence_distribution": dict(conf_dist),
+        "by_category": cat_stats,
+        "top_focus_areas": [{"area": a, "count": c} for a, c in area_counts.most_common(20)],
+        "model": model,
+    }
+
+    await db.settings.update_one(
+        {"key": "deeper_dive_experiment"},
+        {"$set": {"key": "deeper_dive_experiment", "results": merged, "summary": summary,
+                   "completed_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    logger.info(f"Deeper dive saved: {len(merged)} total ({len(recommended)} recommended)")
