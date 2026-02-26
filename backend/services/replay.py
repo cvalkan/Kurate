@@ -392,6 +392,156 @@ async def compute_replay_analysis() -> dict:
     paper_shift_list.sort(key=lambda x: abs(x["net_shift"]), reverse=True)
     analysis["paper_shifts"] = paper_shift_list[:20]
 
+    # --- Paper-level statistical tests (correct unit of analysis) ---
+    # Compute per-paper win-rate shift: treatment win-rate minus control win-rate
+    # This properly accounts for the correlation structure (repeated papers across pairs)
+
+    # For each enhanced paper, compute win rate under control and treatment
+    paper_wr = defaultdict(lambda: {"ctrl_wins": 0, "ctrl_total": 0, "treat_wins": 0, "treat_total": 0})
+    for r in control:
+        if r.get("p1_used_enhanced") or r["paper1_id"] in paper_shifts or r["paper1_id"] in [ps["paper_id"] for ps in paper_shift_list]:
+            pass  # control never uses enhanced, so just track by paper presence
+        for pid_key, winner_key in [("paper1_id", "replay_winner_id"), ("paper2_id", "replay_winner_id")]:
+            pid = r[pid_key]
+            # Only track papers that have enhanced assessments
+            if pid in {ps["paper_id"] for ps in paper_shift_list} or any(
+                r2.get("p1_used_enhanced") and r2["paper1_id"] == pid or
+                r2.get("p2_used_enhanced") and r2["paper2_id"] == pid
+                for r2 in treatment[:1]  # just check existence
+            ):
+                pass  # too complex, rebuild from scratch
+
+    # Simpler approach: find all enhanced paper IDs, then compute win rates
+    enhanced_pids = set()
+    for r in treatment:
+        if r.get("p1_used_enhanced"):
+            enhanced_pids.add(r["paper1_id"])
+        if r.get("p2_used_enhanced"):
+            enhanced_pids.add(r["paper2_id"])
+
+    paper_stats = {pid: {"ctrl_wins": 0, "ctrl_total": 0, "treat_wins": 0, "treat_total": 0} for pid in enhanced_pids}
+
+    for r in control:
+        for pid in [r["paper1_id"], r["paper2_id"]]:
+            if pid in paper_stats:
+                paper_stats[pid]["ctrl_total"] += 1
+                if r["replay_winner_id"] == pid:
+                    paper_stats[pid]["ctrl_wins"] += 1
+
+    for r in treatment:
+        for pid in [r["paper1_id"], r["paper2_id"]]:
+            if pid in paper_stats:
+                paper_stats[pid]["treat_total"] += 1
+                if r["replay_winner_id"] == pid:
+                    paper_stats[pid]["treat_wins"] += 1
+
+    # Compute per-paper win-rate differences
+    wr_diffs = []
+    paper_wr_details = []
+    for pid, s in paper_stats.items():
+        if s["ctrl_total"] == 0 or s["treat_total"] == 0:
+            continue
+        ctrl_wr = s["ctrl_wins"] / s["ctrl_total"]
+        treat_wr = s["treat_wins"] / s["treat_total"]
+        diff = treat_wr - ctrl_wr
+        wr_diffs.append(diff)
+        paper_wr_details.append({
+            "paper_id": pid,
+            "title": title_lookup.get(pid, pid),
+            "ctrl_wr": round(ctrl_wr * 100, 1),
+            "treat_wr": round(treat_wr * 100, 1),
+            "diff": round(diff * 100, 1),
+            "ctrl_matches": s["ctrl_total"],
+            "treat_matches": s["treat_total"],
+        })
+
+    paper_wr_details.sort(key=lambda x: abs(x["diff"]), reverse=True)
+
+    paper_level = {
+        "n_papers": len(wr_diffs),
+        "paper_details": paper_wr_details,
+    }
+
+    if len(wr_diffs) >= 5:
+        import statistics
+        mean_diff = statistics.mean(wr_diffs)
+        median_diff = statistics.median(wr_diffs)
+        positive = sum(1 for d in wr_diffs if d > 0)
+        negative = sum(1 for d in wr_diffs if d < 0)
+        zero = sum(1 for d in wr_diffs if d == 0)
+
+        paper_level["mean_wr_shift"] = round(mean_diff * 100, 2)
+        paper_level["median_wr_shift"] = round(median_diff * 100, 2)
+        paper_level["positive_shifts"] = positive
+        paper_level["negative_shifts"] = negative
+        paper_level["zero_shifts"] = zero
+
+        # Wilcoxon signed-rank test (non-parametric, paired)
+        # H0: median win-rate shift = 0
+        nonzero_diffs = [d for d in wr_diffs if d != 0]
+        if len(nonzero_diffs) >= 5:
+            # Manual Wilcoxon: rank absolute values, sum ranks of positive diffs
+            abs_diffs = [(abs(d), 1 if d > 0 else -1) for d in nonzero_diffs]
+            abs_diffs.sort(key=lambda x: x[0])
+            # Assign ranks (handle ties with average rank)
+            ranks = []
+            i = 0
+            while i < len(abs_diffs):
+                j = i
+                while j < len(abs_diffs) and abs_diffs[j][0] == abs_diffs[i][0]:
+                    j += 1
+                avg_rank = (i + 1 + j) / 2
+                for k in range(i, j):
+                    ranks.append((avg_rank, abs_diffs[k][1]))
+                i = j
+
+            w_plus = sum(r for r, s in ranks if s > 0)
+            w_minus = sum(r for r, s in ranks if s < 0)
+            w_stat = min(w_plus, w_minus)
+            n = len(nonzero_diffs)
+
+            # Normal approximation for p-value (n >= 10 recommended, but usable for n >= 5)
+            mean_w = n * (n + 1) / 4
+            std_w = math.sqrt(n * (n + 1) * (2 * n + 1) / 24)
+            if std_w > 0:
+                z = (w_stat - mean_w) / std_w
+                wilcoxon_p = math.erfc(abs(z) / math.sqrt(2))  # two-tailed
+            else:
+                wilcoxon_p = 1.0
+
+            paper_level["wilcoxon"] = {
+                "w_plus": round(w_plus, 1),
+                "w_minus": round(w_minus, 1),
+                "w_stat": round(w_stat, 1),
+                "n_nonzero": n,
+                "p_value": round(wilcoxon_p, 4),
+                "significant": wilcoxon_p < 0.05,
+            }
+        else:
+            paper_level["wilcoxon"] = {"n_nonzero": len(nonzero_diffs), "p_value": None, "note": "Too few non-zero differences"}
+
+        # Permutation test (exact for small N)
+        # Shuffle enhanced/original labels within each paper and recompute mean shift
+        import random
+        observed_mean = mean_diff
+        n_permutations = 10000
+        count_extreme = 0
+        for _ in range(n_permutations):
+            perm_diffs = [d * random.choice([-1, 1]) for d in wr_diffs]
+            perm_mean = sum(perm_diffs) / len(perm_diffs)
+            if abs(perm_mean) >= abs(observed_mean):
+                count_extreme += 1
+        perm_p = count_extreme / n_permutations
+
+        paper_level["permutation_test"] = {
+            "observed_mean_shift": round(observed_mean * 100, 2),
+            "n_permutations": n_permutations,
+            "p_value": round(perm_p, 4),
+            "significant": perm_p < 0.05,
+        }
+
+    analysis["paper_level"] = paper_level
+
     # --- Per-category breakdown ---
     by_category = {}
     for cat in set(r.get("category", "") for r in results):
