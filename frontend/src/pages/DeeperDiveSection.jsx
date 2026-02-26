@@ -395,6 +395,97 @@ function ReplaySection({ replay, status }) {
               </div>
             </div>
           )}
+
+          {/* Paper-level statistical tests */}
+          {a.paper_level && a.paper_level.n_papers > 0 && (
+            <div className="border-2 border-violet-200 rounded-lg p-4 bg-violet-50/30">
+              <h3 className="text-sm font-semibold mb-1">Paper-Level Analysis (N={a.paper_level.n_papers})</h3>
+              <p className="text-[10px] text-muted-foreground mb-3">Unit of analysis = paper, not pair. Accounts for correlation from repeated papers across matches.</p>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div className="bg-background border border-border rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-muted-foreground">Mean WR Shift</p>
+                  <p className={`text-lg font-bold font-mono ${(a.paper_level.mean_wr_shift || 0) > 0 ? "text-green-600" : (a.paper_level.mean_wr_shift || 0) < 0 ? "text-red-500" : ""}`}>
+                    {(a.paper_level.mean_wr_shift || 0) > 0 ? "+" : ""}{a.paper_level.mean_wr_shift ?? "—"}pp
+                  </p>
+                </div>
+                <div className="bg-background border border-border rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-muted-foreground">Median WR Shift</p>
+                  <p className="text-lg font-bold font-mono">
+                    {(a.paper_level.median_wr_shift || 0) > 0 ? "+" : ""}{a.paper_level.median_wr_shift ?? "—"}pp
+                  </p>
+                </div>
+                <div className="bg-background border border-border rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-muted-foreground">Shifted Up</p>
+                  <p className="text-lg font-bold text-green-600">{a.paper_level.positive_shifts ?? 0}</p>
+                </div>
+                <div className="bg-background border border-border rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-muted-foreground">Shifted Down</p>
+                  <p className="text-lg font-bold text-red-500">{a.paper_level.negative_shifts ?? 0}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                {/* Wilcoxon */}
+                {a.paper_level.wilcoxon && (
+                  <div className="bg-background border border-border rounded-lg p-3">
+                    <h4 className="text-xs font-semibold mb-2">Wilcoxon Signed-Rank Test</h4>
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Non-zero diffs</span><span className="font-mono">{a.paper_level.wilcoxon.n_nonzero}</span></div>
+                      {a.paper_level.wilcoxon.p_value != null ? (<>
+                        <div className="flex justify-between"><span className="text-muted-foreground">W+</span><span className="font-mono">{a.paper_level.wilcoxon.w_plus}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">W-</span><span className="font-mono">{a.paper_level.wilcoxon.w_minus}</span></div>
+                        <div className="border-t border-border pt-1 flex justify-between font-medium">
+                          <span>p = {a.paper_level.wilcoxon.p_value}</span>
+                          <span className={a.paper_level.wilcoxon.significant ? "text-green-600" : "text-muted-foreground"}>
+                            {a.paper_level.wilcoxon.significant ? "Significant" : "Not significant"}
+                          </span>
+                        </div>
+                      </>) : (
+                        <p className="text-muted-foreground italic">{a.paper_level.wilcoxon.note}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Permutation test */}
+                {a.paper_level.permutation_test && (
+                  <div className="bg-background border border-border rounded-lg p-3">
+                    <h4 className="text-xs font-semibold mb-2">Permutation Test</h4>
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Observed mean shift</span><span className="font-mono">{a.paper_level.permutation_test.observed_mean_shift}pp</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Permutations</span><span className="font-mono">{a.paper_level.permutation_test.n_permutations?.toLocaleString()}</span></div>
+                      <div className="border-t border-border pt-1 flex justify-between font-medium">
+                        <span>p = {a.paper_level.permutation_test.p_value}</span>
+                        <span className={a.paper_level.permutation_test.significant ? "text-green-600" : "text-muted-foreground"}>
+                          {a.paper_level.permutation_test.significant ? "Significant" : "Not significant"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Per-paper win rate table */}
+              {a.paper_level.paper_details?.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold mb-2">Per-Paper Win Rate (Control vs Treatment)</h4>
+                  <div className="space-y-1 text-[11px] max-h-64 overflow-y-auto">
+                    {a.paper_level.paper_details.map((p, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className={`font-mono w-14 text-right font-medium ${p.diff > 0 ? "text-green-600" : p.diff < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                          {p.diff > 0 ? "+" : ""}{p.diff}pp
+                        </span>
+                        <span className="font-mono text-muted-foreground w-20">{p.ctrl_wr}% → {p.treat_wr}%</span>
+                        <span className="font-mono text-muted-foreground w-12">n={p.ctrl_matches}</span>
+                        <span className="truncate">{p.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
