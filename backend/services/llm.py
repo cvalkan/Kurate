@@ -739,9 +739,20 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
             err_str = str(e).lower()
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_overloaded = "overloaded" in err_str or "rate" in err_str
+            is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
             if is_budget:
                 logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Waiting 15s for auto-topup...")
                 await asyncio.sleep(15)
+            elif is_token_limit and content_mode == "full_pdf":
+                # Rebuild with halved content
+                cur_limit = _MODEL_CHAR_LIMITS.get(model, _DEFAULT_CHAR_LIMIT)
+                new_limit = max(cur_limit // 2, 40_000)
+                p1_content = _build_full_pdf_content(paper1, char_limit=new_limit, model=model)
+                p2_content = _build_full_pdf_content(paper2, char_limit=new_limit, model=model)
+                prompt = user_template.format(paper1_title=paper1["title"], paper1_content=p1_content, paper2_title=paper2["title"], paper2_content=p2_content)
+                input_chars = len(system_msg) + len(prompt)
+                input_tokens_est = input_chars // 4
+                logger.warning(f"Token limit hit in comparison ({provider}/{model}), retrying with {new_limit:,} chars per paper")
             elif is_overloaded:
                 logger.warning(f"LLM overloaded ({provider}/{model}), attempt {attempt+1}/{max_retries}")
                 await asyncio.sleep(5 * (attempt + 1))
