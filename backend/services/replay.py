@@ -396,22 +396,7 @@ async def compute_replay_analysis() -> dict:
     # Compute per-paper win-rate shift: treatment win-rate minus control win-rate
     # This properly accounts for the correlation structure (repeated papers across pairs)
 
-    # For each enhanced paper, compute win rate under control and treatment
-    paper_wr = defaultdict(lambda: {"ctrl_wins": 0, "ctrl_total": 0, "treat_wins": 0, "treat_total": 0})
-    for r in control:
-        if r.get("p1_used_enhanced") or r["paper1_id"] in paper_shifts or r["paper1_id"] in [ps["paper_id"] for ps in paper_shift_list]:
-            pass  # control never uses enhanced, so just track by paper presence
-        for pid_key, winner_key in [("paper1_id", "replay_winner_id"), ("paper2_id", "replay_winner_id")]:
-            pid = r[pid_key]
-            # Only track papers that have enhanced assessments
-            if pid in {ps["paper_id"] for ps in paper_shift_list} or any(
-                r2.get("p1_used_enhanced") and r2["paper1_id"] == pid or
-                r2.get("p2_used_enhanced") and r2["paper2_id"] == pid
-                for r2 in treatment[:1]  # just check existence
-            ):
-                pass  # too complex, rebuild from scratch
-
-    # Simpler approach: find all enhanced paper IDs, then compute win rates
+    # Find all enhanced paper IDs, then compute win rates
     enhanced_pids = set()
     for r in treatment:
         if r.get("p1_used_enhanced"):
