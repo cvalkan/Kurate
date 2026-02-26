@@ -241,7 +241,8 @@ export default function ValidationHubPage() {
           {selected === "exp-summary-bias-econ" && <SummaryBiasSection category="econ.GN" />}
           {selected === "exp-summary-bias-phys" && <SummaryBiasSection category="physics.comp-ph" />}
           {selected === "exp-deeper-dive" && <DeeperDiveSection />}
-          {selected === "exp-iclr-deep-dive" && <ICLRDeepDiveSection />}
+          {selected === "exp-iclr-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-codegen" label="ICLR Code Generation" />}
+          {selected === "exp-midl-deep-dive" && <ICLRDeepDiveSection datasetId="midl-medical-imaging" label="MIDL Medical Imaging" />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
