@@ -17,6 +17,72 @@ from collections import defaultdict, Counter
 from core.config import db, logger
 
 REPLAY_COLLECTION = "deeper_dive_replays"
+_BUDGET_KEYWORDS = ("budget", "balance", "insufficient", "credit", "quota")
+
+
+async def _replay_single_comparison(paper1: dict, paper2: dict, prompt_config: dict) -> dict:
+    """Single-shot LLM comparison for replay. Fails fast on budget errors (no internal retry)."""
+    import json as _json
+    import re as _re
+    from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    from services.llm import _pick_round_robin_model
+
+    model_info = _pick_round_robin_model()
+    provider = model_info["provider"]
+    model = model_info["model"]
+
+    p1_abs = paper1.get("abstract", "")[:1500]
+    p1_sum = paper1.get("ai_impact_summary", "")
+    p1_content = f"Abstract: {p1_abs}\n\nAI Impact Assessment:\n{p1_sum}" if p1_sum else f"Abstract: {p1_abs}"
+    p2_abs = paper2.get("abstract", "")[:1500]
+    p2_sum = paper2.get("ai_impact_summary", "")
+    p2_content = f"Abstract: {p2_abs}\n\nAI Impact Assessment:\n{p2_sum}" if p2_sum else f"Abstract: {p2_abs}"
+
+    prompt = prompt_config["user_prompt"].format(
+        paper1_title=paper1["title"], paper1_content=p1_content,
+        paper2_title=paper2["title"], paper2_content=p2_content,
+    )
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"replay-{uuid.uuid4()}",
+        system_message=prompt_config["system_prompt"],
+    ).with_model(provider, model)
+
+    loop = asyncio.get_event_loop()
+    response = await asyncio.wait_for(
+        loop.run_in_executor(
+            None,
+            lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
+        ),
+        timeout=90,
+    )
+
+    response_text = response.strip() if isinstance(response, str) else str(response)
+
+    # Parse JSON response
+    if response_text.startswith("```"):
+        parts = response_text.split("```")
+        if len(parts) >= 2:
+            response_text = parts[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+            response_text = response_text.strip()
+
+    if not response_text.startswith("{"):
+        m = _re.search(r'\{[^{}]*"winner"[^{}]*\}', response_text, _re.DOTALL)
+        if m:
+            response_text = m.group()
+        else:
+            raise ValueError(f"No JSON found: {response_text[:200]}")
+
+    result = _json.loads(response_text)
+    if "winner" not in result or result["winner"] not in ["paper1", "paper2"]:
+        raise ValueError(f"Invalid response: {result}")
+
+    result["model_used"] = model_info
+    return result
 
 
 async def _load_experiment_meta() -> dict:
