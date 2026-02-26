@@ -1495,7 +1495,7 @@ async def add_category(body: CategoryAction):
     tid = f"cat={cat_id}|mode=standard"
     await db.tournaments.update_one(
         {"tournament_id": tid},
-        {"$set": {"status": "paused", "updated_at": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"status": "paused", "compare_paused": True, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
 
     logger.info(f"Admin added category: {cat_id} (preset to paused)")
