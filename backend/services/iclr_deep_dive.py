@@ -212,7 +212,6 @@ async def run_step3():
         return
 
     papers_data = doc["papers"]
-    # Load full text for each paper
     paper_lookup = {}
     async for p in db.validation_papers.find(
         {"dataset_id": DATASET_ID},
@@ -220,20 +219,19 @@ async def run_step3():
     ):
         paper_lookup[p["id"]] = p
 
-    done = sum(1 for p in papers_data if p.get("step3_assessment"))
+    todo = [e for e in papers_data if e.get("step2_assessment") and not e.get("step3_assessment")]
     total = len(papers_data)
+    done = total - len(todo)
     await _update_progress("step3", done, total)
 
-    for i, entry in enumerate(papers_data):
-        pid = entry["paper_id"]
-        if entry.get("step3_assessment"):
-            continue
-        if not entry.get("step2_assessment"):
-            continue
+    sem = asyncio.Semaphore(PARALLEL)
+    counter = {"done": done, "errors": 0}
 
+    async def process_one(entry):
+        pid = entry["paper_id"]
         paper = paper_lookup.get(pid)
         if not paper:
-            continue
+            return
 
         title = entry["title"]
         full_text = paper.get("full_text", "")
@@ -242,28 +240,26 @@ async def run_step3():
         focus_str = ", ".join(entry.get("focus_areas", []))
 
         system = STEP3_PROMPT["system"].format(focus_areas=focus_str)
-        user = STEP3_PROMPT["user"].format(
-            title=title, content=content,
-            first_pass_assessment=entry["step2_assessment"],
-        )
+        user = STEP3_PROMPT["user"].format(title=title, content=content, first_pass_assessment=entry["step2_assessment"])
 
-        try:
-            response = await _llm_call(system, user, label=f"step3:{title[:30]}")
+        async with sem:
+            try:
+                response = await _llm_call(system, user, label=f"step3:{title[:30]}")
+                await db.settings.update_one(
+                    {"key": EXPERIMENT_KEY, "papers.paper_id": pid},
+                    {"$set": {"papers.$.step3_assessment": response}},
+                )
+                counter["done"] += 1
+                logger.info(f"Step 3: {counter['done']}/{total} — {title[:50]}")
+            except Exception as e:
+                counter["errors"] += 1
+                counter["done"] += 1
+                logger.warning(f"Step 3 failed: {title[:50]}: {e}")
 
-            await db.settings.update_one(
-                {"key": EXPERIMENT_KEY, "papers.paper_id": pid},
-                {"$set": {"papers.$.step3_assessment": response}},
-            )
-            done += 1
-            logger.info(f"Step 3: {done}/{total} — {title[:50]}")
+            if counter["done"] % 3 == 0:
+                await _update_progress("step3", counter["done"], total, errors=counter["errors"])
 
-        except Exception as e:
-            logger.warning(f"Step 3 failed: {title[:50]}: {e}")
-            done += 1
-
-        if done % 3 == 0:
-            await _update_progress("step3", done, total)
-
+    await asyncio.gather(*[process_one(e) for e in todo])
     await _update_progress("step3", total, total, finished=True)
     logger.info(f"Step 3 complete: {total} papers")
 
