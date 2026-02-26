@@ -12,6 +12,7 @@ import QeiosPairwiseSection from "./QeiosPairwiseSection";
 import PairwiseAgreementSection from "./PairwiseAgreementSection";
 import SummarizerComparisonSection from "./SummarizerComparisonSection";
 import SummaryBiasSection from "./SummaryBiasSection";
+import DeeperDiveSection from "./DeeperDiveSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
