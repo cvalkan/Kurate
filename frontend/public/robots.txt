@@ -10,4 +10,4 @@ Disallow: /admin
 Disallow: /admin/
 Disallow: /api/admin/
 
-Sitemap: https://kurate.org/sitemap.xml
+Sitemap: https://kurate.org/api/sitemap.xml
