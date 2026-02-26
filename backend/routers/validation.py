@@ -2238,6 +2238,7 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
         "none": "Extract", "extract": "Extract", "abstract": "Abstract",
         "full_pdf": "Full PDF", "ai_summary": "AI Summary",
         "abstract_plus_summary": "Abstract + Summary (Opus 4.5)",
+        "deep_dive": "Deep Dive (2-pass)",
     }
     modes = []
     async for doc in db.validation_matches.aggregate(mode_pipeline):
