@@ -18,8 +18,9 @@ const SUMMARY_LABELS = {
   openai: { label: "GPT", color: "text-green-500" },
 };
 
-function getSummaryEntries(summaries) {
+function getSummaryEntries(summaries, summaryDates) {
   if (!summaries || typeof summaries !== "object") return [];
+  const dates = summaryDates || {};
   const entries = Object.entries(summaries)
     .map(([key, val]) => {
       const provider = key.split(":")[0];
@@ -29,7 +30,7 @@ function getSummaryEntries(summaries) {
         const strs = Object.values(val).filter(v => typeof v === "string" && v.length > 50);
         text = strs.length ? strs.reduce((a, b) => a.length > b.length ? a : b) : "";
       }
-      return { key, tabId: provider, provider, text, ...meta };
+      return { key, tabId: provider, provider, text, date: dates[key] || null, ...meta };
     })
     .filter(e => typeof e.text === "string" && e.text.length > 50);
   // Deduplicate by provider — prefer newer model keys (4.6 over 4.5)
