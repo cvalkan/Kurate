@@ -239,6 +239,7 @@ export default function ValidationHubPage() {
           {selected === "exp-summary-bias-econ" && <SummaryBiasSection category="econ.GN" />}
           {selected === "exp-summary-bias-phys" && <SummaryBiasSection category="physics.comp-ph" />}
           {selected === "exp-deeper-dive" && <DeeperDiveSection />}
+          {selected === "exp-iclr-deep-dive" && <ICLRDeepDiveSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
