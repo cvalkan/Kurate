@@ -57,40 +57,53 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Duplicate-request guard prevents concurrent fetches per category
 
 ### Admin Performance Optimization (Feb 23 2026)
-- Pre-computed progress data (Wilson CI, cross-matches, goals) in leaderboard background loop — `/progress` no longer queries DB
-- Pre-computed summary stats in leaderboard background loop — `/stats` no longer scans all papers from DB
-- Increased admin cache TTL from 10s to 30s (aligned with background refresh cadence)
-- Frontend polling aligned: 15s active / 30s idle (was 5s/15s, causing redundant DB hits)
-- Result: category switching drops from ~2s to ~90-120ms; cached hits ~85ms
+- Pre-computed progress data (Wilson CI, cross-matches, goals) in leaderboard background loop
+- Pre-computed summary stats in leaderboard background loop
+- Increased admin cache TTL from 10s to 30s
+- Frontend polling aligned: 15s active / 30s idle
+- Result: category switching drops from ~2s to ~90-120ms
 
 ### Fundamental Performance Architecture Fix (Feb 23 2026)
-**Root cause**: `compute_leaderboard()` (Bradley-Terry + Wilson CI) is CPU-bound and was running on the async event loop, blocking ALL HTTP requests for 1-10+ seconds.
-- **Thread pool executor** for ALL 25+ `compute_leaderboard` calls via `compute_leaderboard_async()`
-- **Eliminated redundant "all papers" leaderboard** — derived from per-category results
-- **Removed DB query from validation `cache_get()`** — pure TTL + explicit invalidation
-- **Pre-computed scipy z-value** — avoids repeated `norm.ppf(0.975)` in hot path
-- Benchmarks: 0.8s cache refresh (non-blocking), 90ms p99 for 20 concurrent requests, <5ms category switch
+- Thread pool executor for ALL 25+ `compute_leaderboard` calls
+- Eliminated redundant "all papers" leaderboard
+- Removed DB query from validation `cache_get()`
+- Pre-computed scipy z-value
+- Benchmarks: 0.8s cache refresh (non-blocking), 90ms p99
 
 ### Paper Deduplication (Feb 23 2026)
-- Added title+first-author dedup check during paper fetching (prevents future duplicates)
-- Added `/api/admin/dedup-papers` endpoint to merge existing duplicates: keeps paper with most matches, reassigns all matches, cleans up self-matches
-- Merged 11 duplicates on preview, 0 remaining across all categories
-- Production needs dedup run after deployment (POST /api/admin/dedup-papers)
+- Title+first-author dedup check during paper fetching
+- `/api/admin/dedup-papers` endpoint to merge existing duplicates
+- Merged 11 duplicates on preview
 
 ### LLM Budget Error Resilience (Feb 23 2026)
-- Added budget/credit error detection in LLM comparison and impact assessment functions
-- When budget error detected: waits 15s for auto-topup before retrying (was 1-4s generic backoff)
-- Prevents burst of ~60 failed matches when credits hit zero with 20 parallel agents
+- Budget/credit error detection in LLM comparison and impact assessment
+- 15s wait for auto-topup before retrying
 
 ### Scheduler Decoupling (Feb 23 2026)
-- Split single `_scheduler_loop` into independent `_fetch_loop` (60s interval) and `_compare_loop` (30s/wake)
-- Fetching papers + PDF downloads + summary generation no longer blocks tournament comparisons
-- Previously: 5+ minute stalls when 8 categories triggered fetch cycle simultaneously
+- Independent `_fetch_loop` (60s) and `_compare_loop` (30s/wake)
+- Fetching no longer blocks tournament comparisons
+
+## Completed (Feb 26 2026)
+
+### Category Add Bug Fix
+- Fixed `add_category` endpoint: now sets both `status: "paused"` AND `compare_paused: true`
+- Previously only set `status: "paused"`, causing frontend to show toggle ON while backend skipped comparisons
+- Activated cs.CR tournament on production
+
+### Raised LLM Input Char Limit (40k → Model-Aware)
+- **Problem**: 81.3% of papers exceeded the 40k char limit; median paper lost ~34% of content; 24.8% of summaries had truncation complaints
+- Added `_MODEL_CHAR_LIMITS` per-model config (GPT-5.2: 480k, Claude/Gemini: 720k chars)
+- Updated `generate_precomparison_impact_summary` to use full text up to model limit
+- Updated `_build_full_pdf_content` to accept model name for limit lookup
+- Updated `compare_papers` (full_pdf mode) to pass model
+- **Error handling**: On token-limit errors, automatically halves content and retries (floor at 40k chars)
+- Cost impact: ~+54% per summary ($0.04 → $0.06 avg)
 
 ## Pending
 - Deploy to production on kurate.org
 - **Run dedup on production after deploy** (POST /api/admin/dedup-papers)
 - Complete remaining Opus 4.6 ICLR replays (coverage 39-94%)
+- Verify frontend convergence chart fix (client-side caching in CorrelationPage.jsx)
 - Gap-stratified human accuracy UI
 - Further split validation.py into modules
 - Add remaining HTTP security headers (CSP refinement)
