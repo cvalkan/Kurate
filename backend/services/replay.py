@@ -175,7 +175,6 @@ async def run_replay_experiment(max_pairs: int = 200, parallel: int = 3):
     async for r in db[REPLAY_COLLECTION].find({}, {"_id": 0, "original_match_id": 1, "condition": 1}):
         existing.add((r["original_match_id"], r["condition"]))
 
-    from services.llm import compare_papers
     from core.config import DEFAULT_EVALUATION_PROMPT
 
     done = 0
