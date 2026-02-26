@@ -3906,18 +3906,31 @@ Write your impact assessment (up to 1000 words), then the meta-evaluation JSON b
 
 @router.get("/deeper-dive/results")
 async def get_deeper_dive_results():
-    """Return results of the deeper dive experiment."""
+    """Return results of the deeper dive experiment, including enhanced assessments."""
     doc = await db.settings.find_one({"key": "deeper_dive_experiment"}, {"_id": 0})
     if not doc or not doc.get("results"):
         return {"status": "no_data", "results": [], "summary": {}}
-    return {"status": "ok", "results": doc["results"], "summary": doc.get("summary", {})}
+
+    # Include enhanced assessment generation progress
+    enhance_prog = await db.settings.find_one({"key": "deeper_dive_enhance_progress"}, {"_id": 0})
+
+    return {
+        "status": "ok",
+        "results": doc["results"],
+        "summary": doc.get("summary", {}),
+        "enhance_progress": enhance_prog or {"running": False, "done": 0, "total": 0},
+    }
 
 
 @router.get("/deeper-dive/status")
 async def get_deeper_dive_status():
     """Check progress of the running experiment."""
     doc = await db.settings.find_one({"key": "deeper_dive_progress"}, {"_id": 0})
-    return doc or {"running": False, "done": 0, "total": 0, "errors": 0}
+    enhance = await db.settings.find_one({"key": "deeper_dive_enhance_progress"}, {"_id": 0})
+    return {
+        **(doc or {"running": False, "done": 0, "total": 0, "errors": 0}),
+        "enhance": enhance or {"running": False, "done": 0, "total": 0},
+    }
 
 
 @router.post("/deeper-dive/run", dependencies=[Depends(verify_admin)])
