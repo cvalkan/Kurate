@@ -14,6 +14,7 @@ export default function DeeperDiveSection() {
   const [expandedIdx, setExpandedIdx] = useState(null);
   const [replay, setReplay] = useState(null);
   const [replayStatus, setReplayStatus] = useState(null);
+  const [tab, setTab] = useState("papers"); // "papers" | "replay"
 
   const fetchResults = () => {
     axios.get(`${API}/api/validation/deeper-dive/results`).then(r => {
