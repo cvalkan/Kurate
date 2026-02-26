@@ -511,13 +511,13 @@ async def run_full_pipeline(dataset_id: str = "iclr-codegen",
 
     logger.info(f"=== Deep Dive Pipeline: {dataset_id} (source: {source_mode}) ===")
 
-    logger.info(f"--- Step 2: First-pass assessments ---")
+    logger.info("--- Step 2: First-pass assessments ---")
     await run_step2(dataset_id)
 
-    logger.info(f"--- Step 3: Deep-dive assessments ---")
+    logger.info("--- Step 3: Deep-dive assessments ---")
     await run_step3(dataset_id)
 
-    logger.info(f"--- Step 4: Tournament replay (same pairs + judges) ---")
+    logger.info("--- Step 4: Tournament replay (same pairs + judges) ---")
     await run_step4(dataset_id, source_mode)
 
     logger.info(f"=== Deep Dive Pipeline COMPLETE: {dataset_id} ===")
