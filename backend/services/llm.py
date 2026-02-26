@@ -783,7 +783,9 @@ Write your impact assessment (up to 1000 words):""",
 async def generate_precomparison_impact_summary(paper: dict, model_override: dict = None) -> Optional[Dict]:
     """Generate a scientific impact assessment from the paper's full text, to be used as input for pairwise comparison.
     
-    Uses the full PDF text as input. Returns dict with 'summary' and 'model_used', or None on failure.
+    Uses the full PDF text as input (up to model context limit). On token-limit errors,
+    retries with halved content until it fits.
+    Returns dict with 'summary' and 'model_used', or None on failure.
     """
     model_info = model_override or {"provider": "anthropic", "model": "claude-opus-4-6"}
     provider = model_info["provider"]
@@ -792,28 +794,32 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
 
     full_text = paper.get("full_text", "")
     abstract = paper.get("abstract", "")
-    if full_text:
-        content = f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text[:40000]}"
-    elif abstract:
-        content = f"Abstract: {abstract[:3000]}"
-    else:
+    if not full_text and not abstract:
         return None
 
-    prompt = IMPACT_ASSESSMENT_PROMPT["user_prompt"].format(
-        title=paper.get("title", "Untitled"),
-        content=content,
-    )
+    char_limit = _MODEL_CHAR_LIMITS.get(model, _DEFAULT_CHAR_LIMIT)
 
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=f"impact-{uuid.uuid4()}",
-        system_message=IMPACT_ASSESSMENT_PROMPT["system_prompt"],
-    ).with_model(provider, model)
-    if extra_params:
-        chat = chat.with_params(**extra_params)
+    def _build_content(limit: int) -> str:
+        if full_text:
+            return f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text[:limit]}"
+        return f"Abstract: {abstract[:3000]}"
 
-    max_retries = 3
+    content = _build_content(char_limit)
+
+    max_retries = 4
     for attempt in range(max_retries):
+        prompt = IMPACT_ASSESSMENT_PROMPT["user_prompt"].format(
+            title=paper.get("title", "Untitled"),
+            content=content,
+        )
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"impact-{uuid.uuid4()}",
+            system_message=IMPACT_ASSESSMENT_PROMPT["system_prompt"],
+        ).with_model(provider, model)
+        if extra_params:
+            chat = chat.with_params(**extra_params)
+
         try:
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
@@ -824,16 +830,22 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 summary_text = response.strip() if isinstance(response, str) else str(response)
                 # GPT-5.2 sometimes returns structured dict responses — extract the text
                 if isinstance(response, dict):
-                    # Take the longest string value from the dict
                     vals = [v for v in response.values() if isinstance(v, str)]
                     summary_text = max(vals, key=len) if vals else str(response)
                 return {"summary": summary_text, "model_used": model_info, "char_count": len(summary_text), "word_count": len(summary_text.split())}
         except Exception as e:
             err_str = str(e).lower()
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
+            is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
+
             if is_budget:
                 logger.warning(f"Budget/credit error during impact assessment ({provider}/{model}): {e}. Waiting 15s...")
                 await asyncio.sleep(15)
+            elif is_token_limit and char_limit > 40_000:
+                # Halve the content and retry
+                char_limit = char_limit // 2
+                content = _build_content(char_limit)
+                logger.warning(f"Token limit hit for '{paper.get('title', '')[:50]}' ({provider}/{model}), retrying with {char_limit:,} chars")
             else:
                 logger.warning(f"Impact assessment attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
                 if attempt < max_retries - 1:
