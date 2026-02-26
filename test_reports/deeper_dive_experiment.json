@@ -1,38 +1,633 @@
 {
   "summary": {
     "total": 48,
-    "parsed": 44,
-    "recommended": 16,
-    "not_recommended": 28,
-    "recommend_rate": "36.4%",
+    "parsed": 46,
+    "recommended": 26,
+    "not_recommended": 20,
+    "recommend_rate": "56.5%",
     "confidence_distribution": {
-      "medium": 16,
-      "high": 28
+      "high": 22,
+      "medium": 24
     },
     "focus_area_frequency": {
-      "dft barrier heights versus experimental conditions (27.6 kcal/mol at 60\u00b0c)": 1,
-      "validity of ethylene as mechanistic model for substituted alkenes": 1,
-      "alternative mechanisms not considered (e.g., sigma-bond metathesis pathways)": 1,
-      "comparison of computed vs experimental selectivity trends": 1,
-      "verification of the artifact separation methodology - whether averaging 4 rotational measurements is mathematically sufficient to eliminate all linear polarization artifacts": 1,
-      "closer examination of whether the g_lum ~10^-3 for iba compounds is statistically robust given the measurement uncertainties and low quantum yield": 1,
-      "assessment of the dft methodology and whether soc-dft band structure calculations adequately support the claimed correlation between spin splitting and cpl activity": 1,
-      "statistical significance of reported improvements especially for large-scale models": 1,
-      "analysis of per-task regressions in simplerenv and whether t-mee systematically hurts certain task types": 1,
-      "verification of theoretical claims particularly proposition 4 coupling ratio against empirical measurements": 1,
-      "comparison with alternative distribution-level objectives beyond mse": 1,
-      "evaluation methodology validity - especially synthetic decoy biases and their effect on reported metrics": 1,
-      "strength of generalization claims given xgboost baseline outperformance on del protein split": 1,
-      "statistical significance of per-protein auroc improvements over random baseline given small positive sample sizes": 1,
-      "verification of the \u03c9(log log t / log log log log t) lower bound construction details": 1,
-      "tightness of n-dependence in upper bounds and whether lower bounds in n can be established": 1,
-      "gap between contextual gft and profit regret rates and whether the o(n\u00b2d\u00b2log t) gft bound is tight": 1,
-      "verification of sigma_2^p hardness proof details (theorem 5 backward direction)": 1,
-      "whether hardness results hold under single-primary/closed-primary restrictions": 1,
-      "correctness of spne hardness reduction reusing ne gadgets (theorem 7)": 1
+      "verification of theorem 4 proof details and tightness of the 4/3 bound": 1,
+      "whether the average-latency cost model vs standard wardrop model affects generality of results": 1,
+      "extensibility of existence and optimality results beyond linear latency functions": 1,
+      "experimental fairness and baseline comparison methodology": 1,
+      "dataset construction and annotation quality details": 1,
+      "ablation studies separating cot optimization from other components": 1,
+      "inference latency characterization and practical deployment feasibility": 1,
+      "gspo implementation details and convergence properties": 1,
+      "validity of equal-size bead approximation and its impact on crowding/excluded volume conclusions": 1,
+      "distinction between algorithmic convergence failure and genuine thermodynamic instability (divergent classification)": 1,
+      "finite-size effects and robustness of phase diagrams": 1,
+      "comparison with known structural data for ino80 subcomplexes": 1,
+      "optimization solver details and feasibility of real-time computation": 1,
+      "human model fidelity and whether results hold under stochastic human behavior": 1,
+      "statistical significance of baseline comparisons": 1,
+      "correctness of cvar integration with the covariance steering formulation": 1,
+      "validity of comparing 512-width vanilla vs 384-width linear models": 1,
+      "statistical significance of benchmark improvements without confidence intervals": 1,
+      "whether the linear attention complexity claims hold in practice given the gated variant's kernel implementation": 1,
+      "completeness of distillation ablation studies": 1
     }
   },
   "results": [
+    {
+      "category": "econ.GN",
+      "title": "Hype Has Worth: Attention, Sentiment, and NFT Valuation in Major Ethereum Collections",
+      "full_text_len": 83142,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "between-collection confounding analysis",
+        "pseudo-time binning validity assessment",
+        "sentiment measurement validation"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "between-collection confounding analysis",
+          "pseudo-time binning validity assessment",
+          "sentiment measurement validation"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.GT",
+      "title": "Selfish routing games with priority lanes",
+      "full_text_len": 35357,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "verification of Theorem 4 proof details and tightness of the 4/3 bound",
+        "whether the average-latency cost model vs standard Wardrop model affects generality of results",
+        "extensibility of existence and optimality results beyond linear latency functions"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "verification of Theorem 4 proof details and tightness of the 4/3 bound",
+          "whether the average-latency cost model vs standard Wardrop model affects generality of results",
+          "extensibility of existence and optimality results beyond linear latency functions"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "ORACL: Optimized Reasoning for Autoscaling via Chain of Thought with LLMs for Microservices",
+      "full_text_len": 77578,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "experimental fairness and baseline comparison methodology",
+        "dataset construction and annotation quality details",
+        "ablation studies separating CoT optimization from other components",
+        "inference latency characterization and practical deployment feasibility",
+        "GSPO implementation details and convergence properties"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "experimental fairness and baseline comparison methodology",
+          "dataset construction and annotation quality details",
+          "ablation studies separating CoT optimization from other components",
+          "inference latency characterization and practical deployment feasibility",
+          "GSPO implementation details and convergence properties"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "MemGUI-Bench: Benchmarking Memory of Mobile GUI Agents in Dynamic Environments",
+      "full_text_len": 232716,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "validation of IRR metric reliability with only LLM-based computation",
+        "ecological validity of emulator-restricted task design",
+        "statistical significance of findings given sample sizes"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "validation of IRR metric reliability with only LLM-based computation",
+          "ecological validity of emulator-restricted task design",
+          "statistical significance of findings given sample sizes"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "Building a Correct-by-Design Lakehouse. Data Contracts, Versioning, and Transactional Pipelines for Humans and Agents",
+      "full_text_len": 39779,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "formal model completeness",
+        "isolation level specification",
+        "concurrent run semantics"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "formal model completeness",
+          "isolation level specification",
+          "concurrent run semantics"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Physical principles of building protein megacomplexes in a crowded milieu",
+      "full_text_len": 48740,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "validity of equal-size bead approximation and its impact on crowding/excluded volume conclusions",
+        "distinction between algorithmic convergence failure and genuine thermodynamic instability (divergent classification)",
+        "finite-size effects and robustness of phase diagrams",
+        "comparison with known structural data for INO80 subcomplexes"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "validity of equal-size bead approximation and its impact on crowding/excluded volume conclusions",
+          "distinction between algorithmic convergence failure and genuine thermodynamic instability (divergent classification)",
+          "finite-size effects and robustness of phase diagrams",
+          "comparison with known structural data for INO80 subcomplexes"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "Multimodal Covariance Steering in Belief Space with Active Probing and Influence for Autonomous Driving",
+      "full_text_len": 44232,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "optimization solver details and feasibility of real-time computation",
+        "human model fidelity and whether results hold under stochastic human behavior",
+        "statistical significance of baseline comparisons",
+        "correctness of CVaR integration with the covariance steering formulation"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "optimization solver details and feasibility of real-time computation",
+          "human model fidelity and whether results hold under stochastic human behavior",
+          "statistical significance of baseline comparisons",
+          "correctness of CVaR integration with the covariance steering formulation"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "SeedFold: Scaling Biomolecular Structure Prediction",
+      "full_text_len": 55793,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "validity of comparing 512-width vanilla vs 384-width linear models",
+        "statistical significance of benchmark improvements without confidence intervals",
+        "whether the linear attention complexity claims hold in practice given the gated variant's kernel implementation",
+        "completeness of distillation ablation studies"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "validity of comparing 512-width vanilla vs 384-width linear models",
+          "statistical significance of benchmark improvements without confidence intervals",
+          "whether the linear attention complexity claims hold in practice given the gated variant's kernel implementation",
+          "completeness of distillation ablation studies"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.comp-ph",
+      "title": "Efficient local classification of parity-based material topology",
+      "full_text_len": 67618,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "numerical stability analysis of the sparse factorization for near-singular spectral localizers",
+        "verification of Pfaffian sign correctness across topological transitions",
+        "scalability claims for 3D systems and fill-in behavior analysis"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "numerical stability analysis of the sparse factorization for near-singular spectral localizers",
+          "verification of Pfaffian sign correctness across topological transitions",
+          "scalability claims for 3D systems and fill-in behavior analysis"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "Generative AI as a Non-Convex Supply Shock: Market Bifurcation and Welfare Analysis",
+      "full_text_len": 49681,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "validity of Proposition 3.1 proof and welfare claims",
+        "ABM calibration methodology and sensitivity to parameter choices",
+        "whether the pollution externality specification drives all key results",
+        "mathematical consistency between the three layers"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "validity of Proposition 3.1 proof and welfare claims",
+          "ABM calibration methodology and sensitivity to parameter choices",
+          "whether the pollution externality specification drives all key results",
+          "mathematical consistency between the three layers"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "Droughts and Deluges: Effects of Climate Extremes on the Gender Gap in Labor Supply",
+      "full_text_len": 58995,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "statistical significance and robustness of wetness results across specifications",
+        "TWFE identification concerns and potential heterogeneous treatment effect bias",
+        "whether the theoretical model can actually generate the claimed non-linearities",
+        "multiple testing issues in heterogeneity analysis"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "statistical significance and robustness of wetness results across specifications",
+          "TWFE identification concerns and potential heterogeneous treatment effect bias",
+          "whether the theoretical model can actually generate the claimed non-linearities",
+          "multiple testing issues in heterogeneity analysis"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.GT",
+      "title": "The Distortion of Prior-Independent b-Matching Mechanisms",
+      "full_text_len": 73517,
+      "deeper_dive_recommended": true,
+      "confidence": "high",
+      "focus_areas": [
+        "verification of Lemma 8 proof chain (crossing argument with Lemmas 9 and 10)",
+        "tightness of distortion gap bound - whether 1.076 is truly near-optimal or if gap to 1 can be closed",
+        "validity of RSBS well-definedness proof and probability calibration"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "high",
+        "focus_areas": [
+          "verification of Lemma 8 proof chain (crossing argument with Lemmas 9 and 10)",
+          "tightness of distortion gap bound - whether 1.076 is truly near-optimal or if gap to 1 can be closed",
+          "validity of RSBS well-definedness proof and probability calibration"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.comp-ph",
+      "title": "Tensorized Discontinuous Isogeometric Analysis Method for the 2-D Time-Independent Linearized Boltzmann Transport Equation",
+      "full_text_len": 141634,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "boundary operator rank scaling analysis",
+        "preconditioning implications for practical deployment",
+        "comparison of compression claims against memory estimates"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "boundary operator rank scaling analysis",
+          "preconditioning implications for practical deployment",
+          "comparison of compression claims against memory estimates"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "Monomeric machine learning potential for general covalent molecules: linear alkanes as an example",
+      "full_text_len": 48960,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "transferability claims vs evidence",
+        "scalability without cutoff radius",
+        "comparison with equivariant models"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "transferability claims vs evidence",
+          "scalability without cutoff radius",
+          "comparison with equivariant models"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.GT",
+      "title": "Outer Diversity of Structured Domains",
+      "full_text_len": 92735,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "verification of O(m^2) SPOC algorithm correctness",
+        "checking reduction in Theorem 4.6 more carefully"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "verification of O(m^2) SPOC algorithm correctness",
+          "checking reduction in Theorem 4.6 more carefully"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Consistent Synthetic Sequences Unlock Structural Diversity in Fully Atomistic De Novo Protein Design",
+      "full_text_len": 117143,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "evaluation circularity between ESMFold-generated training data and ESMFold-based designability metrics",
+        "statistical significance of reported improvements across different protein lengths",
+        "whether ProteinMPNN sequence bias limits functional diversity of generated proteins"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "evaluation circularity between ESMFold-generated training data and ESMFold-based designability metrics",
+          "statistical significance of reported improvements across different protein lengths",
+          "whether ProteinMPNN sequence bias limits functional diversity of generated proteins"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "Floe: Federated Specialization for Real-Time LLM-SLM Inference",
+      "full_text_len": 83502,
+      "deeper_dive_recommended": null,
+      "confidence": null,
+      "focus_areas": [],
+      "meta_raw": null,
+      "parse_ok": false
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "Accelerating Instanton Theory with the Line Integral String Method, Gaussian Process Regression, and Selective Hessian Modeling",
+      "full_text_len": 61880,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "accuracy analysis of selective Hessian decomposition",
+        "scaling behavior for larger molecular systems"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "accuracy analysis of selective Hessian decomposition",
+          "scaling behavior for larger molecular systems"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Metrology of Complexity and Implications for the Study of the Emergence of Life",
+      "full_text_len": 41978,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "validity of assembly index threshold generalization",
+        "comparison with alternative molecular complexity metrics",
+        "rigor of phase transition claims"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "validity of assembly index threshold generalization",
+          "comparison with alternative molecular complexity metrics",
+          "rigor of phase transition claims"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "Platform Design, Earnings Transparency and Minimum Wage Policies: Evidence from A Natural Experiment on Lyft",
+      "full_text_len": 116003,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "validity of guarantee vs. transparency decomposition",
+        "SUTVA violations from geographic spillovers",
+        "sensitivity of results across the 4x range of estimated effects",
+        "potential selection bias from Lyft-provided data and suppressed coefficients",
+        "general equilibrium effects on untreated drivers and adjacent markets"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "validity of guarantee vs. transparency decomposition",
+          "SUTVA violations from geographic spillovers",
+          "sensitivity of results across the 4x range of estimated effects",
+          "potential selection bias from Lyft-provided data and suppressed coefficients",
+          "general equilibrium effects on untreated drivers and adjacent markets"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "Clever Hans in Chemistry: Chemist Style Signals Confound Activity Prediction on Public Benchmarks",
+      "full_text_len": 35264,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "whether the author-only vs ECFP performance gap is statistically significant given reported variances",
+        "degree to which author signal reduces to target-identity leakage vs genuine structural style",
+        "whether findings generalize beyond the prolific-author subset to full ChEMBL or to stronger baseline models",
+        "circular reasoning concerns in the ECFP-bit recovery analysis"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "whether the author-only vs ECFP performance gap is statistically significant given reported variances",
+          "degree to which author signal reduces to target-identity leakage vs genuine structural style",
+          "whether findings generalize beyond the prolific-author subset to full ChEMBL or to stronger baseline models",
+          "circular reasoning concerns in the ECFP-bit recovery analysis"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "EWSJF: An Adaptive Scheduler with Hybrid Partitioning for Mixed-Workload LLM Inference",
+      "full_text_len": 42697,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "baseline comparison adequacy - verify whether any real latency numbers support the 4x TTFT claim",
+        "reference validity - several citations appear potentially fabricated or placeholder",
+        "ablation study absence - no evidence for individual component contributions",
+        "Bayesian optimization details - verify whether the meta-optimization adds meaningful value over static tuning"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "baseline comparison adequacy - verify whether any real latency numbers support the 4x TTFT claim",
+          "reference validity - several citations appear potentially fabricated or placeholder",
+          "ablation study absence - no evidence for individual component contributions",
+          "Bayesian optimization details - verify whether the meta-optimization adds meaningful value over static tuning"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "LatentChem: From Textual CoT to Latent Thinking in Chemical Reasoning",
+      "full_text_len": 90190,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "Whether spontaneous internalization is truly emergent vs. a known RL compression artifact",
+        "Closed-ended task performance degradation patterns and their implications",
+        "Validity of the theoretical framework in Appendix A and whether it actually explains observed speedups",
+        "Fair comparison with Coconut-Chem baseline - training configuration parity"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "Whether spontaneous internalization is truly emergent vs. a known RL compression artifact",
+          "Closed-ended task performance degradation patterns and their implications",
+          "Validity of the theoretical framework in Appendix A and whether it actually explains observed speedups",
+          "Fair comparison with Coconut-Chem baseline - training configuration parity"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "econ.GN",
+      "title": "Generative AI and the Reallocation of Time: Productivity, Leisure, and Fulfilling Work",
+      "full_text_len": 32582,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "measurement validity of self-reported time savings and output changes",
+        "potential confounding in the zero correlation finding (measurement noise vs. structural disconnect)",
+        "missing literature engagement and how findings compare to experimental studies of AI productivity",
+        "internal consistency of the leisure channel quantification"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "measurement validity of self-reported time savings and output changes",
+          "potential confounding in the zero correlation finding (measurement noise vs. structural disconnect)",
+          "missing literature engagement and how findings compare to experimental studies of AI productivity",
+          "internal consistency of the leisure channel quantification"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "chemrxiv.IC",
+      "title": "Observing Kinetic Selectivity in Anthracene Photodimerization through Selective Quenching by Excited States of Proximate Rare Earth Cations",
+      "full_text_len": 55075,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
+      "focus_areas": [
+        "mechanistic evidence for singlet vs triplet pathway competition",
+        "explanation for Ce anomaly and other exceptions to the diamagnetic/paramagnetic dichotomy",
+        "quantitative analysis of rate constants and selectivity factors between adjacent RE pairs",
+        "validity of assuming structural uniformity across the series from single Yb crystal structure"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
+        "focus_areas": [
+          "mechanistic evidence for singlet vs triplet pathway competition",
+          "explanation for Ce anomaly and other exceptions to the diamagnetic/paramagnetic dichotomy",
+          "quantitative analysis of rate constants and selectivity factors between adjacent RE pairs",
+          "validity of assuming structural uniformity across the series from single Yb crystal structure"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.GT",
+      "title": "Revenue Guarantees in Autobidding Platforms",
+      "full_text_len": 71963,
+      "deeper_dive_recommended": true,
+      "confidence": "high",
+      "focus_areas": [
+        "verification of the online FPPE competitive ratio proof (Theorem 6) and intermediate solution construction",
+        "checking tightness of the 1/2 bound - whether FPPE specifically achieves 1/2 or just fixed-price mechanisms in general",
+        "detailed verification of the concave valuation extension and whether the \u03c1 characterization is tight"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": true,
+        "confidence": "high",
+        "focus_areas": [
+          "verification of the online FPPE competitive ratio proof (Theorem 6) and intermediate solution construction",
+          "checking tightness of the 1/2 bound - whether FPPE specifically achieves 1/2 or just fixed-price mechanisms in general",
+          "detailed verification of the concave valuation extension and whether the \u03c1 characterization is tight"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "Charge Transfer with a Spin. I: A Generalized CASSCF Framework for Investigating Charge Transfer in the Presence of Spin-Orbit Coupling",
+      "full_text_len": 49362,
+      "deeper_dive_recommended": null,
+      "confidence": null,
+      "focus_areas": [],
+      "meta_raw": null,
+      "parse_ok": false,
+      "error": "Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 5358.003215650009, Max budget: 5357.602686690502"
+    },
     {
       "category": "chemrxiv.IC",
       "title": "Alkene Hydrogenation by a Cationic, Nine-Coordinate Molybdenum(VI) Pentahydride Catalyst",
@@ -40,41 +635,125 @@
       "deeper_dive_recommended": true,
       "confidence": "medium",
       "focus_areas": [
-        "DFT barrier heights versus experimental conditions (27.6 kcal/mol at 60\u00b0C)",
-        "validity of ethylene as mechanistic model for substituted alkenes",
-        "alternative mechanisms not considered (e.g., sigma-bond metathesis pathways)",
-        "comparison of computed vs experimental selectivity trends"
+        "DFT methodology validation and barrier accuracy for the rate-determining step",
+        "comparison of computed barrier (27.6 kcal/mol) with experimental conditions and whether alternative mechanisms were adequately explored",
+        "assessment of whether the claimed 'first early TM polyhydride' distinction is accurate given the existing literature on Group 4-6 hydride catalysis"
       ],
       "meta_raw": {
         "deeper_dive_recommended": true,
         "confidence": "medium",
         "focus_areas": [
-          "DFT barrier heights versus experimental conditions (27.6 kcal/mol at 60\u00b0C)",
-          "validity of ethylene as mechanistic model for substituted alkenes",
-          "alternative mechanisms not considered (e.g., sigma-bond metathesis pathways)",
-          "comparison of computed vs experimental selectivity trends"
+          "DFT methodology validation and barrier accuracy for the rate-determining step",
+          "comparison of computed barrier (27.6 kcal/mol) with experimental conditions and whether alternative mechanisms were adequately explored",
+          "assessment of whether the claimed 'first early TM polyhydride' distinction is accurate given the existing literature on Group 4-6 hydride catalysis"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "Towards Next-Generation SLAM: A Survey on 3DGS-SLAM Focusing on Performance, Robustness, and Future Directions",
+      "full_text_len": 109388,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "accuracy of cross-paper benchmark comparisons",
+        "completeness of method coverage",
+        "validity of taxonomic categories"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "accuracy of cross-paper benchmark comparisons",
+          "completeness of method coverage",
+          "validity of taxonomic categories"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "q-bio.BM",
+      "title": "PRIMRose: Insights into the Per-Residue Energy Metrics of Proteins with Double InDel Mutations using Deep Learning",
+      "full_text_len": 40387,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "baseline comparison adequacy",
+        "whether high Pearson correlations are inflated by trivial features"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "baseline comparison adequacy",
+          "whether high Pearson correlations are inflated by trivial features"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.RO",
+      "title": "Informative Object-centric Next Best View for Object-aware 3D Gaussian Splatting in Cluttered Scenes",
+      "full_text_len": 44960,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "statistical significance of results",
+        "hyperparameter sensitivity analysis",
+        "grasp success rate quantification"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "statistical significance of results",
+          "hyperparameter sensitivity analysis",
+          "grasp success rate quantification"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "econ.GN",
-      "title": "Electoral Polls and Economic Uncertainty: an Analysis of the Last Two U.S. Presidential Elections",
-      "full_text_len": 40054,
+      "title": "Agent-based macroeconomics for the UK's Seventh Carbon Budget",
+      "full_text_len": 12731,
       "deeper_dive_recommended": false,
       "confidence": "high",
       "focus_areas": [
-        "causal identification strategy",
-        "robustness of DCC estimates with small samples",
-        "alternative explanations for 2020 vs 2024 differences"
+        "validation of underlying model (Wiese et al. 2024)",
+        "comparison with CGE/DSGE alternatives for same policy question",
+        "specifics of household microdata initialization"
       ],
       "meta_raw": {
         "deeper_dive_recommended": false,
         "confidence": "high",
         "focus_areas": [
-          "causal identification strategy",
-          "robustness of DCC estimates with small samples",
-          "alternative explanations for 2020 vs 2024 differences"
+          "validation of underlying model (Wiese et al. 2024)",
+          "comparison with CGE/DSGE alternatives for same policy question",
+          "specifics of household microdata initialization"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "chemrxiv.IC",
+      "title": "An integrative approach towards bio-inspired sequestration of rare earth elements",
+      "full_text_len": 52545,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "selectivity characterization",
+        "MD simulation adequacy",
+        "ITC vs TRLFS discrepancy analysis"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "selectivity characterization",
+          "MD simulation adequacy",
+          "ITC vs TRLFS discrepancy analysis"
         ]
       },
       "parse_ok": true
@@ -86,945 +765,337 @@
       "deeper_dive_recommended": false,
       "confidence": "high",
       "focus_areas": [
-        "physical plausibility of phase-lock mechanism",
-        "circularity of axiomatic framework",
-        "consistency of predicted magnitudes with experimental record"
+        "logical circularity in axiom-theorem structure",
+        "physical plausibility of phase-lock mechanism in gases"
       ],
       "meta_raw": {
         "deeper_dive_recommended": false,
         "confidence": "high",
         "focus_areas": [
-          "physical plausibility of phase-lock mechanism",
-          "circularity of axiomatic framework",
-          "consistency of predicted magnitudes with experimental record"
+          "logical circularity in axiom-theorem structure",
+          "physical plausibility of phase-lock mechanism in gases"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "cs.DC",
+      "title": "Canzona: A Unified, Asynchronous, and Load-Balanced Framework for Distributed Matrix-based Optimizers",
+      "full_text_len": 99852,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "scalability beyond 256 GPUs",
+        "pipeline parallelism interaction",
+        "memory overhead analysis"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "scalability beyond 256 GPUs",
+          "pipeline parallelism interaction",
+          "memory overhead analysis"
+        ]
+      },
+      "parse_ok": true
+    },
+    {
+      "category": "physics.chem-ph",
+      "title": "Photoluminescent registration of fullerite C$_{60}$ derivatives during chemical interaction with H$_{2}$ and N$_{2}$ molecules",
+      "full_text_len": 31049,
+      "deeper_dive_recommended": false,
+      "confidence": "high",
+      "focus_areas": [
+        "chemical identification methodology",
+        "spectral deconvolution validity"
+      ],
+      "meta_raw": {
+        "deeper_dive_recommended": false,
+        "confidence": "high",
+        "focus_areas": [
+          "chemical identification methodology",
+          "spectral deconvolution validity"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "cs.GT",
-      "title": "Dueling over Multiple Pieces of Dessert",
-      "full_text_len": 133852,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
+      "title": "ReACT-TTC: Capacity-Aware Top Trading Cycles for Post-Choice Reassignment in Shared CPS",
+      "full_text_len": 71543,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
       "focus_areas": [
-        "gap between k\u22653 upper and lower bounds",
-        "measurable-cut true optimal regret"
+        "strategy-proofness proof validity under heuristic cycle resolution",
+        "Pareto optimality interaction with delta-based ordering",
+        "whether overlapping cycle resolution order can be manipulated by strategic misreporting",
+        "experimental baseline fairness and claimed improvement percentages"
       ],
       "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
         "focus_areas": [
-          "gap between k\u22653 upper and lower bounds",
-          "measurable-cut true optimal regret"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "econ.GN",
-      "title": "Optimal Solar Investment and Operation under Asymmetric Net Metering",
-      "full_text_len": 47862,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "verification of comparative statics at boundary cases",
-        "robustness of case study parameterization"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "verification of comparative statics at boundary cases",
-          "robustness of case study parameterization"
+          "strategy-proofness proof validity under heuristic cycle resolution",
+          "Pareto optimality interaction with delta-based ordering",
+          "whether overlapping cycle resolution order can be manipulated by strategic misreporting",
+          "experimental baseline fairness and claimed improvement percentages"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "chemrxiv.IC",
-      "title": "On the Origin of Circularly Polarized Luminescence in Chiral One-Dimensional (A)PbBr3 Single Crystals",
-      "full_text_len": 67554,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "Verification of the artifact separation methodology - whether averaging 4 rotational measurements is mathematically sufficient to eliminate all linear polarization artifacts",
-        "Closer examination of whether the g_lum ~10^-3 for IBA compounds is statistically robust given the measurement uncertainties and low quantum yield",
-        "Assessment of the DFT methodology and whether SOC-DFT band structure calculations adequately support the claimed correlation between spin splitting and CPL activity"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "Verification of the artifact separation methodology - whether averaging 4 rotational measurements is mathematically sufficient to eliminate all linear polarization artifacts",
-          "Closer examination of whether the g_lum ~10^-3 for IBA compounds is statistically robust given the measurement uncertainties and low quantum yield",
-          "Assessment of the DFT methodology and whether SOC-DFT band structure calculations adequately support the claimed correlation between spin splitting and CPL activity"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.RO",
-      "title": "Reshaping Action Error Distributions for Reliable Vision-Language-Action Models",
-      "full_text_len": 73302,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "statistical significance of reported improvements especially for large-scale models",
-        "analysis of per-task regressions in SimplerEnv and whether T-MEE systematically hurts certain task types",
-        "verification of theoretical claims particularly Proposition 4 coupling ratio against empirical measurements",
-        "comparison with alternative distribution-level objectives beyond MSE"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "statistical significance of reported improvements especially for large-scale models",
-          "analysis of per-task regressions in SimplerEnv and whether T-MEE systematically hurts certain task types",
-          "verification of theoretical claims particularly Proposition 4 coupling ratio against empirical measurements",
-          "comparison with alternative distribution-level objectives beyond MSE"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.RO",
-      "title": "FC-Vision: Real-Time Visibility-Aware Replanning for Occlusion-Free Aerial Target Structure Scanning in Unknown Environments",
-      "full_text_len": 43903,
+      "title": "Chirality transfer in nematic liquid crystals via octahedral coordination compounds with \u0394 and \u039b chirality",
+      "full_text_len": 96952,
       "deeper_dive_recommended": false,
       "confidence": "high",
       "focus_areas": [
-        "statistical significance of reported gains",
-        "scalability analysis under heavy occlusion",
-        "comparison with perception-aware planning baselines"
+        "quantitative accuracy of surface chirality model predictions",
+        "comparison with organic dopant state-of-the-art",
+        "completeness of literature coverage beyond author's own work"
       ],
       "meta_raw": {
         "deeper_dive_recommended": false,
         "confidence": "high",
         "focus_areas": [
-          "statistical significance of reported gains",
-          "scalability analysis under heavy occlusion",
-          "comparison with perception-aware planning baselines"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "q-bio.BM",
-      "title": "Hermes: Large DEL Datasets Train Generalizable Protein-Ligand Binding Prediction Models",
-      "full_text_len": 58783,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "evaluation methodology validity - especially synthetic decoy biases and their effect on reported metrics",
-        "strength of generalization claims given XGBoost baseline outperformance on DEL Protein Split",
-        "statistical significance of per-protein AUROC improvements over random baseline given small positive sample sizes"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "evaluation methodology validity - especially synthetic decoy biases and their effect on reported metrics",
-          "strength of generalization claims given XGBoost baseline outperformance on DEL Protein Split",
-          "statistical significance of per-protein AUROC improvements over random baseline given small positive sample sizes"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "econ.GN",
-      "title": "How Wasteful is Signaling?",
-      "full_text_len": 45354,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "verification of Theorem 2 necessity argument",
-        "scope of multiplicative separability assumption"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "verification of Theorem 2 necessity argument",
-          "scope of multiplicative separability assumption"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.GT",
-      "title": "Searching for Optimal Prices in Two-Sided Markets",
-      "full_text_len": 140433,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "verification of the \u03a9(log log T / log log log log T) lower bound construction details",
-        "tightness of n-dependence in upper bounds and whether lower bounds in n can be established",
-        "gap between contextual GFT and profit regret rates and whether the O(n\u00b2d\u00b2log T) GFT bound is tight"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "verification of the \u03a9(log log T / log log log log T) lower bound construction details",
-          "tightness of n-dependence in upper bounds and whether lower bounds in n can be established",
-          "gap between contextual GFT and profit regret rates and whether the O(n\u00b2d\u00b2log T) GFT bound is tight"
+          "quantitative accuracy of surface chirality model predictions",
+          "comparison with organic dopant state-of-the-art",
+          "completeness of literature coverage beyond author's own work"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "physics.comp-ph",
-      "title": "Accelerated Markov Chain Monte Carlo Simulation via Neural Network-Driven Importance Sampling",
-      "full_text_len": 58181,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
+      "title": "A complete phase-field fracture model for brittle materials subjected to thermal shocks",
+      "full_text_len": 80758,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
       "focus_areas": [
-        "scalability claims vs evidence in 14D system",
-        "comparison with competing enhanced sampling methods"
+        "sensitivity analysis of strength parameters and their influence on results",
+        "validity of one-way thermal coupling assumption across the three problems",
+        "rigor of stochastic strength field implementation and its effect on reproducibility of results",
+        "mesh convergence and regularization length sensitivity"
       ],
       "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
         "focus_areas": [
-          "scalability claims vs evidence in 14D system",
-          "comparison with competing enhanced sampling methods"
+          "sensitivity analysis of strength parameters and their influence on results",
+          "validity of one-way thermal coupling assumption across the three problems",
+          "rigor of stochastic strength field implementation and its effect on reproducibility of results",
+          "mesh convergence and regularization length sensitivity"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "physics.comp-ph",
-      "title": "An intramembranous ossification model for the in-silico analysis of bone tissue formation in tooth extraction sites",
-      "full_text_len": 79601,
+      "title": "Physics-guided curriculum learning for the identification of reaction-diffusion dynamics from partial observations",
+      "full_text_len": 65714,
       "deeper_dive_recommended": false,
       "confidence": "high",
       "focus_areas": [
-        "parameter calibration independence from validation data",
-        "sensitivity analysis completeness"
+        "comparison with advanced PINN variants",
+        "sensitivity to threshold parameter tau",
+        "statistical robustness of reported results"
       ],
       "meta_raw": {
         "deeper_dive_recommended": false,
         "confidence": "high",
         "focus_areas": [
-          "parameter calibration independence from validation data",
-          "sensitivity analysis completeness"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "q-bio.BM",
-      "title": "Entropy Transfer Throughout the Structure of PDZ-2 and TIM-Barrel Proteins. A Dynamic Gaussian Network Model Study",
-      "full_text_len": 31553,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "quantitative validation of allosteric pathway predictions",
-        "statistical significance of asymmetric entropy transfer",
-        "circularity concerns with GNM contact-topology dependence"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "quantitative validation of allosteric pathway predictions",
-          "statistical significance of asymmetric entropy transfer",
-          "circularity concerns with GNM contact-topology dependence"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "econ.GN",
-      "title": "Liabilities for the social cost of carbon",
-      "full_text_len": 79230,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "income elasticity sensitivity",
-        "Lindahl vs equity-weighted pricing implications",
-        "historical debt methodology limitations"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "income elasticity sensitivity",
-          "Lindahl vs equity-weighted pricing implications",
-          "historical debt methodology limitations"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "q-bio.BM",
-      "title": "Controlling Repetition in Protein Language Models",
-      "full_text_len": 145038,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "validation of metric weighting choices",
-        "impact on biologically functional repeats",
-        "comparison with concurrent protein steering methods"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "validation of metric weighting choices",
-          "impact on biologically functional repeats",
-          "comparison with concurrent protein steering methods"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.GT",
-      "title": "Offline Learning of Nash Stable Coalition Structures with Possibly Overlapping Coalitions",
-      "full_text_len": 155641,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "optimality claims verification against cited lower bounds",
-        "tightness of coverage coefficient bounds"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "optimality claims verification against cited lower bounds",
-          "tightness of coverage coefficient bounds"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.GT",
-      "title": "The Complexity of Strategic Behavior in Primary Elections",
-      "full_text_len": 56216,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "Verification of Sigma_2^P hardness proof details (Theorem 5 backward direction)",
-        "Whether hardness results hold under single-primary/closed-primary restrictions",
-        "Correctness of SPNE hardness reduction reusing NE gadgets (Theorem 7)"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "Verification of Sigma_2^P hardness proof details (Theorem 5 backward direction)",
-          "Whether hardness results hold under single-primary/closed-primary restrictions",
-          "Correctness of SPNE hardness reduction reusing NE gadgets (Theorem 7)"
+          "comparison with advanced PINN variants",
+          "sensitivity to threshold parameter tau",
+          "statistical robustness of reported results"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "cs.RO",
-      "title": "HiWET: Hierarchical World-Frame End-Effector Tracking for Long-Horizon Humanoid Loco-Manipulation",
-      "full_text_len": 52896,
+      "title": "Decentralized Intent-Based Multi-Robot Task Planner with LLM Oracles on Hyperledger Fabric",
+      "full_text_len": 42012,
       "deeper_dive_recommended": false,
       "confidence": "high",
       "focus_areas": [
-        "real-world experimental validation completeness",
-        "baseline comparison fairness",
-        "reward function sensitivity analysis"
+        "experimental methodology adequacy",
+        "novelty of LCS aggregation vs other sequence metrics",
+        "blockchain overhead analysis"
       ],
       "meta_raw": {
         "deeper_dive_recommended": false,
         "confidence": "high",
         "focus_areas": [
-          "real-world experimental validation completeness",
-          "baseline comparison fairness",
-          "reward function sensitivity analysis"
+          "experimental methodology adequacy",
+          "novelty of LCS aggregation vs other sequence metrics",
+          "blockchain overhead analysis"
         ]
       },
       "parse_ok": true
     },
     {
-      "category": "cs.DC",
-      "title": "Grappa: Gradient-Only Communication for Scalable Graph Neural Network Training",
-      "full_text_len": 82069,
+      "category": "cs.RO",
+      "title": "HybridFlow: A Two-Step Generative Policy for Robotic Manipulation",
+      "full_text_len": 37086,
       "deeper_dive_recommended": true,
       "confidence": "medium",
       "focus_areas": [
-        "validity of i.i.d. gradient assumption in Theorem 3.2 and its practical implications",
-        "whether the dropout-like regularization claim is substantiated or speculative",
-        "coverage guarantee completeness for large partition counts and convergence rate implications",
-        "comparison fairness \u2014 missing recent communication-optimized baselines"
+        "completeness of baseline comparisons in real-world experiments",
+        "validity of error propagation analysis assumptions",
+        "disentangling encoder contribution from inference mechanism contribution",
+        "statistical significance of reported improvements"
       ],
       "meta_raw": {
         "deeper_dive_recommended": true,
         "confidence": "medium",
         "focus_areas": [
-          "validity of i.i.d. gradient assumption in Theorem 3.2 and its practical implications",
-          "whether the dropout-like regularization claim is substantiated or speculative",
-          "coverage guarantee completeness for large partition counts and convergence rate implications",
-          "comparison fairness \u2014 missing recent communication-optimized baselines"
+          "completeness of baseline comparisons in real-world experiments",
+          "validity of error propagation analysis assumptions",
+          "disentangling encoder contribution from inference mechanism contribution",
+          "statistical significance of reported improvements"
         ]
       },
       "parse_ok": true
     },
     {
-      "category": "q-bio.BM",
-      "title": "DeepPNI: Language- and graph-based model for mutation-driven protein-nucleic acid energetics",
-      "full_text_len": 49342,
+      "category": "physics.comp-ph",
+      "title": "Electrohydrodynamic instability of Cu, W and Ti metal nanomelts under radiofrequency E-fields from multiphysics molecular dynamics simulations with coarse-grained density field analysis",
+      "full_text_len": 83411,
       "deeper_dive_recommended": true,
       "confidence": "medium",
       "focus_areas": [
-        "outlier removal methodology and its impact on claimed performance",
-        "data leakage analysis between PremPDI benchmark and training set",
-        "mutant identity encoding - how does the model distinguish different mutations at the same position",
-        "statistical significance of performance differences vs baselines"
+        "validity of Einstein-Helfand viscosity calculation in non-equilibrium far-from-equilibrium conditions",
+        "physical interpretation of anomalously high nanomelt viscosity values",
+        "assessment of whether the disagreement for Cu and Ti fundamentally undermines the bridging framework",
+        "validation of EAM potentials under extreme electric field and temperature conditions"
       ],
       "meta_raw": {
         "deeper_dive_recommended": true,
         "confidence": "medium",
         "focus_areas": [
-          "outlier removal methodology and its impact on claimed performance",
-          "data leakage analysis between PremPDI benchmark and training set",
-          "mutant identity encoding - how does the model distinguish different mutations at the same position",
-          "statistical significance of performance differences vs baselines"
+          "validity of Einstein-Helfand viscosity calculation in non-equilibrium far-from-equilibrium conditions",
+          "physical interpretation of anomalously high nanomelt viscosity values",
+          "assessment of whether the disagreement for Cu and Ti fundamentally undermines the bridging framework",
+          "validation of EAM potentials under extreme electric field and temperature conditions"
         ]
       },
       "parse_ok": true
     },
     {
-      "category": "cs.DC",
-      "title": "PROBE: Co-Balancing Computation and Communication in MoE Inference via Real-Time Predictive Prefetching",
-      "full_text_len": 59693,
+      "category": "cs.RO",
+      "title": "Mind the Gap: Learning Implicit Impedance in Visuomotor Policies via Intent-Execution Mismatch",
+      "full_text_len": 58144,
       "deeper_dive_recommended": true,
       "confidence": "medium",
       "focus_areas": [
-        "completeness of baseline comparisons against concurrent work (Grace-MoE, SpecMoE, Harmoeny)",
-        "robustness of greedy planner under worst-case scenarios and misprediction cascades",
-        "generalizability to multi-node and bandwidth-constrained configurations",
-        "missing ablation studies for individual component contributions"
+        "validity of monotonic impedance assumption under dynamic/impact conditions",
+        "comparison with motor-current-based force estimation baselines",
+        "statistical significance of reported success rates",
+        "analysis of what internal representations the network actually learns for system identification"
       ],
       "meta_raw": {
         "deeper_dive_recommended": true,
         "confidence": "medium",
         "focus_areas": [
-          "completeness of baseline comparisons against concurrent work (Grace-MoE, SpecMoE, Harmoeny)",
-          "robustness of greedy planner under worst-case scenarios and misprediction cascades",
-          "generalizability to multi-node and bandwidth-constrained configurations",
-          "missing ablation studies for individual component contributions"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.DC",
-      "title": "vLLM-Omni: Fully Disaggregated Serving for Any-to-Any Multimodal Models",
-      "full_text_len": 57907,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "baseline fairness analysis",
-        "ablation of disaggregation vs inherited optimizations",
-        "scaling behavior"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "baseline fairness analysis",
-          "ablation of disaggregation vs inherited optimizations",
-          "scaling behavior"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "q-bio.BM",
-      "title": "Minimal-Action Discrete Schr\u00f6dinger Bridge Matching for Peptide Sequence Design",
-      "full_text_len": 72142,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "gap between theoretical assumptions and practical training (bridge marginal approximation)",
-        "circularity in ESM-2 as both reference process and evaluation metric",
-        "validity of Proposition 4.3 proof given approximate interpolation scheme",
-        "binding affinity evaluation methodology and potential overfitting to surrogate"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "gap between theoretical assumptions and practical training (bridge marginal approximation)",
-          "circularity in ESM-2 as both reference process and evaluation metric",
-          "validity of Proposition 4.3 proof given approximate interpolation scheme",
-          "binding affinity evaluation methodology and potential overfitting to surrogate"
+          "validity of monotonic impedance assumption under dynamic/impact conditions",
+          "comparison with motor-current-based force estimation baselines",
+          "statistical significance of reported success rates",
+          "analysis of what internal representations the network actually learns for system identification"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "physics.chem-ph",
-      "title": "El Agente Estructural: An Artificially Intelligent Molecular Editor",
-      "full_text_len": 126183,
-      "deeper_dive_recommended": null,
-      "confidence": null,
-      "focus_areas": [],
-      "meta_raw": null,
-      "parse_ok": false,
-      "error": "Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 5347.748564450011, Max budget: 5347.602686690502"
-    },
-    {
-      "category": "chemrxiv.IC",
-      "title": "A Near-Infrared-Absorbing Osmium(II) Complex as a Photosensitizer for Photodynamic Therapy inducing Immunogenic Cell Death",
-      "full_text_len": 116913,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "statistical power of in vivo experiments",
-        "structure-activity relationship between singlet oxygen quantum yield and phototoxicity"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "statistical power of in vivo experiments",
-          "structure-activity relationship between singlet oxygen quantum yield and phototoxicity"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "econ.GN",
-      "title": "Some properties of a production function",
-      "full_text_len": 10013,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "completeness of concavity proof",
-        "necessity vs sufficiency of parameter restrictions"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "completeness of concavity proof",
-          "necessity vs sufficiency of parameter restrictions"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "physics.comp-ph",
-      "title": "An $O(\\log N)$ Monte Carlo method for periodic Coulomb systems",
-      "full_text_len": 64865,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "GPU/parallel scalability claims or gaps",
-        "numerical stability of absolute-coordinate convention at high precision (Remark 4.1)",
-        "tree rebalancing correctness under extreme clustering"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "GPU/parallel scalability claims or gaps",
-          "numerical stability of absolute-coordinate convention at high precision (Remark 4.1)",
-          "tree rebalancing correctness under extreme clustering"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "econ.GN",
-      "title": "AI Skills Improve Job Prospects: Causal Evidence from a Hiring Experiment",
-      "full_text_len": 88933,
+      "title": "UGA-SSMRPT2 -- A Multireference Perturbation Theory Predicting Accurate Electronic Excitation Energies in Diverse Molecular Systems",
+      "full_text_len": 109256,
       "deeper_dive_recommended": true,
       "confidence": "medium",
       "focus_areas": [
-        "sample representativeness and Prolific platform selection effects",
-        "multiple comparison corrections across subgroup analyses",
-        "potential demand characteristics and social desirability despite forced-choice design",
-        "whether effect sizes from conjoint experiments translate to real-world hiring decisions"
+        "comparison fairness with CASPT2+IPEA and PC-NEVPT2",
+        "active space sensitivity analysis and potential error cancellation with minimal CAS",
+        "scaling claims versus practical computational feasibility for larger systems",
+        "statistical analysis robustness given small sample sizes in some categories"
       ],
       "meta_raw": {
         "deeper_dive_recommended": true,
         "confidence": "medium",
         "focus_areas": [
-          "sample representativeness and Prolific platform selection effects",
-          "multiple comparison corrections across subgroup analyses",
-          "potential demand characteristics and social desirability despite forced-choice design",
-          "whether effect sizes from conjoint experiments translate to real-world hiring decisions"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "physics.comp-ph",
-      "title": "A volume penalization method for solving conjugate scalar transport with interfacial jump conditions",
-      "full_text_len": 49496,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "accuracy analysis for curved interfaces",
-        "computational cost comparison with alternatives",
-        "parameter sensitivity of K\u03b4"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "accuracy analysis for curved interfaces",
-          "computational cost comparison with alternatives",
-          "parameter sensitivity of K\u03b4"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "physics.chem-ph",
-      "title": "Efficient Calculation of Absorption Spectra of Platinum Complexes Used as Luminescent Probes for Cancer Detection",
-      "full_text_len": 141783,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "experimental validation adequacy",
-        "generalizability of functional recommendations beyond single system"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "experimental validation adequacy",
-          "generalizability of functional recommendations beyond single system"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.RO",
-      "title": "WoVR: World Models as Reliable Simulators for Post-Training VLA Policies with RL",
-      "full_text_len": 62881,
-      "deeper_dive_recommended": null,
-      "confidence": null,
-      "focus_areas": [],
-      "meta_raw": null,
-      "parse_ok": false,
-      "error": "Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 5352.38389945001, Max budget: 5351.602686690502"
-    },
-    {
-      "category": "physics.chem-ph",
-      "title": "fix pimd/langevin: An Efficient Implementation of Path Integral Molecular Dynamics in LAMMPS",
-      "full_text_len": 60676,
-      "deeper_dive_recommended": null,
-      "confidence": null,
-      "focus_areas": [],
-      "meta_raw": null,
-      "parse_ok": false,
-      "error": "Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 5352.38389945001, Max budget: 5351.602686690502"
-    },
-    {
-      "category": "cs.GT",
-      "title": "Independence of Approximate Clones",
-      "full_text_len": 62903,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "verification of Theorem 4.5 proof details",
-        "assessment of empirical methodology for truncated ballot handling"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "verification of Theorem 4.5 proof details",
-          "assessment of empirical methodology for truncated ballot handling"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.RO",
-      "title": "An Autonomous, End-to-End, Convex-Based Framework for Close-Range Rendezvous Trajectory Design and Guidance with Hardware Testbed Validation",
-      "full_text_len": 70993,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "perception pipeline integration details",
-        "formal robustness guarantees for closed-loop system",
-        "scalability of convex formulation to non-circular orbits"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "perception pipeline integration details",
-          "formal robustness guarantees for closed-loop system",
-          "scalability of convex formulation to non-circular orbits"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "physics.comp-ph",
-      "title": "Numerical study of loss of hyperbolicity using a cold plasma model",
-      "full_text_len": 38024,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "stability analysis completeness",
-        "convergence properties of implicit scheme for Jordan block systems"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "stability analysis completeness",
-          "convergence properties of implicit scheme for Jordan block systems"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.RO",
-      "title": "Active Localization of Unstable Systems with Coarse Information",
-      "full_text_len": 49530,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "tightness of condition (22) and whether it can be relaxed",
-        "verification of Proposition 6.2 proof details and whether the bound is tight",
-        "scalability analysis of the SVP construction and set-based estimation in higher dimensions",
-        "whether the mixed stable/unstable eigenvalue case can be handled with minor modifications"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "tightness of condition (22) and whether it can be relaxed",
-          "verification of Proposition 6.2 proof details and whether the bound is tight",
-          "scalability analysis of the SVP construction and set-based estimation in higher dimensions",
-          "whether the mixed stable/unstable eigenvalue case can be handled with minor modifications"
+          "comparison fairness with CASPT2+IPEA and PC-NEVPT2",
+          "active space sensitivity analysis and potential error cancellation with minimal CAS",
+          "scaling claims versus practical computational feasibility for larger systems",
+          "statistical analysis robustness given small sample sizes in some categories"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "chemrxiv.IC",
-      "title": "Separations by Excited State Quenching (SES-Q) an Emerging Concept for Reactive Rare Earth Separations",
-      "full_text_len": 87283,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
+      "title": "Adsorbate-Induced Reversible Changes in Zeolite ZEO-5 Attributed to its Triple-Four-Silicate-Rings",
+      "full_text_len": 59588,
+      "deeper_dive_recommended": true,
+      "confidence": "medium",
       "focus_areas": [
-        "quantitative feasibility analysis of separation factors",
-        "practical scalability considerations"
+        "quantitative consistency between NMR deconvolution and proposed structural models",
+        "validity of ammonia PSA comparison with commercial zeolites under equivalent conditions",
+        "assessment of whether 800\u00b0C recalcination truly restores identical structure or subtly different material",
+        "long-term cycling degradation implications from the ~12% porosity loss per cycle"
       ],
       "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
+        "deeper_dive_recommended": true,
+        "confidence": "medium",
         "focus_areas": [
-          "quantitative feasibility analysis of separation factors",
-          "practical scalability considerations"
+          "quantitative consistency between NMR deconvolution and proposed structural models",
+          "validity of ammonia PSA comparison with commercial zeolites under equivalent conditions",
+          "assessment of whether 800\u00b0C recalcination truly restores identical structure or subtly different material",
+          "long-term cycling degradation implications from the ~12% porosity loss per cycle"
         ]
       },
       "parse_ok": true
     },
     {
-      "category": "physics.chem-ph",
-      "title": "Initial Guesses for Multicomponent Mean-Field Methods: Assessment and New Developments",
-      "full_text_len": 48291,
+      "category": "cs.GT",
+      "title": "Signaling in Data Markets via Free Samples",
+      "full_text_len": 65821,
       "deeper_dive_recommended": false,
       "confidence": "high",
       "focus_areas": [
-        "benchmarking completeness",
-        "statistical significance of iteration count differences"
+        "tightness of parameter conditions in Theorem 1",
+        "explicit characterization of threshold K-bar in Theorem 2",
+        "robustness to continuous quality types"
       ],
       "meta_raw": {
         "deeper_dive_recommended": false,
         "confidence": "high",
         "focus_areas": [
-          "benchmarking completeness",
-          "statistical significance of iteration count differences"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.DC",
-      "title": "Classification of Local Optimization Problems in Directed Cycles",
-      "full_text_len": 76998,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "upper bound proof details for class B",
-        "completeness of case analysis in classification tables"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "upper bound proof details for class B",
-          "completeness of case analysis in classification tables"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "physics.chem-ph",
-      "title": "Neural Quantum States Based on Selected Configurations",
-      "full_text_len": 40632,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "scalability analysis to larger systems",
-        "computational cost comparison between NQS-SC and NQS-VMC"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "scalability analysis to larger systems",
-          "computational cost comparison between NQS-SC and NQS-VMC"
+          "tightness of parameter conditions in Theorem 1",
+          "explicit characterization of threshold K-bar in Theorem 2",
+          "robustness to continuous quality types"
         ]
       },
       "parse_ok": true
     },
     {
       "category": "physics.comp-ph",
-      "title": "Neural Hodge Corrective Solvers: A Hybrid Iterative-Neural Framework",
-      "full_text_len": 55813,
+      "title": "Bayesian identification of fibrous insulation thermal conductivity towards design of spacecraft thermal protection systems",
+      "full_text_len": 64055,
       "deeper_dive_recommended": true,
       "confidence": "medium",
       "focus_areas": [
-        "convergence analysis of the Richardson iteration with learned operators",
-        "scalability claims and O(n^4) limitation implications",
-        "fairness of HINTS comparison setup and hyperparameter choices",
-        "stability of residual trajectories especially the increasing trend in Poisson case"
+        "convergence diagnostics for NSGLD sampling",
+        "sensitivity analysis of hyperparameters (beta, M, N)",
+        "comparison against baseline extrapolation methods to quantify added value",
+        "validity of error metrics in entry simulations relative to TPS design margins"
       ],
       "meta_raw": {
         "deeper_dive_recommended": true,
         "confidence": "medium",
         "focus_areas": [
-          "convergence analysis of the Richardson iteration with learned operators",
-          "scalability claims and O(n^4) limitation implications",
-          "fairness of HINTS comparison setup and hyperparameter choices",
-          "stability of residual trajectories especially the increasing trend in Poisson case"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.DC",
-      "title": "Pending Conflicts Make Progress Impossible",
-      "full_text_len": 24097,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "Verification of Lemma 4 case analysis (critical step argument)",
-        "Whether the impossibility extends to or is circumvented by CAS/LL-SC primitives",
-        "Comparison with related progress conditions (k-obstruction-freedom, solo-fast)"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "Verification of Lemma 4 case analysis (critical step argument)",
-          "Whether the impossibility extends to or is circumvented by CAS/LL-SC primitives",
-          "Comparison with related progress conditions (k-obstruction-freedom, solo-fast)"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "cs.DC",
-      "title": "It's not a lie if you don't get caught: simplifying reconfiguration in SMR through dirty logs",
-      "full_text_len": 38175,
-      "deeper_dive_recommended": null,
-      "confidence": null,
-      "focus_areas": [],
-      "meta_raw": null,
-      "parse_ok": false,
-      "error": "Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 5364.4056456500075, Max budget: 5363.602686690502"
-    },
-    {
-      "category": "cs.GT",
-      "title": "Computing Perfect Bayesian Equilibria, with Application to Empirical Game-Theoretic Analysis",
-      "full_text_len": 101694,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "correctness of convergence proof extension from local to full sequential rationality (Lemma 4.6)",
-        "validity of UpdateBeliefs design choices for off-equilibrium paths and their effect on equilibrium selection",
-        "whether the zero-sum convergence proof has subtle gaps when beliefs change across iterations"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "correctness of convergence proof extension from local to full sequential rationality (Lemma 4.6)",
-          "validity of UpdateBeliefs design choices for off-equilibrium paths and their effect on equilibrium selection",
-          "whether the zero-sum convergence proof has subtle gaps when beliefs change across iterations"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "physics.chem-ph",
-      "title": "Harmonic-to-anharmonic thermodynamic integration made simple using REG TI",
-      "full_text_len": 30821,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "comparison with adiabatic free-energy dynamics regularization",
-        "systematic convergence with m and lambda grid density"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "comparison with adiabatic free-energy dynamics regularization",
-          "systematic convergence with m and lambda grid density"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "chemrxiv.IC",
-      "title": "Improving Thermal Cycling Stability and Magnetocaloric Efficiency through Orbital Competition and Entropy Engineering in RE11Rh4In9, 4d-4f Layered Intermetallics",
-      "full_text_len": 64443,
-      "deeper_dive_recommended": false,
-      "confidence": "high",
-      "focus_areas": [
-        "DFT methodology validation and U parameter justification",
-        "thermal cycling stability claims versus evidence"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": false,
-        "confidence": "high",
-        "focus_areas": [
-          "DFT methodology validation and U parameter justification",
-          "thermal cycling stability claims versus evidence"
-        ]
-      },
-      "parse_ok": true
-    },
-    {
-      "category": "q-bio.BM",
-      "title": "Realistic Transition Paths for Large Biomolecular Systems: A Langevin Bridge Approach",
-      "full_text_len": 84604,
-      "deeper_dive_recommended": true,
-      "confidence": "medium",
-      "focus_areas": [
-        "validity of the straight-line path approximation and conditions under which it breaks down",
-        "statistical analysis of trajectory variability across multiple stochastic realizations",
-        "verification that the low-temperature regime assumption holds for the test cases presented"
-      ],
-      "meta_raw": {
-        "deeper_dive_recommended": true,
-        "confidence": "medium",
-        "focus_areas": [
-          "validity of the straight-line path approximation and conditions under which it breaks down",
-          "statistical analysis of trajectory variability across multiple stochastic realizations",
-          "verification that the low-temperature regime assumption holds for the test cases presented"
+          "convergence diagnostics for NSGLD sampling",
+          "sensitivity analysis of hyperparameters (beta, M, N)",
+          "comparison against baseline extrapolation methods to quantify added value",
+          "validity of error metrics in entry simulations relative to TPS design margins"
         ]
       },
       "parse_ok": true
