@@ -28,6 +28,16 @@ PARALLEL = 5
 
 _BUDGET_KEYWORDS = ("budget", "balance", "insufficient", "credit", "quota")
 
+
+def _make_keys(dataset_id: str) -> dict:
+    """Generate DB keys for a given dataset experiment."""
+    slug = dataset_id.replace("-", "_")
+    return {
+        "experiment": f"deep_dive_{slug}",
+        "progress": f"deep_dive_{slug}_progress",
+        "replays": f"deep_dive_{slug}_replays",
+    }
+
 # --- Prompts ---
 
 STEP2_PROMPT = {
