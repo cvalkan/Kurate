@@ -4244,12 +4244,7 @@ async def _run_deeper_dive_experiment(total_papers: int, provider: str, model_na
                     system_message=_DEEPER_DIVE_PROMPT["system_prompt"],
                 ).with_model(provider, model_name)
 
-                loop = asyncio.get_event_loop()
-                response = await loop.run_in_executor(
-                    None,
-                    lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
-                )
-                response_text = response.strip() if isinstance(response, str) else str(response)
+                response_text = await _call_llm_with_budget_retry(chat, prompt, label=f"experiment:{title[:30]}")
 
                 # Extract JSON block
                 meta = None
