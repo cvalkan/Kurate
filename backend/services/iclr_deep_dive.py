@@ -320,9 +320,7 @@ async def run_step4():
         papers[p["id"]] = p
 
     total = len(remaining)
-    done = 0
-    errors = 0
-    await _update_progress("step4", done, total)
+    await _update_progress("step4", 0, total)
 
     from core.config import DEFAULT_EVALUATION_PROMPT
 
