@@ -72,7 +72,13 @@ export default function DeeperDiveSection() {
 
   return (
     <div className="space-y-6" data-testid="deeper-dive-experiment">
-      {/* Enhancement progress banner */}
+      {/* Progress banners */}
+      {experimenting && (
+        <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
+          <span className="text-sm text-blue-900">Analyzing papers... {expDone}/{expTotal} ({expErrors} errors)</span>
+        </div>
+      )}
       {enhancing && (
         <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <RefreshCw className="h-4 w-4 animate-spin text-amber-600" />
