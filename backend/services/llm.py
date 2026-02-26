@@ -15,19 +15,9 @@ from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_
 # Dedicated thread pool for LLM calls — default pool (8 threads) bottlenecks parallel evals
 _llm_executor = ThreadPoolExecutor(max_workers=100, thread_name_prefix="llm")
 
-# Conservative context-window limits per model (chars). ~4 chars/token.
-# Leaves headroom for system prompt + output tokens.
-_MODEL_CHAR_LIMITS = {
-    "gpt-5.2":                  480_000,   # 128k ctx → ~120k input tokens
-    "claude-opus-4-6":          720_000,   # 200k ctx → ~180k input tokens
-    "claude-opus-4-5-20251101": 720_000,
-    "gemini-3-pro-preview":     720_000,   # 1M ctx, but stay conservative
-}
-_DEFAULT_CHAR_LIMIT = 480_000  # safe fallback
-
 _TOKEN_LIMIT_KEYWORDS = ("token", "context_length", "context length", "too long", "too many tokens",
                          "maximum context", "max_tokens", "content_too_large", "request too large",
-                         "rate_limit", "input too long", "payload too large")
+                         "input too long", "payload too large")
 
 
 async def download_and_extract_pdf(pdf_url: str, doi: str = None) -> Optional[str]:
@@ -588,20 +578,13 @@ def _pick_round_robin_model() -> Dict[str, str]:
     return model
 
 
-def _build_full_pdf_content(paper: dict, char_limit: int = None, model: str = None) -> str:
-    """Build paper content using the full PDF text (no section extraction).
-    
-    If char_limit is not provided, uses the model-specific context limit.
-    """
-    if char_limit is None:
-        char_limit = _MODEL_CHAR_LIMITS.get(model, _DEFAULT_CHAR_LIMIT) if model else _DEFAULT_CHAR_LIMIT
+def _build_full_pdf_content(paper: dict, char_limit: int = None) -> str:
+    """Build paper content using the full PDF text. No truncation unless char_limit is set."""
     abstract = paper.get("abstract", "")
     full_text = paper.get("full_text", "")
     if full_text:
-        content = f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text[:char_limit]}"
-        if len(full_text) > char_limit:
-            content += "\n[...remainder truncated...]"
-        return content
+        text = full_text[:char_limit] if char_limit else full_text
+        return f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{text}"
     return f"Abstract: {abstract[:1500]}"
 
 
