@@ -4416,3 +4416,62 @@ async def replay_results():
     from services.replay import compute_replay_analysis
     analysis = await compute_replay_analysis()
     return {"status": "ok", "analysis": analysis, "total_replays": count}
+
+
+# --- ICLR Deep Dive Full Pipeline ---
+
+@router.post("/iclr-deep-dive/run", dependencies=[Depends(verify_admin)])
+async def start_iclr_deep_dive():
+    """Run the full ICLR deep dive pipeline (steps 2-4)."""
+    prog = await db.settings.find_one({"key": "iclr_deep_dive_progress"}, {"_id": 0})
+    if prog and prog.get("running"):
+        raise HTTPException(409, "Pipeline already running")
+
+    async def _bg():
+        try:
+            from services.iclr_deep_dive import run_full_pipeline
+            await run_full_pipeline()
+        except Exception as e:
+            logger.error(f"ICLR deep dive pipeline failed: {e}")
+            await db.settings.update_one(
+                {"key": "iclr_deep_dive_progress"},
+                {"$set": {"running": False, "error": str(e)[:500]}},
+            )
+
+    asyncio.create_task(_bg())
+    return {"status": "started", "dataset": "iclr-codegen", "steps": ["step2", "step3", "step4"]}
+
+
+@router.get("/iclr-deep-dive/status")
+async def iclr_deep_dive_status():
+    """Check pipeline progress."""
+    prog = await db.settings.find_one({"key": "iclr_deep_dive_progress"}, {"_id": 0})
+    return prog or {"running": False, "step": None, "done": 0, "total": 0}
+
+
+@router.get("/iclr-deep-dive/results")
+async def iclr_deep_dive_results():
+    """Get experiment data and analysis."""
+    doc = await db.settings.find_one({"key": "iclr_deep_dive_experiment"}, {"_id": 0})
+    if not doc:
+        return {"status": "no_data"}
+
+    # Live analysis from replay collection
+    from services.iclr_deep_dive import compute_analysis
+    replay_count = await db.iclr_deep_dive_replays.count_documents({})
+    analysis = await compute_analysis() if replay_count > 0 else None
+
+    papers = doc.get("papers", [])
+    step2_done = sum(1 for p in papers if p.get("step2_assessment"))
+    step3_done = sum(1 for p in papers if p.get("step3_assessment"))
+
+    return {
+        "status": "ok",
+        "dataset": doc.get("dataset_id", "iclr-codegen"),
+        "total_papers": len(papers),
+        "step2_done": step2_done,
+        "step3_done": step3_done,
+        "replay_count": replay_count,
+        "analysis": analysis,
+        "papers": papers,
+    }
