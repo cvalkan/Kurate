@@ -4368,14 +4368,12 @@ async def start_replay_experiment(request: Request):
     """Start the match replay experiment (control + treatment conditions)."""
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     max_pairs = body.get("max_pairs", 200)
-    conditions = body.get("conditions", ["control", "treatment"])
     parallel = body.get("parallel", 3)
 
     prog = await db.settings.find_one({"key": "replay_progress"}, {"_id": 0})
     if prog and prog.get("running"):
         raise HTTPException(409, "Replay experiment already running")
 
-    # Preview mode
     if body.get("dry_run"):
         from services.replay import select_replay_pairs
         selection = await select_replay_pairs(max_pairs=max_pairs)
@@ -4383,18 +4381,17 @@ async def start_replay_experiment(request: Request):
             "dry_run": True,
             "pairs": len(selection["pairs"]),
             "strata": selection["strata"],
-            "conditions": conditions,
-            "total_replays": len(selection["pairs"]) * len(conditions),
+            "total_replays": len(selection["pairs"]) * 2,
         }
 
-    asyncio.create_task(_run_replay_bg(max_pairs, conditions, parallel))
-    return {"status": "started", "max_pairs": max_pairs, "conditions": conditions}
+    asyncio.create_task(_run_replay_bg(max_pairs, parallel))
+    return {"status": "started", "max_pairs": max_pairs}
 
 
-async def _run_replay_bg(max_pairs, conditions, parallel):
+async def _run_replay_bg(max_pairs, parallel):
     try:
         from services.replay import run_replay_experiment
-        await run_replay_experiment(max_pairs=max_pairs, conditions=conditions, parallel=parallel)
+        await run_replay_experiment(max_pairs=max_pairs, parallel=parallel)
     except Exception as e:
         logger.error(f"Replay experiment failed: {e}")
         await db.settings.update_one(
