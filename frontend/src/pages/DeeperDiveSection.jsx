@@ -23,7 +23,7 @@ export default function DeeperDiveSection() {
   useEffect(() => { fetchResults(); }, []);
 
   // Auto-refresh while experiment or enhancement is running
-  const isRunning = data?.enhance_progress?.running || data?.status === "no_data";
+  const isRunning = data?.enhance_progress?.running || data?.experiment_progress?.running || data?.status === "no_data";
   useEffect(() => {
     if (!isRunning) return;
     const iv = setInterval(fetchResults, 8000);
