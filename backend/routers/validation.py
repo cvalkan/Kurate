@@ -4101,14 +4101,15 @@ async def _run_enhance_assessments():
                 enhanced_text = await _call_llm_with_budget_retry(chat, prompt, label=f"enhance:{r['title'][:30]}")
 
                 if enhanced_text and len(enhanced_text) > 100:
-                    results[i]["enhanced_assessment"] = enhanced_text
-                    results[i]["original_assessment"] = original
-                    # Save after each successful enhancement
+                    # Write by matching title in the array (index-safe)
                     await db.settings.update_one(
-                        {"key": "deeper_dive_experiment"},
-                        {"$set": {f"results.{i}.enhanced_assessment": enhanced_text,
-                                   f"results.{i}.original_assessment": original}},
+                        {"key": "deeper_dive_experiment", "results.title": r["title"]},
+                        {"$set": {
+                            "results.$.enhanced_assessment": enhanced_text,
+                            "results.$.original_assessment": original,
+                        }},
                     )
+                    logger.info(f"Enhanced: {r['title'][:50]}")
                 else:
                     errors += 1
             except Exception as e:
