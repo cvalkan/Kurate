@@ -43,11 +43,15 @@ export default function DeeperDiveSection() {
     );
   }
 
-  const { summary, results, enhance_progress } = data;
+  const { summary, results, enhance_progress, experiment_progress } = data;
   const categories = [...new Set(results.map(r => r.category))].sort();
   const enhancing = enhance_progress?.running;
   const enhanceDone = enhance_progress?.done || 0;
   const enhanceTotal = enhance_progress?.total || 0;
+  const experimenting = experiment_progress?.running;
+  const expDone = experiment_progress?.done || 0;
+  const expTotal = experiment_progress?.total || 0;
+  const expErrors = experiment_progress?.errors || 0;
 
   // Filter
   let filtered = results.filter(r => r.parse_ok !== false);
