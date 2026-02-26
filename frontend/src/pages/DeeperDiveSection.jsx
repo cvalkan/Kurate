@@ -103,6 +103,20 @@ export default function DeeperDiveSection() {
         <StatCard label="Enhanced" value={`${enhancedCount}/${recommendedCount}`} sub={enhancing ? "In progress..." : enhancedCount > 0 ? "Revised" : "Not started"} enhanced={enhancedCount > 0} />
       </div>
 
+      {/* Tab switcher */}
+      <div className="flex gap-1 border border-border rounded-lg p-0.5 w-fit" data-testid="dive-tab-switcher">
+        <button onClick={() => setTab("papers")}
+          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${tab === "papers" ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+          Paper Analysis ({summary.parsed})
+        </button>
+        <button onClick={() => setTab("replay")}
+          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${tab === "replay" ? "bg-violet-100 text-violet-800" : "text-muted-foreground hover:text-foreground"}`}>
+          Match Replay {replayStatus?.running && <RefreshCw className="h-3 w-3 animate-spin" />}
+          {replay?.status === "ok" && ` (${replay.analysis?.total_replays || 0})`}
+        </button>
+      </div>
+
+      {tab === "papers" && (<>
       {/* Two-column: confidence matrix + category bars */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="border border-border rounded-lg p-4">
