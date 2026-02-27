@@ -59,7 +59,7 @@ export default function ICLRDeepDiveSection({ datasetId = "iclr-codegen", label 
 
       {/* Step progress cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StepCard label="Papers" value={totalPapers} sub="ICLR Code Generation" />
+        <StepCard label="Papers" value={totalPapers} sub={label} />
         <StepCard
           label="Step 1: First Pass"
           value={`${step2Done}/${totalPapers}`}
