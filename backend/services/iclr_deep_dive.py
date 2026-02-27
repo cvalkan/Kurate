@@ -493,6 +493,9 @@ async def compute_analysis(dataset_id: str) -> dict:
     for g in paper_gt.values():
         gt_dimensions.update(g.keys())
 
+    common_pairs = set(baseline_by_pair.keys()) & set(dd_by_pair.keys())
+    flipped = sum(1 for pk in common_pairs if baseline_by_pair[pk]["winner_id"] != dd_by_pair[pk]["winner_id"])
+
     # Per-dimension pairwise agreement — computed on COMMON PAIRS ONLY for fair comparison
     dimension_agreement = {}
     for dim in gt_dimensions:
