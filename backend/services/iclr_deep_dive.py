@@ -683,31 +683,29 @@ async def compute_convergence_by_dimension(dataset_id: str, steps: int = 20) -> 
         # Sort by created_at
         matches.sort(key=lambda m: m.get("created_at", ""))
 
-        # Compute at each step
+        # Compute at each step using Bradley-Terry ranking
+        from ranking import compute_leaderboard_async
         curve_points = []
         for step_i in range(1, steps + 1):
-            n = max(1, int(len(matches) * step_i / steps))
+            n = max(10, int(len(matches) * step_i / steps))
             subset = matches[:n]
 
-            # Build Bradley-Terry win counts
-            wins = defaultdict(int)
-            total_matches = defaultdict(int)
+            covered_ids = set()
             for m in subset:
-                p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
-                wins[w] += 1
-                total_matches[p1] += 1
-                total_matches[p2] += 1
+                covered_ids.add(m["paper1_id"])
+                covered_ids.add(m["paper2_id"])
 
-            if len(total_matches) < 5:
+            if len(covered_ids) < 5:
                 continue
 
-            # Rank by win rate
-            win_rates = {}
-            for pid in total_matches:
-                win_rates[pid] = wins.get(pid, 0) / total_matches[pid]
+            # Build paper stubs for Bradley-Terry
+            paper_stubs = [{"id": pid, "title": ""} for pid in covered_ids]
+            try:
+                lb = await compute_leaderboard_async(paper_stubs, subset)
+            except Exception:
+                continue
 
-            ranked_pids = sorted(win_rates.keys(), key=lambda p: -win_rates[p])
-            ai_rank = {pid: i for i, pid in enumerate(ranked_pids)}
+            ai_rank = {e["id"]: e["rank"] for e in lb}
 
             # Compute Spearman against each GT dimension
             dim_correlations = {}
