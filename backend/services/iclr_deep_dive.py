@@ -616,7 +616,7 @@ async def compute_analysis(dataset_id: str) -> dict:
 
     return analysis
 
-async def compute_convergence_by_dimension(dataset_id: str, steps: int = 20) -> dict:
+async def compute_convergence_by_dimension(dataset_id: str, steps: int = 10) -> dict:
     """Compute ranking convergence against each GT dimension separately.
     
     For each content_mode (baseline, deep_dive), builds Bradley-Terry rankings
