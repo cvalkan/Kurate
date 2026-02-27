@@ -4473,9 +4473,44 @@ async def deep_dive_pipeline_status(dataset_id: str = Query("iclr-codegen")):
 
 @router.get("/deep-dive-pipeline/convergence")
 async def deep_dive_convergence(dataset_id: str = Query("iclr-codegen")):
-    """Convergence curves against all GT dimensions for both content modes."""
-    from services.iclr_deep_dive import compute_convergence_by_dimension
-    return await compute_convergence_by_dimension(dataset_id)
+    """Convergence curves against all GT dimensions. Returns cached result or triggers background computation."""
+    from services.iclr_deep_dive import _keys
+    keys = _keys(dataset_id)
+    cache_key = f"{keys['experiment']}_convergence"
+
+    # Check cache
+    cached = await db.settings.find_one({"key": cache_key}, {"_id": 0})
+    if cached and cached.get("data"):
+        # Check if stale
+        current_count = await db.validation_matches.count_documents(
+            {"dataset_id": dataset_id, "completed": True, "content_mode": {"$in": ["abstract_plus_summary", "deep_dive"]}}
+        )
+        if cached.get("match_count") != current_count:
+            # Trigger background refresh
+            asyncio.create_task(_refresh_convergence_cache(dataset_id))
+        return cached["data"]
+
+    # No cache — trigger computation and return empty
+    asyncio.create_task(_refresh_convergence_cache(dataset_id))
+    return {"dimensions": [], "curves": {}, "computing": True}
+
+
+async def _refresh_convergence_cache(dataset_id: str):
+    try:
+        from services.iclr_deep_dive import _compute_convergence_by_dimension_impl, _keys
+        keys = _keys(dataset_id)
+        cache_key = f"{keys['experiment']}_convergence"
+
+        result = await _compute_convergence_by_dimension_impl(dataset_id, steps=10)
+        match_count = sum(d.get("total_matches", 0) for d in result.get("curves", {}).values())
+        await db.settings.update_one(
+            {"key": cache_key},
+            {"$set": {"key": cache_key, "data": result, "match_count": match_count}},
+            upsert=True,
+        )
+        logger.info(f"Convergence cache refreshed for {dataset_id}: {match_count} matches")
+    except Exception as e:
+        logger.error(f"Convergence cache refresh failed for {dataset_id}: {e}")
 
 
 
