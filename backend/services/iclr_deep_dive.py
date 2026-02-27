@@ -859,15 +859,27 @@ async def run_fresh_tournament(dataset_id: str):
     ):
         papers[p["id"]] = p
 
-    # Generate round-robin pairs (random subset — full round-robin for 100 papers = 4,950 pairs)
+    # Generate round-robin pairs — only cross-tier pairs (different GT scores)
     import itertools
-    all_pairs = list(itertools.combinations(list(papers.keys()), 2))
+    
+    # Build GT scores for filtering
+    paper_gt = {}
+    for pid, p in papers.items():
+        evals = p.get("evaluations", [])
+        cs = p.get("composite_score")
+        if cs is not None:
+            paper_gt[pid] = cs
+        elif evals:
+            ratings = [ev["rating_value"] for ev in evals if ev.get("rating_value")]
+            if ratings:
+                paper_gt[pid] = sum(ratings) / len(ratings)
+    
+    all_pairs = [(a, b) for a, b in itertools.combinations(list(papers.keys()), 2)
+                 if a in paper_gt and b in paper_gt and paper_gt[a] != paper_gt[b]]
     random.shuffle(all_pairs)
-    # Use all pairs — with 100 papers that's 4,950 pairs × 2 conditions = 9,900 matches
-    # But to keep costs reasonable, limit to ~1,000 pairs (enough for convergence)
     max_pairs = min(len(all_pairs), 1000)
     pairs = all_pairs[:max_pairs]
-    logger.info(f"Fresh tournament: {len(pairs)} pairs selected")
+    logger.info(f"Fresh tournament: {len(pairs)} cross-tier pairs selected (from {len(all_pairs)} available)")
 
     # Check already completed
     existing_baseline = set()
