@@ -440,113 +440,123 @@ def _decision_tier(decision: str) -> int:
 # --- Analysis ---
 
 async def compute_analysis(dataset_id: str) -> dict:
-    keys = _keys(dataset_id)
-    replays = await db[keys["replays"]].find({}, {"_id": 0}).to_list(100000)
-    if not replays:
+    """Compute analysis by comparing baseline vs deep_dive validation_matches."""
+    # Load both baseline and deep_dive matches
+    baseline_matches = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": "abstract_plus_summary"},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(100000)
+    dd_matches = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": "deep_dive"},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(100000)
+
+    if not baseline_matches and not dd_matches:
         return {}
 
-    # Load paper data for GT computation
-    paper_ids = set()
-    for r in replays:
-        paper_ids.add(r["paper1_id"]); paper_ids.add(r["paper2_id"])
+    def _pair_key(m):
+        return tuple(sorted([m["paper1_id"], m["paper2_id"]]))
 
-    # Build per-paper ground truth scores across multiple dimensions
-    paper_gt = {}  # pid -> {"composite": float, "rigour": float, "presentation": float, "conclusions": float}
+    baseline_by_pair = {_pair_key(m): m for m in baseline_matches}
+    dd_by_pair = {_pair_key(m): m for m in dd_matches}
+
+    # Load paper GT
+    paper_ids = set()
+    for m in baseline_matches + dd_matches:
+        paper_ids.add(m["paper1_id"]); paper_ids.add(m["paper2_id"])
+
+    paper_gt = {}
     async for p in db.validation_papers.find(
-        {"id": {"$in": list(paper_ids)}},
+        {"id": {"$in": list(paper_ids)}, "dataset_id": dataset_id},
         {"_id": 0, "id": 1, "decision": 1, "evaluations": 1, "composite_score": 1},
     ):
         gt = {}
         tier = _decision_tier(p.get("decision", ""))
         if tier >= 0:
             gt["composite"] = tier
-
         evals = p.get("evaluations", [])
         if evals:
-            # Composite from stored score or avg rating
             if p.get("composite_score"):
                 gt["composite"] = p["composite_score"]
             else:
                 ratings = [ev["rating_value"] for ev in evals if ev.get("rating_value")]
                 if ratings:
-                    gt["composite"] = sum(ratings) / len(ratings)
-
-            # Per-dimension averages (ACMI-style)
+                    gt.setdefault("composite", sum(ratings) / len(ratings))
             for dim, field in [("rigour", "rigour_score"), ("presentation", "presentation_score"), ("conclusions", "conclusions_score")]:
                 vals = [ev[field] for ev in evals if ev.get(field)]
                 if vals:
                     gt[dim] = sum(vals) / len(vals)
-
         if gt:
             paper_gt[p["id"]] = gt
 
-    # Compute per-dimension pairwise agreement
     gt_dimensions = set()
     for g in paper_gt.values():
         gt_dimensions.update(g.keys())
 
+    # Per-dimension pairwise agreement for both modes
     dimension_agreement = {}
     for dim in gt_dimensions:
-        orig_agree = 0
-        dd_agree = 0
-        total = 0
-        for r in replays:
-            g1 = paper_gt.get(r["paper1_id"], {}).get(dim)
-            g2 = paper_gt.get(r["paper2_id"], {}).get(dim)
-            if g1 is None or g2 is None or g1 == g2:
-                continue
-            gt_winner = r["paper1_id"] if g1 > g2 else r["paper2_id"]
-            total += 1
-            if r.get("original_winner_id") == gt_winner:
-                orig_agree += 1
-            if r.get("replay_winner_id") == gt_winner:
-                dd_agree += 1
-        if total > 0:
+        bl_agree, dd_agree, bl_total, dd_total = 0, 0, 0, 0
+        for m in baseline_matches:
+            g1 = paper_gt.get(m["paper1_id"], {}).get(dim)
+            g2 = paper_gt.get(m["paper2_id"], {}).get(dim)
+            if g1 is None or g2 is None or g1 == g2: continue
+            gt_winner = m["paper1_id"] if g1 > g2 else m["paper2_id"]
+            bl_total += 1
+            if m["winner_id"] == gt_winner: bl_agree += 1
+        for m in dd_matches:
+            g1 = paper_gt.get(m["paper1_id"], {}).get(dim)
+            g2 = paper_gt.get(m["paper2_id"], {}).get(dim)
+            if g1 is None or g2 is None or g1 == g2: continue
+            gt_winner = m["paper1_id"] if g1 > g2 else m["paper2_id"]
+            dd_total += 1
+            if m["winner_id"] == gt_winner: dd_agree += 1
+        if bl_total > 0 or dd_total > 0:
+            bl_pct = round(bl_agree / max(bl_total, 1) * 100, 1)
+            dd_pct = round(dd_agree / max(dd_total, 1) * 100, 1)
             dimension_agreement[dim] = {
-                "pairs": total,
-                "original_agreement": round(orig_agree / total * 100, 1),
-                "deep_dive_agreement": round(dd_agree / total * 100, 1),
-                "lift": round((dd_agree - orig_agree) / total * 100, 1),
+                "pairs": max(bl_total, dd_total),
+                "baseline_agreement": bl_pct,
+                "deep_dive_agreement": dd_pct,
+                "lift": round(dd_pct - bl_pct, 1),
             }
 
-    # Use composite dimension for the main human_gt fields on replays
-    for r in replays:
-        g1 = paper_gt.get(r["paper1_id"], {}).get("composite")
-        g2 = paper_gt.get(r["paper2_id"], {}).get("composite")
-        if g1 is not None and g2 is not None and g1 != g2:
-            gt_winner = r["paper1_id"] if g1 > g2 else r["paper2_id"]
-            r["human_gt_winner"] = gt_winner
-            r["original_agrees_human"] = r["original_winner_id"] == gt_winner
-            r["replay_agrees_human"] = r["replay_winner_id"] == gt_winner
+    bl_comp = dimension_agreement.get("composite", {}).get("baseline_agreement", 0)
+    dd_comp = dimension_agreement.get("composite", {}).get("deep_dive_agreement", 0)
+    comp_pairs = dimension_agreement.get("composite", {}).get("pairs", 0)
 
-    total = len(replays)
-    flipped = sum(1 for r in replays if r["flipped"])
-    with_gt = [r for r in replays if r.get("human_gt_winner")]
-    orig_agree = sum(1 for r in with_gt if r.get("original_agrees_human"))
-    replay_agree = sum(1 for r in with_gt if r.get("replay_agrees_human"))
+    common_pairs = set(baseline_by_pair.keys()) & set(dd_by_pair.keys())
+    flipped = sum(1 for pk in common_pairs if baseline_by_pair[pk]["winner_id"] != dd_by_pair[pk]["winner_id"])
 
     analysis = {
-        "total_replays": total,
+        "total_matches": {"baseline": len(baseline_matches), "deep_dive": len(dd_matches)},
         "flipped": flipped,
-        "flip_rate": round(flipped / max(total, 1) * 100, 1),
+        "flip_rate": round(flipped / max(len(common_pairs), 1) * 100, 1),
+        "common_pairs": len(common_pairs),
         "human_agreement": {
-            "pairs_with_gt": len(with_gt),
-            "original": round(orig_agree / max(len(with_gt), 1) * 100, 1),
-            "deep_dive": round(replay_agree / max(len(with_gt), 1) * 100, 1),
-            "lift": round((replay_agree - orig_agree) / max(len(with_gt), 1) * 100, 1),
+            "pairs_with_gt": comp_pairs,
+            "original": bl_comp,
+            "deep_dive": dd_comp,
+            "lift": round(dd_comp - bl_comp, 1),
         },
+        "dimension_agreement": dimension_agreement,
     }
 
-    # McNemar on human agreement
-    a = b = c = d = 0
-    for r in with_gt:
-        oa = r.get("original_agrees_human")
-        ra = r.get("replay_agrees_human")
-        if oa and ra: a += 1
-        elif oa and not ra: b += 1
-        elif not oa and ra: c += 1
-        else: d += 1
-    mcnemar = {"pairs": len(with_gt), "both_agree": a, "only_original": b, "only_deepdive": c, "neither": d}
+    # McNemar
+    a = b = c = d_val = 0
+    for pk in common_pairs:
+        bl_m, dd_m = baseline_by_pair[pk], dd_by_pair[pk]
+        g1 = paper_gt.get(bl_m["paper1_id"], {}).get("composite")
+        g2 = paper_gt.get(bl_m["paper2_id"], {}).get("composite")
+        if g1 is None or g2 is None or g1 == g2: continue
+        gt_winner = bl_m["paper1_id"] if g1 > g2 else bl_m["paper2_id"]
+        bl_ok = bl_m["winner_id"] == gt_winner
+        dd_ok = dd_m["winner_id"] == gt_winner
+        if bl_ok and dd_ok: a += 1
+        elif bl_ok and not dd_ok: b += 1
+        elif not bl_ok and dd_ok: c += 1
+        else: d_val += 1
+    mcnemar = {"pairs": a + b + c + d_val, "both_agree": a, "only_baseline": b, "only_deepdive": c, "neither": d_val}
     if b + c > 0:
         chi2 = (abs(b - c) - 1)**2 / (b + c)
         p_val = math.erfc(math.sqrt(chi2 / 2))
@@ -554,21 +564,30 @@ async def compute_analysis(dataset_id: str) -> dict:
     else:
         mcnemar.update({"chi2": 0, "p_value": 1.0, "significant": False})
     analysis["mcnemar"] = mcnemar
-    analysis["dimension_agreement"] = dimension_agreement
 
     # Flip direction
-    toward = sum(1 for r in with_gt if r["flipped"] and r.get("replay_agrees_human") and not r.get("original_agrees_human"))
-    away = sum(1 for r in with_gt if r["flipped"] and not r.get("replay_agrees_human") and r.get("original_agrees_human"))
-    analysis["flip_direction"] = {"toward_human": toward, "away_from_human": away, "net": toward - away}
+    toward_h, away_h = 0, 0
+    for pk in common_pairs:
+        bl_m, dd_m = baseline_by_pair[pk], dd_by_pair[pk]
+        if bl_m["winner_id"] == dd_m["winner_id"]: continue
+        g1 = paper_gt.get(bl_m["paper1_id"], {}).get("composite")
+        g2 = paper_gt.get(bl_m["paper2_id"], {}).get("composite")
+        if g1 is None or g2 is None or g1 == g2: continue
+        gt_winner = bl_m["paper1_id"] if g1 > g2 else bl_m["paper2_id"]
+        if dd_m["winner_id"] == gt_winner and bl_m["winner_id"] != gt_winner: toward_h += 1
+        elif bl_m["winner_id"] == gt_winner and dd_m["winner_id"] != gt_winner: away_h += 1
+    analysis["flip_direction"] = {"toward_human": toward_h, "away_from_human": away_h, "net": toward_h - away_h}
 
     # Paper-level win rate shifts
-    paper_stats = defaultdict(lambda: {"orig_wins": 0, "orig_total": 0, "dd_wins": 0, "dd_total": 0})
-    for r in replays:
-        for pid in [r["paper1_id"], r["paper2_id"]]:
-            paper_stats[pid]["orig_total"] += 1
+    paper_stats = defaultdict(lambda: {"bl_wins": 0, "bl_total": 0, "dd_wins": 0, "dd_total": 0})
+    for m in baseline_matches:
+        for pid in [m["paper1_id"], m["paper2_id"]]:
+            paper_stats[pid]["bl_total"] += 1
+            if m["winner_id"] == pid: paper_stats[pid]["bl_wins"] += 1
+    for m in dd_matches:
+        for pid in [m["paper1_id"], m["paper2_id"]]:
             paper_stats[pid]["dd_total"] += 1
-            if r["original_winner_id"] == pid: paper_stats[pid]["orig_wins"] += 1
-            if r["replay_winner_id"] == pid: paper_stats[pid]["dd_wins"] += 1
+            if m["winner_id"] == pid: paper_stats[pid]["dd_wins"] += 1
 
     wr_diffs = []
     paper_details = []
@@ -576,15 +595,15 @@ async def compute_analysis(dataset_id: str) -> dict:
     async for p in db.validation_papers.find({"id": {"$in": list(paper_stats.keys())}}, {"_id": 0, "id": 1, "title": 1, "decision": 1}):
         title_lookup[p["id"]] = {"title": p["title"], "decision": p.get("decision", "")}
     for pid, s in paper_stats.items():
-        if s["orig_total"] < 2: continue
-        orig_wr = s["orig_wins"] / s["orig_total"]
+        if s["bl_total"] < 2 or s["dd_total"] < 2: continue
+        bl_wr = s["bl_wins"] / s["bl_total"]
         dd_wr = s["dd_wins"] / s["dd_total"]
-        diff = dd_wr - orig_wr
+        diff = dd_wr - bl_wr
         wr_diffs.append(diff)
         info = title_lookup.get(pid, {})
         paper_details.append({"paper_id": pid, "title": info.get("title", pid), "decision": info.get("decision", ""),
-                              "orig_wr": round(orig_wr * 100, 1), "dd_wr": round(dd_wr * 100, 1),
-                              "diff": round(diff * 100, 1), "matches": s["orig_total"]})
+                              "orig_wr": round(bl_wr * 100, 1), "dd_wr": round(dd_wr * 100, 1),
+                              "diff": round(diff * 100, 1), "matches": s["bl_total"]})
     paper_details.sort(key=lambda x: abs(x["diff"]), reverse=True)
     analysis["paper_level"] = {"n_papers": len(wr_diffs), "paper_details": paper_details}
 
@@ -596,7 +615,6 @@ async def compute_analysis(dataset_id: str) -> dict:
         analysis["paper_level"]["negative_shifts"] = sum(1 for d in wr_diffs if d < 0)
 
     return analysis
-
 
 async def compute_convergence_by_dimension(dataset_id: str, steps: int = 20) -> dict:
     """Compute ranking convergence against each GT dimension separately.
