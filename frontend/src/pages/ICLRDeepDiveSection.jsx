@@ -232,12 +232,13 @@ function AnalysisView({ analysis }) {
       {analysis.common_pairs > 0 && (
         <div className="border border-border rounded-lg p-4">
           <h3 className="text-sm font-semibold mb-2">Same-Pair Comparison</h3>
-          <div className="flex gap-8 text-xs">
+          <div className="flex gap-8 text-xs flex-wrap">
             <div><span className="font-bold text-lg">{analysis.common_pairs}</span> <span className="text-muted-foreground">common pairs</span></div>
             <div><span className="font-bold text-lg">{analysis.flipped}</span> <span className="text-muted-foreground">verdicts flipped ({analysis.flip_rate}%)</span></div>
             {(fd.toward_human > 0 || fd.away_from_human > 0) && <>
               <div><span className="text-green-600 font-bold text-lg">{fd.toward_human}</span> <span className="text-muted-foreground">toward human GT</span></div>
               <div><span className="text-red-500 font-bold text-lg">{fd.away_from_human}</span> <span className="text-muted-foreground">away from human GT</span></div>
+              <div><span className="text-muted-foreground font-bold text-lg">{analysis.flipped - fd.toward_human - fd.away_from_human}</span> <span className="text-muted-foreground">on tie pairs (no GT)</span></div>
               <div><span className="font-bold text-lg">{fd.net > 0 ? "+" : ""}{fd.net}</span> <span className="text-muted-foreground">net</span></div>
             </>}
           </div>
