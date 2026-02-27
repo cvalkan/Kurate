@@ -271,7 +271,7 @@ function AnalysisView({ analysis }) {
       {pl.n_papers > 0 && (
         <div className="border-2 border-violet-200 rounded-lg p-4 bg-violet-50/30">
           <h3 className="text-sm font-semibold mb-1">Paper-Level Analysis (N={pl.n_papers})</h3>
-          <p className="text-[10px] text-muted-foreground mb-3">Unit of analysis = paper. Compares original vs deep-dive win rates.</p>
+          <p className="text-[10px] text-muted-foreground mb-3">Unit of analysis = paper. Compares baseline vs deep-dive win rates.</p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <MiniCard label="Mean WR Shift" value={`${(pl.mean_wr_shift || 0) > 0 ? "+" : ""}${pl.mean_wr_shift ?? "—"}pp`} positive={pl.mean_wr_shift > 0} />
