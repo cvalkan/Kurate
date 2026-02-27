@@ -712,7 +712,7 @@ async def _compute_convergence_by_dimension_impl(dataset_id: str, steps: int = 1
         matches.sort(key=lambda m: m.get("created_at", ""))
 
         # Compute at each step using Bradley-Terry ranking (via background computation)
-        from ranking import compute_leaderboard_async
+        from services.ranking import compute_leaderboard_async
         curve_points = []
         step_sizes = set()
         for step_i in range(1, steps + 1):
