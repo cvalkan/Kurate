@@ -1098,6 +1098,16 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
         pairs = []
         min_per_paper = max(3, min(8, max_pairs // len(pids)))
 
+        # Build GT scores for cross-tier filtering
+        gt_scores = build_paper_gt_scores(papers)
+        same_tier_set = set()  # precompute same-tier pairs to skip
+        for i, p1 in enumerate(pids):
+            for p2 in pids[i+1:]:
+                if not is_cross_tier_pair(p1, p2, gt_scores):
+                    same_tier_set.add(tuple(sorted([p1, p2])))
+        cross_tier_available = len(pids) * (len(pids) - 1) // 2 - len(same_tier_set)
+        logger.info(f"Pair selection [{dataset_id}]: {cross_tier_available} cross-tier pairs available, {len(same_tier_set)} same-tier excluded")
+
         # Phase 1: Round-robin for under-matched papers
         for _ in range(max_pairs):
             if len(pairs) >= max_pairs:
