@@ -92,9 +92,8 @@ def _scrape_article(doi: str) -> dict:
     if abs_match:
         abstract = re.sub(r'<[^>]+>', '', abs_match.group(1)).strip()
 
-    # Extract authors
+    # Extract authors from the article info section
     authors = []
-    author_matches = re.findall(r'<li>\s*([^<]+)\s*</li>', text[:5000])
     # The article info section lists authors in an ordered list
     article_section = text[:text.find('Article activity feed')] if 'Article activity feed' in text else text[:8000]
     auth_list = re.findall(r'<li>\s*([A-Z][a-z]+ [A-Z][^<]{2,40})\s*</li>', article_section)
