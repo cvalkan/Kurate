@@ -683,31 +683,32 @@ async def compute_convergence_by_dimension(dataset_id: str, steps: int = 10) -> 
         # Sort by created_at
         matches.sort(key=lambda m: m.get("created_at", ""))
 
-        # Compute at each step using Bradley-Terry ranking
-        from ranking import compute_leaderboard_async
+        # Compute at each step using incremental Elo ratings (fast, O(n))
         curve_points = []
         for step_i in range(1, steps + 1):
             n = max(20, int(len(matches) * step_i / steps))
-            if n == (max(20, int(len(matches) * (step_i - 1) / steps))) and step_i > 1:
-                continue  # Skip duplicate sizes
             subset = matches[:n]
 
             covered_ids = set()
             for m in subset:
-                covered_ids.add(m["paper1_id"])
-                covered_ids.add(m["paper2_id"])
-
+                covered_ids.add(m["paper1_id"]); covered_ids.add(m["paper2_id"])
             if len(covered_ids) < 5:
                 continue
 
-            # Build paper stubs for Bradley-Terry
-            paper_stubs = [{"id": pid, "title": ""} for pid in covered_ids]
-            try:
-                lb = await compute_leaderboard_async(paper_stubs, subset)
-            except Exception:
-                continue
+            # Elo rating computation
+            elo = defaultdict(lambda: 1200.0)
+            K = 32
+            for m in subset:
+                p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
+                e1 = 1 / (1 + 10 ** ((elo[p2] - elo[p1]) / 400))
+                s1 = 1.0 if w == p1 else 0.0
+                elo[p1] += K * (s1 - e1)
+                elo[p2] += K * ((1 - s1) - (1 - e1))
 
-            ai_rank = {e["id"]: e["rank"] for e in lb}
+            # Rank by Elo
+            ai_rank = {}
+            for rank, (pid, _) in enumerate(sorted(elo.items(), key=lambda x: -x[1])):
+                ai_rank[pid] = rank
 
             # Compute Spearman against each GT dimension
             dim_correlations = {}
