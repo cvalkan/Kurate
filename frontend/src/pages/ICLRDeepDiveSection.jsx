@@ -308,7 +308,7 @@ function AnalysisView({ analysis }) {
           {/* Per-paper table */}
           {pl.paper_details?.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold mb-2">Per-Paper Win Rate (Original → Deep Dive)</h4>
+              <h4 className="text-xs font-semibold mb-2">Per-Paper Win Rate (Baseline → Deep Dive)</h4>
               <div className="space-y-1 text-[11px] max-h-64 overflow-y-auto">
                 {pl.paper_details.map((p, i) => (
                   <div key={i} className="flex items-center gap-2">
