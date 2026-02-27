@@ -295,6 +295,25 @@ async def run_step4(dataset_id: str, source_mode: str = "abstract_plus_summary:o
     ):
         papers[p["id"]] = p
 
+    # Filter to cross-tier pairs only — same-tier matches have no GT signal
+    def _has_gt_diff(m):
+        d1 = _decision_tier(papers.get(m["paper1_id"], {}).get("decision", ""))
+        d2 = _decision_tier(papers.get(m["paper2_id"], {}).get("decision", ""))
+        if d1 >= 0 and d2 >= 0:
+            return d1 != d2
+        # For non-tier datasets, check avg rating
+        e1 = papers.get(m["paper1_id"], {}).get("evaluations", [])
+        e2 = papers.get(m["paper2_id"], {}).get("evaluations", [])
+        r1 = [ev["rating_value"] for ev in e1 if ev.get("rating_value")]
+        r2 = [ev["rating_value"] for ev in e2 if ev.get("rating_value")]
+        if r1 and r2:
+            return sum(r1)/len(r1) != sum(r2)/len(r2)
+        return False
+
+    pre_filter = len(remaining)
+    remaining = [m for m in remaining if _has_gt_diff(m)]
+    logger.info(f"Step 4: filtered {pre_filter} → {len(remaining)} cross-tier matches")
+
     # Build average expert rating per paper (for eLife-style GT)
     paper_avg_rating = {}
     for pid, p in papers.items():
