@@ -230,6 +230,29 @@ function AnalysisView({ analysis }) {
         </div>
       )}
 
+      {/* Per-dimension agreement (ACMI-style) */}
+      {da && Object.keys(da).length > 1 && (
+        <div className="border border-border rounded-lg p-4">
+          <h3 className="text-sm font-semibold mb-3">Agreement by Rating Dimension</h3>
+          <div className="text-xs space-y-2">
+            <div className="flex items-center gap-3 text-muted-foreground font-medium">
+              <span className="w-28">Dimension</span><span className="w-12 text-right">Pairs</span><span className="w-20 text-right">Original</span><span className="w-20 text-right">Deep Dive</span><span className="w-14 text-right">Lift</span>
+            </div>
+            {Object.entries(da).sort((a, b) => b[1].lift - a[1].lift).map(([dim, s]) => (
+              <div key={dim} className="flex items-center gap-3">
+                <span className="w-28 font-medium capitalize">{dim}</span>
+                <span className="w-12 text-right font-mono text-muted-foreground">{s.pairs}</span>
+                <span className="w-20 text-right font-mono">{s.original_agreement}%</span>
+                <span className="w-20 text-right font-mono font-medium">{s.deep_dive_agreement}%</span>
+                <span className={`w-14 text-right font-mono font-bold ${s.lift > 0 ? "text-green-600" : s.lift < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                  {s.lift > 0 ? "+" : ""}{s.lift}pp
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Paper-level tests */}
       {pl.n_papers > 0 && (
         <div className="border-2 border-violet-200 rounded-lg p-4 bg-violet-50/30">
