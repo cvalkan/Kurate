@@ -399,9 +399,6 @@ async def run_step4(dataset_id: str, source_mode: str = "abstract_plus_summary:o
 
     await asyncio.gather(*[replay_one(m) for m in remaining])
 
-    # Insert replays as validation_matches for convergence chart
-    await _insert_as_validation_matches(keys, dataset_id)
-
     await _update_progress(keys, "step4", total, total, errors=counter["errors"], finished=True)
     logger.info(f"Step 4 complete: {counter['done']} replays, {counter['errors']} errors")
 
