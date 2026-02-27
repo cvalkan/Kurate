@@ -144,6 +144,44 @@ def build_content_mode_filter(content_mode: Optional[str] = None, abstract_only:
     return {}
 
 
+# ─── Ground Truth Scores ──────────────────────────────────────────────────────
+
+def build_paper_gt_scores(papers: list) -> dict:
+    """Build {paper_id: gt_score} from tier decisions, composite scores, or avg ratings.
+    Returns only papers with a usable GT signal."""
+    gt = {}
+    for p in papers:
+        pid = p["id"]
+        t = norm_tier(p.get("decision"))
+        if t and t in RANKABLE_TIERS:
+            gt[pid] = TIER_ORDER[t]  # lower = better (oral=0, reject=3)
+            continue
+        cs = p.get("composite_score")
+        if cs is not None:
+            gt[pid] = -cs  # negate so lower = better (consistent)
+            continue
+        evals = p.get("evaluations", [])
+        ratings = [e["rating_value"] for e in evals if e.get("rating_value")]
+        if ratings:
+            gt[pid] = -(sum(ratings) / len(ratings))
+    return gt
+
+
+def is_cross_tier_pair(p1_id: str, p2_id: str, gt_scores: dict) -> bool:
+    """Return True if two papers have different GT scores (non-tie)."""
+    g1 = gt_scores.get(p1_id)
+    g2 = gt_scores.get(p2_id)
+    if g1 is None or g2 is None:
+        return False
+    return g1 != g2
+
+
+def filter_cross_tier_matches(matches: list, gt_scores: dict) -> list:
+    """Filter a list of matches to only cross-tier (non-tie GT) pairs."""
+    return [m for m in matches if is_cross_tier_pair(m["paper1_id"], m["paper2_id"], gt_scores)]
+
+
+
 # ─── Safe Math ─────────────────────────────────────────────────────────────────
 
 def safe_round(v, n=4):
