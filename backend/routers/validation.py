@@ -4488,7 +4488,8 @@ async def deep_dive_pipeline_results(dataset_id: str = Query("iclr-codegen")):
         return {"status": "no_data"}
 
     replay_count = await db[keys["replays"]].count_documents({})
-    analysis = await compute_analysis(dataset_id) if replay_count > 0 else None
+    match_count = await db.validation_matches.count_documents({"dataset_id": dataset_id, "completed": True})
+    analysis = await compute_analysis(dataset_id) if match_count > 0 else None
 
     papers = doc.get("papers", [])
     return {
