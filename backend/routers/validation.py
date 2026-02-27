@@ -4437,10 +4437,19 @@ async def start_deep_dive_pipeline(request: Request):
 
     async def _bg():
         try:
-            # Use fresh pipeline for datasets without existing matches
+            # Use fresh pipeline for datasets without existing EXTERNAL matches
+            # (matches we created ourselves as part of this experiment don't count)
             existing = await db.validation_matches.count_documents(
-                {"dataset_id": dataset_id, "completed": True, "content_mode": {"$ne": "deep_dive"}}
+                {"dataset_id": dataset_id, "completed": True,
+                 "content_mode": {"$nin": ["deep_dive", "abstract_plus_summary"]}}
             )
+            # Also check if there's a source_mode match
+            if source_mode:
+                existing_source = await db.validation_matches.count_documents(
+                    {"dataset_id": dataset_id, "completed": True, "content_mode": source_mode}
+                )
+                existing = max(existing, existing_source)
+
             if existing == 0:
                 from services.iclr_deep_dive import run_full_pipeline_fresh
                 await run_full_pipeline_fresh(dataset_id=dataset_id)
