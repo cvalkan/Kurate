@@ -4712,7 +4712,7 @@ async def extended_thinking_results():
             g2 = gt.get(bl_m["paper2_id"])
             if g1 is None or g2 is None or g1 == g2:
                 continue
-            gt_winner = bl_m["paper1_id"] if g1 < g2 else bl_m["paper2_id"]  # lower = better in build_paper_gt_scores
+            gt_winner = bl_m["paper1_id"] if g1 > g2 else bl_m["paper2_id"]  # higher = better in build_paper_gt_scores
             bl_ok = bl_m["winner_id"] == gt_winner
             th_ok = th_m["winner_id"] == gt_winner
             if bl_ok and th_ok: a += 1
