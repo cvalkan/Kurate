@@ -406,8 +406,4 @@ function ConvergenceTab({ datasetId, label, isRunning }) {
     </div>
   );
 }
-    </div>
-  );
-}
-
 
