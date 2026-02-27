@@ -109,10 +109,10 @@ export default function ICLRDeepDiveSection({ datasetId = "iclr-codegen", label 
             <h3 className="text-sm font-semibold mb-2">Experiment Design</h3>
             <div className="text-xs text-muted-foreground space-y-1.5">
               <p><strong>Dataset:</strong> {label} ({totalPapers} papers)</p>
-              <p><strong>Step 1:</strong> Generate first-pass assessment + identify focus areas for each paper</p>
-              <p><strong>Step 2:</strong> Generate deep-dive assessment informed by focus areas (standalone, same style as original)</p>
-              <p><strong>Step 3:</strong> Replay all existing pairwise matches using deep-dive assessments instead of originals</p>
-              <p><strong>Metrics:</strong> Human agreement (ICLR accept/reject tiers), flip rate, paper-level Wilcoxon test, permutation test</p>
+              <p><strong>Step 1:</strong> Generate first-pass assessment + identify focus areas for each paper (Claude Opus 4.6)</p>
+              <p><strong>Step 2:</strong> Generate deep-dive assessment informed by focus areas (standalone, same style)</p>
+              <p><strong>Step 3:</strong> Run pairwise tournament on same pairs with both baseline (step 1) and deep-dive (step 2) summaries, using the same randomly-selected judge model per pair</p>
+              <p><strong>Metrics:</strong> Pairwise agreement with human reviewer scores, rank correlation (Spearman), per-dimension analysis</p>
             </div>
           </div>
 
