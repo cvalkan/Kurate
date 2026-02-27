@@ -14,6 +14,7 @@ import SummarizerComparisonSection from "./SummarizerComparisonSection";
 import SummaryBiasSection from "./SummaryBiasSection";
 import DeeperDiveSection from "./DeeperDiveSection";
 import ICLRDeepDiveSection from "./ICLRDeepDiveSection";
+import ExtendedThinkingSection from "./ExtendedThinkingSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
