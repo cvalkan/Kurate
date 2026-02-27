@@ -1579,8 +1579,11 @@ async def get_available_modes(dataset_id: str = Query(...)):
             has_summary_variants = True
         raw_results.append((cm, pt, doc["count"]))
 
+    HIDDEN_TAGS = {"opus_thinking", "gpt_thinking", "gemini_thinking"}
     modes = []
     for cm, pt, count in raw_results:
+        if pt and pt in HIDDEN_TAGS:
+            continue
         mode_id = cm if cm != "none" else "extract"
         if pt:
             label = SUMMARY_TAG_LABELS.get(pt, f"{BASE_LABELS.get(cm.split(':')[0], cm)} ({pt})")
