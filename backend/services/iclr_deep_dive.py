@@ -621,3 +621,171 @@ async def run_full_pipeline(dataset_id: str = "iclr-codegen",
     await run_step4(dataset_id, source_mode)
 
     logger.info(f"=== Deep Dive Pipeline COMPLETE: {dataset_id} ===")
+
+
+async def run_fresh_tournament(dataset_id: str):
+    """For datasets with no existing matches: generate round-robin pairs and run
+    BOTH a baseline tournament (step2 summaries) and a deep-dive tournament (step3 summaries).
+    Both use the same pairs and same judge model for direct comparison."""
+    keys = _keys(dataset_id)
+    doc = await db.settings.find_one({"key": keys["experiment"]}, {"_id": 0})
+    if not doc or not doc.get("papers"):
+        logger.error(f"Fresh tournament: no papers for {dataset_id}")
+        return
+
+    papers_data = doc["papers"]
+    s2_lookup = {e["paper_id"]: e["step2_assessment"] for e in papers_data if e.get("step2_assessment")}
+    s3_lookup = {e["paper_id"]: e["step3_assessment"] for e in papers_data if e.get("step3_assessment")}
+
+    paper_ids = list(s2_lookup.keys() & s3_lookup.keys())
+    logger.info(f"Fresh tournament: {len(paper_ids)} papers with both assessments")
+
+    # Load paper data
+    papers = {}
+    async for p in db.validation_papers.find(
+        {"id": {"$in": paper_ids}, "dataset_id": dataset_id},
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "evaluations": 1, "composite_score": 1},
+    ):
+        papers[p["id"]] = p
+
+    # Generate round-robin pairs (random subset — full round-robin for 100 papers = 4,950 pairs)
+    import itertools
+    all_pairs = list(itertools.combinations(list(papers.keys()), 2))
+    random.shuffle(all_pairs)
+    # Use all pairs — with 100 papers that's 4,950 pairs × 2 conditions = 9,900 matches
+    # But to keep costs reasonable, limit to ~1,000 pairs (enough for convergence)
+    max_pairs = min(len(all_pairs), 1000)
+    pairs = all_pairs[:max_pairs]
+    logger.info(f"Fresh tournament: {len(pairs)} pairs selected")
+
+    # Check already completed
+    existing_baseline = set()
+    existing_dd = set()
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": {"$in": ["abstract_plus_summary", "deep_dive"]}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "content_mode": 1},
+    ):
+        key = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        if m["content_mode"] == "abstract_plus_summary":
+            existing_baseline.add(key)
+        else:
+            existing_dd.add(key)
+
+    from core.config import DEFAULT_EVALUATION_PROMPT
+    sem = asyncio.Semaphore(PARALLEL)
+
+    # Run both conditions for each pair
+    remaining = []
+    for p1_id, p2_id in pairs:
+        pair_key = tuple(sorted([p1_id, p2_id]))
+        needs_baseline = pair_key not in existing_baseline
+        needs_dd = pair_key not in existing_dd
+        if needs_baseline or needs_dd:
+            remaining.append((p1_id, p2_id, needs_baseline, needs_dd))
+
+    total = sum(int(nb) + int(nd) for _, _, nb, nd in remaining)
+    counter = {"done": 0, "errors": 0}
+    await _update_progress(keys, "step4_fresh", 0, total)
+
+    async def run_pair(p1_id, p2_id, do_baseline, do_dd):
+        p1 = papers.get(p1_id)
+        p2 = papers.get(p2_id)
+        if not p1 or not p2:
+            return
+
+        for mode, do_it, summary_lookup in [
+            ("abstract_plus_summary", do_baseline, s2_lookup),
+            ("deep_dive", do_dd, s3_lookup),
+        ]:
+            if not do_it:
+                continue
+
+            s1 = summary_lookup.get(p1_id, "")
+            s2_text = summary_lookup.get(p2_id, "")
+            if not s1 or not s2_text:
+                counter["done"] += 1
+                continue
+
+            p1_content = f"Abstract: {p1.get('abstract','')[:1500]}\n\nAI Impact Assessment:\n{s1}"
+            p2_content = f"Abstract: {p2.get('abstract','')[:1500]}\n\nAI Impact Assessment:\n{s2_text}"
+            prompt = DEFAULT_EVALUATION_PROMPT["user_prompt"].format(
+                paper1_title=p1["title"], paper1_content=p1_content,
+                paper2_title=p2["title"], paper2_content=p2_content,
+            )
+
+            async with sem:
+                try:
+                    response = await _llm_call(
+                        DEFAULT_EVALUATION_PROMPT["system_prompt"], prompt,
+                        label=f"fresh:{mode[:5]}:{p1_id[:8]}",
+                    )
+                    resp_text = response
+                    if resp_text.startswith("```"):
+                        parts = resp_text.split("```")
+                        if len(parts) >= 2:
+                            resp_text = parts[1].lstrip("json").strip()
+                    if not resp_text.startswith("{"):
+                        jm = re.search(r'\{[^{}]*"winner"[^{}]*\}', resp_text, re.DOTALL)
+                        if jm:
+                            resp_text = jm.group()
+                        else:
+                            raise ValueError(f"No JSON: {resp_text[:100]}")
+
+                    result = json.loads(resp_text)
+                    winner = result.get("winner")
+                    if winner not in ("paper1", "paper2"):
+                        raise ValueError(f"Invalid: {result}")
+                    winner_id = p1_id if winner == "paper1" else p2_id
+
+                    match_doc = {
+                        "id": str(uuid.uuid4()),
+                        "dataset_id": dataset_id,
+                        "paper1_id": p1_id, "paper2_id": p2_id,
+                        "winner_id": winner_id,
+                        "content_mode": mode,
+                        "completed": True, "failed": False,
+                        "abstract_only": False, "used_extraction": False,
+                        "reasoning": result.get("reasoning", ""),
+                        "model_used": ASSESSMENT_MODEL,
+                        "tokens": {},
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    await db.validation_matches.insert_one(match_doc)
+
+                    # Also store in replays collection for deep_dive mode
+                    if mode == "deep_dive":
+                        await db[keys["replays"]].insert_one({
+                            **match_doc,
+                            "original_match_id": None,
+                            "original_winner_id": None,
+                            "replay_winner_id": winner_id,
+                            "flipped": False,
+                        })
+
+                except Exception as e:
+                    counter["errors"] += 1
+                    logger.warning(f"Fresh tournament failed [{mode}]: {e}")
+
+                counter["done"] += 1
+                if counter["done"] % 10 == 0:
+                    await _update_progress(keys, "step4_fresh", counter["done"], total, counter["errors"])
+
+    await asyncio.gather(*[run_pair(p1, p2, nb, nd) for p1, p2, nb, nd in remaining])
+    await _update_progress(keys, "step4_fresh", total, total, errors=counter["errors"], finished=True)
+    logger.info(f"Fresh tournament complete: {counter['done']} matches, {counter['errors']} errors")
+
+
+async def run_full_pipeline_fresh(dataset_id: str):
+    """Full pipeline for datasets without existing matches."""
+    keys = _keys(dataset_id)
+    await db.settings.update_one(
+        {"key": keys["experiment"]},
+        {"$setOnInsert": {"key": keys["experiment"], "dataset_id": dataset_id, "papers": [],
+                          "created_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    logger.info(f"=== Fresh Deep Dive Pipeline: {dataset_id} ===")
+    await run_step2(dataset_id)
+    await run_step3(dataset_id)
+    await run_fresh_tournament(dataset_id)
+    logger.info(f"=== Fresh Pipeline COMPLETE: {dataset_id} ===")
