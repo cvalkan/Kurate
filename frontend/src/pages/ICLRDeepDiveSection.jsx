@@ -375,22 +375,174 @@ function MiniCard({ label, value, positive, negative }) {
 
 function ConvergenceTab({ datasetId, label, isRunning }) {
   const [key, setKey] = useState(0);
+  const [dimData, setDimData] = useState(null);
+  const [selectedDim, setSelectedDim] = useState("composite");
 
-  // Auto-refresh convergence while running
+  const fetchDim = () => {
+    axios.get(`${API}/api/validation/deep-dive-pipeline/convergence?dataset_id=${datasetId}`)
+      .then(r => setDimData(r.data))
+      .catch(() => {});
+  };
+
+  useEffect(() => { fetchDim(); }, [datasetId]);
+
+  // Auto-refresh while running
   useEffect(() => {
     if (!isRunning) return;
-    const iv = setInterval(() => setKey(k => k + 1), 30000);
+    const iv = setInterval(() => { fetchDim(); setKey(k => k + 1); }, 30000);
     return () => clearInterval(iv);
   }, [isRunning]);
+
+  const dims = dimData?.dimensions || [];
+  const curves = dimData?.curves || {};
+  const hasDimData = dims.length > 0 && Object.keys(curves).length > 0;
 
   return (
     <div className="space-y-4">
       {isRunning && (
         <p className="text-xs text-muted-foreground flex items-center gap-2">
-          <RefreshCw className="h-3 w-3 animate-spin" /> Chart refreshes every 30s while tournament is running
+          <RefreshCw className="h-3 w-3 animate-spin" /> Charts refresh every 30s while tournament is running
         </p>
       )}
-      <ValidationConvergence key={key} datasets={[{ dataset_id: datasetId, name: label }]} />
+
+      {/* Per-dimension convergence */}
+      {hasDimData && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Convergence by Ground Truth Dimension</h3>
+
+          {/* Dimension selector */}
+          <div className="flex gap-1 border border-border rounded-lg p-0.5 w-fit">
+            {dims.map(dim => (
+              <button key={dim} onClick={() => setSelectedDim(dim)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded capitalize transition-colors ${selectedDim === dim ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                {dim}
+              </button>
+            ))}
+          </div>
+
+          {/* Chart for selected dimension */}
+          <DimensionChart curves={curves} dimension={selectedDim} />
+
+          {/* Summary table: final correlation for each dimension × mode */}
+          <div className="border border-border rounded-lg p-4">
+            <h4 className="text-xs font-semibold mb-2">Final Spearman ρ by Dimension</h4>
+            <div className="text-xs space-y-1.5">
+              <div className="flex items-center gap-3 text-muted-foreground font-medium">
+                <span className="w-28">Dimension</span>
+                {Object.entries(curves).map(([modeId, mode]) => (
+                  <span key={modeId} className="w-32 text-right">{mode.name}</span>
+                ))}
+                <span className="w-14 text-right">Lift</span>
+              </div>
+              {dims.map(dim => {
+                const vals = Object.entries(curves).map(([modeId, mode]) => {
+                  const points = mode.points || [];
+                  const last = points[points.length - 1];
+                  return last?.correlations?.[dim] ?? null;
+                });
+                const lift = vals.length === 2 && vals[0] != null && vals[1] != null
+                  ? (vals[1] - vals[0]).toFixed(4) : null;
+                return (
+                  <div key={dim} className="flex items-center gap-3">
+                    <span className="w-28 font-medium capitalize">{dim}</span>
+                    {vals.map((v, i) => (
+                      <span key={i} className="w-32 text-right font-mono">{v != null ? v.toFixed(4) : "—"}</span>
+                    ))}
+                    {lift != null && (
+                      <span className={`w-14 text-right font-mono font-bold ${parseFloat(lift) > 0 ? "text-green-600" : parseFloat(lift) < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                        {parseFloat(lift) > 0 ? "+" : ""}{lift}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Standard convergence chart (existing) */}
+      <div>
+        <h3 className="text-sm font-semibold mb-2">Overall Convergence (Composite)</h3>
+        <ValidationConvergence key={key} datasets={[{ dataset_id: datasetId, name: label }]} />
+      </div>
+    </div>
+  );
+}
+
+
+const DIM_COLORS = {
+  "abstract_plus_summary": { stroke: "#3b82f6", label: "Baseline" },
+  "deep_dive": { stroke: "#8b5cf6", label: "Deep Dive" },
+};
+
+function DimensionChart({ curves, dimension }) {
+  // Build SVG convergence chart for a single dimension, both modes overlaid
+  const W = 800, H = 300, PAD = { t: 20, r: 20, b: 40, l: 50 };
+  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
+
+  // Collect all points
+  let maxX = 1, maxY = 1, minY = 0;
+  const lines = [];
+  for (const [modeId, mode] of Object.entries(curves)) {
+    const points = (mode.points || [])
+      .filter(p => p.correlations?.[dimension] != null)
+      .map(p => ({ x: p.avg_matches_per_paper, y: p.correlations[dimension] }));
+    if (points.length > 0) {
+      maxX = Math.max(maxX, ...points.map(p => p.x));
+      maxY = Math.max(maxY, ...points.map(p => p.y));
+      minY = Math.min(minY, ...points.map(p => p.y));
+      lines.push({ modeId, points, color: DIM_COLORS[modeId]?.stroke || "#888" });
+    }
+  }
+
+  if (lines.length === 0) return <p className="text-xs text-muted-foreground py-4">No data for this dimension yet.</p>;
+
+  const scaleX = x => PAD.l + (x / maxX) * iW;
+  const scaleY = y => PAD.t + iH - ((y - minY) / (maxY - minY + 0.01)) * iH;
+
+  return (
+    <div className="border border-border rounded-lg p-3 bg-background">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 300 }}>
+        {/* Grid lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map(v => {
+          const y = scaleY(v * maxY);
+          return y >= PAD.t && y <= PAD.t + iH ? (
+            <g key={v}>
+              <line x1={PAD.l} x2={W - PAD.r} y1={y} y2={y} stroke="#e5e7eb" strokeWidth={0.5} />
+              <text x={PAD.l - 5} y={y + 3} textAnchor="end" fontSize={9} fill="#9ca3af">{(v * maxY).toFixed(2)}</text>
+            </g>
+          ) : null;
+        })}
+
+        {/* X axis labels */}
+        {[0, maxX * 0.25, maxX * 0.5, maxX * 0.75, maxX].map((v, i) => (
+          <text key={i} x={scaleX(v)} y={H - 5} textAnchor="middle" fontSize={9} fill="#9ca3af">{v.toFixed(0)}</text>
+        ))}
+        <text x={W / 2} y={H - 18} textAnchor="middle" fontSize={10} fill="#6b7280">Avg matches per paper</text>
+        <text x={12} y={H / 2} textAnchor="middle" fontSize={10} fill="#6b7280" transform={`rotate(-90, 12, ${H / 2})`}>Spearman ρ</text>
+
+        {/* Lines */}
+        {lines.map(({ modeId, points, color }) => (
+          <g key={modeId}>
+            <polyline
+              fill="none" stroke={color} strokeWidth={2}
+              points={points.map(p => `${scaleX(p.x)},${scaleY(p.y)}`).join(" ")}
+            />
+            {points.map((p, i) => (
+              <circle key={i} cx={scaleX(p.x)} cy={scaleY(p.y)} r={2.5} fill={color} />
+            ))}
+          </g>
+        ))}
+
+        {/* Legend */}
+        {lines.map(({ modeId, color }, i) => (
+          <g key={modeId} transform={`translate(${PAD.l + 10 + i * 140}, ${PAD.t + 5})`}>
+            <line x1={0} x2={20} y1={6} y2={6} stroke={color} strokeWidth={2} />
+            <text x={24} y={10} fontSize={10} fill="#374151">{DIM_COLORS[modeId]?.label || modeId}</text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
