@@ -95,9 +95,10 @@ Write your complete, standalone impact assessment (up to 1200 words):""",
 
 async def _llm_call(system_msg: str, user_msg: str, label: str = "",
                      model_override: dict = None) -> str:
-    """Single LLM call with timeout and budget retry."""
+    """Single LLM call with timeout and budget retry. Never gives up on budget errors."""
     model = model_override or ASSESSMENT_MODEL
-    for attempt in range(5):
+    attempt = 0
+    while True:
         try:
             chat = LlmChat(
                 api_key=EMERGENT_LLM_KEY,
@@ -115,16 +116,19 @@ async def _llm_call(system_msg: str, user_msg: str, label: str = "",
             )
             return response.strip() if isinstance(response, str) else str(response)
         except asyncio.TimeoutError:
-            logger.warning(f"Timeout ({label}), attempt {attempt+1}")
+            attempt += 1
+            if attempt > 10:
+                raise Exception(f"LLM timeout after {attempt} attempts ({label})")
+            logger.warning(f"Timeout ({label}), attempt {attempt}")
             await asyncio.sleep(5)
         except Exception as e:
             if any(kw in str(e).lower() for kw in _BUDGET_KEYWORDS):
-                wait = 30 * (2 ** attempt)
-                logger.warning(f"Budget error ({label}), waiting {wait}s")
+                wait = min(60 * (2 ** min(attempt, 4)), 600)  # 60s, 120s, 240s, 480s, cap at 600s
+                attempt += 1
+                logger.warning(f"Budget error ({label}), waiting {wait}s (attempt {attempt})")
                 await asyncio.sleep(wait)
             else:
                 raise
-    raise Exception(f"LLM failed after retries ({label})")
 
 
 async def _update_progress(keys: dict, step: str, done: int, total: int, errors: int = 0, finished: bool = False):
