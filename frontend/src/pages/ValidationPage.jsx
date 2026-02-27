@@ -503,7 +503,7 @@ function StandardStats({ datasetId, isAdmin }) {
             )}
             <div className="text-[10px] text-muted-foreground flex flex-wrap gap-3">
               <span>{activePairwise.tier_metrics.papers_with_tiers} papers with tiers</span>
-              <span>Accuracy: {activePairwise.tier_metrics.overall_accuracy}%</span>
+              <span>Pairwise accuracy (non-tie pairs): {activePairwise.tier_metrics.overall_accuracy}%</span>
               {Object.entries(activePairwise.tier_metrics.tier_distribution || {}).map(([t, n]) => (
                 <span key={t} className="flex items-center gap-1">
                   <span className={`w-1.5 h-1.5 rounded-full ${t === "oral" ? "bg-emerald-500" : t === "spotlight" ? "bg-blue-500" : t === "poster" ? "bg-amber-400" : "bg-red-400"}`} />
