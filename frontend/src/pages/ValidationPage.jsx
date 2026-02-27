@@ -424,7 +424,7 @@ function StandardStats({ datasetId, isAdmin }) {
             <div key={i} className="p-3 border border-border rounded text-center" data-testid={`agreement-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
               <div className="text-[10px] text-muted-foreground">{label} ({modeLabel})</div>
               <div className={`text-xl font-semibold font-mono ${color}`}>{rate}%</div>
-              <div className="text-[10px] text-muted-foreground">{sub} pairs</div>
+              <div className="text-[10px] text-muted-foreground">{sub} non-tie pairs</div>
             </div>
           ))}
         </div>
@@ -434,7 +434,7 @@ function StandardStats({ datasetId, isAdmin }) {
       {activeAgreement && (
         <div className="text-[10px] text-muted-foreground bg-secondary/10 border border-border/50 rounded px-3 py-2 flex items-start gap-1.5" data-testid="non-comparable-note">
           <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
-          <span>Agreement rates above are based on different sets of matches per content mode and are not directly comparable across Extract, Abstract, and Full PDF. For a fair comparison on the same paper pairs, see the Pairwise section.</span>
+          <span>Agreement rates are computed on non-tie paper pairs only (pairs where reviewers gave different scores). Rates are based on different match sets per content mode and are not directly comparable across formats. For a fair comparison on the same pairs, see the Pairwise section.</span>
         </div>
       )}
 
