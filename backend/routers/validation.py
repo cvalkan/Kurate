@@ -4471,6 +4471,13 @@ async def deep_dive_pipeline_status(dataset_id: str = Query("iclr-codegen")):
     prog = await db.settings.find_one({"key": keys["progress"]}, {"_id": 0})
     return prog or {"running": False, "step": None, "done": 0, "total": 0}
 
+@router.get("/deep-dive-pipeline/convergence")
+async def deep_dive_convergence(dataset_id: str = Query("iclr-codegen")):
+    """Convergence curves against all GT dimensions for both content modes."""
+    from services.iclr_deep_dive import compute_convergence_by_dimension
+    return await compute_convergence_by_dimension(dataset_id)
+
+
 
 @router.get("/deep-dive-pipeline/results")
 async def deep_dive_pipeline_results(dataset_id: str = Query("iclr-codegen")):
