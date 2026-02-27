@@ -382,97 +382,30 @@ function MiniCard({ label, value, positive, negative }) {
 
 function ConvergenceTab({ datasetId, label, isRunning }) {
   const [key, setKey] = useState(0);
-  const [dimData, setDimData] = useState(null);
-  const [selectedDim, setSelectedDim] = useState("composite");
 
-  const fetchDim = () => {
-    axios.get(`${API}/api/validation/deep-dive-pipeline/convergence?dataset_id=${datasetId}`)
-      .then(r => setDimData(r.data))
-      .catch(() => {});
-  };
-
-  useEffect(() => { fetchDim(); }, [datasetId]);
-
-  // Auto-refresh while running
   useEffect(() => {
     if (!isRunning) return;
-    const iv = setInterval(() => { fetchDim(); setKey(k => k + 1); }, 30000);
+    const iv = setInterval(() => setKey(k => k + 1), 30000);
     return () => clearInterval(iv);
   }, [isRunning]);
-
-  const dims = dimData?.dimensions || [];
-  const curves = dimData?.curves || {};
-  const hasDimData = dims.length > 0 && Object.keys(curves).length > 0;
 
   return (
     <div className="space-y-4">
       {isRunning && (
         <p className="text-xs text-muted-foreground flex items-center gap-2">
-          <RefreshCw className="h-3 w-3 animate-spin" /> Charts refresh every 30s while tournament is running
+          <RefreshCw className="h-3 w-3 animate-spin" /> Chart refreshes every 30s while tournament is running
         </p>
       )}
-
-      {/* Per-dimension convergence */}
-      {hasDimData && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold">Convergence by Ground Truth Dimension</h3>
-
-          {/* Dimension selector */}
-          <div className="flex gap-1 border border-border rounded-lg p-0.5 w-fit">
-            {dims.map(dim => (
-              <button key={dim} onClick={() => setSelectedDim(dim)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded capitalize transition-colors ${selectedDim === dim ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
-                {dim}
-              </button>
-            ))}
-          </div>
-
-          {/* Chart for selected dimension */}
-          <DimensionChart curves={curves} dimension={selectedDim} />
-
-          {/* Summary table: final correlation for each dimension × mode */}
-          <div className="border border-border rounded-lg p-4">
-            <h4 className="text-xs font-semibold mb-2">Final Spearman ρ by Dimension</h4>
-            <div className="text-xs space-y-1.5">
-              <div className="flex items-center gap-3 text-muted-foreground font-medium">
-                <span className="w-28">Dimension</span>
-                {Object.entries(curves).map(([modeId, mode]) => (
-                  <span key={modeId} className="w-32 text-right">{mode.name}</span>
-                ))}
-                <span className="w-14 text-right">Lift</span>
-              </div>
-              {dims.map(dim => {
-                const vals = Object.entries(curves).map(([modeId, mode]) => {
-                  const points = mode.points || [];
-                  const last = points[points.length - 1];
-                  return last?.correlations?.[dim] ?? null;
-                });
-                const lift = vals.length === 2 && vals[0] != null && vals[1] != null
-                  ? (vals[1] - vals[0]).toFixed(4) : null;
-                return (
-                  <div key={dim} className="flex items-center gap-3">
-                    <span className="w-28 font-medium capitalize">{dim}</span>
-                    {vals.map((v, i) => (
-                      <span key={i} className="w-32 text-right font-mono">{v != null ? v.toFixed(4) : "—"}</span>
-                    ))}
-                    {lift != null && (
-                      <span className={`w-14 text-right font-mono font-bold ${parseFloat(lift) > 0 ? "text-green-600" : parseFloat(lift) < 0 ? "text-red-500" : "text-muted-foreground"}`}>
-                        {parseFloat(lift) > 0 ? "+" : ""}{lift}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Standard convergence chart (existing) */}
       <div>
-        <h3 className="text-sm font-semibold mb-2">Overall Convergence (Composite)</h3>
+        <h3 className="text-sm font-semibold mb-1">Ranking Convergence</h3>
+        <p className="text-[10px] text-muted-foreground mb-3">
+          Spearman rank correlation between AI tournament ranking (Bradley-Terry) and human reviewer ranking, as matches accumulate.
+        </p>
         <ValidationConvergence key={key} datasets={[{ dataset_id: datasetId, name: label }]} />
       </div>
+    </div>
+  );
+}
     </div>
   );
 }
