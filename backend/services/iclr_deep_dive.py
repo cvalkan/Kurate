@@ -431,6 +431,34 @@ async def compute_analysis(dataset_id: str) -> dict:
     if not replays:
         return {}
 
+    # Load paper data for GT computation (handles both ICLR tiers and eLife ratings)
+    paper_ids = set()
+    for r in replays:
+        paper_ids.add(r["paper1_id"]); paper_ids.add(r["paper2_id"])
+    paper_gt = {}  # pid -> tier or avg_rating
+    async for p in db.validation_papers.find(
+        {"id": {"$in": list(paper_ids)}},
+        {"_id": 0, "id": 1, "decision": 1, "evaluations": 1},
+    ):
+        tier = _decision_tier(p.get("decision", ""))
+        if tier >= 0:
+            paper_gt[p["id"]] = ("tier", tier)
+        else:
+            evals = p.get("evaluations", [])
+            ratings = [ev["rating_value"] for ev in evals if ev.get("rating_value")]
+            if ratings:
+                paper_gt[p["id"]] = ("rating", sum(ratings) / len(ratings))
+
+    # Recompute GT for each replay
+    for r in replays:
+        gt1 = paper_gt.get(r["paper1_id"])
+        gt2 = paper_gt.get(r["paper2_id"])
+        if gt1 and gt2 and gt1[0] == gt2[0] and gt1[1] != gt2[1]:
+            gt_winner = r["paper1_id"] if gt1[1] > gt2[1] else r["paper2_id"]
+            r["human_gt_winner"] = gt_winner
+            r["original_agrees_human"] = r["original_winner_id"] == gt_winner
+            r["replay_agrees_human"] = r["replay_winner_id"] == gt_winner
+
     total = len(replays)
     flipped = sum(1 for r in replays if r["flipped"])
     with_gt = [r for r in replays if r.get("human_gt_winner")]
