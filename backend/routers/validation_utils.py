@@ -148,22 +148,27 @@ def build_content_mode_filter(content_mode: Optional[str] = None, abstract_only:
 
 def build_paper_gt_scores(papers: list) -> dict:
     """Build {paper_id: gt_score} from tier decisions, composite scores, or avg ratings.
-    Returns only papers with a usable GT signal."""
+    Returns only papers with a usable GT signal. Higher score = better paper."""
+    # Use a unified scale where higher = better (consistent with _TIER in iclr_deep_dive.py)
+    DECISION_SCORE = {
+        "oral": 4, "spotlight": 3, "poster": 2, "withdrawn": 1,
+        "desk rejected": 0, "reject": 0,
+    }
     gt = {}
     for p in papers:
         pid = p["id"]
         t = norm_tier(p.get("decision"))
-        if t and t in RANKABLE_TIERS:
-            gt[pid] = TIER_ORDER[t]  # lower = better (oral=0, reject=3)
+        if t and t in DECISION_SCORE:
+            gt[pid] = DECISION_SCORE[t]
             continue
         cs = p.get("composite_score")
         if cs is not None:
-            gt[pid] = -cs  # negate so lower = better (consistent)
+            gt[pid] = cs
             continue
         evals = p.get("evaluations", [])
         ratings = [e["rating_value"] for e in evals if e.get("rating_value")]
         if ratings:
-            gt[pid] = -(sum(ratings) / len(ratings))
+            gt[pid] = sum(ratings) / len(ratings)
     return gt
 
 
