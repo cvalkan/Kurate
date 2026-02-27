@@ -348,11 +348,18 @@ async def run_step4(dataset_id: str, source_mode: str = "abstract_plus_summary:o
                     raise ValueError(f"Invalid: {result}")
 
                 winner_id = p1["id"] if winner == "paper1" else p2["id"]
+                
+                # Ground truth: ICLR tiers OR eLife average expert rating
+                gt_winner = orig_agrees = replay_agrees = None
                 d1 = _decision_tier(p1.get("decision", ""))
                 d2 = _decision_tier(p2.get("decision", ""))
-                gt_winner = orig_agrees = replay_agrees = None
                 if d1 >= 0 and d2 >= 0 and d1 != d2:
                     gt_winner = p1["id"] if d1 > d2 else p2["id"]
+                elif p1["id"] in paper_avg_rating and p2["id"] in paper_avg_rating:
+                    r1, r2 = paper_avg_rating[p1["id"]], paper_avg_rating[p2["id"]]
+                    if r1 != r2:
+                        gt_winner = p1["id"] if r1 > r2 else p2["id"]
+                if gt_winner:
                     orig_agrees = m.get("winner_id") == gt_winner
                     replay_agrees = winner_id == gt_winner
 
