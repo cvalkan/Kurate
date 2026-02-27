@@ -513,7 +513,8 @@ function MethodologyNote() {
     <div className="border border-border rounded-lg p-4 bg-secondary/10" data-testid="pw-agreement-methodology">
       <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Methodology</h3>
       <ul className="text-xs text-muted-foreground space-y-1">
-        <li><strong>Comparison set:</strong> Agreement rates computed on the same paper pairs across all input formats.</li>
+        <li><strong>Non-tie pairs only:</strong> All agreement rates exclude pairs where reviewers gave equal scores. Only pairs with a clear human ground truth winner are counted.</li>
+        <li><strong>Comparison set:</strong> Agreement rates computed on the same non-tie paper pairs across all input formats.</li>
         <li><strong>AI vs Expert:</strong> How often an individual AI model agrees with each human reviewer.</li>
         <li><strong>AI vs Majority:</strong> How often an individual AI model agrees with the human reviewer consensus.</li>
         <li><strong>AI Consensus vs Majority:</strong> How often the 3-model majority vote agrees with the human majority (where all 3 models evaluated the pair).</li>
