@@ -4437,8 +4437,16 @@ async def start_deep_dive_pipeline(request: Request):
 
     async def _bg():
         try:
-            from services.iclr_deep_dive import run_full_pipeline
-            await run_full_pipeline(dataset_id=dataset_id, source_mode=source_mode)
+            # Use fresh pipeline for datasets without existing matches
+            existing = await db.validation_matches.count_documents(
+                {"dataset_id": dataset_id, "completed": True, "content_mode": {"$ne": "deep_dive"}}
+            )
+            if existing == 0:
+                from services.iclr_deep_dive import run_full_pipeline_fresh
+                await run_full_pipeline_fresh(dataset_id=dataset_id)
+            else:
+                from services.iclr_deep_dive import run_full_pipeline
+                await run_full_pipeline(dataset_id=dataset_id, source_mode=source_mode)
         except Exception as e:
             logger.error(f"Deep dive pipeline failed ({dataset_id}): {e}")
             await db.settings.update_one({"key": keys["progress"]}, {"$set": {"running": False, "error": str(e)[:500]}})
