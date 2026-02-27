@@ -246,6 +246,7 @@ export default function ValidationHubPage() {
           {selected === "exp-iclr-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-codegen" label="ICLR Code Generation" />}
           {selected === "exp-midl-deep-dive" && <ICLRDeepDiveSection datasetId="midl-medical-imaging" label="MIDL Medical Imaging" />}
           {selected === "exp-pdes-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-pdes" label="ICLR PDEs & Dynamical Systems" />}
+          {selected === "exp-neuro-deep-dive" && <ICLRDeepDiveSection datasetId="elife-neuro-100" label="eLife Neuroscience" />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
