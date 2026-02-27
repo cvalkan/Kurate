@@ -1,142 +1,116 @@
 <analysis>**original_problem_statement**:
 The user's primary goal is to build a robust system for validating AI model performance on scientific papers. This has evolved into a full-stack application featuring a leaderboard tournament where different LLMs act as judges to rank papers.
 
-The session began with a focus on production readiness, but quickly shifted to resolving a series of critical and recurring performance bottlenecks that made the application feel sluggish and unreliable under load. Key user requests addressed include:
--   **Fundamental Performance Overhaul**: Investigating and fixing the root cause of sluggishness across the admin panel, public leaderboards, and model analysis pages.
--   **Pipeline Integrity & Resiliency**: Decoupling long-running fetch tasks from comparison rounds to prevent stalls, and adding robust error handling for API credit exhaustion.
--   **Data Deduplication**: Implementing logic to find and merge duplicate papers, ensuring data integrity.
--   **Bug Fixes & UX Polish**: Resolving issues with user login (CORS), scatter plot artifacts, incorrect UI statuses, and merging different LLM versions (Claude Opus 4.5/4.6) into a unified, coherent view.
+The session began with resolving critical performance bottlenecks and has since shifted to a deep exploration of the summary generation pipeline. The core focus has been on implementing and running a deeper dive two-pass assessment strategy across various academic datasets (ICLR, MIDL, PeerRead, and a newly-scraped Access Microbiology dataset) to determine if more thorough AI analysis improves match outcomes and correlation with human expert judgment.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a highly-performant, production-ready AI model validation platform. The backend (FastAPI) and frontend (React) have undergone a fundamental architectural overhaul to eliminate performance bottlenecks.
+The application is a full-stack platform (FastAPI backend, React frontend) for running AI judging tournaments on scientific papers. It features a non-blocking architecture with proactive caching for performance.
 
-Key features include:
--   **Non-Blocking Architecture**: All CPU-intensive computations (like calculating leaderboards) are run in a separate thread pool, ensuring the main server process remains responsive to user requests at all times.
--   **Proactive Caching System**: A robust, multi-layered caching architecture is in place for all expensive endpoints. Caches have long (1-hour) TTLs and are kept permanently warm by background refresh loops, virtually eliminating the possibility of a user experiencing a cold hit slowdown. All caches are also pre-warmed on application startup.
--   **Decoupled Background Scheduler**: The scheduler runs paper fetching and tournament comparisons as two independent, parallel background tasks, preventing long fetch cycles from stalling matchmaking.
--   **Automated Data Deduplication**: Duplicate papers are automatically merged on application startup and prevented during ongoing fetch cycles.
--   **Resilient LLM Matching**: The tournament logic now gracefully handles transient API budget errors with a backoff-and-retry mechanism.
--   **Improved Frontend Experience**: Key pages now use client-side caching () and refined loading states to make switching between data views feel instantaneous and fluid, without disruptive UI flashing.
--   **Unified Model Views**: Data for Claude Opus 4.5 and 4.6 has been merged into a single Claude Opus entity for clearer analysis.
+A significant new feature is the Deeper Dive experiment pipeline. This is a parameterized system that can run a two-pass summary generation process on any dataset, execute a tournament (either replaying existing matches or running a fresh one), and present the results in a dedicated UI. This pipeline has been used to run experiments on four different datasets.
+
+The most recent addition was scraping the Access Microbiology dataset from Sciety.org and implementing the full deep dive experiment on a 100-paper subset, including creating new ground truth metrics based on reviewer scores.
 
 **Last working item**:
--   **Last item agent was working**: The user reported that switching between convergence charts still felt slow, even with the highly optimized backend. The agent diagnosed this as a frontend rendering issue: the UI showed a disruptive full-page loading skeleton even for fast (<200ms) API responses. The agent also found that the frontend was re-fetching data from the server every time a tab was switched.
+-   **Last item agent was working**: The user was confused by the results of the Access Microbiology (ACMI) deep dive experiment, as the numbers and charts on the frontend appeared inconsistent and counter-intuitive. The agent diagnosed three separate issues: (1) agreement rates were being calculated on different sets of pairs, making them incomparable; (2) a per-dimension convergence chart was noisy and unhelpful; and (3) a declining convergence curve was a real but confusing artifact of the dataset. The agent was in the process of fixing the analysis logic and cleaning up the UI to present the results more coherently.
 -   **Status**: IN PROGRESS
 -   **Agent Testing Done**: N
--   **Which testing method agent to use?**: frontend testing agent. The agent should be instructed to test the Model Analysis () page, specifically focusing on the user experience when switching between the category tabs. The test should verify that there is no more full-page skeleton flashing and that switching back to a tab that was already viewed is instantaneous (due to client-side caching).
+-   **Which testing method agent to use?**: frontend testing agent. The agent should be instructed to test the ACMI Deep Dive experiment page (). The test should verify that: 1) The Pairwise Accuracy stats for Baseline and Deep Dive are now consistent with the Same-Pair Comparison flip metrics. 2) The confusing Convergence by Ground Truth Dimension chart has been removed. 3) The UI text and labels are accurate and clear (e.g., correct match counts, proper descriptions).
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1**: (P0) Verify the frontend fix for perceived sluggishness when switching between convergence charts.
--   **Issue 2**: (P1) Complete the fair replay of Opus 4.6 tournaments for all ICLR datasets.
--   **Issue 3**: (P2) Add a UI visualization for the gap-stratified human accuracy in the A/B test section.
--   **Issue 4**: (P2) Complete the data generation for the  dataset.
+-   **Issue 1**: (P0) Verify the UI and analysis cleanup for the Access Microbiology deep dive experiment.
+-   **Issue 2**: (P2) The deep dive experiments for PeerRead and ICLR PDEs were stopped due to budget depletion. The user may want to resume these.
+-   **Issue 3**: (P2) Complete the fair replay of Opus 4.6 tournaments for remaining ICLR datasets.
+-   **Issue 4**: (P2) Add UI visualization for gap-stratified human accuracy.
 -   **Issue 5**: (P2) Add missing HTTP security headers.
 
 **Issues Detail**:
--   **Issue 1: Verify the frontend fix for perceived sluggishness when switching convergence charts.**
-    -   **Attempted fixes**: The agent implemented two frontend changes:
-        1.  Removed the full-page loading skeleton in  and  to prevent a jarring UI flash on fast data loads.
-        2.  Added client-side caching using the  hook to , so that switching back to a previously viewed category is instantaneous.
-    -   **Next debug checklist**:
-        1.  Verify the frontend builds correctly.
-        2.  Use a frontend testing agent or screenshot tool to navigate to the  page.
-        3.  Switch between different category tabs (e.g., cs.DC, cs.GT).
-        4.  Confirm that the full-page loading skeleton no longer appears, and the experience is fluid.
-        5.  Confirm that switching *back* to a previously viewed tab is significantly faster (instantaneous) than the first time it was clicked.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is the final perceived performance issue reported by the user. Fixing it will deliver the instant and fluid UI experience the user has been asking for.
+-   **Issue 1: Verify the UI and analysis cleanup for the Access Microbiology deep dive experiment.**
+    -   **Attempted fixes**: The agent refactored the analysis function ( in ) to compute agreement metrics on the *common set of pairs* only, making the results comparable. The confusing per-dimension convergence chart was removed from the frontend component (), and various UI labels were updated for clarity.
+    -   **Next debug checklist**: Use the frontend testing agent to navigate to the ACMI Deep Dive experiment page and confirm the UI is now consistent, coherent, and the confusing elements have been removed.
+    -   **Why fix this issue and what will be achieved with the fix?**: The user was losing trust in the experiment's results due to the confusing presentation. This fix aims to restore clarity and confidence in the data.
     -   **Status**: IN PROGRESS
-    -   **Is recurring issue?**: Y (This is the final manifestation of the user's recurring performance complaints).
+    -   **Is recurring issue?**: Y (The user has repeatedly questioned the validity and presentation of experiment data throughout the session).
     -   **Should Test frontend/backend/both after fix?**: frontend
     -   **Blocked on other issue**: None
-
--   **Issue 2: Complete the fair replay of Opus 4.6 tournaments for all remaining ICLR datasets.**
-    -   **Next debug checklist**: Run the script  for the remaining ICLR datasets.
-    -   **Status**: NOT STARTED
-    -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: backend
-
--   **Issue 3: Add a UI visualization for the gap-stratified human accuracy.**
-    -   **Next debug checklist**: Add a table or chart to .
-    -   **Status**: NOT STARTED
-    -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: frontend
-
--   **Issue 4: Complete the data generation for the  dataset.**
-    -   **Status**: NOT STARTED
-
--   **Issue 5: Add missing HTTP security headers.**
-    -   **Next debug checklist**: Implement a FastAPI middleware to add security headers like Content-Security-Policy (CSP).
-    -   **Status**: NOT STARTED
 
 **In progress Task List**:
 None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks**:
-    -   (P1) Complete the fair replay of Opus 4.6 tournaments.
+    -   (P1) Resume and complete the PeerRead and/or ICLR PDEs deep dive experiments if the user wishes, once budget is available.
 -   **Future Tasks**:
-    -   (P2) Add UI for gap-stratified human accuracy.
-    -   (P2) Add missing HTTP security headers.
-    -   (P3) Refactor the  router file into a  layer, continuing the architectural improvements made in this session.
+    -   (P1) The user previously postponed running the deep dive experiment on the core ICLR validation datasets to compare directly with human ground truth. This is a natural next step.
+    -   (P2) Add UI visualization for gap-stratified human accuracy in the A/B test section.
+    -   (P2) Add missing HTTP security headers (e.g., CSP) via a FastAPI middleware.
+    -   (P3) Refactor  into smaller service files.
 
 **Completed work in this session**
--   **Fundamental Performance Architecture Rework**:
-    -   Identified and fixed the root cause of all performance issues by moving CPU-bound Python computations to a , preventing the main async event loop from being blocked.
-    -   Designed and implemented a proactive, multi-layered caching system with long TTLs, background refresh loops, and startup pre-warming for all critical endpoints, guaranteeing a permanently warm and fast experience.
--   **Scheduler Overhaul**: Refactored the main scheduler into two independent background tasks (fetch and compare), preventing long paper-fetching cycles from stalling tournament progress.
--   **Data Integrity and Resiliency**:
-    -   Implemented automated paper deduplication (on startup and during fetching) to eliminate duplicates.
-    -   Added a backoff-and-retry mechanism to the LLM comparison logic to gracefully handle API budget exhaustion.
--   **Critical Bug Fixes and UX Enhancements**:
-    -   Fixed user login failures in incognito mode by correcting an invalid CORS configuration.
-    -   Resolved a  by converting a long-running admin endpoint to a background task.
-    -   Reworked scatter plot data generation to be per-model-pair, fixing visual artifacts and scarce data issues.
-    -   Merged Opus 4.5 and 4.6 into a unified Claude Opus view in analysis pages, with a note clarifying the transition date.
+-   **Diagnosed and Fixed Paused Tournament Bug**: Found and fixed an issue where new categories appeared to be running but were paused in the backend.
+-   **Investigated and Fixed Summary Truncation**: Removed a 40k character limit that was truncating 81% of papers and built a robust, auto-triggering regeneration task to fix historical data.
+-   **Implemented Deeper Dive Experiment Pipeline**: Created a flexible, two-pass summary generation and tournament framework to test if deeper analysis improves judging accuracy.
+-   **Ran Multiple Deep Dive Experiments**: Executed the pipeline on ICLR Code Gen, MIDL, PeerRead, and a new Access Microbiology dataset, each with a dedicated UI and live progress tracking.
+-   **Scraped New Access Microbiology Dataset**: Built a scraper to fetch 616 papers and 1,597 reviewer ratings from Sciety.org.
+-   **Improved Statistical Rigor and Analysis**: Corrected flawed statistical tests, implemented proper ground truth generation for different dataset types, and made analysis robust to common pitfalls.
+-   **Added SEO Features**: Implemented  and a dynamic .
+-   **Made Background Tasks Resilient**: Refactored long-running tasks to be resumable and robust to restarts and budget depletion.
+
+**Known issue recurrence from previous fork**
+-   A new recurring issue has emerged: **user confusion and mistrust of the data presented in experiment UIs**. The agent has had to iteratively fix misleading charts, inconsistent numbers, and unclear labels. The  is the latest instance of this pattern.
 
 **Code Architecture**
-compute_leaderboard
+
 
 **Key Technical Concepts**
--   **ThreadPoolExecutor for CPU-bound tasks**: The definitive solution to performance issues. All heavy pandas/numpy calculations are now offloaded from the main async event loop, keeping the server responsive.
--   **Proactive Caching**: The new caching paradigm for the app. Instead of waiting for a user to trigger a slow computation, the server now keeps all expensive data permanently warm through pre-warming on startup and continuous background refresh loops.
--   **Client-Side Caching ()**: A key frontend optimization to make tab-switching and repeated views feel instantaneous by avoiding unnecessary network requests.
--   **CORS  with **: A subtle but critical bug was fixed where  is incompatible with , which was breaking user login in strict browser environments.
+-   **Asynchronous Task Management**: Using  and  to run concurrent, long-running LLM calls.
+-   **Resilient Pipelines**: Persisting task state in MongoDB to make background processes resumable and robust to restarts or API errors.
+-   **Live Data Visualization**: Using  with a refresh interval to create live-updating dashboards that poll backend status.
+-   **Statistical Analysis in Backend**: Implementing statistical tests (McNemar's, Wilcoxon) and ranking algorithms (Bradley-Terry, Elo) in FastAPI.
+-   **Web Scraping**: Using  and  to create a new dataset from Sciety.org.
+
+**key DB schema**
+-   : Core paper data; enriched with , , , and detailed .
+-   : Pairwise comparisons;  distinguishes different summary types (e.g., ).
+-   : A single document storing state and results for all deep dive experiments, keyed by .
+-   : Stores one-off migration flags (e.g., ).
 
 **All files of reference**
--   : The core of the new performance architecture, containing the main leaderboard cache and thread pool logic.
--   : Defines the proactive caching strategy for other expensive endpoints (analysis, validation).
--   : Home of the  wrapper that enables non-blocking computation.
--   : The entry point that kicks off all background processes (cache refreshes, scheduler, startup tasks).
--   : The location of the most recent frontend fix, using  for client-side caching.
+-   : The core logic for all recent experiment pipelines.
+-   : The parameterized frontend component for displaying all experiment results.
+-   : Location of the summary generation logic that was modified to remove truncation.
+-   : The scraper for the new Access Microbiology dataset.
 
 **Critical Info for New Agent**
-1.  **Performance is Solved Architecturally**: The recurring sluggishness issues have been addressed at a fundamental level with a thread pool and proactive caching. The backend is now extremely fast. Any future performance complaints should be investigated on the **frontend first** (rendering, client-side state management).
-2.  **Trust the Caching Model**: The application is designed to be fast *after* a brief warm-up period on startup (~1-2 minutes). Do not be alarmed by a slow first hit immediately after a restart. The background refresh loops will ensure the cache stays warm thereafter.
-3.  **Frontend is the Current Focus**: The immediate next step is to verify the latest frontend changes for , which aim to solve the *perceived* slowness by improving the UI rendering pattern.
-4.  **Model Merging is Intentional**: The backend intentionally combines Claude Opus 4.5 and 4.6 data into a single Claude Opus entity for the model analysis pages. This is a feature, not a bug.
+1.  **The Deeper Dive Pipeline is the Core Focus**: The main recent work is in . Understand this file to understand the current state of the project.
+2.  **Background Tasks are Fragile to Code Changes**: Any backend code change triggers a  hot-reload, which **kills running experiment tasks**. You must manually re-trigger them after deploying changes. This is a constant operational step.
+3.  **Presentation Matters**: The user is highly attentive to inconsistencies in the UI data. Ensure that any numbers presented are comparable (e.g., calculated on the same set of pairs) and that charts are not misleading. The  is a direct result of this.
+4.  **Ground Truth Varies**: Each dataset family (ICLR, eLife, ACMI) has a different ground truth structure (tiers vs. ratings vs. scores). The analysis code in  handles these different types.
+5.  **LLM Budget Depletion is a Frequent Blocker**: Tasks will appear stuck when the budget runs out. They have robust retry logic and will resume automatically once budget is added, but they will not make progress until then.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Reported scatter plot artifacts and scarcity. **Status**: COMPLETED. Agent reworked the scatter plot logic to be per-model-pair.
-2.  **User**: Reported sluggishness again and asked to merge Opus models. **Status**: COMPLETED. Agent diagnosed the issue as cache TTL being too short, re-architected all cache layers to be permanently warm, and merged the Opus models.
-3.  **User**: Asked for an audit of all caching layers. **Status**: COMPLETED. Agent provided a full audit and fortified the remaining vulnerable caches with background refreshes.
-4.  **User**: Pointed out a UI bug from the Opus merge. **Status**: COMPLETED. Agent fixed the key mismatch and the UI.
-5.  **User**: Asked to rephrase the Opus merge note. **Status**: COMPLETED.
-6.  **User**: Reported the production site was broken after deploy with the old UI. **Status**: COMPLETED. Agent diagnosed a transient crash and confirmed the site came back up with the correct code.
-7.  **User**: Reported the site was up but sluggish. **Status**: COMPLETED. Agent explained the cache warming period.
-8.  **User**: Reported convergence chart switching is still very slow. **Status**: IN PROGRESS. This is the current . The agent diagnosed a frontend rendering issue and has implemented a fix that needs verification.
+1.  **User**: Stop the ACMI tournament. Check the numbers/charts on the frontend, they don't make sense. (Status: ADDRESSED. Agent stopped the tournament and started investigating the UI inconsistencies).
+2.  **User**: Clean up the confusing UI. (Status: IN PROGRESS. This is the ).
+3.  **User**: Why is deep dive agreement lower than baseline when more matches flipped towards human? (Status: ADDRESSED. Agent found the common pairs calculation bug and is fixing it).
+4.  **User**: The convergence chart is deteriorating, why? (Status: ADDRESSED. Agent explained it's a real artifact of the dataset and simplified the UI to reduce confusion).
+5.  **User**: Run the ACMI tournament with all 3 LLMs as random judges. (Status: COMPLETED. Agent updated the pipeline).
+6.  **User**: Run the deep dive tournament for the Access Microbiology dataset. (Status: COMPLETED. The tournament was started but later stopped by the user).
+7.  **User**: I'm lost. Can't you build valid paper-paper matches from the ground truth? (Status: COMPLETED. Agent implemented synthetic evaluators to create valid pairwise ground truth).
+8.  **User**: The convergence charts don't make sense. (Status: COMPLETED. Agent found a bug in ground truth generation and fixed it).
+9.  **User**: The PeerRead tournament is stuck. (Status: COMPLETED. Agent diagnosed a budget issue and stopped the tournament).
+10. **User**: Can you scrape Access Microbiology from Sciety.org? (Status: COMPLETED. Agent built a scraper and created the dataset).
 
 **Project Health Check:**
--   **Broken**: None. All backend systems are stable and performant. A frontend UI/UX improvement is in progress.
+-   **Broken**: None. The application is stable. The main recurring issue is background tasks being killed by hot-reloads, requiring manual re-triggering.
 -   **Mocked**: None.
 
 **3rd Party Integrations**
--   **LLM Providers**: Anthropic (Claude Opus), OpenAI, Google (via )
--   **Data Sources**: OpenReview API, eLife API, Crossref API
--   **PDF Parsing**: PyMuPDF
--   **Authentication**: Emergent-managed Google Auth
+-   **LLM Providers**: Anthropic (Claude Opus), OpenAI (GPT-5.2), Google (Gemini 3 Pro) via .
+-   **Data Sources**: OpenReview API, eLife API, Crossref API, Sciety.org (via scraping).
+-   **PDF Parsing**: PyMuPDF.
+-   **Authentication**: Emergent-managed Google Auth.
 
 **Testing status**
 -   **Testing agent used after significant changes**: NO
@@ -148,4 +122,4 @@ compute_leaderboard
 -   Admin access requires the password from the  environment variable in .
 
 **What agent forgot to execute**
-- The agent has been extremely thorough in addressing all user-reported issues from this session. The only remaining tasks are long-standing feature requests from the initial handoff that were correctly deprioritized to fix the critical performance problems.</analysis>
+-   The agent has been thorough in executing user requests. The main recurring oversight was not anticipating how new experimental results would be perceived by the user, leading to multiple rounds of UI cleanup and clarification.</analysis>
