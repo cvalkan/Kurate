@@ -618,6 +618,34 @@ async def compute_analysis(dataset_id: str) -> dict:
 
 async def compute_convergence_by_dimension(dataset_id: str, steps: int = 10) -> dict:
     """Compute ranking convergence against each GT dimension separately.
+    Uses Bradley-Terry ranking (same as main convergence). Cached in DB.
+    """
+    keys = _keys(dataset_id)
+    cache_key = f"{keys['experiment']}_convergence"
+
+    # Check cache
+    cached = await db.settings.find_one({"key": cache_key}, {"_id": 0})
+    if cached and cached.get("data"):
+        # Refresh if match count changed
+        current_count = await db.validation_matches.count_documents(
+            {"dataset_id": dataset_id, "completed": True, "content_mode": {"$in": ["abstract_plus_summary", "deep_dive"]}}
+        )
+        if cached.get("match_count") == current_count:
+            return cached["data"]
+
+    result = await _compute_convergence_by_dimension_impl(dataset_id, steps)
+
+    match_count = sum(d.get("total_matches", 0) for d in result.get("curves", {}).values())
+    await db.settings.update_one(
+        {"key": cache_key},
+        {"$set": {"key": cache_key, "data": result, "match_count": match_count}},
+        upsert=True,
+    )
+    return result
+
+
+async def _compute_convergence_by_dimension_impl(dataset_id: str, steps: int = 10) -> dict:
+    """Compute ranking convergence against each GT dimension separately.
     
     For each content_mode (baseline, deep_dive), builds Bradley-Terry rankings
     at increasing match counts and computes Spearman correlation against
