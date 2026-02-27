@@ -198,6 +198,7 @@ function AnalysisView({ analysis }) {
   const ha = analysis.human_agreement || {};
   const fd = analysis.flip_direction || {};
   const pl = analysis.paper_level || {};
+  const da = analysis.dimension_agreement || {};
 
   return (
     <div className="space-y-4">
