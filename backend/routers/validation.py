@@ -1549,10 +1549,8 @@ async def get_available_modes(dataset_id: str = Query(...)):
     SUMMARY_TAG_LABELS = {
         "gpt_summary": "Abstract + Summary (GPT-5.2)",
         "gemini_summary": "Abstract + Summary (Gemini 3 Pro)",
-        "opus_thinking": "Abstract + Summary (Opus 4.5 Thinking)",
-        "gpt_thinking": "Abstract + Summary (GPT-5.2 Thinking)",
-        "gemini_thinking": "Abstract + Summary (Gemini 3 Thinking)",
         "opus46": "Abstract + Summary (Opus 4.6)",
+        "thinking": "Abstract + Summary (Opus 4.6 Thinking)",
     }
     BASE_LABELS = {
         "none": "Extract", "extract": "Extract", "abstract": "Abstract",
