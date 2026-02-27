@@ -4614,7 +4614,7 @@ _thinking_task = None
 
 THINKING_FIELD = "ai_impact_summary_thinking"
 THINKING_MODE = "abstract_plus_summary:thinking"
-THINKING_MODEL = {"provider": "anthropic", "model": "claude-opus-4-6", "extra_params": {"thinking": {"type": "enabled", "budget_tokens": 10000}}}
+THINKING_MODEL = {"provider": "anthropic", "model": "claude-opus-4-6", "extra_params": {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": 10000}}}}
 
 
 @router.post("/extended-thinking/run", dependencies=[Depends(verify_admin)])
