@@ -371,3 +371,26 @@ function MiniCard({ label, value, positive, negative }) {
     </div>
   );
 }
+
+
+function ConvergenceTab({ datasetId, label, isRunning }) {
+  const [key, setKey] = useState(0);
+
+  // Auto-refresh convergence while running
+  useEffect(() => {
+    if (!isRunning) return;
+    const iv = setInterval(() => setKey(k => k + 1), 30000);
+    return () => clearInterval(iv);
+  }, [isRunning]);
+
+  return (
+    <div className="space-y-4">
+      {isRunning && (
+        <p className="text-xs text-muted-foreground flex items-center gap-2">
+          <RefreshCw className="h-3 w-3 animate-spin" /> Chart refreshes every 30s while tournament is running
+        </p>
+      )}
+      <ValidationConvergence key={key} datasets={[{ dataset_id: datasetId, name: label }]} />
+    </div>
+  );
+}
