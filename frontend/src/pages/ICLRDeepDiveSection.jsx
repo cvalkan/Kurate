@@ -79,11 +79,11 @@ export default function ICLRDeepDiveSection({ datasetId = "iclr-codegen", label 
           done={step3Done === totalPapers}
         />
         <StepCard
-          label="Step 3: Replay"
-          value={replayCount}
-          sub={isRunning && status?.step === "step4" ? `${status.done}/${status.total} matches` : replayCount > 0 ? "Matches replayed" : "Pending"}
-          active={isRunning && status?.step === "step4"}
-          done={status?.finished && replayCount > 0}
+          label="Step 3: Tournament"
+          value={totalMatches || replayCount}
+          sub={isRunning && (status?.step === "step4" || status?.step === "step4_fresh") ? `${status.done}/${status.total} matches` : totalMatches > 0 ? `${baselineMatches} baseline + ${ddMatches} deep dive` : "Pending"}
+          active={isRunning && (status?.step === "step4" || status?.step === "step4_fresh")}
+          done={status?.finished && totalMatches > 0}
         />
       </div>
 
