@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { RefreshCw, ChevronDown, ChevronUp, FlaskConical, Sparkles } from "lucide-react";
+import { ValidationConvergence } from "@/components/ConvergenceSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
