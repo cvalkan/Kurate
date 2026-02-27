@@ -203,7 +203,7 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
           <h3 className="text-xs font-medium flex items-center gap-1.5">
             <BarChart3 className="h-3 w-3" /> Agreement with Human Experts by Input Format
           </h3>
-          <div className="text-[10px] text-muted-foreground mt-0.5">{data.common_pairs} paper pairs evaluated with each format</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{data.common_pairs} non-tie paper pairs evaluated with each format</div>
         </div>
         <div className="p-3">
           <ResponsiveContainer width="100%" height={220}>
