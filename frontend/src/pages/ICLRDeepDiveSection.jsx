@@ -210,8 +210,8 @@ function AnalysisView({ analysis }) {
     <div className="space-y-4">
       {/* Headline */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Matches" value={`${a.total_matches?.baseline || a.total_replays || 0} / ${a.total_matches?.deep_dive || 0}`} sub="Baseline / Deep Dive" />
-        <StatCard label="Verdict Flip Rate" value={`${a.flip_rate}%`} sub={`${a.flipped} flipped of ${a.common_pairs || "?"} pairs`} />
+        <StatCard label="Matches" value={`${analysis.total_matches?.baseline || analysis.total_replays || 0} / ${analysis.total_matches?.deep_dive || 0}`} sub="Baseline / Deep Dive" />
+        <StatCard label="Verdict Flip Rate" value={`${analysis.flip_rate}%`} sub={`${analysis.flipped} flipped of ${analysis.common_pairs || "?"} pairs`} />
         <StatCard
           label="Human Agreement (Baseline)"
           value={`${ha.original || 0}%`}
