@@ -4605,3 +4605,258 @@ async def acmi_scrape_status():
 async def acmi_stats():
     from services.acmi_scraper import get_dataset_stats
     return await get_dataset_stats()
+
+
+# ─── Extended Thinking Experiment ──────────────────────────────────────────────
+
+_thinking_state = {"running": False, "done": 0, "total": 0, "step": "", "dataset_id": ""}
+_thinking_task = None
+
+THINKING_FIELD = "ai_impact_summary_thinking"
+THINKING_MODE = "abstract_plus_summary:thinking"
+THINKING_MODEL = {"provider": "anthropic", "model": "claude-opus-4-6", "extra_params": {"thinking": {"type": "enabled", "budget_tokens": 10000}}}
+
+
+@router.post("/extended-thinking/run", dependencies=[Depends(verify_admin)])
+async def start_extended_thinking(request: Request):
+    global _thinking_task
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    dataset_id = body.get("dataset_id", "iclr-codegen")
+    num_pairs = body.get("num_pairs", 200)
+
+    if _thinking_state["running"]:
+        raise HTTPException(409, "Already running")
+
+    async def _bg():
+        global _thinking_task
+        try:
+            await _run_extended_thinking(dataset_id, num_pairs)
+        except Exception as e:
+            logger.error(f"Extended thinking experiment failed: {e}")
+        finally:
+            _thinking_state["running"] = False
+            _thinking_task = None
+
+    _thinking_task = asyncio.create_task(_bg())
+    return {"status": "started", "dataset_id": dataset_id, "num_pairs": num_pairs}
+
+
+@router.post("/extended-thinking/stop", dependencies=[Depends(verify_admin)])
+async def stop_extended_thinking():
+    global _thinking_task
+    _thinking_state["running"] = False
+    if _thinking_task and not _thinking_task.done():
+        _thinking_task.cancel()
+    return {"status": "stopping"}
+
+
+@router.get("/extended-thinking/status")
+async def extended_thinking_status():
+    return _thinking_state
+
+
+@router.get("/extended-thinking/results")
+async def extended_thinking_results():
+    """Compute accuracy comparison: opus46 baseline vs thinking summaries."""
+    import math
+
+    # Find datasets with thinking matches
+    pipeline = [
+        {"$match": {"content_mode": THINKING_MODE, "completed": True, "failed": {"$ne": True}}},
+        {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+    ]
+    ds_counts = {r["_id"]: r["count"] async for r in db.validation_matches.aggregate(pipeline)}
+    if not ds_counts:
+        return {"status": "no_data"}
+
+    all_datasets = list(ds_counts.keys())
+    pooled_a = pooled_b = pooled_c = pooled_d = 0
+    by_dataset = {}
+
+    for ds_id in all_datasets:
+        papers = {}
+        async for p in db.validation_papers.find(
+            {"dataset_id": ds_id}, {"_id": 0, "id": 1, "evaluations": 1, "decision": 1, "composite_score": 1}
+        ):
+            papers[p["id"]] = p
+
+        from routers.validation_utils import build_paper_gt_scores
+        gt = build_paper_gt_scores(list(papers.values()))
+
+        # Load baseline (opus46) and thinking matches
+        baseline = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": "abstract_plus_summary:opus46"},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ):
+            pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            baseline[pk] = m
+
+        thinking = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": THINKING_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ):
+            pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            thinking[pk] = m
+
+        common = set(baseline.keys()) & set(thinking.keys())
+        a = b = c = d_val = 0
+        for pk in common:
+            bl_m, th_m = baseline[pk], thinking[pk]
+            g1 = gt.get(bl_m["paper1_id"])
+            g2 = gt.get(bl_m["paper2_id"])
+            if g1 is None or g2 is None or g1 == g2:
+                continue
+            gt_winner = bl_m["paper1_id"] if g1 < g2 else bl_m["paper2_id"]  # lower = better in build_paper_gt_scores
+            bl_ok = bl_m["winner_id"] == gt_winner
+            th_ok = th_m["winner_id"] == gt_winner
+            if bl_ok and th_ok: a += 1
+            elif bl_ok and not th_ok: b += 1
+            elif not bl_ok and th_ok: c += 1
+            else: d_val += 1
+
+        total = a + b + c + d_val
+        if total > 0:
+            bl_acc = round((a + b) / total * 100, 1)
+            th_acc = round((a + c) / total * 100, 1)
+            by_dataset[ds_id] = {"pairs": total, "baseline": bl_acc, "thinking": th_acc, "lift": round(th_acc - bl_acc, 1)}
+            pooled_a += a; pooled_b += b; pooled_c += c; pooled_d += d_val
+
+    total_p = pooled_a + pooled_b + pooled_c + pooled_d
+    if total_p == 0:
+        return {"status": "no_data"}
+
+    bl_p = round((pooled_a + pooled_b) / total_p * 100, 1)
+    th_p = round((pooled_a + pooled_c) / total_p * 100, 1)
+    mcnemar = {"pairs": total_p, "only_baseline": pooled_b, "only_thinking": pooled_c}
+    if pooled_b + pooled_c > 0:
+        chi2 = (abs(pooled_b - pooled_c) - 1)**2 / (pooled_b + pooled_c)
+        p_val = math.erfc(math.sqrt(chi2 / 2))
+        mcnemar.update({"chi2": round(chi2, 3), "p_value": round(p_val, 4), "significant": p_val < 0.05})
+    else:
+        mcnemar.update({"chi2": 0, "p_value": 1.0, "significant": False})
+
+    n_thinking = await db.validation_papers.count_documents({THINKING_FIELD: {"$exists": True, "$ne": ""}})
+    n_thinking_matches = sum(ds_counts.values())
+
+    return {
+        "status": "ok",
+        "papers_with_thinking": n_thinking,
+        "thinking_matches": n_thinking_matches,
+        "baseline_accuracy": bl_p,
+        "thinking_accuracy": th_p,
+        "baseline_gt_pairs": total_p,
+        "lift": round(th_p - bl_p, 1),
+        "mcnemar": mcnemar,
+        "by_dataset": by_dataset,
+    }
+
+
+async def _run_extended_thinking(dataset_id: str, num_pairs: int):
+    """Phase 1: Generate thinking summaries. Phase 2: Run tournament on cross-tier pairs."""
+    from services.llm import generate_precomparison_impact_summary, compare_papers, _pick_round_robin_model
+    import itertools
+
+    _thinking_state.update({"running": True, "done": 0, "total": 0, "step": "generating_summaries", "dataset_id": dataset_id})
+
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    lookup = {p["id"]: p for p in papers}
+
+    # Phase 1: Generate thinking summaries for papers that don't have one
+    missing = [p for p in papers if not p.get(THINKING_FIELD)]
+    _thinking_state["total"] = len(missing)
+    logger.info(f"Extended thinking [{dataset_id}]: generating {len(missing)} thinking summaries")
+
+    sem = asyncio.Semaphore(3)  # Lower parallelism — thinking uses more tokens
+    gen_done = 0
+
+    async def gen_one(p):
+        nonlocal gen_done
+        if not _thinking_state["running"]:
+            return
+        async with sem:
+            result = await generate_precomparison_impact_summary(p, model_override=THINKING_MODEL)
+            if result and result.get("summary"):
+                await db.validation_papers.update_one(
+                    {"dataset_id": dataset_id, "id": p["id"]},
+                    {"$set": {THINKING_FIELD: result["summary"]}},
+                )
+                gen_done += 1
+                _thinking_state["done"] = gen_done
+
+    await asyncio.gather(*[gen_one(p) for p in missing], return_exceptions=True)
+    logger.info(f"Extended thinking [{dataset_id}]: generated {gen_done} summaries")
+
+    if not _thinking_state["running"]:
+        return
+
+    # Phase 2: Run cross-tier tournament
+    _thinking_state.update({"step": "tournament", "done": 0})
+
+    # Reload papers with thinking summaries
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    lookup = {p["id"]: p for p in papers}
+
+    # Build GT for cross-tier filtering
+    from routers.validation_utils import build_paper_gt_scores
+    gt = build_paper_gt_scores(papers)
+    pids_with_thinking = [p["id"] for p in papers if p.get(THINKING_FIELD)]
+
+    # Get existing thinking matches
+    existing = set()
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": THINKING_MODE, "completed": True},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        existing.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+
+    # Generate cross-tier pairs
+    all_ct = [(a, b) for a, b in itertools.combinations(pids_with_thinking, 2)
+              if a in gt and b in gt and gt[a] != gt[b]
+              and tuple(sorted([a, b])) not in existing]
+    random.shuffle(all_ct)
+    to_run = all_ct[:num_pairs]
+    _thinking_state["total"] = len(to_run)
+    logger.info(f"Extended thinking [{dataset_id}]: running {len(to_run)} cross-tier matches")
+
+    sem2 = asyncio.Semaphore(8)
+    completed = 0
+
+    async def run_one(p1_id, p2_id):
+        nonlocal completed
+        if not _thinking_state["running"]:
+            return
+        async with sem2:
+            p1, p2 = lookup[p1_id], lookup[p2_id]
+            s1, s2 = p1.get(THINKING_FIELD, ""), p2.get(THINKING_FIELD, "")
+            if not s1 or not s2:
+                return
+            p1c = {**p1, "ai_impact_summary": s1}
+            p2c = {**p2, "ai_impact_summary": s2}
+            judge = _pick_round_robin_model()
+            try:
+                result = await compare_papers(p1c, p2c, content_mode="abstract_plus_summary", model_override=judge)
+                if result and not result.get("failed"):
+                    wk = result.get("winner", "paper1")
+                    doc = {
+                        "id": str(uuid.uuid4()),
+                        "dataset_id": dataset_id,
+                        "content_mode": THINKING_MODE,
+                        "paper1_id": p1_id, "paper2_id": p2_id,
+                        "winner_id": p1_id if wk == "paper1" else p2_id,
+                        "completed": True, "failed": False,
+                        "model_used": result.get("model_used", judge),
+                        "reasoning": result.get("reasoning", ""),
+                        "tokens": result.get("tokens", {}),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    await db.validation_matches.insert_one(doc)
+                    completed += 1
+                    _thinking_state["done"] = completed
+            except Exception as e:
+                logger.warning(f"Extended thinking match failed: {e}")
+
+    await asyncio.gather(*[run_one(a, b) for a, b in to_run], return_exceptions=True)
+    invalidate_dataset_cache(dataset_id)
+    logger.info(f"Extended thinking [{dataset_id}]: completed {completed}/{len(to_run)} matches")
