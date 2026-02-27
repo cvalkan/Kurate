@@ -280,16 +280,24 @@ async def run_step4(dataset_id: str, source_mode: str = "abstract_plus_summary:o
 
     remaining = [m for m in orig_matches if m["id"] not in existing]
 
-    # Load paper data
+    # Load paper data (include evaluations for eLife-style GT)
     paper_ids = set()
     for m in remaining:
         paper_ids.add(m["paper1_id"]); paper_ids.add(m["paper2_id"])
     papers = {}
     async for p in db.validation_papers.find(
         {"id": {"$in": list(paper_ids)}},
-        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "decision": 1},
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "decision": 1, "evaluations": 1},
     ):
         papers[p["id"]] = p
+
+    # Build average expert rating per paper (for eLife-style GT)
+    paper_avg_rating = {}
+    for pid, p in papers.items():
+        evals = p.get("evaluations", [])
+        ratings = [ev["rating_value"] for ev in evals if ev.get("rating_value")]
+        if ratings:
+            paper_avg_rating[pid] = sum(ratings) / len(ratings)
 
     total = len(remaining)
     await _update_progress(keys, "step4", 0, total)
