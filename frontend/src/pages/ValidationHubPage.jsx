@@ -222,6 +222,7 @@ export default function ValidationHubPage() {
               <NavItem item={{ id: "exp-peerread-deep-dive", label: "PeerRead Deep Dive", sub: "ACL 2017" }} selected={selected} onSelect={setSelected} />
               <NavItem item={{ id: "exp-acmi-deep-dive", label: "ACMI Deep Dive", sub: "Microbiology 100" }} selected={selected} onSelect={setSelected} />
               <NavItem item={{ id: "exp-fairness-deep-dive", label: "ICLR Deep Dive", sub: "Fairness" }} selected={selected} onSelect={setSelected} />
+              <NavItem item={{ id: "exp-molecules-deep-dive", label: "ICLR Deep Dive", sub: "Molecules" }} selected={selected} onSelect={setSelected} />
             </CollapsibleGroup>
           )}
         </nav>
@@ -253,6 +254,7 @@ export default function ValidationHubPage() {
           {selected === "exp-peerread-deep-dive" && <ICLRDeepDiveSection datasetId="peerread_acl_2017" label="PeerRead ACL 2017" />}
           {selected === "exp-acmi-deep-dive" && <ICLRDeepDiveSection datasetId="acmi-micro-100" label="Access Microbiology (100 papers)" />}
           {selected === "exp-fairness-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-fairness" label="ICLR Fairness" />}
+          {selected === "exp-molecules-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-molecules" label="ICLR Molecules" />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
