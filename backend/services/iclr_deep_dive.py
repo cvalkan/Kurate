@@ -687,7 +687,9 @@ async def compute_convergence_by_dimension(dataset_id: str, steps: int = 10) -> 
         from ranking import compute_leaderboard_async
         curve_points = []
         for step_i in range(1, steps + 1):
-            n = max(10, int(len(matches) * step_i / steps))
+            n = max(20, int(len(matches) * step_i / steps))
+            if n == (max(20, int(len(matches) * (step_i - 1) / steps))) and step_i > 1:
+                continue  # Skip duplicate sizes
             subset = matches[:n]
 
             covered_ids = set()
