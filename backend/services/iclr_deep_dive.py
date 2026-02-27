@@ -710,25 +710,22 @@ async def compute_convergence_by_dimension(dataset_id: str, steps: int = 20) -> 
             # Compute Spearman against each GT dimension
             dim_correlations = {}
             for dim in all_dims:
-                # Get papers that have both AI rank and this GT dimension
-                common = [pid for pid in ranked_pids if pid in paper_gt and dim in paper_gt[pid]]
+                common = [pid for pid in covered_ids if pid in ai_rank and pid in paper_gt and dim in paper_gt[pid]]
                 if len(common) < 5:
                     continue
-                # GT rank for this dimension
                 gt_sorted = sorted(common, key=lambda p: -paper_gt[p][dim])
                 gt_rank = {pid: i for i, pid in enumerate(gt_sorted)}
 
-                # Spearman
                 n_common = len(common)
                 d_sq = sum((ai_rank[pid] - gt_rank[pid]) ** 2 for pid in common)
                 rho = 1 - (6 * d_sq) / (n_common * (n_common ** 2 - 1))
                 dim_correlations[dim] = round(rho, 4)
 
-            avg_matches = sum(total_matches.values()) / len(total_matches) / 2
+            avg_matches = n / max(len(covered_ids), 1)
             curve_points.append({
                 "avg_matches_per_paper": round(avg_matches, 1),
                 "n_matches": n,
-                "papers_covered": len(total_matches),
+                "papers_covered": len(covered_ids),
                 "correlations": dim_correlations,
             })
 
