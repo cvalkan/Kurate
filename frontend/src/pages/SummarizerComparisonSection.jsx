@@ -73,6 +73,7 @@ export default function SummarizerComparisonSection() {
           <p className="text-xs text-muted-foreground">
             Each paper pair has a known correct answer from <strong>committee decisions</strong> (ICLR accept/reject tiers),{" "}
             <strong>reviewer majority</strong> (score consensus), or <strong>editorial assessment</strong> (eLife significance).{" "}
+            Only non-tie pairs (where ground truth has a clear winner) are included.{" "}
             The AI judge sees abstract + summary and picks a winner — we measure which summarizer leads to more correct picks.
           </p>
         </div>
