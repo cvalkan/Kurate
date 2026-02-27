@@ -788,6 +788,13 @@ async def run_full_pipeline(dataset_id: str = "iclr-codegen",
     logger.info("--- Step 4: Tournament replay (same pairs + judges) ---")
     await run_step4(dataset_id, source_mode)
 
+    # Invalidate convergence cache so new deep_dive data appears in charts
+    try:
+        from routers.validation import invalidate_dataset_cache
+        invalidate_dataset_cache(dataset_id)
+    except Exception:
+        pass
+
     logger.info(f"=== Deep Dive Pipeline COMPLETE: {dataset_id} ===")
 
 
