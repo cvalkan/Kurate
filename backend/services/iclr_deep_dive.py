@@ -493,29 +493,24 @@ async def compute_analysis(dataset_id: str) -> dict:
     for g in paper_gt.values():
         gt_dimensions.update(g.keys())
 
-    # Per-dimension pairwise agreement for both modes
+    # Per-dimension pairwise agreement — computed on COMMON PAIRS ONLY for fair comparison
     dimension_agreement = {}
     for dim in gt_dimensions:
-        bl_agree, dd_agree, bl_total, dd_total = 0, 0, 0, 0
-        for m in baseline_matches:
-            g1 = paper_gt.get(m["paper1_id"], {}).get(dim)
-            g2 = paper_gt.get(m["paper2_id"], {}).get(dim)
+        bl_agree, dd_agree, total = 0, 0, 0
+        for pk in common_pairs:
+            bl_m, dd_m = baseline_by_pair[pk], dd_by_pair[pk]
+            g1 = paper_gt.get(bl_m["paper1_id"], {}).get(dim)
+            g2 = paper_gt.get(bl_m["paper2_id"], {}).get(dim)
             if g1 is None or g2 is None or g1 == g2: continue
-            gt_winner = m["paper1_id"] if g1 > g2 else m["paper2_id"]
-            bl_total += 1
-            if m["winner_id"] == gt_winner: bl_agree += 1
-        for m in dd_matches:
-            g1 = paper_gt.get(m["paper1_id"], {}).get(dim)
-            g2 = paper_gt.get(m["paper2_id"], {}).get(dim)
-            if g1 is None or g2 is None or g1 == g2: continue
-            gt_winner = m["paper1_id"] if g1 > g2 else m["paper2_id"]
-            dd_total += 1
-            if m["winner_id"] == gt_winner: dd_agree += 1
-        if bl_total > 0 or dd_total > 0:
-            bl_pct = round(bl_agree / max(bl_total, 1) * 100, 1)
-            dd_pct = round(dd_agree / max(dd_total, 1) * 100, 1)
+            gt_winner = bl_m["paper1_id"] if g1 > g2 else bl_m["paper2_id"]
+            total += 1
+            if bl_m["winner_id"] == gt_winner: bl_agree += 1
+            if dd_m["winner_id"] == gt_winner: dd_agree += 1
+        if total > 0:
+            bl_pct = round(bl_agree / total * 100, 1)
+            dd_pct = round(dd_agree / total * 100, 1)
             dimension_agreement[dim] = {
-                "pairs": max(bl_total, dd_total),
+                "pairs": total,
                 "baseline_agreement": bl_pct,
                 "deep_dive_agreement": dd_pct,
                 "lift": round(dd_pct - bl_pct, 1),
