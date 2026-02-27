@@ -249,7 +249,7 @@ function AnalysisView({ analysis }) {
               <div key={dim} className="flex items-center gap-3">
                 <span className="w-28 font-medium capitalize">{dim}</span>
                 <span className="w-12 text-right font-mono text-muted-foreground">{s.pairs}</span>
-                <span className="w-20 text-right font-mono">{s.original_agreement}%</span>
+                <span className="w-20 text-right font-mono">{s.baseline_agreement ?? s.original_agreement ?? 0}%</span>
                 <span className="w-20 text-right font-mono font-medium">{s.deep_dive_agreement}%</span>
                 <span className={`w-14 text-right font-mono font-bold ${s.lift > 0 ? "text-green-600" : s.lift < 0 ? "text-red-500" : "text-muted-foreground"}`}>
                   {s.lift > 0 ? "+" : ""}{s.lift}pp
