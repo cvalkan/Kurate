@@ -4492,3 +4492,39 @@ async def iclr_deep_dive_status():
 @router.get("/iclr-deep-dive/results")
 async def iclr_deep_dive_results():
     return await deep_dive_pipeline_results("iclr-codegen")
+
+
+# --- Access Microbiology Scraper ---
+
+@router.post("/acmi/scrape", dependencies=[Depends(verify_admin)])
+async def start_acmi_scrape():
+    """Start scraping Access Microbiology reviews from Sciety."""
+    from services.acmi_scraper import get_scraper_status, run_scraper
+    status = await get_scraper_status()
+    if status.get("running"):
+        raise HTTPException(409, "Scraper already running")
+
+    async def _bg():
+        try:
+            await run_scraper()
+        except Exception as e:
+            logger.error(f"ACMI scraper failed: {e}")
+            await db.settings.update_one(
+                {"key": "acmi_scraper_progress"},
+                {"$set": {"running": False, "error": str(e)[:500]}},
+            )
+
+    asyncio.create_task(_bg())
+    return {"status": "started"}
+
+
+@router.get("/acmi/scrape/status")
+async def acmi_scrape_status():
+    from services.acmi_scraper import get_scraper_status
+    return await get_scraper_status()
+
+
+@router.get("/acmi/stats")
+async def acmi_stats():
+    from services.acmi_scraper import get_dataset_stats
+    return await get_dataset_stats()
