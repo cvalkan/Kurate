@@ -968,4 +968,9 @@ async def run_full_pipeline_fresh(dataset_id: str):
     await run_step2(dataset_id)
     await run_step3(dataset_id)
     await run_fresh_tournament(dataset_id)
+    try:
+        from routers.validation import invalidate_dataset_cache
+        invalidate_dataset_cache(dataset_id)
+    except Exception:
+        pass
     logger.info(f"=== Fresh Pipeline COMPLETE: {dataset_id} ===")
