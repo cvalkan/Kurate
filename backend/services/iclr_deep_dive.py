@@ -751,7 +751,7 @@ async def run_fresh_tournament(dataset_id: str):
                         "completed": True, "failed": False,
                         "abstract_only": False, "used_extraction": False,
                         "reasoning": result.get("reasoning", ""),
-                        "model_used": ASSESSMENT_MODEL,
+                        "model_used": judge,
                         "tokens": {},
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }
