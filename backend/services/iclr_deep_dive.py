@@ -717,6 +717,16 @@ async def _compute_convergence_by_dimension_impl(dataset_id: str, steps: int = 1
         if gt:
             paper_gt[p["id"]] = gt
 
+    # Filter to cross-tier matches only — same-tier matches add noise
+    for mode in list(matches_by_mode.keys()):
+        pre = len(matches_by_mode[mode])
+        matches_by_mode[mode] = [
+            m for m in matches_by_mode[mode]
+            if paper_gt.get(m["paper1_id"], {}).get("composite") != paper_gt.get(m["paper2_id"], {}).get("composite")
+            and m["paper1_id"] in paper_gt and m["paper2_id"] in paper_gt
+        ]
+        logger.info(f"Convergence [{dataset_id}/{mode}]: filtered {pre} → {len(matches_by_mode[mode])} cross-tier matches")
+
     # Determine which GT dimensions exist
     all_dims = set()
     for g in paper_gt.values():
