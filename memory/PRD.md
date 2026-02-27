@@ -4,47 +4,44 @@
 Build a robust system for ranking and validating AI model performance on scientific preprints. Features a leaderboard tournament where different LLMs act as judges to rank papers, with validation against human peer-review ground truth.
 
 ## Architecture
-- **Frontend**: React + Shadcn UI (production build served via `serve`)
+- **Frontend**: React + Shadcn UI (production build via `serve`)
 - **Backend**: FastAPI + MongoDB
 - **LLMs**: GPT-5.2, Claude Opus 4.6, Gemini 3 Pro (via Emergent LLM key)
 - **Domain**: kurate.org
 
-## Key Results
+## Key Findings (Feb 27 2026)
 
-### Deep Dive 2-Pass Assessment — CORRECTED (Feb 27 2026)
-- **CRITICAL FIX**: `compute_analysis()` was comparing deep dive against Opus 4.5 baseline instead of Opus 4.6 (the actual replayed baseline). This inflated all deep dive results.
-- **Corrected finding**: The 2-pass methodology adds NOTHING measurable over Opus 4.6 single-pass
-- **Molecules**: 89.9% vs 89.9% = 0.0pp lift (p=0.80)
-- **Fairness**: 78.2% vs 79.7% = +1.5pp (p=0.62, NOT significant)
-- **Codegen**: 72.4% vs 73.4% = +1.0pp (p=0.47, NOT significant)
+### Cross-Tier Filter
+- All convergence and tournament computations now filter same-tier matches
+- Saved 30-60% LLM budget, improved ρ across all datasets
+- Tournament pair selection only generates cross-tier pairs
 
-### Summarizer A/B: Opus 4.5 vs 4.6
-- Opus 4.6 summaries significantly better: 73.9% vs 71.8% (p=0.0007, McNemar's on 1582 pairs)
-- This is the REAL finding — the model upgrade matters, not the 2-pass approach
+### Deep Dive (2-Pass): NULL RESULT
+- BUG FIXED: `compute_analysis()` was comparing against Opus 4.5 baseline instead of Opus 4.6
+- Corrected results: 0.0-1.5pp lift across all datasets (none significant)
+- The model upgrade (4.5→4.6) was doing all the work, not the 2-pass methodology
 
-### Cross-Dataset Convergence Analysis (Feb 27 2026)
-- GT resolution is a SAMPLE EFFICIENCY factor, not a fundamental barrier
-- Recommended headline metric: Non-tie pairwise accuracy (not Spearman rho)
-- All datasets distinguishable from chance on non-tie accuracy
-- Detailed analysis: /app/DATASET_CONVERGENCE_ANALYSIS.md
+### Extended Thinking: NULL RESULT
+- Opus 4.6 with 10K thinking token budget produces identical accuracy to standard Opus 4.6
+- iclr-codegen: 62.7% vs 62.7%, McNemar p=0.79, discordant 7:7
 
-## Same-Tier Match Waste
-- All tournaments include same-tier pairs that can't be evaluated against GT
-- MIDL: ~60% ties, molecules: ~53%, pdes: ~46%, fairness: ~44%
-- Deep dive replays alone: ~2,139 wasted LLM calls
+### Summarizer A/B: Opus 4.5 vs 4.6 — SIGNIFICANT
+- +2.1pp lift (71.8% → 73.9%), McNemar p=0.0007 on 1582 pairs
 
-## Completed (Feb 27 2026)
-- Fixed compute_analysis baseline comparison bug
-- Added convergence cache invalidation to deep dive pipeline
-- Updated all UI labels to say "non-tie pairs"
-- Added methodology notes explaining tie exclusion
-- Fixed "flipped numbers don't add up" UI (shows tie-pair flips separately)
-- Cross-dataset convergence analysis across 12 datasets
-- Ran deep dive on fairness and molecules (null result after baseline correction)
+### Dataset Convergence Analysis
+- GT resolution = sample efficiency factor, not fundamental barrier
+- All datasets distinguishable from chance on non-tie pairwise accuracy
+- elife-microbiology: 78.0% [75.8%, 80.0%] after 500 additional opus46 matches
+
+## UI Structure
+### Experiments (Admin)
+- **Opus 4.5 vs 4.6**: Summarizer A/B test
+- **Summary Bias**: Biomolecules, Economics, Comp Physics
+- **Second Pass (Deep Dive)**: 8 datasets (all null vs opus46 baseline)
+- **Extended Thinking**: Opus 4.6 + thinking budget (null result)
 
 ## Pending
-- Filter tournaments to exclude same-tier pairs (30-60% LLM savings)
-- Update DATASET_CONVERGENCE_ANALYSIS.md with corrected deep dive findings
-- Gap-stratified human accuracy UI
+- Run extended thinking on more datasets to confirm null
+- Run more matches on iclr-optimization (ρ=0.859, widest CI)
+- Gap-stratified human accuracy visualization
 - HTTP security headers
-- Refactor iclr_deep_dive.py
