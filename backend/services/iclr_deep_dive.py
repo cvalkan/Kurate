@@ -550,6 +550,7 @@ async def compute_analysis(dataset_id: str) -> dict:
     else:
         mcnemar.update({"chi2": 0, "p_value": 1.0, "significant": False})
     analysis["mcnemar"] = mcnemar
+    analysis["dimension_agreement"] = dimension_agreement
 
     # Flip direction
     toward = sum(1 for r in with_gt if r["flipped"] and r.get("replay_agrees_human") and not r.get("original_agrees_human"))
