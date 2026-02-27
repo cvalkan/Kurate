@@ -1118,7 +1118,7 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
             for p1 in neediest:
                 if match_counts[p1] >= min_per_paper and all(match_counts[p] >= min_per_paper for p in pids):
                     break  # All papers have min coverage
-                candidates = [p for p in pids if p != p1 and tuple(sorted([p1, p])) not in compared]
+                candidates = [p for p in pids if p != p1 and tuple(sorted([p1, p])) not in compared and tuple(sorted([p1, p])) not in same_tier_set]
                 if not candidates:
                     continue
                 # Pick the least-matched candidate
