@@ -440,10 +440,17 @@ def _decision_tier(decision: str) -> int:
 # --- Analysis ---
 
 async def compute_analysis(dataset_id: str) -> dict:
-    """Compute analysis by comparing baseline vs deep_dive validation_matches."""
+    """Compute analysis by comparing baseline vs deep_dive validation_matches.
+    Uses the experiment's source_mode as the baseline (e.g. opus46), falling back to abstract_plus_summary."""
+    keys = _keys(dataset_id)
+    
+    # Determine the correct baseline mode from the experiment config
+    exp_doc = await db.settings.find_one({"key": keys["experiment"]}, {"_id": 0, "source_mode": 1})
+    source_mode = (exp_doc or {}).get("source_mode") or "abstract_plus_summary"
+    
     # Load both baseline and deep_dive matches
     baseline_matches = await db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "content_mode": "abstract_plus_summary"},
+        {"dataset_id": dataset_id, "completed": True, "content_mode": source_mode},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ).to_list(100000)
     dd_matches = await db.validation_matches.find(
