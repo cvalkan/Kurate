@@ -2246,9 +2246,9 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     ]
     SUMMARY_TAG_LABELS = {
         "gpt_summary": "GPT-5.2", "gemini_summary": "Gemini 3 Pro",
-        "opus_thinking": "Opus 4.5 Thinking", "gpt_thinking": "GPT-5.2 Thinking",
-        "gemini_thinking": "Gemini 3 Thinking", "opus46": "Opus 4.6",
+        "opus46": "Opus 4.6", "thinking": "Opus 4.6 Thinking",
     }
+    HIDDEN_TAGS = {"opus_thinking", "gpt_thinking", "gemini_thinking"}
     BASE_LABELS = {
         "none": "Extract", "extract": "Extract", "abstract": "Abstract",
         "full_pdf": "Full PDF", "ai_summary": "AI Summary",
@@ -2261,6 +2261,9 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
         if cm in ("none", None, ""):
             cm = "extract"
         if doc["count"] >= 10:
+            tag = cm.split(":", 1)[1] if ":" in cm else None
+            if tag and tag in HIDDEN_TAGS:
+                continue
             tag = cm.split(":", 1)[1] if ":" in cm else None
             if tag:
                 base_id = cm.split(":")[0]
