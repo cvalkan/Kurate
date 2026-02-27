@@ -693,6 +693,10 @@ async def run_fresh_tournament(dataset_id: str):
         if not p1 or not p2:
             return
 
+        # Pick ONE random judge model for both conditions (same pair = same judge)
+        from core.config import TOURNAMENT_MODELS
+        judge = random.choice(TOURNAMENT_MODELS)
+
         for mode, do_it, summary_lookup in [
             ("abstract_plus_summary", do_baseline, s2_lookup),
             ("deep_dive", do_dd, s3_lookup),
@@ -718,6 +722,7 @@ async def run_fresh_tournament(dataset_id: str):
                     response = await _llm_call(
                         DEFAULT_EVALUATION_PROMPT["system_prompt"], prompt,
                         label=f"fresh:{mode[:5]}:{p1_id[:8]}",
+                        model_override=judge,
                     )
                     resp_text = response
                     if resp_text.startswith("```"):
