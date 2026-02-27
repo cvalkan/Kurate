@@ -252,6 +252,7 @@ export default function ValidationHubPage() {
           {selected === "exp-neuro-deep-dive" && <ICLRDeepDiveSection datasetId="elife-neuro-100" label="eLife Neuroscience" />}
           {selected === "exp-peerread-deep-dive" && <ICLRDeepDiveSection datasetId="peerread_acl_2017" label="PeerRead ACL 2017" />}
           {selected === "exp-acmi-deep-dive" && <ICLRDeepDiveSection datasetId="acmi-micro-100" label="Access Microbiology (100 papers)" />}
+          {selected === "exp-fairness-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-fairness" label="ICLR Fairness" />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
