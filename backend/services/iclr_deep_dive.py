@@ -441,30 +441,76 @@ async def compute_analysis(dataset_id: str) -> dict:
     if not replays:
         return {}
 
-    # Load paper data for GT computation (handles both ICLR tiers and eLife ratings)
+    # Load paper data for GT computation
     paper_ids = set()
     for r in replays:
         paper_ids.add(r["paper1_id"]); paper_ids.add(r["paper2_id"])
-    paper_gt = {}  # pid -> tier or avg_rating
+
+    # Build per-paper ground truth scores across multiple dimensions
+    paper_gt = {}  # pid -> {"composite": float, "rigour": float, "presentation": float, "conclusions": float}
     async for p in db.validation_papers.find(
         {"id": {"$in": list(paper_ids)}},
-        {"_id": 0, "id": 1, "decision": 1, "evaluations": 1},
+        {"_id": 0, "id": 1, "decision": 1, "evaluations": 1, "composite_score": 1},
     ):
+        gt = {}
         tier = _decision_tier(p.get("decision", ""))
         if tier >= 0:
-            paper_gt[p["id"]] = ("tier", tier)
-        else:
-            evals = p.get("evaluations", [])
-            ratings = [ev["rating_value"] for ev in evals if ev.get("rating_value")]
-            if ratings:
-                paper_gt[p["id"]] = ("rating", sum(ratings) / len(ratings))
+            gt["composite"] = tier
 
-    # Recompute GT for each replay
+        evals = p.get("evaluations", [])
+        if evals:
+            # Composite from stored score or avg rating
+            if p.get("composite_score"):
+                gt["composite"] = p["composite_score"]
+            else:
+                ratings = [ev["rating_value"] for ev in evals if ev.get("rating_value")]
+                if ratings:
+                    gt["composite"] = sum(ratings) / len(ratings)
+
+            # Per-dimension averages (ACMI-style)
+            for dim, field in [("rigour", "rigour_score"), ("presentation", "presentation_score"), ("conclusions", "conclusions_score")]:
+                vals = [ev[field] for ev in evals if ev.get(field)]
+                if vals:
+                    gt[dim] = sum(vals) / len(vals)
+
+        if gt:
+            paper_gt[p["id"]] = gt
+
+    # Compute per-dimension pairwise agreement
+    gt_dimensions = set()
+    for g in paper_gt.values():
+        gt_dimensions.update(g.keys())
+
+    dimension_agreement = {}
+    for dim in gt_dimensions:
+        orig_agree = 0
+        dd_agree = 0
+        total = 0
+        for r in replays:
+            g1 = paper_gt.get(r["paper1_id"], {}).get(dim)
+            g2 = paper_gt.get(r["paper2_id"], {}).get(dim)
+            if g1 is None or g2 is None or g1 == g2:
+                continue
+            gt_winner = r["paper1_id"] if g1 > g2 else r["paper2_id"]
+            total += 1
+            if r.get("original_winner_id") == gt_winner:
+                orig_agree += 1
+            if r.get("replay_winner_id") == gt_winner:
+                dd_agree += 1
+        if total > 0:
+            dimension_agreement[dim] = {
+                "pairs": total,
+                "original_agreement": round(orig_agree / total * 100, 1),
+                "deep_dive_agreement": round(dd_agree / total * 100, 1),
+                "lift": round((dd_agree - orig_agree) / total * 100, 1),
+            }
+
+    # Use composite dimension for the main human_gt fields on replays
     for r in replays:
-        gt1 = paper_gt.get(r["paper1_id"])
-        gt2 = paper_gt.get(r["paper2_id"])
-        if gt1 and gt2 and gt1[0] == gt2[0] and gt1[1] != gt2[1]:
-            gt_winner = r["paper1_id"] if gt1[1] > gt2[1] else r["paper2_id"]
+        g1 = paper_gt.get(r["paper1_id"], {}).get("composite")
+        g2 = paper_gt.get(r["paper2_id"], {}).get("composite")
+        if g1 is not None and g2 is not None and g1 != g2:
+            gt_winner = r["paper1_id"] if g1 > g2 else r["paper2_id"]
             r["human_gt_winner"] = gt_winner
             r["original_agrees_human"] = r["original_winner_id"] == gt_winner
             r["replay_agrees_human"] = r["replay_winner_id"] == gt_winner
