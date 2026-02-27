@@ -523,9 +523,6 @@ async def compute_analysis(dataset_id: str) -> dict:
     dd_comp = dimension_agreement.get("composite", {}).get("deep_dive_agreement", 0)
     comp_pairs = dimension_agreement.get("composite", {}).get("pairs", 0)
 
-    common_pairs = set(baseline_by_pair.keys()) & set(dd_by_pair.keys())
-    flipped = sum(1 for pk in common_pairs if baseline_by_pair[pk]["winner_id"] != dd_by_pair[pk]["winner_id"])
-
     analysis = {
         "total_matches": {"baseline": len(baseline_matches), "deep_dive": len(dd_matches)},
         "flipped": flipped,
