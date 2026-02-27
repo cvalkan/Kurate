@@ -598,6 +598,133 @@ async def compute_analysis(dataset_id: str) -> dict:
     return analysis
 
 
+async def compute_convergence_by_dimension(dataset_id: str, steps: int = 20) -> dict:
+    """Compute ranking convergence against each GT dimension separately.
+    
+    For each content_mode (baseline, deep_dive), builds Bradley-Terry rankings
+    at increasing match counts and computes Spearman correlation against
+    4 ground truth dimensions: composite, rigour, presentation, conclusions.
+    """
+    # Load all matches
+    matches_by_mode = defaultdict(list)
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "content_mode": {"$in": ["abstract_plus_summary", "deep_dive"]}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "content_mode": 1, "created_at": 1},
+    ):
+        matches_by_mode[m["content_mode"]].append(m)
+
+    if not any(matches_by_mode.values()):
+        return {}
+
+    # Load paper GT scores for all 4 dimensions
+    paper_ids = set()
+    for matches in matches_by_mode.values():
+        for m in matches:
+            paper_ids.add(m["paper1_id"])
+            paper_ids.add(m["paper2_id"])
+
+    paper_gt = {}
+    async for p in db.validation_papers.find(
+        {"id": {"$in": list(paper_ids)}, "dataset_id": dataset_id},
+        {"_id": 0, "id": 1, "evaluations": 1, "composite_score": 1, "decision": 1},
+    ):
+        gt = {}
+        # ICLR tiers
+        tier = _decision_tier(p.get("decision", ""))
+        if tier >= 0:
+            gt["composite"] = tier
+        # Evaluation-based scores
+        evals = p.get("evaluations", [])
+        if evals:
+            if p.get("composite_score"):
+                gt["composite"] = p["composite_score"]
+            else:
+                ratings = [ev["rating_value"] for ev in evals if ev.get("rating_value")]
+                if ratings:
+                    gt.setdefault("composite", sum(ratings) / len(ratings))
+            for dim, field in [("rigour", "rigour_score"), ("presentation", "presentation_score"), ("conclusions", "conclusions_score")]:
+                vals = [ev[field] for ev in evals if ev.get(field)]
+                if vals:
+                    gt[dim] = sum(vals) / len(vals)
+        if gt:
+            paper_gt[p["id"]] = gt
+
+    # Determine which GT dimensions exist
+    all_dims = set()
+    for g in paper_gt.values():
+        all_dims.update(g.keys())
+
+    # For each mode, compute convergence curves
+    mode_labels = {"abstract_plus_summary": "Baseline (1-pass)", "deep_dive": "Deep Dive (2-pass)"}
+    result = {"dimensions": sorted(all_dims), "curves": {}}
+
+    for mode, matches in matches_by_mode.items():
+        if not matches:
+            continue
+        # Sort by created_at
+        matches.sort(key=lambda m: m.get("created_at", ""))
+
+        # Compute at each step
+        curve_points = []
+        for step_i in range(1, steps + 1):
+            n = max(1, int(len(matches) * step_i / steps))
+            subset = matches[:n]
+
+            # Build Bradley-Terry win counts
+            wins = defaultdict(int)
+            total_matches = defaultdict(int)
+            for m in subset:
+                p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
+                wins[w] += 1
+                total_matches[p1] += 1
+                total_matches[p2] += 1
+
+            if len(total_matches) < 5:
+                continue
+
+            # Rank by win rate
+            win_rates = {}
+            for pid in total_matches:
+                win_rates[pid] = wins.get(pid, 0) / total_matches[pid]
+
+            ranked_pids = sorted(win_rates.keys(), key=lambda p: -win_rates[p])
+            ai_rank = {pid: i for i, pid in enumerate(ranked_pids)}
+
+            # Compute Spearman against each GT dimension
+            dim_correlations = {}
+            for dim in all_dims:
+                # Get papers that have both AI rank and this GT dimension
+                common = [pid for pid in ranked_pids if pid in paper_gt and dim in paper_gt[pid]]
+                if len(common) < 5:
+                    continue
+                # GT rank for this dimension
+                gt_sorted = sorted(common, key=lambda p: -paper_gt[p][dim])
+                gt_rank = {pid: i for i, pid in enumerate(gt_sorted)}
+
+                # Spearman
+                n_common = len(common)
+                d_sq = sum((ai_rank[pid] - gt_rank[pid]) ** 2 for pid in common)
+                rho = 1 - (6 * d_sq) / (n_common * (n_common ** 2 - 1))
+                dim_correlations[dim] = round(rho, 4)
+
+            avg_matches = sum(total_matches.values()) / len(total_matches) / 2
+            curve_points.append({
+                "avg_matches_per_paper": round(avg_matches, 1),
+                "n_matches": n,
+                "papers_covered": len(total_matches),
+                "correlations": dim_correlations,
+            })
+
+        result["curves"][mode] = {
+            "name": mode_labels.get(mode, mode),
+            "total_matches": len(matches),
+            "points": curve_points,
+        }
+
+    return result
+
+
 # --- Main runner ---
 
 async def run_full_pipeline(dataset_id: str = "iclr-codegen",
