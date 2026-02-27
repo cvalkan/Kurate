@@ -86,13 +86,18 @@ export default function ICLRDeepDiveSection({ datasetId = "iclr-codegen", label 
 
       {/* Tabs */}
       <div className="flex gap-1 border border-border rounded-lg p-0.5 w-fit">
-        {[["overview", "Overview"], ["papers", `Papers (${totalPapers})`], ["analysis", "Analysis"]].map(([id, label]) => (
+        {[["overview", "Overview"], ["convergence", "Convergence"], ["papers", `Papers (${totalPapers})`], ["analysis", "Analysis"]].map(([id, lbl]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${tab === id ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
-            {label}
+            {lbl}
           </button>
         ))}
       </div>
+
+      {/* Convergence tab */}
+      {tab === "convergence" && (
+        <ConvergenceTab datasetId={datasetId} label={label} isRunning={isRunning} />
+      )}
 
       {/* Overview tab */}
       {tab === "overview" && (
