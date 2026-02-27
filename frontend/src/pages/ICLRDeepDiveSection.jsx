@@ -42,6 +42,9 @@ export default function ICLRDeepDiveSection({ datasetId = "iclr-codegen", label 
   const step3Done = results?.step3_done || 0;
   const replayCount = results?.replay_count || 0;
   const totalPapers = results?.total_papers || 0;
+  const baselineMatches = analysis?.total_matches?.baseline || 0;
+  const ddMatches = analysis?.total_matches?.deep_dive || 0;
+  const totalMatches = baselineMatches + ddMatches;
 
   return (
     <div className="space-y-6" data-testid="iclr-deep-dive">
