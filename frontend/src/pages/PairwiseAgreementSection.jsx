@@ -467,7 +467,7 @@ function TierAnalysisSection({ tierAnalysis, modeLabels }) {
 
               {/* Overall accuracy */}
               <div className="mb-3">
-                <HBar rate={t.overall_accuracy} label={`Overall tier accuracy`} sub={`${t.correct}/${t.total_pairs} cross-tier pairs`} color="bg-accent/70" />
+                <HBar rate={t.overall_accuracy} label={`Overall tier accuracy`} sub={`${t.correct}/${t.total_pairs} non-tie cross-tier pairs`} color="bg-accent/70" />
               </div>
 
               {/* Tier distribution */}
