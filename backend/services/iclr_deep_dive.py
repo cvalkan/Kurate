@@ -363,8 +363,9 @@ async def run_step4(dataset_id: str, source_mode: str = "abstract_plus_summary:o
                     orig_agrees = m.get("winner_id") == gt_winner
                     replay_agrees = winner_id == gt_winner
 
-                await db[keys["replays"]].insert_one({
-                    "id": str(uuid.uuid4()),
+                replay_id = str(uuid.uuid4())
+                replay_doc = {
+                    "id": replay_id,
                     "original_match_id": m["id"],
                     "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
                     "original_winner_id": m.get("winner_id"),
@@ -376,6 +377,18 @@ async def run_step4(dataset_id: str, source_mode: str = "abstract_plus_summary:o
                     "original_agrees_human": orig_agrees,
                     "replay_agrees_human": replay_agrees,
                     "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                await db[keys["replays"]].insert_one(replay_doc)
+
+                # Also insert as validation_match for live convergence chart
+                await db.validation_matches.insert_one({
+                    "id": replay_id, "dataset_id": dataset_id,
+                    "paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                    "winner_id": winner_id, "content_mode": "deep_dive",
+                    "completed": True, "failed": False, "abstract_only": False,
+                    "used_extraction": False, "reasoning": result.get("reasoning", ""),
+                    "model_used": judge_model, "tokens": {},
+                    "created_at": replay_doc["created_at"],
                 })
             except Exception as e:
                 counter["errors"] += 1
