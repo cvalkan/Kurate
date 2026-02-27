@@ -1946,6 +1946,13 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
     if len(all_matches) < 10:
         return {"status": "no_data"}
 
+    # Filter out same-tier matches — they have no GT signal and add noise to rankings
+    gt_scores = build_paper_gt_scores(papers)
+    all_matches = filter_cross_tier_matches(all_matches, gt_scores)
+
+    if len(all_matches) < 10:
+        return {"status": "no_data"}
+
     all_matches.sort(key=lambda m: m.get("created_at", ""))
 
     # Derive human ground truth from expert ratings
