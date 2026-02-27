@@ -1144,7 +1144,7 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
             p1 = random.choices(pids, weights=weights, k=1)[0]
             p2 = random.choice([p for p in pids if p != p1])
             key = tuple(sorted([p1, p2]))
-            if key not in compared:
+            if key not in compared and key not in same_tier_set:
                 pairs.append((p1, p2))
                 compared.add(key)
                 match_counts[p1] += 1
