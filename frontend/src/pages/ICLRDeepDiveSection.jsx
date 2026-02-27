@@ -218,7 +218,7 @@ function AnalysisView({ analysis }) {
         <StatCard
           label="Pairwise Accuracy (Baseline)"
           value={`${ha.original || 0}%`}
-          sub={`${ha.pairs_with_gt || 0} pairs with ground truth`}
+          sub={`${ha.pairs_with_gt || 0} non-tie pairs with ground truth`}
         />
         <StatCard
           label="Pairwise Accuracy (Deep Dive)"
