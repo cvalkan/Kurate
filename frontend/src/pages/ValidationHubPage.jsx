@@ -210,19 +210,28 @@ export default function ValidationHubPage() {
           {/* Experiments — admin only */}
           {isAdmin && (
             <CollapsibleGroup label="Experiments" icon={FlaskRound} defaultOpen={selected?.startsWith("exp-")}>
-              <NavItem item={{ id: "exp-summarizer-ab", label: "Opus 4.5 vs 4.6", sub: "Summarizer A/B test" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-summary-bias", label: "Summary Bias", sub: "Biomolecules" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-summary-bias-econ", label: "Summary Bias", sub: "Economics" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-summary-bias-phys", label: "Summary Bias", sub: "Comp Physics" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-deeper-dive", label: "Deeper Dive", sub: "Meta-evaluation" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-iclr-deep-dive", label: "ICLR Deep Dive", sub: "Code Generation" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-midl-deep-dive", label: "MIDL Deep Dive", sub: "Medical Imaging" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-pdes-deep-dive", label: "ICLR Deep Dive", sub: "PDEs & Dyn. Systems" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-neuro-deep-dive", label: "eLife Deep Dive", sub: "Neuroscience" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-peerread-deep-dive", label: "PeerRead Deep Dive", sub: "ACL 2017" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-acmi-deep-dive", label: "ACMI Deep Dive", sub: "Microbiology 100" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-fairness-deep-dive", label: "ICLR Deep Dive", sub: "Fairness" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "exp-molecules-deep-dive", label: "ICLR Deep Dive", sub: "Molecules" }} selected={selected} onSelect={setSelected} />
+              <CollapsibleGroup label="Opus 4.5 vs 4.6" defaultOpen={selected === "exp-summarizer-ab"}>
+                <NavItem item={{ id: "exp-summarizer-ab", label: "Summarizer A/B", sub: "All datasets" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
+              <CollapsibleGroup label="Summary Bias" defaultOpen={selected?.startsWith("exp-summary-bias")}>
+                <NavItem item={{ id: "exp-summary-bias", label: "Biomolecules", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-summary-bias-econ", label: "Economics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-summary-bias-phys", label: "Comp Physics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
+              <CollapsibleGroup label="Second Pass (Deep Dive)" defaultOpen={selected?.includes("deep-dive") || selected === "exp-deeper-dive"}>
+                <NavItem item={{ id: "exp-deeper-dive", label: "Meta-evaluation", sub: "Overview" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-iclr-deep-dive", label: "Code Generation", sub: "ICLR" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-fairness-deep-dive", label: "Fairness", sub: "ICLR" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-molecules-deep-dive", label: "Molecules", sub: "ICLR" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-pdes-deep-dive", label: "PDEs & Dyn. Systems", sub: "ICLR" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-midl-deep-dive", label: "Medical Imaging", sub: "MIDL" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-neuro-deep-dive", label: "Neuroscience", sub: "eLife" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-peerread-deep-dive", label: "ACL 2017", sub: "PeerRead" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-acmi-deep-dive", label: "Microbiology 100", sub: "ACMI" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
+              <CollapsibleGroup label="Extended Thinking" defaultOpen={selected?.startsWith("exp-thinking")}>
+                <NavItem item={{ id: "exp-thinking-overview", label: "Overview", sub: "Opus 4.6 + thinking budget" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
             </CollapsibleGroup>
           )}
         </nav>
