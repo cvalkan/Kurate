@@ -820,6 +820,9 @@ function MultiModelStats({ datasetId, isAdmin }) {
       </div>
         </>
       )}
+
+      {/* Cycle Analysis */}
+      {cycleData && <CycleAnalysis data={cycleData} />}
     </div>
   );
 }
