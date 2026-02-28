@@ -2517,6 +2517,14 @@ async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
     overlap = set(pair_majority.keys()) & set(ai_pair.keys())
     maj_agree = sum(1 for p in overlap if ai_pair[p] == pair_majority[p])
 
+    # Expert vs Majority: how often does an individual expert agree with the majority?
+    em_agree = em_total = 0
+    for pair, votes in pair_votes.items():
+        if pair not in pair_majority: continue
+        for _, winner in votes:
+            em_total += 1
+            if winner == pair_majority[pair]: em_agree += 1
+
     ee_rate = round(ee_agree / max(ee_total, 1) * 100, 1)
     ae_rate = round(ae_agree / max(ae_total, 1) * 100, 1)
     maj_rate = round(maj_agree / max(len(overlap), 1) * 100, 1)
