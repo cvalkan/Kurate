@@ -4795,19 +4795,15 @@ async def _run_extended_thinking(dataset_id: str, num_pairs: int):
     if not _thinking_state["running"]:
         return
 
-    # Phase 2: Run cross-tier tournament
+    # Phase 2: Replay opus46 baseline pairs with thinking summaries
     _thinking_state.update({"step": "tournament", "done": 0})
 
     # Reload papers with thinking summaries
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
     lookup = {p["id"]: p for p in papers}
+    pids_with_thinking = {p["id"] for p in papers if p.get(THINKING_FIELD)}
 
-    # Build GT for cross-tier filtering
-    from routers.validation_utils import build_paper_gt_scores
-    gt = build_paper_gt_scores(papers)
-    pids_with_thinking = [p["id"] for p in papers if p.get(THINKING_FIELD)]
-
-    # Get existing thinking matches
+    # Get existing thinking match pairs to skip
     existing = set()
     async for m in db.validation_matches.find(
         {"dataset_id": dataset_id, "content_mode": THINKING_MODE, "completed": True},
@@ -4815,14 +4811,30 @@ async def _run_extended_thinking(dataset_id: str, num_pairs: int):
     ):
         existing.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
 
-    # Generate cross-tier pairs
-    all_ct = [(a, b) for a, b in itertools.combinations(pids_with_thinking, 2)
-              if a in gt and b in gt and gt[a] != gt[b]
-              and tuple(sorted([a, b])) not in existing]
-    random.shuffle(all_ct)
-    to_run = all_ct[:num_pairs]
+    # Load opus46 baseline pairs — replay THESE exact pairs for a fair comparison
+    from routers.validation_utils import build_paper_gt_scores
+    gt = build_paper_gt_scores(papers)
+    baseline_pairs = []
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:opus46", "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        if pk in existing:
+            continue  # already replayed
+        if m["paper1_id"] not in pids_with_thinking or m["paper2_id"] not in pids_with_thinking:
+            continue  # no thinking summary
+        # Cross-tier only
+        g1, g2 = gt.get(m["paper1_id"]), gt.get(m["paper2_id"])
+        if g1 is None or g2 is None or g1 == g2:
+            continue
+        baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
+        existing.add(pk)  # dedup
+
+    random.shuffle(baseline_pairs)
+    to_run = baseline_pairs[:num_pairs]
     _thinking_state["total"] = len(to_run)
-    logger.info(f"Extended thinking [{dataset_id}]: running {len(to_run)} cross-tier matches")
+    logger.info(f"Extended thinking [{dataset_id}]: replaying {len(to_run)} opus46 cross-tier pairs (of {len(baseline_pairs)} available)")
 
     sem2 = asyncio.Semaphore(8)
     completed = 0
