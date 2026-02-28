@@ -2030,13 +2030,20 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
     if not papers:
         return {"status": "no_data"}
 
-    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(build_content_mode_filter(content_mode))
+    # Handle virtual ensemble modes
+    is_ensemble = content_mode and content_mode.startswith("ensemble:")
+    if is_ensemble:
+        ensemble = await build_ensemble_matches(dataset_id)
+        variant = content_mode.split(":")[1]  # "majority" or "unanimity"
+        all_matches = ensemble.get(variant, [])
+    else:
+        match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+        match_filter.update(build_content_mode_filter(content_mode))
 
-    all_matches = await db.validation_matches.find(
-        match_filter,
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
-    ).to_list(100000)
+        all_matches = await db.validation_matches.find(
+            match_filter,
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
+        ).to_list(100000)
 
     if len(all_matches) < 10:
         return {"status": "no_data"}
