@@ -15,6 +15,7 @@ import SummaryBiasSection from "./SummaryBiasSection";
 import DeeperDiveSection from "./DeeperDiveSection";
 import ICLRDeepDiveSection from "./ICLRDeepDiveSection";
 import ExtendedThinkingSection from "./ExtendedThinkingSection";
+import TieExperimentSection from "./TieExperimentSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -140,6 +141,7 @@ export default function ValidationHubPage() {
     "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
     "exp-summary-bias-phys": { title: "Summary Bias — Comp Physics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
     "exp-thinking-overview": { title: "Extended Thinking — Opus 4.6", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
+    "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
   };
   pairwiseDatasets.forEach(ds => {
     sectionMeta[`pw-h2h-${ds.dataset_id}`] = {
