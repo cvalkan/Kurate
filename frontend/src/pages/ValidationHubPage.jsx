@@ -145,6 +145,7 @@ export default function ValidationHubPage() {
     "exp-thinking-overview": { title: "Extended Thinking — Opus 4.6", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
     "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
     "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "How often do AI judges produce inconsistent preference loops (A > B > C > A)? Aggregate analysis across all datasets." },
+    "exp-consistency": { title: "Consistency Deep Dive", desc: "Comprehensive analysis: verdict stability across models/formats + Condorcet cycle rates by context." },
   };
   pairwiseDatasets.forEach(ds => {
     sectionMeta[`pw-h2h-${ds.dataset_id}`] = {
