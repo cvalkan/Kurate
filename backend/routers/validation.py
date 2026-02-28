@@ -2419,6 +2419,13 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     if not modes:
         return {"status": "no_data"}
 
+    # Add virtual ensemble modes
+    ensemble = await build_ensemble_matches(dataset_id)
+    if len(ensemble["majority"]) >= 20:
+        modes.append({"id": "ensemble:majority", "label": "Majority Vote (3 models)", "matches": len(ensemble["majority"])})
+    if len(ensemble["unanimity"]) >= 20:
+        modes.append({"id": "ensemble:unanimity", "label": "Unanimous (3/3 agree)", "matches": len(ensemble["unanimity"])})
+
     # Compute convergence for all modes in parallel
     results = await asyncio.gather(*[_compute_convergence(dataset_id, m["id"], steps) for m in modes])
 
