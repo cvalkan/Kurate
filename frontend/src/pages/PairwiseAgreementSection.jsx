@@ -276,8 +276,19 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
       <div className="border border-border rounded-lg overflow-hidden" data-testid="pw-agreement-table">
         <div className="px-3 py-2 bg-secondary/10 border-b border-border">
           <h3 className="text-xs font-medium flex items-center gap-1.5">
-            <Scale className="h-3 w-3" /> Detailed Agreement Rates ({data.common_pairs} pairs)
+            <Scale className="h-3 w-3" /> Detailed Agreement Rates ({data.common_pairs} non-tie pairs)
           </h3>
+        </div>
+        {/* Human baselines */}
+        <div className="px-3 py-2 bg-secondary/5 border-b border-border flex gap-6 text-[10px]">
+          <span className="text-muted-foreground font-medium">Human baselines:</span>
+          {data.expert_expert.total > 0 && (
+            <span>Expert-Expert: <strong className="text-green-600 font-mono">{data.expert_expert.rate}%</strong> <span className="text-muted-foreground">({data.expert_expert.agree}/{data.expert_expert.total})</span></span>
+          )}
+          {data.expert_vs_majority?.total > 0 && (
+            <span>Expert vs Majority: <strong className="text-green-600 font-mono">{data.expert_vs_majority.rate}%</strong> <span className="text-muted-foreground">({data.expert_vs_majority.agree}/{data.expert_vs_majority.total})</span></span>
+          )}
+          {data.expert_expert.total === 0 && <span className="text-muted-foreground italic">N/A (single reviewer per paper)</span>}
         </div>
         <div className="p-3 overflow-x-auto">
           <table className="w-full text-xs">
@@ -290,12 +301,6 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-border/50">
-                <td className="py-1.5 pr-3 text-muted-foreground italic">Expert-Expert</td>
-                <td className="text-center py-1.5 px-2 font-mono font-semibold text-green-600">{data.expert_expert.rate}%</td>
-                <td className="text-center py-1.5 px-2 text-[10px] text-muted-foreground">baseline</td>
-                {hasAiMajority && <td className="text-center py-1.5 px-2 text-[10px] text-muted-foreground">baseline</td>}
-              </tr>
               {sortedModes.map(mode => {
                 const s = data.by_mode[mode];
                 const aiMaj = data.ai_majority_vs_expert?.[mode];
