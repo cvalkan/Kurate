@@ -417,16 +417,42 @@ function StandardStats({ datasetId, isAdmin }) {
       {activeAgreement && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {[
-            ["Expert-Expert", activeAgreement.expert_expert.total > 0 ? activeAgreement.expert_expert.rate : null, activeAgreement.expert_expert.total > 0 ? `${activeAgreement.expert_expert.agree}/${activeAgreement.expert_expert.total}` : "N/A (single reviewer)", activeAgreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600"],
-            ["AI vs Expert", activeAgreement.ai_expert.rate, `${activeAgreement.ai_expert.agree}/${activeAgreement.ai_expert.total}`, activeAgreement.ai_expert.rate > activeAgreement.expert_expert.rate ? "text-green-600" : "text-amber-600"],
-            ["AI vs Expert Majority", activeAgreement.ai_majority.total > 0 ? activeAgreement.ai_majority.rate : null, activeAgreement.ai_majority.total > 0 ? `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}` : "N/A (single reviewer)", "text-amber-600"],
-          ].map(([label, rate, sub, color], i) => (
+            ["Expert-Expert", activeAgreement.expert_expert.total > 0 ? activeAgreement.expert_expert.rate : null, activeAgreement.expert_expert.total > 0 ? `${activeAgreement.expert_expert.agree}/${activeAgreement.expert_expert.total}` : "N/A (single reviewer)", activeAgreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600", activeAgreement.expert_expert.ci],
+            ["AI vs Expert", activeAgreement.ai_expert.rate, `${activeAgreement.ai_expert.agree}/${activeAgreement.ai_expert.total}`, activeAgreement.ai_expert.rate > activeAgreement.expert_expert.rate ? "text-green-600" : "text-amber-600", activeAgreement.ai_expert.ci],
+            ["AI vs Expert Majority", activeAgreement.ai_majority.total > 0 ? activeAgreement.ai_majority.rate : null, activeAgreement.ai_majority.total > 0 ? `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}` : "N/A (single reviewer)", "text-amber-600", activeAgreement.ai_majority.ci],
+          ].map(([label, rate, sub, color, ci], i) => (
             <div key={i} className="p-3 border border-border rounded text-center" data-testid={`agreement-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
               <div className="text-[10px] text-muted-foreground">{label} ({modeLabel})</div>
               <div className={`text-xl font-semibold font-mono ${rate != null ? color : "text-muted-foreground"}`}>{rate != null ? `${rate}%` : "N/A"}</div>
               <div className="text-[10px] text-muted-foreground">{sub} {rate != null ? "non-tie pairs" : ""}</div>
+              {ci && rate != null && <div className="text-[9px] text-muted-foreground/70">95% CI: [{ci[0]}%, {ci[1]}%]</div>}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Score gap analysis */}
+      {activeAgreement?.score_gap && Object.keys(activeAgreement.score_gap).length > 0 && (
+        <div className="border border-border rounded-lg p-3">
+          <h4 className="text-xs font-medium mb-2">Accuracy by Expert Score Gap</h4>
+          <div className="text-[10px] text-muted-foreground mb-2">How accuracy changes when the quality difference between papers is obvious vs subtle</div>
+          <div className="flex gap-3">
+            {["small (<1)", "medium (1-2)", "large (>2)"].map(bucket => {
+              const d = activeAgreement.score_gap[bucket];
+              if (!d) return null;
+              const barColor = bucket.includes("large") ? "bg-green-500" : bucket.includes("medium") ? "bg-blue-500" : "bg-amber-500";
+              return (
+                <div key={bucket} className="flex-1 text-center">
+                  <div className="text-[10px] text-muted-foreground mb-1">{bucket}</div>
+                  <div className="h-2 bg-secondary/30 rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor} rounded-full`} style={{width: `${d.rate}%`}} />
+                  </div>
+                  <div className="text-xs font-mono font-semibold mt-0.5">{d.rate}%</div>
+                  <div className="text-[9px] text-muted-foreground">{d.agree}/{d.total} pairs</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
