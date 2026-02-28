@@ -2981,6 +2981,7 @@ async def _compute_cross_mode_agreement(dataset_id: str):
         "common_pairs": len(common_pairs),
         "modes_compared": modes_with_results,
         "expert_expert": {"agree": ee_agree, "total": ee_total, "rate": round(ee_agree / max(ee_total, 1) * 100, 1), "ci": _wilson_ci(ee_agree, ee_total)},
+        "expert_vs_majority": {"agree": em_agree, "total": em_total, "rate": round(em_agree / max(em_total, 1) * 100, 1), "ci": _wilson_ci(em_agree, em_total)},
         "by_mode": results,
         "per_model": per_model,
         "ai_majority_vs_expert": ai_majority_vs_expert,
