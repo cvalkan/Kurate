@@ -2753,6 +2753,17 @@ async def _compute_cross_mode_agreement(dataset_id: str):
                 if winners[i] == winners[j]:
                     ee_agree += 1
 
+    # Expert vs Majority: how often does an individual expert agree with the expert majority?
+    em_agree = em_total = 0
+    for pair in common_pairs:
+        if pair not in pair_majority:
+            continue
+        votes = expert_pair_prefs.get(pair, [])
+        for _, winner in votes:
+            em_total += 1
+            if winner == pair_majority[pair]:
+                em_agree += 1
+
     results = {}
     for mode in available_modes:
         # Core modes use common_pairs; overlay modes use their own intersection with common_pairs
