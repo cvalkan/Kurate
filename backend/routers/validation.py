@@ -1691,14 +1691,10 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
 
     # Per-model
     per_model = {}
-    for mk in models:
+    for mk in families:
         wmap = {pair: verdicts[mk] for pair, verdicts in full_pairs.items() if mk in verdicts}
         cyc, tri, _, _ = _count_cycles(wmap)
-        short = mk.split(":")[1] if ":" in mk else mk
-        if "claude" in short.lower(): short = "Claude Opus"
-        elif "gpt" in short.lower(): short = "GPT-5.2"
-        elif "gemini" in short.lower(): short = "Gemini 3 Pro"
-        per_model[short] = {"cycles": cyc, "triples": tri, "rate": round(cyc / max(tri, 1) * 100, 1)}
+        per_model[mk] = {"cycles": cyc, "triples": tri, "rate": round(cyc / max(tri, 1) * 100, 1)}
 
     # Majority
     maj_map = {}
