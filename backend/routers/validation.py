@@ -4870,6 +4870,8 @@ async def _run_extended_thinking(dataset_id: str, num_pairs: int):
                     await db.validation_matches.insert_one(doc)
                     completed += 1
                     _thinking_state["done"] = completed
+                    if completed % 50 == 0:
+                        invalidate_dataset_cache(dataset_id)
             except Exception as e:
                 logger.warning(f"Extended thinking match failed: {e}")
 
