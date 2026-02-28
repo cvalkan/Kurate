@@ -1690,10 +1690,13 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
 
         return cycles, triples, examples, gap_buckets
 
-    # Per-model
+    # Per-model (each model evaluated on the pairs it participated in)
     per_model = {}
-    for mk in families:
+    for mk in all_model_names:
+        # Only use pairs where this model has a verdict AND the pair has 3+ models total
         wmap = {pair: verdicts[mk] for pair, verdicts in full_pairs.items() if mk in verdicts}
+        if len(wmap) < 3:
+            continue
         cyc, tri, _, _ = _count_cycles(wmap)
         per_model[mk] = {"cycles": cyc, "triples": tri, "rate": round(cyc / max(tri, 1) * 100, 1)}
 
