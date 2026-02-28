@@ -1983,6 +1983,18 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
                 if ratings[a] != ratings[b]:
                     human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
 
+    # For datasets with dual dimensions (e.g., eLife sig + strength),
+    # add strength-based matches as independent "reviewer opinions"
+    sig_map = {p["id"]: p.get("sig_score") for p in papers if p.get("sig_score") is not None}
+    str_map = {p["id"]: p.get("str_score") for p in papers if p.get("str_score") is not None}
+    if len(str_map) >= 10:
+        str_pids = list(str_map.keys())
+        for i in range(len(str_pids)):
+            for j in range(i + 1, len(str_pids)):
+                a, b = str_pids[i], str_pids[j]
+                if str_map[a] != str_map[b]:
+                    human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if str_map[a] > str_map[b] else b, "completed": True, "failed": False})
+
     h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
     if len(h_ids) < 3 or not human_matches:
         return {"status": "no_data", "message": "Insufficient human pairwise data"}
