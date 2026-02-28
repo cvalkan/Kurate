@@ -129,7 +129,7 @@ export default function ExtendedThinkingSection() {
               <table className="w-full text-[11px]">
                 <thead><tr className="border-b text-[10px] text-muted-foreground">
                   <th className="text-left px-3 py-1.5">Dataset</th>
-                  <th className="text-right px-3">Pairs</th>
+                  <th className="text-right px-3">Non-tie pairs</th>
                   <th className="text-right px-3">Baseline</th>
                   <th className="text-right px-3">Thinking</th>
                   <th className="text-right px-3">Lift</th>
