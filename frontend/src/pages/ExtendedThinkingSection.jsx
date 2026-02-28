@@ -27,6 +27,7 @@ export default function ExtendedThinkingSection() {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [running, setRunning] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedDs, setSelectedDs] = useState(DATASETS[0].id);
 
   const fetchStatus = async () => {
@@ -34,11 +35,12 @@ export default function ExtendedThinkingSection() {
       const r = await axios.get(`${API}/api/validation/extended-thinking/status`);
       setStatus(r.data);
       setRunning(r.data?.running || false);
-    } catch { /* no endpoint yet */ }
+    } catch { /* ignore */ }
     try {
-      const r = await axios.get(`${API}/api/validation/extended-thinking/results`);
+      const r = await axios.get(`${API}/api/validation/extended-thinking/results`, { timeout: 30000 });
       setResults(r.data);
-    } catch { /* no endpoint yet */ }
+    } catch (e) { console.warn("Extended thinking results fetch error:", e.message); }
+    setLoading(false);
   };
 
   useEffect(() => { fetchStatus(); }, []);
