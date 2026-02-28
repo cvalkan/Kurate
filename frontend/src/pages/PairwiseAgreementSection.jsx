@@ -182,29 +182,42 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
   return (
     <div className="space-y-5">
       {/* Summary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-        <div className="p-2 border border-border/50 rounded text-xs" data-testid="pw-common-pairs">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-center text-xs mb-2">
+        <div className="p-2 border border-border/50 rounded" data-testid="pw-common-pairs">
           <div className="text-muted-foreground">Paper Pairs</div>
           <div className="font-semibold text-base">{data.common_pairs}</div>
-          <div className="text-[10px] text-muted-foreground">shared across formats</div>
+          <div className="text-[10px] text-muted-foreground">shared across {sortedModes.length} formats</div>
         </div>
-        <div className="p-2 border border-border/50 rounded text-xs">
+        <div className="p-2 border border-border/50 rounded md:col-span-2">
           <div className="text-muted-foreground">Input Formats</div>
-          <div className="font-semibold text-base">{sortedModes.length}</div>
-          <div className="text-[10px] text-muted-foreground">{sortedModes.map(m => MODE_LABELS[m]).join(", ")}</div>
+          <div className="text-[10px] text-muted-foreground mt-1">{sortedModes.map(m => MODE_LABELS[m]).join(", ")}</div>
         </div>
-        <div className="p-2 border border-border/50 rounded text-xs">
-          <div className="text-muted-foreground">Expert-Expert</div>
-          <div className="font-semibold text-base text-green-600">{data.expert_expert.rate}%</div>
-          <div className="text-[10px] text-muted-foreground">{data.expert_expert.agree}/{data.expert_expert.total} non-tie pairs</div>
-          {data.expert_expert.ci && <div className="text-[9px] text-muted-foreground/70">CI: [{data.expert_expert.ci[0]}%, {data.expert_expert.ci[1]}%]</div>}
-        </div>
-        <div className="p-2 border border-border/50 rounded text-xs">
-          <div className="text-muted-foreground">Best AI vs Majority</div>
-          <div className="font-semibold text-base text-accent">
-            {Math.max(...sortedModes.map(m => data.by_mode[m].ai_majority.rate))}%
-          </div>
-        </div>
+      </div>
+
+      {/* 4 agreement cards — matching tournament page */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+        {(() => {
+          const ee = data.expert_expert;
+          const em = data.expert_vs_majority;
+          const hasEE = ee && ee.total > 0;
+          const hasEM = em && em.total > 0;
+          const bestAE = Math.max(...sortedModes.map(m => data.by_mode[m]?.ai_expert?.rate || 0));
+          const bestAM = Math.max(...sortedModes.map(m => data.by_mode[m]?.ai_majority?.rate || 0));
+          const cards = [
+            ...(hasEE ? [["Expert-Expert", ee.rate, `${ee.agree}/${ee.total}`, "text-muted-foreground", ee.ci]] : []),
+            ...(hasEM ? [["Expert vs Majority", em.rate, `${em.agree}/${em.total}`, "text-muted-foreground", em.ci]] : []),
+            ["Best AI vs Expert", bestAE, null, "text-amber-600", null],
+            ["Best AI vs Majority", bestAM, null, "text-blue-600", null],
+          ];
+          return cards.map(([label, rate, sub, color, ci], i) => (
+            <div key={i} className="p-2 border border-border/50 rounded text-xs">
+              <div className="text-muted-foreground">{label}</div>
+              <div className={`font-semibold text-base font-mono ${color}`}>{rate}%</div>
+              {sub && <div className="text-[10px] text-muted-foreground">{sub} non-tie pairs</div>}
+              {ci && <div className="text-[9px] text-muted-foreground/70">CI: [{ci[0]}%, {ci[1]}%]</div>}
+            </div>
+          ));
+        })()}
       </div>
 
       {/* Admin controls */}
