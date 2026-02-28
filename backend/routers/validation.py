@@ -2021,7 +2021,7 @@ async def get_consistency_analysis():
             },
             "shared_triple_comparison": {
                 "shared_pairs": len(shared_pairs),
-                "models": shared_models,
+                "models": all_model_names,
                 "per_model": shared_cycle_rates,
             },
         },
