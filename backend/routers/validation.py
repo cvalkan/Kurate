@@ -1953,7 +1953,7 @@ async def get_consistency_analysis():
     def _rate(a, b): return round(a / max(b, 1) * 100, 2)
 
     # ── Apples-to-apples: cycle rates on shared triples (all models on same pairs) ──
-    # Find pairs where 3+ models have verdicts (across all formats pooled)
+    # Find pairs where ALL models have verdicts (across all formats pooled)
     pair_by_model = defaultdict(dict)  # (dataset, pair) → model → winner (last-write-wins)
     for m in all_matches:
         if not m.get("winner_id"): continue
@@ -1961,18 +1961,17 @@ async def get_consistency_analysis():
         key = (m["dataset_id"], tuple(sorted([m["paper1_id"], m["paper2_id"]])))
         pair_by_model[key][mk] = m["winner_id"]
 
-    shared_pairs = {k: v for k, v in pair_by_model.items() if len(v) >= 3}
-    shared_models = sorted(set(mk for v in shared_pairs.values() for mk in v.keys()))
+    all_model_names = sorted(set(mk for v in pair_by_model.values() for mk in v.keys()))
+    # Pairs where ALL models have data → identical triple set for every model
+    shared_pairs = {k: v for k, v in pair_by_model.items() if len(v) >= len(all_model_names)}
 
     shared_cycle_rates = {}
+    import math as _math
     if len(shared_pairs) >= 20:
-        for mk in shared_models:
-            wmap = {k: v[mk] for k, v in shared_pairs.items() if mk in v}
-            if len(wmap) < 10: continue
+        for mk in all_model_names:
+            wmap = {k: v[mk] for k, v in shared_pairs.items()}
             cyc, tri = _count_cycles_fast(wmap)
             rate = cyc / max(tri, 1)
-            # Wilson CI
-            import math as _math
             z = 1.96
             n = tri
             p = rate
