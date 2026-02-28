@@ -200,7 +200,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {isLeaderboard
               ? "How many matches for stable rankings? Convergence measured against final ranking at all matches."
-              : "How many matches for stable rankings? Ground truth = human BT ranking from reviewer scores. For multi-dimension datasets (e.g., eLife), significance and strength are normalized and averaged into a composite score before creating pairwise preferences."}
+              : "How many matches for stable rankings? Ground truth = human BT ranking from reviewer scores. For multi-dimension datasets (e.g., eLife), the aggregate is the average of per-dimension Spearman correlations (significance + strength)."}
           </p>
         </div>
         <div className="flex items-center gap-2">
