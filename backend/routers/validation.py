@@ -1846,9 +1846,9 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
                         "id": pid, "title": next((p["title"] for p in cp if p["id"] == pid), "?"),
                         "human_rank": dim_h_rank[pid], "human_score": dim_h_score[pid],
                         "ai_rank": a_rank[pid]["rank"], "ai_score": a_rank[pid]["score"],
-                        "ai_win_rate": a_rank[pid]["win_rate"], "ai_matches": a_rank[pid]["comparisons"],
+                        "ai_win_rate": a_rank[pid].get("win_rate", 0), "ai_matches": a_rank[pid].get("comparisons", 0),
                         "rank_delta": a_rank[pid]["rank"] - dim_h_rank[pid],
-                    } for pid in dim_shared], key=lambda x: x["human_rank"])
+                    } for pid in dim_shared if pid in a_rank], key=lambda x: x["human_rank"])
                     dim_correlations[dim_name] = {
                         "spearman_rho": safe_round(d_sp), "spearman_p_value": safe_round(d_sp_p, 6),
                         "kendall_tau": safe_round(d_kt), "kendall_p_value": safe_round(d_kt_p, 6),
