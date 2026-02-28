@@ -417,14 +417,14 @@ function StandardStats({ datasetId, isAdmin }) {
       {activeAgreement && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {[
-            ["Expert-Expert", activeAgreement.expert_expert.rate, `${activeAgreement.expert_expert.agree}/${activeAgreement.expert_expert.total}`, activeAgreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600"],
+            ["Expert-Expert", activeAgreement.expert_expert.total > 0 ? activeAgreement.expert_expert.rate : null, activeAgreement.expert_expert.total > 0 ? `${activeAgreement.expert_expert.agree}/${activeAgreement.expert_expert.total}` : "N/A (single reviewer)", activeAgreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600"],
             ["AI vs Expert", activeAgreement.ai_expert.rate, `${activeAgreement.ai_expert.agree}/${activeAgreement.ai_expert.total}`, activeAgreement.ai_expert.rate > activeAgreement.expert_expert.rate ? "text-green-600" : "text-amber-600"],
-            ["AI vs Expert Majority", activeAgreement.ai_majority.rate, `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}`, "text-amber-600"],
+            ["AI vs Expert Majority", activeAgreement.ai_majority.total > 0 ? activeAgreement.ai_majority.rate : null, activeAgreement.ai_majority.total > 0 ? `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}` : "N/A (single reviewer)", "text-amber-600"],
           ].map(([label, rate, sub, color], i) => (
             <div key={i} className="p-3 border border-border rounded text-center" data-testid={`agreement-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
               <div className="text-[10px] text-muted-foreground">{label} ({modeLabel})</div>
-              <div className={`text-xl font-semibold font-mono ${color}`}>{rate}%</div>
-              <div className="text-[10px] text-muted-foreground">{sub} non-tie pairs</div>
+              <div className={`text-xl font-semibold font-mono ${rate != null ? color : "text-muted-foreground"}`}>{rate != null ? `${rate}%` : "N/A"}</div>
+              <div className="text-[10px] text-muted-foreground">{sub} {rate != null ? "non-tie pairs" : ""}</div>
             </div>
           ))}
         </div>
