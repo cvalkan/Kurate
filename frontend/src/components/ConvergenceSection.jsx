@@ -276,14 +276,14 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
         </div>
       )}
 
-      {/* Dual-dimension convergence: Significance vs Strength */}
+      {/* Significance convergence */}
       {!showTopK && hasDual && !isLeaderboard && (
-        <div className="border border-border rounded-lg p-3" data-testid="convergence-dual-chart">
+        <div className="border border-border rounded-lg p-3" data-testid="convergence-sig-chart">
           <div className="mb-2">
-            <h3 className="text-sm font-semibold">Significance vs Strength Convergence</h3>
-            <p className="text-[10px] text-muted-foreground">How AI ranking correlation evolves separately against editorial significance and strength of evidence</p>
+            <h3 className="text-sm font-semibold">Significance Convergence</h3>
+            <p className="text-[10px] text-muted-foreground">AI ranking correlation against editorial significance (useful → landmark)</p>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={220}>
             <LineChart data={dualChartData}>
               <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
                 label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
@@ -291,17 +291,36 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
                 label={{ value: "Spearman ρ", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
               <Tooltip content={<Tip />} />
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-              {dsIds.flatMap((did, i) => {
-                const color = getModeColor(did, i);
-                return [
-                  <Line key={`${did}_sig`} type="monotone" dataKey={`${did}_sig`}
-                    name={`${curves[did].name} (Significance)`}
-                    stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />,
-                  <Line key={`${did}_str`} type="monotone" dataKey={`${did}_str`}
-                    name={`${curves[did].name} (Strength)`}
-                    stroke={color} strokeWidth={2} strokeDasharray="6 3" dot={false} isAnimationActive={false} connectNulls />,
-                ];
-              })}
+              {dsIds.map((did, i) => (
+                <Line key={`${did}_sig`} type="monotone" dataKey={`${did}_sig`}
+                  name={curves[did].name}
+                  stroke={getModeColor(did, i)} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Strength convergence */}
+      {!showTopK && hasDual && !isLeaderboard && (
+        <div className="border border-border rounded-lg p-3" data-testid="convergence-str-chart">
+          <div className="mb-2">
+            <h3 className="text-sm font-semibold">Strength of Evidence Convergence</h3>
+            <p className="text-[10px] text-muted-foreground">AI ranking correlation against strength of evidence (inadequate → exceptional)</p>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={dualChartData}>
+              <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
+                label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
+              <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={v => v.toFixed(1)}
+                label={{ value: "Spearman ρ", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
+              <Tooltip content={<Tip />} />
+              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+              {dsIds.map((did, i) => (
+                <Line key={`${did}_str`} type="monotone" dataKey={`${did}_str`}
+                  name={curves[did].name}
+                  stroke={getModeColor(did, i)} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
