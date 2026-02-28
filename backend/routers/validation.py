@@ -4684,8 +4684,20 @@ async def extended_thinking_results():
         ).to_list(5000)
 
         # Build expert pairwise preferences → majority vote per pair (same as tournament page)
+        # For multi-reviewer datasets (ICLR): uses majority vote (≥2 votes required)
+        # For single-reviewer datasets (eLife): falls back to single vote
         expert_ratings = build_expert_ratings(papers)
         expert_prefs = build_expert_majority(expert_ratings)
+        if not expert_prefs:
+            # Single-reviewer fallback: use any non-tie preference
+            for exp, ratings in expert_ratings.items():
+                pids = list(ratings.keys())
+                for i in range(len(pids)):
+                    for j in range(i + 1, len(pids)):
+                        a, b = pids[i], pids[j]
+                        if ratings[a] != ratings[b]:
+                            pk = tuple(sorted([a, b]))
+                            expert_prefs[pk] = a if ratings[a] > ratings[b] else b
 
         # Load baseline (opus46) and thinking matches — last-write-wins per pair
         baseline = {}
