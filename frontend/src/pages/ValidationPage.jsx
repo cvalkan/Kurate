@@ -516,6 +516,9 @@ function StandardStats({ datasetId, isAdmin }) {
                     {corr.papers || data.papers_analyzed} papers &middot; {corr.human_matches || data.human_matches_derived} human pairs &middot; {data.ai_matches} AI matches
                   </div>
                   {key === "bt-aggregate" && <RankingTable rows={data.comparison} mode="pairwise" />}
+                  {key !== "bt-aggregate" && data.comparison && (
+                    <RankingTable rows={data.comparison} mode="pairwise" />
+                  )}
                 </div>
               </div>
             ))}
