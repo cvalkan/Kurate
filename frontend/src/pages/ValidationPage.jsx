@@ -473,52 +473,80 @@ function StandardStats({ datasetId, isAdmin }) {
       )}
 
       {/* Two experiments side by side */}
-      {(activePairwise || activeIrt) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {activePairwise && (
-            <div className="border border-border rounded-lg overflow-hidden">
-              <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-                <h3 className="text-xs font-medium flex items-center gap-1.5">
-                  <Users className="h-3 w-3" /> Pairwise BT — {modeLabel}
-                </h3>
-              </div>
-              <div className="p-3 space-y-2">
-                <div className="grid grid-cols-3 gap-2">
-                  <CorrelationBadge value={activePairwise.correlation.spearman_rho} label="Spearman &rho;" />
-                  <CorrelationBadge value={activePairwise.correlation.kendall_tau} label="Kendall &tau;" />
-                  <CorrelationBadge value={activePairwise.correlation.pearson_r} label="Pearson r" />
+      {(activePairwise || activeIrt) && (() => {
+        const hasDims = activePairwise?.dim_correlations;
+        const dims = hasDims ? ["aggregate", "significance", "strength"] : ["aggregate"];
+        
+        const btPanels = dims.map(dim => {
+          const corr = dim === "aggregate" ? activePairwise?.correlation
+            : activePairwise?.dim_correlations?.[dim];
+          if (!corr) return null;
+          const label = dim === "aggregate" ? (hasDims ? "Aggregate" : "") : dim.charAt(0).toUpperCase() + dim.slice(1);
+          return { key: `bt-${dim}`, type: "bt", label, corr, data: activePairwise };
+        }).filter(Boolean);
+        
+        const irtPanels = dims.map(dim => {
+          const corr = dim === "aggregate" ? activeIrt?.correlation?.irt_score_vs_ai
+            : activeIrt?.dim_correlations?.[dim];
+          if (!corr) return null;
+          const label = dim === "aggregate" ? (hasDims ? "Aggregate" : "") : dim.charAt(0).toUpperCase() + dim.slice(1);
+          return { key: `irt-${dim}`, type: "irt", label, corr, data: activeIrt };
+        }).filter(Boolean);
+        
+        const panels = [...btPanels, ...irtPanels];
+        const cols = panels.length <= 2 ? "lg:grid-cols-2" : panels.length <= 3 ? "lg:grid-cols-3" : "lg:grid-cols-3";
+        
+        return (
+          <div className={`grid grid-cols-1 ${cols} gap-3`}>
+            {btPanels.map(({ key, label, corr, data }) => (
+              <div key={key} className="border border-border rounded-lg overflow-hidden">
+                <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+                  <h3 className="text-xs font-medium flex items-center gap-1.5">
+                    <Users className="h-3 w-3" /> Pairwise BT{label ? ` — ${label}` : ""} 
+                    <span className="text-muted-foreground font-normal">({modeLabel})</span>
+                  </h3>
                 </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {activePairwise.papers_analyzed} papers &middot; {activePairwise.human_matches_derived} human pairs &middot; {activePairwise.ai_matches} AI matches
+                <div className="p-3 space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <CorrelationBadge value={corr.spearman_rho} label="Spearman &rho;" />
+                    <CorrelationBadge value={corr.kendall_tau} label="Kendall &tau;" />
+                    <CorrelationBadge value={corr.pearson_r} label="Pearson r" />
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {corr.papers || data.papers_analyzed} papers &middot; {corr.human_matches || data.human_matches_derived} human pairs &middot; {data.ai_matches} AI matches
+                  </div>
+                  {key === "bt-aggregate" && <RankingTable rows={data.comparison} mode="pairwise" />}
                 </div>
-                <RankingTable rows={activePairwise.comparison} mode="pairwise" />
               </div>
-            </div>
-          )}
-          {activeIrt && (
-            <div className="border border-border rounded-lg overflow-hidden">
-              <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-                <h3 className="text-xs font-medium flex items-center gap-1.5">
-                  <FlaskConical className="h-3 w-3" /> IRT Score — {modeLabel}
-                </h3>
-              </div>
-              <div className="p-3 space-y-2">
-                <div className="grid grid-cols-3 gap-2">
-                  <CorrelationBadge value={activeIrt.correlation.irt_score_vs_ai.spearman_rho} label="Spearman &rho;" />
-                  <CorrelationBadge value={activeIrt.correlation.irt_score_vs_ai.kendall_tau} label="Kendall &tau;" />
-                  <CorrelationBadge value={activeIrt.correlation.irt_score_vs_ai.pearson_r} label="Pearson r" />
+            ))}
+            {irtPanels.map(({ key, label, corr, data }) => (
+              <div key={key} className="border border-border rounded-lg overflow-hidden">
+                <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+                  <h3 className="text-xs font-medium flex items-center gap-1.5">
+                    <FlaskConical className="h-3 w-3" /> IRT Score{label ? ` — ${label}` : ""}
+                    <span className="text-muted-foreground font-normal">({modeLabel})</span>
+                  </h3>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                  <span>{activeIrt.improvement.distinct_scores_raw}&rarr;{activeIrt.improvement.distinct_scores_irt} distinct scores</span>
-                  <span>&middot;</span>
-                  <span>&Delta;&rho; = {activeIrt.improvement.delta >= 0 ? "+" : ""}{activeIrt.improvement.delta.toFixed(3)}</span>
+                <div className="p-3 space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <CorrelationBadge value={corr.spearman_rho || corr.spearman_rho} label="Spearman &rho;" />
+                    <CorrelationBadge value={corr.kendall_tau || corr.kendall_tau} label="Kendall &tau;" />
+                    <CorrelationBadge value={corr.pearson_r || corr.pearson_r} label="Pearson r" />
+                  </div>
+                  {key === "irt-aggregate" && data.improvement && (
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span>{data.improvement.distinct_scores_raw}&rarr;{data.improvement.distinct_scores_irt} distinct scores</span>
+                      <span>&middot;</span>
+                      <span>&Delta;&rho; = {data.improvement.delta >= 0 ? "+" : ""}{data.improvement.delta.toFixed(3)}</span>
+                    </div>
+                  )}
+                  {key === "irt-aggregate" && <RankingTable rows={data.comparison} mode="irt" />}
                 </div>
-                <RankingTable rows={activeIrt.comparison} mode="irt" />
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Tier-based ranking comparison */}
       {activePairwise?.tier_metrics?.tier_ranking && (
