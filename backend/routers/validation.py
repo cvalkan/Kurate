@@ -1866,6 +1866,27 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
         kt_p = max(dim_correlations["significance"]["kendall_p_value"], dim_correlations["strength"]["kendall_p_value"])
         pr_p = max(dim_correlations["significance"]["pearson_p_value"], dim_correlations["strength"]["pearson_p_value"])
 
+        # Build aggregate comparison table using composite human score (avg of per-dim BT scores)
+        sig_h_score = {e["id"]: e.get("human_score", 0) for e in dim_correlations["significance"].get("comparison", [])}
+        str_h_score = {e["id"]: e.get("human_score", 0) for e in dim_correlations["strength"].get("comparison", [])}
+        composite_pids = [pid for pid in common if pid in sig_h_score and pid in str_h_score]
+
+        if composite_pids:
+            # Normalize each dimension's BT scores to 0-1 before averaging
+            sig_vals = [sig_h_score[pid] for pid in composite_pids]
+            str_vals = [str_h_score[pid] for pid in composite_pids]
+            sig_min, sig_max = min(sig_vals), max(sig_vals)
+            str_min, str_max = min(str_vals), max(str_vals)
+            sig_range = max(sig_max - sig_min, 1)
+            str_range = max(str_max - str_min, 1)
+
+            composite_score = {pid: ((sig_h_score[pid] - sig_min) / sig_range + (str_h_score[pid] - str_min) / str_range) / 2
+                               for pid in composite_pids}
+            composite_sorted = sorted(composite_pids, key=lambda pid: -composite_score[pid])
+            composite_rank = {pid: i + 1 for i, pid in enumerate(composite_sorted)}
+
+            h_rank = {pid: {"rank": composite_rank[pid], "score": composite_score[pid]} for pid in composite_pids}
+
     comparison = sorted([{
         "id": pid, "title": next(p["title"] for p in cp if p["id"] == pid),
         "human_rank": h_rank[pid]["rank"], "human_score": h_rank[pid]["score"],
