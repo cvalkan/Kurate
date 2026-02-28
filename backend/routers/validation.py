@@ -2030,11 +2030,7 @@ async def get_consistency_analysis():
                 "by_format": {FORMAT_LABELS.get(fmt, fmt): {"cycles": v[0], "triples": v[1], "rate": _rate(v[0], v[1])}
                               for fmt, v in sorted(sp_format_cycles.items(), key=lambda x: -x[1][1]) if v[1] >= 10},
             },
-            "shared_triple_comparison": {
-                "shared_pairs": len(shared_pairs),
-                "models": all_model_names,
-                "per_model": shared_cycle_rates,
-            },
+            "per_format_comparison": per_format_comparison,
         },
 
         # Section 2: Condorcet Cycles
