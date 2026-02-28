@@ -286,9 +286,11 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
                     <td className="py-1.5 pr-3 font-medium">{MODE_LABELS[mode]}</td>
                     <td className={`text-center py-1.5 px-2 font-mono font-semibold ${ae_color}`}>
                       {s.ai_expert.rate}% <span className="text-[9px] text-muted-foreground">({s.ai_expert.agree}/{s.ai_expert.total})</span>
+                      {s.ai_expert.ci && <div className="text-[8px] text-muted-foreground/60 font-normal">[{s.ai_expert.ci[0]}–{s.ai_expert.ci[1]}%]</div>}
                     </td>
                     <td className={`text-center py-1.5 px-2 font-mono font-semibold ${am_color}`}>
                       {s.ai_majority.rate}% <span className="text-[9px] text-muted-foreground">({s.ai_majority.agree}/{s.ai_majority.total})</span>
+                      {s.ai_majority.ci && <div className="text-[8px] text-muted-foreground/60 font-normal">[{s.ai_majority.ci[0]}–{s.ai_majority.ci[1]}%]</div>}
                     </td>
                     {hasAiMajority && (
                       <td className="text-center py-1.5 px-2 font-mono font-semibold text-green-600">
