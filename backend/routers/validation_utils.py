@@ -108,18 +108,28 @@ def build_ai_majority(ai_matches: list) -> dict:
 
 async def build_ensemble_matches(dataset_id: str, min_models: int = 3) -> dict:
     """Build majority-vote and unanimity virtual match lists from multi-model data.
-    Returns {"majority": [...], "unanimity": [...], "pairs_with_all": int, "models": [...]}
+    Only uses matches within the SAME content mode (extract) for methodological purity.
+    Returns {"majority": [...], "unanimity": [...], "pairs_with_all": int, "models": [...],
+             "source_mode": str, "per_model_accuracy": {...}}
     where each match is a dict compatible with compute_leaderboard_async."""
+
+    # Use extract mode (the primary tournament mode with most 3-model coverage)
+    _extract_filter = {
+        "abstract_only": {"$ne": True},
+        "content_mode": {"$nin": ["full_pdf", "ai_summary", "abstract_plus_summary",
+                                   "abstract_plus_impact", "deep_dive"],
+                          "$not": {"$regex": ":"}},
+        "prompt_tag": {"$exists": False},
+    }
 
     all_matches = await db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "prompt_tag": {"$exists": False},  # exclude experiment variants
-         "content_mode": {"$nin": ["deep_dive"], "$not": {"$regex": ":"}}},
+         **_extract_filter},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
          "model_used": 1, "created_at": 1},
     ).to_list(200000)
 
-    # Group by pair → model → winner
+    # Group by pair → model → winner (within the same mode)
     pair_verdicts = defaultdict(dict)
     model_keys_seen = set()
     for m in all_matches:
@@ -165,6 +175,7 @@ async def build_ensemble_matches(dataset_id: str, min_models: int = 3) -> dict:
         "unanimity": unanimity_matches,
         "pairs_with_all": len(full_pairs),
         "models": all_models,
+        "source_mode": "extract",
     }
 
 
