@@ -1984,16 +1984,35 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
                     human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
 
     # For datasets with dual dimensions (e.g., eLife sig + strength),
-    # add strength-based matches as independent "reviewer opinions"
+    # use a composite score (normalized average) to create pairwise preferences
     sig_map = {p["id"]: p.get("sig_score") for p in papers if p.get("sig_score") is not None}
     str_map = {p["id"]: p.get("str_score") for p in papers if p.get("str_score") is not None}
-    if len(str_map) >= 10:
-        str_pids = list(str_map.keys())
-        for i in range(len(str_pids)):
-            for j in range(i + 1, len(str_pids)):
-                a, b = str_pids[i], str_pids[j]
-                if str_map[a] != str_map[b]:
-                    human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if str_map[a] > str_map[b] else b, "completed": True, "failed": False})
+    if len(str_map) >= 10 and len(sig_map) >= 10:
+        # Normalize each dimension to 0-1, then average
+        sig_vals = list(sig_map.values())
+        str_vals = list(str_map.values())
+        sig_min, sig_max = min(sig_vals), max(sig_vals)
+        str_min, str_max = min(str_vals), max(str_vals)
+        sig_range = max(sig_max - sig_min, 1)
+        str_range = max(str_max - str_min, 1)
+
+        composite = {}
+        for pid in sig_map:
+            if pid in str_map:
+                norm_sig = (sig_map[pid] - sig_min) / sig_range
+                norm_str = (str_map[pid] - str_min) / str_range
+                composite[pid] = (norm_sig + norm_str) / 2
+
+        # Replace rating_value-only matches with composite-based matches
+        human_matches = []
+        comp_pids = list(composite.keys())
+        for i in range(len(comp_pids)):
+            for j in range(i + 1, len(comp_pids)):
+                a, b = comp_pids[i], comp_pids[j]
+                if composite[a] != composite[b]:
+                    human_matches.append({"paper1_id": a, "paper2_id": b,
+                        "winner_id": a if composite[a] > composite[b] else b,
+                        "completed": True, "failed": False})
 
     h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
     if len(h_ids) < 3 or not human_matches:
