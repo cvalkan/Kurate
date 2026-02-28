@@ -9,8 +9,9 @@ const ADMIN_HEADERS = { "X-Admin-Token": sessionStorage.getItem("admin_token") }
 
 const DATASETS = [
   { id: "iclr-codegen", label: "ICLR Code Gen" },
-  { id: "elife-microbiology", label: "eLife Microbiology" },
   { id: "iclr-fairness", label: "ICLR Fairness" },
+  { id: "elife-microbiology", label: "eLife Microbiology" },
+  { id: "elife-cancer", label: "eLife Cancer" },
 ];
 
 export default function ExtendedThinkingSection() {
