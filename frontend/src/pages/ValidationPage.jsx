@@ -611,6 +611,7 @@ function StandardStats({ datasetId, isAdmin }) {
 function MultiModelStats({ datasetId, isAdmin }) {
   const [contentMode, setContentMode] = useState(null);
   const [dataByMode, setDataByMode] = useState({});
+  const [cycleData, setCycleData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const MODES = [
