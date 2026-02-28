@@ -584,10 +584,7 @@ function StandardStats({ datasetId, isAdmin }) {
         </div>
       )}
 
-      {/* Dual-Dimension: Significance + Strength (eLife datasets) */}
-      {activeDual && (
-        <DualDimensionSection dual={activeDual} modeLabel={modeLabel} />
-      )}
+      {/* Dual-dimension correlations now shown in the 6-panel layout above */}
     </div>
   );
 }
