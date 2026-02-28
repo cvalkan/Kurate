@@ -2093,17 +2093,14 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
             h_papers = [{"id": pid, "title": ""} for pid in common_d]
             try:
                 h_lb = await compute_leaderboard_async(h_papers, h_matches)
-                h_rank = {e["id"]: e["rank"] for e in h_lb}
-                shared = [pid for pid in common_d if pid in h_rank and pid in sub_rank]
+                # Use BT SCORES (not ranks) to handle ties correctly
+                # Papers with identical scores (same tier) get average ranks in Spearman
+                h_score = {e["id"]: e["score"] for e in h_lb}
+                ai_score = {e["id"]: e["score"] for e in sub_lb}
+                shared = [pid for pid in common_d if pid in h_score and pid in ai_score]
                 if len(shared) < 10:
                     return 0
-                ai_vals = [sub_rank[pid] for pid in shared]
-                h_vals = [h_rank[pid] for pid in shared]
-                rho, _ = scipy_stats.spearmanr(ai_vals, h_vals)
-                # Debug logging for last convergence point
-                if len(shared) == len(common_d):
-                    logger.info(f"_dim_rho DEBUG [{dim_name}]: shared={len(shared)}, h_matches={len(h_matches)}, "
-                                f"ai_ranks_sample={ai_vals[:5]}, h_ranks_sample={h_vals[:5]}, rho={rho:.4f}")
+                rho, _ = scipy_stats.spearmanr([ai_score[pid] for pid in shared], [h_score[pid] for pid in shared])
                 return round(rho, 4) if not np.isnan(rho) else 0
             except Exception as e:
                 logger.warning(f"_dim_rho error [{dim_name}]: {e}")
