@@ -414,22 +414,30 @@ function StandardStats({ datasetId, isAdmin }) {
       </div>
 
       {/* Agreement */}
-      {activeAgreement && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {[
-            ["Expert-Expert", activeAgreement.expert_expert.total > 0 ? activeAgreement.expert_expert.rate : null, activeAgreement.expert_expert.total > 0 ? `${activeAgreement.expert_expert.agree}/${activeAgreement.expert_expert.total}` : "N/A (single reviewer)", activeAgreement.expert_expert.rate >= 70 ? "text-green-600" : "text-red-600", activeAgreement.expert_expert.ci],
-            ["AI vs Expert", activeAgreement.ai_expert.rate, `${activeAgreement.ai_expert.agree}/${activeAgreement.ai_expert.total}`, activeAgreement.ai_expert.rate > activeAgreement.expert_expert.rate ? "text-green-600" : "text-amber-600", activeAgreement.ai_expert.ci],
-            ["AI vs Expert Majority", activeAgreement.ai_majority.total > 0 ? activeAgreement.ai_majority.rate : null, activeAgreement.ai_majority.total > 0 ? `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}` : "N/A (single reviewer)", "text-amber-600", activeAgreement.ai_majority.ci],
-          ].map(([label, rate, sub, color, ci], i) => (
-            <div key={i} className="p-3 border border-border rounded text-center" data-testid={`agreement-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
-              <div className="text-[10px] text-muted-foreground">{label} ({modeLabel})</div>
-              <div className={`text-xl font-semibold font-mono ${rate != null ? color : "text-muted-foreground"}`}>{rate != null ? `${rate}%` : "N/A"}</div>
-              <div className="text-[10px] text-muted-foreground">{sub} {rate != null ? "non-tie pairs" : ""}</div>
-              {ci && rate != null && <div className="text-[9px] text-muted-foreground/70">95% CI: [{ci[0]}%, {ci[1]}%]</div>}
-            </div>
-          ))}
-        </div>
-      )}
+      {activeAgreement && (() => {
+        const ee = activeAgreement.expert_expert;
+        const em = activeAgreement.expert_vs_majority;
+        const hasEE = ee && ee.total > 0;
+        const hasEM = em && em.total > 0;
+        const cards = [
+          ...(hasEE ? [["Expert-Expert", ee.rate, `${ee.agree}/${ee.total}`, "text-muted-foreground", ee.ci, "How often two random reviewers agree"]] : []),
+          ...(hasEM ? [["Expert vs Majority", em.rate, `${em.agree}/${em.total}`, "text-muted-foreground", em.ci, "How often one reviewer agrees with the majority"]] : []),
+          ["AI vs Expert", activeAgreement.ai_expert.rate, `${activeAgreement.ai_expert.agree}/${activeAgreement.ai_expert.total}`, activeAgreement.ai_expert.rate > (ee?.rate || 0) ? "text-green-600" : "text-amber-600", activeAgreement.ai_expert.ci, "How often AI agrees with each reviewer"],
+          ...(activeAgreement.ai_majority.total > 0 ? [["AI vs Majority", activeAgreement.ai_majority.rate, `${activeAgreement.ai_majority.agree}/${activeAgreement.ai_majority.total}`, "text-blue-600", activeAgreement.ai_majority.ci, "How often AI agrees with reviewer consensus"]] : []),
+        ];
+        return (
+          <div className={`grid grid-cols-2 ${cards.length > 3 ? "md:grid-cols-4" : "md:grid-cols-3"} gap-2`}>
+            {cards.map(([label, rate, sub, color, ci, tooltip], i) => (
+              <div key={i} className="p-3 border border-border rounded text-center" title={tooltip} data-testid={`agreement-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
+                <div className="text-[10px] text-muted-foreground">{label}</div>
+                <div className={`text-xl font-semibold font-mono ${color}`}>{rate}%</div>
+                <div className="text-[10px] text-muted-foreground">{sub} non-tie pairs</div>
+                {ci && <div className="text-[9px] text-muted-foreground/70">CI: [{ci[0]}%, {ci[1]}%]</div>}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Score gap analysis */}
       {activeAgreement?.score_gap && Object.keys(activeAgreement.score_gap).length > 0 && (
