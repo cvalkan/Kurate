@@ -144,76 +144,57 @@ export default function SamePairsSection() {
         </div>
       </div>
 
-      {/* ── Format-Normalized Cycle Rates + Human Baselines ── */}
-      {(vs.normalized_comparison || vs.human_baselines) && (() => {
-        const nc = vs.normalized_comparison || {};
-        const hb = vs.human_baselines || {};
-        const rows = [];
-
-        // Human baselines first
-        if (hb.individual) {
-          rows.push({ name: "Human Individual", rate: hb.individual.avg_rate, cycles: "—",
-            triples: "—", ci: null, note: `${hb.individual.reviewers} reviewers, avg rate`, isHuman: true });
-        }
-        if (hb.committee && hb.committee.triples > 0) {
-          rows.push({ name: "Human Committee", ...hb.committee, isHuman: true });
-        }
-
-        // AI models sorted by rate
-        const models = Object.entries(nc).sort((a, b) => a[1].rate - b[1].rate);
-        for (const [mk, v] of models) {
-          rows.push({ name: mk, ...v, note: `${v.formats} formats`, isHuman: false });
-        }
-
-        const maxRate = Math.max(...rows.filter(r => r.rate > 0).map(r => r.rate), 0.5);
+      {/* ── Format-Normalized Cycle Rates ── */}
+      {vs.normalized_comparison && Object.keys(vs.normalized_comparison).length >= 2 && (() => {
+        const nc = vs.normalized_comparison;
+        const models = Object.entries(nc).sort((a, b) => a[1].adjusted_rate - b[1].adjusted_rate);
+        const maxRate = Math.max(...models.map(([, v]) => v.adjusted_rate), 0.5);
+        const sharedTriples = models[0]?.[1]?.triples || 0;
 
         return (
           <div className="border border-border rounded-lg overflow-hidden" data-testid="normalized-cycle-comparison">
             <div className="px-3 py-2 bg-secondary/10 border-b border-border">
               <h3 className="text-xs font-medium flex items-center gap-1.5">
-                <RotateCcw className="h-3.5 w-3.5" /> Cycle Rates — Format-Normalized (Same Pairs)
+                <RotateCcw className="h-3.5 w-3.5" /> Cycle Rates — Format-Adjusted (Same Pairs)
               </h3>
               <div className="text-[10px] text-muted-foreground mt-0.5">
-                Per-model cycle rates computed within each format on shared pairs (2+ models), then pooled across formats weighted by triple count. Eliminates format-mix bias.
+                All models on the same {sharedTriples.toLocaleString()} triples. <strong>Adjusted rate</strong> compensates for each model's format mix — models seeing "easier" formats (lower baseline cycle rate) get adjusted upward.
               </div>
             </div>
             <div className="p-3">
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-border text-[10px]">
-                    <th className="text-left py-1.5 pr-3 font-medium">Judge</th>
+                    <th className="text-left py-1.5 pr-3 font-medium">Model</th>
                     <th className="text-right py-1.5 px-2 font-medium">Cycles</th>
                     <th className="text-right py-1.5 px-2 font-medium">Triples</th>
-                    <th className="text-right py-1.5 px-2 font-medium">Rate</th>
-                    <th className="text-left py-1.5 px-2 font-medium">95% CI</th>
-                    <th className="py-1.5 px-2 font-medium w-1/4"></th>
+                    <th className="text-right py-1.5 px-2 font-medium">Raw Rate</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Adj. Factor</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Adjusted Rate</th>
+                    <th className="text-left py-1.5 px-2 font-medium">Raw 95% CI</th>
+                    <th className="py-1.5 px-2 font-medium w-1/5"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, i) => {
-                    const color = r.isHuman ? "#10b981"
-                      : MODEL_COLORS[r.name] || "#94a3b8";
-                    const lowData = !r.isHuman && r.triples !== "—" && r.triples < 100;
-                    const prevIsHuman = i > 0 && rows[i-1].isHuman && !r.isHuman;
+                  {models.map(([mk, v]) => {
+                    const color = MODEL_COLORS[mk] || "#94a3b8";
                     return (
-                      <tr key={r.name} className={`border-b border-border/30 ${lowData ? "opacity-40" : ""} ${prevIsHuman ? "border-t-2 border-border" : ""}`}>
-                        <td className={`py-2 pr-3 ${r.isHuman ? "font-medium text-green-700" : "font-medium"}`}>{r.name}</td>
-                        <td className="text-right py-2 px-2 font-mono">{typeof r.cycles === "number" ? r.cycles : r.cycles}</td>
-                        <td className="text-right py-2 px-2 font-mono text-muted-foreground">
-                          {typeof r.triples === "number" ? r.triples.toLocaleString() : r.triples}
-                        </td>
+                      <tr key={mk} className="border-b border-border/30">
+                        <td className="py-2 pr-3 font-medium">{mk}</td>
+                        <td className="text-right py-2 px-2 font-mono">{v.cycles}</td>
+                        <td className="text-right py-2 px-2 font-mono text-muted-foreground">{v.triples.toLocaleString()}</td>
+                        <td className="text-right py-2 px-2 font-mono text-muted-foreground">{v.raw_rate}%</td>
+                        <td className="text-right py-2 px-2 font-mono text-muted-foreground text-[10px]">{v.adjustment_factor}x</td>
                         <td className="text-right py-2 px-2 font-mono">
-                          <span className={r.rate === 0 ? "text-green-600 font-semibold" : r.rate < 0.5 ? "text-green-600" : r.rate < 2 ? "text-amber-600" : "text-red-600"}>
-                            {r.rate}%
+                          <span className={v.adjusted_rate < 0.5 ? "text-green-600 font-semibold" : v.adjusted_rate < 2 ? "text-amber-600" : "text-red-600"}>
+                            {v.adjusted_rate}%
                           </span>
                         </td>
-                        <td className="py-2 px-2 font-mono text-[10px] text-muted-foreground">
-                          {r.ci ? `[${r.ci[0]}%, ${r.ci[1]}%]` : r.note || ""}
-                        </td>
+                        <td className="py-2 px-2 font-mono text-[10px] text-muted-foreground">[{v.ci[0]}%, {v.ci[1]}%]</td>
                         <td className="py-2 px-2">
                           <div className="h-3 bg-secondary/30 rounded-full overflow-hidden">
                             <div className="h-full rounded-full" style={{
-                              width: `${Math.max((r.rate / (maxRate * 1.3)) * 100, r.rate > 0 ? 3 : 0)}%`,
+                              width: `${Math.max((v.adjusted_rate / (maxRate * 1.3)) * 100, v.adjusted_rate > 0 ? 3 : 0)}%`,
                               backgroundColor: color,
                             }} />
                           </div>
