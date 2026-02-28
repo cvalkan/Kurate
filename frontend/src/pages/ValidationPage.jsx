@@ -625,14 +625,18 @@ function MultiModelStats({ datasetId, isAdmin }) {
 
   const fetchData = useCallback(async () => {
     try {
-      const responses = await Promise.all(
-        MODES.map(m => axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: m.id } }).catch(() => ({ data: {} })))
-      );
+      const [responses, cycleRes] = await Promise.all([
+        Promise.all(
+          MODES.map(m => axios.get(`${API}/api/validation/multimodel-results`, { params: { dataset_id: datasetId, content_mode: m.id } }).catch(() => ({ data: {} })))
+        ),
+        axios.get(`${API}/api/validation/cycle-analysis`, { params: { dataset_id: datasetId } }).catch(() => ({ data: {} })),
+      ]);
       const result = {};
       MODES.forEach((m, i) => {
         if (responses[i].data.status === "ok") result[m.id] = responses[i].data;
       });
       setDataByMode(result);
+      if (cycleRes.data.status === "ok") setCycleData(cycleRes.data);
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [datasetId]); // eslint-disable-line react-hooks/exhaustive-deps
