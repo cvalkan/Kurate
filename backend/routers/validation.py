@@ -2079,7 +2079,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         if len(common_d) < 10:
             return 0, 0
 
-        async def _dim_rho(dim_map):
+        async def _dim_rho(dim_map, dim_name=""):
             h_matches = []
             for i in range(len(common_d)):
                 for j in range(i + 1, len(common_d)):
@@ -2097,12 +2097,19 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
                 shared = [pid for pid in common_d if pid in h_rank and pid in sub_rank]
                 if len(shared) < 10:
                     return 0
-                rho, _ = scipy_stats.spearmanr([sub_rank[pid] for pid in shared], [h_rank[pid] for pid in shared])
+                ai_vals = [sub_rank[pid] for pid in shared]
+                h_vals = [h_rank[pid] for pid in shared]
+                rho, _ = scipy_stats.spearmanr(ai_vals, h_vals)
+                # Debug logging for last convergence point
+                if len(shared) == len(common_d):
+                    logger.info(f"_dim_rho DEBUG [{dim_name}]: shared={len(shared)}, h_matches={len(h_matches)}, "
+                                f"ai_ranks_sample={ai_vals[:5]}, h_ranks_sample={h_vals[:5]}, rho={rho:.4f}")
                 return round(rho, 4) if not np.isnan(rho) else 0
-            except Exception:
+            except Exception as e:
+                logger.warning(f"_dim_rho error [{dim_name}]: {e}")
                 return 0
 
-        return await _dim_rho(sig_map), await _dim_rho(str_map)
+        return await _dim_rho(sig_map, "sig"), await _dim_rho(str_map, "str")
 
     # Compute max avg matches per paper
     total = len(all_matches)
