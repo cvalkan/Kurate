@@ -144,148 +144,16 @@ export default function SamePairsSection() {
         </div>
       </div>
 
-      {/* ── Same-Pair Condorcet Cycles ── */}
-      {vs.same_pair_cycles && (() => {
-        const spc = vs.same_pair_cycles;
-        const spcHm = spc.heatmap;
-        const spcModels = spcHm?.models || [];
-        const spcFormats = spcHm?.formats || [];
-        const spcByFmt = Object.entries(spc.by_format || {}).sort((a, b) => b[1].rate - a[1].rate);
-        if (!spcByFmt.length && !Object.keys(spcHm?.cells || {}).length) return null;
-
-        const colMax = {};
-        for (const f of spcFormats) {
-          colMax[f.id] = Math.max(...spcModels.map(mk => spcHm.cells?.[`${mk}|${f.id}`]?.triples || 0), 1);
-        }
-
-        return (
-          <>
-            <div className="border-t border-border pt-4 mt-2">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
-                <RotateCcw className="h-4 w-4 text-red-500" /> Same-Pair Condorcet Cycles
-              </h3>
-              <div className="text-xs text-muted-foreground mb-3">
-                Cycle rates computed <strong>only on pairs that were evaluated under multiple conditions</strong>. Same triples as the flip analysis above — do they also form intransitive loops within each (model, format) context?
-              </div>
-            </div>
-
-            {/* Heatmap */}
-            {spcModels.length > 0 && spcFormats.length > 0 && (
-              <div className="border border-border rounded-lg overflow-hidden" data-testid="same-pair-cycle-heatmap">
-                <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-                  <h3 className="text-xs font-medium">Same-Pair Cycle Heatmap — Model x Format</h3>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">Restricted to pairs evaluated in 2+ contexts. Compare with All Pairs heatmap to see if multi-evaluated pairs are more or less cycle-prone.</div>
-                </div>
-                <div className="p-3 overflow-x-auto">
-                  <table className="text-[11px]">
-                    <thead>
-                      <tr>
-                        <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Model</th>
-                        {spcFormats.map(f => (
-                          <th key={f.id} className="px-2 py-1.5 text-center font-medium text-muted-foreground min-w-[100px]">{f.label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {spcModels.map(mk => (
-                        <tr key={mk} className="border-t border-border/30">
-                          <td className="px-2 py-2 font-medium">{mk}</td>
-                          {spcFormats.map(f => {
-                            const cell = spcHm.cells?.[`${mk}|${f.id}`];
-                            if (!cell || cell.triples < 10) return <td key={f.id} className="px-2 py-2 text-center text-muted-foreground/30">—</td>;
-                            const low = cell.triples < colMax[f.id] * 0.15;
-                            const intensity = Math.min(cell.rate / 5, 1);
-                            const bg = low ? "transparent" : `rgba(239, 68, 68, ${intensity * 0.2})`;
-                            return (
-                              <td key={f.id} className={`px-2 py-2 text-center font-mono ${low ? "opacity-35" : ""}`} style={{ backgroundColor: bg }}>
-                                <div className={cell.rate === 0 ? "text-green-600" : cell.rate < 2 ? "text-amber-600" : "text-red-600"}>
-                                  {cell.rate}%{low && " *"}
-                                </div>
-                                <div className="text-[9px] text-muted-foreground font-normal">{cell.cycles}/{cell.triples.toLocaleString()}</div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* By format summary */}
-            {spcByFmt.length > 0 && (
-              <div className="border border-border rounded-lg overflow-hidden" data-testid="same-pair-cycles-by-format">
-                <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-                  <h3 className="text-xs font-medium">Same-Pair Cycle Rate by Format (all models pooled)</h3>
-                </div>
-                <div className="p-3 space-y-1.5">
-                  {spcByFmt.map(([fmt, v]) => (
-                    <HBar key={fmt} label={fmt} rate={v.rate} sub={`${v.cycles}/${v.triples.toLocaleString()}`}
-                      maxRate={Math.max(...spcByFmt.map(x => x[1].rate), 1)} color="#ef4444" />
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        );
-      })()}
-
-      {/* ── Shared-Triple Comparison: all models on identical triples ── */}
-      {vs.shared_triple_comparison && Object.keys(vs.shared_triple_comparison.per_model || {}).length >= 2 && (() => {
-        const stc = vs.shared_triple_comparison;
-        const models = Object.entries(stc.per_model).sort((a, b) => a[1].rate - b[1].rate);
-        const maxRate = Math.max(...models.map(([, v]) => v.rate), 0.5);
-        return (
-          <div className="border border-border rounded-lg overflow-hidden" data-testid="shared-triple-comparison">
-            <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-              <h3 className="text-xs font-medium flex items-center gap-1.5">
-                <BarChart3 className="h-3 w-3" /> Apples-to-Apples: Cycle Rates on Identical Triples
-              </h3>
-              <div className="text-[10px] text-muted-foreground mt-0.5">
-                {stc.shared_pairs.toLocaleString()} pairs where 3+ models all have verdicts — same triples, different models. The fairest comparison possible.
-              </div>
-            </div>
-            <div className="p-3">
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="border-b border-border text-[10px]">
-                    <th className="text-left py-1.5 pr-3 font-medium">Model</th>
-                    <th className="text-right py-1.5 px-2 font-medium">Cycles</th>
-                    <th className="text-right py-1.5 px-2 font-medium">Triples</th>
-                    <th className="text-right py-1.5 px-2 font-medium">Rate</th>
-                    <th className="text-left py-1.5 px-2 font-medium">95% CI</th>
-                    <th className="py-1.5 px-2 font-medium w-1/3"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {models.map(([mk, v]) => {
-                    const color = MODEL_COLORS[mk] || "#94a3b8";
-                    return (
-                      <tr key={mk} className="border-b border-border/30">
-                        <td className="py-2 pr-3 font-medium">{mk}</td>
-                        <td className="text-right py-2 px-2 font-mono">{v.cycles}</td>
-                        <td className="text-right py-2 px-2 font-mono text-muted-foreground">{v.triples.toLocaleString()}</td>
-                        <td className="text-right py-2 px-2 font-mono">
-                          <span className={v.rate < 0.5 ? "text-green-600 font-semibold" : v.rate < 2 ? "text-amber-600" : "text-red-600"}>
-                            {v.rate}%
-                          </span>
-                        </td>
-                        <td className="py-2 px-2 font-mono text-[10px] text-muted-foreground">[{v.ci[0]}%, {v.ci[1]}%]</td>
-                        <td className="py-2 px-2">
-                          <div className="h-3 bg-secondary/30 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${Math.max((v.rate / (maxRate * 1.3)) * 100, v.rate > 0 ? 3 : 0)}%`, backgroundColor: color }} />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })()}
+      {/* ── Condorcet Cycles note ── */}
+      <div className="border border-amber-200 bg-amber-50 rounded-lg p-4" data-testid="same-pair-cycle-note">
+        <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5 text-amber-900">
+          <RotateCcw className="h-3.5 w-3.5" /> Condorcet Cycles
+        </h3>
+        <div className="text-xs text-amber-800 space-y-1.5">
+          <p>Per (model, format) cycle rates are computed on the <strong>All Pairs</strong> page. The same-pair restriction removes &lt;15% of pairs in most cells (85-100% of per-format pairs already appear in multiple contexts), so a separate same-pair heatmap would be nearly identical.</p>
+          <p>A direct cross-model comparison (same triples, different models) is <strong>not possible</strong> without controlling for input format — each model's latest verdict may come from a different format due to chronological ordering. The per-(model, format) heatmap on All Pairs is the fairest breakdown available.</p>
+        </div>
+      </div>
 
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
