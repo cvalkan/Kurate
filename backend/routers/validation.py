@@ -2576,9 +2576,13 @@ async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
     else:
         interp += f"AI-expert agreement ({ae_rate}%) is below expert-expert agreement ({ee_rate}%)."
 
+    em_rate = round(em_agree / max(em_total, 1) * 100, 1)
+    em_ci = _wilson_ci(em_agree, em_total)
+
     return {
         "status": "ok",
         "expert_expert": {"agree": ee_agree, "total": ee_total, "rate": ee_rate, "ci": ee_ci},
+        "expert_vs_majority": {"agree": em_agree, "total": em_total, "rate": em_rate, "ci": em_ci},
         "ai_expert": {"agree": ae_agree, "total": ae_total, "rate": ae_rate, "ci": ae_ci},
         "ai_majority": {"agree": maj_agree, "total": len(overlap), "rate": maj_rate, "ci": maj_ci},
         "score_gap": score_gap,
