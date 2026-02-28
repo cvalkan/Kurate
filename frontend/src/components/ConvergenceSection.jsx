@@ -200,7 +200,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {isLeaderboard
               ? "How many matches for stable rankings? Convergence measured against final ranking at all matches."
-              : "How many matches for stable rankings? Ground truth = human BT ranking from reviewer scores (each reviewer who rated two papers differently creates a pairwise preference; these are aggregated into a Bradley-Terry ranking)."}
+              : "How many matches for stable rankings? Ground truth = human BT ranking built from reviewer pairwise preferences. For each reviewer who rated papers A and B with different scores, a 'match' is created where the higher-scored paper wins. These synthetic matches are fed into Bradley-Terry to produce a human ranking. The chart shows Spearman ρ between the AI BT ranking (from tournament matches) and this human BT ranking, as AI matches accumulate."}
           </p>
         </div>
         <div className="flex items-center gap-2">
