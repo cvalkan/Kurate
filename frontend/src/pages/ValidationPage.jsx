@@ -755,11 +755,12 @@ function MultiModelStats({ datasetId, isAdmin }) {
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="px-3 py-2 bg-secondary/10 border-b border-border">
           <h3 className="text-xs font-medium flex items-center gap-1.5">
-            <Users className="h-3 w-3" /> Majority Vote vs Expert
+            <Users className="h-3 w-3" /> Ensemble vs Expert
           </h3>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Per-model, majority (2/3+), and unanimity (3/3) agreement with human expert majority</div>
         </div>
         <div className="p-3 space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {/* Per-model vs expert majority */}
             {Object.entries(data.per_model_vs_expert_majority || {}).map(([mk, val]) => (
               <div key={mk} className="p-3 border border-border rounded text-center">
@@ -776,17 +777,40 @@ function MultiModelStats({ datasetId, isAdmin }) {
               </div>
               <div className="text-[10px] text-muted-foreground">{data.majority_vs_expert_majority.agree}/{data.majority_vs_expert_majority.total}</div>
             </div>
+            {/* Unanimity vs expert */}
+            {data.unanimity_vs_expert_majority && data.unanimity_vs_expert_majority.total > 0 && (
+              <div className="p-3 border-2 border-emerald-400/50 rounded text-center bg-emerald-50/50" data-testid="unanimity-vs-expert">
+                <div className="text-[10px] text-muted-foreground mb-1 font-medium">Unanimous vs Experts</div>
+                <div className={`text-lg font-semibold font-mono ${data.unanimity_vs_expert_majority.rate >= 70 ? "text-green-600" : "text-amber-600"}`}>
+                  {data.unanimity_vs_expert_majority.rate}%
+                </div>
+                <div className="text-[10px] text-muted-foreground">{data.unanimity_vs_expert_majority.agree}/{data.unanimity_vs_expert_majority.total}</div>
+                <div className="text-[9px] text-muted-foreground mt-0.5">
+                  {data.unanimity_vs_expert_majority.pairs_unanimous} pairs ({data.unanimity_vs_expert_majority.unanimity_rate}% of 3-model pairs)
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Majority BT vs Human BT correlation */}
-          {data.majority_bt_vs_human_bt && (
-            <div className="pt-2 border-t border-border/50">
-              <div className="text-[10px] text-muted-foreground mb-2">Majority-Vote BT Ranking vs Human BT Ranking</div>
-              <div className="inline-block">
-                <CorrelationBadge value={data.majority_bt_vs_human_bt.spearman_rho} label={`Spearman \u03C1 (${data.majority_bt_vs_human_bt.papers} papers)`} />
+          {/* BT correlations — side by side */}
+          <div className="pt-2 border-t border-border/50 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {data.majority_bt_vs_human_bt && (
+              <div>
+                <div className="text-[10px] text-muted-foreground mb-2">Majority-Vote BT Ranking vs Human BT</div>
+                <div className="inline-block">
+                  <CorrelationBadge value={data.majority_bt_vs_human_bt.spearman_rho} label={`Spearman \u03C1 (${data.majority_bt_vs_human_bt.papers} papers)`} />
+                </div>
               </div>
-            </div>
-          )}
+            )}
+            {data.unanimity_bt_vs_human_bt && (
+              <div>
+                <div className="text-[10px] text-muted-foreground mb-2">Unanimity BT Ranking vs Human BT</div>
+                <div className="inline-block">
+                  <CorrelationBadge value={data.unanimity_bt_vs_human_bt.spearman_rho} label={`Spearman \u03C1 (${data.unanimity_bt_vs_human_bt.papers} papers)`} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
         </>
