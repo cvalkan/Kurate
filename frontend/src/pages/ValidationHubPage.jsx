@@ -238,6 +238,9 @@ export default function ValidationHubPage() {
               <CollapsibleGroup label="Extended Thinking" defaultOpen={selected?.startsWith("exp-thinking")}>
                 <NavItem item={{ id: "exp-thinking-overview", label: "Overview", sub: "Opus 4.6 + thinking budget" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
+              <CollapsibleGroup label="Tie-Allowed" defaultOpen={selected === "exp-tie-allowed"}>
+                <NavItem item={{ id: "exp-tie-allowed", label: "Tie Experiment", sub: "Allow AI to abstain" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
             </CollapsibleGroup>
           )}
         </nav>
@@ -271,6 +274,7 @@ export default function ValidationHubPage() {
           {selected === "exp-fairness-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-fairness" label="ICLR Fairness" />}
           {selected === "exp-molecules-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-molecules" label="ICLR Molecules" />}
           {selected === "exp-thinking-overview" && <ExtendedThinkingSection />}
+          {selected === "exp-tie-allowed" && <TieExperimentSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
