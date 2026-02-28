@@ -343,6 +343,26 @@ async def _prewarm_analysis_cache():
         logger.warning(f"Analysis cache prewarm failed: {e}")
 
 
+async def _prewarm_consistency_cache():
+    """Pre-warm consistency analysis and cycle-analysis-all caches (expensive)."""
+    await asyncio.sleep(15)  # Wait for other caches
+    try:
+        from routers.validation import _compute_consistency_analysis, _consistency_cache, _compute_cycle_analysis_all, _cycle_all_cache
+        import time as _t
+        result = await _compute_consistency_analysis()
+        if result.get("status") == "ok":
+            _consistency_cache["data"] = result
+            _consistency_cache["ts"] = _t.time()
+        result2 = await _compute_cycle_analysis_all()
+        if result2.get("status") == "ok":
+            _cycle_all_cache["data"] = result2
+            _cycle_all_cache["ts"] = _t.time()
+        logger.info("Consistency + cycle-analysis-all caches pre-warmed")
+    except Exception as e:
+        logger.warning(f"Consistency cache prewarm failed: {e}")
+
+
+
 
 async def _startup_dedup():
     """Auto-deduplicate papers on startup (merges duplicates by title+author)."""
