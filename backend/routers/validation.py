@@ -1986,7 +1986,6 @@ async def get_consistency_analysis():
             shared_cycle_rates[mk] = {"cycles": cyc, "triples": tri, "rate": _rate(cyc, tri), "ci": ci}
 
     # ── Build response ──
-    def _rate(a, b): return round(a / max(b, 1) * 100, 2)
 
     models_seen = sorted(set(mk for (mk, _) in mf_cycles))
     formats_seen = sorted(CORE_FORMATS & set(fmt for (_, fmt) in mf_cycles),
