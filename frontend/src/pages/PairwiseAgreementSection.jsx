@@ -174,7 +174,8 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
         <div className="p-2 border border-border/50 rounded text-xs">
           <div className="text-muted-foreground">Expert-Expert</div>
           <div className="font-semibold text-base text-green-600">{data.expert_expert.rate}%</div>
-          <div className="text-[10px] text-muted-foreground">{data.expert_expert.agree}/{data.expert_expert.total}</div>
+          <div className="text-[10px] text-muted-foreground">{data.expert_expert.agree}/{data.expert_expert.total} non-tie pairs</div>
+          {data.expert_expert.ci && <div className="text-[9px] text-muted-foreground/70">CI: [{data.expert_expert.ci[0]}%, {data.expert_expert.ci[1]}%]</div>}
         </div>
         <div className="p-2 border border-border/50 rounded text-xs">
           <div className="text-muted-foreground">Best AI vs Majority</div>
