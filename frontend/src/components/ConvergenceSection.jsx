@@ -200,7 +200,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {isLeaderboard
               ? "How many matches for stable rankings? Convergence measured against final ranking at all matches."
-              : "How many matches for stable rankings? Ground truth = human expert pairwise preferences."}
+              : "How many matches for stable rankings? Ground truth = human BT ranking from reviewer scores (each reviewer who rated two papers differently creates a pairwise preference; these are aggregated into a Bradley-Terry ranking)."}
           </p>
         </div>
         <div className="flex items-center gap-2">
