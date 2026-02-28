@@ -144,16 +144,65 @@ export default function SamePairsSection() {
         </div>
       </div>
 
-      {/* ── Condorcet Cycles note ── */}
-      <div className="border border-amber-200 bg-amber-50 rounded-lg p-4" data-testid="same-pair-cycle-note">
-        <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5 text-amber-900">
-          <RotateCcw className="h-3.5 w-3.5" /> Condorcet Cycles
-        </h3>
-        <div className="text-xs text-amber-800 space-y-1.5">
-          <p>Per (model, format) cycle rates are computed on the <strong>All Pairs</strong> page. The same-pair restriction removes &lt;15% of pairs in most cells (85-100% of per-format pairs already appear in multiple contexts), so a separate same-pair heatmap would be nearly identical.</p>
-          <p>A direct cross-model comparison (same triples, different models) is <strong>not possible</strong> without controlling for input format — each model's latest verdict may come from a different format due to chronological ordering. The per-(model, format) heatmap on All Pairs is the fairest breakdown available.</p>
-        </div>
-      </div>
+      {/* ── Per-Format Cycle Comparison: same pairs, controlled by format ── */}
+      {vs.per_format_comparison && Object.keys(vs.per_format_comparison).length > 0 && (() => {
+        const pfc = vs.per_format_comparison;
+        // Collect all models across all formats
+        const allModels = [...new Set(Object.values(pfc).flatMap(f => Object.keys(f.models)))].sort();
+        // Sort formats by shared pair count
+        const formats = Object.entries(pfc).sort((a, b) => b[1].shared_pairs - a[1].shared_pairs);
+
+        return (
+          <div className="border border-border rounded-lg overflow-hidden" data-testid="per-format-cycle-comparison">
+            <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+              <h3 className="text-xs font-medium flex items-center gap-1.5">
+                <RotateCcw className="h-3.5 w-3.5" /> Cycle Rates by Model — Normalized by Format (Same Pairs)
+              </h3>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                For each format, only pairs where 2+ models evaluated the same pair under the same format. Models compared on identical triples within each row.
+              </div>
+            </div>
+            <div className="p-3 overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border text-[10px]">
+                    <th className="text-left py-1.5 pr-2 font-medium">Format</th>
+                    <th className="text-right py-1.5 px-1 font-medium text-muted-foreground">Pairs</th>
+                    {allModels.map(mk => (
+                      <th key={mk} className="text-center py-1.5 px-2 font-medium min-w-[100px]">{mk}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {formats.map(([fmt, fdata]) => (
+                    <tr key={fmt} className="border-b border-border/30">
+                      <td className="py-2 pr-2 font-medium">{fmt}</td>
+                      <td className="text-right py-2 px-1 font-mono text-muted-foreground text-[10px]">{fdata.shared_pairs.toLocaleString()}</td>
+                      {allModels.map(mk => {
+                        const m = fdata.models[mk];
+                        if (!m) return <td key={mk} className="text-center py-2 px-2 text-muted-foreground/30">—</td>;
+                        const maxInRow = Math.max(...Object.values(fdata.models).map(x => x.triples || 0), 1);
+                        const low = m.triples < maxInRow * 0.15;
+                        const intensity = Math.min(m.rate / 5, 1);
+                        const bg = low ? "transparent" : `rgba(239, 68, 68, ${intensity * 0.15})`;
+                        return (
+                          <td key={mk} className={`text-center py-2 px-2 font-mono ${low ? "opacity-35" : ""}`} style={{ backgroundColor: bg }}>
+                            <div className={m.rate === 0 ? "text-green-600 font-semibold" : m.rate < 1.5 ? "text-amber-600" : "text-red-600"}>
+                              {m.rate}%
+                            </div>
+                            <div className="text-[9px] text-muted-foreground font-normal">{m.cycles}/{m.triples.toLocaleString()}</div>
+                            {m.ci && <div className="text-[8px] text-muted-foreground/60 font-normal">[{m.ci[0]}–{m.ci[1]}%]</div>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
