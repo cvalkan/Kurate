@@ -194,14 +194,19 @@ export default function CycleAnalysisSection() {
               </tr>
             </thead>
             <tbody>
-              {datasets.map(([dsId, v]) => (
+              {datasets.map(([dsId, v]) => {
+                const maxPairs = Math.max(...modelNames.map(mk => v.per_model?.[mk]?.pairs || 0), 1);
+                return (
                 <tr key={dsId} className="border-b border-border/30 hover:bg-secondary/10">
                   <td className="px-2 py-1 font-medium max-w-[180px] truncate" title={v.name}>{v.name}</td>
                   <td className="text-right px-1.5 py-1 font-mono text-muted-foreground">{v.total_pairs}</td>
                   {modelNames.map(mk => {
-                    const r = v.per_model?.[mk]?.rate;
+                    const m = v.per_model?.[mk];
+                    const r = m?.rate;
+                    const pairs = m?.pairs || 0;
+                    const low = pairs > 0 && pairs < maxPairs * 0.15;
                     return (
-                      <td key={mk} className="text-right px-1.5 py-1 font-mono">
+                      <td key={mk} className={`text-right px-1.5 py-1 font-mono ${low ? "opacity-40" : ""}`} title={pairs > 0 ? `${pairs} pairs, ${m.triples} triples` : ""}>
                         {r != null ? (
                           <span className={r === 0 ? "text-green-600" : r < 2 ? "text-amber-600" : "text-red-600"}>
                             {r}%
@@ -220,7 +225,8 @@ export default function CycleAnalysisSection() {
                     <span className={v.all_pooled.rate < 2 ? "text-amber-600" : "text-red-600"}>{v.all_pooled.rate}%</span>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {/* Pooled row */}
               <tr className="border-t-2 border-border bg-secondary/10 font-semibold">
                 <td className="px-2 py-1.5">Pooled ({data.datasets} datasets)</td>
