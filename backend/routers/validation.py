@@ -2509,6 +2509,42 @@ async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
     ae_rate = round(ae_agree / max(ae_total, 1) * 100, 1)
     maj_rate = round(maj_agree / max(len(overlap), 1) * 100, 1)
 
+    # Wilson score confidence intervals
+    def _wilson_ci(agree, total, z=1.96):
+        if total == 0:
+            return 0, 0
+        p = agree / total
+        denom = 1 + z*z/total
+        center = (p + z*z/(2*total)) / denom
+        spread = z * (p*(1-p)/total + z*z/(4*total*total))**0.5 / denom
+        return round((center - spread) * 100, 1), round((center + spread) * 100, 1)
+
+    ee_ci = _wilson_ci(ee_agree, ee_total)
+    ae_ci = _wilson_ci(ae_agree, ae_total)
+    maj_ci = _wilson_ci(maj_agree, len(overlap))
+
+    # Score gap analysis: accuracy by expert score difference
+    score_gap = {}
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                if ratings[a] == ratings[b]:
+                    continue
+                pair = tuple(sorted([a, b]))
+                if pair not in ai_pair:
+                    continue
+                gap = abs(ratings[a] - ratings[b])
+                bucket = "large (>2)" if gap > 2 else ("medium (1-2)" if gap >= 1 else "small (<1)")
+                if bucket not in score_gap:
+                    score_gap[bucket] = {"agree": 0, "total": 0}
+                score_gap[bucket]["total"] += 1
+                if (a if ratings[a] > ratings[b] else b) == ai_pair[pair]:
+                    score_gap[bucket]["agree"] += 1
+    for k, v in score_gap.items():
+        v["rate"] = round(v["agree"] / max(v["total"], 1) * 100, 1)
+
     interp = (
         f"Experts agree with each other {ee_rate}% of the time ({ee_agree}/{ee_total} pairs). "
         f"AI agrees with individual experts {ae_rate}% ({ae_agree}/{ae_total} pairs). "
@@ -2522,9 +2558,10 @@ async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
 
     return {
         "status": "ok",
-        "expert_expert": {"agree": ee_agree, "total": ee_total, "rate": ee_rate},
-        "ai_expert": {"agree": ae_agree, "total": ae_total, "rate": ae_rate},
-        "ai_majority": {"agree": maj_agree, "total": len(overlap), "rate": maj_rate},
+        "expert_expert": {"agree": ee_agree, "total": ee_total, "rate": ee_rate, "ci": ee_ci},
+        "ai_expert": {"agree": ae_agree, "total": ae_total, "rate": ae_rate, "ci": ae_ci},
+        "ai_majority": {"agree": maj_agree, "total": len(overlap), "rate": maj_rate, "ci": maj_ci},
+        "score_gap": score_gap,
         "interpretation": interp,
     }
 
