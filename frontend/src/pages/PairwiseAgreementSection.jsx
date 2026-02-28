@@ -145,7 +145,10 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
   }
 
   // Sorted modes
-  const sortedModes = MODE_ORDER.filter(m => data.modes_compared.includes(m));
+  const sortedModes = [
+    ...MODE_ORDER.filter(m => data.modes_compared.includes(m)),
+    ...data.modes_compared.filter(m => !MODE_ORDER.includes(m)).sort(),
+  ];
 
   // Main agreement chart data (Abstract, Extract, Full PDF) - includes AI majority if available
   const mainChartData = sortedModes.map(mode => {
