@@ -173,8 +173,6 @@ export default function ValidationHubPage() {
           {/* Pairwise — admin only */}
           {isAdmin && (
             <CollapsibleGroup label="Pairwise" icon={GitCompare} defaultOpen={selected?.startsWith("pw-")}>
-              <NavItem item={{ id: "pw-qeios", label: "Qeios" }} selected={selected} onSelect={setSelected} />
-              <NavItem item={{ id: "pw-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
               {Object.entries(pairwiseGroups).map(([source, items]) => (
                 <SourceGroup
                   key={`pw-${source}`}
@@ -185,12 +183,16 @@ export default function ValidationHubPage() {
                   defaultOpen={selectedPairwiseSource === source}
                 />
               ))}
+              <CollapsibleGroup label="Legacy" defaultOpen={selected === "pw-qeios" || selected === "pw-scipost"}>
+                <NavItem item={{ id: "pw-qeios", label: "Qeios", sub: "Separate dataset" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "pw-scipost", label: "SciPost", sub: "Separate dataset" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
             </CollapsibleGroup>
           )}
 
           {/* Single-item — admin only */}
           {isAdmin && (
-            <CollapsibleGroup label="Single-item" icon={Beaker} defaultOpen={selected === "si-scipost"}>
+            <CollapsibleGroup label="Single-item (Legacy)" icon={Beaker} defaultOpen={selected === "si-scipost"}>
               <NavItem item={{ id: "si-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
             </CollapsibleGroup>
           )}
