@@ -10,8 +10,15 @@ const ADMIN_HEADERS = { "X-Admin-Token": sessionStorage.getItem("admin_token") }
 const DATASETS = [
   { id: "iclr-codegen", label: "ICLR Code Gen" },
   { id: "iclr-fairness", label: "ICLR Fairness" },
+  { id: "iclr-llm", label: "ICLR LLM" },
+  { id: "iclr-molecules", label: "ICLR Molecules" },
+  { id: "iclr-optimization", label: "ICLR Optimization" },
+  { id: "iclr-ot", label: "ICLR Optimal Transport" },
+  { id: "iclr-pdes", label: "ICLR PDEs" },
+  { id: "iclr-protein", label: "ICLR Protein" },
   { id: "elife-microbiology", label: "eLife Microbiology" },
   { id: "elife-cancer", label: "eLife Cancer" },
+  { id: "elife-neuro-100", label: "eLife Neuroscience" },
 ];
 
 export default function ExtendedThinkingSection() {
