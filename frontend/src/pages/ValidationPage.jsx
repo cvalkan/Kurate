@@ -827,6 +827,116 @@ function MultiModelStats({ datasetId, isAdmin }) {
   );
 }
 
+const CYCLE_BAR_COLORS = {
+  "Claude Opus": "#8b5cf6", "GPT-5.2": "#3b82f6", "Gemini 3 Pro": "#f59e0b",
+  "Majority": "#22c55e", "Unanimity": "#06b6d4",
+};
+
+function CycleAnalysis({ data }) {
+  // Build chart data: one row per source
+  const rows = [];
+  for (const [name, v] of Object.entries(data.per_model || {})) {
+    rows.push({ name, ...v });
+  }
+  rows.push({ name: "Majority", ...data.majority });
+  rows.push({ name: "Unanimity", ...data.unanimity });
+
+  const maxRate = Math.max(...rows.map(r => r.rate), 1);
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden" data-testid="cycle-analysis">
+      <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+        <h3 className="text-xs font-medium flex items-center gap-1.5">
+          <RotateCcw className="h-3 w-3" /> Intransitive Cycles (A &gt; B &gt; C &gt; A)
+        </h3>
+        <div className="text-[10px] text-muted-foreground mt-0.5">
+          How often do pairwise judgments form inconsistent loops? Lower = more coherent ranking. Based on all triples of papers where every pair has a verdict.
+        </div>
+      </div>
+      <div className="p-3 space-y-4">
+        {/* Cycle rate bars */}
+        <div className="space-y-2">
+          {rows.map(r => {
+            const color = CYCLE_BAR_COLORS[r.name] || "#94a3b8";
+            const isEnsemble = r.name === "Majority" || r.name === "Unanimity";
+            return (
+              <div key={r.name} className="flex items-center gap-3">
+                <div className={`w-28 text-right text-[11px] ${isEnsemble ? "font-semibold" : "text-muted-foreground"}`}>
+                  {r.name}
+                </div>
+                <div className="flex-1 flex items-center gap-2">
+                  <div className="flex-1 h-4 bg-secondary/30 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{
+                      width: `${Math.max((r.rate / Math.max(maxRate * 1.2, 5)) * 100, r.rate > 0 ? 2 : 0)}%`,
+                      backgroundColor: color,
+                    }} />
+                  </div>
+                  <div className="w-32 text-[11px] font-mono">
+                    <span className={r.rate === 0 ? "text-green-600 font-semibold" : r.rate < 2 ? "text-amber-600" : "text-red-600"}>
+                      {r.rate}%
+                    </span>
+                    <span className="text-muted-foreground ml-1.5">
+                      {r.cycles}/{r.triples}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Gap breakdown for majority */}
+        {data.majority.by_gap && Object.keys(data.majority.by_gap).length > 0 && (
+          <div className="pt-2 border-t border-border/50">
+            <div className="text-[10px] text-muted-foreground mb-1.5">Majority cycles by GT score gap (max gap in triple)</div>
+            <div className="flex gap-4 text-[11px]">
+              {["close", "mid", "far"].map(g => {
+                const d = data.majority.by_gap[g] || data.all_pooled?.by_gap?.[g];
+                if (!d) return null;
+                const label = g === "close" ? "Close (≤1)" : g === "mid" ? "Medium (1-2)" : "Far (>2)";
+                return (
+                  <div key={g}>
+                    <span className="text-muted-foreground">{label}: </span>
+                    <span className={`font-mono ${d.rate === 0 ? "text-green-600" : "text-amber-600"}`}>
+                      {d.rate}%
+                    </span>
+                    <span className="text-muted-foreground text-[9px] ml-1">({d.cycles}/{d.triples})</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* All-pooled context */}
+        {data.all_pooled && (
+          <div className="pt-2 border-t border-border/50 text-[10px] text-muted-foreground">
+            All matches pooled ({data.all_pooled.pairs} unique pairs): <span className="font-mono">{data.all_pooled.rate}%</span> cycle rate ({data.all_pooled.cycles}/{data.all_pooled.triples} triples)
+            {data.all_pooled.by_gap && Object.keys(data.all_pooled.by_gap).length > 0 && (
+              <span className="ml-2">
+                — by gap: {["close", "mid", "far"].map(g => data.all_pooled.by_gap[g] ? `${g === "close" ? "close" : g === "mid" ? "mid" : "far"} ${data.all_pooled.by_gap[g].rate}%` : null).filter(Boolean).join(", ")}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Examples */}
+        {data.majority.examples?.length > 0 && (
+          <div className="pt-2 border-t border-border/50">
+            <div className="text-[10px] text-muted-foreground mb-1">Example cycles (majority):</div>
+            {data.majority.examples.map((ex, i) => (
+              <div key={i} className="text-[10px] text-muted-foreground ml-2">
+                {ex.papers[0]} → {ex.papers[1]} → {ex.papers[2]} → ... {ex.gap != null && <span className="text-[9px]">(gap: {ex.gap})</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Dataset Detail View ────────────────────────────────────────────────────
 
 export function DatasetView({ ds, isAdmin, hideHeader = false }) {
