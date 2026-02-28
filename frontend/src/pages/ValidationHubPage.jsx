@@ -16,6 +16,7 @@ import DeeperDiveSection from "./DeeperDiveSection";
 import ICLRDeepDiveSection from "./ICLRDeepDiveSection";
 import ExtendedThinkingSection from "./ExtendedThinkingSection";
 import TieExperimentSection from "./TieExperimentSection";
+import CycleAnalysisSection from "./CycleAnalysisSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
