@@ -413,6 +413,23 @@ function StandardStats({ datasetId, isAdmin }) {
         </div>
       </div>
 
+      {/* Ensemble mode description */}
+      {contentMode?.startsWith("ensemble:") && (
+        <div className="text-xs bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 space-y-1" data-testid="ensemble-description">
+          <div className="font-medium text-blue-900">
+            {contentMode === "ensemble:majority" ? "Majority Vote — 2 of 3 models agree" : "Unanimity — all 3 models agree"}
+          </div>
+          <div className="text-blue-800/80">
+            {contentMode === "ensemble:majority"
+              ? "Virtual tournament derived from extract-mode matches where all 3 judges (GPT-5.2, Claude Opus 4.5, Gemini 3 Pro) evaluated the same pair. Winner = whichever paper 2+ models chose. Every 3-model pair produces one match."
+              : "Same as majority, but only pairs where all 3 judges picked the same winner are included. Pairs with any disagreement are dropped. This filters to \"easy\" pairs but achieves higher accuracy."}
+          </div>
+          <div className="text-blue-700/60">
+            Input: section extracts (Opus 4.5 era) · Models: GPT-5.2, Claude Opus 4.5, Gemini 3 Pro · No new LLM calls — derived from existing match data.
+          </div>
+        </div>
+      )}
+
       {/* Agreement */}
       {activeAgreement && (() => {
         const ee = activeAgreement.expert_expert;
