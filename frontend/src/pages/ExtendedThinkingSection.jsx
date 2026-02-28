@@ -170,7 +170,7 @@ export default function ExtendedThinkingSection() {
       {!data && !running && (
         <div className="text-center py-8 text-muted-foreground">
           <Brain className="h-8 w-8 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No results yet. Select a dataset and click run to start.</p>
+          <p className="text-sm">{loading ? "Loading results..." : "No results yet. Select a dataset and click run to start."}</p>
         </div>
       )}
     </div>
