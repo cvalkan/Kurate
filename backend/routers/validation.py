@@ -1597,6 +1597,14 @@ async def get_available_modes(dataset_id: str = Query(...)):
             label = BASE_LABELS.get(cm, mode_id.replace("_", " ").title())
             final_id = cm
         modes.append({"id": final_id, "label": label, "prompt_tag": pt, "matches": count})
+
+    # Add virtual ensemble modes if 3-model data exists
+    ensemble = await build_ensemble_matches(dataset_id)
+    if len(ensemble["majority"]) >= 20:
+        modes.append({"id": "ensemble:majority", "label": "Majority Vote (3 models)", "prompt_tag": None, "matches": len(ensemble["majority"])})
+    if len(ensemble["unanimity"]) >= 20:
+        modes.append({"id": "ensemble:unanimity", "label": "Unanimous (3/3 agree)", "prompt_tag": None, "matches": len(ensemble["unanimity"])})
+
     return {"modes": sorted(modes, key=lambda m: -m["matches"])}
 
 
