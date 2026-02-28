@@ -1949,6 +1949,39 @@ async def get_consistency_analysis():
             sp_format_cycles[fmt][0] += cyc
             sp_format_cycles[fmt][1] += tri
 
+    # ── Apples-to-apples: cycle rates on shared triples (all models on same pairs) ──
+    # Find pairs where 3+ models have verdicts (across all formats pooled)
+    pair_by_model = defaultdict(dict)  # (dataset, pair) → model → winner (last-write-wins)
+    for m in all_matches:
+        if not m.get("winner_id"): continue
+        mk = _short_model(m.get("model_used", {}))
+        key = (m["dataset_id"], tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+        pair_by_model[key][mk] = m["winner_id"]
+
+    shared_pairs = {k: v for k, v in pair_by_model.items() if len(v) >= 3}
+    shared_models = sorted(set(mk for v in shared_pairs.values() for mk in v.keys()))
+
+    shared_cycle_rates = {}
+    if len(shared_pairs) >= 20:
+        for mk in shared_models:
+            wmap = {k: v[mk] for k, v in shared_pairs.items() if mk in v}
+            if len(wmap) < 10: continue
+            cyc, tri = _count_cycles_fast(wmap)
+            rate = cyc / max(tri, 1)
+            # Wilson CI
+            import math as _math
+            z = 1.96
+            n = tri
+            p = rate
+            if n > 0:
+                denom = 1 + z**2/n
+                center = (p + z**2/(2*n)) / denom
+                margin = z * _math.sqrt((p*(1-p) + z**2/(4*n)) / n) / denom
+                ci = [round(max(0, center - margin) * 100, 2), round(min(1, center + margin) * 100, 2)]
+            else:
+                ci = [0, 0]
+            shared_cycle_rates[mk] = {"cycles": cyc, "triples": tri, "rate": _rate(cyc, tri), "ci": ci}
+
     # ── Build response ──
     def _rate(a, b): return round(a / max(b, 1) * 100, 2)
 
