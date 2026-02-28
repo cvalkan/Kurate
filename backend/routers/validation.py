@@ -2623,12 +2623,17 @@ async def _compute_cross_mode_agreement(dataset_id: str):
         {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
         {"$group": {"_id": {"$ifNull": ["$content_mode", "extract"]}, "count": {"$sum": 1}}},
     ]
+    HIDDEN_TAGS = {"opus_thinking", "gpt_thinking", "gemini_thinking"}
     modes = []
     async for doc in db.validation_matches.aggregate(mode_pipeline):
         cm = doc["_id"]
         # Normalize legacy entries without content_mode
         if cm in ("none", None, ""):
             cm = "extract"
+        # Skip hidden modes
+        tag = cm.split(":", 1)[1] if ":" in cm else None
+        if tag and tag in HIDDEN_TAGS:
+            continue
         modes.append(cm)
 
     mode_ai_pairs = {}
