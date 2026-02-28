@@ -706,7 +706,8 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                     raise ValueError(f"No JSON found in response: {response_text[:200]}")
 
             result = json.loads(response_text)
-            if "winner" not in result or result["winner"] not in ["paper1", "paper2"]:
+            valid_winners = ["paper1", "paper2", "tie"] if allow_tie else ["paper1", "paper2"]
+            if "winner" not in result or result["winner"] not in valid_winners:
                 raise ValueError(f"Invalid response format: {result}")
 
             result["model_used"] = model_info
