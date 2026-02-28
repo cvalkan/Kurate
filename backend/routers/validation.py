@@ -1765,7 +1765,6 @@ async def _compute_consistency_analysis():
     1. Verdict stability: same pair flips across models/formats
     2. Condorcet cycles: per (model, format) and ensemble
     """
-    ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
     all_ds = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)]
     meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
