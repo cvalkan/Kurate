@@ -69,6 +69,32 @@ You MUST respond with valid JSON only, no other text. Format:
 Which paper has higher estimated scientific impact? Respond with JSON only."""
 }
 
+# Tie-allowed evaluation prompt — same criteria, but permits "tie" when papers are close
+TIE_ALLOWED_PROMPT = {
+    "system_prompt": """You are a scientific paper evaluator. Your task is to compare two papers and determine which has higher potential scientific impact.
+
+Consider the following factors:
+1. Novelty and innovation of the approach
+2. Potential real-world applications
+3. Methodological rigor
+4. Breadth of impact across fields
+5. Timeliness and relevance
+
+If one paper is clearly stronger, pick it. If both papers are comparable in impact and you cannot confidently distinguish them, declare a tie.
+
+You MUST respond with valid JSON only, no other text. Format:
+{"winner": "paper1" or "paper2" or "tie", "reasoning": "Brief explanation (max 150 words)"}""",
+    "user_prompt": """Compare these two papers for scientific impact:
+
+**Paper 1: {paper1_title}**
+{paper1_content}
+
+**Paper 2: {paper2_title}**
+{paper2_content}
+
+Which paper has higher estimated scientific impact? If you truly cannot distinguish them, you may declare a tie. Respond with JSON only."""
+}
+
 # Default settings
 DEFAULT_SETTINGS = {
     "key": "global",
