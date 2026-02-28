@@ -1742,6 +1742,222 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
     }
 
 
+@router.get("/consistency-analysis")
+async def get_consistency_analysis():
+    """Comprehensive consistency analysis across all datasets:
+    1. Verdict stability: same pair flips across models/formats
+    2. Condorcet cycles: per (model, format) and ensemble
+    """
+    ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
+    all_ds = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)]
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
+
+    def _short_model(mu):
+        model = mu.get("model", "")
+        if "claude" in model and "4-6" in model: return "Opus 4.6"
+        if "claude" in model: return "Opus 4.5"
+        if "gpt" in model: return "GPT-5.2"
+        if "gemini" in model: return "Gemini 3 Pro"
+        return model
+
+    FORMAT_LABELS = {
+        "extract": "Extract", "abstract": "Abstract", "full_pdf": "Full PDF",
+        "ai_summary": "AI Summary", "abstract_plus_summary": "Abs + Sum (4.5)",
+        "abstract_plus_summary:opus46": "Abs + Sum (4.6)",
+        "abstract_plus_summary:thinking": "Abs + Sum (Thinking)",
+        "deep_dive": "Deep Dive",
+    }
+    CORE_FORMATS = {"extract", "abstract", "full_pdf", "ai_summary",
+                    "abstract_plus_summary", "abstract_plus_summary:opus46", "deep_dive"}
+
+    def _norm_mode(m):
+        cm = m.get("content_mode") or ("abstract" if m.get("abstract_only") else "extract")
+        if cm in ("none", ""): cm = "extract"
+        return cm
+
+    # ── Load all matches across all datasets ──
+    all_matches = await db.validation_matches.find(
+        {"completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "dataset_id": 1, "paper1_id": 1, "paper2_id": 1,
+         "winner_id": 1, "model_used": 1, "content_mode": 1, "abstract_only": 1},
+    ).to_list(500000)
+
+    # ── Section 1: Verdict Stability ──
+    # Group: (dataset, pair) → (model, format) → winner
+    pair_ctx = defaultdict(dict)
+    for m in all_matches:
+        if not m.get("winner_id"): continue
+        pair = (m["dataset_id"], tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+        mk = _short_model(m.get("model_used", {}))
+        fmt = _norm_mode(m)
+        pair_ctx[pair][(mk, fmt)] = m["winner_id"]
+
+    # Cross-format: same model, same pair → flip?
+    format_pair_flips = defaultdict(lambda: [0, 0])  # (fmt_a, fmt_b) → [flips, total]
+    model_flip_total = defaultdict(lambda: [0, 0])   # model → [flips, total]
+    for pair, ctx in pair_ctx.items():
+        by_model = defaultdict(dict)
+        for (mk, fmt), winner in ctx.items():
+            by_model[mk][fmt] = winner
+        for mk, fmt_winners in by_model.items():
+            fmts = list(fmt_winners.items())
+            for i in range(len(fmts)):
+                for j in range(i + 1, len(fmts)):
+                    fa, wa = fmts[i]
+                    fb, wb = fmts[j]
+                    if fa not in CORE_FORMATS or fb not in CORE_FORMATS:
+                        continue
+                    key = tuple(sorted([fa, fb]))
+                    format_pair_flips[key][1] += 1
+                    model_flip_total[mk][1] += 1
+                    if wa != wb:
+                        format_pair_flips[key][0] += 1
+                        model_flip_total[mk][0] += 1
+
+    # Cross-model: same format, same pair → flip?
+    model_pair_flips = defaultdict(lambda: [0, 0])  # (model_a, model_b) → [flips, total]
+    format_flip_total = defaultdict(lambda: [0, 0])  # format → [flips, total]
+    for pair, ctx in pair_ctx.items():
+        by_format = defaultdict(dict)
+        for (mk, fmt), winner in ctx.items():
+            if fmt not in CORE_FORMATS: continue
+            by_format[fmt][mk] = winner
+        for fmt, mk_winners in by_format.items():
+            mks = list(mk_winners.items())
+            for i in range(len(mks)):
+                for j in range(i + 1, len(mks)):
+                    ma, wa = mks[i]
+                    mb, wb = mks[j]
+                    key = tuple(sorted([ma, mb]))
+                    model_pair_flips[key][1] += 1
+                    format_flip_total[fmt][1] += 1
+                    if wa != wb:
+                        model_pair_flips[key][0] += 1
+                        format_flip_total[fmt][0] += 1
+
+    # ── Section 2: Condorcet Cycles per (model, format) ──
+    # Group: (dataset, pair, model, format) → winner
+    mf_pairs = defaultdict(dict)  # (model, format) → {pair: winner}
+    for m in all_matches:
+        if not m.get("winner_id"): continue
+        mk = _short_model(m.get("model_used", {}))
+        fmt = _norm_mode(m)
+        if fmt not in CORE_FORMATS: continue
+        pair = (m["dataset_id"], tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+        mf_pairs[(mk, fmt)][pair] = m["winner_id"]
+
+    def _count_cycles_fast(winner_map):
+        beats = defaultdict(set)
+        for pair_key, w in winner_map.items():
+            _, (a, b) = pair_key if isinstance(pair_key, tuple) and len(pair_key) == 2 and isinstance(pair_key[1], tuple) else (None, pair_key)
+            loser = b if w == a else a
+            beats[w].add(loser)
+        papers = sorted(set(p for pair_key in winner_map for p in (pair_key[1] if isinstance(pair_key[1], tuple) else pair_key)))
+        n = len(papers)
+        cycles = triples = 0
+        for i in range(n):
+            a = papers[i]
+            for j in range(i+1, n):
+                b = papers[j]
+                ab = b in beats.get(a, set())
+                ba = a in beats.get(b, set())
+                if not (ab or ba): continue
+                for k in range(j+1, n):
+                    c = papers[k]
+                    bc = c in beats.get(b, set())
+                    cb = b in beats.get(c, set())
+                    ac = c in beats.get(a, set())
+                    ca = a in beats.get(c, set())
+                    if not ((bc or cb) and (ac or ca)): continue
+                    triples += 1
+                    if (ab and bc and ca) or (ba and ac and cb):
+                        cycles += 1
+        return cycles, triples
+
+    # Per (model, format) — but split by dataset first for manageability
+    # Group matches by dataset to avoid cross-dataset cycles
+    ds_mf = defaultdict(lambda: defaultdict(dict))  # dataset → (model, format) → {pair: winner}
+    for m in all_matches:
+        if not m.get("winner_id"): continue
+        mk = _short_model(m.get("model_used", {}))
+        fmt = _norm_mode(m)
+        if fmt not in CORE_FORMATS: continue
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        ds_mf[m["dataset_id"]][(mk, fmt)][pair] = m["winner_id"]
+
+    # Compute cycles per (model, format) pooled across datasets
+    mf_cycles = defaultdict(lambda: [0, 0])  # (model, format) → [cycles, triples]
+    for ds_id, mf_data in ds_mf.items():
+        for (mk, fmt), winner_map in mf_data.items():
+            if len(winner_map) < 10: continue
+            cyc, tri = _count_cycles_fast(winner_map)
+            mf_cycles[(mk, fmt)][0] += cyc
+            mf_cycles[(mk, fmt)][1] += tri
+
+    # Also compute per-format (all models pooled via majority) cycle rate
+    format_cycles = defaultdict(lambda: [0, 0])
+    for ds_id, mf_data in ds_mf.items():
+        # Group by format, majority across models
+        by_fmt = defaultdict(lambda: defaultdict(list))
+        for (mk, fmt), winner_map in mf_data.items():
+            for pair, winner in winner_map.items():
+                by_fmt[fmt][pair].append(winner)
+        for fmt, pair_votes in by_fmt.items():
+            maj_map = {}
+            for pair, votes in pair_votes.items():
+                c = Counter(votes)
+                best, n = c.most_common(1)[0]
+                maj_map[pair] = best
+            if len(maj_map) < 10: continue
+            cyc, tri = _count_cycles_fast(maj_map)
+            format_cycles[fmt][0] += cyc
+            format_cycles[fmt][1] += tri
+
+    # ── Build response ──
+    def _rate(a, b): return round(a / max(b, 1) * 100, 2)
+
+    models_seen = sorted(set(mk for (mk, _) in mf_cycles))
+    formats_seen = sorted(CORE_FORMATS & set(fmt for (_, fmt) in mf_cycles),
+                          key=lambda f: -sum(mf_cycles.get((mk, f), [0, 0])[1] for mk in models_seen))
+
+    return {
+        "status": "ok",
+        "total_matches": len(all_matches),
+        "datasets": len(set(m["dataset_id"] for m in all_matches)),
+
+        # Section 1: Verdict Stability
+        "verdict_stability": {
+            "cross_format": {
+                "by_format_pair": {f"{a} vs {b}": {"flips": v[0], "total": v[1], "rate": _rate(v[0], v[1])}
+                                   for (a, b), v in sorted(format_pair_flips.items(), key=lambda x: -x[1][1]) if v[1] >= 20},
+                "by_model": {mk: {"flips": v[0], "total": v[1], "rate": _rate(v[0], v[1])}
+                             for mk, v in sorted(model_flip_total.items()) if v[1] >= 20},
+            },
+            "cross_model": {
+                "by_model_pair": {f"{a} vs {b}": {"flips": v[0], "total": v[1], "rate": _rate(v[0], v[1])}
+                                  for (a, b), v in sorted(model_pair_flips.items(), key=lambda x: -x[1][1]) if v[1] >= 20},
+                "by_format": {FORMAT_LABELS.get(fmt, fmt): {"flips": v[0], "total": v[1], "rate": _rate(v[0], v[1])}
+                              for fmt, v in sorted(format_flip_total.items()) if v[1] >= 20},
+            },
+        },
+
+        # Section 2: Condorcet Cycles
+        "condorcet_cycles": {
+            "heatmap": {
+                "models": models_seen,
+                "formats": [{"id": f, "label": FORMAT_LABELS.get(f, f)} for f in formats_seen],
+                "cells": {f"{mk}|{fmt}": {"cycles": v[0], "triples": v[1], "rate": _rate(v[0], v[1]),
+                                            "pairs": len(ds_mf.get(list(ds_mf.keys())[0], {}).get((mk, fmt), {}))}
+                          for (mk, fmt), v in mf_cycles.items() if v[1] >= 10},
+            },
+            "by_format": {FORMAT_LABELS.get(fmt, fmt): {"cycles": v[0], "triples": v[1], "rate": _rate(v[0], v[1])}
+                          for fmt, v in sorted(format_cycles.items(), key=lambda x: -x[1][1]) if v[1] >= 10},
+        },
+    }
+
+
+
 @router.get("/cycle-analysis-all")
 async def get_cycle_analysis_all():
     """Aggregate cycle analysis across ALL datasets with sufficient multi-model data."""
