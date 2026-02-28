@@ -194,11 +194,17 @@ export default function ConsistencySection() {
           </div>
 
           {/* Heatmap: model x format */}
-          {hmModels.length > 0 && hmFormats.length > 0 && (
+          {hmModels.length > 0 && hmFormats.length > 0 && (() => {
+            // Find max triples per column to detect low-coverage cells
+            const colMax = {};
+            for (const f of hmFormats) {
+              colMax[f.id] = Math.max(...hmModels.map(mk => hm.cells?.[`${mk}|${f.id}`]?.triples || 0), 1);
+            }
+            return (
             <div className="border border-border rounded-lg overflow-hidden" data-testid="cycle-heatmap">
               <div className="px-3 py-2 bg-secondary/10 border-b border-border">
                 <h3 className="text-xs font-medium">Cycle Rate Heatmap — Model x Format</h3>
-                <div className="text-[10px] text-muted-foreground mt-0.5">Each cell: cycle rate for that specific (model, format) combination. Darker = more cycles.</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Each cell: cycle rate and triple count. Dimmed cells have &lt;15% of the column's max data — not directly comparable.</div>
               </div>
               <div className="p-3 overflow-x-auto">
                 <table className="text-[11px]">
@@ -206,27 +212,30 @@ export default function ConsistencySection() {
                     <tr>
                       <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Model</th>
                       {hmFormats.map(f => (
-                        <th key={f.id} className="px-2 py-1.5 text-center font-medium text-muted-foreground min-w-[80px]">{f.label}</th>
+                        <th key={f.id} className="px-2 py-1.5 text-center font-medium text-muted-foreground min-w-[100px]">{f.label}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {hmModels.map(mk => (
                       <tr key={mk} className="border-t border-border/30">
-                        <td className="px-2 py-1.5 font-medium">{mk}</td>
+                        <td className="px-2 py-2 font-medium">{mk}</td>
                         {hmFormats.map(f => {
                           const cell = hm.cells?.[`${mk}|${f.id}`];
                           if (!cell || cell.triples < 10) {
-                            return <td key={f.id} className="px-2 py-1.5 text-center text-muted-foreground/30">—</td>;
+                            return <td key={f.id} className="px-2 py-2 text-center text-muted-foreground/30">—</td>;
                           }
+                          const lowCoverage = cell.triples < colMax[f.id] * 0.15;
                           const intensity = Math.min(cell.rate / 5, 1);
-                          const bg = `rgba(239, 68, 68, ${intensity * 0.2})`;
+                          const bg = lowCoverage ? "transparent" : `rgba(239, 68, 68, ${intensity * 0.2})`;
                           return (
-                            <td key={f.id} className="px-2 py-1.5 text-center font-mono" style={{ backgroundColor: bg }}
-                                title={`${cell.cycles}/${cell.triples} triples`}>
-                              <span className={cell.rate === 0 ? "text-green-600" : cell.rate < 2 ? "text-amber-600" : "text-red-600"}>
-                                {cell.rate}%
-                              </span>
+                            <td key={f.id} className={`px-2 py-2 text-center font-mono ${lowCoverage ? "opacity-35" : ""}`} style={{ backgroundColor: bg }}>
+                              <div className={cell.rate === 0 ? "text-green-600" : cell.rate < 2 ? "text-amber-600" : "text-red-600"}>
+                                {cell.rate}%{lowCoverage && " *"}
+                              </div>
+                              <div className="text-[9px] text-muted-foreground font-normal">
+                                {cell.cycles}/{cell.triples.toLocaleString()}
+                              </div>
                             </td>
                           );
                         })}
@@ -234,9 +243,18 @@ export default function ConsistencySection() {
                     ))}
                   </tbody>
                 </table>
+                {hmModels.some(mk => hmFormats.some(f => {
+                  const cell = hm.cells?.[`${mk}|${f.id}`];
+                  return cell && cell.triples >= 10 && cell.triples < colMax[f.id] * 0.15;
+                })) && (
+                  <div className="mt-2 text-[10px] text-amber-600">
+                    * Low data volume — different pair population than other models in this column. Rate may reflect selection bias.
+                  </div>
+                )}
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 
