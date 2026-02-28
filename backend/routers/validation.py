@@ -4685,11 +4685,25 @@ async def extended_thinking_results():
 
         # Build expert pairwise preferences → majority vote per pair (same as tournament page)
         # For multi-reviewer datasets (ICLR): uses majority vote (≥2 votes required)
-        # For single-reviewer datasets (eLife): falls back to single vote
+        # For single/sparse-reviewer datasets (eLife): falls back to individual expert preferences
         expert_ratings = build_expert_ratings(papers)
-        expert_prefs = build_expert_majority(expert_ratings)
-        if not expert_prefs:
-            # Single-reviewer fallback: use any non-tie preference
+        expert_majority = build_expert_majority(expert_ratings)
+        
+        # Count total non-tie expert preferences to decide if majority is sufficient
+        total_expert_pairs = 0
+        for exp, ratings in expert_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    if ratings[pids[i]] != ratings[pids[j]]:
+                        total_expert_pairs += 1
+        
+        # Use majority if it covers at least 10% of expert preferences; otherwise individual prefs
+        if len(expert_majority) >= max(20, total_expert_pairs * 0.1):
+            expert_prefs = expert_majority
+        else:
+            # Fall back to individual expert preferences (any non-tie vote counts)
+            expert_prefs = {}
             for exp, ratings in expert_ratings.items():
                 pids = list(ratings.keys())
                 for i in range(len(pids)):
