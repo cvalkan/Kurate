@@ -1734,6 +1734,83 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
     }
 
 
+@router.get("/cycle-analysis-all")
+async def get_cycle_analysis_all():
+    """Aggregate cycle analysis across ALL datasets with sufficient multi-model data."""
+    # Get all datasets
+    ds_pipeline = [
+        {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    all_ds = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)]
+
+    # Get dataset names
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
+
+    # Fetch cycle analysis for each dataset in parallel
+    results = await asyncio.gather(*[
+        get_cycle_analysis(dataset_id=ds_id, content_mode=None)
+        for ds_id in all_ds
+    ], return_exceptions=True)
+
+    by_dataset = {}
+    pooled_per_model = defaultdict(lambda: {"cycles": 0, "triples": 0})
+    pooled_majority = {"cycles": 0, "triples": 0, "pairs": 0}
+    pooled_unanimity = {"cycles": 0, "triples": 0, "pairs": 0}
+    pooled_all = {"cycles": 0, "triples": 0, "pairs": 0}
+    pooled_gap = defaultdict(lambda: [0, 0])  # gap -> [cycles, triples]
+
+    for ds_id, result in zip(all_ds, results):
+        if isinstance(result, Exception) or not isinstance(result, dict) or result.get("status") != "ok":
+            continue
+        if result.get("all_pooled", {}).get("triples", 0) < 10:
+            continue  # skip datasets with too few triples
+
+        entry = {
+            "name": ds_names.get(ds_id, ds_id),
+            "pairs_3_models": result["pairs_with_3_models"],
+            "total_pairs": result["total_pairs"],
+            "per_model": result["per_model"],
+            "majority": {"cycles": result["majority"]["cycles"], "triples": result["majority"]["triples"], "rate": result["majority"]["rate"]},
+            "unanimity": {"cycles": result["unanimity"]["cycles"], "triples": result["unanimity"]["triples"], "rate": result["unanimity"]["rate"]},
+            "all_pooled": result["all_pooled"],
+        }
+        by_dataset[ds_id] = entry
+
+        # Pool
+        for mk, v in result["per_model"].items():
+            pooled_per_model[mk]["cycles"] += v["cycles"]
+            pooled_per_model[mk]["triples"] += v["triples"]
+        pooled_majority["cycles"] += result["majority"]["cycles"]
+        pooled_majority["triples"] += result["majority"]["triples"]
+        pooled_majority["pairs"] += result["majority"].get("pairs", 0)
+        pooled_unanimity["cycles"] += result["unanimity"]["cycles"]
+        pooled_unanimity["triples"] += result["unanimity"]["triples"]
+        pooled_unanimity["pairs"] += result["unanimity"].get("pairs", 0)
+        pooled_all["cycles"] += result["all_pooled"]["cycles"]
+        pooled_all["triples"] += result["all_pooled"]["triples"]
+        pooled_all["pairs"] += result["all_pooled"].get("pairs", 0)
+        for g, gd in result["all_pooled"].get("by_gap", {}).items():
+            pooled_gap[g][0] += gd["cycles"]
+            pooled_gap[g][1] += gd["triples"]
+
+    if not by_dataset:
+        return {"status": "no_data"}
+
+    return {
+        "status": "ok",
+        "datasets": len(by_dataset),
+        "by_dataset": by_dataset,
+        "pooled_per_model": {mk: {**v, "rate": round(v["cycles"] / max(v["triples"], 1) * 100, 2)} for mk, v in pooled_per_model.items()},
+        "pooled_majority": {**pooled_majority, "rate": round(pooled_majority["cycles"] / max(pooled_majority["triples"], 1) * 100, 2)},
+        "pooled_unanimity": {**pooled_unanimity, "rate": round(pooled_unanimity["cycles"] / max(pooled_unanimity["triples"], 1) * 100, 2)},
+        "pooled_all": {**pooled_all, "rate": round(pooled_all["cycles"] / max(pooled_all["triples"], 1) * 100, 2),
+                       "by_gap": {k: {"cycles": v[0], "triples": v[1], "rate": round(v[0] / max(v[1], 1) * 100, 2)} for k, v in pooled_gap.items() if v[1] > 0}},
+    }
+
+
+
 
 @router.get("/available-modes")
 async def get_available_modes(dataset_id: str = Query(...)):
