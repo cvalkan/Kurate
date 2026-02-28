@@ -4683,9 +4683,9 @@ async def extended_thinking_results():
             {"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION
         ).to_list(5000)
 
-        # Build expert pairwise preferences (same as tournament _compute_agreement)
+        # Build expert pairwise preferences → majority vote per pair (same as tournament page)
         expert_ratings = build_expert_ratings(papers)
-        expert_prefs = {}  # pair_key -> gt_winner (from expert who rated both)
+        pair_votes = defaultdict(list)
         for exp, ratings in expert_ratings.items():
             pids = list(ratings.keys())
             for i in range(len(pids)):
@@ -4694,7 +4694,16 @@ async def extended_thinking_results():
                     if ratings[a] == ratings[b]:
                         continue
                     pk = tuple(sorted([a, b]))
-                    expert_prefs[pk] = a if ratings[a] > ratings[b] else b
+                    pair_votes[pk].append(a if ratings[a] > ratings[b] else b)
+
+        # Use majority vote as GT (matches "AI vs Expert Majority" on tournament page)
+        expert_prefs = {}
+        for pk, votes in pair_votes.items():
+            c = Counter(votes)
+            best, n = c.most_common(1)[0]
+            # For single-reviewer datasets, any vote counts; for multi-reviewer, need majority
+            if n > len(votes) / 2 or len(votes) == 1:
+                expert_prefs[pk] = best
 
         # Load baseline (opus46) and thinking matches — last-write-wins per pair
         baseline = {}
