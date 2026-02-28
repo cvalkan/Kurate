@@ -2232,11 +2232,15 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 
         t_sp, t_kt, _ = _compute_tier_corr(sub_rank)
         d_sig, d_str = await _compute_dual_corr(sub_lb)
+        
+        # For dual-dimension datasets, aggregate = average of per-dimension correlations
+        agg_sp = round((d_sig + d_str) / 2, 4) if has_dual and d_sig and d_str else (round(sp, 4) if not np.isnan(sp) else 0)
+        
         curve.append({
             "matches": n_matches,
             "avg_matches_per_paper": avg_matches,
             "papers_covered": papers_covered,
-            "spearman": round(sp, 4) if not np.isnan(sp) else 0,
+            "spearman": agg_sp,
             "kendall": round(kt, 4) if not np.isnan(kt) else 0,
             "pearson": round(pr, 4) if not np.isnan(pr) else 0,
             "tier_spearman": t_sp, "tier_kendall": t_kt,
