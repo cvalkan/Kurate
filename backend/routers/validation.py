@@ -1834,6 +1834,7 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
                 dim_cp = [p for p in cp if p["id"] in set(dim_pids)]
                 dim_h_lb = await compute_leaderboard_async(dim_cp, dim_h_matches)
                 dim_h_score = {e["id"]: e["score"] for e in dim_h_lb}
+                dim_h_rank = {e["id"]: e["rank"] for e in dim_h_lb}
                 dim_shared = sorted([pid for pid in dim_pids if pid in dim_h_score and pid in a_rank])
                 if len(dim_shared) >= 10:
                     d_ai = [a_rank[pid]["score"] for pid in dim_shared]
@@ -1841,11 +1842,19 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
                     d_sp, d_sp_p = scipy_stats.spearmanr(d_ai, d_h)
                     d_kt, d_kt_p = scipy_stats.kendalltau(d_ai, d_h)
                     d_pr, d_pr_p = scipy_stats.pearsonr(d_ai, d_h)
+                    dim_comparison = sorted([{
+                        "id": pid, "title": next((p["title"] for p in cp if p["id"] == pid), "?"),
+                        "human_rank": dim_h_rank[pid], "human_score": dim_h_score[pid],
+                        "ai_rank": a_rank[pid]["rank"], "ai_score": a_rank[pid]["score"],
+                        "ai_win_rate": a_rank[pid]["win_rate"], "ai_matches": a_rank[pid]["comparisons"],
+                        "rank_delta": a_rank[pid]["rank"] - dim_h_rank[pid],
+                    } for pid in dim_shared], key=lambda x: x["human_rank"])
                     dim_correlations[dim_name] = {
                         "spearman_rho": safe_round(d_sp), "spearman_p_value": safe_round(d_sp_p, 6),
                         "kendall_tau": safe_round(d_kt), "kendall_p_value": safe_round(d_kt_p, 6),
                         "pearson_r": safe_round(d_pr), "pearson_p_value": safe_round(d_pr_p, 6),
                         "papers": len(dim_shared), "human_matches": len(dim_h_matches),
+                        "comparison": dim_comparison,
                     }
 
     # For dual-dimension datasets, aggregate = average of per-dimension correlations
