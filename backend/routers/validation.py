@@ -1914,6 +1914,41 @@ async def get_consistency_analysis():
             format_cycles[fmt][0] += cyc
             format_cycles[fmt][1] += tri
 
+    # ── Same-pair cycles: restrict to pairs evaluated in 2+ contexts ──
+    sp_mf_cycles = defaultdict(lambda: [0, 0])  # (model, format) → [cycles, triples]
+    sp_format_cycles = defaultdict(lambda: [0, 0])
+    for ds_id, mf_data in ds_mf.items():
+        # Find "same pairs": pairs that appear in 2+ (model, format) contexts
+        pair_context_count = defaultdict(int)
+        for (mk, fmt), winner_map in mf_data.items():
+            for pair in winner_map:
+                pair_context_count[pair] += 1
+        same_pairs = {p for p, c in pair_context_count.items() if c >= 2}
+
+        # Per (model, format) cycles on same-pair subset
+        for (mk, fmt), winner_map in mf_data.items():
+            restricted = {p: w for p, w in winner_map.items() if p in same_pairs}
+            if len(restricted) < 10: continue
+            cyc, tri = _count_cycles_fast(restricted)
+            sp_mf_cycles[(mk, fmt)][0] += cyc
+            sp_mf_cycles[(mk, fmt)][1] += tri
+
+        # Per-format (majority across models) on same-pair subset
+        by_fmt = defaultdict(lambda: defaultdict(list))
+        for (mk, fmt), winner_map in mf_data.items():
+            for pair, winner in winner_map.items():
+                if pair in same_pairs:
+                    by_fmt[fmt][pair].append(winner)
+        for fmt, pair_votes in by_fmt.items():
+            maj_map = {}
+            for pair, votes in pair_votes.items():
+                c = Counter(votes)
+                maj_map[pair] = c.most_common(1)[0][0]
+            if len(maj_map) < 10: continue
+            cyc, tri = _count_cycles_fast(maj_map)
+            sp_format_cycles[fmt][0] += cyc
+            sp_format_cycles[fmt][1] += tri
+
     # ── Build response ──
     def _rate(a, b): return round(a / max(b, 1) * 100, 2)
 
