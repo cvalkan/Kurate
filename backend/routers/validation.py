@@ -2199,8 +2199,11 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         if len(common) < 15:
             continue
 
-        sp, _ = scipy_stats.spearmanr([sub_rank[p] for p in common], [gt_rank[p] for p in common])
-        kt, _ = scipy_stats.kendalltau([sub_rank[p] for p in common], [gt_rank[p] for p in common])
+        # Use BT SCORES for Spearman (not ranks) — scores handle ties correctly
+        sub_score = {e["id"]: e["score"] for e in sub_lb}
+        gt_score_vals = {pid: gt_score[pid] for pid in common}
+        sp, _ = scipy_stats.spearmanr([sub_score.get(p, 0) for p in common], [gt_score_vals.get(p, 0) for p in common])
+        kt, _ = scipy_stats.kendalltau([sub_score.get(p, 0) for p in common], [gt_score_vals.get(p, 0) for p in common])
         sub_score_map = {e["id"]: e["score"] for e in sub_lb}
         pr, _ = scipy_stats.pearsonr([sub_score_map.get(p, 0) for p in common], [gt_score.get(p, 0) for p in common])
 
