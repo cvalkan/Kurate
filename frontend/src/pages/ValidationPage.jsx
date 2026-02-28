@@ -544,6 +544,9 @@ function StandardStats({ datasetId, isAdmin }) {
                     </div>
                   )}
                   {key === "irt-aggregate" && <RankingTable rows={data.comparison} mode="irt" />}
+                  {key !== "irt-aggregate" && data.comparison && (
+                    <RankingTable rows={data.comparison} mode="irt" />
+                  )}
                 </div>
               </div>
             ))}
