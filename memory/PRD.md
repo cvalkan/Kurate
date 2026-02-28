@@ -9,42 +9,39 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **LLMs**: GPT-5.2, Claude Opus 4.6, Gemini 3 Pro (via Emergent LLM key)
 - **Domain**: kurate.org
 
-## Key Findings (Feb 27 2026)
+## Key Findings (Feb 28 2026)
 
 ### Cross-Tier Filter
 - All convergence and tournament computations now filter same-tier matches
 - Saved 30-60% LLM budget, improved rho across all datasets
-- Tournament pair selection only generates cross-tier pairs
 
 ### Deep Dive (2-Pass): NULL RESULT
-- BUG FIXED: `compute_analysis()` was comparing against Opus 4.5 baseline instead of Opus 4.6
 - Corrected results: 0.0-1.5pp lift across all datasets (none significant)
-- The model upgrade (4.5->4.6) was doing all the work, not the 2-pass methodology
 
 ### Extended Thinking: NULL RESULT
 - Opus 4.6 with 10K thinking token budget produces identical accuracy to standard Opus 4.6
-- iclr-codegen: 62.7% vs 62.7%, McNemar p=0.79, discordant 7:7
 
 ### Summarizer A/B: Opus 4.5 vs 4.6 — SIGNIFICANT
 - +2.1pp lift (71.8% -> 73.9%), McNemar p=0.0007 on 1582 pairs
 
-### Dataset Convergence Analysis
-- GT resolution = sample efficiency factor, not fundamental barrier
-- All datasets distinguishable from chance on non-tie pairwise accuracy
-- elife-microbiology: 78.0% [75.8%, 80.0%] after 500 additional opus46 matches
+### Tie-Allowed Judging: NEAR-NULL RESULT
+- Modified prompt allowing "tie" when papers are close
+- 500 matches on iclr-llm: 0.4% tie rate (2/500), +0.8pp lift (not significant, p=0.58)
+- LLMs almost never declare ties even when given the option
 
-## UI Structure
-### Experiments (Admin)
-- **Opus 4.5 vs 4.6**: Summarizer A/B test
-- **Summary Bias**: Biomolecules, Economics, Comp Physics
-- **Second Pass (Deep Dive)**: 8 datasets (all null vs opus46 baseline)
-- **Extended Thinking**: Opus 4.6 + thinking budget (null result)
+### Ensemble Voting (NEW)
+- Built from extract-mode matches where all 3 models (GPT-5.2, Opus 4.5, Gemini 3 Pro) judged the same pair
+- **Majority (2/3+)**: 72.1% AI vs Expert on 494 pairs — slightly WORSE than best single model
+- **Unanimity (3/3)**: 79.9% AI vs Expert on 357 pairs — beats single models BUT on filtered "easy" subset
+- Unanimity filters to pairs where all models agree, cherry-picking easier decisions
 
-## Completed (Latest)
-- [Feb 28 2026] Fixed identical Aggregate/Significance BT ranking lists on Pairwise page. Composite aggregate ranking now uses normalized sig+str BT scores. VERIFIED via testing agent (iteration_44).
+## Completed (Latest Session)
+- [Feb 28] Fixed identical Aggregate/Significance BT ranking lists on Pairwise page (VERIFIED)
+- [Feb 28] Built Tie-Allowed Experiment: new prompt, backend endpoints, frontend page, ran 500 matches on iclr-llm
+- [Feb 28] Built Ensemble Voting modes: Majority Vote and Unanimity derived from extract-mode 3-model data, integrated into tournament page as mode tabs with convergence charts. Added per-mode descriptions.
 
 ## Pending
-- (P1) Fix summary provenance for elife-comp-sys-bio (wipe and regenerate all 80 summaries using full text, not abstracts)
+- (P1) Fix summary provenance for elife-comp-sys-bio (wipe + regenerate all 80 summaries)
 - (P2) HTTP security headers
-- (Future) New experiment: "Structured judge prompt" or "Judge extended thinking"
+- (Future) New experiment: "Structured judge prompt"
 - (Future) Refactor iclr_deep_dive.py into smaller service files
