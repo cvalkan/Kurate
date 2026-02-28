@@ -202,18 +202,38 @@ export default function ConsistencySection() {
         <div className="space-y-4">
           <div className="border border-border rounded-lg overflow-hidden" data-testid="cycles-by-format">
             <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-              <h3 className="text-xs font-medium">Cycle Rate by Input Format (majority across models per pair)</h3>
-              <div className="text-[10px] text-muted-foreground mt-0.5">Within each format, how often do pairwise majority-vote preferences form A &gt; B &gt; C &gt; A loops?</div>
+              <h3 className="text-xs font-medium">Cycle Rate by Input Format &amp; Model</h3>
+              <div className="text-[10px] text-muted-foreground mt-0.5">Each model's cycle rate within each format, plus the all-models-pooled rate. All computed within-dataset, then pooled across datasets.</div>
             </div>
             <div className="p-3">
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={cycByFmt} barCategoryGap="20%">
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={50} />
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={cycByFmtGrouped} barCategoryGap="15%" barGap={1}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={55} />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="rate" name="Cycle Rate" radius={[4, 4, 0, 0]}>
-                    {cycByFmt.map((e, i) => <Cell key={i} fill={FMT_COLORS[e.name] || "#ef4444"} />)}
-                  </Bar>
+                  <Tooltip content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="bg-background border border-border rounded px-3 py-2 shadow text-xs max-w-xs">
+                        <div className="font-medium mb-1">{label}</div>
+                        {payload.map((p, i) => {
+                          const nKey = `${p.dataKey}_n`;
+                          const n = p.payload[nKey];
+                          return (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full" style={{ background: p.fill }} />
+                              <span className="text-muted-foreground">{p.name}:</span>
+                              <span className="font-mono font-medium">{p.value}%</span>
+                              {n && <span className="text-muted-foreground text-[9px]">({n.toLocaleString()} triples)</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  }} />
+                  {hmModels.map((mk, i) => (
+                    <Bar key={mk} dataKey={mk} name={mk} fill={MODEL_COLORS[mk] || "#94a3b8"} radius={[2, 2, 0, 0]} />
+                  ))}
+                  <Bar dataKey="All (pooled)" name="All (pooled)" fill="#6b7280" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
