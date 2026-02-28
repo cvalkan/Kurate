@@ -231,6 +231,62 @@ export default function SamePairsSection() {
         );
       })()}
 
+      {/* ── Shared-Triple Comparison: all models on identical triples ── */}
+      {vs.shared_triple_comparison && Object.keys(vs.shared_triple_comparison.per_model || {}).length >= 2 && (() => {
+        const stc = vs.shared_triple_comparison;
+        const models = Object.entries(stc.per_model).sort((a, b) => a[1].rate - b[1].rate);
+        const maxRate = Math.max(...models.map(([, v]) => v.rate), 0.5);
+        return (
+          <div className="border border-border rounded-lg overflow-hidden" data-testid="shared-triple-comparison">
+            <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+              <h3 className="text-xs font-medium flex items-center gap-1.5">
+                <BarChart3 className="h-3 w-3" /> Apples-to-Apples: Cycle Rates on Identical Triples
+              </h3>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {stc.shared_pairs.toLocaleString()} pairs where 3+ models all have verdicts — same triples, different models. The fairest comparison possible.
+              </div>
+            </div>
+            <div className="p-3">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border text-[10px]">
+                    <th className="text-left py-1.5 pr-3 font-medium">Model</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Cycles</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Triples</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Rate</th>
+                    <th className="text-left py-1.5 px-2 font-medium">95% CI</th>
+                    <th className="py-1.5 px-2 font-medium w-1/3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map(([mk, v]) => {
+                    const color = MODEL_COLORS[mk] || "#94a3b8";
+                    return (
+                      <tr key={mk} className="border-b border-border/30">
+                        <td className="py-2 pr-3 font-medium">{mk}</td>
+                        <td className="text-right py-2 px-2 font-mono">{v.cycles}</td>
+                        <td className="text-right py-2 px-2 font-mono text-muted-foreground">{v.triples.toLocaleString()}</td>
+                        <td className="text-right py-2 px-2 font-mono">
+                          <span className={v.rate < 0.5 ? "text-green-600 font-semibold" : v.rate < 2 ? "text-amber-600" : "text-red-600"}>
+                            {v.rate}%
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 font-mono text-[10px] text-muted-foreground">[{v.ci[0]}%, {v.ci[1]}%]</td>
+                        <td className="py-2 px-2">
+                          <div className="h-3 bg-secondary/30 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${Math.max((v.rate / (maxRate * 1.3)) * 100, v.rate > 0 ? 3 : 0)}%`, backgroundColor: color }} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Methodology</h3>
