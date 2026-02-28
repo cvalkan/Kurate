@@ -143,7 +143,9 @@ export default function ExtendedThinkingSection() {
                   <th className="text-right px-3">Lift</th>
                 </tr></thead>
                 <tbody>
-                  {Object.entries(data.by_dataset).map(([ds, d]) => (
+                  {Object.entries(data.by_dataset)
+                    .sort((a, b) => b[1].lift - a[1].lift)
+                    .map(([ds, d]) => (
                     <tr key={ds} className="border-b border-border/30">
                       <td className="px-3 py-1.5 font-medium">{ds}</td>
                       <td className="text-right px-3">{d.pairs}</td>
