@@ -2363,6 +2363,7 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     SUMMARY_TAG_LABELS = {
         "gpt_summary": "GPT-5.2", "gemini_summary": "Gemini 3 Pro",
         "opus46": "Opus 4.6", "thinking": "Opus 4.6 Thinking",
+        "tie_v1": "Tie-Allowed",
     }
     HIDDEN_TAGS = {"opus_thinking", "gpt_thinking", "gemini_thinking"}
     BASE_LABELS = {
