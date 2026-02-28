@@ -1742,8 +1742,25 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
     }
 
 
+_consistency_cache = {"data": None, "ts": 0}
+_cycle_all_cache = {"data": None, "ts": 0}
+_CONSISTENCY_TTL = 3600  # 1 hour
+
+
 @router.get("/consistency-analysis")
 async def get_consistency_analysis():
+    """Comprehensive consistency analysis — cached with 1h TTL."""
+    import time as _t
+    if _consistency_cache["data"] and _t.time() - _consistency_cache["ts"] < _CONSISTENCY_TTL:
+        return _consistency_cache["data"]
+    result = await _compute_consistency_analysis()
+    if result.get("status") == "ok":
+        _consistency_cache["data"] = result
+        _consistency_cache["ts"] = _t.time()
+    return result
+
+
+async def _compute_consistency_analysis():
     """Comprehensive consistency analysis across all datasets:
     1. Verdict stability: same pair flips across models/formats
     2. Condorcet cycles: per (model, format) and ensemble
