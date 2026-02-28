@@ -1952,24 +1952,31 @@ async def get_consistency_analysis():
     # ── Build response ──
     def _rate(a, b): return round(a / max(b, 1) * 100, 2)
 
-    # ── Apples-to-apples: cycle rates on shared triples (all models on same pairs) ──
-    # Find pairs where ALL models have verdicts (across all formats pooled)
-    pair_by_model = defaultdict(dict)  # (dataset, pair) → model → winner (last-write-wins)
+    # ── Per-format same-pair cycle comparison (normalized by format) ──
+    # For each format, find pairs where 2+ models evaluated it, compute per-model cycles
+    import math as _math
+
+    pair_fmt_model = defaultdict(dict)
     for m in all_matches:
         if not m.get("winner_id"): continue
+        fmt = _norm_mode(m)
+        if fmt not in CORE_FORMATS: continue
         mk = _short_model(m.get("model_used", {}))
-        key = (m["dataset_id"], tuple(sorted([m["paper1_id"], m["paper2_id"]])))
-        pair_by_model[key][mk] = m["winner_id"]
+        key = (m["dataset_id"], tuple(sorted([m["paper1_id"], m["paper2_id"]])), fmt)
+        pair_fmt_model[key][mk] = m["winner_id"]
 
-    all_model_names = sorted(set(mk for v in pair_by_model.values() for mk in v.keys()))
-    # Pairs where ALL models have data → identical triple set for every model
-    shared_pairs = {k: v for k, v in pair_by_model.items() if len(v) >= len(all_model_names)}
+    per_format_comparison = {}
+    for fmt in CORE_FORMATS:
+        fmt_pairs = {(ds, pair): models
+                     for (ds, pair, f), models in pair_fmt_model.items()
+                     if f == fmt and len(models) >= 2}
+        if len(fmt_pairs) < 50: continue
 
-    shared_cycle_rates = {}
-    import math as _math
-    if len(shared_pairs) >= 20:
-        for mk in all_model_names:
-            wmap = {k: v[mk] for k, v in shared_pairs.items()}
+        fmt_models = sorted(set(mk for v in fmt_pairs.values() for mk in v.keys()))
+        model_rates = {}
+        for mk in fmt_models:
+            wmap = {k: v[mk] for k, v in fmt_pairs.items() if mk in v}
+            if len(wmap) < 10: continue
             cyc, tri = _count_cycles_fast(wmap)
             rate = cyc / max(tri, 1)
             z = 1.96
@@ -1982,7 +1989,11 @@ async def get_consistency_analysis():
                 ci = [round(max(0, center - margin) * 100, 2), round(min(1, center + margin) * 100, 2)]
             else:
                 ci = [0, 0]
-            shared_cycle_rates[mk] = {"cycles": cyc, "triples": tri, "rate": _rate(cyc, tri), "ci": ci}
+            model_rates[mk] = {"cycles": cyc, "triples": tri, "rate": _rate(cyc, tri), "ci": ci, "pairs": len(wmap)}
+        if model_rates:
+            per_format_comparison[FORMAT_LABELS.get(fmt, fmt)] = {
+                "shared_pairs": len(fmt_pairs), "models": model_rates,
+            }
 
     # ── Build response ──
 
