@@ -177,7 +177,7 @@ export default function PairwiseAgreementSection({ datasetId, datasetName }) {
   });
   const MODEL_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444"];
 
-  const missingModes = MODE_ORDER.filter(m => !data.modes_compared.includes(m));
+  const missingModes = MODE_ORDER.filter(m => !(data.modes_compared || []).includes(m));
 
   return (
     <div className="space-y-5">
