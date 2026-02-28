@@ -69,8 +69,34 @@ export default function ConsistencySection() {
   const cfByModel = Object.entries(vs.cross_format.by_model || {}).map(([mk, v]) => ({ name: mk, rate: v.rate, ...v }));
   // Cross-model by format chart  
   const cmByFmt = Object.entries(vs.cross_model.by_format || {}).sort((a, b) => b[1].rate - a[1].rate).map(([fmt, v]) => ({ name: fmt, rate: v.rate, ...v }));
-  // Cycle by format
+  // Cycle by format - build grouped data with per-model breakdown from heatmap
   const cycByFmt = Object.entries(cc.by_format || {}).sort((a, b) => b[1].rate - a[1].rate).map(([fmt, v]) => ({ name: fmt, rate: v.rate, ...v }));
+
+  // Per-model cycle rates by format (from heatmap cells)
+  const cycByFmtGrouped = (hm?.formats || []).map(f => {
+    const row = { name: f.label };
+    let maxTriples = 0;
+    for (const mk of hmModels) {
+      const cell = hm.cells?.[`${mk}|${f.id}`];
+      if (cell && cell.triples >= 100) {
+        row[mk] = cell.rate;
+        row[`${mk}_n`] = cell.triples;
+        maxTriples = Math.max(maxTriples, cell.triples);
+      }
+    }
+    // Mark low-coverage entries
+    for (const mk of hmModels) {
+      if (row[`${mk}_n`] && row[`${mk}_n`] < maxTriples * 0.15) {
+        row[`${mk}_low`] = true;
+      }
+    }
+    const fmtAll = cc.by_format?.[f.label];
+    if (fmtAll) {
+      row["All (pooled)"] = fmtAll.rate;
+      row["All (pooled)_n"] = fmtAll.triples;
+    }
+    return row;
+  }).filter(r => Object.keys(r).length > 2);
 
   return (
     <div className="space-y-6" data-testid="consistency-analysis">
