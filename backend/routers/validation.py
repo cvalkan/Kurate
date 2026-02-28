@@ -1949,6 +1949,9 @@ async def get_consistency_analysis():
             sp_format_cycles[fmt][0] += cyc
             sp_format_cycles[fmt][1] += tri
 
+    # ── Build response ──
+    def _rate(a, b): return round(a / max(b, 1) * 100, 2)
+
     # ── Apples-to-apples: cycle rates on shared triples (all models on same pairs) ──
     # Find pairs where 3+ models have verdicts (across all formats pooled)
     pair_by_model = defaultdict(dict)  # (dataset, pair) → model → winner (last-write-wins)
