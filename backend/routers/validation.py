@@ -2064,23 +2064,41 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
     has_dual = len(sig_map) >= 10 and len(str_map) >= 10
 
     def _compute_dual_corr(sub_lb):
-        """Compute AI BT score vs significance and strength correlations."""
+        """Compute AI BT ranking vs GT BT ranking for significance and strength dimensions.
+        Builds human pairwise matches from each dimension's scores, runs BT on both sides."""
         if not has_dual:
             return 0, 0
-        score_map = {e["id"]: e["score"] for e in sub_lb}
-        common_d = [pid for pid in score_map if pid in sig_map and pid in str_map]
+        sub_rank = {e["id"]: e["rank"] for e in sub_lb}
+        common_d = [pid for pid in sub_rank if pid in sig_map and pid in str_map]
         if len(common_d) < 10:
             return 0, 0
-        ai_s = [score_map[pid] for pid in common_d]
-        sig_s = [sig_map[pid] for pid in common_d]
-        str_s = [str_map[pid] for pid in common_d]
-        # Check for constant input
-        if len(set(ai_s)) < 2:
-            return 0, 0
-        sp_sig, _ = scipy_stats.spearmanr(ai_s, sig_s)
-        sp_str, _ = scipy_stats.spearmanr(ai_s, str_s)
-        return (round(sp_sig, 4) if not np.isnan(sp_sig) else 0,
-                round(sp_str, 4) if not np.isnan(sp_str) else 0)
+
+        # Build human pairwise matches for each dimension
+        def _dim_rho(dim_map):
+            h_matches = []
+            for i in range(len(common_d)):
+                for j in range(i + 1, len(common_d)):
+                    a, b = common_d[i], common_d[j]
+                    if dim_map[a] != dim_map[b]:
+                        h_matches.append({"paper1_id": a, "paper2_id": b,
+                            "winner_id": a if dim_map[a] > dim_map[b] else b,
+                            "completed": True, "failed": False})
+            if len(h_matches) < 10:
+                return 0
+            h_papers = [{"id": pid, "title": ""} for pid in common_d]
+            try:
+                import asyncio
+                h_lb = asyncio.get_event_loop().run_until_complete(compute_leaderboard_async(h_papers, h_matches))
+                h_rank = {e["id"]: e["rank"] for e in h_lb}
+                shared = [pid for pid in common_d if pid in h_rank and pid in sub_rank]
+                if len(shared) < 10:
+                    return 0
+                rho, _ = scipy_stats.spearmanr([sub_rank[pid] for pid in shared], [h_rank[pid] for pid in shared])
+                return round(rho, 4) if not np.isnan(rho) else 0
+            except Exception:
+                return 0
+
+        return _dim_rho(sig_map), _dim_rho(str_map)
 
     # Compute max avg matches per paper
     total = len(all_matches)
