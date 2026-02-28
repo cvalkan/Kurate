@@ -181,6 +181,9 @@ export default function AllPairsSection() {
               })) && (
                 <div className="mt-2 text-[10px] text-amber-600">* Low data — different pair population, not directly comparable.</div>
               )}
+              <div className="mt-2 text-[10px] text-muted-foreground border-t border-border/30 pt-2">
+                <strong>Reading the heatmap:</strong> Compare cells within each <em>column</em> (same format, different models) for fair model comparisons. Comparing across columns mixes input format effects. Cross-model comparisons across rows are only valid within the same column.
+              </div>
             </div>
           </div>
         );
