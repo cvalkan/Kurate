@@ -1975,6 +1975,16 @@ async def get_consistency_analysis():
                 "by_format": {FORMAT_LABELS.get(fmt, fmt): {"flips": v[0], "total": v[1], "rate": _rate(v[0], v[1])}
                               for fmt, v in sorted(format_flip_total.items()) if v[1] >= 20},
             },
+            "same_pair_cycles": {
+                "heatmap": {
+                    "models": models_seen,
+                    "formats": [{"id": f, "label": FORMAT_LABELS.get(f, f)} for f in formats_seen],
+                    "cells": {f"{mk}|{fmt}": {"cycles": v[0], "triples": v[1], "rate": _rate(v[0], v[1])}
+                              for (mk, fmt), v in sp_mf_cycles.items() if v[1] >= 10},
+                },
+                "by_format": {FORMAT_LABELS.get(fmt, fmt): {"cycles": v[0], "triples": v[1], "rate": _rate(v[0], v[1])}
+                              for fmt, v in sorted(sp_format_cycles.items(), key=lambda x: -x[1][1]) if v[1] >= 10},
+            },
         },
 
         # Section 2: Condorcet Cycles
