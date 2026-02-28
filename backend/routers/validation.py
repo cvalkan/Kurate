@@ -1602,26 +1602,27 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
     if not papers or len(all_matches) < 10:
         return {"status": "no_data"}
 
-    # Normalize model keys to 3 canonical families
-    def _model_family(mu):
+    # Short display names for models
+    def _short_model(mu):
         model = mu.get("model", "")
-        if "claude" in model: return "Claude Opus"
+        if "claude" in model and "4-6" in model: return "Opus 4.6"
+        if "claude" in model: return "Opus 4.5"
         if "gpt" in model: return "GPT-5.2"
         if "gemini" in model: return "Gemini 3 Pro"
         return model
 
-    # Group by pair → model_family → winner (last-write-wins within family)
+    # Group by pair → model → winner (full model granularity)
     pair_model = defaultdict(dict)
     for m in all_matches:
         if not m.get("winner_id"):
             continue
         pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
-        family = _model_family(m.get("model_used", {}))
-        pair_model[pair][family] = m["winner_id"]
+        short = _short_model(m.get("model_used", {}))
+        pair_model[pair][short] = m["winner_id"]
 
-    families = sorted(set(fam for v in pair_model.values() for fam in v.keys()))
-    # Require all 3 families (or at least 3 distinct models)
-    full_pairs = {p: v for p, v in pair_model.items() if len(v) >= min(3, len(families))}
+    all_model_names = sorted(set(mk for v in pair_model.values() for mk in v.keys()))
+    # Require 3+ distinct models per pair (not ALL models)
+    full_pairs = {p: v for p, v in pair_model.items() if len(v) >= 3}
 
     # GT scores for gap analysis
     gt_scores = build_paper_gt_scores(papers)
