@@ -2495,6 +2495,16 @@ async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
             d_sp, d_sp_p = scipy_stats.spearmanr(dim_scores, dim_ai_scores)
             d_kt, d_kt_p = scipy_stats.kendalltau(dim_scores, dim_ai_scores)
             d_pr, d_pr_p = scipy_stats.pearsonr(dim_scores, dim_ai_scores)
+            # Build per-dimension comparison table sorted by dimension score
+            dim_sorted = sorted(dim_pids, key=lambda pid: -dim_map[pid])
+            dim_rank = {pid: i + 1 for i, pid in enumerate(dim_sorted)}
+            dim_comparison = sorted([{
+                "id": pid, "title": next((p["title"] for p in cp if p["id"] == pid), "?"),
+                "irt_score": round(dim_map[pid], 3), "raw_mean": round(dim_map[pid], 1),
+                "irt_rank": dim_rank[pid], "ai_rank": a_lookup[pid]["rank"],
+                "ai_score": a_lookup[pid]["score"], "ai_win_rate": a_lookup[pid]["win_rate"],
+                "rank_delta": a_lookup[pid]["rank"] - dim_rank[pid],
+            } for pid in dim_pids], key=lambda x: x["irt_rank"])
             dim_correlations[dim_name] = {
                 "spearman_rho": round(d_sp, 4) if not np.isnan(d_sp) else 0,
                 "spearman_p": round(d_sp_p, 6),
@@ -2503,6 +2513,7 @@ async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
                 "pearson_r": round(d_pr, 4) if not np.isnan(d_pr) else 0,
                 "pearson_p": round(d_pr_p, 6),
                 "papers": len(dim_pids),
+                "comparison": dim_comparison,
             }
 
     # For dual-dimension datasets, aggregate IRT = average of per-dimension correlations
