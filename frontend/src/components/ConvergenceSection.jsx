@@ -305,8 +305,8 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
       {!showTopK && hasDual && !isLeaderboard && (
         <div className="border border-border rounded-lg p-3" data-testid="convergence-str-chart">
           <div className="mb-2">
-            <h3 className="text-sm font-semibold">Strength of Evidence Convergence</h3>
-            <p className="text-[10px] text-muted-foreground">AI ranking correlation against strength of evidence (inadequate → exceptional)</p>
+            <h3 className="text-sm font-semibold">Strength of Evidence Ranking Convergence</h3>
+            <p className="text-[10px] text-muted-foreground">AI BT ranking vs human BT ranking from strength preferences (inadequate → exceptional)</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={dualChartData}>
