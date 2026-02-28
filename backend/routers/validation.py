@@ -2105,6 +2105,18 @@ async def _compute_consistency_analysis():
 
 @router.get("/cycle-analysis-all")
 async def get_cycle_analysis_all():
+    """Aggregate cycle analysis — cached with 1h TTL."""
+    import time as _t
+    if _cycle_all_cache["data"] and _t.time() - _cycle_all_cache["ts"] < _CONSISTENCY_TTL:
+        return _cycle_all_cache["data"]
+    result = await _compute_cycle_analysis_all()
+    if result.get("status") == "ok":
+        _cycle_all_cache["data"] = result
+        _cycle_all_cache["ts"] = _t.time()
+    return result
+
+
+async def _compute_cycle_analysis_all():
     """Aggregate cycle analysis across ALL datasets with sufficient multi-model data."""
     # Get all datasets
     ds_pipeline = [
