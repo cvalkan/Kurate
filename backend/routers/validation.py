@@ -1586,6 +1586,155 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
 
 
 
+@router.get("/cycle-analysis")
+async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None)):
+    """Analyze intransitive cycles (A>B>C>A) in tournament data."""
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+
+    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    match_filter.update(build_content_mode_filter(content_mode))
+
+    all_matches = await db.validation_matches.find(
+        match_filter,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+    ).to_list(200000)
+
+    if not papers or len(all_matches) < 10:
+        return {"status": "no_data"}
+
+    # Group by pair → model → winner
+    pair_model = defaultdict(dict)
+    for m in all_matches:
+        if not m.get("winner_id"):
+            continue
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        mu = m.get("model_used", {})
+        mk = f"{mu.get('provider', '')}:{mu.get('model', '')}"
+        pair_model[pair][mk] = m["winner_id"]
+
+    models = sorted(set(mk for v in pair_model.values() for mk in v.keys()))
+    full_pairs = {p: v for p, v in pair_model.items() if len(v) >= max(len(models), 2)}
+
+    # GT scores for gap analysis
+    gt_scores = build_paper_gt_scores(papers)
+
+    def _count_cycles(winner_map):
+        """Count 3-cycles. Returns (cycles, triples, cycle_examples)."""
+        beats = defaultdict(set)
+        for (a, b), w in winner_map.items():
+            loser = b if w == a else a
+            beats[w].add(loser)
+        paper_set = set()
+        for (a, b) in winner_map:
+            paper_set.add(a)
+            paper_set.add(b)
+        paper_list = sorted(paper_set)
+        n = len(paper_list)
+
+        cycles = 0
+        triples = 0
+        examples = []
+        gap_buckets = {"close": [0, 0], "mid": [0, 0], "far": [0, 0]}  # [cycles, triples]
+
+        for i in range(n):
+            a = paper_list[i]
+            for j in range(i + 1, n):
+                b = paper_list[j]
+                ab = b in beats.get(a, set())
+                ba = a in beats.get(b, set())
+                if not (ab or ba):
+                    continue
+                for k in range(j + 1, n):
+                    c = paper_list[k]
+                    bc = c in beats.get(b, set())
+                    cb = b in beats.get(c, set())
+                    ac = c in beats.get(a, set())
+                    ca = a in beats.get(c, set())
+                    if not ((bc or cb) and (ac or ca)):
+                        continue
+                    triples += 1
+
+                    # Max GT gap in the triple
+                    ga, gb, gc = gt_scores.get(a), gt_scores.get(b), gt_scores.get(c)
+                    if ga is not None and gb is not None and gc is not None:
+                        max_gap = max(abs(ga - gb), abs(gb - gc), abs(ga - gc))
+                        bucket = "close" if max_gap <= 1 else ("mid" if max_gap <= 2 else "far")
+                    else:
+                        bucket = "mid"
+
+                    is_cycle = False
+                    if (ab and bc and ca):
+                        is_cycle = True
+                    elif (ba and ac and cb):
+                        is_cycle = True
+
+                    if is_cycle:
+                        cycles += 1
+                        gap_buckets[bucket][0] += 1
+                        if len(examples) < 3:
+                            titles = {p["id"]: p.get("title", "?")[:50] for p in papers}
+                            examples.append({
+                                "papers": [titles.get(a, a[:8]), titles.get(b, b[:8]), titles.get(c, c[:8])],
+                                "gap": round(max_gap, 1) if ga is not None else None,
+                            })
+                    gap_buckets[bucket][1] += 1
+
+        return cycles, triples, examples, gap_buckets
+
+    # Per-model
+    per_model = {}
+    for mk in models:
+        wmap = {pair: verdicts[mk] for pair, verdicts in full_pairs.items() if mk in verdicts}
+        cyc, tri, _, _ = _count_cycles(wmap)
+        short = mk.split(":")[1] if ":" in mk else mk
+        if "claude" in short.lower(): short = "Claude Opus"
+        elif "gpt" in short.lower(): short = "GPT-5.2"
+        elif "gemini" in short.lower(): short = "Gemini 3 Pro"
+        per_model[short] = {"cycles": cyc, "triples": tri, "rate": round(cyc / max(tri, 1) * 100, 1)}
+
+    # Majority
+    maj_map = {}
+    for pair, verdicts in full_pairs.items():
+        c = Counter(verdicts.values())
+        best, n = c.most_common(1)[0]
+        if n > len(verdicts) / 2:
+            maj_map[pair] = best
+    maj_cyc, maj_tri, maj_ex, maj_gaps = _count_cycles(maj_map)
+
+    # Unanimity
+    una_map = {}
+    for pair, verdicts in full_pairs.items():
+        c = Counter(verdicts.values())
+        best, n = c.most_common(1)[0]
+        if n == len(verdicts):
+            una_map[pair] = best
+    una_cyc, una_tri, una_ex, una_gaps = _count_cycles(una_map)
+
+    # All matches pooled (single winner per pair via last-write-wins)
+    all_map = {}
+    for pair, verdicts in pair_model.items():
+        c = Counter(verdicts.values())
+        all_map[pair] = c.most_common(1)[0][0]
+    all_cyc, all_tri, all_ex, all_gaps = _count_cycles(all_map)
+
+    return {
+        "status": "ok",
+        "pairs_with_3_models": len(full_pairs),
+        "total_pairs": len(pair_model),
+        "per_model": per_model,
+        "majority": {"cycles": maj_cyc, "triples": maj_tri, "rate": round(maj_cyc / max(maj_tri, 1) * 100, 1),
+                     "pairs": len(maj_map), "examples": maj_ex,
+                     "by_gap": {k: {"cycles": v[0], "triples": v[1], "rate": round(v[0] / max(v[1], 1) * 100, 1)} for k, v in maj_gaps.items() if v[1] > 0}},
+        "unanimity": {"cycles": una_cyc, "triples": una_tri, "rate": round(una_cyc / max(una_tri, 1) * 100, 1),
+                      "pairs": len(una_map), "examples": una_ex,
+                      "by_gap": {k: {"cycles": v[0], "triples": v[1], "rate": round(v[0] / max(v[1], 1) * 100, 1)} for k, v in una_gaps.items() if v[1] > 0}},
+        "all_pooled": {"cycles": all_cyc, "triples": all_tri, "rate": round(all_cyc / max(all_tri, 1) * 100, 1),
+                       "pairs": len(all_map),
+                       "by_gap": {k: {"cycles": v[0], "triples": v[1], "rate": round(v[0] / max(v[1], 1) * 100, 1)} for k, v in all_gaps.items() if v[1] > 0}},
+    }
+
+
+
 @router.get("/available-modes")
 async def get_available_modes(dataset_id: str = Query(...)):
     """List content modes that have match data for a dataset, including prompt-tagged variants."""
