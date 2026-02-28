@@ -9,7 +9,26 @@ const API = process.env.REACT_APP_BACKEND_URL;
 function adminHeaders() { return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" }; }
 
 const MODE_ORDER = ["abstract", "extract", "full_pdf", "ai_summary", "abstract_plus_summary"];
-const MODE_LABELS = { abstract: "Abstract", extract: "Extract", full_pdf: "Full PDF", ai_summary: "AI Summary", abstract_plus_summary: "Abstract + Summary" };
+const BASE_MODE_LABELS = {
+  abstract: "Abstract", extract: "Extract", full_pdf: "Full PDF", ai_summary: "AI Summary",
+  abstract_plus_summary: "Abstract + Summary (Opus 4.5)", deep_dive: "Deep Dive (2-pass)",
+};
+const TAG_LABELS = {
+  opus46: "Opus 4.6", thinking: "Opus 4.6 Thinking",
+  gpt_summary: "GPT-5.2", gemini_summary: "Gemini 3 Pro",
+  fairness_v1: "Fairness v1", pde_v1: "PDE v1",
+};
+function modeLabel(mode) {
+  if (BASE_MODE_LABELS[mode]) return BASE_MODE_LABELS[mode];
+  if (mode.includes(":")) {
+    const [base, tag] = mode.split(":", 2);
+    const baseLabel = (BASE_MODE_LABELS[base] || base).split(" (")[0];
+    return `${baseLabel} (${TAG_LABELS[tag] || tag})`;
+  }
+  return mode.replace(/_/g, " ");
+}
+// Keep backward compat
+const MODE_LABELS = new Proxy({}, { get: (_, key) => modeLabel(key) });
 
 function shortModel(mk) {
   if (!mk) return "?";
