@@ -12,36 +12,34 @@ Build a robust system for ranking and validating AI model performance on scienti
 ## Key Findings (Feb 28 2026)
 
 ### Cross-Tier Filter
-- All convergence and tournament computations now filter same-tier matches
-- Saved 30-60% LLM budget, improved rho across all datasets
+- All convergence and tournament computations filter same-tier matches
 
 ### Deep Dive (2-Pass): NULL RESULT
-- Corrected results: 0.0-1.5pp lift across all datasets (none significant)
-
 ### Extended Thinking: NULL RESULT
-- Opus 4.6 with 10K thinking token budget produces identical accuracy to standard Opus 4.6
+### Tie-Allowed Judging: NEAR-NULL (0.4% tie rate)
 
-### Summarizer A/B: Opus 4.5 vs 4.6 — SIGNIFICANT
-- +2.1pp lift (71.8% -> 73.9%), McNemar p=0.0007 on 1582 pairs
+### Summarizer A/B: Opus 4.5 vs 4.6 — SIGNIFICANT (+2.1pp)
 
-### Tie-Allowed Judging: NEAR-NULL RESULT
-- Modified prompt allowing "tie" when papers are close
-- 500 matches on iclr-llm: 0.4% tie rate (2/500), +0.8pp lift (not significant, p=0.58)
-- LLMs almost never declare ties even when given the option
+### Ensemble Voting
+- Majority (2/3+): 77.2% — worse than best single model (Opus 4.5: 79.5%)
+- Unanimity (3/3): 84.9% — beats single models but on filtered "easy" subset (71% of pairs)
+- At equal API cost (~15 calls/paper): extract ρ≈0.684, unanimity ρ≈0.702 — nearly identical
 
-### Ensemble Voting (NEW)
-- Built from extract-mode matches where all 3 models (GPT-5.2, Opus 4.5, Gemini 3 Pro) judged the same pair
-- **Majority (2/3+)**: 72.1% AI vs Expert on 494 pairs — slightly WORSE than best single model
-- **Unanimity (3/3)**: 79.9% AI vs Expert on 357 pairs — beats single models BUT on filtered "easy" subset
-- Unanimity filters to pairs where all models agree, cherry-picking easier decisions
+### Intransitive Cycles (NEW)
+- GPT-5.2: 3.2% cycle rate (most inconsistent)
+- Claude Opus: 0% (perfectly transitive on 3-model pairs)
+- Majority/Unanimity: 0% cycles — ensemble eliminates intransitivity
+- All pooled (2421 pairs): 1.4% cycle rate
 
 ## Completed (Latest Session)
-- [Feb 28] Fixed identical Aggregate/Significance BT ranking lists on Pairwise page (VERIFIED)
-- [Feb 28] Built Tie-Allowed Experiment: new prompt, backend endpoints, frontend page, ran 500 matches on iclr-llm
-- [Feb 28] Built Ensemble Voting modes: Majority Vote and Unanimity derived from extract-mode 3-model data, integrated into tournament page as mode tabs with convergence charts. Added per-mode descriptions.
+- [Feb 28] P0 fix: Aggregate/Significance BT ranking tables (VERIFIED)
+- [Feb 28] Tie-Allowed Experiment: prompt, endpoints, page, 500 matches
+- [Feb 28] Ensemble modes: Majority/Unanimity tabs on tournament page + convergence
+- [Feb 28] Unanimity on Multi-Model page with BT correlation
+- [Feb 28] Intransitive Cycle Analysis on Multi-Model page
 
 ## Pending
-- (P1) Fix summary provenance for elife-comp-sys-bio (wipe + regenerate all 80 summaries)
+- (P1) Fix summary provenance for elife-comp-sys-bio
 - (P2) HTTP security headers
-- (Future) New experiment: "Structured judge prompt"
-- (Future) Refactor iclr_deep_dive.py into smaller service files
+- (Future) Structured judge prompt experiment
+- (Future) Refactor iclr_deep_dive.py
