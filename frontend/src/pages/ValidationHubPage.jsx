@@ -284,8 +284,8 @@ export default function ValidationHubPage() {
           {selected === "exp-molecules-deep-dive" && <ICLRDeepDiveSection datasetId="iclr-molecules" label="ICLR Molecules" />}
           {selected === "exp-thinking-overview" && <ExtendedThinkingSection />}
           {selected === "exp-tie-allowed" && <TieExperimentSection />}
-          {selected === "exp-cycle-analysis" && <CycleAnalysisSection />}
-          {selected === "exp-consistency" && <ConsistencySection />}
+          {selected === "exp-cycle-analysis" && <AllPairsSection />}
+          {selected === "exp-consistency" && <SamePairsSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
