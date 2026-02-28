@@ -3289,13 +3289,20 @@ async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optiona
     if not has_dual:
         return {"status": "no_dual_scores", "message": "Papers don't have separate significance/strength scores"}
 
-    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(build_content_mode_filter(content_mode))
+    # Handle virtual ensemble modes
+    is_ensemble = content_mode and content_mode.startswith("ensemble:")
+    if is_ensemble:
+        ensemble = await build_ensemble_matches(dataset_id)
+        variant = content_mode.split(":")[1]
+        ai_matches = ensemble.get(variant, [])
+    else:
+        match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+        match_filter.update(build_content_mode_filter(content_mode))
 
-    ai_matches = await db.validation_matches.find(
-        match_filter,
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
-    ).to_list(100000)
+        ai_matches = await db.validation_matches.find(
+            match_filter,
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
+        ).to_list(100000)
 
     if len(ai_matches) < 10:
         return {"status": "insufficient_data"}
