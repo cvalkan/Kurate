@@ -4661,7 +4661,8 @@ async def extended_thinking_status():
 
 @router.get("/extended-thinking/results")
 async def extended_thinking_results():
-    """Compute accuracy comparison: opus46 baseline vs thinking summaries."""
+    """Compute accuracy comparison: opus46 baseline vs thinking summaries.
+    Uses same GT method as tournament page (AI vs individual expert preferences)."""
     import math
 
     # Find datasets with thinking matches
@@ -4678,23 +4679,31 @@ async def extended_thinking_results():
     by_dataset = {}
 
     for ds_id in all_datasets:
-        papers = {}
-        async for p in db.validation_papers.find(
-            {"dataset_id": ds_id}, {"_id": 0, "id": 1, "evaluations": 1, "decision": 1, "composite_score": 1}
-        ):
-            papers[p["id"]] = p
+        papers = await db.validation_papers.find(
+            {"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION
+        ).to_list(5000)
 
-        from routers.validation_utils import build_paper_gt_scores
-        gt = build_paper_gt_scores(list(papers.values()))
+        # Build expert pairwise preferences (same as tournament _compute_agreement)
+        expert_ratings = build_expert_ratings(papers)
+        expert_prefs = {}  # pair_key -> gt_winner (from expert who rated both)
+        for exp, ratings in expert_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] == ratings[b]:
+                        continue
+                    pk = tuple(sorted([a, b]))
+                    expert_prefs[pk] = a if ratings[a] > ratings[b] else b
 
-        # Load baseline (opus46) and thinking matches
+        # Load baseline (opus46) and thinking matches — last-write-wins per pair
         baseline = {}
         async for m in db.validation_matches.find(
             {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": "abstract_plus_summary:opus46"},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
         ):
             pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
-            baseline[pk] = m
+            baseline[pk] = m["winner_id"]
 
         thinking = {}
         async for m in db.validation_matches.find(
@@ -4702,19 +4711,15 @@ async def extended_thinking_results():
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
         ):
             pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
-            thinking[pk] = m
+            thinking[pk] = m["winner_id"]
 
-        common = set(baseline.keys()) & set(thinking.keys())
+        # McNemar on common pairs that have expert GT
+        common = set(baseline.keys()) & set(thinking.keys()) & set(expert_prefs.keys())
         a = b = c = d_val = 0
         for pk in common:
-            bl_m, th_m = baseline[pk], thinking[pk]
-            g1 = gt.get(bl_m["paper1_id"])
-            g2 = gt.get(bl_m["paper2_id"])
-            if g1 is None or g2 is None or g1 == g2:
-                continue
-            gt_winner = bl_m["paper1_id"] if g1 > g2 else bl_m["paper2_id"]  # higher = better in build_paper_gt_scores
-            bl_ok = bl_m["winner_id"] == gt_winner
-            th_ok = th_m["winner_id"] == gt_winner
+            gt_winner = expert_prefs[pk]
+            bl_ok = baseline[pk] == gt_winner
+            th_ok = thinking[pk] == gt_winner
             if bl_ok and th_ok: a += 1
             elif bl_ok and not th_ok: b += 1
             elif not bl_ok and th_ok: c += 1
