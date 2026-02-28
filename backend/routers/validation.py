@@ -2063,9 +2063,8 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
     str_map = {p["id"]: p["str_score"] for p in papers if p.get("str_score") is not None}
     has_dual = len(sig_map) >= 10 and len(str_map) >= 10
 
-    def _compute_dual_corr(sub_lb):
-        """Compute AI BT ranking vs GT BT ranking for significance and strength dimensions.
-        Builds human pairwise matches from each dimension's scores, runs BT on both sides."""
+    async def _compute_dual_corr(sub_lb):
+        """Compute AI BT ranking vs GT BT ranking for significance and strength dimensions."""
         if not has_dual:
             return 0, 0
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
@@ -2073,8 +2072,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         if len(common_d) < 10:
             return 0, 0
 
-        # Build human pairwise matches for each dimension
-        def _dim_rho(dim_map):
+        async def _dim_rho(dim_map):
             h_matches = []
             for i in range(len(common_d)):
                 for j in range(i + 1, len(common_d)):
@@ -2087,8 +2085,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
                 return 0
             h_papers = [{"id": pid, "title": ""} for pid in common_d]
             try:
-                import asyncio
-                h_lb = asyncio.get_event_loop().run_until_complete(compute_leaderboard_async(h_papers, h_matches))
+                h_lb = await compute_leaderboard_async(h_papers, h_matches)
                 h_rank = {e["id"]: e["rank"] for e in h_lb}
                 shared = [pid for pid in common_d if pid in h_rank and pid in sub_rank]
                 if len(shared) < 10:
@@ -2098,7 +2095,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
             except Exception:
                 return 0
 
-        return _dim_rho(sig_map), _dim_rho(str_map)
+        return await _dim_rho(sig_map), await _dim_rho(str_map)
 
     # Compute max avg matches per paper
     total = len(all_matches)
