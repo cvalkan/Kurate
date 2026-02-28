@@ -105,8 +105,8 @@ export default function ExtendedThinkingSection() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Papers with Thinking Summary" value={data.papers_with_thinking || 0} />
-            <StatCard label="Thinking Matches" value={data.thinking_matches || 0} sub="cross-tier pairs" />
-            <StatCard label="Baseline Accuracy" value={`${data.baseline_accuracy || 0}%`} sub={`${data.baseline_gt_pairs || 0} non-tie pairs`} />
+            <StatCard label="Thinking Matches" value={data.thinking_matches || 0} sub="same opus46 pairs replayed" />
+            <StatCard label="Baseline Accuracy" value={`${data.baseline_accuracy || 0}%`} sub={`${data.baseline_gt_pairs || 0} non-tie same-pair comparisons`} />
             <StatCard
               label="Thinking Accuracy"
               value={`${data.thinking_accuracy || 0}%`}
