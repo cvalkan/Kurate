@@ -110,32 +110,45 @@ export default function CycleAnalysisSection() {
           </h3>
         </div>
         <div className="p-3">
-          <div className="space-y-2">
-            {pooledModels.map(r => {
-              const maxRate = Math.max(...pooledModels.map(x => x.rate), 0.5);
-              const isEnsemble = r.name === "Majority" || r.name === "Unanimity";
-              const color = MODEL_COLORS[r.name] || (r.name === "Majority" ? "#22c55e" : r.name === "Unanimity" ? "#06b6d4" : "#94a3b8");
-              return (
-                <div key={r.name} className="flex items-center gap-3">
-                  <div className={`w-28 text-right text-[11px] ${isEnsemble ? "font-semibold" : "text-muted-foreground"}`}>{r.name}</div>
-                  <div className="flex-1 flex items-center gap-2">
-                    <div className="flex-1 h-5 bg-secondary/30 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{
-                        width: `${Math.max((r.rate / (maxRate * 1.3)) * 100, r.rate > 0 ? 3 : 0)}%`,
-                        backgroundColor: color,
-                      }} />
+          {(() => {
+            const maxTriples = Math.max(...pooledModels.map(x => x.triples || 0), 1);
+            const maxRate = Math.max(...pooledModels.map(x => x.rate), 0.5);
+            return (
+              <div className="space-y-2">
+                {pooledModels.map(r => {
+                  const isEnsemble = r.name === "Majority" || r.name === "Unanimity";
+                  const color = MODEL_COLORS[r.name] || (r.name === "Majority" ? "#22c55e" : r.name === "Unanimity" ? "#06b6d4" : "#94a3b8");
+                  const lowCoverage = !isEnsemble && r.triples < maxTriples * 0.15;
+                  return (
+                    <div key={r.name} className={`flex items-center gap-3 ${lowCoverage ? "opacity-50" : ""}`}>
+                      <div className={`w-28 text-right text-[11px] ${isEnsemble ? "font-semibold" : "text-muted-foreground"}`}>{r.name}</div>
+                      <div className="flex-1 flex items-center gap-2">
+                        <div className="flex-1 h-5 bg-secondary/30 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{
+                            width: `${Math.max((r.rate / (maxRate * 1.3)) * 100, r.rate > 0 ? 3 : 0)}%`,
+                            backgroundColor: color,
+                          }} />
+                        </div>
+                        <div className="w-52 text-[11px] font-mono flex items-center gap-1.5">
+                          <span className={r.rate === 0 ? "text-green-600 font-semibold" : r.rate < 1 ? "text-amber-600" : "text-red-600"}>
+                            {r.rate}%
+                          </span>
+                          <span className="text-muted-foreground">{r.cycles}/{r.triples}</span>
+                          {lowCoverage && <span className="text-[9px] text-amber-500 font-sans" title="Low pair coverage — different pair population, not directly comparable">*</span>}
+                        </div>
+                      </div>
                     </div>
-                    <div className="w-40 text-[11px] font-mono">
-                      <span className={r.rate === 0 ? "text-green-600 font-semibold" : r.rate < 1 ? "text-amber-600" : "text-red-600"}>
-                        {r.rate}%
-                      </span>
-                      <span className="text-muted-foreground ml-1.5">{r.cycles}/{r.triples}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          {pooledModels.some(r => !["Majority", "Unanimity"].includes(r.name) && r.triples < Math.max(...pooledModels.map(x => x.triples || 0)) * 0.15) && (
+            <div className="mt-2 text-[10px] text-amber-600 flex items-start gap-1">
+              <span>*</span>
+              <span>Low pair coverage — evaluated on a different (smaller) set of pairs than other models. Not directly comparable; the rate difference may reflect selection bias rather than model behavior.</span>
+            </div>
+          )}
         </div>
       </div>
 
