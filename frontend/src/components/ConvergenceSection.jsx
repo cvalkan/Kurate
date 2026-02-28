@@ -280,8 +280,8 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
       {!showTopK && hasDual && !isLeaderboard && (
         <div className="border border-border rounded-lg p-3" data-testid="convergence-sig-chart">
           <div className="mb-2">
-            <h3 className="text-sm font-semibold">Significance Convergence</h3>
-            <p className="text-[10px] text-muted-foreground">AI ranking correlation against editorial significance (useful → landmark)</p>
+            <h3 className="text-sm font-semibold">Significance Ranking Convergence</h3>
+            <p className="text-[10px] text-muted-foreground">AI BT ranking vs human BT ranking from significance preferences (useful → landmark)</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={dualChartData}>
