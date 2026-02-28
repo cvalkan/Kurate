@@ -1551,6 +1551,7 @@ async def get_available_modes(dataset_id: str = Query(...)):
         "gemini_summary": "Abstract + Summary (Gemini 3 Pro)",
         "opus46": "Abstract + Summary (Opus 4.6)",
         "thinking": "Abstract + Summary (Opus 4.6 Thinking)",
+        "tie_v1": "Abstract + Summary (Tie-Allowed)",
     }
     BASE_LABELS = {
         "none": "Extract", "extract": "Extract", "abstract": "Abstract",
@@ -5131,3 +5132,343 @@ async def _run_extended_thinking(dataset_id: str, num_pairs: int):
     await asyncio.gather(*[run_one(a, b) for a, b in to_run], return_exceptions=True)
     invalidate_dataset_cache(dataset_id)
     logger.info(f"Extended thinking [{dataset_id}]: completed {completed}/{len(to_run)} matches")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tie-Allowed Experiment
+# ═══════════════════════════════════════════════════════════════════════════════
+
+TIE_MODE = "abstract_plus_summary:tie_v1"
+_tie_state = {"running": False, "done": 0, "total": 0, "dataset_id": None, "ties": 0}
+_tie_task = None
+
+
+@router.post("/tie-experiment/run", dependencies=[Depends(verify_admin)])
+async def start_tie_experiment(request: Request):
+    global _tie_task
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    dataset_id = body.get("dataset_id", "iclr-llm")
+    num_pairs = body.get("num_pairs", 500)
+
+    if _tie_state["running"]:
+        raise HTTPException(409, "Already running")
+
+    async def _bg():
+        global _tie_task
+        try:
+            await _run_tie_experiment(dataset_id, num_pairs)
+        except Exception as e:
+            logger.error(f"Tie experiment failed: {e}")
+        finally:
+            _tie_state["running"] = False
+            _tie_task = None
+
+    _tie_task = asyncio.create_task(_bg())
+    return {"status": "started", "dataset_id": dataset_id, "num_pairs": num_pairs}
+
+
+@router.post("/tie-experiment/stop", dependencies=[Depends(verify_admin)])
+async def stop_tie_experiment():
+    global _tie_task
+    _tie_state["running"] = False
+    if _tie_task and not _tie_task.done():
+        _tie_task.cancel()
+    return {"status": "stopping"}
+
+
+@router.get("/tie-experiment/status")
+async def tie_experiment_status():
+    return _tie_state
+
+
+@router.get("/tie-experiment/results")
+async def tie_experiment_results():
+    """Compute tie experiment analysis: tie rate, accuracy, calibration against opus46 baseline."""
+    import math
+
+    BASELINE_MODE = "abstract_plus_summary:opus46"
+
+    # Find datasets with tie matches
+    pipeline = [
+        {"$match": {"content_mode": TIE_MODE, "completed": True, "failed": {"$ne": True}}},
+        {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+    ]
+    ds_counts = {r["_id"]: r["count"] async for r in db.validation_matches.aggregate(pipeline)}
+    if not ds_counts:
+        return {"status": "no_data"}
+
+    all_datasets = list(ds_counts.keys())
+    pooled = {"a": 0, "b": 0, "c": 0, "d": 0, "ties_correct": 0, "ties_wrong": 0, "ties_total": 0}
+    by_dataset = {}
+
+    for ds_id in all_datasets:
+        papers = await db.validation_papers.find(
+            {"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION
+        ).to_list(5000)
+
+        expert_ratings = build_expert_ratings(papers)
+        expert_majority = build_expert_majority(expert_ratings)
+
+        # Fall back to individual expert preferences if majority is too sparse
+        total_expert_pairs = sum(
+            1 for exp, ratings in expert_ratings.items()
+            for i, a in enumerate(ratings) for b in list(ratings)[i+1:]
+            if ratings[a] != ratings[b]
+        )
+        if len(expert_majority) >= max(20, total_expert_pairs * 0.1):
+            expert_prefs = expert_majority
+        else:
+            expert_prefs = {}
+            for exp, ratings in expert_ratings.items():
+                pids = list(ratings.keys())
+                for i in range(len(pids)):
+                    for j in range(i + 1, len(pids)):
+                        a, b = pids[i], pids[j]
+                        if ratings[a] != ratings[b]:
+                            expert_prefs[tuple(sorted([a, b]))] = a if ratings[a] > ratings[b] else b
+
+        # Build GT score map for gap analysis
+        gt_scores = build_paper_gt_scores(papers)
+
+        # Load baseline (opus46) and tie matches
+        baseline = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": BASELINE_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ):
+            pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            baseline[pk] = m["winner_id"]
+
+        tie_matches = {}
+        tie_outcomes = {}  # pk -> "paper1"/"paper2"/"tie"
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": TIE_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "outcome": 1},
+        ):
+            pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            tie_matches[pk] = m.get("winner_id")  # None for ties
+            tie_outcomes[pk] = m.get("outcome", "paper1" if m.get("winner_id") == m["paper1_id"] else "paper2")
+
+        # Analyze on common pairs that have expert GT
+        common = set(baseline.keys()) & set(tie_matches.keys()) & set(expert_prefs.keys())
+
+        total_ties = 0
+        tie_correct_close = 0  # tie when GT gap is small (<=1)
+        tie_wrong_far = 0  # tie when GT gap is large (>=2)
+        a = b = c = d_val = 0
+        by_gap = defaultdict(lambda: {"baseline_correct": 0, "tie_correct": 0, "tie_declared": 0, "total": 0})
+
+        for pk in common:
+            gt_winner = expert_prefs[pk]
+            bl_ok = baseline[pk] == gt_winner
+            is_tie = tie_outcomes.get(pk) == "tie"
+
+            # Score gap
+            g1 = gt_scores.get(pk[0])
+            g2 = gt_scores.get(pk[1])
+            gap = abs(g1 - g2) if g1 is not None and g2 is not None else None
+            gap_bucket = "small" if gap is not None and gap <= 1 else ("medium" if gap is not None and gap <= 2 else "large")
+
+            by_gap[gap_bucket]["total"] += 1
+            if bl_ok:
+                by_gap[gap_bucket]["baseline_correct"] += 1
+
+            if is_tie:
+                total_ties += 1
+                by_gap[gap_bucket]["tie_declared"] += 1
+                if gap is not None and gap <= 1:
+                    tie_correct_close += 1
+                elif gap is not None and gap >= 2:
+                    tie_wrong_far += 1
+            else:
+                tie_ok = tie_matches[pk] == gt_winner
+                if tie_ok:
+                    by_gap[gap_bucket]["tie_correct"] += 1
+                # McNemar: only on non-tie decisions
+                if bl_ok and tie_ok: a += 1
+                elif bl_ok and not tie_ok: b += 1
+                elif not bl_ok and tie_ok: c += 1
+                else: d_val += 1
+
+        total = a + b + c + d_val
+        non_tie_total = total  # excludes ties
+        all_total = non_tie_total + total_ties
+
+        if all_total == 0:
+            continue
+
+        bl_acc = round((a + b) / non_tie_total * 100, 1) if non_tie_total else 0
+        tie_acc = round((a + c) / non_tie_total * 100, 1) if non_tie_total else 0
+        tie_rate = round(total_ties / all_total * 100, 1) if all_total else 0
+
+        # Gap analysis
+        gap_analysis = {}
+        for bucket in ["small", "medium", "large"]:
+            g = by_gap[bucket]
+            if g["total"] > 0:
+                gap_analysis[bucket] = {
+                    "total": g["total"],
+                    "baseline_accuracy": round(g["baseline_correct"] / g["total"] * 100, 1),
+                    "tie_rate": round(g["tie_declared"] / g["total"] * 100, 1),
+                    "non_tie_in_bucket": g["total"] - g["tie_declared"],
+                    "tie_accuracy": round(g["tie_correct"] / max(g["total"] - g["tie_declared"], 1) * 100, 1),
+                }
+
+        by_dataset[ds_id] = {
+            "pairs": all_total,
+            "baseline_accuracy": bl_acc,
+            "tie_accuracy_non_tie": tie_acc,
+            "tie_rate": tie_rate,
+            "ties": total_ties,
+            "lift": round(tie_acc - bl_acc, 1),
+            "gap_analysis": gap_analysis,
+            "tie_calibration": {
+                "close_pairs_tied": tie_correct_close,
+                "far_pairs_tied": tie_wrong_far,
+                "total_ties": total_ties,
+            },
+        }
+
+        pooled["a"] += a
+        pooled["b"] += b
+        pooled["c"] += c
+        pooled["d"] += d_val
+        pooled["ties_total"] += total_ties
+        pooled["ties_correct"] += tie_correct_close
+        pooled["ties_wrong"] += tie_wrong_far
+
+    total_p = pooled["a"] + pooled["b"] + pooled["c"] + pooled["d"]
+    all_p = total_p + pooled["ties_total"]
+    if all_p == 0:
+        return {"status": "no_data"}
+
+    bl_p = round((pooled["a"] + pooled["b"]) / max(total_p, 1) * 100, 1)
+    tie_p = round((pooled["a"] + pooled["c"]) / max(total_p, 1) * 100, 1)
+    tie_rate_p = round(pooled["ties_total"] / all_p * 100, 1)
+
+    mcnemar = {"non_tie_pairs": total_p, "only_baseline": pooled["b"], "only_tie": pooled["c"]}
+    if pooled["b"] + pooled["c"] > 0:
+        chi2 = (abs(pooled["b"] - pooled["c"]) - 1) ** 2 / (pooled["b"] + pooled["c"])
+        p_val = math.erfc(math.sqrt(chi2 / 2))
+        mcnemar.update({"chi2": round(chi2, 3), "p_value": round(p_val, 4), "significant": p_val < 0.05})
+    else:
+        mcnemar.update({"chi2": 0, "p_value": 1.0, "significant": False})
+
+    n_tie_matches = sum(ds_counts.values())
+
+    return {
+        "status": "ok",
+        "tie_matches": n_tie_matches,
+        "baseline_accuracy": bl_p,
+        "tie_accuracy_non_tie": tie_p,
+        "tie_rate": tie_rate_p,
+        "total_ties": pooled["ties_total"],
+        "total_pairs_with_gt": all_p,
+        "lift": round(tie_p - bl_p, 1),
+        "mcnemar": mcnemar,
+        "tie_calibration": {
+            "close_pairs_tied": pooled["ties_correct"],
+            "far_pairs_tied": pooled["ties_wrong"],
+            "total_ties": pooled["ties_total"],
+            "calibration_ratio": round(pooled["ties_correct"] / max(pooled["ties_total"], 1) * 100, 1),
+        },
+        "by_dataset": by_dataset,
+    }
+
+
+async def _run_tie_experiment(dataset_id: str, num_pairs: int):
+    """Replay opus46 baseline cross-tier pairs with the tie-allowed prompt."""
+    from services.llm import compare_papers, _pick_round_robin_model
+
+    _tie_state.update({"running": True, "done": 0, "total": 0, "ties": 0, "dataset_id": dataset_id})
+
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    lookup = {p["id"]: p for p in papers}
+    gt = build_paper_gt_scores(papers)
+
+    # Get existing tie experiment pairs to skip
+    existing = set()
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": TIE_MODE, "completed": True},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        existing.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+
+    # Load opus46 baseline pairs — replay these for fair comparison
+    baseline_pairs = []
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:opus46", "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        if pk in existing:
+            continue
+        # Cross-tier only
+        g1, g2 = gt.get(m["paper1_id"]), gt.get(m["paper2_id"])
+        if g1 is None or g2 is None or g1 == g2:
+            continue
+        baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
+        existing.add(pk)
+
+    random.shuffle(baseline_pairs)
+    to_run = baseline_pairs[:num_pairs]
+    _tie_state["total"] = len(to_run)
+    logger.info(f"Tie experiment [{dataset_id}]: replaying {len(to_run)} opus46 cross-tier pairs (of {len(baseline_pairs)} available)")
+
+    sem = asyncio.Semaphore(8)
+    completed = 0
+    ties = 0
+
+    async def run_one(p1_id, p2_id):
+        nonlocal completed, ties
+        if not _tie_state["running"]:
+            return
+        async with sem:
+            p1, p2 = lookup[p1_id], lookup[p2_id]
+            # Use opus46 summaries
+            s1, s2 = p1.get("ai_impact_summary_opus46", p1.get("ai_impact_summary", "")), p2.get("ai_impact_summary_opus46", p2.get("ai_impact_summary", ""))
+            if not s1 or not s2:
+                return
+            p1c = {**p1, "ai_impact_summary": s1}
+            p2c = {**p2, "ai_impact_summary": s2}
+            judge = _pick_round_robin_model()
+            # Random flip for positional bias
+            if random.random() < 0.5:
+                p1c, p2c = p2c, p1c
+                p1_id, p2_id = p2_id, p1_id
+            try:
+                result = await compare_papers(p1c, p2c, TIE_ALLOWED_PROMPT,
+                    content_mode="abstract_plus_summary", model_override=judge, allow_tie=True)
+                if result and not result.get("failed"):
+                    wk = result.get("winner", "paper1")
+                    is_tie = wk == "tie"
+                    doc = {
+                        "id": str(uuid.uuid4()),
+                        "dataset_id": dataset_id,
+                        "content_mode": TIE_MODE,
+                        "prompt_tag": "tie_v1",
+                        "paper1_id": p1_id,
+                        "paper2_id": p2_id,
+                        "winner_id": None if is_tie else (p1_id if wk == "paper1" else p2_id),
+                        "outcome": wk,  # "paper1", "paper2", or "tie"
+                        "completed": True,
+                        "failed": False,
+                        "model_used": result.get("model_used", judge),
+                        "reasoning": result.get("reasoning", ""),
+                        "tokens": result.get("tokens", {}),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    await db.validation_matches.insert_one(doc)
+                    completed += 1
+                    if is_tie:
+                        ties += 1
+                    _tie_state["done"] = completed
+                    _tie_state["ties"] = ties
+                    if completed % 50 == 0:
+                        invalidate_dataset_cache(dataset_id)
+            except Exception as e:
+                logger.warning(f"Tie experiment match failed: {e}")
+
+    await asyncio.gather(*[run_one(a, b) for a, b in to_run], return_exceptions=True)
+    invalidate_dataset_cache(dataset_id)
+    logger.info(f"Tie experiment [{dataset_id}]: completed {completed}/{len(to_run)} matches, {ties} ties ({round(ties/max(completed,1)*100,1)}%)")
