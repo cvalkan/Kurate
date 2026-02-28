@@ -13,20 +13,20 @@ Build a robust system for ranking and validating AI model performance on scienti
 
 ### Cross-Tier Filter
 - All convergence and tournament computations now filter same-tier matches
-- Saved 30-60% LLM budget, improved ρ across all datasets
+- Saved 30-60% LLM budget, improved rho across all datasets
 - Tournament pair selection only generates cross-tier pairs
 
 ### Deep Dive (2-Pass): NULL RESULT
 - BUG FIXED: `compute_analysis()` was comparing against Opus 4.5 baseline instead of Opus 4.6
 - Corrected results: 0.0-1.5pp lift across all datasets (none significant)
-- The model upgrade (4.5→4.6) was doing all the work, not the 2-pass methodology
+- The model upgrade (4.5->4.6) was doing all the work, not the 2-pass methodology
 
 ### Extended Thinking: NULL RESULT
 - Opus 4.6 with 10K thinking token budget produces identical accuracy to standard Opus 4.6
 - iclr-codegen: 62.7% vs 62.7%, McNemar p=0.79, discordant 7:7
 
 ### Summarizer A/B: Opus 4.5 vs 4.6 — SIGNIFICANT
-- +2.1pp lift (71.8% → 73.9%), McNemar p=0.0007 on 1582 pairs
+- +2.1pp lift (71.8% -> 73.9%), McNemar p=0.0007 on 1582 pairs
 
 ### Dataset Convergence Analysis
 - GT resolution = sample efficiency factor, not fundamental barrier
@@ -40,8 +40,11 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **Second Pass (Deep Dive)**: 8 datasets (all null vs opus46 baseline)
 - **Extended Thinking**: Opus 4.6 + thinking budget (null result)
 
+## Completed (Latest)
+- [Feb 28 2026] Fixed identical Aggregate/Significance BT ranking lists on Pairwise page. Composite aggregate ranking now uses normalized sig+str BT scores. VERIFIED via testing agent (iteration_44).
+
 ## Pending
-- Run extended thinking on more datasets to confirm null
-- Run more matches on iclr-optimization (ρ=0.859, widest CI)
-- Gap-stratified human accuracy visualization
-- HTTP security headers
+- (P1) Fix summary provenance for elife-comp-sys-bio (wipe and regenerate all 80 summaries using full text, not abstracts)
+- (P2) HTTP security headers
+- (Future) New experiment: "Structured judge prompt" or "Judge extended thinking"
+- (Future) Refactor iclr_deep_dive.py into smaller service files
