@@ -247,8 +247,8 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-tie-allowed", label: "Tie Experiment", sub: "Allow AI to abstain" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
               <CollapsibleGroup label="Consistency" defaultOpen={selected === "exp-cycle-analysis" || selected === "exp-consistency"}>
-                <NavItem item={{ id: "exp-consistency", label: "Deep Dive", sub: "Flips + cycles by context" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-cycle-analysis", label: "Cycle Summary", sub: "Aggregate per dataset" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-consistency", label: "Same Pairs", sub: "Verdict flips across conditions" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-cycle-analysis", label: "All Pairs", sub: "Condorcet cycles by context" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
             </CollapsibleGroup>
           )}
