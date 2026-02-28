@@ -16,9 +16,11 @@ const DATASETS = [
   { id: "iclr-ot", label: "ICLR Optimal Transport" },
   { id: "iclr-pdes", label: "ICLR PDEs" },
   { id: "iclr-protein", label: "ICLR Protein" },
+  { id: "peerread_acl_2017", label: "PeerRead ACL 2017" },
   { id: "elife-microbiology", label: "eLife Microbiology" },
   { id: "elife-cancer", label: "eLife Cancer" },
   { id: "elife-neuro-100", label: "eLife Neuroscience" },
+  { id: "elife-comp-sys-bio", label: "eLife Comp & Sys Bio" },
 ];
 
 export default function ExtendedThinkingSection() {
