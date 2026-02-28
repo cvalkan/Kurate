@@ -1806,14 +1806,56 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
     h_rank = {e["id"]: e for e in h_lb}
     a_rank = {e["id"]: e for e in a_lb}
 
-    ai_ranks = [a_rank[pid]["rank"] for pid in sorted(common)]
-    human_ranks = [h_rank[pid]["rank"] for pid in sorted(common)]
-    sp, sp_p = scipy_stats.spearmanr(ai_ranks, human_ranks)
-    kt, kt_p = scipy_stats.kendalltau(ai_ranks, human_ranks)
-    pr, pr_p = scipy_stats.pearsonr(
-        [a_rank[pid]["score"] for pid in sorted(common)],
-        [h_rank[pid]["score"] for pid in sorted(common)]
-    )
+    # Use BT SCORES for Spearman (handles ties correctly)
+    ai_scores_list = [a_rank[pid]["score"] for pid in sorted(common)]
+    human_scores_list = [h_rank[pid]["score"] for pid in sorted(common)]
+    sp, sp_p = scipy_stats.spearmanr(ai_scores_list, human_scores_list)
+    kt, kt_p = scipy_stats.kendalltau(ai_scores_list, human_scores_list)
+    pr, pr_p = scipy_stats.pearsonr(ai_scores_list, human_scores_list)
+
+    # Per-dimension correlations for dual-dimension datasets (eLife sig + strength)
+    sig_map = {p["id"]: p.get("sig_score") for p in papers if p.get("sig_score") is not None}
+    str_map = {p["id"]: p.get("str_score") for p in papers if p.get("str_score") is not None}
+    dim_correlations = {}
+    has_dual = len(sig_map) >= 10 and len(str_map) >= 10
+
+    if has_dual:
+        for dim_name, dim_map in [("significance", sig_map), ("strength", str_map)]:
+            dim_pids = [pid for pid in common if pid in dim_map]
+            dim_h_matches = []
+            for i in range(len(dim_pids)):
+                for j in range(i + 1, len(dim_pids)):
+                    a, b = dim_pids[i], dim_pids[j]
+                    if dim_map[a] != dim_map[b]:
+                        dim_h_matches.append({"paper1_id": a, "paper2_id": b,
+                            "winner_id": a if dim_map[a] > dim_map[b] else b,
+                            "completed": True, "failed": False})
+            if len(dim_h_matches) >= 10:
+                dim_cp = [p for p in cp if p["id"] in set(dim_pids)]
+                dim_h_lb = await compute_leaderboard_async(dim_cp, dim_h_matches)
+                dim_h_score = {e["id"]: e["score"] for e in dim_h_lb}
+                dim_shared = sorted([pid for pid in dim_pids if pid in dim_h_score and pid in a_rank])
+                if len(dim_shared) >= 10:
+                    d_ai = [a_rank[pid]["score"] for pid in dim_shared]
+                    d_h = [dim_h_score[pid] for pid in dim_shared]
+                    d_sp, d_sp_p = scipy_stats.spearmanr(d_ai, d_h)
+                    d_kt, d_kt_p = scipy_stats.kendalltau(d_ai, d_h)
+                    d_pr, d_pr_p = scipy_stats.pearsonr(d_ai, d_h)
+                    dim_correlations[dim_name] = {
+                        "spearman_rho": safe_round(d_sp), "spearman_p_value": safe_round(d_sp_p, 6),
+                        "kendall_tau": safe_round(d_kt), "kendall_p_value": safe_round(d_kt_p, 6),
+                        "pearson_r": safe_round(d_pr), "pearson_p_value": safe_round(d_pr_p, 6),
+                        "papers": len(dim_shared), "human_matches": len(dim_h_matches),
+                    }
+
+    # For dual-dimension datasets, aggregate = average of per-dimension correlations
+    if has_dual and "significance" in dim_correlations and "strength" in dim_correlations:
+        sp = (dim_correlations["significance"]["spearman_rho"] + dim_correlations["strength"]["spearman_rho"]) / 2
+        kt = (dim_correlations["significance"]["kendall_tau"] + dim_correlations["strength"]["kendall_tau"]) / 2
+        pr = (dim_correlations["significance"]["pearson_r"] + dim_correlations["strength"]["pearson_r"]) / 2
+        sp_p = max(dim_correlations["significance"]["spearman_p_value"], dim_correlations["strength"]["spearman_p_value"])
+        kt_p = max(dim_correlations["significance"]["kendall_p_value"], dim_correlations["strength"]["kendall_p_value"])
+        pr_p = max(dim_correlations["significance"]["pearson_p_value"], dim_correlations["strength"]["pearson_p_value"])
 
     comparison = sorted([{
         "id": pid, "title": next(p["title"] for p in cp if p["id"] == pid),
