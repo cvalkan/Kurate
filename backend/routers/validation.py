@@ -2600,13 +2600,20 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
 async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
 
-    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
-    match_filter.update(build_content_mode_filter(content_mode, abstract_only))
+    # Handle virtual ensemble modes
+    is_ensemble = content_mode and content_mode.startswith("ensemble:")
+    if is_ensemble:
+        ensemble = await build_ensemble_matches(dataset_id)
+        variant = content_mode.split(":")[1]
+        ai_matches = ensemble.get(variant, [])
+    else:
+        match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+        match_filter.update(build_content_mode_filter(content_mode, abstract_only))
 
-    ai_matches = await db.validation_matches.find(
-        match_filter,
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+        ai_matches = await db.validation_matches.find(
+            match_filter,
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ).to_list(100000)
 
     if not papers:
         return {"status": "no_data"}
