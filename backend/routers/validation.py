@@ -4685,25 +4685,7 @@ async def extended_thinking_results():
 
         # Build expert pairwise preferences → majority vote per pair (same as tournament page)
         expert_ratings = build_expert_ratings(papers)
-        pair_votes = defaultdict(list)
-        for exp, ratings in expert_ratings.items():
-            pids = list(ratings.keys())
-            for i in range(len(pids)):
-                for j in range(i + 1, len(pids)):
-                    a, b = pids[i], pids[j]
-                    if ratings[a] == ratings[b]:
-                        continue
-                    pk = tuple(sorted([a, b]))
-                    pair_votes[pk].append(a if ratings[a] > ratings[b] else b)
-
-        # Use majority vote as GT (matches "AI vs Expert Majority" on tournament page)
-        expert_prefs = {}
-        for pk, votes in pair_votes.items():
-            c = Counter(votes)
-            best, n = c.most_common(1)[0]
-            # For single-reviewer datasets, any vote counts; for multi-reviewer, need majority
-            if n > len(votes) / 2 or len(votes) == 1:
-                expert_prefs[pk] = best
+        expert_prefs = build_expert_majority(expert_ratings)
 
         # Load baseline (opus46) and thinking matches — last-write-wins per pair
         baseline = {}
