@@ -2470,14 +2470,48 @@ async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
         "rank_delta": a_lookup[pid]["rank"] - irt_rank[pid],
     } for pid in common], key=lambda x: x["irt_rank"])
 
+    # Per-dimension correlations for dual-dimension datasets
+    sig_map = {p["id"]: p.get("sig_score") for p in papers if p.get("sig_score") is not None}
+    str_map = {p["id"]: p.get("str_score") for p in papers if p.get("str_score") is not None}
+    dim_correlations = {}
+    has_dual = len(sig_map) >= 10 and len(str_map) >= 10
+
+    if has_dual:
+        for dim_name, dim_map in [("significance", sig_map), ("strength", str_map)]:
+            dim_pids = sorted([pid for pid in common if pid in dim_map])
+            if len(dim_pids) < 10:
+                continue
+            dim_scores = [dim_map[pid] for pid in dim_pids]
+            dim_ai_scores = [a_lookup[pid]["score"] for pid in dim_pids]
+            d_sp, d_sp_p = scipy_stats.spearmanr(dim_scores, dim_ai_scores)
+            d_kt, d_kt_p = scipy_stats.kendalltau(dim_scores, dim_ai_scores)
+            d_pr, d_pr_p = scipy_stats.pearsonr(dim_scores, dim_ai_scores)
+            dim_correlations[dim_name] = {
+                "spearman_rho": round(d_sp, 4) if not np.isnan(d_sp) else 0,
+                "spearman_p": round(d_sp_p, 6),
+                "kendall_tau": round(d_kt, 4) if not np.isnan(d_kt) else 0,
+                "kendall_p": round(d_kt_p, 6),
+                "pearson_r": round(d_pr, 4) if not np.isnan(d_pr) else 0,
+                "pearson_p": round(d_pr_p, 6),
+                "papers": len(dim_pids),
+            }
+
+    # For dual-dimension datasets, aggregate IRT = average of per-dimension correlations
+    if has_dual and "significance" in dim_correlations and "strength" in dim_correlations:
+        sp_irt = (dim_correlations["significance"]["spearman_rho"] + dim_correlations["strength"]["spearman_rho"]) / 2
+        kt_irt = (dim_correlations["significance"]["kendall_tau"] + dim_correlations["strength"]["kendall_tau"]) / 2
+        pr_irt = (dim_correlations["significance"]["pearson_r"] + dim_correlations["strength"]["pearson_r"]) / 2
+        sp_irt_p = max(dim_correlations["significance"]["spearman_p"], dim_correlations["strength"]["spearman_p"])
+
     return {
         "status": "ok", "method": "irt_direct_score",
         "papers_analyzed": len(cp), "experts_analyzed": len(expert_params),
         "ai_matches": len(ca),
         "correlation": {
-            "irt_score_vs_ai": {"spearman_rho": round(sp_irt, 4), "spearman_p": round(sp_irt_p, 6), "kendall_tau": round(kt_irt, 4), "kendall_p": round(kt_irt_p, 6), "pearson_r": round(pr_irt, 4), "pearson_p": round(pr_irt_p, 6)},
+            "irt_score_vs_ai": {"spearman_rho": round(sp_irt, 4), "spearman_p": round(sp_irt_p, 6), "kendall_tau": round(kt_irt, 4), "kendall_p": round(kt_irt_p, 6), "pearson_r": round(pr_irt, 4), "pearson_p": round(pr_irt_p, 6), "is_aggregate": has_dual},
             "raw_avg_vs_ai": {"spearman_rho": round(sp_raw, 4), "spearman_p": round(sp_raw_p, 6)},
         },
+        "dim_correlations": dim_correlations if dim_correlations else None,
         "improvement": {"raw_spearman": round(sp_raw, 4), "irt_spearman": round(sp_irt, 4), "delta": round(sp_irt - sp_raw, 4), "distinct_scores_raw": distinct_raw, "distinct_scores_irt": distinct_irt},
         "interpretation": interp(sp_irt, sp_irt_p, len(cp), "IRT score"),
         "comparison": comparison,
