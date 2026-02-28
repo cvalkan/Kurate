@@ -1698,7 +1698,7 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
         if len(wmap) < 3:
             continue
         cyc, tri, _, _ = _count_cycles(wmap)
-        per_model[mk] = {"cycles": cyc, "triples": tri, "rate": round(cyc / max(tri, 1) * 100, 1)}
+        per_model[mk] = {"cycles": cyc, "triples": tri, "rate": round(cyc / max(tri, 1) * 100, 1), "pairs": len(wmap)}
 
     # Majority
     maj_map = {}
