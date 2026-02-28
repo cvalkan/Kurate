@@ -2220,7 +2220,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         agg_sp = round((d_sig + d_str) / 2, 4) if has_dual and d_sig and d_str else (round(sp, 4) if not np.isnan(sp) else 0)
         
         # Debug: log final point
-        if n_matches == sample_points[-1]:
+        if n_matches >= total - 5:
             logger.info(f"CONVERGENCE DEBUG [{dataset_id}]: main sp={sp:.4f}, d_sig={d_sig}, d_str={d_str}, agg={agg_sp}, "
                         f"common={len(common)}, matches={n_matches}, papers_covered={papers_covered}")
         
