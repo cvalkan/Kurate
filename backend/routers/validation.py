@@ -2200,7 +2200,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
             topk[f"top_{k}"] = round(overlap / k * 100, 1)
 
         t_sp, t_kt, _ = _compute_tier_corr(sub_rank)
-        d_sig, d_str = _compute_dual_corr(sub_lb)
+        d_sig, d_str = await _compute_dual_corr(sub_lb)
         curve.append({
             "matches": n_matches,
             "avg_matches_per_paper": avg_matches,
