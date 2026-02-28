@@ -364,7 +364,7 @@ function StandardStats({ datasetId, isAdmin }) {
           {[
             ["Papers", status.papers_imported, `${status.papers_with_full_text} full text`],
             ["Human Experts", status.human_expert_count || status.total_human_reviews || "—", `${status.papers_imported} papers reviewed`],
-            ["AI Matches", status.matches_completed, `${status.coverage_pct}% coverage`],
+            ["AI Matches", activeAgreement ? activeAgreement.ai_expert.total : status.matches_completed, activeAgreement ? `${modeLabel} non-tie pairs` : `${status.coverage_pct}% coverage`],
             ["Extraction", status.matches_with_extraction, `${status.matches_abstract_only} abstract-only`],
             ["Avg/Paper", status.avg_matches_per_paper, `${status.min_matches_per_paper}–${status.max_matches_per_paper}`],
             ["Tournament", status.tournament_running ? "Running" : "Complete", status.tournament_running ? `${status.tournament_progress.completed_matches}/${status.tournament_progress.total_matches}` : ""],
