@@ -1892,7 +1892,7 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
         "human_rank": h_rank[pid]["rank"], "human_score": h_rank[pid]["score"],
         "human_win_rate": h_rank[pid]["win_rate"], "human_matches": h_rank[pid]["comparisons"],
         "ai_rank": a_rank[pid]["rank"], "ai_score": a_rank[pid]["score"],
-        "ai_win_rate": a_rank[pid]["win_rate"], "ai_matches": a_rank[pid]["comparisons"],
+        "ai_win_rate": a_rank[pid].get("win_rate", 0), "ai_matches": a_rank[pid].get("comparisons", 0),
         "rank_delta": a_rank[pid]["rank"] - h_rank[pid]["rank"],
     } for pid in common], key=lambda x: x["human_rank"])
 
