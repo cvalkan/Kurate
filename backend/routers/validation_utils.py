@@ -106,6 +106,69 @@ def build_ai_majority(ai_matches: list) -> dict:
     return result
 
 
+async def build_ensemble_matches(dataset_id: str, min_models: int = 3) -> dict:
+    """Build majority-vote and unanimity virtual match lists from multi-model data.
+    Returns {"majority": [...], "unanimity": [...], "pairs_with_all": int, "models": [...]}
+    where each match is a dict compatible with compute_leaderboard_async."""
+    from core.config import db
+
+    all_matches = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "prompt_tag": {"$exists": False},  # exclude experiment variants
+         "content_mode": {"$nin": ["deep_dive"], "$not": {"$regex": ":"}}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+         "model_used": 1, "created_at": 1},
+    ).to_list(200000)
+
+    # Group by pair → model → winner
+    pair_verdicts = defaultdict(dict)
+    model_keys_seen = set()
+    for m in all_matches:
+        if not m.get("winner_id"):
+            continue
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        mu = m.get("model_used", {})
+        mk = f"{mu.get('provider', '')}:{mu.get('model', '')}"
+        model_keys_seen.add(mk)
+        pair_verdicts[pair][mk] = m["winner_id"]
+
+    all_models = sorted(model_keys_seen)
+    full_pairs = {p: v for p, v in pair_verdicts.items()
+                  if len(v) >= min(min_models, len(all_models))}
+
+    majority_matches = []
+    unanimity_matches = []
+    # Use latest created_at from the underlying matches for ordering
+    pair_timestamps = defaultdict(str)
+    for m in all_matches:
+        pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        ts = m.get("created_at", "")
+        if ts > pair_timestamps[pair]:
+            pair_timestamps[pair] = ts
+
+    for pair, verdicts in sorted(full_pairs.items(), key=lambda x: pair_timestamps.get(x[0], "")):
+        winners = list(verdicts.values())
+        c = Counter(winners)
+        best, count = c.most_common(1)[0]
+        base = {"paper1_id": pair[0], "paper2_id": pair[1], "completed": True, "failed": False,
+                "created_at": pair_timestamps.get(pair, "")}
+
+        # Majority: 2+ out of 3 agree
+        if count > len(winners) / 2:
+            majority_matches.append({**base, "winner_id": best})
+
+        # Unanimity: ALL models agree
+        if count == len(winners):
+            unanimity_matches.append({**base, "winner_id": best})
+
+    return {
+        "majority": majority_matches,
+        "unanimity": unanimity_matches,
+        "pairs_with_all": len(full_pairs),
+        "models": all_models,
+    }
+
+
 # ─── Content Mode Filter ──────────────────────────────────────────────────────
 
 def build_content_mode_filter(content_mode: Optional[str] = None, abstract_only: Optional[bool] = None) -> dict:
