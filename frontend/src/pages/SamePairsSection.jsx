@@ -144,59 +144,83 @@ export default function SamePairsSection() {
         </div>
       </div>
 
-      {/* ── Per-Format Cycle Comparison: same pairs, controlled by format ── */}
-      {vs.per_format_comparison && Object.keys(vs.per_format_comparison).length > 0 && (() => {
-        const pfc = vs.per_format_comparison;
-        // Collect all models across all formats
-        const allModels = [...new Set(Object.values(pfc).flatMap(f => Object.keys(f.models)))].sort();
-        // Sort formats by shared pair count
-        const formats = Object.entries(pfc).sort((a, b) => b[1].shared_pairs - a[1].shared_pairs);
+      {/* ── Format-Normalized Cycle Rates + Human Baselines ── */}
+      {(vs.normalized_comparison || vs.human_baselines) && (() => {
+        const nc = vs.normalized_comparison || {};
+        const hb = vs.human_baselines || {};
+        const rows = [];
+
+        // Human baselines first
+        if (hb.individual) {
+          rows.push({ name: "Human Individual", rate: hb.individual.avg_rate, cycles: "—",
+            triples: "—", ci: null, note: `${hb.individual.reviewers} reviewers, avg rate`, isHuman: true });
+        }
+        if (hb.committee && hb.committee.triples > 0) {
+          rows.push({ name: "Human Committee", ...hb.committee, isHuman: true });
+        }
+
+        // AI models sorted by rate
+        const models = Object.entries(nc).sort((a, b) => a[1].rate - b[1].rate);
+        for (const [mk, v] of models) {
+          rows.push({ name: mk, ...v, note: `${v.formats} formats`, isHuman: false });
+        }
+
+        const maxRate = Math.max(...rows.filter(r => r.rate > 0).map(r => r.rate), 0.5);
 
         return (
-          <div className="border border-border rounded-lg overflow-hidden" data-testid="per-format-cycle-comparison">
+          <div className="border border-border rounded-lg overflow-hidden" data-testid="normalized-cycle-comparison">
             <div className="px-3 py-2 bg-secondary/10 border-b border-border">
               <h3 className="text-xs font-medium flex items-center gap-1.5">
-                <RotateCcw className="h-3.5 w-3.5" /> Cycle Rates by Model — Normalized by Format (Same Pairs)
+                <RotateCcw className="h-3.5 w-3.5" /> Cycle Rates — Format-Normalized (Same Pairs)
               </h3>
               <div className="text-[10px] text-muted-foreground mt-0.5">
-                For each format, only pairs where 2+ models evaluated the same pair under the same format. Models compared on identical triples within each row.
+                Per-model cycle rates computed within each format on shared pairs (2+ models), then pooled across formats weighted by triple count. Eliminates format-mix bias.
               </div>
             </div>
-            <div className="p-3 overflow-x-auto">
+            <div className="p-3">
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-border text-[10px]">
-                    <th className="text-left py-1.5 pr-2 font-medium">Format</th>
-                    <th className="text-right py-1.5 px-1 font-medium text-muted-foreground">Pairs</th>
-                    {allModels.map(mk => (
-                      <th key={mk} className="text-center py-1.5 px-2 font-medium min-w-[100px]">{mk}</th>
-                    ))}
+                    <th className="text-left py-1.5 pr-3 font-medium">Judge</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Cycles</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Triples</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Rate</th>
+                    <th className="text-left py-1.5 px-2 font-medium">95% CI</th>
+                    <th className="py-1.5 px-2 font-medium w-1/4"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {formats.map(([fmt, fdata]) => (
-                    <tr key={fmt} className="border-b border-border/30">
-                      <td className="py-2 pr-2 font-medium">{fmt}</td>
-                      <td className="text-right py-2 px-1 font-mono text-muted-foreground text-[10px]">{fdata.shared_pairs.toLocaleString()}</td>
-                      {allModels.map(mk => {
-                        const m = fdata.models[mk];
-                        if (!m) return <td key={mk} className="text-center py-2 px-2 text-muted-foreground/30">—</td>;
-                        const maxInRow = Math.max(...Object.values(fdata.models).map(x => x.triples || 0), 1);
-                        const low = m.triples < maxInRow * 0.15;
-                        const intensity = Math.min(m.rate / 5, 1);
-                        const bg = low ? "transparent" : `rgba(239, 68, 68, ${intensity * 0.15})`;
-                        return (
-                          <td key={mk} className={`text-center py-2 px-2 font-mono ${low ? "opacity-35" : ""}`} style={{ backgroundColor: bg }}>
-                            <div className={m.rate === 0 ? "text-green-600 font-semibold" : m.rate < 1.5 ? "text-amber-600" : "text-red-600"}>
-                              {m.rate}%
-                            </div>
-                            <div className="text-[9px] text-muted-foreground font-normal">{m.cycles}/{m.triples.toLocaleString()}</div>
-                            {m.ci && <div className="text-[8px] text-muted-foreground/60 font-normal">[{m.ci[0]}–{m.ci[1]}%]</div>}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                  {rows.map((r, i) => {
+                    const color = r.isHuman ? "#10b981"
+                      : MODEL_COLORS[r.name] || "#94a3b8";
+                    const lowData = !r.isHuman && r.triples !== "—" && r.triples < 100;
+                    const prevIsHuman = i > 0 && rows[i-1].isHuman && !r.isHuman;
+                    return (
+                      <tr key={r.name} className={`border-b border-border/30 ${lowData ? "opacity-40" : ""} ${prevIsHuman ? "border-t-2 border-border" : ""}`}>
+                        <td className={`py-2 pr-3 ${r.isHuman ? "font-medium text-green-700" : "font-medium"}`}>{r.name}</td>
+                        <td className="text-right py-2 px-2 font-mono">{typeof r.cycles === "number" ? r.cycles : r.cycles}</td>
+                        <td className="text-right py-2 px-2 font-mono text-muted-foreground">
+                          {typeof r.triples === "number" ? r.triples.toLocaleString() : r.triples}
+                        </td>
+                        <td className="text-right py-2 px-2 font-mono">
+                          <span className={r.rate === 0 ? "text-green-600 font-semibold" : r.rate < 0.5 ? "text-green-600" : r.rate < 2 ? "text-amber-600" : "text-red-600"}>
+                            {r.rate}%
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 font-mono text-[10px] text-muted-foreground">
+                          {r.ci ? `[${r.ci[0]}%, ${r.ci[1]}%]` : r.note || ""}
+                        </td>
+                        <td className="py-2 px-2">
+                          <div className="h-3 bg-secondary/30 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{
+                              width: `${Math.max((r.rate / (maxRate * 1.3)) * 100, r.rate > 0 ? 3 : 0)}%`,
+                              backgroundColor: color,
+                            }} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
