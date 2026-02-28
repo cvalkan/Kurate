@@ -1952,8 +1952,7 @@ async def get_consistency_analysis():
     # ── Build response ──
     def _rate(a, b): return round(a / max(b, 1) * 100, 2)
 
-    # ── Per-format same-pair cycle comparison (normalized by format) ──
-    # For each format, find pairs where 2+ models evaluated it, compute per-model cycles
+    # ── Format-normalized same-pair cycle comparison ──
     import math as _math
 
     pair_fmt_model = defaultdict(dict)
@@ -1965,37 +1964,106 @@ async def get_consistency_analysis():
         key = (m["dataset_id"], tuple(sorted([m["paper1_id"], m["paper2_id"]])), fmt)
         pair_fmt_model[key][mk] = m["winner_id"]
 
-    per_format_comparison = {}
+    # Per model: collect (cycles, triples) per format on shared pairs (2+ models in that format)
+    model_fmt_ct = defaultdict(lambda: defaultdict(lambda: [0, 0]))
     for fmt in CORE_FORMATS:
         fmt_pairs = {(ds, pair): models
                      for (ds, pair, f), models in pair_fmt_model.items()
                      if f == fmt and len(models) >= 2}
         if len(fmt_pairs) < 50: continue
-
-        fmt_models = sorted(set(mk for v in fmt_pairs.values() for mk in v.keys()))
-        model_rates = {}
-        for mk in fmt_models:
+        for mk in sorted(set(mk2 for v in fmt_pairs.values() for mk2 in v.keys())):
             wmap = {k: v[mk] for k, v in fmt_pairs.items() if mk in v}
             if len(wmap) < 10: continue
             cyc, tri = _count_cycles_fast(wmap)
-            rate = cyc / max(tri, 1)
-            z = 1.96
-            n = tri
-            p = rate
-            if n > 0:
-                denom = 1 + z**2/n
-                center = (p + z**2/(2*n)) / denom
-                margin = z * _math.sqrt((p*(1-p) + z**2/(4*n)) / n) / denom
-                ci = [round(max(0, center - margin) * 100, 2), round(min(1, center + margin) * 100, 2)]
-            else:
-                ci = [0, 0]
-            model_rates[mk] = {"cycles": cyc, "triples": tri, "rate": _rate(cyc, tri), "ci": ci, "pairs": len(wmap)}
-        if model_rates:
-            per_format_comparison[FORMAT_LABELS.get(fmt, fmt)] = {
-                "shared_pairs": len(fmt_pairs), "models": model_rates,
-            }
+            model_fmt_ct[mk][fmt] = [cyc, tri]
 
-    # ── Build response ──
+    def _wilson_ci(cyc, tri):
+        if tri == 0: return [0, 0]
+        p = cyc / tri
+        z = 1.96
+        denom = 1 + z**2/tri
+        center = (p + z**2/(2*tri)) / denom
+        margin = z * _math.sqrt((p*(1-p) + z**2/(4*tri)) / tri) / denom
+        return [round(max(0, center - margin) * 100, 2), round(min(1, center + margin) * 100, 2)]
+
+    # Format-normalized weighted average per model
+    normalized_model_rates = {}
+    for mk in sorted(model_fmt_ct.keys()):
+        total_cyc = sum(v[0] for v in model_fmt_ct[mk].values())
+        total_tri = sum(v[1] for v in model_fmt_ct[mk].values())
+        normalized_model_rates[mk] = {
+            "cycles": total_cyc, "triples": total_tri,
+            "rate": _rate(total_cyc, total_tri), "ci": _wilson_ci(total_cyc, total_tri),
+            "formats": len(model_fmt_ct[mk]),
+        }
+
+    # ── Human baselines: committee + individual expert cycle rates ──
+    human_committee_cyc = human_committee_tri = 0
+    human_individual_rates = []
+
+    ds_ids_seen = set(m["dataset_id"] for m in all_matches)
+    for ds_id in ds_ids_seen:
+        h_papers = await db.validation_papers.find(
+            {"dataset_id": ds_id}, {"_id": 0, "id": 1, "evaluations": 1}
+        ).to_list(5000)
+        if len(h_papers) < 10: continue
+
+        reviewer_ratings = defaultdict(dict)
+        for p in h_papers:
+            for ev in p.get("evaluations", []):
+                name = ev.get("evaluator", "")
+                if name:
+                    reviewer_ratings[name][p["id"]] = ev["rating_value"]
+
+        pair_votes = defaultdict(list)
+        for rev, ratings in reviewer_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] != ratings[b]:
+                        pair_votes[tuple(sorted([a, b]))].append(a if ratings[a] > ratings[b] else b)
+
+        committee_prefs = {}
+        for pair, votes in pair_votes.items():
+            c = Counter(votes)
+            best, n = c.most_common(1)[0]
+            if n > len(votes) / 2:
+                committee_prefs[pair] = best
+
+        if len(committee_prefs) >= 10:
+            cyc, tri = _count_cycles_fast(committee_prefs)
+            human_committee_cyc += cyc
+            human_committee_tri += tri
+
+        for rev, ratings in reviewer_ratings.items():
+            if len(ratings) < 5: continue
+            prefs = {}
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] != ratings[b]:
+                        prefs[tuple(sorted([a, b]))] = a if ratings[a] > ratings[b] else b
+            if len(prefs) >= 3:
+                cyc, tri = _count_cycles_fast(prefs)
+                if tri > 0:
+                    human_individual_rates.append(cyc / tri * 100)
+
+    human_baselines = {
+        "committee": {
+            "cycles": human_committee_cyc, "triples": human_committee_tri,
+            "rate": _rate(human_committee_cyc, human_committee_tri),
+            "ci": _wilson_ci(human_committee_cyc, human_committee_tri),
+        },
+        "individual": {
+            "avg_rate": round(sum(human_individual_rates) / max(len(human_individual_rates), 1), 2),
+            "max_rate": round(max(human_individual_rates) if human_individual_rates else 0, 2),
+            "reviewers": len(human_individual_rates),
+        },
+    }
+
+    # ── Build final response ──
 
     models_seen = sorted(set(mk for (mk, _) in mf_cycles))
     formats_seen = sorted(CORE_FORMATS & set(fmt for (_, fmt) in mf_cycles),
