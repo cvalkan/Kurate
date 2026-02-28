@@ -196,6 +196,7 @@ export default function AllPairsSection() {
             <h3 className="text-xs font-medium flex items-center gap-1.5">
               <BarChart3 className="h-3 w-3" /> Aggregate Cycle Rate by Judge (All Formats Pooled)
             </h3>
+            <div className="text-[10px] text-amber-600 mt-0.5">Caution: pools across formats — models with data in different formats are not directly comparable. Use the heatmap above for fair comparisons.</div>
           </div>
           <div className="p-3 space-y-2">
             {(() => {
