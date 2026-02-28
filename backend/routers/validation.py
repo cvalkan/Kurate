@@ -1528,6 +1528,41 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
         sp, sp_p = scipy_stats.spearmanr(hr, mr)
         maj_correlation = {"spearman_rho": round(sp, 4), "p_value": round(sp_p, 6), "papers": len(common)}
 
+    # Unanimity vote: only pairs where ALL models agree
+    unanimity_winner = {}
+    for pair, verdicts in full_pairs.items():
+        winners = list(verdicts.values())
+        c = Counter(winners)
+        best, n = c.most_common(1)[0]
+        if n == len(winners):  # all agree
+            unanimity_winner[pair] = best
+
+    # Unanimity vs expert majority
+    una_overlap = set(unanimity_winner.keys()) & set(expert_majority.keys())
+    una_agree = sum(1 for p in una_overlap if unanimity_winner[p] == expert_majority[p])
+
+    # Unanimity BT vs human BT
+    una_matches = [
+        {"paper1_id": p[0], "paper2_id": p[1], "winner_id": w, "completed": True, "failed": False}
+        for p, w in unanimity_winner.items()
+    ]
+    una_correlation = None
+    u_ids = {m["paper1_id"] for m in una_matches} | {m["paper2_id"] for m in una_matches}
+    u_common = h_ids & u_ids
+    if len(u_common) >= 3:
+        ucp = [p for p in papers if p["id"] in u_common]
+        uch = [m for m in human_matches if m["paper1_id"] in u_common and m["paper2_id"] in u_common]
+        ucm = [m for m in una_matches if m["paper1_id"] in u_common and m["paper2_id"] in u_common]
+        uh_lb = await compute_leaderboard_async(ucp, uch)
+        um_lb = await compute_leaderboard_async(ucp, ucm)
+        uh_rank = {e["id"]: e["rank"] for e in uh_lb}
+        um_rank = {e["id"]: e["rank"] for e in um_lb}
+        u_ids_sorted = sorted(u_common)
+        uhr = [uh_rank[pid] for pid in u_ids_sorted]
+        umr = [um_rank[pid] for pid in u_ids_sorted]
+        u_sp, u_sp_p = scipy_stats.spearmanr(uhr, umr)
+        una_correlation = {"spearman_rho": round(u_sp, 4), "p_value": round(u_sp_p, 6), "papers": len(u_common)}
+
     return {
         "status": "ok",
         "models": all_models,
@@ -1538,8 +1573,15 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
             "agree": maj_agree, "total": len(overlap),
             "rate": round(maj_agree / max(len(overlap), 1) * 100, 1),
         },
+        "unanimity_vs_expert_majority": {
+            "agree": una_agree, "total": len(una_overlap),
+            "rate": round(una_agree / max(len(una_overlap), 1) * 100, 1),
+            "pairs_unanimous": len(unanimity_winner),
+            "unanimity_rate": round(len(unanimity_winner) / max(len(full_pairs), 1) * 100, 1),
+        },
         "per_model_vs_expert_majority": per_model_vs_expert,
         "majority_bt_vs_human_bt": maj_correlation,
+        "unanimity_bt_vs_human_bt": una_correlation,
     }
 
 
