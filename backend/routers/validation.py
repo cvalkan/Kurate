@@ -2695,6 +2695,14 @@ async def _compute_cross_mode_agreement(dataset_id: str):
 
     core_modes = comparison_modes
 
+    def _wilson_ci(agree, total, z=1.96):
+        if total == 0: return [0, 0]
+        p = agree / total
+        denom = 1 + z*z/total
+        center = (p + z*z/(2*total)) / denom
+        spread = z * (p*(1-p)/total + z*z/(4*total*total))**0.5 / denom
+        return [round((center - spread) * 100, 1), round((center + spread) * 100, 1)]
+
     # For each mode, compute agreement on the common pairs
     def _compute_agreement(ai_map, pair_set):
         ae_agree = ae_total = 0
@@ -2716,8 +2724,8 @@ async def _compute_cross_mode_agreement(dataset_id: str):
         maj_agree = sum(1 for p in maj_overlap if ai_map[p] == pair_majority[p])
 
         return {
-            "ai_expert": {"agree": ae_agree, "total": ae_total, "rate": round(ae_agree / max(ae_total, 1) * 100, 1)},
-            "ai_majority": {"agree": maj_agree, "total": len(maj_overlap), "rate": round(maj_agree / max(len(maj_overlap), 1) * 100, 1)},
+            "ai_expert": {"agree": ae_agree, "total": ae_total, "rate": round(ae_agree / max(ae_total, 1) * 100, 1), "ci": _wilson_ci(ae_agree, ae_total)},
+            "ai_majority": {"agree": maj_agree, "total": len(maj_overlap), "rate": round(maj_agree / max(len(maj_overlap), 1) * 100, 1), "ci": _wilson_ci(maj_agree, len(maj_overlap))},
         }
 
     # Expert-expert agreement on common pairs only
