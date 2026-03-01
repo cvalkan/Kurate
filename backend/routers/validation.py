@@ -2242,6 +2242,7 @@ async def get_available_modes(dataset_id: str = Query(...)):
         "opus46": "Abstract + Summary (Opus 4.6)",
         "thinking": "Abstract + Summary (Opus 4.6 Thinking)",
         "tie_v1": "Abstract + Summary (Tie-Allowed)",
+        "multi_aspect": "Abstract + Summary (Multi-Aspect)",
     }
     BASE_LABELS = {
         "none": "Extract", "extract": "Extract", "abstract": "Abstract",
