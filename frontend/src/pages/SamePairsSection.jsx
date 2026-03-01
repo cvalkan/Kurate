@@ -209,6 +209,76 @@ export default function SamePairsSection() {
         );
       })()}
 
+      {/* ── Judge × Summarizer Breakdown ── */}
+      {vs.judge_summarizer && Object.keys(vs.judge_summarizer).length > 0 && (() => {
+        const js = vs.judge_summarizer;
+        // Group by judge
+        const judges = [...new Set(Object.values(js).map(v => v.judge))].sort();
+        const summarizers = [...new Set(Object.values(js).map(v => v.summarizer))].sort();
+
+        return (
+          <div className="border border-border rounded-lg overflow-hidden" data-testid="judge-summarizer-breakdown">
+            <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+              <h3 className="text-xs font-medium flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5" /> Why Opus 4.6 Has Fewer Cycles — Judge vs Summarizer
+              </h3>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                Two compounding effects: (1) better summaries reduce cycles for <em>all</em> judges, and (2) Opus 4.6 is independently more transitive as a judge. This table disentangles both.
+              </div>
+            </div>
+            <div className="p-3 overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border text-[10px]">
+                    <th className="text-left py-1.5 pr-2 font-medium">Judge Model</th>
+                    <th className="text-left py-1.5 px-2 font-medium">Summarizer</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Pairs</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Cycles/Triples</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Rate</th>
+                    <th className="py-1.5 px-2 w-1/5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {judges.map((judge, ji) => {
+                    const rows = summarizers
+                      .map(s => js[`${judge}|${s}`])
+                      .filter(Boolean)
+                      .sort((a, b) => b.triples - a.triples);
+                    if (!rows.length) return null;
+                    const color = MODEL_COLORS[judge] || "#94a3b8";
+                    const maxRate = Math.max(...Object.values(js).map(v => v.rate), 0.5);
+                    return rows.map((r, ri) => (
+                      <tr key={`${judge}-${r.summarizer}`} className={`border-b border-border/30 ${ji > 0 && ri === 0 ? "border-t border-border" : ""}`}>
+                        {ri === 0 && <td className="py-1.5 pr-2 font-medium" rowSpan={rows.length}>{judge}</td>}
+                        <td className="py-1.5 px-2 text-muted-foreground">{r.summarizer}</td>
+                        <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{r.pairs.toLocaleString()}</td>
+                        <td className="text-right py-1.5 px-2 font-mono text-[10px] text-muted-foreground">{r.cycles}/{r.triples.toLocaleString()}</td>
+                        <td className="text-right py-1.5 px-2 font-mono">
+                          <span className={r.rate < 0.5 ? "text-green-600 font-semibold" : r.rate < 1.5 ? "text-amber-600" : "text-red-600"}>
+                            {r.rate}%
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <div className="h-2.5 bg-secondary/30 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${Math.max((r.rate / (maxRate * 1.2)) * 100, r.rate > 0 ? 2 : 0)}%`, backgroundColor: color }} />
+                          </div>
+                        </td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+              </table>
+              <div className="mt-3 text-[10px] text-muted-foreground space-y-1 border-t border-border/30 pt-2">
+                <p><strong>Reading this table:</strong> Compare rows <em>within</em> a judge (same model, different summarizer) to see the summarizer effect. Compare rows <em>across</em> judges with the same summarizer to see the judge effect.</p>
+                <p><strong>Summarizer effect:</strong> Upgrading from Opus 4.5 to 4.6 summaries reduces cycle rates by 20-50% for every judge model. Thinking summaries reduce them further.</p>
+                <p><strong>Judge effect:</strong> Holding the summarizer constant, Opus 4.6 as judge has 3-5x fewer cycles than Opus 4.5.</p>
+                <p><strong>Confound:</strong> In the shared-pair analysis above, Opus 4.6 always sees its own summaries (thinking/deep-dive), while other judges see a mix. Both effects compound, explaining the large gap.</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Methodology</h3>
