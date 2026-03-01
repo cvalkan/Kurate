@@ -588,7 +588,7 @@ def _build_full_pdf_content(paper: dict, char_limit: int = None) -> str:
     return f"Abstract: {abstract[:1500]}"
 
 
-async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None, model_override: dict = None, content_mode: str = None, allow_tie: bool = False) -> Dict:
+async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None, model_override: dict = None, content_mode: str = None, allow_tie: bool = False, multi_aspect: bool = False) -> Dict:
     if prompt_config is None:
         prompt_config = DEFAULT_EVALUATION_PROMPT
 
