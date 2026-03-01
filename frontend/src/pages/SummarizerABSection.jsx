@@ -33,6 +33,8 @@ export default function SummarizerABSection() {
   const [selectedSum, setSelectedSum] = useState(SUMMARIZERS[0].id);
   const [compData, setCompData] = useState(null);
 
+  const [results, setResults] = useState(null);
+
   const fetchStatus = useCallback(async () => {
     try {
       const r = await axios.get(`${API}/api/validation/summarizer-ab/status`);
@@ -42,16 +44,16 @@ export default function SummarizerABSection() {
     setLoading(false);
   }, []);
 
-  // Fetch same-pair comparison data
-  const fetchComparison = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      // Get available modes for each ICLR dataset to check which summarizers have data
+      const [modesRes, resultsRes] = await Promise.all([
+        Promise.all(DATASETS.map(ds => axios.get(`${API}/api/validation/available-modes`, { params: { dataset_id: ds.id } }).catch(() => ({ data: { modes: [] } })))),
+        axios.get(`${API}/api/validation/summarizer-ab/results`, { timeout: 30000 }).catch(() => ({ data: {} })),
+      ]);
       const modes_by_ds = {};
-      for (const ds of DATASETS) {
-        const r = await axios.get(`${API}/api/validation/available-modes`, { params: { dataset_id: ds.id } });
-        modes_by_ds[ds.id] = r.data.modes || [];
-      }
+      DATASETS.forEach((ds, i) => { modes_by_ds[ds.id] = modesRes[i].data.modes || []; });
       setCompData(modes_by_ds);
+      if (resultsRes.data.status === "ok") setResults(resultsRes.data);
     } catch (e) { console.warn(e); }
   }, []);
 
