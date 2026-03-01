@@ -155,10 +155,10 @@ export default function SamePairsSection() {
           <div className="border border-border rounded-lg overflow-hidden" data-testid="normalized-cycle-comparison">
             <div className="px-3 py-2 bg-secondary/10 border-b border-border">
               <h3 className="text-xs font-medium flex items-center gap-1.5">
-                <RotateCcw className="h-3.5 w-3.5" /> Cycle Rates — Format-Adjusted (Same Pairs)
+                <RotateCcw className="h-3.5 w-3.5" /> Cycle Rates — Adjusted for Input Format + Summarizer (Same Pairs)
               </h3>
               <div className="text-[10px] text-muted-foreground mt-0.5">
-                All models on the same {sharedTriples.toLocaleString()} triples. <strong>Adjusted rate</strong> compensates for each model's format mix — models seeing "easier" formats (lower baseline cycle rate) get adjusted upward.
+                All models on the same {sharedTriples.toLocaleString()} triples. <strong>Adjusted rate</strong> compensates for each model's input mix — each format encodes both the input type and the summarizer model (e.g., "Abs+Sum(Thinking)" = Opus 4.6 thinking summaries). Models seeing lower-baseline combinations get adjusted upward.
               </div>
             </div>
             <div className="p-3">
