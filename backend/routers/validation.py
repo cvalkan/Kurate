@@ -21,7 +21,7 @@ from typing import Optional
 import numpy as np
 from scipy import stats as scipy_stats
 
-from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TIE_ALLOWED_PROMPT
+from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TIE_ALLOWED_PROMPT, MULTI_ASPECT_PROMPT
 from core.auth import verify_admin, get_settings
 from services.llm import compare_papers
 from services.ranking import compute_leaderboard, compute_leaderboard_async
