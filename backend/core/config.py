@@ -95,6 +95,31 @@ You MUST respond with valid JSON only, no other text. Format:
 Which paper has higher estimated scientific impact? If you truly cannot distinguish them, you may declare a tie. Respond with JSON only."""
 }
 
+# Multi-aspect evaluation prompt — separate judgment per dimension
+MULTI_ASPECT_PROMPT = {
+    "system_prompt": """You are a scientific paper evaluator. Compare two papers on each of the following five dimensions independently. For each dimension, decide which paper is stronger.
+
+You MUST respond with valid JSON only, no other text. Format:
+{"novelty": "paper1" or "paper2", "applications": "paper1" or "paper2", "rigor": "paper1" or "paper2", "breadth": "paper1" or "paper2", "timeliness": "paper1" or "paper2", "reasoning": "Brief explanation of your dimension-by-dimension assessment (max 200 words)"}
+
+Dimension definitions:
+1. novelty — Novelty and innovation of the approach
+2. applications — Potential real-world applications
+3. rigor — Methodological rigor
+4. breadth — Breadth of impact across fields
+5. timeliness — Timeliness and relevance""",
+    "user_prompt": """Compare these two papers on each dimension separately:
+
+**Paper 1: {paper1_title}**
+{paper1_content}
+
+**Paper 2: {paper2_title}**
+{paper2_content}
+
+Judge each dimension independently. Respond with JSON only."""
+}
+MULTI_ASPECT_DIMENSIONS = ["novelty", "applications", "rigor", "breadth", "timeliness"]
+
 # Default settings
 DEFAULT_SETTINGS = {
     "key": "global",
