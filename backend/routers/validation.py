@@ -6461,7 +6461,7 @@ async def multi_aspect_results():
 
 
 async def _run_multi_aspect(dataset_id: str, num_pairs: int):
-    """Replay opus46 baseline cross-tier pairs with multi-aspect prompt."""
+    """Replay thinking baseline cross-tier pairs with multi-aspect prompt."""
     from services.llm import compare_papers, _pick_round_robin_model
     from core.config import MULTI_ASPECT_PROMPT, MULTI_ASPECT_DIMENSIONS
 
@@ -6478,9 +6478,10 @@ async def _run_multi_aspect(dataset_id: str, num_pairs: int):
     ):
         existing.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
 
+    # Replay thinking baseline pairs for fair comparison (same input type)
     baseline_pairs = []
     async for m in db.validation_matches.find(
-        {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:opus46", "completed": True, "failed": {"$ne": True}},
+        {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:thinking", "completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1},
     ):
         pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
@@ -6492,10 +6493,25 @@ async def _run_multi_aspect(dataset_id: str, num_pairs: int):
         baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
         existing.add(pk)
 
+    # If not enough thinking pairs, also use opus46 pairs (they'll still get thinking summaries)
+    if len(baseline_pairs) < num_pairs:
+        async for m in db.validation_matches.find(
+            {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:opus46", "completed": True, "failed": {"$ne": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+        ):
+            pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            if pk in existing:
+                continue
+            g1, g2 = gt.get(m["paper1_id"]), gt.get(m["paper2_id"])
+            if g1 is None or g2 is None or g1 == g2:
+                continue
+            baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
+            existing.add(pk)
+
     random.shuffle(baseline_pairs)
     to_run = baseline_pairs[:num_pairs]
     _ma_state["total"] = len(to_run)
-    logger.info(f"Multi-aspect [{dataset_id}]: replaying {len(to_run)} opus46 cross-tier pairs")
+    logger.info(f"Multi-aspect [{dataset_id}]: replaying {len(to_run)} thinking cross-tier pairs")
 
     sem = asyncio.Semaphore(8)
     completed = 0
