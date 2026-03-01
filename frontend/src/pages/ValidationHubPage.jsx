@@ -16,6 +16,7 @@ import DeeperDiveSection from "./DeeperDiveSection";
 import ICLRDeepDiveSection from "./ICLRDeepDiveSection";
 import ExtendedThinkingSection from "./ExtendedThinkingSection";
 import TieExperimentSection from "./TieExperimentSection";
+import MultiAspectSection from "./MultiAspectSection";
 import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
 import AllPairsSection from "./AllPairsSection";
