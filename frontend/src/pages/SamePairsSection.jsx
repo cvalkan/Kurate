@@ -271,8 +271,8 @@ export default function SamePairsSection() {
               <div className="mt-3 text-[10px] text-muted-foreground space-y-1 border-t border-border/30 pt-2">
                 <p><strong>Reading this table:</strong> Compare rows <em>within</em> a judge (same model, different summarizer) to see the summarizer effect. Compare rows <em>across</em> judges with the same summarizer to see the judge effect.</p>
                 <p><strong>Summarizer effect:</strong> Upgrading from Opus 4.5 to 4.6 summaries reduces cycle rates by 20-50% for every judge model. Thinking summaries reduce them further.</p>
-                <p><strong>Judge effect:</strong> Holding the summarizer constant, Opus 4.6 as judge has 3-5x fewer cycles than Opus 4.5.</p>
-                <p><strong>Confound:</strong> In the shared-pair analysis above, Opus 4.6 always sees its own summaries (thinking/deep-dive), while other judges see a mix. Both effects compound, explaining the large gap.</p>
+                <p><strong>Judge effect:</strong> Holding the summarizer constant (e.g., both using Opus 4.5 summaries), Opus 4.6 as judge has 3-5x fewer cycles than Opus 4.5 (0.37% vs 1.18%). This is a genuine model improvement, not a summarizer artifact.</p>
+                <p><strong>Why the adjusted rate above remains low:</strong> The format+summarizer adjustment (2.51x) already accounts for Opus 4.6 seeing better summaries. The residual 0.61% reflects the <em>judge effect alone</em> — Opus 4.6 produces more transitive rankings even after controlling for its favorable input.</p>
               </div>
             </div>
           </div>
