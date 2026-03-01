@@ -6710,3 +6710,175 @@ async def _run_multi_aspect(dataset_id: str, num_pairs: int):
     await asyncio.gather(*[run_one(a, b) for a, b in to_run], return_exceptions=True)
     invalidate_dataset_cache(dataset_id)
     logger.info(f"Multi-aspect [{dataset_id}]: completed {completed}/{len(to_run)} matches")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Summarizer A/B Experiment (GPT / Gemini / Opus summaries comparison)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+SUMMARIZER_MODELS = {
+    "gpt": {"provider": "openai", "model": "gpt-5.2"},
+    "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
+}
+_sumab_state = {"running": False, "phase": "", "done": 0, "total": 0, "dataset_id": None, "summarizer": None}
+_sumab_task = None
+
+
+@router.post("/summarizer-ab/run", dependencies=[Depends(verify_admin)])
+async def start_summarizer_ab(request: Request):
+    global _sumab_task
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    dataset_id = body.get("dataset_id", "iclr-llm")
+    summarizer = body.get("summarizer", "gpt")  # "gpt" or "gemini"
+    num_pairs = body.get("num_pairs", 300)
+
+    if _sumab_state["running"]:
+        raise HTTPException(409, "Already running")
+    if summarizer not in SUMMARIZER_MODELS:
+        raise HTTPException(400, f"Invalid summarizer: {summarizer}")
+
+    async def _bg():
+        global _sumab_task
+        try:
+            await _run_summarizer_ab(dataset_id, summarizer, num_pairs)
+        except Exception as e:
+            logger.error(f"Summarizer A/B failed: {e}")
+        finally:
+            _sumab_state["running"] = False
+            _sumab_task = None
+
+    _sumab_task = asyncio.create_task(_bg())
+    return {"status": "started", "dataset_id": dataset_id, "summarizer": summarizer, "num_pairs": num_pairs}
+
+
+@router.post("/summarizer-ab/stop", dependencies=[Depends(verify_admin)])
+async def stop_summarizer_ab():
+    global _sumab_task
+    _sumab_state["running"] = False
+    if _sumab_task and not _sumab_task.done():
+        _sumab_task.cancel()
+    return {"status": "stopping"}
+
+
+@router.get("/summarizer-ab/status")
+async def summarizer_ab_status():
+    return _sumab_state
+
+
+async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
+    """Generate summaries with GPT/Gemini, then run round-robin tournament on same pairs as opus46."""
+    from services.llm import generate_precomparison_impact_summary, compare_papers, _pick_round_robin_model
+
+    model_info = SUMMARIZER_MODELS[summarizer]
+    sum_field = f"ai_impact_summary_{summarizer}"
+    content_mode = f"abstract_plus_summary:{summarizer}_summary"
+
+    _sumab_state.update({"running": True, "phase": "generating summaries", "done": 0, "total": 0,
+                         "dataset_id": dataset_id, "summarizer": summarizer})
+
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    lookup = {p["id"]: p for p in papers}
+
+    # Phase 1: Generate summaries for papers that don't have them yet
+    need_summary = [p for p in papers if not p.get(sum_field)]
+    _sumab_state["total"] = len(need_summary)
+    logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: generating {len(need_summary)} summaries")
+
+    sem = asyncio.Semaphore(4)
+    gen_done = 0
+    for p in need_summary:
+        if not _sumab_state["running"]:
+            return
+        async with sem:
+            try:
+                result = await generate_precomparison_impact_summary(p, model_override=model_info)
+                if result and result.get("summary"):
+                    await db.validation_papers.update_one(
+                        {"id": p["id"], "dataset_id": dataset_id},
+                        {"$set": {sum_field: result["summary"]}}
+                    )
+                    lookup[p["id"]][sum_field] = result["summary"]
+                    gen_done += 1
+                    _sumab_state["done"] = gen_done
+            except Exception as e:
+                logger.warning(f"Summary gen failed for {p.get('title', '')[:40]}: {e}")
+
+    # Phase 2: Run tournament on same pairs as opus46 baseline
+    _sumab_state.update({"phase": "running matches", "done": 0})
+    gt = build_paper_gt_scores(papers)
+
+    existing = set()
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": content_mode, "completed": True},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        existing.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+
+    # Replay opus46 pairs
+    baseline_pairs = []
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:opus46", "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        if pk in existing:
+            continue
+        g1, g2 = gt.get(m["paper1_id"]), gt.get(m["paper2_id"])
+        if g1 is None or g2 is None or g1 == g2:
+            continue
+        baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
+        existing.add(pk)
+
+    random.shuffle(baseline_pairs)
+    to_run = baseline_pairs[:num_pairs]
+    _sumab_state["total"] = len(to_run)
+    logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: running {len(to_run)} matches")
+
+    match_sem = asyncio.Semaphore(8)
+    completed = 0
+
+    async def run_one(p1_id, p2_id):
+        nonlocal completed
+        if not _sumab_state["running"]:
+            return
+        async with match_sem:
+            p1, p2 = lookup.get(p1_id, {}), lookup.get(p2_id, {})
+            s1 = p1.get(sum_field, "")
+            s2 = p2.get(sum_field, "")
+            if not s1 or not s2:
+                return
+            p1c = {**p1, "ai_impact_summary": s1}
+            p2c = {**p2, "ai_impact_summary": s2}
+            judge = _pick_round_robin_model()
+            if random.random() < 0.5:
+                p1c, p2c = p2c, p1c
+                p1_id, p2_id = p2_id, p1_id
+            try:
+                result = await compare_papers(p1c, p2c, content_mode="abstract_plus_summary", model_override=judge)
+                if result and not result.get("failed"):
+                    wk = result.get("winner", "paper1")
+                    doc = {
+                        "id": str(uuid.uuid4()),
+                        "dataset_id": dataset_id,
+                        "content_mode": content_mode,
+                        "prompt_tag": f"{summarizer}_summary",
+                        "paper1_id": p1_id, "paper2_id": p2_id,
+                        "winner_id": p1_id if wk == "paper1" else p2_id,
+                        "completed": True, "failed": False,
+                        "model_used": result.get("model_used", judge),
+                        "reasoning": result.get("reasoning", ""),
+                        "tokens": result.get("tokens", {}),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    await db.validation_matches.insert_one(doc)
+                    completed += 1
+                    _sumab_state["done"] = completed
+                    if completed % 50 == 0:
+                        invalidate_dataset_cache(dataset_id)
+            except Exception as e:
+                logger.warning(f"Summarizer A/B match failed: {e}")
+
+    await asyncio.gather(*[run_one(a, b) for a, b in to_run], return_exceptions=True)
+    invalidate_dataset_cache(dataset_id)
+    logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: completed {completed}/{len(to_run)} matches")
+
