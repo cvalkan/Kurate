@@ -2049,6 +2049,35 @@ async def _compute_consistency_analysis():
             "formats": len(fmt_dist),
         }
 
+    # ── Judge × Summarizer cycle breakdown ──
+    SUMMARIZER_MAP = {
+        "abstract_plus_summary": "Opus 4.5",
+        "ai_summary": "Opus 4.5",
+        "abstract_plus_summary:opus46": "Opus 4.6",
+        "abstract_plus_summary:tie_v1": "Opus 4.6",
+        "abstract_plus_summary:thinking": "Opus 4.6 Thinking",
+        "deep_dive": "Opus 4.6 (Deep Dive)",
+    }
+    judge_sum_pairs = defaultdict(dict)
+    for m in all_matches:
+        if not m.get("winner_id"): continue
+        cm = _norm_mode(m)
+        summarizer = SUMMARIZER_MAP.get(cm)
+        if not summarizer: continue
+        mk = _short_model(m.get("model_used", {}))
+        key = (m["dataset_id"], tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+        judge_sum_pairs[(mk, summarizer)][key] = m["winner_id"]
+
+    judge_summarizer_rates = {}
+    for (mk, summarizer), wmap in judge_sum_pairs.items():
+        if len(wmap) < 50: continue
+        cyc, tri = _count_cycles_fast(wmap)
+        judge_summarizer_rates[f"{mk}|{summarizer}"] = {
+            "judge": mk, "summarizer": summarizer,
+            "cycles": cyc, "triples": tri, "pairs": len(wmap),
+            "rate": _rate(cyc, tri),
+        }
+
     # ── Build final response ──
 
     models_seen = sorted(set(mk for (mk, _) in mf_cycles))
