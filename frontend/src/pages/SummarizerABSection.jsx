@@ -135,6 +135,88 @@ export default function SummarizerABSection() {
         )}
       </div>
 
+      {/* Same-pair results */}
+      {results && (() => {
+        const pooled = results.pooled || {};
+        const sorted_models = Object.entries(pooled).sort((a, b) => (b[1].avg_rho || 0) - (a[1].avg_rho || 0));
+        const maxRho = Math.max(...sorted_models.map(([, v]) => v.avg_rho || 0), 0.1);
+        const datasets_arr = Object.entries(results.by_dataset || {});
+
+        return (
+          <>
+            {/* Pooled table */}
+            <div className="border-2 border-blue-200 rounded-lg overflow-hidden bg-blue-50/20" data-testid="sumab-results">
+              <div className="px-3 py-2 bg-blue-100/30 border-b border-blue-200">
+                <h3 className="text-xs font-medium text-blue-900 flex items-center gap-1.5">
+                  <BarChart3 className="h-3 w-3" /> Same-Pair Results (All Comparisons on Identical Pairs)
+                </h3>
+              </div>
+              <div className="p-3">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-blue-200 text-[10px]">
+                      <th className="text-left py-1.5 pr-3 font-medium">Summarizer</th>
+                      <th className="text-right py-1.5 px-2 font-medium">Avg ρ</th>
+                      <th className="text-right py-1.5 px-2 font-medium">Accuracy</th>
+                      <th className="text-right py-1.5 px-2 font-medium">Correct/Total</th>
+                      <th className="py-1.5 px-2 w-1/4"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted_models.map(([name, v]) => (
+                      <tr key={name} className="border-b border-blue-100">
+                        <td className="py-1.5 pr-3 font-medium">{name}</td>
+                        <td className="text-right py-1.5 px-2 font-mono">
+                          {v.avg_rho != null ? <span className={v.avg_rho >= maxRho - 0.01 ? "text-green-600 font-semibold" : ""}>{v.avg_rho.toFixed(3)}</span> : "—"}
+                        </td>
+                        <td className="text-right py-1.5 px-2 font-mono">{v.accuracy}%</td>
+                        <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{v.correct}/{v.total}</td>
+                        <td className="py-1.5 px-2">
+                          <div className="h-2.5 bg-blue-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${((v.avg_rho || 0) / (maxRho * 1.1)) * 100}%`, backgroundColor: SUM_COLORS[name] || "#94a3b8" }} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Per-dataset breakdown */}
+            {datasets_arr.map(([dsId, ds]) => (
+              <div key={dsId} className="border border-border rounded-lg overflow-hidden" data-testid={`sumab-ds-${dsId}`}>
+                <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+                  <h3 className="text-xs font-medium">{ds.name} — {ds.shared_pairs} shared pairs</h3>
+                </div>
+                <div className="p-3">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="border-b border-border text-[10px]">
+                        <th className="text-left py-1 pr-3 font-medium">Summarizer</th>
+                        <th className="text-right py-1 px-2 font-medium">ρ</th>
+                        <th className="text-right py-1 px-2 font-medium">Accuracy</th>
+                        <th className="text-right py-1 px-2 font-medium">Correct/Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(ds.modes || {}).sort((a, b) => (b[1].rho || 0) - (a[1].rho || 0)).map(([name, v]) => (
+                        <tr key={name} className="border-b border-border/30">
+                          <td className="py-1 pr-3 font-medium">{name}</td>
+                          <td className="text-right py-1 px-2 font-mono">{v.rho ?? "—"}</td>
+                          <td className="text-right py-1 px-2 font-mono">{v.accuracy}%</td>
+                          <td className="text-right py-1 px-2 font-mono text-muted-foreground">{v.correct}/{v.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </>
+        );
+      })()}
+
       {/* Data coverage table */}
       {coverageData.length > 0 && (
         <div className="border border-border rounded-lg overflow-hidden" data-testid="sumab-coverage">
