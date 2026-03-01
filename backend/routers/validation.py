@@ -6271,7 +6271,7 @@ async def multi_aspect_results():
     from core.config import MULTI_ASPECT_DIMENSIONS
     import math
 
-    BASELINE_MODE = "abstract_plus_summary:opus46"
+    BASELINE_MODE = "abstract_plus_summary:thinking"  # same input as multi-aspect (thinking summaries)
 
     pipeline = [
         {"$match": {"content_mode": MULTI_ASPECT_MODE, "completed": True, "failed": {"$ne": True}}},
