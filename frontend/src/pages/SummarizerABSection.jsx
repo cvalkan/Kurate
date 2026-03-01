@@ -57,7 +57,7 @@ export default function SummarizerABSection() {
     } catch (e) { console.warn(e); }
   }, []);
 
-  useEffect(() => { fetchStatus(); fetchComparison(); }, [fetchStatus, fetchComparison]);
+  useEffect(() => { fetchStatus(); fetchData(); }, [fetchStatus, fetchData]);
   useEffect(() => {
     if (!running) return;
     const iv = setInterval(fetchStatus, 10000);
