@@ -6213,3 +6213,344 @@ async def _run_tie_experiment(dataset_id: str, num_pairs: int):
     await asyncio.gather(*[run_one(a, b) for a, b in to_run], return_exceptions=True)
     invalidate_dataset_cache(dataset_id)
     logger.info(f"Tie experiment [{dataset_id}]: completed {completed}/{len(to_run)} matches, {ties} ties ({round(ties/max(completed,1)*100,1)}%)")
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Multi-Aspect Judging Experiment
+# ═══════════════════════════════════════════════════════════════════════════════
+
+MULTI_ASPECT_MODE = "abstract_plus_summary:multi_aspect"
+_ma_state = {"running": False, "done": 0, "total": 0, "dataset_id": None}
+_ma_task = None
+
+
+@router.post("/multi-aspect/run", dependencies=[Depends(verify_admin)])
+async def start_multi_aspect(request: Request):
+    global _ma_task
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    dataset_id = body.get("dataset_id", "iclr-llm")
+    num_pairs = body.get("num_pairs", 500)
+
+    if _ma_state["running"]:
+        raise HTTPException(409, "Already running")
+
+    async def _bg():
+        global _ma_task
+        try:
+            await _run_multi_aspect(dataset_id, num_pairs)
+        except Exception as e:
+            logger.error(f"Multi-aspect experiment failed: {e}")
+        finally:
+            _ma_state["running"] = False
+            _ma_task = None
+
+    _ma_task = asyncio.create_task(_bg())
+    return {"status": "started", "dataset_id": dataset_id, "num_pairs": num_pairs}
+
+
+@router.post("/multi-aspect/stop", dependencies=[Depends(verify_admin)])
+async def stop_multi_aspect():
+    global _ma_task
+    _ma_state["running"] = False
+    if _ma_task and not _ma_task.done():
+        _ma_task.cancel()
+    return {"status": "stopping"}
+
+
+@router.get("/multi-aspect/status")
+async def multi_aspect_status():
+    return _ma_state
+
+
+@router.get("/multi-aspect/results")
+async def multi_aspect_results():
+    """Analyze multi-aspect experiment: per-dimension accuracy, aggregate, optimal weighting."""
+    from core.config import MULTI_ASPECT_DIMENSIONS
+    import math
+
+    BASELINE_MODE = "abstract_plus_summary:opus46"
+
+    pipeline = [
+        {"$match": {"content_mode": MULTI_ASPECT_MODE, "completed": True, "failed": {"$ne": True}}},
+        {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+    ]
+    ds_counts = {r["_id"]: r["count"] async for r in db.validation_matches.aggregate(pipeline)}
+    if not ds_counts:
+        return {"status": "no_data"}
+
+    all_datasets = list(ds_counts.keys())
+    # Pooled stats
+    pooled_dim = {d: {"correct": 0, "total": 0} for d in MULTI_ASPECT_DIMENSIONS}
+    pooled_agg = {"correct": 0, "total": 0}
+    pooled_baseline = {"correct": 0, "total": 0}
+    pooled_agreement = {"all_agree": 0, "total": 0}
+    by_dataset = {}
+
+    for ds_id in all_datasets:
+        papers = await db.validation_papers.find(
+            {"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION
+        ).to_list(5000)
+
+        expert_ratings = build_expert_ratings(papers)
+        expert_majority = build_expert_majority(expert_ratings)
+        total_expert_pairs = sum(
+            1 for exp, ratings in expert_ratings.items()
+            for i, a in enumerate(ratings) for b in list(ratings)[i+1:]
+            if ratings[a] != ratings[b]
+        )
+        if len(expert_majority) >= max(20, total_expert_pairs * 0.1):
+            expert_prefs = expert_majority
+        else:
+            expert_prefs = {}
+            for exp, ratings in expert_ratings.items():
+                pids = list(ratings.keys())
+                for i in range(len(pids)):
+                    for j in range(i + 1, len(pids)):
+                        a, b = pids[i], pids[j]
+                        if ratings[a] != ratings[b]:
+                            expert_prefs[tuple(sorted([a, b]))] = a if ratings[a] > ratings[b] else b
+
+        # Load baseline
+        baseline = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": BASELINE_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ):
+            pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            baseline[pk] = m["winner_id"]
+
+        # Load multi-aspect matches
+        ma_matches = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": MULTI_ASPECT_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "aspect_winners": 1},
+        ):
+            pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            ma_matches[pk] = m
+
+        common = set(baseline.keys()) & set(ma_matches.keys()) & set(expert_prefs.keys())
+        if not common:
+            continue
+
+        dim_correct = {d: 0 for d in MULTI_ASPECT_DIMENSIONS}
+        dim_total = {d: 0 for d in MULTI_ASPECT_DIMENSIONS}
+        agg_correct = agg_total = bl_correct = bl_total = 0
+        all_agree_count = 0
+
+        for pk in common:
+            gt = expert_prefs[pk]
+            m = ma_matches[pk]
+            aspects = m.get("aspect_winners", {})
+
+            # Per-dimension accuracy
+            for dim in MULTI_ASPECT_DIMENSIONS:
+                dim_winner = aspects.get(dim)
+                if dim_winner and dim_winner in (pk[0], pk[1]):
+                    dim_total[dim] += 1
+                    if dim_winner == gt:
+                        dim_correct[dim] += 1
+
+            # Aggregate (majority of 5 dimensions)
+            agg_winner = m.get("winner_id")
+            if agg_winner:
+                agg_total += 1
+                if agg_winner == gt:
+                    agg_correct += 1
+
+            # Baseline
+            bl_total += 1
+            if baseline[pk] == gt:
+                bl_correct += 1
+
+            # All-agree rate
+            dim_votes = set(aspects.get(d) for d in MULTI_ASPECT_DIMENSIONS if aspects.get(d))
+            if len(dim_votes) == 1:
+                all_agree_count += 1
+
+        ds_result = {
+            "pairs": len(common),
+            "per_dimension": {},
+            "aggregate": {"correct": agg_correct, "total": agg_total, "rate": round(agg_correct / max(agg_total, 1) * 100, 1)},
+            "baseline": {"correct": bl_correct, "total": bl_total, "rate": round(bl_correct / max(bl_total, 1) * 100, 1)},
+            "agreement": {"all_agree": all_agree_count, "total": len(common), "rate": round(all_agree_count / max(len(common), 1) * 100, 1)},
+        }
+        for dim in MULTI_ASPECT_DIMENSIONS:
+            ds_result["per_dimension"][dim] = {
+                "correct": dim_correct[dim], "total": dim_total[dim],
+                "rate": round(dim_correct[dim] / max(dim_total[dim], 1) * 100, 1),
+            }
+            pooled_dim[dim]["correct"] += dim_correct[dim]
+            pooled_dim[dim]["total"] += dim_total[dim]
+
+        pooled_agg["correct"] += agg_correct
+        pooled_agg["total"] += agg_total
+        pooled_baseline["correct"] += bl_correct
+        pooled_baseline["total"] += bl_total
+        pooled_agreement["all_agree"] += all_agree_count
+        pooled_agreement["total"] += len(common)
+        by_dataset[ds_id] = ds_result
+
+    if not pooled_agg["total"]:
+        return {"status": "no_data"}
+
+    # McNemar: aggregate vs baseline
+    a = b = c = d_val = 0
+    for ds_id in all_datasets:
+        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        expert_ratings = build_expert_ratings(papers)
+        expert_majority = build_expert_majority(expert_ratings)
+        total_ep = sum(1 for exp, ratings in expert_ratings.items() for i, aa in enumerate(ratings) for bb in list(ratings)[i+1:] if ratings[aa] != ratings[bb])
+        if len(expert_majority) >= max(20, total_ep * 0.1):
+            ep = expert_majority
+        else:
+            ep = {}
+            for exp, ratings in expert_ratings.items():
+                pids = list(ratings.keys())
+                for i in range(len(pids)):
+                    for j in range(i + 1, len(pids)):
+                        aa, bb = pids[i], pids[j]
+                        if ratings[aa] != ratings[bb]:
+                            ep[tuple(sorted([aa, bb]))] = aa if ratings[aa] > ratings[bb] else bb
+
+        bl2 = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": BASELINE_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}):
+            bl2[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
+        ma2 = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": MULTI_ASPECT_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}):
+            ma2[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
+        for pk in set(bl2) & set(ma2) & set(ep):
+            gt = ep[pk]
+            bl_ok = bl2[pk] == gt
+            ma_ok = ma2[pk] == gt
+            if bl_ok and ma_ok: a += 1
+            elif bl_ok and not ma_ok: b += 1
+            elif not bl_ok and ma_ok: c += 1
+            else: d_val += 1
+
+    mcnemar = {"pairs": a + b + c + d_val, "only_baseline": b, "only_multi_aspect": c}
+    if b + c > 0:
+        chi2 = (abs(b - c) - 1) ** 2 / (b + c)
+        p_val = math.erfc(math.sqrt(chi2 / 2))
+        mcnemar.update({"chi2": round(chi2, 3), "p_value": round(p_val, 4), "significant": p_val < 0.05})
+    else:
+        mcnemar.update({"chi2": 0, "p_value": 1.0, "significant": False})
+
+    dim_labels = {
+        "novelty": "Novelty & Innovation", "applications": "Real-World Applications",
+        "rigor": "Methodological Rigor", "breadth": "Breadth of Impact", "timeliness": "Timeliness & Relevance",
+    }
+
+    return {
+        "status": "ok",
+        "total_matches": sum(ds_counts.values()),
+        "per_dimension": {dim: {**pooled_dim[dim], "rate": round(pooled_dim[dim]["correct"] / max(pooled_dim[dim]["total"], 1) * 100, 1), "label": dim_labels.get(dim, dim)} for dim in MULTI_ASPECT_DIMENSIONS},
+        "aggregate": {**pooled_agg, "rate": round(pooled_agg["correct"] / max(pooled_agg["total"], 1) * 100, 1)},
+        "baseline": {**pooled_baseline, "rate": round(pooled_baseline["correct"] / max(pooled_baseline["total"], 1) * 100, 1)},
+        "lift": round(pooled_agg["correct"] / max(pooled_agg["total"], 1) * 100 - pooled_baseline["correct"] / max(pooled_baseline["total"], 1) * 100, 1),
+        "mcnemar": mcnemar,
+        "dimension_agreement": {**pooled_agreement, "rate": round(pooled_agreement["all_agree"] / max(pooled_agreement["total"], 1) * 100, 1)},
+        "by_dataset": by_dataset,
+    }
+
+
+async def _run_multi_aspect(dataset_id: str, num_pairs: int):
+    """Replay opus46 baseline cross-tier pairs with multi-aspect prompt."""
+    from services.llm import compare_papers, _pick_round_robin_model
+    from core.config import MULTI_ASPECT_PROMPT, MULTI_ASPECT_DIMENSIONS
+
+    _ma_state.update({"running": True, "done": 0, "total": 0, "dataset_id": dataset_id})
+
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    lookup = {p["id"]: p for p in papers}
+    gt = build_paper_gt_scores(papers)
+
+    existing = set()
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": MULTI_ASPECT_MODE, "completed": True},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        existing.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+
+    baseline_pairs = []
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:opus46", "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        if pk in existing:
+            continue
+        g1, g2 = gt.get(m["paper1_id"]), gt.get(m["paper2_id"])
+        if g1 is None or g2 is None or g1 == g2:
+            continue
+        baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
+        existing.add(pk)
+
+    random.shuffle(baseline_pairs)
+    to_run = baseline_pairs[:num_pairs]
+    _ma_state["total"] = len(to_run)
+    logger.info(f"Multi-aspect [{dataset_id}]: replaying {len(to_run)} opus46 cross-tier pairs")
+
+    sem = asyncio.Semaphore(8)
+    completed = 0
+
+    async def run_one(p1_id, p2_id):
+        nonlocal completed
+        if not _ma_state["running"]:
+            return
+        async with sem:
+            p1, p2 = lookup[p1_id], lookup[p2_id]
+            # Use thinking summaries (best available)
+            s1 = p1.get("ai_impact_summary_thinking", p1.get("ai_impact_summary_opus46", p1.get("ai_impact_summary", "")))
+            s2 = p2.get("ai_impact_summary_thinking", p2.get("ai_impact_summary_opus46", p2.get("ai_impact_summary", "")))
+            if not s1 or not s2:
+                return
+            p1c = {**p1, "ai_impact_summary": s1}
+            p2c = {**p2, "ai_impact_summary": s2}
+            judge = _pick_round_robin_model()
+            if random.random() < 0.5:
+                p1c, p2c = p2c, p1c
+                p1_id, p2_id = p2_id, p1_id
+            try:
+                result = await compare_papers(p1c, p2c, MULTI_ASPECT_PROMPT,
+                    content_mode="abstract_plus_summary", model_override=judge, multi_aspect=True)
+                if result and not result.get("failed"):
+                    # Map dimension winners to paper IDs
+                    aspect_winners = {}
+                    for dim in MULTI_ASPECT_DIMENSIONS:
+                        dw = result.get(dim)
+                        if dw == "paper1":
+                            aspect_winners[dim] = p1_id
+                        elif dw == "paper2":
+                            aspect_winners[dim] = p2_id
+
+                    agg_winner_key = result.get("winner", "paper1")
+                    doc = {
+                        "id": str(uuid.uuid4()),
+                        "dataset_id": dataset_id,
+                        "content_mode": MULTI_ASPECT_MODE,
+                        "prompt_tag": "multi_aspect",
+                        "paper1_id": p1_id, "paper2_id": p2_id,
+                        "winner_id": p1_id if agg_winner_key == "paper1" else p2_id,
+                        "aspect_winners": aspect_winners,
+                        "completed": True, "failed": False,
+                        "model_used": result.get("model_used", judge),
+                        "reasoning": result.get("reasoning", ""),
+                        "tokens": result.get("tokens", {}),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    await db.validation_matches.insert_one(doc)
+                    completed += 1
+                    _ma_state["done"] = completed
+                    if completed % 50 == 0:
+                        invalidate_dataset_cache(dataset_id)
+            except Exception as e:
+                logger.warning(f"Multi-aspect match failed: {e}")
+
+    await asyncio.gather(*[run_one(a, b) for a, b in to_run], return_exceptions=True)
+    invalidate_dataset_cache(dataset_id)
+    logger.info(f"Multi-aspect [{dataset_id}]: completed {completed}/{len(to_run)} matches")
