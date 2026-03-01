@@ -2114,6 +2114,7 @@ async def _compute_consistency_analysis():
                               for fmt, v in sorted(sp_format_cycles.items(), key=lambda x: -x[1][1]) if v[1] >= 10},
             },
             "normalized_comparison": normalized_model_rates,
+            "judge_summarizer": judge_summarizer_rates,
         },
 
         # Section 2: Condorcet Cycles
