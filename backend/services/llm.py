@@ -706,9 +706,20 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                     raise ValueError(f"No JSON found in response: {response_text[:200]}")
 
             result = json.loads(response_text)
-            valid_winners = ["paper1", "paper2", "tie"] if allow_tie else ["paper1", "paper2"]
-            if "winner" not in result or result["winner"] not in valid_winners:
-                raise ValueError(f"Invalid response format: {result}")
+            if multi_aspect:
+                from core.config import MULTI_ASPECT_DIMENSIONS
+                missing = [d for d in MULTI_ASPECT_DIMENSIONS if d not in result or result[d] not in ["paper1", "paper2"]]
+                if missing:
+                    raise ValueError(f"Multi-aspect response missing dimensions: {missing}")
+                # Derive aggregate winner from majority of dimensions
+                from collections import Counter as _Counter
+                votes = [result[d] for d in MULTI_ASPECT_DIMENSIONS]
+                vc = _Counter(votes)
+                result["winner"] = vc.most_common(1)[0][0]
+            else:
+                valid_winners = ["paper1", "paper2", "tie"] if allow_tie else ["paper1", "paper2"]
+                if "winner" not in result or result["winner"] not in valid_winners:
+                    raise ValueError(f"Invalid response format: {result}")
 
             result["model_used"] = model_info
             result["tokens"] = {
