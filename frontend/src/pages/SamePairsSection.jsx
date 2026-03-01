@@ -271,11 +271,12 @@ export default function SamePairsSection() {
                   })}
                 </tbody>
               </table>
-              <div className="mt-3 text-[10px] text-muted-foreground space-y-1 border-t border-border/30 pt-2">
-                <p><strong>Reading this table:</strong> Compare rows <em>within</em> a judge (same model, different summarizer) to see the summarizer effect. Compare rows <em>across</em> judges with the same summarizer to see the judge effect.</p>
+              <div className="mt-3 text-[10px] text-muted-foreground space-y-1.5 border-t border-border/30 pt-2">
+                <p><strong>Reading this table:</strong> Compare rows <em>within</em> a judge (same model, different summarizer) to see the summarizer effect. Compare rows <em>across</em> judges with the same summarizer to see the judge effect. <span className="text-blue-500 font-medium">SELF</span> marks rows where the judge and summarizer are from the same model family.</p>
                 <p><strong>Summarizer effect:</strong> Upgrading from Opus 4.5 to 4.6 summaries reduces cycle rates by 20-50% for every judge model. Thinking summaries reduce them further.</p>
                 <p><strong>Judge effect:</strong> Holding the summarizer constant (e.g., both using Opus 4.5 summaries), Opus 4.6 as judge has 3-5x fewer cycles than Opus 4.5 (0.37% vs 1.18%). This is a genuine model improvement, not a summarizer artifact.</p>
-                <p><strong>Why the adjusted rate above remains low:</strong> The format+summarizer adjustment (2.51x) already accounts for Opus 4.6 seeing better summaries. The residual 0.61% reflects the <em>judge effect alone</em> — Opus 4.6 produces more transitive rankings even after controlling for its favorable input.</p>
+                <p><strong>Self-consistency bias — rejected:</strong> If models were biased toward their own summaries, <span className="text-blue-500 font-medium">SELF</span> rows should have <em>lower</em> cycle rates than cross-family rows. The opposite is true: GPT-5.2 judging its own summaries has the <em>highest</em> cycle rate in its group, and Gemini shows the same pattern. Claude-family summaries produce fewer cycles for <em>all</em> judges regardless of family — indicating higher summarizer quality, not self-alignment.</p>
+                <p><strong>Why the adjusted rate above remains low:</strong> The format+summarizer adjustment (2.51x) accounts for Opus 4.6 seeing better summaries. The residual 0.61% reflects the <em>judge effect alone</em> — Opus 4.6 produces more transitive rankings even after controlling for its favorable input.</p>
               </div>
             </div>
           </div>
