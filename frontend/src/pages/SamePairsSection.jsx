@@ -248,9 +248,12 @@ export default function SamePairsSection() {
                     const color = MODEL_COLORS[judge] || "#94a3b8";
                     const maxRate = Math.max(...Object.values(js).map(v => v.rate), 0.5);
                     return rows.map((r, ri) => (
-                      <tr key={`${judge}-${r.summarizer}`} className={`border-b border-border/30 ${ji > 0 && ri === 0 ? "border-t border-border" : ""}`}>
+                      <tr key={`${judge}-${r.summarizer}`} className={`border-b border-border/30 ${ji > 0 && ri === 0 ? "border-t border-border" : ""} ${r.is_self ? "bg-blue-50/50" : ""}`}>
                         {ri === 0 && <td className="py-1.5 pr-2 font-medium" rowSpan={rows.length}>{judge}</td>}
-                        <td className="py-1.5 px-2 text-muted-foreground">{r.summarizer}</td>
+                        <td className="py-1.5 px-2 text-muted-foreground">
+                          {r.summarizer}
+                          {r.is_self && <span className="ml-1 text-[9px] text-blue-500 font-medium">SELF</span>}
+                        </td>
                         <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{r.pairs.toLocaleString()}</td>
                         <td className="text-right py-1.5 px-2 font-mono text-[10px] text-muted-foreground">{r.cycles}/{r.triples.toLocaleString()}</td>
                         <td className="text-right py-1.5 px-2 font-mono">
