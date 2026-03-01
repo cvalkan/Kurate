@@ -6593,6 +6593,7 @@ async def multi_aspect_results():
         "lift": round(pooled_agg["correct"] / max(pooled_agg["total"], 1) * 100 - pooled_baseline["correct"] / max(pooled_baseline["total"], 1) * 100, 1),
         "mcnemar": mcnemar,
         "dimension_agreement": {**pooled_agreement, "rate": round(pooled_agreement["all_agree"] / max(pooled_agreement["total"], 1) * 100, 1)},
+        "agreement_filters": agree_results,
         "by_dataset": by_dataset,
     }
 
