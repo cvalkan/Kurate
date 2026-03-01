@@ -6447,6 +6447,143 @@ async def multi_aspect_results():
         "rigor": "Methodological Rigor", "breadth": "Breadth of Impact", "timeliness": "Timeliness & Relevance",
     }
 
+    # ── Agreement filter analysis: ranking ρ + accuracy when holistic agrees with MA variants ──
+    from services.ranking import compute_leaderboard
+    import numpy as _np
+
+    agreement_strategies = {}
+    for ds_id in all_datasets:
+        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        paper_list = [{"id": p["id"], "title": p.get("title", "")} for p in papers]
+
+        er2 = build_expert_ratings(papers)
+        hm2 = []
+        for exp, ratings in er2.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    aa, bb = pids[i], pids[j]
+                    if ratings[aa] != ratings[bb]:
+                        hm2.append({"paper1_id": aa, "paper2_id": bb,
+                            "winner_id": aa if ratings[aa] > ratings[bb] else bb, "completed": True, "failed": False})
+
+        # Expert prefs for accuracy
+        em3 = build_expert_majority(er2)
+        total_ep3 = sum(1 for exp, ratings in er2.items() for i, aa in enumerate(ratings) for bb in list(ratings)[i+1:] if ratings[aa] != ratings[bb])
+        ep3 = em3 if len(em3) >= max(20, total_ep3 * 0.1) else {}
+        if not ep3:
+            for exp, ratings in er2.items():
+                pids = list(ratings.keys())
+                for i in range(len(pids)):
+                    for j in range(i + 1, len(pids)):
+                        aa, bb = pids[i], pids[j]
+                        if ratings[aa] != ratings[bb]:
+                            ep3[tuple(sorted([aa, bb]))] = aa if ratings[aa] > ratings[bb] else bb
+
+        hol_map = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": BASELINE_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}):
+            hol_map[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
+
+        ma_raw = {}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": MULTI_ASPECT_MODE},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "aspect_winners": 1}):
+            ma_raw[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m
+
+        cp = set(hol_map) & set(ma_raw)
+        if len(cp) < 20:
+            continue
+
+        # Dim accuracies for Bayesian weights
+        da = {}
+        for dim in MULTI_ASPECT_DIMENSIONS:
+            cor = tot = 0
+            for pk in cp:
+                if pk not in ep3: continue
+                dw = ma_raw[pk].get("aspect_winners", {}).get(dim)
+                if dw: tot += 1; cor += (1 if dw == ep3[pk] else 0)
+            da[dim] = cor / max(tot, 1)
+        bw = _np.array([max(_np.log(max(da[d], 0.01) / max(1-da[d], 0.01)), 0) for d in MULTI_ASPECT_DIMENSIONS])
+
+        def _nar_winner(pk):
+            aw = ma_raw[pk].get("aspect_winners", {})
+            votes = [aw.get("novelty"), aw.get("applications"), aw.get("rigor")]
+            votes = [v for v in votes if v]
+            if len(votes) >= 2:
+                c = Counter(votes)
+                return c.most_common(1)[0][0]
+            return ma_raw[pk]["winner_id"]
+
+        def _bayes_winner(pk):
+            aw = ma_raw[pk].get("aspect_winners", {})
+            s1 = sum(bw[i] for i, d in enumerate(MULTI_ASPECT_DIMENSIONS) if aw.get(d) == pk[0])
+            s2 = sum(bw[i] for i, d in enumerate(MULTI_ASPECT_DIMENSIONS) if aw.get(d) == pk[1])
+            return pk[0] if s1 > s2 else pk[1] if s2 > s1 else ma_raw[pk]["winner_id"]
+
+        filters = {
+            "H+MA Agree": {pk for pk in cp if hol_map[pk] == ma_raw[pk]["winner_id"]},
+            "H+Bayes Agree": {pk for pk in cp if hol_map[pk] == _bayes_winner(pk)},
+            "H+NAR Agree": {pk for pk in cp if hol_map[pk] == _nar_winner(pk)},
+        }
+
+        for fname, pair_set in filters.items():
+            matches = [{"paper1_id": pk[0], "paper2_id": pk[1], "winner_id": hol_map[pk],
+                        "completed": True, "failed": False} for pk in pair_set]
+            if len(matches) < 10: continue
+
+            # Ranking correlation
+            try:
+                ai_lb = await compute_leaderboard_async(paper_list, matches)
+                h_lb = await compute_leaderboard_async(paper_list, hm2)
+                ai_s = {e["id"]: e["score"] for e in ai_lb}
+                h_s = {e["id"]: e["score"] for e in h_lb}
+                common_ids = sorted(set(ai_s) & set(h_s))
+                if len(common_ids) >= 10:
+                    rho, _ = scipy_stats.spearmanr([ai_s[c] for c in common_ids], [h_s[c] for c in common_ids])
+                    rho = safe_round(rho)
+                else:
+                    rho = None
+            except Exception:
+                rho = None
+
+            # Accuracy
+            cor = tot = 0
+            for pk in pair_set:
+                if pk in ep3: tot += 1; cor += (1 if hol_map[pk] == ep3[pk] else 0)
+            acc = round(cor / max(tot, 1) * 100, 1)
+
+            if fname not in agreement_strategies:
+                agreement_strategies[fname] = {"rho_sum": 0, "rho_n": 0, "correct": 0, "total": 0, "pairs": 0, "by_ds": {}}
+            s = agreement_strategies[fname]
+            if rho is not None:
+                s["rho_sum"] += rho * len(pair_set)
+                s["rho_n"] += len(pair_set)
+            s["correct"] += cor; s["total"] += tot; s["pairs"] += len(pair_set)
+            s["by_ds"][ds_id] = {"rho": rho, "acc": acc, "pairs": len(pair_set), "coverage": round(len(pair_set)/len(cp)*100, 1)}
+
+    # Also compute holistic baseline ρ per dataset for comparison
+    hol_rho_sum = hol_rho_n = hol_correct = hol_total = hol_pairs = 0
+    for ds_id in all_datasets:
+        ds_entry = by_dataset.get(ds_id)
+        if not ds_entry: continue
+        # Reuse the baseline data already computed
+        hol_correct += ds_entry["baseline"]["correct"]
+        hol_total += ds_entry["baseline"]["total"]
+        hol_pairs += ds_entry["pairs"]
+
+    # Format agreement strategies for response
+    agree_results = {}
+    for fname, s in agreement_strategies.items():
+        agree_results[fname] = {
+            "avg_rho": round(s["rho_sum"] / max(s["rho_n"], 1), 4),
+            "accuracy": round(s["correct"] / max(s["total"], 1) * 100, 1),
+            "correct": s["correct"], "total": s["total"], "pairs": s["pairs"],
+            "avg_coverage": round(s["pairs"] / max(pooled_agg["total"], 1) * 100, 1),
+            "by_dataset": s["by_ds"],
+        }
+
     return {
         "status": "ok",
         "total_matches": sum(ds_counts.values()),
