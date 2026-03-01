@@ -2057,7 +2057,16 @@ async def _compute_consistency_analysis():
         "abstract_plus_summary:tie_v1": "Opus 4.6",
         "abstract_plus_summary:thinking": "Opus 4.6 Thinking",
         "deep_dive": "Opus 4.6 (Deep Dive)",
+        "abstract_plus_summary:gpt_summary": "GPT-5.2",
+        "abstract_plus_summary:gemini_summary": "Gemini 3 Pro",
     }
+    SELF_FAMILY = {
+        "Opus 4.5": "Claude", "Opus 4.6": "Claude",
+        "Opus 4.6 Thinking": "Claude", "Opus 4.6 (Deep Dive)": "Claude",
+        "GPT-5.2": "GPT", "Gemini 3 Pro": "Gemini",
+    }
+    JUDGE_FAMILY = {"Opus 4.5": "Claude", "Opus 4.6": "Claude", "GPT-5.2": "GPT", "Gemini 3 Pro": "Gemini"}
+
     judge_sum_pairs = defaultdict(dict)
     for m in all_matches:
         if not m.get("winner_id"): continue
@@ -2070,12 +2079,13 @@ async def _compute_consistency_analysis():
 
     judge_summarizer_rates = {}
     for (mk, summarizer), wmap in judge_sum_pairs.items():
-        if len(wmap) < 50: continue
+        if len(wmap) < 30: continue
         cyc, tri = _count_cycles_fast(wmap)
+        is_self = JUDGE_FAMILY.get(mk) == SELF_FAMILY.get(summarizer)
         judge_summarizer_rates[f"{mk}|{summarizer}"] = {
             "judge": mk, "summarizer": summarizer,
             "cycles": cyc, "triples": tri, "pairs": len(wmap),
-            "rate": _rate(cyc, tri),
+            "rate": _rate(cyc, tri), "is_self": is_self,
         }
 
     # ── Build final response ──
