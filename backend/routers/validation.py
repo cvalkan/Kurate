@@ -6725,6 +6725,125 @@ _sumab_task = None
 
 
 @router.post("/summarizer-ab/run", dependencies=[Depends(verify_admin)])
+
+@router.get("/summarizer-ab/results")
+async def summarizer_ab_results():
+    """Same-pair comparison of all summarizer models."""
+    from services.ranking import compute_leaderboard as _sync_lb
+
+    SUM_MODES = {
+        "Opus 4.5": "abstract_plus_summary",
+        "Opus 4.6": "abstract_plus_summary:opus46",
+        "Opus 4.6 Thinking": "abstract_plus_summary:thinking",
+        "GPT-5.2": "abstract_plus_summary:gpt_summary",
+        "Gemini 3 Pro": "abstract_plus_summary:gemini_summary",
+    }
+
+    datasets = ["iclr-llm", "iclr-codegen"]
+    ds_names = {"iclr-llm": "ICLR LLM", "iclr-codegen": "ICLR Code Gen"}
+
+    by_dataset = {}
+    pooled = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
+
+    for ds_id in datasets:
+        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        paper_list = [{"id": p["id"], "title": p.get("title", "")} for p in papers]
+
+        expert_ratings = build_expert_ratings(papers)
+        expert_majority = build_expert_majority(expert_ratings)
+        total_ep = sum(1 for exp, ratings in expert_ratings.items() for i, a in enumerate(ratings) for b in list(ratings)[i+1:] if ratings[a] != ratings[b])
+        ep = expert_majority if len(expert_majority) >= max(20, total_ep * 0.1) else {}
+        if not ep:
+            for exp, ratings in expert_ratings.items():
+                pids = list(ratings.keys())
+                for i in range(len(pids)):
+                    for j in range(i + 1, len(pids)):
+                        a, b = pids[i], pids[j]
+                        if ratings[a] != ratings[b]:
+                            ep[tuple(sorted([a, b]))] = a if ratings[a] > ratings[b] else b
+
+        human_matches = []
+        for exp, ratings in expert_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] != ratings[b]:
+                        human_matches.append({"paper1_id": a, "paper2_id": b,
+                            "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
+
+        mode_map = {}
+        for name, cm in SUM_MODES.items():
+            pairs = {}
+            async for m in db.validation_matches.find(
+                {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": cm},
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}):
+                pairs[tuple(sorted([m["paper1_id"], m["paper2_id"]]))] = m["winner_id"]
+            if pairs:
+                mode_map[name] = pairs
+
+        # Find intersection of all available modes
+        shared = None
+        available_modes = []
+        for name, pairs in mode_map.items():
+            if len(pairs) < 30: continue
+            available_modes.append(name)
+            if shared is None: shared = set(pairs.keys())
+            else: shared &= set(pairs.keys())
+
+        if not shared or len(shared) < 20:
+            continue
+
+        ds_result = {"name": ds_names.get(ds_id, ds_id), "shared_pairs": len(shared), "modes": {}}
+        for name in available_modes:
+            matches_sub = [{"paper1_id": pk[0], "paper2_id": pk[1], "winner_id": mode_map[name][pk],
+                            "completed": True, "failed": False} for pk in shared]
+            # Ranking correlation
+            rho = None
+            try:
+                ai_lb = await compute_leaderboard_async(paper_list, matches_sub)
+                h_lb = await compute_leaderboard_async(paper_list, human_matches)
+                ai_s = {e["id"]: e["score"] for e in ai_lb}
+                h_s = {e["id"]: e["score"] for e in h_lb}
+                common_ids = sorted(set(ai_s) & set(h_s))
+                if len(common_ids) >= 10:
+                    import scipy.stats
+                    r, _ = scipy.stats.spearmanr([ai_s[c] for c in common_ids], [h_s[c] for c in common_ids])
+                    rho = safe_round(r)
+            except Exception:
+                pass
+
+            # Accuracy
+            correct = total = 0
+            for pk in shared:
+                if pk in ep:
+                    total += 1
+                    if mode_map[name][pk] == ep[pk]: correct += 1
+            acc = round(correct / max(total, 1) * 100, 1)
+
+            ds_result["modes"][name] = {"rho": rho, "accuracy": acc, "correct": correct, "total": total}
+            if rho is not None:
+                pooled[name]["rho_vals"].append(rho)
+            pooled[name]["correct"] += correct
+            pooled[name]["total"] += total
+
+        by_dataset[ds_id] = ds_result
+
+    if not by_dataset:
+        return {"status": "no_data"}
+
+    pooled_results = {}
+    for name, v in pooled.items():
+        pooled_results[name] = {
+            "avg_rho": round(sum(v["rho_vals"]) / max(len(v["rho_vals"]), 1), 4) if v["rho_vals"] else None,
+            "accuracy": round(v["correct"] / max(v["total"], 1) * 100, 1),
+            "correct": v["correct"], "total": v["total"],
+            "datasets": len(v["rho_vals"]),
+        }
+
+    return {"status": "ok", "by_dataset": by_dataset, "pooled": pooled_results}
+
+
 async def start_summarizer_ab(request: Request):
     global _sumab_task
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
