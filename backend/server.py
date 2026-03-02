@@ -12,6 +12,7 @@ from routers.auth import router as auth_router
 from routers.suggestions import router as suggestions_router
 from routers.validation import router as validation_router
 from routers.validation_imports import router as validation_imports_router
+from routers.validation_experiments import router as validation_experiments_router
 from routers.pairwise import router as pairwise_router
 from routers.scipost import router as scipost_router
 from routers.qeios import router as qeios_router
@@ -90,6 +91,7 @@ app.include_router(auth_router)
 app.include_router(suggestions_router)
 app.include_router(validation_router)
 app.include_router(validation_imports_router)
+app.include_router(validation_experiments_router)
 app.include_router(pairwise_router)
 app.include_router(scipost_router)
 app.include_router(qeios_router)
@@ -354,30 +356,32 @@ async def _prewarm_consistency_cache():
     """Pre-warm consistency analysis and cycle-analysis-all caches (expensive)."""
     await asyncio.sleep(15)  # Wait for other caches
     try:
-        from routers.validation import _compute_consistency_analysis, _consistency_cache, _compute_cycle_analysis_all, _cycle_all_cache
+        from routers.validation import _compute_consistency_analysis, _compute_cycle_analysis_all
+        from routers.validation_utils import consistency_cache, cycle_all_cache
         import time as _t
         result = await _compute_consistency_analysis()
         if result.get("status") == "ok":
-            _consistency_cache["data"] = result
-            _consistency_cache["ts"] = _t.time()
+            consistency_cache["data"] = result
+            consistency_cache["ts"] = _t.time()
         result2 = await _compute_cycle_analysis_all()
         if result2.get("status") == "ok":
-            _cycle_all_cache["data"] = result2
-            _cycle_all_cache["ts"] = _t.time()
+            cycle_all_cache["data"] = result2
+            cycle_all_cache["ts"] = _t.time()
         logger.info("Consistency + cycle-analysis-all caches pre-warmed")
     except Exception as e:
         logger.warning(f"Consistency cache prewarm failed: {e}")
     # Also warm summarizer experiment caches
     try:
-        from routers.validation import _compute_summarizer_ab_results, _sumab_results_cache, _compute_assessor_evaluator, _ae_cache
+        from routers.validation_experiments import _compute_summarizer_ab_results, _compute_assessor_evaluator
+        from routers.validation_utils import sumab_results_cache, ae_cache
         r1 = await _compute_summarizer_ab_results()
         if r1.get("status") == "ok":
-            _sumab_results_cache["data"] = r1
-            _sumab_results_cache["ts"] = _t.time()
+            sumab_results_cache["data"] = r1
+            sumab_results_cache["ts"] = _t.time()
         r2 = await _compute_assessor_evaluator()
         if r2.get("status") == "ok":
-            _ae_cache["data"] = r2
-            _ae_cache["ts"] = _t.time()
+            ae_cache["data"] = r2
+            ae_cache["ts"] = _t.time()
         logger.info("Summarizer experiment caches pre-warmed")
     except Exception as e:
         logger.warning(f"Summarizer cache prewarm failed: {e}")
@@ -465,7 +469,7 @@ async def _startup_resume_summarizer_ab():
     """Resume incomplete summarizer-ab tasks that were interrupted by a restart."""
     await asyncio.sleep(30)  # Wait for caches + scheduler to be ready
     try:
-        from routers.validation import resume_incomplete_summarizer_ab
+        from routers.validation_experiments import resume_incomplete_summarizer_ab
         await resume_incomplete_summarizer_ab()
     except Exception as e:
         logger.warning(f"Summarizer-ab resume failed: {e}")

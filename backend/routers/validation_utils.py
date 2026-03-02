@@ -307,3 +307,26 @@ def invalidate_dataset_cache(dataset_id: str):
     to_del = [k for k in _result_cache if k[1] == dataset_id]
     for k in to_del:
         del _result_cache[k]
+
+
+
+# ─── Shared Caches (used by analysis and experiment modules) ──────────────────
+
+# Consistency analysis caches
+consistency_cache = {"data": None, "ts": 0}
+cycle_all_cache = {"data": None, "ts": 0}
+CONSISTENCY_TTL = 3600  # 1 hour
+
+# Convergence-all per-dataset cache
+convergence_all_cache = {}  # dataset_id -> {"data": ..., "ts": float}
+CONV_CACHE_TTL = 3600
+
+# Summarizer experiment caches
+ae_cache = {"data": None, "ts": 0}
+sumab_results_cache = {"data": None, "ts": 0}
+
+
+def invalidate_all_caches(dataset_id: str):
+    """Invalidate all caches for a dataset — call after any experiment adds matches."""
+    invalidate_dataset_cache(dataset_id)
+    convergence_all_cache.pop(dataset_id, None)
