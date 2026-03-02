@@ -154,6 +154,11 @@ export default function SummarizerABSection() {
                 <h3 className="text-xs font-medium text-blue-900 flex items-center gap-1.5">
                   <BarChart3 className="h-3 w-3" /> Same-Pair Results (All Comparisons on Identical Pairs)
                 </h3>
+                {results.pooled_datasets && (
+                  <p className="text-[10px] text-blue-700 mt-0.5">
+                    Pooled over {results.pooled_datasets.length} datasets where all compared summarizers have data: {results.pooled_datasets.map(d => d.replace("iclr-", "").replace("elife-", "e:")).join(", ")}
+                  </p>
+                )}
               </div>
               <div className="p-3">
                 <table className="w-full text-[11px]">

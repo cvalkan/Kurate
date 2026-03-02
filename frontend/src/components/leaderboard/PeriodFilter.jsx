@@ -5,8 +5,8 @@ import { Clock, Calendar, CalendarDays, Infinity, Search, X, Lock } from "lucide
 
 const PERIODS = [
   { key: "recent", label: "Most Recent", icon: Clock },
-  { key: "week", label: "This Week", icon: Calendar },
-  { key: "month", label: "This Month", icon: CalendarDays },
+  { key: "week", label: "Last 7 Days", icon: Calendar },
+  { key: "month", label: "Last 30 Days", icon: CalendarDays },
   { key: "all", label: "All Time", icon: Infinity },
 ];
 
