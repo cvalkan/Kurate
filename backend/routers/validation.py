@@ -6287,33 +6287,24 @@ async def summarizer_ab_status():
 
 @router.post("/summarizer-ab/queue-batch", dependencies=[Depends(verify_admin)])
 async def queue_summarizer_ab_batch(request: Request):
-    """Queue GPT+Gemini summary generation for multiple datasets.
+    """Queue GPT+Gemini summary generation for specified datasets.
 
-    Accepts {"datasets": ["iclr-fairness", ...]} or runs for ALL datasets
-    that are missing GPT/Gemini summaries if no datasets are specified.
+    Requires {"datasets": ["iclr-fairness", ...]}. No auto-detect — explicit list only.
+    Also accepts {"summarizers": ["gpt"]} to limit to specific summarizers (default: both).
     """
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     requested_datasets = body.get("datasets", [])
+    summarizers = body.get("summarizers", ["gpt", "gemini"])
     num_pairs = body.get("num_pairs", 300)
 
     if not requested_datasets:
-        # Auto-detect: find all ICLR/eLife datasets with papers but missing GPT or Gemini summaries
-        pipeline = [
-            {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
-        ]
-        all_ds = [doc["_id"] async for doc in db.validation_papers.aggregate(pipeline)]
-        for ds_id in all_ds:
-            for summarizer in ["gpt", "gemini"]:
-                field = f"ai_impact_summary_{summarizer}"
-                total = await db.validation_papers.count_documents({"dataset_id": ds_id})
-                with_sum = await db.validation_papers.count_documents({"dataset_id": ds_id, field: {"$exists": True, "$ne": None, "$ne": ""}})
-                if total > 0 and with_sum < total:
-                    requested_datasets.append(ds_id)
-        requested_datasets = list(set(requested_datasets))
+        raise HTTPException(400, "datasets list is required")
 
     queued = []
     for ds_id in requested_datasets:
-        for summarizer in ["gpt", "gemini"]:
+        for summarizer in summarizers:
+            if summarizer not in SUMMARIZER_MODELS:
+                continue
             # Skip if already complete
             existing = await db.summarizer_ab_tasks.find_one(
                 {"dataset_id": ds_id, "summarizer": summarizer}, {"_id": 0, "status": 1}
