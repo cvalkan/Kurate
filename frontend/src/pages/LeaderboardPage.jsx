@@ -20,7 +20,7 @@ export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [categories, setCategories] = useState([]);
   const [category, setCategory] = useState(searchParams.get("cat") || "");
-  const [period, setPeriod] = useState(searchParams.get("period") || "week");
+  const [period, setPeriod] = useState(searchParams.get("period") || "all");
   const [loading, setLoading] = useState(true);
   const [warmingUp, setWarmingUp] = useState(false);
   const [totalPapers, setTotalPapers] = useState(0);
