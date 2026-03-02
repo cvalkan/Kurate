@@ -255,8 +255,9 @@ export default function ValidationHubPage() {
               <CollapsibleGroup label="Multi-Aspect" defaultOpen={selected === "exp-multi-aspect"}>
                 <NavItem item={{ id: "exp-multi-aspect", label: "5 Dimensions", sub: "Per-aspect judgments" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
-              <CollapsibleGroup label="Summarizer A/B" defaultOpen={selected === "exp-summarizer-cross"}>
+              <CollapsibleGroup label="Summarizer A/B" defaultOpen={selected === "exp-summarizer-cross" || selected === "exp-assessor-evaluator"}>
                 <NavItem item={{ id: "exp-summarizer-cross", label: "GPT vs Gemini vs Opus", sub: "Summary model comparison" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-assessor-evaluator", label: "Assessor vs Evaluator", sub: "Full matrix" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
               <CollapsibleGroup label="Consistency" defaultOpen={selected === "exp-cycle-analysis" || selected === "exp-consistency"}>
                 <NavItem item={{ id: "exp-consistency", label: "Same Pairs", sub: "Verdict flips across conditions" }} selected={selected} onSelect={setSelected} />
