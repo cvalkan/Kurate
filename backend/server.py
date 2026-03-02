@@ -294,16 +294,24 @@ async def startup():
     from routers.leaderboard import start_cache_bg
     start_cache_bg()
 
-    # Pre-warm extraction stats cache in background (expensive computation)
+    # Pre-warm caches and run startup tasks in background.
+    # Use globals() lookup to avoid NameError during hot-reload (uvicorn --reload
+    # can fire the startup event before all module-level functions are defined).
     import asyncio
-    asyncio.create_task(_prewarm_extraction_cache())
-    asyncio.create_task(_prewarm_validation_cache())
-    asyncio.create_task(_prewarm_analysis_cache())
-    asyncio.create_task(_prewarm_consistency_cache())
-    asyncio.create_task(_startup_dedup())
-    asyncio.create_task(_startup_regen_truncated_summaries())
-    asyncio.create_task(_startup_resume_summarizer_ab())
-    asyncio.create_task(_startup_check_interrupted_tasks())
+    _bg_tasks = [
+        "_prewarm_extraction_cache", "_prewarm_validation_cache",
+        "_prewarm_analysis_cache", "_prewarm_consistency_cache",
+        "_startup_dedup", "_startup_regen_truncated_summaries",
+        "_startup_resume_summarizer_ab", "_startup_check_interrupted_tasks",
+        "_startup_seed_experiment_data",
+    ]
+    _g = globals()
+    for _name in _bg_tasks:
+        _fn = _g.get(_name)
+        if _fn:
+            asyncio.create_task(_fn())
+        else:
+            logger.warning(f"Startup task {_name} not yet defined (hot-reload race)")
 
     logger.info("PaperSumo Leaderboard started")
 
@@ -486,6 +494,80 @@ async def _startup_check_interrupted_tasks():
             logger.info("No interrupted background tasks found")
     except Exception as e:
         logger.warning(f"Interrupted task check failed: {e}")
+
+
+async def _startup_seed_experiment_data():
+    """One-time import: seed experiment data (GPT/Gemini summaries + matches) from bundled files.
+
+    Gated by a DB flag so it only runs once per database. Uses upsert-by-id
+    so re-running is safe (skips existing documents).
+    """
+    await asyncio.sleep(8)
+    try:
+        flag = await db.settings.find_one({"key": "experiment_seed_v1"}, {"_id": 0})
+        if flag and flag.get("done"):
+            return
+
+        from pathlib import Path
+        import json as _json
+        seed_dir = Path("/app/backend/data/experiment_seed")
+        if not seed_dir.exists():
+            return
+
+        total_imported = 0
+
+        # 1. Import paper summaries (GPT/Gemini fields)
+        summaries_path = seed_dir / "paper_summaries.json"
+        if summaries_path.exists():
+            with open(summaries_path) as f:
+                summaries = _json.load(f)
+            updated = 0
+            for s in summaries:
+                update_fields = {}
+                if s.get("ai_impact_summary_gpt"):
+                    update_fields["ai_impact_summary_gpt"] = s["ai_impact_summary_gpt"]
+                if s.get("ai_impact_summary_gemini"):
+                    update_fields["ai_impact_summary_gemini"] = s["ai_impact_summary_gemini"]
+                if update_fields:
+                    result = await db.validation_papers.update_one(
+                        {"id": s["id"], "dataset_id": s["dataset_id"]},
+                        {"$set": update_fields},
+                    )
+                    if result.modified_count > 0:
+                        updated += 1
+            logger.info(f"Experiment seed: updated {updated}/{len(summaries)} paper summaries")
+            total_imported += updated
+
+        # 2. Import experiment matches (skip existing by match id)
+        for filename in ["summarizer_matches.json", "opus_fill_matches.json"]:
+            match_path = seed_dir / filename
+            if not match_path.exists():
+                continue
+            with open(match_path) as f:
+                matches = _json.load(f)
+            # Batch check which match IDs already exist
+            existing_ids = set()
+            match_ids = [m["id"] for m in matches if m.get("id")]
+            if match_ids:
+                async for doc in db.validation_matches.find(
+                    {"id": {"$in": match_ids}}, {"_id": 0, "id": 1}
+                ):
+                    existing_ids.add(doc["id"])
+            new_matches = [m for m in matches if m.get("id") and m["id"] not in existing_ids]
+            if new_matches:
+                await db.validation_matches.insert_many(new_matches)
+            logger.info(f"Experiment seed: {filename} — {len(new_matches)} new matches ({len(existing_ids)} already existed)")
+            total_imported += len(new_matches)
+
+        # Mark as done
+        await db.settings.update_one(
+            {"key": "experiment_seed_v1"},
+            {"$set": {"key": "experiment_seed_v1", "done": True, "imported": total_imported}},
+            upsert=True,
+        )
+        logger.info(f"Experiment seed complete: {total_imported} total items imported")
+    except Exception as e:
+        logger.error(f"Experiment seed failed: {e}")
 
 
 
