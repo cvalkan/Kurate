@@ -539,25 +539,39 @@ async def _startup_seed_experiment_data():
             logger.info(f"Experiment seed: {ds_imported} new validation datasets (of {len(datasets)})")
             total_imported += ds_imported
 
-        # 2. Validation papers (upsert by id — adds new papers AND updates summaries on existing)
+        # 2. Validation papers — insert new papers, update ONLY summary fields on existing
+        #    NEVER overwrite existing paper data (evaluations, scores, full_text may differ on production)
         papers = _load_gz("validation_papers.json.gz")
         if papers:
             new_papers = 0
             updated_papers = 0
+            SUMMARY_FIELDS = ["ai_impact_summary", "ai_impact_summary_thinking",
+                              "ai_impact_summary_opus46", "ai_impact_summary_gpt",
+                              "ai_impact_summary_gemini"]
             for p in papers:
                 pid = p.get("id")
                 if not pid:
                     continue
-                result = await db.validation_papers.update_one(
-                    {"id": pid},
-                    {"$set": p},
-                    upsert=True,
-                )
-                if result.upserted_id:
+                existing = await db.validation_papers.find_one({"id": pid}, {"_id": 0, "id": 1})
+                if existing:
+                    # Paper exists — only update summary fields that are missing on production
+                    update = {}
+                    for field in SUMMARY_FIELDS:
+                        if p.get(field):
+                            update[field] = p[field]
+                    if update:
+                        # $set only adds/updates specified fields, doesn't touch anything else
+                        result = await db.validation_papers.update_one(
+                            {"id": pid},
+                            {"$set": update},
+                        )
+                        if result.modified_count > 0:
+                            updated_papers += 1
+                else:
+                    # Paper doesn't exist — insert the full document
+                    await db.validation_papers.insert_one(p)
                     new_papers += 1
-                elif result.modified_count > 0:
-                    updated_papers += 1
-            logger.info(f"Experiment seed: {new_papers} new papers, {updated_papers} updated (of {len(papers)})")
+            logger.info(f"Experiment seed: {new_papers} new papers, {updated_papers} summary updates (of {len(papers)})")
             total_imported += new_papers + updated_papers
 
         # 3. Validation matches (skip existing by id)
