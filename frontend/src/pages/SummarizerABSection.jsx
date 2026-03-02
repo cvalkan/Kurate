@@ -68,7 +68,7 @@ export default function SummarizerABSection() {
     try {
       await axios.post(`${API}/api/validation/summarizer-ab/run`,
         { dataset_id: selectedDs, summarizer: selectedSum, num_pairs: 300 },
-        { headers: ADMIN_HEADERS });
+        { headers: getAdminHeaders() });
       setRunning(true);
       fetchStatus();
     } catch (e) { console.error(e); }
