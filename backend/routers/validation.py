@@ -6893,7 +6893,9 @@ async def summarizer_ab_results():
     }
 
     datasets = ["iclr-llm", "iclr-codegen"]
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
     ds_names = {"iclr-llm": "ICLR LLM", "iclr-codegen": "ICLR Code Gen"}
+    ds_names.update({d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta})
     # Auto-discover additional datasets with GPT/Gemini data
     ds_pipeline = [
         {"$match": {"content_mode": {"$in": ["abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary"]}, "completed": True}},
@@ -6904,9 +6906,9 @@ async def summarizer_ab_results():
     for ds in extra:
         if ds not in datasets:
             datasets.append(ds)
-            ds_names[ds] = ds.replace("-", " ").replace("_", " ").title()
 
     by_dataset = {}
+    pooled = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
     pooled = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
 
     for ds_id in datasets:
