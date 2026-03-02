@@ -560,7 +560,8 @@ async def _prewarm_result_cache():
     await asyncio.sleep(5)
     while True:
         try:
-            from routers.validation import get_pairwise_results, get_convergence_all, _convergence_all_cache
+            from routers.validation import get_pairwise_results, get_convergence_all
+            from routers.validation_utils import convergence_all_cache
             pipeline = [
                 {"$match": {"completed": True, "failed": {"$ne": True}}},
                 {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},

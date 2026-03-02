@@ -1836,11 +1836,41 @@ async def get_convergence(dataset_id: str = Query(...), content_mode: Optional[s
         await cache_set("convergence", dataset_id, content_mode or "", result)
     return result
 
-async def _compute_convergence(dataset_id: str, content_mode: Optional[str], steps: int):
+async def _compute_convergence(dataset_id: str, content_mode: Optional[str], steps: int, _preloaded: dict = None):
+    """Compute convergence curve for a dataset+mode.
+    
+    Args:
+        _preloaded: Optional dict with pre-loaded data to avoid redundant DB queries
+                    when called in batch from convergence-all. Keys:
+                    papers, human_matches, gt_lb, gt_rank, gt_score, gt_topk, 
+                    paper_tiers, paper_avg_score, sig_map, str_map, has_dual, has_tiers, etc.
+    """
     settings = await get_settings()
     top_k_focus = settings.get("top_k_focus", 10)
 
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    if _preloaded:
+        papers = _preloaded["papers"]
+        human_matches = _preloaded["human_matches"]
+        h_ids = _preloaded["h_ids"]
+        h_largest_component = _preloaded["h_largest_component"]
+        h_components = []  # not needed for computation, just for metadata
+        h_component_sizes = _preloaded.get("h_component_sizes", [])
+        gt_lb = _preloaded["gt_lb"]
+        gt_rank = _preloaded["gt_rank"]
+        gt_score = _preloaded["gt_score"]
+        gt_topk = _preloaded["gt_topk"]
+        has_tiers = _preloaded["has_tiers"]
+        paper_tiers = _preloaded["paper_tiers"]
+        paper_avg_score = _preloaded["paper_avg_score"]
+        tier_ranked_papers = _preloaded["tier_ranked_papers"]
+        tier_rank_map = _preloaded["tier_rank_map"]
+        sig_map = _preloaded["sig_map"]
+        str_map = _preloaded["str_map"]
+        has_dual = _preloaded["has_dual"]
+        top_k_values = _preloaded["top_k_values"]
+        expert_ratings = _preloaded.get("expert_ratings", {})
+    else:
+        papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
     if not papers:
         return {"status": "no_data"}
 
@@ -1871,89 +1901,85 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 
     all_matches.sort(key=lambda m: m.get("created_at", ""))
 
-    # Derive human ground truth from expert ratings
-    expert_ratings = defaultdict(dict)
-    for p in papers:
-        for ev in p.get("evaluations", []):
-            name = ev.get("evaluator", "")
-            if name:
-                expert_ratings[name][p["id"]] = ev["rating_value"]
+    if not _preloaded:
+        # Derive human ground truth from expert ratings
+        expert_ratings = defaultdict(dict)
+        for p in papers:
+            for ev in p.get("evaluations", []):
+                name = ev.get("evaluator", "")
+                if name:
+                    expert_ratings[name][p["id"]] = ev["rating_value"]
 
-    human_matches = []
-    for exp, ratings in expert_ratings.items():
-        pids = list(ratings.keys())
-        for i in range(len(pids)):
-            for j in range(i + 1, len(pids)):
-                a, b = pids[i], pids[j]
-                if ratings[a] != ratings[b]:
-                    human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
+        human_matches = []
+        for exp, ratings in expert_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] != ratings[b]:
+                        human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
 
-    # For datasets with dual dimensions (eLife sig + strength), the aggregate
-    # ranking correlation is computed as the average of per-dimension correlations.
-    # Human matches here use rating_value (= significance for eLife) for BT ranking baseline.
-    sig_map = {p["id"]: p.get("sig_score") for p in papers if p.get("sig_score") is not None}
-    str_map = {p["id"]: p.get("str_score") for p in papers if p.get("str_score") is not None}
-    has_dual = len(sig_map) >= 10 and len(str_map) >= 10
+        sig_map = {p["id"]: p.get("sig_score") for p in papers if p.get("sig_score") is not None}
+        str_map = {p["id"]: p.get("str_score") for p in papers if p.get("str_score") is not None}
+        has_dual = len(sig_map) >= 10 and len(str_map) >= 10
 
-    h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
-    if len(h_ids) < 3 or not human_matches:
-        return {"status": "no_data", "message": "Insufficient human pairwise data"}
+        h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
+        if len(h_ids) < 3 or not human_matches:
+            return {"status": "no_data", "message": "Insufficient human pairwise data"}
 
-    # Compute graph connectivity of human preference data
-    h_adj = defaultdict(set)
-    for m in human_matches:
-        h_adj[m["paper1_id"]].add(m["paper2_id"])
-        h_adj[m["paper2_id"]].add(m["paper1_id"])
-    h_visited = set()
-    h_components = []
-    for pid in h_ids:
-        if pid in h_visited:
-            continue
-        queue = [pid]
-        h_visited.add(pid)
-        comp = []
-        while queue:
-            node = queue.pop(0)
-            comp.append(node)
-            for nb in h_adj[node]:
-                if nb not in h_visited:
-                    h_visited.add(nb)
-                    queue.append(nb)
-        h_components.append(comp)
-    h_component_sizes = sorted([len(c) for c in h_components], reverse=True)
-    h_largest_component = h_component_sizes[0] if h_component_sizes else 0
+        h_adj = defaultdict(set)
+        for m in human_matches:
+            h_adj[m["paper1_id"]].add(m["paper2_id"])
+            h_adj[m["paper2_id"]].add(m["paper1_id"])
+        h_visited = set()
+        h_components = []
+        for pid in h_ids:
+            if pid in h_visited:
+                continue
+            queue = [pid]
+            h_visited.add(pid)
+            comp = []
+            while queue:
+                node = queue.pop(0)
+                comp.append(node)
+                for nb in h_adj[node]:
+                    if nb not in h_visited:
+                        h_visited.add(nb)
+                        queue.append(nb)
+            h_components.append(comp)
+        h_component_sizes = sorted([len(c) for c in h_components], reverse=True)
+        h_largest_component = h_component_sizes[0] if h_component_sizes else 0
 
-    # Ground truth: human ranking from expert pairwise preferences
-    h_papers = [p for p in papers if p["id"] in h_ids]
-    gt_lb = await compute_leaderboard_async(h_papers, human_matches)
-    gt_rank = {e["id"]: e["rank"] for e in gt_lb}
-    gt_score = {e["id"]: e["score"] for e in gt_lb}
-    top_k_values = [top_k_focus] if top_k_focus < len(h_ids) else [min(10, len(h_ids) - 1)]
-    gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
+        h_papers = [p for p in papers if p["id"] in h_ids]
+        gt_lb = await compute_leaderboard_async(h_papers, human_matches)
+        gt_rank = {e["id"]: e["rank"] for e in gt_lb}
+        gt_score = {e["id"]: e["score"] for e in gt_lb}
+        top_k_values = [top_k_focus] if top_k_focus < len(h_ids) else [min(10, len(h_ids) - 1)]
+        gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
 
+        paper_tiers = {}
+        paper_avg_score = {}
+        for p in papers:
+            t = norm_tier(p.get("decision"))
+            if t and t in RANKABLE_TIERS:
+                paper_tiers[p["id"]] = t
+            evs = [ev["rating_value"] for ev in p.get("evaluations", []) if ev.get("rating_value")]
+            paper_avg_score[p["id"]] = sum(evs) / len(evs) if evs else 0
+
+        has_tiers = len(paper_tiers) >= 5
+        tier_ranked_papers = []
+        tier_rank_map = {}
+        if has_tiers:
+            tier_ranked_papers = sorted(
+                paper_tiers.keys(),
+                key=lambda pid: (TIER_ORDER[paper_tiers[pid]], -paper_avg_score.get(pid, 0)),
+            )
+            tier_rank_map = {pid: rank + 1 for rank, pid in enumerate(tier_ranked_papers)}
+
+    # These are needed by the convergence curve computation regardless of preloaded vs fresh
     paper_ids = [p["id"] for p in papers]
     pid_set = set(paper_ids)
     n_papers = len(paper_ids)
-
-    # Build tier-based ground truth (Oral > Spotlight > Poster > Reject)
-    paper_tiers = {}
-    paper_avg_score = {}
-    for p in papers:
-        t = norm_tier(p.get("decision"))
-        if t and t in RANKABLE_TIERS:
-            paper_tiers[p["id"]] = t
-        evs = [ev["rating_value"] for ev in p.get("evaluations", []) if ev.get("rating_value")]
-        paper_avg_score[p["id"]] = sum(evs) / len(evs) if evs else 0
-
-    has_tiers = len(paper_tiers) >= 5
-    tier_ranked_papers = []
-    tier_rank_map = {}
-    if has_tiers:
-        tier_ranked_papers = sorted(
-            paper_tiers.keys(),
-            key=lambda pid: (TIER_ORDER[paper_tiers[pid]], -paper_avg_score.get(pid, 0)),
-        )
-        tier_rank_map = {pid: rank + 1 for rank, pid in enumerate(tier_ranked_papers)}
 
     def _compute_tier_corr(sub_rank):
         """Compute tier vs AI rank correlation for a given sub-ranking."""
@@ -1970,10 +1996,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
                 round(t_kt, 4) if not np.isnan(t_kt) else 0,
                 len(common_t))
 
-    # Build dual-dimension maps (for eLife datasets with sig_score + str_score)
-    sig_map = {p["id"]: p["sig_score"] for p in papers if p.get("sig_score") is not None}
-    str_map = {p["id"]: p["str_score"] for p in papers if p.get("str_score") is not None}
-    has_dual = len(sig_map) >= 10 and len(str_map) >= 10
+    # Build dual-dimension correlation helper
 
     async def _compute_dual_corr(sub_lb):
         """Compute AI BT ranking vs GT BT ranking for significance and strength dimensions."""
@@ -2157,10 +2180,10 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         "top_k_values": top_k_values,
         "curve": curve,
         "graph_connectivity": {
-            "components": len(h_components),
+            "components": len(h_components) if h_components else len(h_component_sizes),
             "largest_component": h_largest_component,
             "component_sizes": h_component_sizes[:10],
-            "is_connected": len(h_components) == 1,
+            "is_connected": h_largest_component == len(h_ids),
         },
     }
 
@@ -2227,8 +2250,94 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     if len(ensemble["unanimity"]) >= 20:
         modes.append({"id": "ensemble:unanimity", "label": "Unanimous (3/3 agree)", "matches": len(ensemble["unanimity"])})
 
-    # Compute convergence for all modes in parallel
-    results = await asyncio.gather(*[_compute_convergence(dataset_id, m["id"], steps) for m in modes])
+    # Preload papers and human GT once for all modes (major perf optimization)
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    if not papers:
+        return {"status": "no_data"}
+
+    settings = await get_settings()
+    top_k_focus = settings.get("top_k_focus", 10)
+
+    # Build human ground truth (shared across all modes)
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+    human_matches = []
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                if ratings[a] != ratings[b]:
+                    human_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
+    h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
+    if len(h_ids) < 3:
+        return {"status": "no_data"}
+
+    # Connectivity
+    h_adj = defaultdict(set)
+    for m in human_matches:
+        h_adj[m["paper1_id"]].add(m["paper2_id"])
+        h_adj[m["paper2_id"]].add(m["paper1_id"])
+    h_visited = set()
+    h_components = []
+    for pid in h_ids:
+        if pid in h_visited:
+            continue
+        queue = [pid]
+        h_visited.add(pid)
+        comp = []
+        while queue:
+            node = queue.pop(0)
+            comp.append(node)
+            for nb in h_adj[node]:
+                if nb not in h_visited:
+                    h_visited.add(nb)
+                    queue.append(nb)
+        h_components.append(comp)
+    h_largest_component = max(len(c) for c in h_components) if h_components else 0
+
+    h_papers = [p for p in papers if p["id"] in h_ids]
+    gt_lb = await compute_leaderboard_async(h_papers, human_matches)
+    gt_rank = {e["id"]: e["rank"] for e in gt_lb}
+    gt_score = {e["id"]: e["score"] for e in gt_lb}
+    top_k_values = [top_k_focus] if top_k_focus < len(h_ids) else [min(10, len(h_ids) - 1)]
+    gt_topk = {k: set(e["id"] for e in gt_lb if e["rank"] <= k) for k in top_k_values}
+
+    paper_tiers = {}
+    paper_avg_score = {}
+    for p in papers:
+        t = norm_tier(p.get("decision"))
+        if t and t in RANKABLE_TIERS:
+            paper_tiers[p["id"]] = t
+        evs = [ev["rating_value"] for ev in p.get("evaluations", []) if ev.get("rating_value")]
+        paper_avg_score[p["id"]] = sum(evs) / len(evs) if evs else 0
+    has_tiers = len(paper_tiers) >= 5
+    tier_ranked_papers = sorted(paper_tiers.keys(), key=lambda pid: (TIER_ORDER[paper_tiers[pid]], -paper_avg_score.get(pid, 0))) if has_tiers else []
+    tier_rank_map = {pid: rank + 1 for rank, pid in enumerate(tier_ranked_papers)}
+
+    sig_map = {p["id"]: p.get("sig_score") for p in papers if p.get("sig_score") is not None}
+    str_map = {p["id"]: p.get("str_score") for p in papers if p.get("str_score") is not None}
+    has_dual = len(sig_map) >= 10 and len(str_map) >= 10
+
+    preloaded = {
+        "papers": papers, "human_matches": human_matches, "h_ids": h_ids,
+        "h_largest_component": h_largest_component,
+        "h_components_count": len(h_components),
+        "h_component_sizes": sorted([len(c) for c in h_components], reverse=True)[:10],
+        "expert_ratings": expert_ratings,
+        "gt_lb": gt_lb, "gt_rank": gt_rank, "gt_score": gt_score, "gt_topk": gt_topk,
+        "has_tiers": has_tiers, "paper_tiers": paper_tiers, "paper_avg_score": paper_avg_score,
+        "tier_ranked_papers": tier_ranked_papers, "tier_rank_map": tier_rank_map,
+        "sig_map": sig_map, "str_map": str_map, "has_dual": has_dual,
+        "top_k_values": top_k_values,
+    }
+
+    # Compute convergence for all modes in parallel (with shared preloaded data)
+    results = await asyncio.gather(*[_compute_convergence(dataset_id, m["id"], steps, _preloaded=preloaded) for m in modes])
 
     by_mode = {}
     for mode_info, data in zip(modes, results):
