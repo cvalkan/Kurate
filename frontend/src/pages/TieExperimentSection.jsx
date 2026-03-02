@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const ADMIN_HEADERS = { "X-Admin-Token": sessionStorage.getItem("admin_token") };
+const getAdminHeaders = () => ({ "X-Admin-Token": sessionStorage.getItem("admin_token") });
 
 const DATASETS = [
   { id: "iclr-llm", label: "ICLR LLM" },
@@ -76,7 +76,7 @@ export default function TieExperimentSection() {
     try {
       await axios.post(`${API}/api/validation/tie-experiment/run`,
         { dataset_id: selectedDs, num_pairs: numPairs },
-        { headers: ADMIN_HEADERS });
+        { headers: getAdminHeaders() });
       setRunning(true);
       fetchStatus();
     } catch (e) { console.error(e); }
@@ -84,7 +84,7 @@ export default function TieExperimentSection() {
 
   const stopRun = async () => {
     try {
-      await axios.post(`${API}/api/validation/tie-experiment/stop`, {}, { headers: ADMIN_HEADERS });
+      await axios.post(`${API}/api/validation/tie-experiment/stop`, {}, { headers: getAdminHeaders() });
       setRunning(false);
     } catch (e) { console.error(e); }
   };

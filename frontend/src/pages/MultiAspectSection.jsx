@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const ADMIN_HEADERS = { "X-Admin-Token": sessionStorage.getItem("admin_token") };
+const getAdminHeaders = () => ({ "X-Admin-Token": sessionStorage.getItem("admin_token") });
 
 const DATASETS = [
   { id: "iclr-llm", label: "ICLR LLM" },
@@ -61,7 +61,7 @@ export default function MultiAspectSection() {
     try {
       await axios.post(`${API}/api/validation/multi-aspect/run`,
         { dataset_id: selectedDs, num_pairs: numPairs },
-        { headers: ADMIN_HEADERS });
+        { headers: getAdminHeaders() });
       setRunning(true);
       fetchStatus();
     } catch (e) { console.error(e); }
@@ -69,7 +69,7 @@ export default function MultiAspectSection() {
 
   const stopRun = async () => {
     try {
-      await axios.post(`${API}/api/validation/multi-aspect/stop`, {}, { headers: ADMIN_HEADERS });
+      await axios.post(`${API}/api/validation/multi-aspect/stop`, {}, { headers: getAdminHeaders() });
       setRunning(false);
     } catch (e) { console.error(e); }
   };
