@@ -150,6 +150,7 @@ export default function ValidationHubPage() {
     "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
     "exp-multi-aspect": { title: "Multi-Aspect Judging", desc: "Does breaking the judgment into 5 separate dimensions (novelty, applications, rigor, breadth, timeliness) improve accuracy over a single holistic verdict?" },
     "exp-summarizer-cross": { title: "Summarizer Cross-Model", desc: "How does the choice of summarizer model (GPT-5.2, Gemini 3 Pro, Opus 4.5/4.6) affect tournament accuracy? Same-pair comparison across all summarizers." },
+    "exp-assessor-evaluator": { title: "Assessor vs Evaluator", desc: "Full matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
     "exp-consistency": { title: "Same Pairs — Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
     "exp-cycle-analysis": { title: "All Pairs — Condorcet Cycles", desc: "Full dataset analysis: intransitive ranking loops by model, format, and dataset." },
   };
