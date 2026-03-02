@@ -6726,6 +6726,150 @@ _sumab_task = None
 
 @router.post("/summarizer-ab/run", dependencies=[Depends(verify_admin)])
 
+@router.get("/assessor-evaluator/results")
+async def assessor_evaluator_results():
+    """Full summarizer × judge matrix on same pairs."""
+    import scipy.stats
+
+    SUM_MODES = {
+        "Opus 4.5": "abstract_plus_summary",
+        "Opus 4.6": "abstract_plus_summary:opus46",
+        "Opus 4.6 Thinking": "abstract_plus_summary:thinking",
+        "GPT-5.2": "abstract_plus_summary:gpt_summary",
+        "Gemini 3 Pro": "abstract_plus_summary:gemini_summary",
+    }
+    JUDGES = ["Opus 4.6", "GPT-5.2", "Gemini 3 Pro"]
+
+    def _short(mu):
+        model = mu.get("model", "")
+        if "claude" in model and "4-6" in model: return "Opus 4.6"
+        if "claude" in model: return "Opus 4.5"
+        if "gpt" in model: return "GPT-5.2"
+        if "gemini" in model: return "Gemini 3 Pro"
+        return model
+
+    datasets = ["iclr-llm", "iclr-codegen"]
+    ds_names = {"iclr-llm": "ICLR LLM", "iclr-codegen": "ICLR Code Gen"}
+    by_dataset = {}
+    pooled_cells = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
+
+    for ds_id in datasets:
+        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        paper_list = [{"id": p["id"], "title": p.get("title", "")} for p in papers]
+
+        er = build_expert_ratings(papers)
+        em = build_expert_majority(er)
+        total_ep = sum(1 for exp, ratings in er.items() for i, a in enumerate(ratings) for b in list(ratings)[i+1:] if ratings[a] != ratings[b])
+        ep = em if len(em) >= max(20, total_ep * 0.1) else {}
+        if not ep:
+            for exp, ratings in er.items():
+                pids = list(ratings.keys())
+                for i in range(len(pids)):
+                    for j in range(i + 1, len(pids)):
+                        a, b = pids[i], pids[j]
+                        if ratings[a] != ratings[b]:
+                            ep[tuple(sorted([a, b]))] = a if ratings[a] > ratings[b] else b
+
+        hm = []
+        for exp, ratings in er.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] != ratings[b]:
+                        hm.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
+
+        mode_data = {}
+        for sum_name, cm in SUM_MODES.items():
+            pbj = defaultdict(dict)
+            async for m in db.validation_matches.find(
+                {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": cm},
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
+                pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+                pbj[pk][_short(m.get("model_used", {}))] = m["winner_id"]
+            if pbj: mode_data[sum_name] = pbj
+
+        shared = None
+        avail = []
+        for name, data in mode_data.items():
+            if len(data) < 20: continue
+            avail.append(name)
+            shared = set(data.keys()) if shared is None else shared & set(data.keys())
+        if not shared or len(shared) < 15: continue
+
+        ds_cells = []
+        for sum_name in avail:
+            data = mode_data[sum_name]
+            # Round-robin
+            rr = []
+            for pk in shared:
+                if pk not in data: continue
+                c = Counter(data[pk].values())
+                rr.append({"paper1_id": pk[0], "paper2_id": pk[1], "winner_id": c.most_common(1)[0][0], "completed": True, "failed": False})
+
+            rr_rho = None
+            try:
+                ai_lb = await compute_leaderboard_async(paper_list, rr)
+                h_lb = await compute_leaderboard_async(paper_list, hm)
+                ai_s = {e["id"]: e["score"] for e in ai_lb}
+                h_s = {e["id"]: e["score"] for e in h_lb}
+                ci = sorted(set(ai_s) & set(h_s))
+                if len(ci) >= 10:
+                    rr_rho = safe_round(scipy.stats.spearmanr([ai_s[x] for x in ci], [h_s[x] for x in ci])[0])
+            except Exception: pass
+
+            rr_c = sum(1 for m in rr if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep and m["winner_id"] == ep[tuple(sorted([m["paper1_id"], m["paper2_id"]]))])
+            rr_t = sum(1 for m in rr if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep)
+            rr_acc = round(rr_c / max(rr_t, 1) * 100, 1)
+
+            cell = {"summarizer": sum_name, "judge": "Round-Robin", "rho": rr_rho, "accuracy": rr_acc, "correct": rr_c, "total": rr_t, "pairs": len(rr)}
+            ds_cells.append(cell)
+            key = f"{sum_name}|Round-Robin"
+            if rr_rho is not None: pooled_cells[key]["rho_vals"].append(rr_rho)
+            pooled_cells[key]["correct"] += rr_c; pooled_cells[key]["total"] += rr_t
+
+            # Per judge
+            for judge in JUDGES:
+                jm = [{"paper1_id": pk[0], "paper2_id": pk[1], "winner_id": data[pk][judge], "completed": True, "failed": False}
+                      for pk in shared if pk in data and judge in data[pk]]
+                if len(jm) < 10: continue
+
+                j_rho = None
+                try:
+                    ai_lb = await compute_leaderboard_async(paper_list, jm)
+                    h_lb = await compute_leaderboard_async(paper_list, hm)
+                    ai_s = {e["id"]: e["score"] for e in ai_lb}
+                    h_s = {e["id"]: e["score"] for e in h_lb}
+                    ci = sorted(set(ai_s) & set(h_s))
+                    if len(ci) >= 10:
+                        j_rho = safe_round(scipy.stats.spearmanr([ai_s[x] for x in ci], [h_s[x] for x in ci])[0])
+                except Exception: pass
+
+                j_c = sum(1 for m in jm if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep and m["winner_id"] == ep[tuple(sorted([m["paper1_id"], m["paper2_id"]]))])
+                j_t = sum(1 for m in jm if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep)
+                j_acc = round(j_c / max(j_t, 1) * 100, 1)
+
+                cell = {"summarizer": sum_name, "judge": judge, "rho": j_rho, "accuracy": j_acc, "correct": j_c, "total": j_t, "pairs": len(jm)}
+                ds_cells.append(cell)
+                key = f"{sum_name}|{judge}"
+                if j_rho is not None: pooled_cells[key]["rho_vals"].append(j_rho)
+                pooled_cells[key]["correct"] += j_c; pooled_cells[key]["total"] += j_t
+
+        by_dataset[ds_id] = {"name": ds_names.get(ds_id, ds_id), "shared_pairs": len(shared), "cells": ds_cells}
+
+    pooled = {}
+    for key, v in pooled_cells.items():
+        sum_name, judge = key.split("|")
+        pooled[key] = {"summarizer": sum_name, "judge": judge,
+                        "avg_rho": round(np.mean(v["rho_vals"]), 4) if v["rho_vals"] else None,
+                        "accuracy": round(v["correct"] / max(v["total"], 1) * 100, 1),
+                        "correct": v["correct"], "total": v["total"]}
+
+    return {"status": "ok", "by_dataset": by_dataset, "pooled": pooled,
+            "summarizers": list(SUM_MODES.keys()), "judges": ["Round-Robin"] + JUDGES}
+
+
+
 @router.get("/summarizer-ab/results")
 async def summarizer_ab_results():
     """Same-pair comparison of all summarizer models."""
