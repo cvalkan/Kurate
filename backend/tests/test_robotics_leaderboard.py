@@ -8,7 +8,7 @@ import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://paper-judge-hub.preview.emergentagent.com"
+    BASE_URL = "https://paper-scoring-hub.preview.emergentagent.com"
 
 ADMIN_PASSWORD = "papersumo2025"
 ADMIN_HEADERS = {"X-Admin-Token": ADMIN_PASSWORD, "Content-Type": "application/json"}
