@@ -6748,6 +6748,17 @@ async def assessor_evaluator_results():
 
     datasets = ["iclr-llm", "iclr-codegen"]
     ds_names = {"iclr-llm": "ICLR LLM", "iclr-codegen": "ICLR Code Gen"}
+    # Auto-discover additional datasets with GPT/Gemini data
+    ds_pipeline = [
+        {"$match": {"content_mode": {"$in": ["abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary"]}, "completed": True}},
+        {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+        {"$match": {"count": {"$gte": 30}}},
+    ]
+    extra = [r["_id"] async for r in db.validation_matches.aggregate(ds_pipeline)]
+    for ds in extra:
+        if ds not in datasets:
+            datasets.append(ds)
+            ds_names[ds] = ds.replace("-", " ").replace("_", " ").title()
     by_dataset = {}
     pooled_cells = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
 
