@@ -6724,8 +6724,24 @@ _sumab_state = {"running": False, "phase": "", "done": 0, "total": 0, "dataset_i
 _sumab_task = None
 
 
+_ae_cache = {"data": None, "ts": 0}
+_sumab_results_cache = {"data": None, "ts": 0}
+
+
 @router.get("/assessor-evaluator/results")
 async def assessor_evaluator_results():
+    """Full summarizer × judge matrix — cached 1h."""
+    import time as _t
+    if _ae_cache["data"] and _t.time() - _ae_cache["ts"] < _CONSISTENCY_TTL:
+        return _ae_cache["data"]
+    result = await _compute_assessor_evaluator()
+    if result.get("status") == "ok":
+        _ae_cache["data"] = result
+        _ae_cache["ts"] = _t.time()
+    return result
+
+
+async def _compute_assessor_evaluator():
     """Full summarizer × judge matrix on same pairs."""
     import scipy.stats
 
