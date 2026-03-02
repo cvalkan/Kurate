@@ -497,37 +497,44 @@ async def _startup_check_interrupted_tasks():
 
 
 async def _startup_seed_experiment_data():
-    """One-time import: seed experiment data (GPT/Gemini summaries + matches) from bundled files.
+    """One-time import: seed ALL experiment data from bundled gzip files.
 
-    Gated by a DB flag so it only runs once per database. Uses upsert-by-id
-    so re-running is safe (skips existing documents).
+    Includes validation matches, paper summaries, summarizer comparisons,
+    deep dive replays, and summary bias data. Gated by DB flag.
     """
     await asyncio.sleep(8)
     try:
-        flag = await db.settings.find_one({"key": "experiment_seed_v1"}, {"_id": 0})
+        flag = await db.settings.find_one({"key": "experiment_seed_v2"}, {"_id": 0})
         if flag and flag.get("done"):
             return
 
         from pathlib import Path
         import json as _json
+        import gzip as _gzip
         seed_dir = Path("/app/backend/data/experiment_seed")
         if not seed_dir.exists():
             return
 
         total_imported = 0
 
-        # 1. Import paper summaries (GPT/Gemini fields)
-        summaries_path = seed_dir / "paper_summaries.json"
-        if summaries_path.exists():
-            with open(summaries_path) as f:
-                summaries = _json.load(f)
+        def _load_gz(filename):
+            path = seed_dir / filename
+            if not path.exists():
+                return []
+            with _gzip.open(path, "rt") as f:
+                return _json.load(f)
+
+        # 1. Paper summaries (update existing papers with summary fields)
+        summaries = _load_gz("paper_summaries.json.gz")
+        if summaries:
             updated = 0
             for s in summaries:
                 update_fields = {}
-                if s.get("ai_impact_summary_gpt"):
-                    update_fields["ai_impact_summary_gpt"] = s["ai_impact_summary_gpt"]
-                if s.get("ai_impact_summary_gemini"):
-                    update_fields["ai_impact_summary_gemini"] = s["ai_impact_summary_gemini"]
+                for field in ["ai_impact_summary", "ai_impact_summary_thinking",
+                              "ai_impact_summary_opus46", "ai_impact_summary_gpt",
+                              "ai_impact_summary_gemini"]:
+                    if s.get(field):
+                        update_fields[field] = s[field]
                 if update_fields:
                     result = await db.validation_papers.update_one(
                         {"id": s["id"], "dataset_id": s["dataset_id"]},
@@ -538,36 +545,67 @@ async def _startup_seed_experiment_data():
             logger.info(f"Experiment seed: updated {updated}/{len(summaries)} paper summaries")
             total_imported += updated
 
-        # 2. Import experiment matches (skip existing by match id)
-        for filename in ["summarizer_matches.json", "opus_fill_matches.json"]:
-            match_path = seed_dir / filename
-            if not match_path.exists():
-                continue
-            with open(match_path) as f:
-                matches = _json.load(f)
-            # Batch check which match IDs already exist
+        # 2. Validation matches (skip existing by match id)
+        matches = _load_gz("validation_matches.json.gz")
+        if matches:
             existing_ids = set()
             match_ids = [m["id"] for m in matches if m.get("id")]
-            if match_ids:
-                async for doc in db.validation_matches.find(
-                    {"id": {"$in": match_ids}}, {"_id": 0, "id": 1}
-                ):
+            # Check in batches of 5000
+            for i in range(0, len(match_ids), 5000):
+                batch = match_ids[i:i+5000]
+                async for doc in db.validation_matches.find({"id": {"$in": batch}}, {"_id": 0, "id": 1}):
                     existing_ids.add(doc["id"])
             new_matches = [m for m in matches if m.get("id") and m["id"] not in existing_ids]
             if new_matches:
-                await db.validation_matches.insert_many(new_matches)
-            logger.info(f"Experiment seed: {filename} — {len(new_matches)} new matches ({len(existing_ids)} already existed)")
+                # Insert in batches of 5000
+                for i in range(0, len(new_matches), 5000):
+                    batch = new_matches[i:i+5000]
+                    await db.validation_matches.insert_many(batch)
+            logger.info(f"Experiment seed: {len(new_matches)} new validation matches ({len(existing_ids)} existed)")
             total_imported += len(new_matches)
 
-        # Mark as done
+        # 3. Other experiment collections (upsert by id or unique key)
+        for coll_name, id_field in [
+            ("summarizer_comparisons", "id"),
+            ("deeper_dive_replays", "id"),
+            ("summary_bias_summaries", None),  # uses compound key
+            ("summary_bias_matches", "id"),
+        ]:
+            docs = _load_gz(f"{coll_name}.json.gz")
+            if not docs:
+                continue
+            existing = await db[coll_name].count_documents({})
+            if existing >= len(docs) * 0.9:
+                logger.info(f"Experiment seed: {coll_name} already has {existing}/{len(docs)} docs, skipping")
+                continue
+            # Insert missing docs
+            if id_field and docs[0].get(id_field):
+                existing_ids = set()
+                ids = [d[id_field] for d in docs if d.get(id_field)]
+                for i in range(0, len(ids), 5000):
+                    batch = ids[i:i+5000]
+                    async for doc in db[coll_name].find({id_field: {"$in": batch}}, {"_id": 0, id_field: 1}):
+                        existing_ids.add(doc[id_field])
+                new_docs = [d for d in docs if d.get(id_field) and d[id_field] not in existing_ids]
+            else:
+                new_docs = docs if existing == 0 else []
+            if new_docs:
+                for i in range(0, len(new_docs), 5000):
+                    await db[coll_name].insert_many(new_docs[i:i+5000])
+            logger.info(f"Experiment seed: {coll_name} — {len(new_docs)} new docs")
+            total_imported += len(new_docs)
+
+        # Mark as done (v2 = comprehensive export)
         await db.settings.update_one(
-            {"key": "experiment_seed_v1"},
-            {"$set": {"key": "experiment_seed_v1", "done": True, "imported": total_imported}},
+            {"key": "experiment_seed_v2"},
+            {"$set": {"key": "experiment_seed_v2", "done": True, "imported": total_imported}},
             upsert=True,
         )
-        logger.info(f"Experiment seed complete: {total_imported} total items imported")
+        logger.info(f"Experiment seed v2 complete: {total_imported} total items imported")
     except Exception as e:
         logger.error(f"Experiment seed failed: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 
