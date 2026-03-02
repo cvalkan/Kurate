@@ -11,6 +11,7 @@ from routers.admin import router as admin_router
 from routers.auth import router as auth_router
 from routers.suggestions import router as suggestions_router
 from routers.validation import router as validation_router
+from routers.validation_imports import router as validation_imports_router
 from routers.pairwise import router as pairwise_router
 from routers.scipost import router as scipost_router
 from routers.qeios import router as qeios_router
@@ -88,6 +89,7 @@ app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(suggestions_router)
 app.include_router(validation_router)
+app.include_router(validation_imports_router)
 app.include_router(pairwise_router)
 app.include_router(scipost_router)
 app.include_router(qeios_router)
@@ -236,7 +238,10 @@ async def startup():
             if _settings_doc.get("convergence_rounds") is None:
                 migration_updates["convergence_rounds"] = 3
             if _settings_doc.get("summary_source") is None:
-                migration_updates["summary_source"] = "round_robin"
+                migration_updates["summary_source"] = "claude"
+            # Migrate from round_robin to claude for live tournaments
+            elif _settings_doc.get("summary_source") == "round_robin":
+                migration_updates["summary_source"] = "claude"
             if _settings_doc.get("summary_parallel") is None:
                 migration_updates["summary_parallel"] = 10
             # Reduce min/max matches per the new architecture
@@ -266,10 +271,8 @@ async def startup():
                     "primary_category": _cat, "mode": {"$exists": False}
                 })
                 if paper_count >= 2 and match_count >= 10:
-                    # Seed 5 snapshots at different match subsets to bootstrap convergence
-                    for frac in [0.6, 0.7, 0.8, 0.9, 1.0]:
-                        await _store_ranking_snapshot(_cat)
-                    logger.info(f"Seeded 5 ranking snapshots for {_cat}")
+                    await _store_ranking_snapshot(_cat)
+                    logger.info(f"Seeded ranking snapshot for {_cat}")
             logger.info("Ranking snapshot seeding complete")
     except Exception as e:
         logger.warning(f"Ranking snapshot seeding warning: {e}")

@@ -14,6 +14,10 @@ const DATASETS = [
   { id: "iclr-ot", label: "ICLR Opt. Transport" },
   { id: "iclr-fairness", label: "ICLR Fairness" },
   { id: "iclr-protein", label: "ICLR Protein" },
+  { id: "elife-cancer", label: "eLife Cancer Biology" },
+  { id: "elife-comp-sys-bio", label: "eLife Comp. & Sys. Bio." },
+  { id: "elife-microbiology", label: "eLife Microbiology" },
+  { id: "elife-neuro-100", label: "eLife Neuroscience" },
 ];
 const SUMMARIZERS = [
   { id: "gpt", label: "GPT-5.2" },

@@ -570,9 +570,21 @@ async def _download_pending_pdfs(category: str = None):
     return downloaded
 
 
-# Summary model mapping
+# --- Summary model configuration ---
+# Models used to GENERATE summaries (Claude uses thinking mode for higher quality)
+_SUMMARY_GENERATION_MODELS = [
+    {"provider": "anthropic", "model": "claude-opus-4-6",
+     "extra_params": {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": 10000}}},
+     "key_suffix": "thinking"},
+    {"provider": "openai", "model": "gpt-5.2"},
+    {"provider": "gemini", "model": "gemini-3-pro-preview"},
+]
+
+# Models whose summaries can be selected for live tournament comparisons.
+# Only Claude (thinking) is used in live tournaments; GPT/Gemini summaries are
+# generated for analysis purposes but NOT fed to judges.
 _SUMMARY_MODELS = {
-    "claude": {"provider": "anthropic", "model": "claude-opus-4-6"},
+    "claude": {"provider": "anthropic", "model": "claude-opus-4-6", "key_suffix": "thinking"},
     "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
     "gpt": {"provider": "openai", "model": "gpt-5.2"},
 }
@@ -580,11 +592,15 @@ _summary_rr_counter = 0
 
 
 def _pick_summary_source(setting: str) -> dict:
-    """Pick summary model based on admin setting."""
+    """Pick summary model based on admin setting.
+    
+    Default 'claude' always uses the Claude thinking summary in live tournaments.
+    Other settings ('round_robin', 'gpt', 'gemini') are available for experiments.
+    """
     global _summary_rr_counter
     if setting in _SUMMARY_MODELS:
         return _SUMMARY_MODELS[setting]
-    # round_robin
+    # round_robin cycles through all models (for experiments only)
     models = list(_SUMMARY_MODELS.values())
     model = models[_summary_rr_counter % len(models)]
     _summary_rr_counter += 1
@@ -592,12 +608,25 @@ def _pick_summary_source(setting: str) -> dict:
 
 
 def _summary_model_key(model_info: dict) -> str:
-    # Replace dots with underscores — MongoDB interprets dots as nested paths in $set
-    return f"{model_info['provider']}:{model_info['model']}".replace(".", "_")
+    """Build the MongoDB storage key for a summary model.
+    
+    Includes key_suffix when present (e.g., 'thinking') to distinguish
+    summaries generated with different configurations of the same base model.
+    """
+    base = f"{model_info['provider']}:{model_info['model']}".replace(".", "_")
+    suffix = model_info.get("key_suffix")
+    if suffix:
+        base += f":{suffix}"
+    return base
 
 
-# Legacy key fallbacks (e.g., papers with Opus 4.5 summaries used before Opus 4.6 upgrade)
+# Legacy key fallbacks — when looking up a summary, try these keys if the primary is missing.
+# This lets old papers (generated before the thinking upgrade) still participate in tournaments.
 _SUMMARY_KEY_FALLBACKS = {
+    "anthropic:claude-opus-4-6:thinking": [
+        "anthropic:claude-opus-4-6",            # non-thinking Opus 4.6
+        "anthropic:claude-opus-4-5-20251101",    # legacy Opus 4.5
+    ],
     "anthropic:claude-opus-4-6": ["anthropic:claude-opus-4-5-20251101"],
 }
 
@@ -616,9 +645,13 @@ def _get_paper_summary(paper: dict, model_key: str) -> str:
 
 
 async def _generate_paper_summaries(category: str = None, force: bool = False):
-    """Generate AI impact summaries (3 models) for papers missing them."""
-    from core.config import TOURNAMENT_MODELS
-
+    """Generate AI impact summaries for papers missing them.
+    
+    Uses _SUMMARY_GENERATION_MODELS (Claude Thinking, GPT, Gemini).
+    Claude uses extended thinking for higher-quality summaries.
+    All three models generate summaries, but only Claude Thinking is
+    used in live tournament comparisons.
+    """
     settings = await get_settings()
     parallel = settings.get("summary_parallel", 10)
 
@@ -674,7 +707,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
     tasks = []
     for paper in papers:
-        for model_info in TOURNAMENT_MODELS:
+        for model_info in _SUMMARY_GENERATION_MODELS:
             tasks.append(gen_one(paper, model_info))
 
     if tasks:
@@ -702,7 +735,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             parallel_agents = min(max(settings.get("parallel_agents", 5), 1), 20)
             top_k_focus = settings.get("top_k_focus", 10)
             max_new_per_round = settings.get("max_new_matches_per_round", 3)
-            summary_source = settings.get("summary_source", "round_robin")
+            summary_source = settings.get("summary_source", "claude")
 
             from core.config import DEFAULT_EVALUATION_PROMPT
             custom_prompt_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
@@ -729,11 +762,19 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 cat_status["current_activity"] = "Not enough papers"
                 return {"status": "not_enough_papers"}
 
-            # Filter out papers without summaries — they shouldn't participate yet
-            papers_with_summaries = [p for p in all_papers if p.get("summaries")]
+            # Filter out papers without the required summary for the current source.
+            # This ensures papers aren't compared using only abstracts when a summary
+            # is expected. Resolves the issue where papers with only GPT/Gemini summaries
+            # would participate in a Claude-only tournament.
+            summary_model = _pick_summary_source(summary_source)
+            required_key = _summary_model_key(summary_model)
+            papers_with_summaries = [
+                p for p in all_papers
+                if p.get("summaries") and _get_paper_summary(p, required_key)
+            ]
             papers_without = len(all_papers) - len(papers_with_summaries)
             if papers_without > 0:
-                logger.info(f"[{category}] Excluding {papers_without} papers without summaries from matchmaking")
+                logger.info(f"[{category}] Excluding {papers_without} papers without {required_key} summary from matchmaking")
             all_papers = papers_with_summaries
             if len(all_papers) < 2:
                 cat_status["current_activity"] = "Waiting for summaries"
@@ -1067,7 +1108,6 @@ def _select_pairs(
     needy = sorted(paper_ids, key=lambda pid: urgency(pid), reverse=True)
     needy = [pid for pid in needy if urgency(pid) > 0]
     established = [pid for pid in paper_ids if urgency(pid) == 0]
-    needy_set = set(needy)
     pair_idx = 0
 
     for p1 in needy:

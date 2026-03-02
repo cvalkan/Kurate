@@ -135,6 +135,6 @@ DEFAULT_SETTINGS = {
     "calibration_ratio": 50,       # % of needy-paper matches paired with established papers (0-100)
     "min_papers_for_tournament": 8,
     "paused": False,
-    "summary_source": "round_robin",
+    "summary_source": "claude",
     "summary_parallel": 10,
 }
