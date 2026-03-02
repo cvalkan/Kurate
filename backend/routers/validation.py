@@ -6986,6 +6986,7 @@ async def summarizer_ab_results():
     return {"status": "ok", "by_dataset": by_dataset, "pooled": pooled_results}
 
 
+@router.post("/summarizer-ab/run", dependencies=[Depends(verify_admin)])
 async def start_summarizer_ab(request: Request):
     global _sumab_task
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
