@@ -6724,8 +6724,6 @@ _sumab_state = {"running": False, "phase": "", "done": 0, "total": 0, "dataset_i
 _sumab_task = None
 
 
-@router.post("/summarizer-ab/run", dependencies=[Depends(verify_admin)])
-
 @router.get("/assessor-evaluator/results")
 async def assessor_evaluator_results():
     """Full summarizer × judge matrix on same pairs."""
