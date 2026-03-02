@@ -2159,3 +2159,12 @@ async def _run_regen():
     finally:
         await _set_regen_progress(running=False, finished=True, done=done, errors=errors)
         logger.info(f"Summary regeneration complete: {done}/{total} done, {errors} errors")
+
+
+
+@router.get("/background-tasks", dependencies=[Depends(verify_admin)])
+async def get_background_tasks():
+    """View recent background task history (experiments, tournaments, etc.)."""
+    from services.task_tracker import TaskTracker
+    tasks = await TaskTracker.recent(limit=50)
+    return {"tasks": tasks}

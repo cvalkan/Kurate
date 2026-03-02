@@ -19,6 +19,7 @@ from core.config import db, logger, TOURNAMENT_MODELS, DEFAULT_EVALUATION_PROMPT
 from core.auth import verify_admin
 from services.llm import generate_precomparison_impact_summary, compare_papers
 from services.ranking import compute_leaderboard, compute_leaderboard_async
+from services.task_tracker import TaskTracker
 
 router = APIRouter(prefix="/api/summary-bias")
 
@@ -55,7 +56,17 @@ class PipelineRequest(BaseModel):
 async def run_pipeline(body: PipelineRequest):
     if _state["phase"] != "idle":
         return {"status": "already_running", "phase": _state["phase"], "progress": _state["progress"]}
-    asyncio.create_task(_full_pipeline(body.category, body.num_matches, body.parallel))
+
+    async def _tracked():
+        tracker = TaskTracker("summary_bias_pipeline")
+        task_id = await tracker.start(metadata={"category": body.category, "num_matches": body.num_matches})
+        try:
+            await _full_pipeline(body.category, body.num_matches, body.parallel)
+            await tracker.complete(task_id)
+        except Exception as e:
+            await tracker.fail(task_id, error=str(e)[:200])
+
+    asyncio.create_task(_tracked())
     return {"status": "started", "category": body.category, "num_matches": body.num_matches}
 
 
@@ -70,7 +81,17 @@ async def extend_matches(body: ExtendRequest):
     """Run additional matches in abstract, abstract+summary (all 9 configs), and full-PDF modes."""
     if _state["phase"] != "idle":
         return {"status": "already_running", "phase": _state["phase"], "progress": _state["progress"]}
-    asyncio.create_task(_extend_matches(body.category, body.num_matches, body.parallel))
+
+    async def _tracked():
+        tracker = TaskTracker("summary_bias_extend")
+        task_id = await tracker.start(metadata={"category": body.category, "num_matches": body.num_matches})
+        try:
+            await _extend_matches(body.category, body.num_matches, body.parallel)
+            await tracker.complete(task_id)
+        except Exception as e:
+            await tracker.fail(task_id, error=str(e)[:200])
+
+    asyncio.create_task(_tracked())
     return {"status": "started", "category": body.category, "num_matches": body.num_matches}
 
 

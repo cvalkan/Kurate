@@ -25,6 +25,7 @@ from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TIE_ALLOWED_PROMP
 from core.auth import verify_admin, get_settings
 from services.llm import compare_papers
 from services.ranking import compute_leaderboard, compute_leaderboard_async
+from services.task_tracker import TaskTracker
 from routers.validation_utils import (
     TIER_ORDER, RANKABLE_TIERS, norm_tier,
     build_expert_ratings, build_human_pairwise_matches, build_expert_majority, build_ai_majority,
@@ -154,6 +155,9 @@ async def run_tournament(body: TournamentRequest):
 async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, content_mode: str = "extract", custom_prompt: dict = None, prompt_tag: str = None):
     state = _get_state(dataset_id)
     state.update({"running": True, "completed_matches": 0, "total_matches": max_pairs, "current_pair": "Loading...", "started_at": _time.time()})
+
+    tracker = TaskTracker("validation_tournament")
+    task_id = await tracker.start(metadata={"dataset_id": dataset_id, "content_mode": content_mode, "prompt_tag": prompt_tag, "max_pairs": max_pairs})
 
     abstract_only = content_mode == "abstract"
     # Use custom prompt if provided, otherwise default
@@ -313,11 +317,14 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
                 logger.warning(f"Validation match task error: {r}")
 
         logger.info(f"Validation tournament [{dataset_id}] ({content_mode}): {completed}/{len(pairs)}")
+        await tracker.complete(task_id)
     except (Exception, asyncio.CancelledError) as e:
         if isinstance(e, asyncio.CancelledError):
             logger.info(f"Validation tournament [{dataset_id}] cancelled at {completed}/{len(pairs)}")
+            await tracker.fail(task_id, error="Cancelled by user")
         else:
             logger.error(f"Validation tournament [{dataset_id}] error: {e}")
+            await tracker.fail(task_id, error=str(e)[:200])
     finally:
         state["running"] = False
         state["cancel_requested"] = False
@@ -348,6 +355,9 @@ async def run_multimodel_tournament(body: MultiModelRequest):
 
 async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, content_mode: str = "extract"):
     from core.config import TOURNAMENT_MODELS
+
+    tracker = TaskTracker("multimodel_tournament")
+    task_id = await tracker.start(metadata={"dataset_id": dataset_id, "content_mode": content_mode, "max_pairs": max_pairs})
 
     state = _get_state(dataset_id)
     state.update({"running": True, "completed_matches": 0, "total_matches": 0, "current_pair": "Scanning...", "started_at": _time.time()})
@@ -455,8 +465,10 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, co
             await asyncio.sleep(0.2)
 
         logger.info(f"Multi-model [{dataset_id}]: {completed}/{len(work)} new matches")
+        await tracker.complete(task_id)
     except Exception as e:
         logger.error(f"Multi-model [{dataset_id}] error: {e}")
+        await tracker.fail(task_id, error=str(e)[:200])
     finally:
         state["running"] = False
         invalidate_dataset_cache(dataset_id)
@@ -4710,10 +4722,14 @@ async def start_extended_thinking(request: Request):
 
     async def _bg():
         global _thinking_task
+        _tracker = TaskTracker("extended_thinking")
+        _tid = await _tracker.start(metadata={"dataset_id": dataset_id, "num_pairs": num_pairs})
         try:
             await _run_extended_thinking(dataset_id, num_pairs)
+            await _tracker.complete(_tid)
         except Exception as e:
             logger.error(f"Extended thinking experiment failed: {e}")
+            await _tracker.fail(_tid, error=str(e)[:200])
         finally:
             _thinking_state["running"] = False
             _thinking_task = None
@@ -5000,10 +5016,14 @@ async def start_tie_experiment(request: Request):
 
     async def _bg():
         global _tie_task
+        _tracker = TaskTracker("tie_experiment")
+        _tid = await _tracker.start(metadata={"dataset_id": dataset_id, "num_pairs": num_pairs})
         try:
             await _run_tie_experiment(dataset_id, num_pairs)
+            await _tracker.complete(_tid)
         except Exception as e:
             logger.error(f"Tie experiment failed: {e}")
+            await _tracker.fail(_tid, error=str(e)[:200])
         finally:
             _tie_state["running"] = False
             _tie_task = None
@@ -5341,10 +5361,14 @@ async def start_multi_aspect(request: Request):
 
     async def _bg():
         global _ma_task
+        _tracker = TaskTracker("multi_aspect")
+        _tid = await _tracker.start(metadata={"dataset_id": dataset_id, "num_pairs": num_pairs})
         try:
             await _run_multi_aspect(dataset_id, num_pairs)
+            await _tracker.complete(_tid)
         except Exception as e:
             logger.error(f"Multi-aspect experiment failed: {e}")
+            await _tracker.fail(_tid, error=str(e)[:200])
         finally:
             _ma_state["running"] = False
             _ma_task = None

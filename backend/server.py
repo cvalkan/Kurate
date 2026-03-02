@@ -301,6 +301,7 @@ async def startup():
     asyncio.create_task(_startup_dedup())
     asyncio.create_task(_startup_regen_truncated_summaries())
     asyncio.create_task(_startup_resume_summarizer_ab())
+    asyncio.create_task(_startup_check_interrupted_tasks())
 
     logger.info("PaperSumo Leaderboard started")
 
@@ -468,6 +469,19 @@ async def _startup_resume_summarizer_ab():
         await resume_incomplete_summarizer_ab()
     except Exception as e:
         logger.warning(f"Summarizer-ab resume failed: {e}")
+
+
+async def _startup_check_interrupted_tasks():
+    """Log warnings for any background tasks that were running when the server stopped."""
+    await asyncio.sleep(3)
+    try:
+        from services.task_tracker import TaskTracker
+        interrupted = await TaskTracker.warn_interrupted()
+        await TaskTracker.cleanup_old(days=30)
+        if not interrupted:
+            logger.info("No interrupted background tasks found")
+    except Exception as e:
+        logger.warning(f"Interrupted task check failed: {e}")
 
 
 
