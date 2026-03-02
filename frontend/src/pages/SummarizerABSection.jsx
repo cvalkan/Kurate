@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const ADMIN_HEADERS = { "X-Admin-Token": sessionStorage.getItem("admin_token") };
+const getAdminHeaders = () => ({ "X-Admin-Token": sessionStorage.getItem("admin_token") });
 
 const DATASETS = [
   { id: "iclr-llm", label: "ICLR LLM" },
