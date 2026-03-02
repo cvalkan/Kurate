@@ -5826,6 +5826,73 @@ _sumab_state = {"running": False, "phase": "", "done": 0, "total": 0, "dataset_i
 _sumab_task = None
 
 
+async def _persist_sumab_task(dataset_id: str, summarizer: str, num_pairs: int, status: str = "queued"):
+    """Write or update a summarizer-ab task in MongoDB so it survives restarts."""
+    await db.summarizer_ab_tasks.update_one(
+        {"dataset_id": dataset_id, "summarizer": summarizer},
+        {"$set": {
+            "dataset_id": dataset_id,
+            "summarizer": summarizer,
+            "num_pairs": num_pairs,
+            "status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }, "$setOnInsert": {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+
+async def _mark_sumab_complete(dataset_id: str, summarizer: str):
+    """Mark a summarizer-ab task as complete in MongoDB."""
+    await db.summarizer_ab_tasks.update_one(
+        {"dataset_id": dataset_id, "summarizer": summarizer},
+        {"$set": {"status": "complete", "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+
+async def resume_incomplete_summarizer_ab():
+    """Startup task: find any queued/running summarizer-ab tasks and resume them.
+
+    This handles the case where the server restarted mid-generation.
+    Each task is idempotent — papers that already have summaries are skipped,
+    and match pairs that already exist are skipped.
+    """
+    from services.llm import generate_precomparison_impact_summary
+
+    incomplete = await db.summarizer_ab_tasks.find(
+        {"status": {"$in": ["queued", "running"]}},
+        {"_id": 0},
+    ).to_list(100)
+
+    if not incomplete:
+        return
+
+    logger.info(f"Resuming {len(incomplete)} incomplete summarizer-ab tasks")
+
+    for task in incomplete:
+        ds = task["dataset_id"]
+        summarizer = task["summarizer"]
+        num_pairs = task.get("num_pairs", 300)
+
+        if summarizer not in SUMMARIZER_MODELS:
+            logger.warning(f"Unknown summarizer '{summarizer}' in queued task, skipping")
+            await _mark_sumab_complete(ds, summarizer)
+            continue
+
+        logger.info(f"Resuming summarizer-ab: {ds}/{summarizer} ({num_pairs} pairs)")
+        await _persist_sumab_task(ds, summarizer, num_pairs, status="running")
+
+        try:
+            await _run_summarizer_ab(ds, summarizer, num_pairs)
+            await _mark_sumab_complete(ds, summarizer)
+            logger.info(f"Resumed summarizer-ab complete: {ds}/{summarizer}")
+        except Exception as e:
+            logger.error(f"Resumed summarizer-ab failed: {ds}/{summarizer}: {e}")
+            # Leave as "running" so it's retried on next restart
+            await _persist_sumab_task(ds, summarizer, num_pairs, status="queued")
+
+
 _ae_cache = {"data": None, "ts": 0}
 _sumab_results_cache = {"data": None, "ts": 0}
 
@@ -6153,12 +6220,18 @@ async def start_summarizer_ab(request: Request):
     if summarizer not in SUMMARIZER_MODELS:
         raise HTTPException(400, f"Invalid summarizer: {summarizer}")
 
+    # Persist task in MongoDB so it survives restarts
+    await _persist_sumab_task(dataset_id, summarizer, num_pairs, status="running")
+
     async def _bg():
         global _sumab_task
         try:
             await _run_summarizer_ab(dataset_id, summarizer, num_pairs)
+            await _mark_sumab_complete(dataset_id, summarizer)
         except Exception as e:
             logger.error(f"Summarizer A/B failed: {e}")
+            # Mark as queued so startup resume picks it up
+            await _persist_sumab_task(dataset_id, summarizer, num_pairs, status="queued")
         finally:
             _sumab_state["running"] = False
             _sumab_task = None
@@ -6173,12 +6246,69 @@ async def stop_summarizer_ab():
     _sumab_state["running"] = False
     if _sumab_task and not _sumab_task.done():
         _sumab_task.cancel()
+    # Mark any running tasks as complete (user explicitly stopped)
+    await db.summarizer_ab_tasks.update_many(
+        {"status": {"$in": ["queued", "running"]}},
+        {"$set": {"status": "stopped", "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
     return {"status": "stopping"}
 
 
 @router.get("/summarizer-ab/status")
 async def summarizer_ab_status():
-    return _sumab_state
+    # Include persistent queue info alongside in-memory state
+    queue = await db.summarizer_ab_tasks.find({}, {"_id": 0}).to_list(100)
+    return {**_sumab_state, "queue": queue}
+
+
+@router.post("/summarizer-ab/queue-batch", dependencies=[Depends(verify_admin)])
+async def queue_summarizer_ab_batch(request: Request):
+    """Queue GPT+Gemini summary generation for multiple datasets.
+
+    Accepts {"datasets": ["iclr-fairness", ...]} or runs for ALL datasets
+    that are missing GPT/Gemini summaries if no datasets are specified.
+    """
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    requested_datasets = body.get("datasets", [])
+    num_pairs = body.get("num_pairs", 300)
+
+    if not requested_datasets:
+        # Auto-detect: find all ICLR/eLife datasets with papers but missing GPT or Gemini summaries
+        pipeline = [
+            {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+        ]
+        all_ds = [doc["_id"] async for doc in db.validation_papers.aggregate(pipeline)]
+        for ds_id in all_ds:
+            for summarizer in ["gpt", "gemini"]:
+                field = f"ai_impact_summary_{summarizer}"
+                total = await db.validation_papers.count_documents({"dataset_id": ds_id})
+                with_sum = await db.validation_papers.count_documents({"dataset_id": ds_id, field: {"$exists": True, "$ne": None, "$ne": ""}})
+                if total > 0 and with_sum < total:
+                    requested_datasets.append(ds_id)
+        requested_datasets = list(set(requested_datasets))
+
+    queued = []
+    for ds_id in requested_datasets:
+        for summarizer in ["gpt", "gemini"]:
+            # Skip if already complete
+            existing = await db.summarizer_ab_tasks.find_one(
+                {"dataset_id": ds_id, "summarizer": summarizer}, {"_id": 0, "status": 1}
+            )
+            if existing and existing.get("status") == "complete":
+                continue
+            await _persist_sumab_task(ds_id, summarizer, num_pairs, status="queued")
+            queued.append(f"{ds_id}/{summarizer}")
+
+    # Kick off the resume loop if not already running
+    if queued and not _sumab_state["running"]:
+        async def _bg():
+            try:
+                await resume_incomplete_summarizer_ab()
+            except Exception as e:
+                logger.error(f"Batch summarizer-ab failed: {e}")
+        asyncio.create_task(_bg())
+
+    return {"status": "queued", "queued": queued, "count": len(queued)}
 
 
 async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):

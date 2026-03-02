@@ -174,6 +174,8 @@ async def startup():
         await db.summary_bias_matches.create_index([("original_match_id", 1), ("judge_key", 1), ("summary_key", 1)])
         # Ranking snapshots for convergence tracking
         await db.ranking_snapshots.create_index([("category", 1), ("round", -1)])
+        # Summarizer-ab task queue (for auto-resume on restart)
+        await db.summarizer_ab_tasks.create_index([("dataset_id", 1), ("summarizer", 1)], unique=True)
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
@@ -298,6 +300,7 @@ async def startup():
     asyncio.create_task(_prewarm_consistency_cache())
     asyncio.create_task(_startup_dedup())
     asyncio.create_task(_startup_regen_truncated_summaries())
+    asyncio.create_task(_startup_resume_summarizer_ab())
 
     logger.info("PaperSumo Leaderboard started")
 
@@ -455,6 +458,16 @@ async def _startup_regen_truncated_summaries():
         logger.info("Summary regen startup migration complete")
     except Exception as e:
         logger.error(f"Summary regen startup task failed: {e}")
+
+
+async def _startup_resume_summarizer_ab():
+    """Resume incomplete summarizer-ab tasks that were interrupted by a restart."""
+    await asyncio.sleep(30)  # Wait for caches + scheduler to be ready
+    try:
+        from routers.validation import resume_incomplete_summarizer_ab
+        await resume_incomplete_summarizer_ab()
+    except Exception as e:
+        logger.warning(f"Summarizer-ab resume failed: {e}")
 
 
 
