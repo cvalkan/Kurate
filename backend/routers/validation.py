@@ -7048,7 +7048,9 @@ async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
 
     sem = asyncio.Semaphore(4)
     gen_done = 0
-    for p in need_summary:
+
+    async def _gen_one(p):
+        nonlocal gen_done
         if not _sumab_state["running"]:
             return
         async with sem:
@@ -7064,6 +7066,8 @@ async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
                     _sumab_state["done"] = gen_done
             except Exception as e:
                 logger.warning(f"Summary gen failed for {p.get('title', '')[:40]}: {e}")
+
+    await asyncio.gather(*[_gen_one(p) for p in need_summary], return_exceptions=True)
 
     # Phase 2: Run tournament on same pairs as opus46 baseline
     _sumab_state.update({"phase": "running matches", "done": 0})
