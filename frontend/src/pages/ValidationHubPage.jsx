@@ -299,6 +299,7 @@ export default function ValidationHubPage() {
           {selected === "exp-tie-allowed" && <TieExperimentSection />}
           {selected === "exp-multi-aspect" && <MultiAspectSection />}
           {selected === "exp-summarizer-cross" && <SummarizerABSection />}
+          {selected === "exp-assessor-evaluator" && <AssessorEvaluatorSection />}
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
