@@ -6117,9 +6117,10 @@ async def _compute_summarizer_ab_results():
     ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
     ds_names = {"iclr-llm": "ICLR LLM", "iclr-codegen": "ICLR Code Gen"}
     ds_names.update({d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta})
-    # Auto-discover additional datasets with GPT/Gemini data
+    # Auto-discover datasets with ANY summarizer mode data (Opus, GPT, Gemini, Thinking)
+    sum_modes_list = list(SUM_MODES.values())
     ds_pipeline = [
-        {"$match": {"content_mode": {"$in": ["abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary"]}, "completed": True}},
+        {"$match": {"content_mode": {"$in": sum_modes_list}, "completed": True, "failed": {"$ne": True}}},
         {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
         {"$match": {"count": {"$gte": 30}}},
     ]
@@ -6129,8 +6130,7 @@ async def _compute_summarizer_ab_results():
             datasets.append(ds)
 
     by_dataset = {}
-    pooled = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
-    pooled = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
+    pooled = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0, "mpp_vals": []})
 
     for ds_id in datasets:
         papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
@@ -6208,11 +6208,20 @@ async def _compute_summarizer_ab_results():
                     if mode_map[name][pk] == ep[pk]: correct += 1
             acc = round(correct / max(total, 1) * 100, 1)
 
-            ds_result["modes"][name] = {"rho": rho, "accuracy": acc, "correct": correct, "total": total}
+            # Average matches per paper for this mode
+            paper_match_count = defaultdict(int)
+            for pk in shared:
+                paper_match_count[pk[0]] += 1
+                paper_match_count[pk[1]] += 1
+            n_papers_involved = len(paper_match_count)
+            avg_mpp = round(sum(paper_match_count.values()) / max(n_papers_involved, 1), 1)
+
+            ds_result["modes"][name] = {"rho": rho, "accuracy": acc, "correct": correct, "total": total, "avg_mpp": avg_mpp, "papers": n_papers_involved}
             if rho is not None:
                 pooled[name]["rho_vals"].append(rho)
             pooled[name]["correct"] += correct
             pooled[name]["total"] += total
+            pooled[name]["mpp_vals"].append(avg_mpp)
 
         by_dataset[ds_id] = ds_result
 
@@ -6226,6 +6235,7 @@ async def _compute_summarizer_ab_results():
             "accuracy": round(v["correct"] / max(v["total"], 1) * 100, 1),
             "correct": v["correct"], "total": v["total"],
             "datasets": len(v["rho_vals"]),
+            "avg_mpp": round(sum(v["mpp_vals"]) / max(len(v["mpp_vals"]), 1), 1) if v["mpp_vals"] else 0,
         }
 
     return {"status": "ok", "by_dataset": by_dataset, "pooled": pooled_results}

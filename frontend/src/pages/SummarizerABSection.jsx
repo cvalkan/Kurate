@@ -163,6 +163,7 @@ export default function SummarizerABSection() {
                       <th className="text-right py-1.5 px-2 font-medium">Avg ρ</th>
                       <th className="text-right py-1.5 px-2 font-medium">Accuracy</th>
                       <th className="text-right py-1.5 px-2 font-medium">Correct/Total</th>
+                      <th className="text-right py-1.5 px-2 font-medium">Avg M/P</th>
                       <th className="py-1.5 px-2 w-1/4"></th>
                     </tr>
                   </thead>
@@ -175,6 +176,7 @@ export default function SummarizerABSection() {
                         </td>
                         <td className="text-right py-1.5 px-2 font-mono">{v.accuracy}%</td>
                         <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{v.correct}/{v.total}</td>
+                        <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{v.avg_mpp ?? "—"}</td>
                         <td className="py-1.5 px-2">
                           <div className="h-2.5 bg-blue-100 rounded-full overflow-hidden">
                             <div className="h-full rounded-full" style={{ width: `${((v.avg_rho || 0) / (maxRho * 1.1)) * 100}%`, backgroundColor: SUM_COLORS[name] || "#94a3b8" }} />
@@ -201,6 +203,7 @@ export default function SummarizerABSection() {
                         <th className="text-right py-1 px-2 font-medium">ρ</th>
                         <th className="text-right py-1 px-2 font-medium">Accuracy</th>
                         <th className="text-right py-1 px-2 font-medium">Correct/Total</th>
+                        <th className="text-right py-1 px-2 font-medium">Avg M/P</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -210,6 +213,7 @@ export default function SummarizerABSection() {
                           <td className="text-right py-1 px-2 font-mono">{v.rho ?? "—"}</td>
                           <td className="text-right py-1 px-2 font-mono">{v.accuracy}%</td>
                           <td className="text-right py-1 px-2 font-mono text-muted-foreground">{v.correct}/{v.total}</td>
+                          <td className="text-right py-1 px-2 font-mono text-muted-foreground">{v.avg_mpp ?? "—"}</td>
                         </tr>
                       ))}
                     </tbody>
