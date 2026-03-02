@@ -713,7 +713,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     if tasks:
         if cat_status:
             cat_status["current_activity"] = f"Generating summaries for {len(papers)} papers..."
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks, return_exceptions=True)
         logger.info(f"[{category}] Generated {generated} new AI summaries")
 
     return generated

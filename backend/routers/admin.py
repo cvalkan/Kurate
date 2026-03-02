@@ -4,6 +4,7 @@ from typing import Optional, List
 from collections import defaultdict
 from datetime import datetime, timezone
 import asyncio
+import hmac
 import math
 import uuid
 import random
@@ -93,7 +94,7 @@ async def _is_valid_session(token: str) -> bool:
 @router.post("/login")
 async def admin_login(body: AdminLogin, request: Request):
     settings = await get_settings()
-    if body.password != settings.get("admin_password", DEFAULT_SETTINGS["admin_password"]):
+    if not hmac.compare_digest(body.password, settings.get("admin_password", DEFAULT_SETTINGS["admin_password"])):
         raise HTTPException(status_code=403, detail="Invalid password")
     token = f"adm_{_secrets.token_urlsafe(32)}"
     await _add_admin_session(token)
