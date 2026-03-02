@@ -195,10 +195,16 @@ export default function SummarizerABSection() {
             </div>
 
             {/* Per-dataset breakdown */}
-            {datasets_arr.map(([dsId, ds]) => (
+            {datasets_arr.map(([dsId, ds]) => {
+              const firstMode = Object.values(ds.modes || {})[0];
+              const ties = firstMode?.expert_ties || 0;
+              return (
               <div key={dsId} className="border border-border rounded-lg overflow-hidden" data-testid={`sumab-ds-${dsId}`}>
                 <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-                  <h3 className="text-xs font-medium">{ds.name} — {ds.shared_pairs} shared pairs</h3>
+                  <h3 className="text-xs font-medium">
+                    {ds.name} — {ds.shared_pairs} shared pairs
+                    {ties > 0 && <span className="text-muted-foreground font-normal"> ({ties} expert ties excluded from accuracy)</span>}
+                  </h3>
                 </div>
                 <div className="p-3">
                   <table className="w-full text-[11px]">
@@ -225,7 +231,8 @@ export default function SummarizerABSection() {
                   </table>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </>
         );
       })()}

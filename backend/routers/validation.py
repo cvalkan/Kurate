@@ -6204,13 +6204,14 @@ async def _compute_summarizer_ab_results():
             except Exception:
                 pass
 
-            # Accuracy
+            # Accuracy — only pairs where experts disagree (ties excluded)
             correct = total = 0
             for pk in shared:
                 if pk in ep:
                     total += 1
                     if mode_map[name][pk] == ep[pk]: correct += 1
             acc = round(correct / max(total, 1) * 100, 1)
+            expert_ties = len(shared) - total
 
             # Average matches per paper for this mode
             paper_match_count = defaultdict(int)
@@ -6220,7 +6221,7 @@ async def _compute_summarizer_ab_results():
             n_papers_involved = len(paper_match_count)
             avg_mpp = round(sum(paper_match_count.values()) / max(n_papers_involved, 1), 1)
 
-            ds_result["modes"][name] = {"rho": rho, "accuracy": acc, "correct": correct, "total": total, "avg_mpp": avg_mpp, "papers": n_papers_involved}
+            ds_result["modes"][name] = {"rho": rho, "accuracy": acc, "correct": correct, "total": total, "avg_mpp": avg_mpp, "papers": n_papers_involved, "expert_ties": expert_ties}
 
         by_dataset[ds_id] = ds_result
 
