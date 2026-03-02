@@ -6747,8 +6747,9 @@ async def assessor_evaluator_results():
         return model
 
     datasets = ["iclr-llm", "iclr-codegen"]
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
     ds_names = {"iclr-llm": "ICLR LLM", "iclr-codegen": "ICLR Code Gen"}
-    # Auto-discover additional datasets with GPT/Gemini data
+    ds_names.update({d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta})
     ds_pipeline = [
         {"$match": {"content_mode": {"$in": ["abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary"]}, "completed": True}},
         {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
@@ -6758,7 +6759,6 @@ async def assessor_evaluator_results():
     for ds in extra:
         if ds not in datasets:
             datasets.append(ds)
-            ds_names[ds] = ds.replace("-", " ").replace("_", " ").title()
     by_dataset = {}
     pooled_cells = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
 
