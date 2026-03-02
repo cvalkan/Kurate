@@ -7198,5 +7198,8 @@ async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
 
     await asyncio.gather(*[run_one(a, b) for a, b in to_run], return_exceptions=True)
     invalidate_dataset_cache(dataset_id)
+    # Invalidate experiment caches so results page picks up new data
+    _sumab_results_cache["data"] = None
+    _ae_cache["data"] = None
     logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: completed {completed}/{len(to_run)} matches")
 
