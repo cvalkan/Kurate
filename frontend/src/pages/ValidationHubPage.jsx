@@ -18,6 +18,7 @@ import ExtendedThinkingSection from "./ExtendedThinkingSection";
 import TieExperimentSection from "./TieExperimentSection";
 import MultiAspectSection from "./MultiAspectSection";
 import SummarizerABSection from "./SummarizerABSection";
+import AssessorEvaluatorSection from "./AssessorEvaluatorSection";
 import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
 import AllPairsSection from "./AllPairsSection";
