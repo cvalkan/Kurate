@@ -360,6 +360,20 @@ async def _prewarm_consistency_cache():
         logger.info("Consistency + cycle-analysis-all caches pre-warmed")
     except Exception as e:
         logger.warning(f"Consistency cache prewarm failed: {e}")
+    # Also warm summarizer experiment caches
+    try:
+        from routers.validation import _compute_summarizer_ab_results, _sumab_results_cache, _compute_assessor_evaluator, _ae_cache
+        r1 = await _compute_summarizer_ab_results()
+        if r1.get("status") == "ok":
+            _sumab_results_cache["data"] = r1
+            _sumab_results_cache["ts"] = _t.time()
+        r2 = await _compute_assessor_evaluator()
+        if r2.get("status") == "ok":
+            _ae_cache["data"] = r2
+            _ae_cache["ts"] = _t.time()
+        logger.info("Summarizer experiment caches pre-warmed")
+    except Exception as e:
+        logger.warning(f"Summarizer cache prewarm failed: {e}")
 
 
 
