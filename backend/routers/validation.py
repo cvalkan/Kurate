@@ -6897,6 +6897,18 @@ async def _compute_assessor_evaluator():
 
 @router.get("/summarizer-ab/results")
 async def summarizer_ab_results():
+    """Same-pair comparison — cached 1h."""
+    import time as _t
+    if _sumab_results_cache["data"] and _t.time() - _sumab_results_cache["ts"] < _CONSISTENCY_TTL:
+        return _sumab_results_cache["data"]
+    result = await _compute_summarizer_ab_results()
+    if result.get("status") == "ok":
+        _sumab_results_cache["data"] = result
+        _sumab_results_cache["ts"] = _t.time()
+    return result
+
+
+async def _compute_summarizer_ab_results():
     """Same-pair comparison of all summarizer models."""
     from services.ranking import compute_leaderboard as _sync_lb
 
