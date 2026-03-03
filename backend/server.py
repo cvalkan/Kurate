@@ -303,6 +303,7 @@ async def startup():
         "_prewarm_analysis_cache", "_prewarm_consistency_cache",
         "_startup_dedup", "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab", "_startup_check_interrupted_tasks",
+        "_startup_seed_targeted_matches",
     ]
     _g = globals()
     for _name in _bg_tasks:
@@ -518,6 +519,40 @@ async def _startup_check_interrupted_tasks():
             logger.info("No interrupted background tasks found")
     except Exception as e:
         logger.warning(f"Interrupted task check failed: {e}")
+
+
+async def _startup_seed_targeted_matches():
+    """One-time: import targeted Opus×GPT/Gemini matches for Condorcet cycle analysis."""
+    await asyncio.sleep(10)
+    try:
+        flag = await db.settings.find_one({"key": "experiment_seed_v4"}, {"_id": 0})
+        if flag and flag.get("done"):
+            return
+        from pathlib import Path
+        import json as _json, gzip as _gzip
+        path = Path("/app/backend/data/experiment_seed/targeted_matches_v4.json.gz")
+        if not path.exists():
+            return
+        with _gzip.open(path, "rt") as f:
+            matches = _json.load(f)
+        existing_ids = set()
+        ids = [m["id"] for m in matches if m.get("id")]
+        for i in range(0, len(ids), 5000):
+            async for doc in db.validation_matches.find({"id": {"$in": ids[i:i+5000]}}, {"_id": 0, "id": 1}):
+                existing_ids.add(doc["id"])
+        new = [m for m in matches if m.get("id") and m["id"] not in existing_ids]
+        if new:
+            for i in range(0, len(new), 5000):
+                await db.validation_matches.insert_many(new[i:i+5000])
+        await db.settings.update_one(
+            {"key": "experiment_seed_v4"},
+            {"$set": {"key": "experiment_seed_v4", "done": True, "imported": len(new)}},
+            upsert=True,
+        )
+        logger.info(f"Targeted matches seed: {len(new)} new (of {len(matches)}, {len(existing_ids)} existed)")
+    except Exception as e:
+        logger.warning(f"Targeted matches seed failed: {e}")
+
 
 async def _prewarm_extraction_cache():
     """Pre-warm the extraction stats cache in background to avoid slow first load."""
