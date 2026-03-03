@@ -360,35 +360,60 @@ async def _prewarm_analysis_cache():
 
 
 async def _prewarm_consistency_cache():
-    """Pre-warm consistency analysis and cycle-analysis-all caches (expensive)."""
-    await asyncio.sleep(15)  # Wait for other caches
+    """Pre-warm consistency and experiment caches (expensive, runs sequentially with yields)."""
+    await asyncio.sleep(30)  # Wait longer — let the server stabilize first
     try:
         from routers.validation import _compute_consistency_analysis, _compute_cycle_analysis_all
         from routers.validation_utils import consistency_cache, cycle_all_cache
         import time as _t
-        result = await _compute_consistency_analysis()
-        if result.get("status") == "ok":
-            consistency_cache["data"] = result
-            consistency_cache["ts"] = _t.time()
-        result2 = await _compute_cycle_analysis_all()
-        if result2.get("status") == "ok":
-            cycle_all_cache["data"] = result2
-            cycle_all_cache["ts"] = _t.time()
+
+        # Each computation runs in sequence with yields between them
+        # so the event loop can handle requests during prewarm
+        try:
+            result = await _compute_consistency_analysis()
+            if result.get("status") == "ok":
+                consistency_cache["data"] = result
+                consistency_cache["ts"] = _t.time()
+            await asyncio.sleep(1)  # Yield to event loop
+        except Exception as e:
+            logger.warning(f"Consistency analysis prewarm failed: {e}")
+
+        try:
+            result2 = await _compute_cycle_analysis_all()
+            if result2.get("status") == "ok":
+                cycle_all_cache["data"] = result2
+                cycle_all_cache["ts"] = _t.time()
+            await asyncio.sleep(1)
+        except Exception as e:
+            logger.warning(f"Cycle analysis prewarm failed: {e}")
+
         logger.info("Consistency + cycle-analysis-all caches pre-warmed")
     except Exception as e:
         logger.warning(f"Consistency cache prewarm failed: {e}")
-    # Also warm summarizer experiment caches
+
+    # Warm summarizer experiment caches (separate try so failures don't block each other)
+    await asyncio.sleep(2)
     try:
         from routers.validation_experiments import _compute_summarizer_ab_results, _compute_assessor_evaluator
         from routers.validation_utils import sumab_results_cache, ae_cache
-        r1 = await _compute_summarizer_ab_results()
-        if r1.get("status") == "ok":
-            sumab_results_cache["data"] = r1
-            sumab_results_cache["ts"] = _t.time()
-        r2 = await _compute_assessor_evaluator()
-        if r2.get("status") == "ok":
-            ae_cache["data"] = r2
-            ae_cache["ts"] = _t.time()
+        import time as _t
+        try:
+            r1 = await _compute_summarizer_ab_results()
+            if r1.get("status") == "ok":
+                sumab_results_cache["data"] = r1
+                sumab_results_cache["ts"] = _t.time()
+            await asyncio.sleep(1)
+        except Exception as e:
+            logger.warning(f"Summarizer AB prewarm failed: {e}")
+
+        try:
+            r2 = await _compute_assessor_evaluator()
+            if r2.get("status") == "ok":
+                ae_cache["data"] = r2
+                ae_cache["ts"] = _t.time()
+        except Exception as e:
+            logger.warning(f"Assessor-evaluator prewarm failed: {e}")
+
         logger.info("Summarizer experiment caches pre-warmed")
     except Exception as e:
         logger.warning(f"Summarizer cache prewarm failed: {e}")

@@ -1208,18 +1208,28 @@ async def _mark_sumab_complete(dataset_id: str, summarizer: str):
 
 
 async def resume_incomplete_summarizer_ab():
-    """Startup task: find any queued/running summarizer-ab tasks and resume them.
+    """Startup task: resume tasks that were actually running when the server stopped.
 
-    This handles the case where the server restarted mid-generation.
-    Each task is idempotent — papers that already have summaries are skipped,
-    and match pairs that already exist are skipped.
+    Only resumes tasks with status='running' that were updated recently (within 1 hour).
+    Stale 'running' tasks (from a previous session/deploy) are marked as 'interrupted'
+    and skipped — use the admin API to re-queue if needed.
     """
-    from services.llm import generate_precomparison_impact_summary
+    from datetime import datetime, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
 
+    # Mark stale "running" tasks as interrupted (older than 1 hour)
+    stale = await db.summarizer_ab_tasks.update_many(
+        {"status": "running", "updated_at": {"$lt": cutoff}},
+        {"$set": {"status": "interrupted", "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if stale.modified_count:
+        logger.info(f"Marked {stale.modified_count} stale summarizer-ab tasks as interrupted")
+
+    # Only resume recently-running tasks
     incomplete = await db.summarizer_ab_tasks.find(
-        {"status": {"$in": ["queued", "running"]}},
+        {"status": "running"},
         {"_id": 0},
-    ).to_list(100)
+    ).to_list(5)  # Max 5 at a time
 
     if not incomplete:
         return
