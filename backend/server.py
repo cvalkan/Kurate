@@ -522,15 +522,15 @@ async def _startup_check_interrupted_tasks():
 
 
 async def _startup_seed_targeted_matches():
-    """One-time: import targeted Opus×GPT/Gemini matches for Condorcet cycle analysis."""
+    """One-time: import all validation matches not yet on this database."""
     await asyncio.sleep(10)
     try:
-        flag = await db.settings.find_one({"key": "experiment_seed_v4"}, {"_id": 0})
+        flag = await db.settings.find_one({"key": "experiment_seed_v5"}, {"_id": 0})
         if flag and flag.get("done"):
             return
         from pathlib import Path
         import json as _json, gzip as _gzip
-        path = Path("/app/backend/data/experiment_seed/targeted_matches_v4.json.gz")
+        path = Path("/app/backend/data/experiment_seed/all_matches_v5.json.gz")
         if not path.exists():
             return
         with _gzip.open(path, "rt") as f:
@@ -545,13 +545,13 @@ async def _startup_seed_targeted_matches():
             for i in range(0, len(new), 5000):
                 await db.validation_matches.insert_many(new[i:i+5000])
         await db.settings.update_one(
-            {"key": "experiment_seed_v4"},
-            {"$set": {"key": "experiment_seed_v4", "done": True, "imported": len(new)}},
+            {"key": "experiment_seed_v5"},
+            {"$set": {"key": "experiment_seed_v5", "done": True, "imported": len(new)}},
             upsert=True,
         )
-        logger.info(f"Targeted matches seed: {len(new)} new (of {len(matches)}, {len(existing_ids)} existed)")
+        logger.info(f"Match seed v5: {len(new)} new (of {len(matches)}, {len(existing_ids)} existed)")
     except Exception as e:
-        logger.warning(f"Targeted matches seed failed: {e}")
+        logger.warning(f"Match seed failed: {e}")
 
 
 async def _prewarm_extraction_cache():
