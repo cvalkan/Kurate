@@ -86,6 +86,17 @@ async def extended_thinking_status():
 
 @router.get("/extended-thinking/results")
 async def extended_thinking_results():
+    """Compute accuracy comparison: opus46 baseline vs thinking summaries."""
+    from routers.validation_utils import extended_thinking_cache
+    if extended_thinking_cache["data"]:
+        return extended_thinking_cache["data"]
+    result = await _compute_extended_thinking_results()
+    if result.get("status") != "no_data":
+        extended_thinking_cache["data"] = result
+    return result
+
+
+async def _compute_extended_thinking_results():
     """Compute accuracy comparison: opus46 baseline vs thinking summaries.
     Uses same GT method as tournament page (AI vs individual expert preferences)."""
     import math
@@ -725,6 +736,17 @@ async def multi_aspect_status():
 
 @router.get("/multi-aspect/results")
 async def multi_aspect_results():
+    """Analyze multi-aspect experiment results."""
+    from routers.validation_utils import multi_aspect_cache
+    if multi_aspect_cache["data"]:
+        return multi_aspect_cache["data"]
+    result = await _compute_multi_aspect_results()
+    if result.get("status") != "no_data":
+        multi_aspect_cache["data"] = result
+    return result
+
+
+async def _compute_multi_aspect_results():
     """Analyze multi-aspect experiment: per-dimension accuracy, aggregate, optimal weighting."""
     from core.config import MULTI_ASPECT_DIMENSIONS
     import math

@@ -290,9 +290,6 @@ async def cache_get(endpoint: str, dataset_id: str, content_mode: str = ""):
     entry = _result_cache.get(key)
     if not entry:
         return None
-    if _time.time() - entry["ts"] > _CACHE_TTL:
-        del _result_cache[key]
-        return None
     return entry["data"]
 
 
@@ -324,6 +321,9 @@ CONV_CACHE_TTL = 3600
 # Summarizer experiment caches
 ae_cache = {"data": None, "ts": 0}
 sumab_results_cache = {"data": None, "ts": 0}
+extended_thinking_cache = {"data": None}
+multi_aspect_cache = {"data": None}
+pairwise_cache = {}  # (dataset_id, content_mode) -> data
 
 
 def invalidate_all_caches(dataset_id: str):
