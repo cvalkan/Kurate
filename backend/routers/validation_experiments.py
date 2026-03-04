@@ -1964,6 +1964,12 @@ async def _compute_judge_comparison():
         if len(common) < 20:
             continue
 
+        # Cap at 200 pairs per dataset for balanced comparison
+        MAX_PAIRS_PER_DS = 200
+        if len(common) > MAX_PAIRS_PER_DS:
+            _rng = _random.Random(42 + hash(ds_id))  # deterministic per dataset
+            common = set(_rng.sample(sorted(common), MAX_PAIRS_PER_DS))
+
         common_paper_ids = set()
         for p in common:
             common_paper_ids.add(p[0])
