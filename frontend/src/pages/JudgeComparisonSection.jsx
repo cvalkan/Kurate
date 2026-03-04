@@ -50,6 +50,7 @@ export default function JudgeComparisonSection() {
                 <th className="text-right py-1.5 px-2 font-medium">Cycle Rate</th>
                 <th className="text-right py-1.5 px-2 font-medium">Accuracy</th>
                 <th className="text-right py-1.5 px-2 font-medium">Avg Spearman</th>
+                <th className="text-right py-1.5 px-2 font-medium">Avg M/P</th>
                 <th className="text-right py-1.5 px-2 font-medium">Pairs</th>
               </tr>
             </thead>
@@ -69,6 +70,7 @@ export default function JudgeComparisonSection() {
                   <td className="text-right py-1.5 px-2 font-mono">
                     <span className={m.avg_rho >= bestRho - 0.001 ? "text-green-600 font-semibold" : ""}>{m.avg_rho.toFixed(3)}</span>
                   </td>
+                  <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{m.avg_mpp ?? "—"}</td>
                   <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{(m.total_pairs || total_pairs).toLocaleString()}</td>
                 </tr>
               ))}

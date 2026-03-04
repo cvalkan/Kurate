@@ -1970,7 +1970,14 @@ async def _compute_judge_comparison():
             common_paper_ids.add(p[1])
         common_papers = [paper_lookup[pid] for pid in common_paper_ids if pid in paper_lookup]
 
-        ds_row = {"dataset_id": ds_id, "name": ds_id.replace("iclr-", "ICLR ").replace("-", " ").title(), "pairs": len(common)}
+        # Average matches per paper
+        paper_match_count = defaultdict(int)
+        for p in common:
+            paper_match_count[p[0]] += 1
+            paper_match_count[p[1]] += 1
+        ds_avg_mpp = round(sum(paper_match_count.values()) / max(len(paper_match_count), 1), 1)
+
+        ds_row = {"dataset_id": ds_id, "name": ds_id.replace("iclr-", "ICLR ").replace("-", " ").title(), "pairs": len(common), "avg_mpp": ds_avg_mpp}
 
         # Per-judge accuracy + rho
         for judge in ALL_JUDGES:
@@ -2058,6 +2065,9 @@ async def _compute_judge_comparison():
     if total_pairs < 50:
         return {"status": "no_data"}
 
+    # Pooled avg matches per paper
+    pooled_avg_mpp = round(np.mean([ds["avg_mpp"] for ds in per_dataset if ds.get("avg_mpp")]), 1) if per_dataset else 0
+
     # Build judge results
     judges = []
     for j in ALL_JUDGES:
@@ -2069,6 +2079,7 @@ async def _compute_judge_comparison():
             "accuracy": round(s["correct"] / s["total"] * 100, 1),
             "avg_rho": round(np.mean(rhos), 3) if rhos else 0,
             "total_pairs": s["total"],
+            "avg_mpp": pooled_avg_mpp,
             "n_datasets": len(rhos),
         })
 
@@ -2088,11 +2099,13 @@ async def _compute_judge_comparison():
             "accuracy": round(rr_acc["correct"] / rr_acc["total"] * 100, 1),
             "avg_rho": round(np.mean(rr_rhos), 3) if rr_rhos else 0,
             "total_pairs": rr_acc["total"],
+            "avg_mpp": pooled_avg_mpp,
         },
         "majority_vote": {
             "accuracy": round(mv_acc["correct"] / mv_acc["total"] * 100, 1),
             "avg_rho": round(np.mean(mv_rhos), 3) if mv_rhos else 0,
             "total_pairs": mv_acc["total"],
+            "avg_mpp": pooled_avg_mpp,
         },
         "cycle_correlation": {
             "acc_spearman_r": round(acc_sr, 3) if not np.isnan(acc_sr) else 0,
