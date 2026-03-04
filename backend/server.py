@@ -500,7 +500,7 @@ async def _startup_seed_targeted_matches():
     await asyncio.sleep(10)
     try:
         # --- Match seed (v5) ---
-        flag = await db.settings.find_one({"key": "experiment_seed_v5"}, {"_id": 0})
+        flag = await db.settings.find_one({"key": "experiment_seed_v5b"}, {"_id": 0})
         if not (flag and flag.get("done")):
             from pathlib import Path
             import json as _json, gzip as _gzip
@@ -518,14 +518,14 @@ async def _startup_seed_targeted_matches():
                     for i in range(0, len(new), 5000):
                         await db.validation_matches.insert_many(new[i:i+5000])
                 await db.settings.update_one(
-                    {"key": "experiment_seed_v5"},
-                    {"$set": {"key": "experiment_seed_v5", "done": True, "imported": len(new)}},
+                    {"key": "experiment_seed_v5b"},
+                    {"$set": {"key": "experiment_seed_v5b", "done": True, "imported": len(new)}},
                     upsert=True,
                 )
                 logger.info(f"Match seed v5: {len(new)} new (of {len(matches)}, {len(existing_ids)} existed)")
 
         # --- Deep-dive seed (v6) ---
-        flag6 = await db.settings.find_one({"key": "experiment_seed_v6"}, {"_id": 0})
+        flag6 = await db.settings.find_one({"key": "experiment_seed_v6b"}, {"_id": 0})
         if not (flag6 and flag6.get("done")):
             from pathlib import Path
             import json as _json, gzip as _gzip
@@ -568,14 +568,14 @@ async def _startup_seed_targeted_matches():
                     logger.info(f"  deep_dive matches: {len(new_dd)} new ({len(existing_ids)} existed)")
 
                 await db.settings.update_one(
-                    {"key": "experiment_seed_v6"},
-                    {"$set": {"key": "experiment_seed_v6", "done": True, "imported": imported}},
+                    {"key": "experiment_seed_v6b"},
+                    {"$set": {"key": "experiment_seed_v6b", "done": True, "imported": imported}},
                     upsert=True,
                 )
                 logger.info(f"Deep-dive seed v6: {imported} total items imported")
 
         # --- CSB paper summaries seed (v7) ---
-        flag7 = await db.settings.find_one({"key": "experiment_seed_v7"}, {"_id": 0})
+        flag7 = await db.settings.find_one({"key": "experiment_seed_v7b"}, {"_id": 0})
         if not (flag7 and flag7.get("done")):
             path7 = Path("/app/backend/data/experiment_seed/csb_paper_summaries.json.gz")
             if path7.exists():
@@ -592,8 +592,8 @@ async def _startup_seed_targeted_matches():
                         if r.modified_count > 0:
                             updated += 1
                 await db.settings.update_one(
-                    {"key": "experiment_seed_v7"},
-                    {"$set": {"key": "experiment_seed_v7", "done": True, "imported": updated}},
+                    {"key": "experiment_seed_v7b"},
+                    {"$set": {"key": "experiment_seed_v7b", "done": True, "imported": updated}},
                     upsert=True,
                 )
                 logger.info(f"CSB paper summaries seed v7: {updated} updated (of {len(csb_papers)})")
