@@ -330,3 +330,10 @@ def invalidate_all_caches(dataset_id: str):
     """Invalidate all caches for a dataset — call after any experiment adds matches."""
     invalidate_dataset_cache(dataset_id)
     convergence_all_cache.pop(dataset_id, None)
+    # Clear experiment caches so they recompute with new data
+    consistency_cache["data"] = None
+    cycle_all_cache["data"] = None
+    sumab_results_cache["data"] = None
+    ae_cache["data"] = None
+    extended_thinking_cache["data"] = None
+    multi_aspect_cache["data"] = None
