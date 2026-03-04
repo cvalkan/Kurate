@@ -51,10 +51,12 @@ export default function CorrelationPage() {
   }, [category]);
 
   useEffect(() => {
-    setLoading(true);
+    // Only show loading spinner if no cached data for this category
+    const cacheKey = category || "__all__";
+    if (!dataCache.current[cacheKey]) {
+      setLoading(true);
+    }
     fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
   }, [fetchData]);
 
   if (loading) {
