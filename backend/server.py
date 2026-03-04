@@ -496,36 +496,85 @@ async def _startup_check_interrupted_tasks():
 
 
 async def _startup_seed_targeted_matches():
-    """One-time: import all validation matches not yet on this database."""
+    """One-time: import all validation matches and deep-dive data not yet on this database."""
     await asyncio.sleep(10)
     try:
+        # --- Match seed (v5) ---
         flag = await db.settings.find_one({"key": "experiment_seed_v5"}, {"_id": 0})
-        if flag and flag.get("done"):
-            return
-        from pathlib import Path
-        import json as _json, gzip as _gzip
-        path = Path("/app/backend/data/experiment_seed/all_matches_v5.json.gz")
-        if not path.exists():
-            return
-        with _gzip.open(path, "rt") as f:
-            matches = _json.load(f)
-        existing_ids = set()
-        ids = [m["id"] for m in matches if m.get("id")]
-        for i in range(0, len(ids), 5000):
-            async for doc in db.validation_matches.find({"id": {"$in": ids[i:i+5000]}}, {"_id": 0, "id": 1}):
-                existing_ids.add(doc["id"])
-        new = [m for m in matches if m.get("id") and m["id"] not in existing_ids]
-        if new:
-            for i in range(0, len(new), 5000):
-                await db.validation_matches.insert_many(new[i:i+5000])
-        await db.settings.update_one(
-            {"key": "experiment_seed_v5"},
-            {"$set": {"key": "experiment_seed_v5", "done": True, "imported": len(new)}},
-            upsert=True,
-        )
-        logger.info(f"Match seed v5: {len(new)} new (of {len(matches)}, {len(existing_ids)} existed)")
+        if not (flag and flag.get("done")):
+            from pathlib import Path
+            import json as _json, gzip as _gzip
+            path = Path("/app/backend/data/experiment_seed/all_matches_v5.json.gz")
+            if path.exists():
+                with _gzip.open(path, "rt") as f:
+                    matches = _json.load(f)
+                existing_ids = set()
+                ids = [m["id"] for m in matches if m.get("id")]
+                for i in range(0, len(ids), 5000):
+                    async for doc in db.validation_matches.find({"id": {"$in": ids[i:i+5000]}}, {"_id": 0, "id": 1}):
+                        existing_ids.add(doc["id"])
+                new = [m for m in matches if m.get("id") and m["id"] not in existing_ids]
+                if new:
+                    for i in range(0, len(new), 5000):
+                        await db.validation_matches.insert_many(new[i:i+5000])
+                await db.settings.update_one(
+                    {"key": "experiment_seed_v5"},
+                    {"$set": {"key": "experiment_seed_v5", "done": True, "imported": len(new)}},
+                    upsert=True,
+                )
+                logger.info(f"Match seed v5: {len(new)} new (of {len(matches)}, {len(existing_ids)} existed)")
+
+        # --- Deep-dive seed (v6) ---
+        flag6 = await db.settings.find_one({"key": "experiment_seed_v6"}, {"_id": 0})
+        if not (flag6 and flag6.get("done")):
+            from pathlib import Path
+            import json as _json, gzip as _gzip
+            path = Path("/app/backend/data/experiment_seed/deep_dive_data.json.gz")
+            if path.exists():
+                with _gzip.open(path, "rt") as f:
+                    bundle = _json.load(f)
+                imported = 0
+
+                # Settings docs (deeper_dive_experiment, progress, etc.)
+                for doc in bundle.get("settings", []):
+                    key = doc.get("key")
+                    if key:
+                        existing = await db.settings.find_one({"key": key}, {"_id": 0, "key": 1})
+                        if not existing:
+                            await db.settings.insert_one(doc)
+                            imported += 1
+
+                # Replay collections
+                for coll_name, docs in bundle.get("replay_collections", {}).items():
+                    existing_count = await db[coll_name].count_documents({})
+                    if existing_count == 0 and docs:
+                        await db[coll_name].insert_many(docs)
+                        imported += len(docs)
+                        logger.info(f"  {coll_name}: {len(docs)} docs")
+
+                # Deep dive matches (skip existing)
+                dd_matches = bundle.get("deep_dive_matches", [])
+                if dd_matches:
+                    existing_ids = set()
+                    ids = [m["id"] for m in dd_matches if m.get("id")]
+                    for i in range(0, len(ids), 5000):
+                        async for doc in db.validation_matches.find({"id": {"$in": ids[i:i+5000]}}, {"_id": 0, "id": 1}):
+                            existing_ids.add(doc["id"])
+                    new_dd = [m for m in dd_matches if m.get("id") and m["id"] not in existing_ids]
+                    if new_dd:
+                        for i in range(0, len(new_dd), 5000):
+                            await db.validation_matches.insert_many(new_dd[i:i+5000])
+                    imported += len(new_dd)
+                    logger.info(f"  deep_dive matches: {len(new_dd)} new ({len(existing_ids)} existed)")
+
+                await db.settings.update_one(
+                    {"key": "experiment_seed_v6"},
+                    {"$set": {"key": "experiment_seed_v6", "done": True, "imported": imported}},
+                    upsert=True,
+                )
+                logger.info(f"Deep-dive seed v6: {imported} total items imported")
     except Exception as e:
-        logger.warning(f"Match seed failed: {e}")
+        logger.warning(f"Seed import failed: {e}")
 
 
 async def _prewarm_extraction_cache():
