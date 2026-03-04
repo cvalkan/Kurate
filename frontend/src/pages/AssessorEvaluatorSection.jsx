@@ -166,13 +166,24 @@ export default function AssessorEvaluatorSection() {
         </ul>
       </div>
 
+      {/* Why different from Judge Comparison page */}
+      <div className="border border-amber-200 rounded-lg p-4 bg-amber-50/30 text-xs space-y-2">
+        <h3 className="font-medium text-sm text-amber-900">Why do these numbers differ from "Accuracy by Judge"?</h3>
+        <ul className="list-disc list-inside text-amber-900 space-y-1">
+          <li><strong>Different pair sets:</strong> This matrix uses all shared pairs per summarizer×judge combo (varying N per cell). "Accuracy by Judge" uses a strict 4-judge intersection capped at 200 pairs per dataset — every row uses the exact same pairs.</li>
+          <li><strong>Round-Robin here is simulated:</strong> For each pair, one random judge's verdict is used (50 trials averaged). It has the same match count as a single judge — NOT a majority vote across pooled data.</li>
+          <li><strong>Different datasets:</strong> This matrix includes 12 datasets (ICLR + eLife). "Accuracy by Judge" includes 9 (only datasets where all 4 judges evaluated same pairs).</li>
+          <li><strong>The pattern is consistent:</strong> Opus 4.6 Thinking summaries produce the highest ρ on both pages. The absolute ρ values differ because of the pair set and dataset mix, but the relative ranking of summarizers and judges is stable.</li>
+        </ul>
+      </div>
+
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Methodology</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
           <li><strong>Assessor:</strong> The model that generates the impact assessment summary from the paper's full text.</li>
           <li><strong>Evaluator:</strong> The model that compares two papers' summaries and picks a winner.</li>
-          <li><strong>Round-Robin:</strong> Majority vote across all 3 judge models (GPT-5.2, Opus 4.6, Gemini 3 Pro).</li>
+          <li><strong>Round-Robin:</strong> Simulated by randomly picking one judge per pair (50 trials averaged). Same match count as a single judge — not a data-pooling advantage.</li>
           <li><strong>Same pairs:</strong> Intersection of all 5 summarizers — every cell uses the exact same paper pairs.</li>
           <li><strong>Ranking ρ:</strong> Spearman correlation between AI's BT ranking and human reviewers' BT ranking.</li>
           <li><strong>Accuracy:</strong> Fraction of pairwise comparisons where AI agrees with human expert majority.</li>

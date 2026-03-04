@@ -325,6 +325,135 @@ export default function AllPairsSection() {
         </div>
       )}
 
+      {/* ── Same-Pair Cycle Analysis ── */}
+      {consistency?.verdict_stability?.normalized_comparison && Object.keys(consistency.verdict_stability.normalized_comparison).length >= 2 && (() => {
+        const vs = consistency.verdict_stability;
+        const nc = vs.normalized_comparison;
+        const models = Object.entries(nc).sort((a, b) => a[1].adjusted_rate - b[1].adjusted_rate);
+        const maxRate = Math.max(...models.map(([, v]) => v.adjusted_rate), 0.5);
+        const sharedTriples = models[0]?.[1]?.triples || 0;
+
+        return (
+          <div className="border-2 border-blue-200 rounded-lg overflow-hidden bg-blue-50/10" data-testid="same-pair-cycles">
+            <div className="px-3 py-2 bg-blue-100/30 border-b border-blue-200">
+              <h3 className="text-xs font-medium flex items-center gap-1.5 text-blue-900">
+                <RotateCcw className="h-3.5 w-3.5" /> Same-Pair Cycle Rates — Adjusted for Input Format + Summarizer
+              </h3>
+              <div className="text-[10px] text-blue-700 mt-0.5">
+                <strong>Controlled comparison:</strong> All models on the same {sharedTriples.toLocaleString()} triples (pairs evaluated by multiple models). <strong>Adjusted rate</strong> compensates for each model's input mix. Unlike the tables above, this analysis restricts to pairs with overlapping judgments for a fair comparison.
+              </div>
+            </div>
+            <div className="p-3">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border text-[10px]">
+                    <th className="text-left py-1.5 pr-3 font-medium">Model</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Cycles</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Triples</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Raw Rate</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Adj. Factor</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Adjusted Rate</th>
+                    <th className="text-left py-1.5 px-2 font-medium">Raw 95% CI</th>
+                    <th className="py-1.5 px-2 font-medium w-1/5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map(([mk, v]) => {
+                    const color = MODEL_COLORS[mk] || "#94a3b8";
+                    return (
+                      <tr key={mk} className="border-b border-border/30">
+                        <td className="py-2 pr-3 font-medium">{mk}</td>
+                        <td className="text-right py-2 px-2 font-mono">{v.cycles}</td>
+                        <td className="text-right py-2 px-2 font-mono text-muted-foreground">{v.triples.toLocaleString()}</td>
+                        <td className="text-right py-2 px-2 font-mono text-muted-foreground">{v.raw_rate}%</td>
+                        <td className="text-right py-2 px-2 font-mono text-muted-foreground text-[10px]">{v.adjustment_factor}x</td>
+                        <td className="text-right py-2 px-2 font-mono">
+                          <span className={v.adjusted_rate < 0.5 ? "text-green-600 font-semibold" : v.adjusted_rate < 2 ? "text-amber-600" : "text-red-600"}>
+                            {v.adjusted_rate}%
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 font-mono text-[10px] text-muted-foreground">[{v.ci[0]}%, {v.ci[1]}%]</td>
+                        <td className="py-2 px-2">
+                          <div className="h-3 bg-secondary/30 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${Math.max((v.adjusted_rate / (maxRate * 1.3)) * 100, v.adjusted_rate > 0 ? 3 : 0)}%`, backgroundColor: color }} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {consistency?.verdict_stability?.judge_summarizer && Object.keys(consistency.verdict_stability.judge_summarizer).length > 0 && (() => {
+        const js = consistency.verdict_stability.judge_summarizer;
+        const allEntries = Object.values(js).filter(v => typeof v === "object" && v.triples > 0);
+        const judges = [...new Set(allEntries.map(v => v.judge))].sort();
+        const summarizers = [...new Set(allEntries.map(v => v.summarizer))].sort();
+        const maxRate = Math.max(...allEntries.map(v => v.rate), 0.5);
+
+        return (
+          <div className="border-2 border-blue-200 rounded-lg overflow-hidden bg-blue-50/10" data-testid="same-pair-judge-summarizer">
+            <div className="px-3 py-2 bg-blue-100/30 border-b border-blue-200">
+              <h3 className="text-xs font-medium flex items-center gap-1.5 text-blue-900">
+                <BarChart3 className="h-3.5 w-3.5" /> Same-Pair: Judge × Summarizer Cycle Breakdown
+              </h3>
+              <div className="text-[10px] text-blue-700 mt-0.5">
+                <strong>Controlled comparison:</strong> Disentangles the judge effect from the summarizer effect. Compare rows <em>within</em> a judge (same judge, different summarizer) to isolate the summarizer effect. Compare rows <em>across</em> judges with the same summarizer to isolate the judge effect.
+              </div>
+            </div>
+            <div className="p-3 overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border text-[10px]">
+                    <th className="text-left py-1.5 pr-2 font-medium">Judge Model</th>
+                    <th className="text-left py-1.5 px-2 font-medium">Summarizer</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Pairs</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Cycles/Triples</th>
+                    <th className="text-right py-1.5 px-2 font-medium">Rate</th>
+                    <th className="py-1.5 px-2 w-1/5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {judges.map((judge, ji) => {
+                    const rows = summarizers
+                      .map(s => js[`${judge}|${s}`])
+                      .filter(v => v && v.triples > 0)
+                      .sort((a, b) => b.triples - a.triples);
+                    if (!rows.length) return null;
+                    const color = MODEL_COLORS[judge] || "#94a3b8";
+                    return rows.map((r, ri) => (
+                      <tr key={`${judge}-${r.summarizer}`} className={`border-b border-border/30 ${ji > 0 && ri === 0 ? "border-t border-border" : ""} ${r.is_self ? "bg-blue-50/50" : ""}`}>
+                        {ri === 0 && <td className="py-1.5 pr-2 font-medium" rowSpan={rows.length}>{judge}</td>}
+                        <td className="py-1.5 px-2 text-muted-foreground">
+                          {r.summarizer}
+                          {r.is_self && <span className="ml-1 text-[9px] text-blue-500 font-medium">SELF</span>}
+                        </td>
+                        <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{r.pairs.toLocaleString()}</td>
+                        <td className="text-right py-1.5 px-2 font-mono text-[10px] text-muted-foreground">{r.cycles}/{r.triples.toLocaleString()}</td>
+                        <td className="text-right py-1.5 px-2 font-mono">
+                          <span className={r.rate < 0.5 ? "text-green-600 font-semibold" : r.rate < 1.5 ? "text-amber-600" : "text-red-600"}>
+                            {r.rate}%
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <div className="h-2.5 bg-secondary/30 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${Math.max((r.rate / (maxRate * 1.2)) * 100, r.rate > 0 ? 2 : 0)}%`, backgroundColor: color }} />
+                          </div>
+                        </td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
         <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Methodology</h3>
