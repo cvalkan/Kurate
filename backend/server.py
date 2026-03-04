@@ -573,6 +573,30 @@ async def _startup_seed_targeted_matches():
                     upsert=True,
                 )
                 logger.info(f"Deep-dive seed v6: {imported} total items imported")
+
+        # --- CSB paper summaries seed (v7) ---
+        flag7 = await db.settings.find_one({"key": "experiment_seed_v7"}, {"_id": 0})
+        if not (flag7 and flag7.get("done")):
+            path7 = Path("/app/backend/data/experiment_seed/csb_paper_summaries.json.gz")
+            if path7.exists():
+                with _gzip.open(path7, "rt") as f:
+                    csb_papers = _json.load(f)
+                updated = 0
+                for p in csb_papers:
+                    fields = {}
+                    for fld in ["ai_impact_summary_opus46", "ai_impact_summary_gpt", "ai_impact_summary_gemini"]:
+                        if p.get(fld):
+                            fields[fld] = p[fld]
+                    if fields:
+                        r = await db.validation_papers.update_one({"id": p["id"]}, {"$set": fields})
+                        if r.modified_count > 0:
+                            updated += 1
+                await db.settings.update_one(
+                    {"key": "experiment_seed_v7"},
+                    {"$set": {"key": "experiment_seed_v7", "done": True, "imported": updated}},
+                    upsert=True,
+                )
+                logger.info(f"CSB paper summaries seed v7: {updated} updated (of {len(csb_papers)})")
     except Exception as e:
         logger.warning(f"Seed import failed: {e}")
 
