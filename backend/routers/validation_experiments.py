@@ -1382,29 +1382,47 @@ async def _compute_assessor_evaluator():
         ds_cells = []
         for sum_name in avail:
             data = mode_data[sum_name]
-            # Round-robin
-            rr = []
+            # Round-Robin simulation: for each pair, randomly pick ONE judge's verdict
+            # Run 100 trials and average for stable estimate
+            import random as _rr_rand
+            _rr_rng = _rr_rand.Random(42)
+            trial_rhos = []
+            trial_correct = []
+            trial_total = []
+            available_judges_per_pair = {}
             for pk in shared:
                 if pk not in data: continue
-                c = Counter(data[pk].values())
-                rr.append({"paper1_id": pk[0], "paper2_id": pk[1], "winner_id": c.most_common(1)[0][0], "completed": True, "failed": False})
+                available_judges_per_pair[pk] = list(data[pk].items())  # [(judge, winner), ...]
 
-            rr_rho = None
-            try:
-                ai_lb = await compute_leaderboard_async(paper_list, rr)
-                h_lb = await compute_leaderboard_async(paper_list, hm)
-                ai_s = {e["id"]: e["score"] for e in ai_lb}
-                h_s = {e["id"]: e["score"] for e in h_lb}
-                ci = sorted(set(ai_s) & set(h_s))
-                if len(ci) >= 10:
-                    rr_rho = safe_round(scipy.stats.spearmanr([ai_s[x] for x in ci], [h_s[x] for x in ci])[0])
-            except Exception: pass
+            for _ in range(50):
+                rr_matches = []
+                for pk, judge_verdicts in available_judges_per_pair.items():
+                    judge, winner = _rr_rng.choice(judge_verdicts)
+                    rr_matches.append({"paper1_id": pk[0], "paper2_id": pk[1], "winner_id": winner, "completed": True, "failed": False})
 
-            rr_c = sum(1 for m in rr if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep and m["winner_id"] == ep[tuple(sorted([m["paper1_id"], m["paper2_id"]]))])
-            rr_t = sum(1 for m in rr if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep)
+                try:
+                    ai_lb = await compute_leaderboard_async(paper_list, rr_matches)
+                    h_lb = await compute_leaderboard_async(paper_list, hm)
+                    ai_s = {e["id"]: e["score"] for e in ai_lb}
+                    h_s = {e["id"]: e["score"] for e in h_lb}
+                    ci = sorted(set(ai_s) & set(h_s))
+                    if len(ci) >= 10:
+                        rho_val = scipy.stats.spearmanr([ai_s[x] for x in ci], [h_s[x] for x in ci])[0]
+                        if not np.isnan(rho_val):
+                            trial_rhos.append(rho_val)
+                except Exception: pass
+
+                tc = sum(1 for m in rr_matches if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep and m["winner_id"] == ep[tuple(sorted([m["paper1_id"], m["paper2_id"]]))])
+                tt = sum(1 for m in rr_matches if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep)
+                trial_correct.append(tc)
+                trial_total.append(tt)
+
+            rr_rho = safe_round(np.mean(trial_rhos)) if trial_rhos else None
+            rr_c = int(np.mean(trial_correct)) if trial_correct else 0
+            rr_t = int(np.mean(trial_total)) if trial_total else 0
             rr_acc = round(rr_c / max(rr_t, 1) * 100, 1)
 
-            cell = {"summarizer": sum_name, "judge": "Round-Robin", "rho": rr_rho, "accuracy": rr_acc, "correct": rr_c, "total": rr_t, "pairs": len(rr)}
+            cell = {"summarizer": sum_name, "judge": "Round-Robin", "rho": rr_rho, "accuracy": rr_acc, "correct": rr_c, "total": rr_t, "pairs": len(available_judges_per_pair)}
             ds_cells.append(cell)
             key = f"{sum_name}|Round-Robin"
             if rr_rho is not None: pooled_cells[key]["rho_vals"].append(rr_rho)
@@ -1425,7 +1443,8 @@ async def _compute_assessor_evaluator():
                     ci = sorted(set(ai_s) & set(h_s))
                     if len(ci) >= 10:
                         j_rho = safe_round(scipy.stats.spearmanr([ai_s[x] for x in ci], [h_s[x] for x in ci])[0])
-                except Exception: pass
+                except Exception as _e:
+                    logger.warning(f"Assessor rho failed {ds_id}/{sum_name}/{judge}: {_e}")
 
                 j_c = sum(1 for m in jm if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep and m["winner_id"] == ep[tuple(sorted([m["paper1_id"], m["paper2_id"]]))])
                 j_t = sum(1 for m in jm if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep)
