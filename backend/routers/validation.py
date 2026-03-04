@@ -868,7 +868,7 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
 async def get_consistency_analysis():
     """Comprehensive consistency analysis — cached with 1h TTL."""
     import time as _t
-    if consistency_cache["data"] and _t.time() - consistency_cache["ts"] < CONSISTENCY_TTL:
+    if consistency_cache["data"]:
         return consistency_cache["data"]
     result = await _compute_consistency_analysis()
     if result.get("status") == "ok":
@@ -1264,7 +1264,7 @@ async def _compute_consistency_analysis():
 async def get_cycle_analysis_all():
     """Aggregate cycle analysis — cached with 1h TTL."""
     import time as _t
-    if cycle_all_cache["data"] and _t.time() - cycle_all_cache["ts"] < CONSISTENCY_TTL:
+    if cycle_all_cache["data"]:
         return cycle_all_cache["data"]
     result = await _compute_cycle_analysis_all()
     if result.get("status") == "ok":

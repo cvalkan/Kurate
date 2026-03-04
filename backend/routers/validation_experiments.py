@@ -1267,7 +1267,7 @@ async def resume_incomplete_summarizer_ab():
 async def assessor_evaluator_results():
     """Full summarizer × judge matrix — cached 1h."""
     import time as _t
-    if ae_cache["data"] and _t.time() - ae_cache["ts"] < CONSISTENCY_TTL:
+    if ae_cache["data"]:
         return ae_cache["data"]
     result = await _compute_assessor_evaluator()
     if result.get("status") == "ok":
@@ -1434,7 +1434,7 @@ async def _compute_assessor_evaluator():
 async def summarizer_ab_results():
     """Same-pair comparison — cached 1h."""
     import time as _t
-    if sumab_results_cache["data"] and _t.time() - sumab_results_cache["ts"] < CONSISTENCY_TTL:
+    if sumab_results_cache["data"]:
         return sumab_results_cache["data"]
     result = await _compute_summarizer_ab_results()
     if result.get("status") == "ok":
