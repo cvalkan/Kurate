@@ -1394,7 +1394,7 @@ async def _compute_assessor_evaluator():
                 if pk not in data: continue
                 available_judges_per_pair[pk] = list(data[pk].items())  # [(judge, winner), ...]
 
-            for _ in range(50):
+            for _ in range(5):
                 rr_matches = []
                 for pk, judge_verdicts in available_judges_per_pair.items():
                     judge, winner = _rr_rng.choice(judge_verdicts)
@@ -1466,8 +1466,39 @@ async def _compute_assessor_evaluator():
                         "accuracy": round(v["correct"] / max(v["total"], 1) * 100, 1),
                         "correct": v["correct"], "total": v["total"]}
 
+    # Add "All Evaluators" aggregate row per summarizer (average across single judges, not RR)
+    for sum_name in SUM_MODES:
+        judge_cells = [pooled.get(f"{sum_name}|{j}") for j in JUDGES if pooled.get(f"{sum_name}|{j}")]
+        if judge_cells:
+            rho_vals = [c["avg_rho"] for c in judge_cells if c.get("avg_rho") is not None]
+            total_correct = sum(c["correct"] for c in judge_cells)
+            total_total = sum(c["total"] for c in judge_cells)
+            pooled[f"{sum_name}|All Evaluators"] = {
+                "summarizer": sum_name, "judge": "All Evaluators",
+                "avg_rho": round(np.mean(rho_vals), 4) if rho_vals else None,
+                "accuracy": round(total_correct / max(total_total, 1) * 100, 1),
+                "correct": total_correct, "total": total_total,
+            }
+
+    # Also add per-dataset "All Evaluators" rows
+    for ds_id, ds_data in by_dataset.items():
+        cells = ds_data.get("cells", [])
+        for sum_name in SUM_MODES:
+            judge_cells = [c for c in cells if c["summarizer"] == sum_name and c["judge"] in JUDGES]
+            if judge_cells:
+                rho_vals = [c["rho"] for c in judge_cells if c.get("rho") is not None]
+                total_correct = sum(c["correct"] for c in judge_cells)
+                total_total = sum(c["total"] for c in judge_cells)
+                cells.append({
+                    "summarizer": sum_name, "judge": "All Evaluators",
+                    "rho": round(np.mean(rho_vals), 4) if rho_vals else None,
+                    "accuracy": round(total_correct / max(total_total, 1) * 100, 1),
+                    "correct": total_correct, "total": total_total,
+                    "pairs": sum(c.get("pairs", 0) for c in judge_cells),
+                })
+
     return {"status": "ok", "by_dataset": by_dataset, "pooled": pooled,
-            "summarizers": list(SUM_MODES.keys()), "judges": ["Round-Robin"] + JUDGES}
+            "summarizers": list(SUM_MODES.keys()), "judges": ["Round-Robin"] + JUDGES + ["All Evaluators"]}
 
 
 
@@ -2140,4 +2171,153 @@ async def _compute_judge_comparison():
             "rho_spearman_p": round(rho_sp, 3) if not np.isnan(rho_sp) else 1,
         },
         "per_dataset": per_dataset,
+    }
+
+
+# ─── Model Correlation Analysis ────────────────────────────────────────────────
+
+_model_correlation_cache = {"data": None}
+
+
+@router.get("/model-correlation-analysis/results")
+async def model_correlation_analysis():
+    if _model_correlation_cache["data"]:
+        return _model_correlation_cache["data"]
+    result = await _compute_model_correlation_analysis()
+    if result.get("status") == "ok":
+        _model_correlation_cache["data"] = result
+    return result
+
+
+async def _compute_model_correlation_analysis():
+    """Pairwise agreement and ranking correlation between all judge pairs.
+
+    Uses same-pair data: only pairs where both judges in a pair evaluated.
+    Breaks down by dataset and input format.
+    """
+    JUDGE_MODELS_MAP = {
+        "gpt-5.2": "GPT-5.2",
+        "claude-opus-4-5-20251101": "Opus 4.5",
+        "claude-opus-4-6": "Opus 4.6",
+        "gemini-3-pro-preview": "Gemini 3 Pro",
+    }
+    ALL_JUDGES = ["Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"]
+    DATASETS = ["iclr-llm", "iclr-codegen", "iclr-pdes", "iclr-ot", "iclr-fairness",
+                 "iclr-protein", "iclr-molecules", "iclr-optimization",
+                 "elife-cancer", "elife-comp-sys-bio", "elife-microbiology", "elife-neuro-100"]
+    FORMAT_MODES = {
+        "Abs+Sum (Opus 4.5)": "abstract_plus_summary",
+        "Abs+Sum (Opus 4.6)": "abstract_plus_summary:opus46",
+        "Abs+Sum (Thinking)": "abstract_plus_summary:thinking",
+        "Abs+Sum (GPT)": "abstract_plus_summary:gpt_summary",
+        "Abs+Sum (Gemini)": "abstract_plus_summary:gemini_summary",
+    }
+
+    from itertools import combinations
+
+    # Collect all judge verdicts per dataset×format
+    pair_data = {}  # (ds, format) -> {judge: {pair: winner}}
+
+    for ds_id in DATASETS:
+        for fmt_name, cm in FORMAT_MODES.items():
+            judge_verdicts = {j: {} for j in ALL_JUDGES}
+            async for m in db.validation_matches.find(
+                {"dataset_id": ds_id, "content_mode": cm, "completed": True,
+                 "failed": {"$ne": True}, "model_used.model": {"$exists": True}},
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used.model": 1}
+            ):
+                judge = JUDGE_MODELS_MAP.get(m["model_used"]["model"])
+                if judge:
+                    pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+                    judge_verdicts[judge][pair] = m["winner_id"]
+
+            # Only include if at least 2 judges have data
+            active = {j: v for j, v in judge_verdicts.items() if len(v) >= 10}
+            if len(active) >= 2:
+                pair_data[(ds_id, fmt_name)] = active
+
+    # Compute pairwise agreement for each judge pair
+    judge_pairs_list = list(combinations(ALL_JUDGES, 2))
+
+    # Aggregate by judge pair
+    agg_agree = {jp: {"agree": 0, "total": 0} for jp in judge_pairs_list}
+    # By dataset
+    by_dataset = {}
+    # By format
+    by_format = {}
+
+    for (ds_id, fmt_name), active_judges in pair_data.items():
+        for j1, j2 in judge_pairs_list:
+            if j1 not in active_judges or j2 not in active_judges:
+                continue
+            shared = set(active_judges[j1].keys()) & set(active_judges[j2].keys())
+            if len(shared) < 5:
+                continue
+            agree = sum(1 for p in shared if active_judges[j1][p] == active_judges[j2][p])
+            total = len(shared)
+
+            agg_agree[(j1, j2)]["agree"] += agree
+            agg_agree[(j1, j2)]["total"] += total
+
+            # By dataset
+            if ds_id not in by_dataset:
+                by_dataset[ds_id] = {}
+            key = f"{j1}|{j2}"
+            if key not in by_dataset[ds_id]:
+                by_dataset[ds_id][key] = {"agree": 0, "total": 0}
+            by_dataset[ds_id][key]["agree"] += agree
+            by_dataset[ds_id][key]["total"] += total
+
+            # By format
+            if fmt_name not in by_format:
+                by_format[fmt_name] = {}
+            if key not in by_format[fmt_name]:
+                by_format[fmt_name][key] = {"agree": 0, "total": 0}
+            by_format[fmt_name][key]["agree"] += agree
+            by_format[fmt_name][key]["total"] += total
+
+    # Build result
+    pooled_pairs = []
+    for (j1, j2), v in agg_agree.items():
+        if v["total"] >= 10:
+            pooled_pairs.append({
+                "judge1": j1, "judge2": j2,
+                "agreement": round(v["agree"] / v["total"] * 100, 1),
+                "same_pairs": v["total"],
+            })
+
+    ds_results = {}
+    for ds_id, pairs in by_dataset.items():
+        ds_pairs = []
+        for key, v in pairs.items():
+            if v["total"] >= 5:
+                j1, j2 = key.split("|")
+                ds_pairs.append({
+                    "judge1": j1, "judge2": j2,
+                    "agreement": round(v["agree"] / v["total"] * 100, 1),
+                    "same_pairs": v["total"],
+                })
+        if ds_pairs:
+            ds_results[ds_id] = ds_pairs
+
+    fmt_results = {}
+    for fmt_name, pairs in by_format.items():
+        fmt_pairs = []
+        for key, v in pairs.items():
+            if v["total"] >= 5:
+                j1, j2 = key.split("|")
+                fmt_pairs.append({
+                    "judge1": j1, "judge2": j2,
+                    "agreement": round(v["agree"] / v["total"] * 100, 1),
+                    "same_pairs": v["total"],
+                })
+        if fmt_pairs:
+            fmt_results[fmt_name] = fmt_pairs
+
+    return {
+        "status": "ok",
+        "pooled": pooled_pairs,
+        "by_dataset": ds_results,
+        "by_format": fmt_results,
+        "judges": ALL_JUDGES,
     }

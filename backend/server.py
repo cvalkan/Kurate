@@ -365,16 +365,15 @@ async def _prewarm_consistency_cache():
     await asyncio.sleep(30)
     try:
         from routers.validation import _compute_consistency_analysis, _compute_cycle_analysis_all
-        from routers.validation_experiments import _compute_summarizer_ab_results, _compute_assessor_evaluator, _compute_extended_thinking_results, _compute_multi_aspect_results, _compute_judge_comparison
+        from routers.validation_experiments import _compute_summarizer_ab_results, _compute_assessor_evaluator, _compute_extended_thinking_results, _compute_multi_aspect_results, _compute_judge_comparison, _compute_model_correlation_analysis
         from routers.validation_utils import consistency_cache, cycle_all_cache, sumab_results_cache, ae_cache, extended_thinking_cache, multi_aspect_cache
-        from routers.validation_experiments import _judge_comparison_cache
+        from routers.validation_experiments import _judge_comparison_cache, _model_correlation_cache
         import time as _t
 
         for name, fn, cache in [
             ("consistency", _compute_consistency_analysis, consistency_cache),
             ("cycle-all", _compute_cycle_analysis_all, cycle_all_cache),
             ("summarizer-ab", _compute_summarizer_ab_results, sumab_results_cache),
-            ("assessor-evaluator", _compute_assessor_evaluator, ae_cache),
             ("extended-thinking", _compute_extended_thinking_results, extended_thinking_cache),
             ("multi-aspect", _compute_multi_aspect_results, multi_aspect_cache),
             ("judge-comparison", _compute_judge_comparison, _judge_comparison_cache),
@@ -392,6 +391,23 @@ async def _prewarm_consistency_cache():
                 logger.warning(f"{name} cache failed: {e}")
 
         logger.info("Experiment caches computed (permanent)")
+
+        # Deferred: assessor-evaluator and model-correlation (slower, non-critical)
+        await asyncio.sleep(2)
+        for name, fn, cache in [
+            ("assessor-evaluator", _compute_assessor_evaluator, ae_cache),
+            ("model-correlation", _compute_model_correlation_analysis, _model_correlation_cache),
+        ]:
+            try:
+                result = await fn()
+                if result.get("status") == "ok":
+                    cache["data"] = result
+                    cache["ts"] = _t.time()
+                    logger.info(f"  {name}: cached (deferred)")
+                await asyncio.sleep(1)
+            except Exception as e:
+                logger.warning(f"{name} deferred cache failed: {e}")
+
     except Exception as e:
         logger.warning(f"Experiment cache init failed: {e}")
 

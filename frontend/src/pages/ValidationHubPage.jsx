@@ -20,6 +20,7 @@ import MultiAspectSection from "./MultiAspectSection";
 import SummarizerABSection from "./SummarizerABSection";
 import AssessorEvaluatorSection from "./AssessorEvaluatorSection";
 import JudgeComparisonSection from "./JudgeComparisonSection";
+import ModelCorrelationSection from "./ModelCorrelationSection";
 import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
 import AllPairsSection from "./AllPairsSection";
@@ -155,6 +156,7 @@ export default function ValidationHubPage() {
     "exp-assessor-evaluator": { title: "Summarizer × Judge Matrix", desc: "Full interaction matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
     "exp-consistency": { title: "Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
     "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
+    "exp-model-correlation": { title: "Model Correlation", desc: "How much do different judge models agree on the same pairs? Pairwise agreement by dataset and input format." },
   };
   pairwiseDatasets.forEach(ds => {
     sectionMeta[`pw-h2h-${ds.dataset_id}`] = {
@@ -238,9 +240,10 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-judge-comparison", label: "Accuracy by Judge", sub: "Single judge vs round-robin" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-assessor-evaluator", label: "Summarizer × Judge Matrix", sub: "Full interaction" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
-              <CollapsibleGroup label="Consistency & Reliability" defaultOpen={selected === "exp-cycle-analysis" || selected === "exp-consistency"}>
+              <CollapsibleGroup label="Consistency & Reliability" defaultOpen={selected === "exp-cycle-analysis" || selected === "exp-consistency" || selected === "exp-model-correlation"}>
                 <NavItem item={{ id: "exp-consistency", label: "Verdict Stability", sub: "Same-pair flips across conditions" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-cycle-analysis", label: "Intransitive Cycles", sub: "Condorcet paradox by context" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-model-correlation", label: "Model Correlation", sub: "Pairwise agreement matrices" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
               <CollapsibleGroup label="Prompt Variants" defaultOpen={selected === "exp-tie-allowed" || selected === "exp-multi-aspect"}>
                 <NavItem item={{ id: "exp-tie-allowed", label: "Tie-Allowed", sub: "Allow AI to abstain" }} selected={selected} onSelect={setSelected} />
@@ -302,6 +305,7 @@ export default function ValidationHubPage() {
           {selected === "exp-judge-comparison" && <JudgeComparisonSection />}
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
+          {selected === "exp-model-correlation" && <ModelCorrelationSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
