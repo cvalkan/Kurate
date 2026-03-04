@@ -23,7 +23,7 @@ export default function JudgeComparisonSection() {
     ...judges.map(j => ({ ...j, type: "judge" })),
     { name: "Round-Robin (sim)", ...round_robin, type: "ensemble", cycle_rate: null },
     { name: "Majority Vote", ...majority_vote, type: "ensemble", cycle_rate: null },
-  ].sort((a, b) => (b.avg_rho || 0) - (a.avg_rho || 0));
+  ].sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0));
 
   const bestAcc = Math.max(...allMethods.map(m => m.accuracy || 0));
   const bestRho = Math.max(...allMethods.map(m => m.avg_rho || 0));
