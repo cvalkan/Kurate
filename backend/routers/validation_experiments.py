@@ -1894,7 +1894,8 @@ async def _compute_judge_comparison():
     CYCLE_RATES = {"Opus 4.6": 0.61, "Gemini 3 Pro": 1.13, "Opus 4.5": 1.23, "GPT-5.2": 1.68}
 
     DATASETS = ["iclr-llm", "iclr-codegen", "iclr-pdes", "iclr-ot", "iclr-fairness",
-                 "iclr-protein", "iclr-molecules", "iclr-optimization"]
+                 "iclr-protein", "iclr-molecules", "iclr-optimization",
+                 "elife-neuro-100"]
 
     judge_acc = {j: {"correct": 0, "total": 0} for j in ALL_JUDGES}
     judge_rhos = {j: [] for j in ALL_JUDGES}
