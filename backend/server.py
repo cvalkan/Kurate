@@ -686,7 +686,11 @@ async def _prewarm_validation_cache():
 
 
 async def _prewarm_result_cache():
-    """One-time: warm validation result caches for all datasets on startup."""
+    """One-time: warm validation result caches for top datasets on startup.
+    
+    Limited to top 10 datasets by match count to keep startup under 2 minutes.
+    Remaining datasets compute lazily on first request.
+    """
     await asyncio.sleep(5)
     try:
         from routers.validation import get_pairwise_results, get_convergence_all
@@ -694,7 +698,7 @@ async def _prewarm_result_cache():
             {"$match": {"completed": True, "failed": {"$ne": True}}},
             {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
-            {"$limit": 30},
+            {"$limit": 10},
         ]
         top_datasets = [doc["_id"] async for doc in db.validation_matches.aggregate(pipeline)]
 
@@ -710,6 +714,7 @@ async def _prewarm_result_cache():
                 conv_warmed += 1
             except Exception:
                 pass
+            await asyncio.sleep(0)  # Yield to event loop between datasets
         logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence")
     except Exception as e:
         logger.warning(f"Result cache prewarm failed: {e}")
