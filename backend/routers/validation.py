@@ -1405,6 +1405,16 @@ async def get_available_modes(dataset_id: str = Query(...)):
             final_id = cm
         modes.append({"id": final_id, "label": label, "prompt_tag": pt, "matches": count})
 
+    # Merge duplicate mode IDs (can happen when matches use content_mode:tag vs prompt_tag field)
+    merged = {}
+    for m in modes:
+        key = m["id"]
+        if key in merged:
+            merged[key]["matches"] += m["matches"]
+        else:
+            merged[key] = m.copy()
+    modes = list(merged.values())
+
     # Add virtual ensemble modes if 3-model data exists
     ensemble = await build_ensemble_matches(dataset_id)
     if len(ensemble["majority"]) >= 20:

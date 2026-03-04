@@ -143,18 +143,18 @@ export default function ValidationHubPage() {
     "pw-qeios": { title: "Pairwise — Qeios (Legacy)", desc: "Head-to-head AI comparison using Qeios open peer review data. Separate dataset — not part of main validation system." },
     "pw-scipost": { title: "Pairwise — SciPost (Legacy)", desc: "Per-dimension head-to-head comparison using SciPost peer review data. Separate dataset — not part of main validation system." },
     "si-scipost": { title: "Single-item — SciPost (Legacy)", desc: "AI rates each paper on 4 dimensions (1-6 scale). Separate dataset." },
-    "exp-summarizer-ab": { title: "Summarizer A/B Test — Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
+    "exp-summarizer-ab": { title: "Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
     "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
     "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
     "exp-summary-bias-phys": { title: "Summary Bias — Comp Physics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
-    "exp-thinking-overview": { title: "Extended Thinking — Opus 4.6", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
+    "exp-thinking-overview": { title: "Extended Thinking", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
     "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
     "exp-multi-aspect": { title: "Multi-Aspect Judging", desc: "Does breaking the judgment into 5 separate dimensions (novelty, applications, rigor, breadth, timeliness) improve accuracy over a single holistic verdict?" },
-    "exp-judge-comparison": { title: "Judge Comparison", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs." },
-    "exp-summarizer-cross": { title: "Summarizer Cross-Model", desc: "How does the choice of summarizer model (GPT-5.2, Gemini 3 Pro, Opus 4.5/4.6) affect tournament accuracy? Same-pair comparison across ICLR and eLife datasets." },
-    "exp-assessor-evaluator": { title: "Assessor vs Evaluator", desc: "Full matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
-    "exp-consistency": { title: "Same Pairs — Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
-    "exp-cycle-analysis": { title: "All Pairs — Condorcet Cycles", desc: "Full dataset analysis: intransitive ranking loops by model, format, and dataset." },
+    "exp-judge-comparison": { title: "Accuracy by Judge", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs (4 judges × 9 datasets × 200 pairs)." },
+    "exp-summarizer-cross": { title: "Accuracy by Summarizer", desc: "How does the choice of summarizer model (GPT-5.2, Gemini 3 Pro, Opus 4.5/4.6) affect tournament accuracy? Same-pair comparison across 12 ICLR and eLife datasets." },
+    "exp-assessor-evaluator": { title: "Summarizer × Judge Matrix", desc: "Full interaction matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
+    "exp-consistency": { title: "Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
+    "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
   };
   pairwiseDatasets.forEach(ds => {
     sectionMeta[`pw-h2h-${ds.dataset_id}`] = {
@@ -229,13 +229,22 @@ export default function ValidationHubPage() {
           {/* Experiments — admin only */}
           {isAdmin && (
             <CollapsibleGroup label="Experiments" icon={FlaskRound} defaultOpen={selected?.startsWith("exp-")}>
-              <CollapsibleGroup label="Opus 4.5 vs 4.6" defaultOpen={selected === "exp-summarizer-ab"}>
-                <NavItem item={{ id: "exp-summarizer-ab", label: "Summarizer A/B", sub: "All datasets" }} selected={selected} onSelect={setSelected} />
+              <CollapsibleGroup label="Summarizer Quality" defaultOpen={selected === "exp-summarizer-cross" || selected === "exp-summarizer-ab" || selected === "exp-thinking-overview"}>
+                <NavItem item={{ id: "exp-summarizer-cross", label: "Accuracy by Summarizer", sub: "GPT vs Gemini vs Opus" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-summarizer-ab", label: "Opus 4.5 vs 4.6", sub: "A/B test" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-thinking-overview", label: "Extended Thinking", sub: "Thinking budget effect" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
-              <CollapsibleGroup label="Summary Bias" defaultOpen={selected?.startsWith("exp-summary-bias")}>
-                <NavItem item={{ id: "exp-summary-bias", label: "Biomolecules", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-summary-bias-econ", label: "Economics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-summary-bias-phys", label: "Comp Physics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
+              <CollapsibleGroup label="Judge Quality" defaultOpen={selected === "exp-judge-comparison" || selected === "exp-assessor-evaluator"}>
+                <NavItem item={{ id: "exp-judge-comparison", label: "Accuracy by Judge", sub: "Single judge vs round-robin" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-assessor-evaluator", label: "Summarizer × Judge Matrix", sub: "Full interaction" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
+              <CollapsibleGroup label="Consistency & Reliability" defaultOpen={selected === "exp-cycle-analysis" || selected === "exp-consistency"}>
+                <NavItem item={{ id: "exp-consistency", label: "Verdict Stability", sub: "Same-pair flips across conditions" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-cycle-analysis", label: "Intransitive Cycles", sub: "Condorcet paradox by context" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
+              <CollapsibleGroup label="Prompt Variants" defaultOpen={selected === "exp-tie-allowed" || selected === "exp-multi-aspect"}>
+                <NavItem item={{ id: "exp-tie-allowed", label: "Tie-Allowed", sub: "Allow AI to abstain" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-multi-aspect", label: "Multi-Aspect", sub: "5-dimension judgments" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
               <CollapsibleGroup label="Second Pass (Deep Dive)" defaultOpen={selected?.includes("deep-dive") || selected === "exp-deeper-dive"}>
                 <NavItem item={{ id: "exp-deeper-dive", label: "Meta-evaluation", sub: "Overview" }} selected={selected} onSelect={setSelected} />
@@ -248,23 +257,10 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-peerread-deep-dive", label: "ACL 2017", sub: "PeerRead" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-acmi-deep-dive", label: "Microbiology 100", sub: "ACMI" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
-              <CollapsibleGroup label="Extended Thinking" defaultOpen={selected?.startsWith("exp-thinking")}>
-                <NavItem item={{ id: "exp-thinking-overview", label: "Overview", sub: "Opus 4.6 + thinking budget" }} selected={selected} onSelect={setSelected} />
-              </CollapsibleGroup>
-              <CollapsibleGroup label="Tie-Allowed" defaultOpen={selected === "exp-tie-allowed"}>
-                <NavItem item={{ id: "exp-tie-allowed", label: "Tie Experiment", sub: "Allow AI to abstain" }} selected={selected} onSelect={setSelected} />
-              </CollapsibleGroup>
-              <CollapsibleGroup label="Multi-Aspect" defaultOpen={selected === "exp-multi-aspect"}>
-                <NavItem item={{ id: "exp-multi-aspect", label: "5 Dimensions", sub: "Per-aspect judgments" }} selected={selected} onSelect={setSelected} />
-              </CollapsibleGroup>
-              <CollapsibleGroup label="Summarizer A/B" defaultOpen={selected === "exp-summarizer-cross" || selected === "exp-assessor-evaluator"}>
-                <NavItem item={{ id: "exp-summarizer-cross", label: "GPT vs Gemini vs Opus", sub: "Summary model comparison" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-assessor-evaluator", label: "Assessor vs Evaluator", sub: "Full matrix" }} selected={selected} onSelect={setSelected} />
-              </CollapsibleGroup>
-              <NavItem item={{ id: "exp-judge-comparison", label: "Judge Comparison", sub: "Single judge vs round-robin" }} selected={selected} onSelect={setSelected} />
-              <CollapsibleGroup label="Consistency" defaultOpen={selected === "exp-cycle-analysis" || selected === "exp-consistency"}>
-                <NavItem item={{ id: "exp-consistency", label: "Same Pairs", sub: "Verdict flips across conditions" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-cycle-analysis", label: "All Pairs", sub: "Condorcet cycles by context" }} selected={selected} onSelect={setSelected} />
+              <CollapsibleGroup label="Summary Bias" defaultOpen={selected?.startsWith("exp-summary-bias")}>
+                <NavItem item={{ id: "exp-summary-bias", label: "Biomolecules", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-summary-bias-econ", label: "Economics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-summary-bias-phys", label: "Comp Physics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
             </CollapsibleGroup>
           )}
