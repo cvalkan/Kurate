@@ -19,6 +19,7 @@ import TieExperimentSection from "./TieExperimentSection";
 import MultiAspectSection from "./MultiAspectSection";
 import SummarizerABSection from "./SummarizerABSection";
 import AssessorEvaluatorSection from "./AssessorEvaluatorSection";
+import JudgeComparisonSection from "./JudgeComparisonSection";
 import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
 import AllPairsSection from "./AllPairsSection";
@@ -149,6 +150,7 @@ export default function ValidationHubPage() {
     "exp-thinking-overview": { title: "Extended Thinking — Opus 4.6", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
     "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
     "exp-multi-aspect": { title: "Multi-Aspect Judging", desc: "Does breaking the judgment into 5 separate dimensions (novelty, applications, rigor, breadth, timeliness) improve accuracy over a single holistic verdict?" },
+    "exp-judge-comparison": { title: "Judge Comparison", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs." },
     "exp-summarizer-cross": { title: "Summarizer Cross-Model", desc: "How does the choice of summarizer model (GPT-5.2, Gemini 3 Pro, Opus 4.5/4.6) affect tournament accuracy? Same-pair comparison across ICLR and eLife datasets." },
     "exp-assessor-evaluator": { title: "Assessor vs Evaluator", desc: "Full matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
     "exp-consistency": { title: "Same Pairs — Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
@@ -259,6 +261,7 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-summarizer-cross", label: "GPT vs Gemini vs Opus", sub: "Summary model comparison" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-assessor-evaluator", label: "Assessor vs Evaluator", sub: "Full matrix" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
+              <NavItem item={{ id: "exp-judge-comparison", label: "Judge Comparison", sub: "Single judge vs round-robin" }} selected={selected} onSelect={setSelected} />
               <CollapsibleGroup label="Consistency" defaultOpen={selected === "exp-cycle-analysis" || selected === "exp-consistency"}>
                 <NavItem item={{ id: "exp-consistency", label: "Same Pairs", sub: "Verdict flips across conditions" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-cycle-analysis", label: "All Pairs", sub: "Condorcet cycles by context" }} selected={selected} onSelect={setSelected} />
@@ -300,6 +303,7 @@ export default function ValidationHubPage() {
           {selected === "exp-multi-aspect" && <MultiAspectSection />}
           {selected === "exp-summarizer-cross" && <SummarizerABSection />}
           {selected === "exp-assessor-evaluator" && <AssessorEvaluatorSection />}
+          {selected === "exp-judge-comparison" && <JudgeComparisonSection />}
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}

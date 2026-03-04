@@ -1858,3 +1858,247 @@ async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
     ae_cache["data"] = None
     logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: completed {completed}/{len(to_run)} matches")
 
+
+
+# ─── Judge Comparison Analysis ─────────────────────────────────────────────────
+
+_judge_comparison_cache = {"data": None}
+
+
+@router.get("/judge-comparison/results")
+async def judge_comparison_results():
+    if _judge_comparison_cache["data"]:
+        return _judge_comparison_cache["data"]
+    result = await _compute_judge_comparison()
+    if result.get("status") == "ok":
+        _judge_comparison_cache["data"] = result
+    return result
+
+
+async def _compute_judge_comparison():
+    """Compare judge accuracy and ranking correlation on identical pairs.
+
+    Uses pairs where ALL 4 judges evaluated the same pair on abstract_plus_summary mode.
+    Round-robin simulated by randomly selecting one judge per pair (100 trials).
+    """
+    import random as _random
+    from collections import defaultdict
+
+    JUDGE_MODELS = {
+        "gpt-5.2": "GPT-5.2",
+        "claude-opus-4-5-20251101": "Opus 4.5",
+        "claude-opus-4-6": "Opus 4.6",
+        "gemini-3-pro-preview": "Gemini 3 Pro",
+    }
+    ALL_JUDGES = ["Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"]
+    CYCLE_RATES = {"Opus 4.6": 0.61, "Gemini 3 Pro": 1.13, "Opus 4.5": 1.23, "GPT-5.2": 1.68}
+
+    DATASETS = ["iclr-llm", "iclr-codegen", "iclr-pdes", "iclr-ot", "iclr-fairness",
+                 "iclr-protein", "iclr-molecules", "iclr-optimization"]
+
+    judge_acc = {j: {"correct": 0, "total": 0} for j in ALL_JUDGES}
+    judge_rhos = {j: [] for j in ALL_JUDGES}
+    rr_acc = {"correct": 0, "total": 0}
+    rr_rhos = []
+    mv_acc = {"correct": 0, "total": 0}
+    mv_rhos = []
+    per_dataset = []
+
+    for ds_id in DATASETS:
+        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(500)
+        if not papers:
+            continue
+        paper_lookup = {p["id"]: p for p in papers}
+
+        # Ground truth
+        er = build_expert_ratings(papers)
+        em = build_expert_majority(er)
+        total_ep = sum(1 for exp, ratings in er.items()
+                       for i, a in enumerate(ratings) for b in list(ratings)[i+1:]
+                       if ratings[a] != ratings[b])
+        ep = em if len(em) >= max(20, total_ep * 0.1) else {}
+        if not ep:
+            for exp, ratings in er.items():
+                pids = list(ratings.keys())
+                for i in range(len(pids)):
+                    for j in range(i + 1, len(pids)):
+                        a, b = pids[i], pids[j]
+                        if ratings[a] != ratings[b]:
+                            ep[tuple(sorted([a, b]))] = a if ratings[a] > ratings[b] else b
+        if len(ep) < 20:
+            continue
+
+        # Human BT ranking
+        human_matches = []
+        for exp, ratings in er.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] != ratings[b]:
+                        human_matches.append({"paper1_id": a, "paper2_id": b,
+                            "winner_id": a if ratings[a] > ratings[b] else b,
+                            "completed": True, "failed": False})
+        h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
+        h_papers = [p for p in papers if p["id"] in h_ids]
+        gt_lb = compute_leaderboard(h_papers, human_matches)
+        gt_rank = {e["id"]: e["rank"] for e in gt_lb}
+
+        # Matches per judge
+        judge_verdicts = {j: {} for j in ALL_JUDGES}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "content_mode": "abstract_plus_summary",
+             "completed": True, "failed": {"$ne": True}, "model_used.model": {"$exists": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used.model": 1}
+        ):
+            judge = JUDGE_MODELS.get(m["model_used"]["model"])
+            if judge:
+                pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+                judge_verdicts[judge][pair] = m["winner_id"]
+
+        # 4-judge intersection with GT
+        sets_4 = [set(judge_verdicts[j].keys()) for j in ALL_JUDGES]
+        if not all(sets_4):
+            continue
+        common = set.intersection(*sets_4) & set(ep.keys())
+        if len(common) < 20:
+            continue
+
+        common_paper_ids = set()
+        for p in common:
+            common_paper_ids.add(p[0])
+            common_paper_ids.add(p[1])
+        common_papers = [paper_lookup[pid] for pid in common_paper_ids if pid in paper_lookup]
+
+        ds_row = {"dataset_id": ds_id, "name": ds_id.replace("iclr-", "ICLR ").replace("-", " ").title(), "pairs": len(common)}
+
+        # Per-judge accuracy + rho
+        for judge in ALL_JUDGES:
+            jv = judge_verdicts[judge]
+            correct = sum(1 for p in common if jv.get(p) == ep[p])
+            judge_acc[judge]["correct"] += correct
+            judge_acc[judge]["total"] += len(common)
+
+            j_matches = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": jv[p],
+                          "completed": True, "failed": False} for p in common]
+            ai_lb = compute_leaderboard(common_papers, j_matches)
+            ai_rank = {e["id"]: e["rank"] for e in ai_lb}
+            shared_ids = sorted(set(ai_rank) & set(gt_rank))
+            if len(shared_ids) >= 5:
+                rho, _ = scipy_stats.spearmanr([ai_rank[pid] for pid in shared_ids],
+                                                [gt_rank[pid] for pid in shared_ids])
+                if not np.isnan(rho):
+                    judge_rhos[judge].append(rho)
+
+            key = judge.lower().replace(" ", "").replace(".", "").replace("-", "")
+            ds_row[f"{key}_acc"] = round(correct / len(common) * 100, 1)
+
+        # Round-robin simulation (100 trials)
+        trial_accs = []
+        trial_rhos = []
+        for _ in range(100):
+            rr_matches_trial = []
+            rr_correct_trial = 0
+            for pair in common:
+                judge = _random.choice(ALL_JUDGES)
+                winner = judge_verdicts[judge][pair]
+                rr_matches_trial.append({"paper1_id": pair[0], "paper2_id": pair[1],
+                    "winner_id": winner, "completed": True, "failed": False})
+                if winner == ep[pair]:
+                    rr_correct_trial += 1
+            trial_accs.append(rr_correct_trial / len(common) * 100)
+            rr_lb = compute_leaderboard(common_papers, rr_matches_trial)
+            rr_rank = {e["id"]: e["rank"] for e in rr_lb}
+            shared_ids = sorted(set(rr_rank) & set(gt_rank))
+            if len(shared_ids) >= 5:
+                rho, _ = scipy_stats.spearmanr([rr_rank[pid] for pid in shared_ids],
+                                                [gt_rank[pid] for pid in shared_ids])
+                if not np.isnan(rho):
+                    trial_rhos.append(rho)
+
+        avg_rr_acc = np.mean(trial_accs)
+        rr_acc["correct"] += int(avg_rr_acc * len(common) / 100)
+        rr_acc["total"] += len(common)
+        if trial_rhos:
+            rr_rhos.append(np.mean(trial_rhos))
+        ds_row["rr_acc"] = round(avg_rr_acc, 1)
+
+        # Majority vote
+        mv_correct_ds = 0
+        mv_matches_ds = []
+        for pair in common:
+            votes = defaultdict(int)
+            for judge in ALL_JUDGES:
+                votes[judge_verdicts[judge][pair]] += 1
+            winner = max(votes, key=votes.get)
+            mv_matches_ds.append({"paper1_id": pair[0], "paper2_id": pair[1],
+                "winner_id": winner, "completed": True, "failed": False})
+            if winner == ep[pair]:
+                mv_correct_ds += 1
+        mv_acc["correct"] += mv_correct_ds
+        mv_acc["total"] += len(common)
+        mv_lb = compute_leaderboard(common_papers, mv_matches_ds)
+        mv_rank = {e["id"]: e["rank"] for e in mv_lb}
+        shared_ids = sorted(set(mv_rank) & set(gt_rank))
+        if len(shared_ids) >= 5:
+            rho, _ = scipy_stats.spearmanr([mv_rank[pid] for pid in shared_ids],
+                                            [gt_rank[pid] for pid in shared_ids])
+            if not np.isnan(rho):
+                mv_rhos.append(rho)
+        ds_row["mv_acc"] = round(mv_correct_ds / len(common) * 100, 1)
+
+        # Rename keys for frontend
+        ds_row["opus46_acc"] = ds_row.pop("opus46_acc", None)
+        ds_row["opus45_acc"] = ds_row.pop("opus45_acc", None)
+        ds_row["gpt52_acc"] = ds_row.pop("gpt52_acc", None)
+        ds_row["gemini3pro_acc"] = ds_row.pop("gemini3pro_acc", None)
+        per_dataset.append(ds_row)
+
+    total_pairs = judge_acc["Opus 4.6"]["total"]
+    if total_pairs < 50:
+        return {"status": "no_data"}
+
+    # Build judge results
+    judges = []
+    for j in ALL_JUDGES:
+        s = judge_acc[j]
+        rhos = judge_rhos[j]
+        judges.append({
+            "name": j,
+            "cycle_rate": CYCLE_RATES.get(j),
+            "accuracy": round(s["correct"] / s["total"] * 100, 1),
+            "avg_rho": round(np.mean(rhos), 3) if rhos else 0,
+            "total_pairs": s["total"],
+            "n_datasets": len(rhos),
+        })
+
+    # Correlations
+    rates = [CYCLE_RATES[j] for j in ALL_JUDGES]
+    accs = [judge_acc[j]["correct"] / judge_acc[j]["total"] * 100 for j in ALL_JUDGES]
+    rhos_avg = [np.mean(judge_rhos[j]) if judge_rhos[j] else 0 for j in ALL_JUDGES]
+    acc_sr, acc_sp = scipy_stats.spearmanr(rates, accs)
+    rho_sr, rho_sp = scipy_stats.spearmanr(rates, rhos_avg)
+
+    return {
+        "status": "ok",
+        "total_pairs": total_pairs,
+        "n_datasets": len(per_dataset),
+        "judges": judges,
+        "round_robin": {
+            "accuracy": round(rr_acc["correct"] / rr_acc["total"] * 100, 1),
+            "avg_rho": round(np.mean(rr_rhos), 3) if rr_rhos else 0,
+            "total_pairs": rr_acc["total"],
+        },
+        "majority_vote": {
+            "accuracy": round(mv_acc["correct"] / mv_acc["total"] * 100, 1),
+            "avg_rho": round(np.mean(mv_rhos), 3) if mv_rhos else 0,
+            "total_pairs": mv_acc["total"],
+        },
+        "cycle_correlation": {
+            "acc_spearman_r": round(acc_sr, 3) if not np.isnan(acc_sr) else 0,
+            "acc_spearman_p": round(acc_sp, 3) if not np.isnan(acc_sp) else 1,
+            "rho_spearman_r": round(rho_sr, 3) if not np.isnan(rho_sr) else 0,
+            "rho_spearman_p": round(rho_sp, 3) if not np.isnan(rho_sp) else 1,
+        },
+        "per_dataset": per_dataset,
+    }
