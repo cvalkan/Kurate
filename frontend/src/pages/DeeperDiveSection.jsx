@@ -31,7 +31,7 @@ export default function DeeperDiveSection() {
   useEffect(() => { fetchResults(); fetchReplay(); }, []);
 
   // Auto-refresh while anything is running
-  const isRunning = data?.enhance_progress?.running || data?.experiment_progress?.running || data?.status === "no_data" || replayStatus?.running;
+  const isRunning = data?.enhance_progress?.running || data?.experiment_progress?.running || replayStatus?.running;
   useEffect(() => {
     if (!isRunning) return;
     const iv = setInterval(() => { fetchResults(); fetchReplay(); }, 8000);
@@ -42,11 +42,12 @@ export default function DeeperDiveSection() {
     return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-secondary/20 rounded-lg animate-pulse" />)}</div>;
   }
 
-  if (data?.status === "no_data") {
+  if (data?.status === "no_data" || !data?.results?.length) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <RefreshCw className="h-8 w-8 mx-auto mb-3 animate-spin opacity-30" />
-        <p className="text-sm">Experiment running... checking for results</p>
+        <FlaskConical className="h-8 w-8 mx-auto mb-3 opacity-30" />
+        <p className="text-sm">No meta-evaluation data yet</p>
+        <p className="text-xs mt-1">Run the deep-dive experiment from a dataset page to generate results</p>
       </div>
     );
   }
