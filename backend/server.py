@@ -595,36 +595,33 @@ async def _prewarm_validation_cache():
 
 
 async def _prewarm_result_cache():
-    """Background loop that keeps validation result caches warm."""
+    """One-time: warm validation result caches for all datasets on startup."""
     await asyncio.sleep(5)
-    while True:
-        try:
-            from routers.validation import get_pairwise_results, get_convergence_all
-            from routers.validation_utils import convergence_all_cache
-            pipeline = [
-                {"$match": {"completed": True, "failed": {"$ne": True}}},
-                {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}},
-                {"$limit": 30},
-            ]
-            top_datasets = [doc["_id"] async for doc in db.validation_matches.aggregate(pipeline)]
+    try:
+        from routers.validation import get_pairwise_results, get_convergence_all
+        pipeline = [
+            {"$match": {"completed": True, "failed": {"$ne": True}}},
+            {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 30},
+        ]
+        top_datasets = [doc["_id"] async for doc in db.validation_matches.aggregate(pipeline)]
 
-            warmed = conv_warmed = 0
-            for ds_id in top_datasets:
-                try:
-                    await get_pairwise_results(dataset_id=ds_id, content_mode="abstract")
-                    warmed += 1
-                except Exception:
-                    pass
-                try:
-                    await get_convergence_all(dataset_id=ds_id, steps=20)
-                    conv_warmed += 1
-                except Exception:
-                    pass
-            logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence")
-        except Exception as e:
-            logger.warning(f"Result cache prewarm failed: {e}")
-        await asyncio.sleep(300)  # Re-warm every 5 minutes
+        warmed = conv_warmed = 0
+        for ds_id in top_datasets:
+            try:
+                await get_pairwise_results(dataset_id=ds_id, content_mode="abstract")
+                warmed += 1
+            except Exception:
+                pass
+            try:
+                await get_convergence_all(dataset_id=ds_id, steps=20)
+                conv_warmed += 1
+            except Exception:
+                pass
+        logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence")
+    except Exception as e:
+        logger.warning(f"Result cache prewarm failed: {e}")
 
 
 @app.on_event("shutdown")

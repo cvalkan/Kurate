@@ -1001,7 +1001,7 @@ export default function ValidationPage() {
     } catch (e) { console.error(e); }
   }, []);
 
-  useEffect(() => { fetchDatasets(); const i = setInterval(fetchDatasets, 15000); return () => clearInterval(i); }, [fetchDatasets]);
+  useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 
   const activeDatasset = datasets.find(d => d.dataset_id === selected);
 

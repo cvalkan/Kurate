@@ -663,8 +663,6 @@ export default function SummaryBiasSection({ category = "q-bio.BM" }) {
     setLoading(true);
     setResults(null);
     fetchData();
-    const iv = setInterval(fetchData, 8000);
-    return () => clearInterval(iv);
   }, [fetchData]);
 
   if (loading) {

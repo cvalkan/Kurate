@@ -2198,7 +2198,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(20)):
     """Return convergence data for ALL available modes in a single response."""
     entry = convergence_all_cache.get(dataset_id)
-    if entry and _time.time() - entry["ts"] < CONV_CACHE_TTL:
+    if entry:
         return entry["data"]
 
     # Discover modes
