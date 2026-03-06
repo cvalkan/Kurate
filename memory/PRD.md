@@ -48,5 +48,10 @@ Build a robust system for ranking and validating AI model performance on scienti
 - (P2) Further refactor validation.py (extract experiments ~1600 lines)
 - (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
 
+## Recent Updates (Mar 6 2026)
+- Fixed a live-tournament scaling bug in `backend/services/scheduler.py` where large categories could be implicitly truncated at 500 papers.
+- `_generate_paper_summaries`, `_check_goals_met`, and `_store_ranking_snapshot` now process full result sets in batches instead of hard-capping at 500 papers.
+- Added backend regression tests in `backend/tests/test_scheduler_large_category_regressions.py` covering >500-paper summary generation and convergence evaluation.
+
 ## elife-comp-sys-bio Status
 Not corrupt. Summaries at top-level (`ai_impact_summary`), not in `summaries` dict. By design — validation datasets are separate from live tournament.
