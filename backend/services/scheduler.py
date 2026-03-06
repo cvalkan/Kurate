@@ -48,6 +48,32 @@ def _get_cat_status(category: str) -> dict:
     return _category_status[category]
 
 
+async def _collect_cursor_docs(cursor, batch_size: int = 500):
+    """Collect all documents from a Motor cursor without imposing a hard cap."""
+    docs = []
+    while True:
+        batch = await cursor.to_list(length=batch_size)
+        if not batch:
+            break
+        docs.extend(batch)
+        if len(batch) < batch_size:
+            break
+        await asyncio.sleep(0)
+    return docs
+
+
+async def _iter_cursor_batches(cursor, batch_size: int = 100):
+    """Yield cursor results in batches so large categories do not get truncated."""
+    while True:
+        batch = await cursor.to_list(length=batch_size)
+        if not batch:
+            break
+        yield batch
+        if len(batch) < batch_size:
+            break
+        await asyncio.sleep(0)
+
+
 def get_scheduler_status(category: str = None) -> dict:
     """Get scheduler status for a specific category or global summary."""
     if category and category in _category_status:
@@ -321,9 +347,12 @@ async def _store_ranking_snapshot(category: str):
     Each snapshot records the current BT ranking so we can compare
     rankings across rounds to detect convergence.
     """
-    papers = await db.papers.find(
-        {"categories.0": category}, {"_id": 0, "id": 1, "title": 1}
-    ).to_list(500)
+    papers = await _collect_cursor_docs(
+        db.papers.find(
+            {"categories.0": category}, {"_id": 0, "id": 1, "title": 1}
+        ),
+        batch_size=1000,
+    )
     if len(papers) < 2:
         return
 
@@ -371,10 +400,13 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
 
-    papers = await db.papers.find(
-        {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
-        {"_id": 0, "id": 1}
-    ).to_list(500)
+    papers = await _collect_cursor_docs(
+        db.papers.find(
+            {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
+            {"_id": 0, "id": 1}
+        ),
+        batch_size=1000,
+    )
     paper_ids = [p["id"] for p in papers]
     if len(paper_ids) < 2:
         return True
@@ -661,13 +693,17 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     # Only papers with full_text (no abstract-only summaries)
     query["full_text"] = {"$ne": None}
 
-    papers = await db.papers.find(
-        query, {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
-    ).to_list(500)
+    total_papers = await db.papers.count_documents(query)
+    paper_cursor = db.papers.find(
+        query,
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
+    )
 
     cat_status = _get_cat_status(category) if category else None
     sem = asyncio.Semaphore(parallel)
     generated = 0
+    scanned = 0
+    batch_size = max(25, min(parallel * 10, 250))
 
     async def gen_one(paper, model_info):
         nonlocal generated
@@ -705,16 +741,19 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                     if cat_status and generated % 5 == 0:
                         cat_status["current_activity"] = f"Generating summaries... ({generated})"
 
-    tasks = []
-    for paper in papers:
-        for model_info in _SUMMARY_GENERATION_MODELS:
-            tasks.append(gen_one(paper, model_info))
-
-    if tasks:
+    async for paper_batch in _iter_cursor_batches(paper_cursor, batch_size=batch_size):
+        scanned += len(paper_batch)
         if cat_status:
-            cat_status["current_activity"] = f"Generating summaries for {len(papers)} papers..."
-        await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info(f"[{category}] Generated {generated} new AI summaries")
+            cat_status["current_activity"] = f"Generating summaries... ({scanned}/{total_papers} papers scanned)"
+        tasks = []
+        for paper in paper_batch:
+            for model_info in _SUMMARY_GENERATION_MODELS:
+                tasks.append(gen_one(paper, model_info))
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    if total_papers:
+        logger.info(f"[{category}] Generated {generated} new AI summaries across {scanned} papers")
 
     return generated
 

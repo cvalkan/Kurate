@@ -4,7 +4,7 @@ import requests
 import time
 import sys
 
-API = "https://paper-scoring-hub.preview.emergentagent.com"
+API = "https://ai-paper-judge-1.preview.emergentagent.com"
 ADMIN_TOKEN = "adm_PwgAikZRN0yUbPwU72rgzilv_OTqJYv5pMFHYptbW98"
 HEADERS = {"Content-Type": "application/json", "X-Admin-Token": ADMIN_TOKEN}
 
