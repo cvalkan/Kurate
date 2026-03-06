@@ -1199,6 +1199,7 @@ async def _run_multi_aspect(dataset_id: str, num_pairs: int):
 SUMMARIZER_MODELS = {
     "gpt": {"provider": "openai", "model": "gpt-5.2"},
     "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
+    "gpt54": {"provider": "openai", "model": "gpt-5.4"},
 }
 _sumab_state = {"running": False, "phase": "", "done": 0, "total": 0, "dataset_id": None, "summarizer": None}
 _sumab_task = None
@@ -1308,6 +1309,7 @@ async def _compute_assessor_evaluator():
         "Opus 4.6 Thinking": "abstract_plus_summary:thinking",
         "GPT-5.2": "abstract_plus_summary:gpt_summary",
         "Gemini 3 Pro": "abstract_plus_summary:gemini_summary",
+        "GPT-5.4": "abstract_plus_summary:gpt54_summary",
     }
     JUDGES = ["Opus 4.6", "GPT-5.2", "Gemini 3 Pro"]
 
@@ -1527,6 +1529,7 @@ async def _compute_summarizer_ab_results():
         "Opus 4.6 Thinking": "abstract_plus_summary:thinking",
         "GPT-5.2": "abstract_plus_summary:gpt_summary",
         "Gemini 3 Pro": "abstract_plus_summary:gemini_summary",
+        "GPT-5.4": "abstract_plus_summary:gpt54_summary",
     }
 
     # Only ICLR and eLife datasets (no Qeios, ResearchHub, etc.)

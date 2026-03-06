@@ -268,7 +268,7 @@ export default function AdminPage() {
             <h3 className="text-sm font-medium">System Parameters</h3>
             {[
               { key: "fetch_interval_hours", label: "Fetch Interval (hours)", help: "How often to check arXiv for new papers. Default: 24h." },
-              { key: "max_papers_per_fetch", label: "Max Papers Per Fetch", help: "Maximum papers to retrieve from arXiv per cycle." },
+              { key: "max_papers_per_fetch", label: "Max New Papers Per Fetch", help: "How many new primary-category papers to fetch from arXiv per auto-fetch cycle. Papers are sorted newest-first; duplicates and cross-listings are filtered out." },
               { key: "parallel_agents", label: "Parallel Agents", help: "Concurrent LLM comparisons per batch (1-20).", min: 1, max: 20 },
               { key: "top_k_focus", label: "Top-K Focus", help: "Number of top papers to apply tight CI and cross-matching." },
               { key: "max_new_matches_per_round", label: "Max Matches Per Paper Per Round", help: "Max new matches per paper per round." },

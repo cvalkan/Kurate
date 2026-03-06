@@ -14,6 +14,8 @@ const DATASETS = [
   { id: "iclr-ot", label: "ICLR Opt. Transport" },
   { id: "iclr-fairness", label: "ICLR Fairness" },
   { id: "iclr-protein", label: "ICLR Protein" },
+  { id: "iclr-molecules", label: "ICLR Molecules" },
+  { id: "iclr-optimization", label: "ICLR Optimization" },
   { id: "elife-cancer", label: "eLife Cancer Biology" },
   { id: "elife-comp-sys-bio", label: "eLife Comp. & Sys. Bio." },
   { id: "elife-microbiology", label: "eLife Microbiology" },
@@ -22,11 +24,13 @@ const DATASETS = [
 const SUMMARIZERS = [
   { id: "gpt", label: "GPT-5.2" },
   { id: "gemini", label: "Gemini 3 Pro" },
+  { id: "gpt54", label: "GPT-5.4" },
 ];
 
 const SUM_COLORS = {
   "Opus 4.5": "#8b5cf6", "Opus 4.6": "#a78bfa", "Opus 4.6 Thinking": "#c4b5fd",
   "GPT-5.2": "#3b82f6", "Gemini 3 Pro": "#f59e0b", "Extract": "#6b7280",
+  "GPT-5.4": "#10b981",
 };
 
 export default function SummarizerABSection() {
@@ -95,6 +99,7 @@ export default function SummarizerABSection() {
       else if (mode.id === "abstract_plus_summary:thinking") row["Opus 4.6 Thinking"] = mode.matches;
       else if (mode.id === "abstract_plus_summary:gpt_summary") row["GPT-5.2"] = mode.matches;
       else if (mode.id === "abstract_plus_summary:gemini_summary") row["Gemini 3 Pro"] = mode.matches;
+      else if (mode.id === "abstract_plus_summary:gpt54_summary") row["GPT-5.4"] = mode.matches;
     }
     return row;
   }) : [];
