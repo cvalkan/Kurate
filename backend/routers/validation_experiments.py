@@ -1278,8 +1278,9 @@ async def resume_incomplete_summarizer_ab():
             logger.info(f"Resumed summarizer-ab complete: {ds}/{summarizer}")
         except Exception as e:
             logger.error(f"Resumed summarizer-ab failed: {ds}/{summarizer}: {e}")
-            # Leave as "running" so it's retried on next restart
             await _persist_sumab_task(ds, summarizer, num_pairs, status="queued")
+
+    _sumab_state["running"] = False
 
 
 # ae_cache imported from validation_utils
