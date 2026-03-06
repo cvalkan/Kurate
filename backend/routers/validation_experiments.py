@@ -1248,11 +1248,11 @@ async def resume_incomplete_summarizer_ab():
     if stale.modified_count:
         logger.info(f"Marked {stale.modified_count} stale summarizer-ab tasks as interrupted")
 
-    # Only resume recently-running tasks
+    # Resume running tasks AND process queued tasks
     incomplete = await db.summarizer_ab_tasks.find(
-        {"status": "running"},
+        {"status": {"$in": ["running", "queued"]}},
         {"_id": 0},
-    ).to_list(5)  # Max 5 at a time
+    ).to_list(50)
 
     if not incomplete:
         return
@@ -1804,16 +1804,47 @@ async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
     sum_field = f"ai_impact_summary_{summarizer}"
     content_mode = f"abstract_plus_summary:{summarizer}_summary"
 
-    _sumab_state.update({"running": True, "phase": "generating summaries", "done": 0, "total": 0,
+    _sumab_state.update({"running": True, "phase": "selecting pairs", "done": 0, "total": 0,
                          "dataset_id": dataset_id, "summarizer": summarizer})
 
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
     lookup = {p["id"]: p for p in papers}
+    gt = build_paper_gt_scores(papers)
 
-    # Phase 1: Generate summaries for papers that don't have them yet
-    need_summary = [p for p in papers if not p.get(sum_field)]
-    _sumab_state["total"] = len(need_summary)
-    logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: generating {len(need_summary)} summaries")
+    # First: identify target pairs from opus46 baseline (cross-tier only)
+    existing = set()
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": content_mode, "completed": True},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        existing.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+
+    baseline_pairs = []
+    async for m in db.validation_matches.find(
+        {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:opus46", "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+        if pk in existing:
+            continue
+        g1, g2 = gt.get(m["paper1_id"]), gt.get(m["paper2_id"])
+        if g1 is None or g2 is None or g1 == g2:
+            continue
+        baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
+        existing.add(pk)
+
+    random.shuffle(baseline_pairs)
+    to_run = baseline_pairs[:num_pairs]
+
+    # Phase 1: Generate summaries ONLY for papers involved in target pairs
+    target_paper_ids = set()
+    for p1, p2 in to_run:
+        target_paper_ids.add(p1)
+        target_paper_ids.add(p2)
+
+    need_summary = [lookup[pid] for pid in target_paper_ids if pid in lookup and not lookup[pid].get(sum_field)]
+    _sumab_state.update({"phase": "generating summaries", "total": len(need_summary)})
+    logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: generating {len(need_summary)} summaries for {len(target_paper_ids)} papers in {len(to_run)} pairs")
 
     sem = asyncio.Semaphore(4)
     gen_done = 0
@@ -1838,34 +1869,9 @@ async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
 
     await asyncio.gather(*[_gen_one(p) for p in need_summary], return_exceptions=True)
 
-    # Phase 2: Run tournament on same pairs as opus46 baseline
+    # Phase 2: Run tournament on the selected pairs
     _sumab_state.update({"phase": "running matches", "done": 0})
-    gt = build_paper_gt_scores(papers)
 
-    existing = set()
-    async for m in db.validation_matches.find(
-        {"dataset_id": dataset_id, "content_mode": content_mode, "completed": True},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
-    ):
-        existing.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
-
-    # Replay opus46 pairs
-    baseline_pairs = []
-    async for m in db.validation_matches.find(
-        {"dataset_id": dataset_id, "content_mode": "abstract_plus_summary:opus46", "completed": True, "failed": {"$ne": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
-    ):
-        pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
-        if pk in existing:
-            continue
-        g1, g2 = gt.get(m["paper1_id"]), gt.get(m["paper2_id"])
-        if g1 is None or g2 is None or g1 == g2:
-            continue
-        baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
-        existing.add(pk)
-
-    random.shuffle(baseline_pairs)
-    to_run = baseline_pairs[:num_pairs]
     _sumab_state["total"] = len(to_run)
     logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: running {len(to_run)} matches")
 
