@@ -42,6 +42,7 @@ export default function SummarizerABSection() {
   const [compData, setCompData] = useState(null);
 
   const [results, setResults] = useState(null);
+  const [expData, setExpData] = useState(null);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -54,14 +55,16 @@ export default function SummarizerABSection() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [modesRes, resultsRes] = await Promise.all([
+      const [modesRes, resultsRes, aeRes] = await Promise.all([
         Promise.all(DATASETS.map(ds => axios.get(`${API}/api/validation/available-modes`, { params: { dataset_id: ds.id } }).catch(() => ({ data: { modes: [] } })))),
         axios.get(`${API}/api/validation/summarizer-ab/results`, { timeout: 30000 }).catch(() => ({ data: {} })),
+        axios.get(`${API}/api/validation/assessor-evaluator/results`, { timeout: 30000 }).catch(() => ({ data: {} })),
       ]);
       const modes_by_ds = {};
       DATASETS.forEach((ds, i) => { modes_by_ds[ds.id] = modesRes[i].data.modes || []; });
       setCompData(modes_by_ds);
       if (resultsRes.data.status === "ok") setResults(resultsRes.data);
+      if (aeRes.data?.experimental) setExpData(aeRes.data.experimental);
     } catch (e) { console.warn(e); }
   }, []);
 
@@ -198,6 +201,57 @@ export default function SummarizerABSection() {
                 </table>
               </div>
             </div>
+
+            {/* Experimental: GPT-5.4 comparison on shared pairs */}
+            {expData?.pooled && Object.keys(expData.pooled).length > 0 && (() => {
+              const expEntries = (expData.summarizers || [])
+                .map(s => [s, expData.pooled[`${s}|Round-Robin`]])
+                .filter(([, v]) => v)
+                .sort((a, b) => (b[1].accuracy || 0) - (a[1].accuracy || 0));
+              const totalPairs = expEntries[0]?.[1]?.total || 0;
+              return (
+                <div className="border-2 border-emerald-200 rounded-lg overflow-hidden bg-emerald-50/20" data-testid="sumab-experimental">
+                  <div className="px-3 py-2 bg-emerald-100/30 border-b border-emerald-200">
+                    <h3 className="text-xs font-medium text-emerald-900 flex items-center gap-1.5">
+                      <FlaskConical className="h-3 w-3" /> Experimental: GPT-5.4 as Summarizer
+                    </h3>
+                    <p className="text-[10px] text-emerald-700 mt-0.5">
+                      Same-pair comparison on {totalPairs} overlapping pairs across {expData.datasets_used?.length || 0} datasets where GPT-5.4 has data.
+                      Smaller N than the main table — early signal only.
+                    </p>
+                  </div>
+                  <div className="p-3">
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="border-b border-emerald-200 text-[10px]">
+                          <th className="text-left py-1.5 pr-3 font-medium">Summarizer</th>
+                          <th className="text-right py-1.5 px-2 font-medium">Accuracy</th>
+                          <th className="text-right py-1.5 px-2 font-medium">Correct/Total</th>
+                          <th className="py-1.5 px-2 w-1/4"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expEntries.map(([name, v]) => {
+                          const isExp = name === "GPT-5.4";
+                          return (
+                            <tr key={name} className={`border-b border-emerald-100 ${isExp ? "bg-emerald-50" : ""}`}>
+                              <td className={`py-1.5 pr-3 ${isExp ? "font-semibold" : "font-medium"}`}>{name}</td>
+                              <td className="text-right py-1.5 px-2 font-mono">{v.accuracy}%</td>
+                              <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{v.correct}/{v.total}</td>
+                              <td className="py-1.5 px-2">
+                                <div className="h-2.5 bg-emerald-100 rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${(v.accuracy / 100) * 100}%`, backgroundColor: SUM_COLORS[name] || "#94a3b8" }} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Per-dataset breakdown */}
             {datasets_arr.map(([dsId, ds]) => {
