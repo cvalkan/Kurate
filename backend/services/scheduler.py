@@ -722,10 +722,17 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     batch_size = max(25, min(parallel * 10, 250))
 
     # Track progress for external visibility
-    _summary_gen_progress[category or "__all__"] = {
+    prog_key = category or "__all__"
+    _summary_gen_progress[prog_key] = {
         "running": True, "generated": 0, "failed": 0, "skipped": 0,
         "scanned": 0, "total": total_papers, "started_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    def _sync_progress():
+        """Push current counters to progress tracker for real-time UI updates."""
+        prog = _summary_gen_progress.get(prog_key)
+        if prog:
+            prog.update({"generated": generated, "failed": failed, "skipped": skipped, "scanned": scanned})
 
     async def gen_one(paper, model_info):
         nonlocal generated, failed, skipped
@@ -739,6 +746,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
         # Check if already exists (including fallback keys) — don't regenerate
         if _get_paper_summary(paper, mk):
             skipped += 1
+            _sync_progress()
             return
 
         async with sem:
@@ -750,6 +758,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                 result = await generate_precomparison_impact_summary(paper, model_override=model_info)
             except Exception as e:
                 failed += 1
+                _sync_progress()
                 logger.warning(f"[{category}] Summary gen error for '{paper.get('title', '')[:40]}' ({mk}): {e}")
                 return
             if result and result.get("summary"):
@@ -766,22 +775,22 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                         }},
                     )
                     generated += 1
+                    _sync_progress()
                     if cat_status and generated % 5 == 0:
                         cat_status["current_activity"] = f"Generating summaries... ({generated} new, {failed} failed)"
                 else:
                     failed += 1
+                    _sync_progress()
                     logger.warning(f"[{category}] Summary too short (<50 chars) for '{paper.get('title', '')[:40]}' ({mk})")
             else:
                 failed += 1
+                _sync_progress()
 
     async for paper_batch in _iter_cursor_batches(paper_cursor, batch_size=batch_size):
         scanned += len(paper_batch)
         if cat_status:
             cat_status["current_activity"] = f"Generating summaries... ({scanned}/{total_papers} scanned, {generated} new)"
-        # Update progress tracker
-        prog = _summary_gen_progress.get(category or "__all__")
-        if prog:
-            prog.update({"generated": generated, "failed": failed, "skipped": skipped, "scanned": scanned})
+        _sync_progress()
         tasks = []
         for paper in paper_batch:
             for model_info in _SUMMARY_GENERATION_MODELS:
@@ -793,7 +802,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
         logger.info(f"[{category}] Summary generation complete: {generated} new, {failed} failed, {skipped} skipped across {scanned} papers")
 
     # Finalize progress tracker
-    prog = _summary_gen_progress.get(category or "__all__")
+    prog = _summary_gen_progress.get(prog_key)
     if prog:
         prog.update({"running": False, "generated": generated, "failed": failed, "skipped": skipped, "scanned": scanned,
                       "finished_at": datetime.now(timezone.utc).isoformat()})
