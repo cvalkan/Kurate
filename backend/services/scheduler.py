@@ -736,11 +736,11 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
     async def gen_one(paper, model_info):
         nonlocal generated, failed, skipped
-        # Check if system was paused mid-generation (skip for manual/forced operations)
-        if not force:
-            s = await get_settings()
-            if s.get("paused", False):
-                return
+        # Always check for pause mid-generation — even force-started jobs should
+        # be stoppable by the admin pressing pause
+        s = await get_settings()
+        if s.get("paused", False):
+            return
 
         mk = _summary_model_key(model_info)
         # Check if already exists (including fallback keys) — don't regenerate
@@ -750,10 +750,9 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             return
 
         async with sem:
-            if not force:
-                s2 = await get_settings()
-                if s2.get("paused", False):
-                    return
+            s2 = await get_settings()
+            if s2.get("paused", False):
+                return
             try:
                 result = await generate_precomparison_impact_summary(paper, model_override=model_info)
             except Exception as e:
