@@ -86,30 +86,10 @@ export function AdminOverview({
     setFetchableCount(null);
   };
 
-  if (!status) return (
-    <div className="space-y-4 animate-pulse" data-testid="admin-overview-loading">
-      <div className="h-8 bg-secondary/30 rounded-lg" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[1,2,3,4].map(i => <div key={i} className="h-20 bg-secondary/30 rounded-lg" />)}
-      </div>
-    </div>
-  );
+  const [backfilling, setBackfilling] = useState(false);
 
-  const scheduler = status.scheduler || {};
-  const lastFetch = scheduler.last_fetch_at;
-  const activity = scheduler.current_activity || "";
-
-  const totalPapers = progress?.total_papers || status.total_papers || 0;
-  const totalPapersInDb = progress?.papers_with_pdf || totalPapers;
-  const papersWithPdf = progress?.papers_with_pdf || 0;
-  const summariesCount = progress?.summary_coverage?.with_summaries || 0;
   const summaryGenProgress = progress?.summary_gen_progress;
-
-  // Only show activity indicators when there's actual work remaining AND system is active
-  const systemActive = !progress?.global_paused;
-  const isDownloading = systemActive && papersWithPdf < totalPapers && (activity.includes("downloading") || activity.includes("Fetching"));
   const isSummaryGenRunning = !!summaryGenProgress?.running;
-  const isGenerating = isSummaryGenRunning || (systemActive && summariesCount < papersWithPdf && activity.includes("Generating summaries"));
 
   // Auto-refresh when summary generation is in progress
   useEffect(() => {
@@ -120,7 +100,6 @@ export function AdminOverview({
     return () => clearInterval(interval);
   }, [isSummaryGenRunning, onRefresh]);
 
-  const [backfilling, setBackfilling] = useState(false);
   const triggerBackfill = async () => {
     setBackfilling(true);
     try {
@@ -139,6 +118,29 @@ export function AdminOverview({
       setBackfilling(false);
     }
   };
+
+  if (!status) return (
+    <div className="space-y-4 animate-pulse" data-testid="admin-overview-loading">
+      <div className="h-8 bg-secondary/30 rounded-lg" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[1,2,3,4].map(i => <div key={i} className="h-20 bg-secondary/30 rounded-lg" />)}
+      </div>
+    </div>
+  );
+
+  const scheduler = status.scheduler || {};
+  const lastFetch = scheduler.last_fetch_at;
+  const activity = scheduler.current_activity || "";
+
+  const totalPapers = progress?.total_papers || status.total_papers || 0;
+  const totalPapersInDb = progress?.papers_with_pdf || totalPapers;
+  const papersWithPdf = progress?.papers_with_pdf || 0;
+  const summariesCount = progress?.summary_coverage?.with_summaries || 0;
+
+  // Only show activity indicators when there's actual work remaining AND system is active
+  const systemActive = !progress?.global_paused;
+  const isDownloading = systemActive && papersWithPdf < totalPapers && (activity.includes("downloading") || activity.includes("Fetching"));
+  const isGenerating = isSummaryGenRunning || (systemActive && summariesCount < papersWithPdf && activity.includes("Generating summaries"));
 
   return (
     <div className="space-y-4" data-testid="admin-overview">
