@@ -545,17 +545,17 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         logger.info(f"Added {new_count} new {category} papers to DB")
 
         # Update paper count immediately so admin dashboard reflects new papers
-        cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
+        cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}})
 
         # Always attempt PDF downloads (catches retries for previously failed downloads)
         await _download_pending_pdfs(category=category)
 
-        # Update count again after PDF downloads
-        cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
-
         # Generate AI summaries for papers with full text
         cat_status["current_activity"] = "Generating summaries..."
         await _generate_paper_summaries(category=category, force=force)
+
+        # Final paper count after summaries are generated
+        cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}})
 
         cat_status["current_activity"] = "Idle"
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
@@ -570,14 +570,18 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
 
 
 async def _download_pending_pdfs(category: str = None):
-    """Download PDFs for papers missing full_text, scoped to a category."""
-    query = {"$or": [{"needs_pdf": True}, {"full_text": None}], "pdf_link": {"$ne": None}}
+    """Download PDFs for papers missing full_text, scoped to a category.
+    
+    Papers that fail extraction are marked with needs_pdf=False and pdf_failed=True
+    so they can be retried later without blocking every cycle.
+    """
+    query = {"$or": [{"needs_pdf": True}, {"full_text": None, "pdf_failed": {"$ne": True}}], "pdf_link": {"$ne": None}}
     if category:
         query["categories.0"] = category
 
     papers_needing_pdf = await db.papers.find(
         query, {"_id": 0, "id": 1, "pdf_link": 1, "title": 1, "doi": 1},
-    ).to_list(200)
+    ).to_list(500)
 
     if not papers_needing_pdf:
         return 0
@@ -593,19 +597,20 @@ async def _download_pending_pdfs(category: str = None):
             if full_text:
                 await db.papers.update_one(
                     {"id": paper["id"]},
-                    {"$set": {"full_text": full_text, "needs_pdf": False}},
+                    {"$set": {"full_text": full_text, "needs_pdf": False}, "$unset": {"pdf_failed": ""}},
                 )
                 downloaded += 1
             else:
+                # Mark as failed so it's not retried every cycle, but can be force-retried
                 await db.papers.update_one(
                     {"id": paper["id"]},
-                    {"$set": {"needs_pdf": False}},
+                    {"$set": {"needs_pdf": False, "pdf_failed": True}},
                 )
         except Exception as e:
             logger.warning(f"PDF download failed for {paper['id']}: {e}")
             await db.papers.update_one(
                 {"id": paper["id"]},
-                {"$set": {"needs_pdf": False}},
+                {"$set": {"needs_pdf": False, "pdf_failed": True}},
             )
         await asyncio.sleep(1)
     return downloaded
@@ -827,7 +832,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             current_prompt_hash = _prompt_hash(prompt_config)
 
             _paper_fields = {
-                "_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
+                "_id": 0, "id": 1, "title": 1, "abstract": 1,
                 "authors": 1, "arxiv_id": 1, "link": 1, "published": 1,
                 "pdf_link": 1, "added_at": 1, "summaries": 1,
             }
@@ -862,9 +867,14 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             if papers_missing_text > 0:
                 dl_count = await _download_pending_pdfs(category=category)
                 if dl_count > 0:
-                    all_papers = await db.papers.find(
+                    # Re-fetch and re-apply the same summary filter
+                    refetched = await db.papers.find(
                         {"categories.0": category}, _paper_fields
                     ).to_list(5000)
+                    all_papers = [
+                        p for p in refetched
+                        if p.get("summaries") and _get_paper_summary(p, required_key)
+                    ]
 
             # Only load standard matches for this category (exclude experiments)
             all_matches = await db.matches.find(

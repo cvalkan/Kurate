@@ -50,16 +50,26 @@ Build a robust system for ranking and validating AI model performance on scienti
 - (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
 
 ## Recent Updates (Mar 6 2026)
-- Fixed tournament paper summarization pipeline: summary generation now uses batched cursors instead of `.to_list(500)` cap
-- Added real-time summary generation progress tracking (`_summary_gen_progress` dict in scheduler)
-- New endpoint: `GET /api/admin/summary-gen-progress?category=X` for real-time progress
-- Updated backfill endpoint to use `force=True` (ignores pause state)  
-- Admin UI now shows live summary generation progress with auto-refresh
-- Added "Generate missing summaries" button in admin UI for manual retrigger
-- Root cause identified: Emergent LLM key budget exhaustion stops summary generation
 
-## elife-comp-sys-bio Status
-Not corrupt. Summaries at top-level (`ai_impact_summary`), not in `summaries` dict. By design — validation datasets are separate from live tournament.
+### Pipeline Audit & Bug Fixes
+- **Fixed**: Summary filter lost after PDF re-fetch in `run_comparison_round` — papers without summaries could enter matchmaking with empty content
+- **Fixed**: Failed PDF downloads permanently excluded papers — now marks `pdf_failed: True` so they're distinguishable from untried papers and can be force-retried
+- **Fixed**: `run_comparison_round` no longer loads `full_text` (potentially gigabytes) into memory for comparisons that don't use it
+- **Fixed**: PDF download cap increased from 200 to 500 per call
+- **Fixed**: `papers_count` in fetch cycle now counts papers with summaries (consistent with compare loop)
+
+### Summary Generation Improvements
+- Added real-time summary generation progress tracking (`_summary_gen_progress`)
+- New endpoint: `GET /api/admin/summary-gen-progress?category=X`
+- Backfill endpoint now uses `force=True` (ignores pause state)
+- Admin UI: "Generate N missing summaries" button + live progress with auto-refresh
+- Better logging: failures logged per-model instead of silently swallowed
+
+### Admin Login Fix
+- Rebuilt frontend to fix stale `REACT_APP_BACKEND_URL` baked into static build
 
 ## Key Issue: Budget Exhaustion
 The Emergent LLM key budget gets exhausted during large-scale summary generation (3 models × N papers). When budget runs out, remaining papers don't get summaries and can't enter the tournament. User needs to top up budget via Profile → Universal Key → Add Balance.
+
+## elife-comp-sys-bio Status
+Not corrupt. Summaries at top-level (`ai_impact_summary`), not in `summaries` dict. By design — validation datasets are separate from live tournament.

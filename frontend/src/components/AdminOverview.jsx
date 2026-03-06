@@ -252,9 +252,8 @@ export function AdminOverview({
             <Button
               onClick={triggerBackfill}
               disabled={backfilling}
-              variant="outline"
               size="sm"
-              className="gap-1.5 text-xs h-8 border-amber-300 text-amber-700 hover:bg-amber-50"
+              className="gap-1.5 text-xs h-8 bg-secondary text-foreground hover:bg-secondary/80"
               data-testid="generate-missing-summaries-btn"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${backfilling ? "animate-spin" : ""}`} />
