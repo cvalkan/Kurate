@@ -796,6 +796,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
     provider = model_info["provider"]
     model = model_info["model"]
     extra_params = model_info.get("extra_params", {})
+    # Allow custom API key (e.g., for models not yet on Emergent proxy)
+    api_key = model_info.get("api_key") or EMERGENT_LLM_KEY
 
     full_text = paper.get("full_text", "")
     abstract = paper.get("abstract", "")
@@ -819,7 +821,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             content=content,
         )
         chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
+            api_key=api_key,
             session_id=f"impact-{uuid.uuid4()}",
             system_message=IMPACT_ASSESSMENT_PROMPT["system_prompt"],
         ).with_model(provider, model)

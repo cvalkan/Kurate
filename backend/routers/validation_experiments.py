@@ -1199,7 +1199,7 @@ async def _run_multi_aspect(dataset_id: str, num_pairs: int):
 SUMMARIZER_MODELS = {
     "gpt": {"provider": "openai", "model": "gpt-5.2"},
     "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
-    "gpt54": {"provider": "openai", "model": "gpt-5.4"},
+    "gpt54": {"provider": "openai", "model": "gpt-5.4", "api_key_env": "OPENAI_API_KEY_GPT54"},
 }
 _sumab_state = {"running": False, "phase": "", "done": 0, "total": 0, "dataset_id": None, "summarizer": None}
 _sumab_task = None
@@ -1790,8 +1790,17 @@ async def queue_summarizer_ab_batch(request: Request):
 async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
     """Generate summaries with GPT/Gemini, then run round-robin tournament on same pairs as opus46."""
     from services.llm import generate_precomparison_impact_summary, compare_papers, _pick_round_robin_model
+    import os
 
-    model_info = SUMMARIZER_MODELS[summarizer]
+    model_info = dict(SUMMARIZER_MODELS[summarizer])  # copy to avoid mutating global
+    # Resolve custom API key from env if specified
+    api_key_env = model_info.pop("api_key_env", None)
+    if api_key_env:
+        custom_key = os.environ.get(api_key_env)
+        if custom_key:
+            model_info["api_key"] = custom_key
+        else:
+            logger.warning(f"Summarizer A/B: env var {api_key_env} not set, falling back to Emergent key")
     sum_field = f"ai_impact_summary_{summarizer}"
     content_mode = f"abstract_plus_summary:{summarizer}_summary"
 
