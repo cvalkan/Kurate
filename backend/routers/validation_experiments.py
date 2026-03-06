@@ -1377,10 +1377,10 @@ async def _compute_assessor_evaluator():
         shared = None
         avail = []
         for name, data in mode_data.items():
-            if len(data) < 20: continue
+            if len(data) < 10: continue
             avail.append(name)
             shared = set(data.keys()) if shared is None else shared & set(data.keys())
-        if not shared or len(shared) < 15: continue
+        if not shared or len(shared) < 8: continue
 
         ds_cells = []
         for sum_name in avail:
@@ -1834,8 +1834,24 @@ async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
         baseline_pairs.append((m["paper1_id"], m["paper2_id"]))
         existing.add(pk)
 
-    random.shuffle(baseline_pairs)
-    to_run = baseline_pairs[:num_pairs]
+    # Prioritize pairs where OTHER summarizers already have data (for same-pair comparison).
+    # Collect pairs from GPT-5.2 and Gemini baselines to maximize overlap.
+    other_modes = ["abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary"]
+    other_pairs = set()
+    for om in other_modes:
+        async for m in db.validation_matches.find(
+            {"dataset_id": dataset_id, "content_mode": om, "completed": True, "failed": {"$ne": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+        ):
+            other_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+
+    # Sort: shared pairs first (appear in other summarizers), then the rest
+    shared_first = [p for p in baseline_pairs if tuple(sorted(p)) in other_pairs]
+    rest = [p for p in baseline_pairs if tuple(sorted(p)) not in other_pairs]
+    random.shuffle(shared_first)
+    random.shuffle(rest)
+    to_run = (shared_first + rest)[:num_pairs]
+    logger.info(f"Summarizer A/B [{dataset_id}/{summarizer}]: {len(shared_first)} shared pairs, {len(rest)} unique, picking {len(to_run)}")
 
     # Phase 1: Generate summaries ONLY for papers involved in target pairs
     target_paper_ids = set()
