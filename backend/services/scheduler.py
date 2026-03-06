@@ -32,6 +32,15 @@ def _get_lock(category: str) -> asyncio.Lock:
 # Per-category status for live UI updates
 _category_status: Dict[str, dict] = {}
 
+# Track summary generation progress (per-category)
+_summary_gen_progress: Dict[str, dict] = {}
+
+
+def get_summary_gen_progress(category: str = None) -> dict:
+    """Get the current summary generation progress for a category."""
+    key = category or "__all__"
+    return _summary_gen_progress.get(key, {"running": False})
+
 
 def _get_cat_status(category: str) -> dict:
     if category not in _category_status:
@@ -702,11 +711,19 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     cat_status = _get_cat_status(category) if category else None
     sem = asyncio.Semaphore(parallel)
     generated = 0
+    failed = 0
+    skipped = 0
     scanned = 0
     batch_size = max(25, min(parallel * 10, 250))
 
+    # Track progress for external visibility
+    _summary_gen_progress[category or "__all__"] = {
+        "running": True, "generated": 0, "failed": 0, "skipped": 0,
+        "scanned": 0, "total": total_papers, "started_at": datetime.now(timezone.utc).isoformat(),
+    }
+
     async def gen_one(paper, model_info):
-        nonlocal generated
+        nonlocal generated, failed, skipped
         # Check if system was paused mid-generation (skip for manual/forced operations)
         if not force:
             s = await get_settings()
@@ -716,6 +733,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
         mk = _summary_model_key(model_info)
         # Check if already exists (including fallback keys) — don't regenerate
         if _get_paper_summary(paper, mk):
+            skipped += 1
             return
 
         async with sem:
@@ -723,7 +741,12 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                 s2 = await get_settings()
                 if s2.get("paused", False):
                     return
-            result = await generate_precomparison_impact_summary(paper, model_override=model_info)
+            try:
+                result = await generate_precomparison_impact_summary(paper, model_override=model_info)
+            except Exception as e:
+                failed += 1
+                logger.warning(f"[{category}] Summary gen error for '{paper.get('title', '')[:40]}' ({mk}): {e}")
+                return
             if result and result.get("summary"):
                 summary_val = result["summary"]
                 # Ensure we always store a string
@@ -739,12 +762,21 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                     )
                     generated += 1
                     if cat_status and generated % 5 == 0:
-                        cat_status["current_activity"] = f"Generating summaries... ({generated})"
+                        cat_status["current_activity"] = f"Generating summaries... ({generated} new, {failed} failed)"
+                else:
+                    failed += 1
+                    logger.warning(f"[{category}] Summary too short (<50 chars) for '{paper.get('title', '')[:40]}' ({mk})")
+            else:
+                failed += 1
 
     async for paper_batch in _iter_cursor_batches(paper_cursor, batch_size=batch_size):
         scanned += len(paper_batch)
         if cat_status:
-            cat_status["current_activity"] = f"Generating summaries... ({scanned}/{total_papers} papers scanned)"
+            cat_status["current_activity"] = f"Generating summaries... ({scanned}/{total_papers} scanned, {generated} new)"
+        # Update progress tracker
+        prog = _summary_gen_progress.get(category or "__all__")
+        if prog:
+            prog.update({"generated": generated, "failed": failed, "skipped": skipped, "scanned": scanned})
         tasks = []
         for paper in paper_batch:
             for model_info in _SUMMARY_GENERATION_MODELS:
@@ -753,7 +785,13 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             await asyncio.gather(*tasks, return_exceptions=True)
 
     if total_papers:
-        logger.info(f"[{category}] Generated {generated} new AI summaries across {scanned} papers")
+        logger.info(f"[{category}] Summary generation complete: {generated} new, {failed} failed, {skipped} skipped across {scanned} papers")
+
+    # Finalize progress tracker
+    prog = _summary_gen_progress.get(category or "__all__")
+    if prog:
+        prog.update({"running": False, "generated": generated, "failed": failed, "skipped": skipped, "scanned": scanned,
+                      "finished_at": datetime.now(timezone.utc).isoformat()})
 
     return generated
 
@@ -1010,7 +1048,7 @@ async def _generate_pending_summaries(category: str = None):
     all_papers = await db.papers.find(
         query,
         {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1, "categories": 1},
-    ).to_list(500)
+    ).to_list(5000)
 
     if not all_papers:
         return

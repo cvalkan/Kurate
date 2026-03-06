@@ -22,14 +22,14 @@ Build a robust system for ranking and validating AI model performance on scienti
   core/config.py                    # DB, LLM key, TOURNAMENT_MODELS, prompts
   core/auth.py                      # Admin auth (timing-safe), settings management
   services/
-    scheduler.py                    # Summary generation (_SUMMARY_GENERATION_MODELS), matchmaking
+    scheduler.py                    # Summary generation, matchmaking, progress tracking
     ranking.py                      # Bradley-Terry, Elo, Wilson CI
     llm.py                          # LLM calls, PDF extraction, section extraction
     task_tracker.py                 # Generic persistent background task tracker
     arxiv.py, chemrxiv.py           # Paper fetchers
   routers/
     leaderboard.py                  # Main leaderboard + paper detail + model correlation
-    admin.py                        # Admin dashboard + /background-tasks endpoint
+    admin.py                        # Admin dashboard + summary gen progress + backfill
     validation.py                   # ~6450 lines: tournaments, analysis, experiments
     validation_imports.py           # ~920 lines: dataset import endpoints
     validation_utils.py             # Shared utilities for validation
@@ -46,12 +46,20 @@ Build a robust system for ranking and validating AI model performance on scienti
 ## Pending Tasks
 - (P1) Anchor selection logic improvement (pending user approval)
 - (P2) Further refactor validation.py (extract experiments ~1600 lines)
+- (P2) Add missing HTTP security headers middleware
 - (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
 
 ## Recent Updates (Mar 6 2026)
-- Fixed a live-tournament scaling bug in `backend/services/scheduler.py` where large categories could be implicitly truncated at 500 papers.
-- `_generate_paper_summaries`, `_check_goals_met`, and `_store_ranking_snapshot` now process full result sets in batches instead of hard-capping at 500 papers.
-- Added backend regression tests in `backend/tests/test_scheduler_large_category_regressions.py` covering >500-paper summary generation and convergence evaluation.
+- Fixed tournament paper summarization pipeline: summary generation now uses batched cursors instead of `.to_list(500)` cap
+- Added real-time summary generation progress tracking (`_summary_gen_progress` dict in scheduler)
+- New endpoint: `GET /api/admin/summary-gen-progress?category=X` for real-time progress
+- Updated backfill endpoint to use `force=True` (ignores pause state)  
+- Admin UI now shows live summary generation progress with auto-refresh
+- Added "Generate missing summaries" button in admin UI for manual retrigger
+- Root cause identified: Emergent LLM key budget exhaustion stops summary generation
 
 ## elife-comp-sys-bio Status
 Not corrupt. Summaries at top-level (`ai_impact_summary`), not in `summaries` dict. By design — validation datasets are separate from live tournament.
+
+## Key Issue: Budget Exhaustion
+The Emergent LLM key budget gets exhausted during large-scale summary generation (3 models × N papers). When budget runs out, remaining papers don't get summaries and can't enter the tournament. User needs to top up budget via Profile → Universal Key → Add Balance.

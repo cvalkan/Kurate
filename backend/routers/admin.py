@@ -361,9 +361,14 @@ async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSu
     """Backfill pre-generated AI summaries (3 models) for existing papers.
     
     This generates summaries from Claude, Gemini, and GPT for papers that don't have them yet.
-    Runs in background. Papers must have full_text available.
+    Runs in background with force=True (ignores pause state). Papers must have full_text available.
     """
-    from services.scheduler import _generate_paper_summaries
+    from services.scheduler import _generate_paper_summaries, get_summary_gen_progress
+
+    # Check if already running
+    progress = get_summary_gen_progress(body.category)
+    if progress.get("running"):
+        return {"status": "already_running", "progress": progress}
 
     query = {"full_text": {"$ne": None}}
     if body.category:
@@ -374,9 +379,8 @@ async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSu
         query, {"_id": 0, "id": 1, "summaries": 1}
     ).to_list(5000)
 
-    from core.config import TOURNAMENT_MODELS
-    from services.scheduler import _summary_model_key
-    model_keys = [_summary_model_key(m) for m in TOURNAMENT_MODELS]
+    from services.scheduler import _summary_model_key, _SUMMARY_GENERATION_MODELS
+    model_keys = [_summary_model_key(m) for m in _SUMMARY_GENERATION_MODELS]
 
     needs_work = 0
     for p in all_papers:
@@ -394,8 +398,8 @@ async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSu
             "note": "All papers already have pre-generated summaries from all 3 models.",
         }
 
-    # Run in background
-    asyncio.create_task(_generate_paper_summaries(category=body.category))
+    # Run in background with force=True to ignore pause state
+    asyncio.create_task(_generate_paper_summaries(category=body.category, force=True))
 
     return {
         "status": "started",
@@ -403,7 +407,29 @@ async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSu
         "papers_with_text": len(all_papers),
         "papers_needing_summaries": needs_work,
         "total_summaries_to_generate": needs_work * 3,
-        "note": f"Generating 3 AI summaries per paper for {needs_work} papers in background.",
+        "note": f"Generating 3 AI summaries per paper for {needs_work} papers in background (force mode).",
+    }
+
+
+@router.get("/summary-gen-progress", dependencies=[Depends(verify_admin)])
+async def get_summary_generation_progress(category: str = "cs.RO"):
+    """Get real-time progress of ongoing summary generation."""
+    from services.scheduler import get_summary_gen_progress
+
+    progress = get_summary_gen_progress(category)
+
+    # Also get current DB counts for context
+    total_papers = await db.papers.count_documents({"categories.0": category})
+    with_text = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
+    with_summaries = await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}})
+
+    return {
+        **progress,
+        "category": category,
+        "db_total_papers": total_papers,
+        "db_papers_with_text": with_text,
+        "db_papers_with_summaries": with_summaries,
+        "db_papers_needing_summaries": with_text - with_summaries,
     }
 
 
@@ -490,9 +516,15 @@ async def get_admin_status(category: str = "cs.RO"):
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate(category: str = "cs.RO"):
     """Triple-goal progress — served from pre-computed leaderboard cache."""
-    cached = _get_admin_cached("progress", category)
-    if cached:
-        return cached
+    # Check if summary generation is running — skip cache if so for real-time updates
+    from services.scheduler import get_summary_gen_progress
+    summary_gen = get_summary_gen_progress(category)
+    is_gen_running = summary_gen.get("running", False)
+
+    if not is_gen_running:
+        cached = _get_admin_cached("progress", category)
+        if cached:
+            return cached
 
     settings = await get_settings()
     global_paused = settings.get("paused", False)
@@ -508,6 +540,12 @@ async def get_progress_estimate(category: str = "cs.RO"):
     # Use pre-computed progress from leaderboard background cache
     precomputed = lb_cache.get("_progress", {}).get(category)
     if precomputed:
+        realtime_summaries = lb_cache.get("categories", {}).get(category, {}).get("_papers", 0)
+        # If summary gen is running, get fresh count from DB
+        if is_gen_running:
+            realtime_summaries = await db.papers.count_documents(
+                {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}}
+            )
         result = {
             **precomputed,
             "paused": is_paused,
@@ -516,10 +554,12 @@ async def get_progress_estimate(category: str = "cs.RO"):
             "fetch_paused": fetch_paused,
             "compare_paused": compare_paused,
             "summary_coverage": {
-                "with_summaries": lb_cache.get("categories", {}).get(category, {}).get("_papers", 0),
+                "with_summaries": realtime_summaries,
             },
+            "summary_gen_progress": summary_gen if is_gen_running else None,
         }
-        _set_admin_cached("progress", category, result)
+        if not is_gen_running:
+            _set_admin_cached("progress", category, result)
         return result
 
     # Fallback: compute from DB (only during cold start before leaderboard cache is ready)

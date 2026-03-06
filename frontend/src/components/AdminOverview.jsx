@@ -103,11 +103,42 @@ export function AdminOverview({
   const totalPapersInDb = progress?.papers_with_pdf || totalPapers;
   const papersWithPdf = progress?.papers_with_pdf || 0;
   const summariesCount = progress?.summary_coverage?.with_summaries || 0;
+  const summaryGenProgress = progress?.summary_gen_progress;
 
   // Only show activity indicators when there's actual work remaining AND system is active
   const systemActive = !progress?.global_paused;
   const isDownloading = systemActive && papersWithPdf < totalPapers && (activity.includes("downloading") || activity.includes("Fetching"));
-  const isGenerating = systemActive && summariesCount < papersWithPdf && activity.includes("Generating summaries");
+  const isSummaryGenRunning = !!summaryGenProgress?.running;
+  const isGenerating = isSummaryGenRunning || (systemActive && summariesCount < papersWithPdf && activity.includes("Generating summaries"));
+
+  // Auto-refresh when summary generation is in progress
+  useEffect(() => {
+    if (!isSummaryGenRunning) return;
+    const interval = setInterval(() => {
+      if (onRefresh) onRefresh();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isSummaryGenRunning, onRefresh]);
+
+  const [backfilling, setBackfilling] = useState(false);
+  const triggerBackfill = async () => {
+    setBackfilling(true);
+    try {
+      const res = await axios.post(`${API}/api/admin/backfill-summaries`, { category: adminCat }, { headers: getAdminHeaders() });
+      if (res.data.status === "started") {
+        toast.success(`Generating summaries for ${res.data.papers_needing_summaries} papers`);
+      } else if (res.data.status === "already_running") {
+        toast.info("Summary generation already in progress");
+      } else if (res.data.status === "complete") {
+        toast.info("All papers already have summaries");
+      }
+      if (onRefresh) setTimeout(onRefresh, 2000);
+    } catch (e) {
+      toast.error("Failed to trigger summary generation");
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   return (
     <div className="space-y-4" data-testid="admin-overview">
@@ -176,15 +207,24 @@ export function AdminOverview({
             {isDownloading && <span className="text-accent animate-pulse ml-1">downloading...</span>}
           </div>
           <div data-testid="summarized-count">
-            <span className="font-mono text-foreground font-medium">{summariesCount}</span>/<span className="font-mono">{totalPapersInDb}</span> summarized
-            {isGenerating && <span className="text-accent animate-pulse ml-1">generating...</span>}
+            <span className="font-mono text-foreground font-medium">{summariesCount}</span>/<span className="font-mono">{papersWithPdf}</span> summarized
+            {isGenerating && (
+              <span className="text-accent animate-pulse ml-1">
+                generating...
+                {summaryGenProgress && (
+                  <span className="text-muted-foreground ml-1">
+                    ({summaryGenProgress.generated || 0} new, {summaryGenProgress.failed || 0} failed)
+                  </span>
+                )}
+              </span>
+            )}
           </div>
           <div className="pt-0.5">
             Last fetched <span className="font-mono text-foreground">{timeAgo(lastFetch)}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Button
             onClick={checkForNewPapers}
             disabled={checking}
@@ -206,6 +246,19 @@ export function AdminOverview({
             <Download className={`h-3.5 w-3.5 ${loading.fetch ? "animate-spin" : ""}`} />
             {loading.fetch ? "Fetching..." : "Fetch & generate summaries"}
           </Button>
+          {summariesCount < papersWithPdf && !isSummaryGenRunning && (
+            <Button
+              onClick={triggerBackfill}
+              disabled={backfilling}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-8 border-amber-300 text-amber-700 hover:bg-amber-50"
+              data-testid="generate-missing-summaries-btn"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${backfilling ? "animate-spin" : ""}`} />
+              {backfilling ? "Starting..." : `Generate ${papersWithPdf - summariesCount} missing summaries`}
+            </Button>
+          )}
         </div>
       </div>
 
