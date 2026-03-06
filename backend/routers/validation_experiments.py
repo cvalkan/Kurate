@@ -1304,14 +1304,19 @@ async def _compute_assessor_evaluator():
     """Full summarizer × judge matrix on same pairs."""
     import scipy.stats
 
+    # Main table: original 5 summarizers (full shared pairs)
     SUM_MODES = {
         "Opus 4.5": "abstract_plus_summary",
         "Opus 4.6": "abstract_plus_summary:opus46",
         "Opus 4.6 Thinking": "abstract_plus_summary:thinking",
         "GPT-5.2": "abstract_plus_summary:gpt_summary",
         "Gemini 3 Pro": "abstract_plus_summary:gemini_summary",
+    }
+    # Experimental summarizers shown in a separate comparison table
+    EXPERIMENTAL_MODES = {
         "GPT-5.4": "abstract_plus_summary:gpt54_summary",
     }
+    ALL_MODES = {**SUM_MODES, **EXPERIMENTAL_MODES}
     JUDGES = ["Opus 4.6", "GPT-5.2", "Gemini 3 Pro"]
 
     def _short(mu):
@@ -1365,7 +1370,7 @@ async def _compute_assessor_evaluator():
                         hm.append({"paper1_id": a, "paper2_id": b, "winner_id": a if ratings[a] > ratings[b] else b, "completed": True, "failed": False})
 
         mode_data = {}
-        for sum_name, cm in SUM_MODES.items():
+        for sum_name, cm in ALL_MODES.items():
             pbj = defaultdict(dict)
             async for m in db.validation_matches.find(
                 {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}, "content_mode": cm},
@@ -1374,13 +1379,15 @@ async def _compute_assessor_evaluator():
                 pbj[pk][_short(m.get("model_used", {}))] = m["winner_id"]
             if pbj: mode_data[sum_name] = pbj
 
+        # Main shared set: only original summarizers (not experimental)
         shared = None
         avail = []
-        for name, data in mode_data.items():
-            if len(data) < 10: continue
+        for name in SUM_MODES:
+            data = mode_data.get(name)
+            if not data or len(data) < 20: continue
             avail.append(name)
             shared = set(data.keys()) if shared is None else shared & set(data.keys())
-        if not shared or len(shared) < 8: continue
+        if not shared or len(shared) < 15: continue
 
         ds_cells = []
         for sum_name in avail:
@@ -1459,7 +1466,8 @@ async def _compute_assessor_evaluator():
                 if j_rho is not None: pooled_cells[key]["rho_vals"].append(j_rho)
                 pooled_cells[key]["correct"] += j_c; pooled_cells[key]["total"] += j_t
 
-        by_dataset[ds_id] = {"name": ds_names.get(ds_id, ds_id), "shared_pairs": len(shared), "cells": ds_cells}
+        by_dataset[ds_id] = {"name": ds_names.get(ds_id, ds_id), "shared_pairs": len(shared), "cells": ds_cells,
+                              "mode_data": mode_data, "_cached": {"paper_list": paper_list, "ep": ep, "hm": hm}}
 
     pooled = {}
     for key, v in pooled_cells.items():
@@ -1500,8 +1508,70 @@ async def _compute_assessor_evaluator():
                     "pairs": sum(c.get("pairs", 0) for c in judge_cells),
                 })
 
+    # --- Experimental table: ALL_MODES on their own shared pairs ---
+    # Reuse mode_data already loaded per dataset (no extra DB queries)
+    exp_pooled_cells = defaultdict(lambda: {"correct": 0, "total": 0})
+    exp_datasets_used = []
+
+    for ds_id, ds_data in by_dataset.items():
+        mode_data = ds_data.get("mode_data", {})
+        cached = ds_data.get("_cached", {})
+        paper_list = cached.get("paper_list", [])
+        ep = cached.get("ep", {})
+        hm = cached.get("hm", [])
+
+        has_exp = any(name in mode_data and len(mode_data[name]) >= 5 for name in EXPERIMENTAL_MODES)
+        if not has_exp:
+            continue
+
+        # Shared set including experimental modes
+        exp_shared = None
+        exp_avail = []
+        for name in ALL_MODES:
+            data = mode_data.get(name)
+            if not data or len(data) < 5: continue
+            exp_avail.append(name)
+            exp_shared = set(data.keys()) if exp_shared is None else exp_shared & set(data.keys())
+        if not exp_shared or len(exp_shared) < 5:
+            continue
+
+        exp_datasets_used.append(ds_id)
+
+        for sum_name in exp_avail:
+            data = mode_data[sum_name]
+            available_judges_per_pair = {}
+            for pk in exp_shared:
+                if pk not in data: continue
+                available_judges_per_pair[pk] = list(data[pk].items())
+
+            # Simple accuracy: randomly pick one judge per pair (1 trial for speed)
+            import random as _rr_rand
+            _rr_rng = _rr_rand.Random(42)
+            rr_matches = []
+            for pk, jv in available_judges_per_pair.items():
+                judge, winner = _rr_rng.choice(jv)
+                rr_matches.append({"paper1_id": pk[0], "paper2_id": pk[1], "winner_id": winner})
+            rr_c = sum(1 for m in rr_matches if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep and m["winner_id"] == ep[tuple(sorted([m["paper1_id"], m["paper2_id"]]))])
+            rr_t = sum(1 for m in rr_matches if tuple(sorted([m["paper1_id"], m["paper2_id"]])) in ep)
+            exp_pooled_cells[f"{sum_name}|Round-Robin"]["correct"] += rr_c
+            exp_pooled_cells[f"{sum_name}|Round-Robin"]["total"] += rr_t
+
+    exp_pooled = {}
+    for key, v in exp_pooled_cells.items():
+        sum_name, judge = key.split("|")
+        exp_pooled[key] = {"summarizer": sum_name, "judge": judge,
+                           "accuracy": round(v["correct"] / max(v["total"], 1) * 100, 1),
+                           "correct": v["correct"], "total": v["total"]}
+
+    # Clean up internal data from by_dataset before returning
+    for ds_id in by_dataset:
+        by_dataset[ds_id].pop("mode_data", None)
+        by_dataset[ds_id].pop("_cached", None)
+
     return {"status": "ok", "by_dataset": by_dataset, "pooled": pooled,
-            "summarizers": list(SUM_MODES.keys()), "judges": ["Round-Robin"] + JUDGES + ["All Evaluators"]}
+            "summarizers": list(SUM_MODES.keys()), "judges": ["Round-Robin"] + JUDGES + ["All Evaluators"],
+            "experimental": {"pooled": exp_pooled, "summarizers": list(ALL_MODES.keys()),
+                             "datasets_used": exp_datasets_used}}
 
 
 
@@ -1530,7 +1600,6 @@ async def _compute_summarizer_ab_results():
         "Opus 4.6 Thinking": "abstract_plus_summary:thinking",
         "GPT-5.2": "abstract_plus_summary:gpt_summary",
         "Gemini 3 Pro": "abstract_plus_summary:gemini_summary",
-        "GPT-5.4": "abstract_plus_summary:gpt54_summary",
     }
 
     # Only ICLR and eLife datasets (no Qeios, ResearchHub, etc.)

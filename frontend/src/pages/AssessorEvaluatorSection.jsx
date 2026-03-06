@@ -162,9 +162,48 @@ export default function AssessorEvaluatorSection() {
           <li><strong>Best configuration:</strong> Opus 4.6 Thinking summaries + Round-Robin judging (avg ρ best or tied-for-best across datasets).</li>
           <li><strong>Assessor matters more than evaluator:</strong> The ρ range across rows (summarizers) is wider than across columns (judges), confirming that input quality is the bigger lever.</li>
           <li><strong>Self-consistency is not an advantage:</strong> GPT-5.2 judging GPT-5.2 summaries and Gemini judging Gemini summaries perform worse than cross-model combinations.</li>
-          <li><strong>Caveat:</strong> Only 2 datasets with all 5 summarizers (248 total pairs). Per-judge columns have small N (22-55 pairs per cell).</li>
         </ul>
       </div>
+
+      {/* Experimental: GPT-5.4 comparison (separate shared-pair set) */}
+      {data.experimental?.pooled && Object.keys(data.experimental.pooled).length > 0 && (
+        <div className="border-2 border-emerald-200 rounded-lg overflow-hidden" data-testid="ae-experimental">
+          <div className="px-3 py-2 bg-emerald-50 border-b border-emerald-200">
+            <h3 className="text-xs font-semibold text-emerald-900">Experimental: GPT-5.4 Comparison (Separate Shared Pairs)</h3>
+            <div className="text-[10px] text-emerald-700 mt-0.5">
+              Pooled over {data.experimental.datasets_used?.length || 0} datasets where GPT-5.4 has data.
+              Uses the intersection of pairs where ALL summarizers (including GPT-5.4) have data — smaller N than the main table above.
+            </div>
+          </div>
+          <div className="p-3 overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border text-[10px]">
+                  <th className="text-left py-1.5 pr-3 font-medium">Summarizer</th>
+                  <th className="text-center py-1.5 px-3 font-medium">Avg ρ</th>
+                  <th className="text-center py-1.5 px-3 font-medium">Accuracy</th>
+                  <th className="text-center py-1.5 px-3 font-medium">Correct/Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.experimental.summarizers || []).map(sum => {
+                  const cell = data.experimental.pooled[`${sum}|Round-Robin`];
+                  if (!cell) return null;
+                  const isExp = sum === "GPT-5.4";
+                  return (
+                    <tr key={sum} className={`border-b border-border/30 ${isExp ? "bg-emerald-50/50 font-semibold" : ""}`}>
+                      <td className="py-2 pr-3">{sum}</td>
+                      <td className="text-center py-2 px-3 font-mono">{cell.avg_rho != null ? cell.avg_rho.toFixed(4) : "—"}</td>
+                      <td className="text-center py-2 px-3 font-mono">{cell.accuracy}%</td>
+                      <td className="text-center py-2 px-3 font-mono text-muted-foreground">{cell.correct}/{cell.total}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Why different from Judge Comparison page */}
       <div className="border border-amber-200 rounded-lg p-4 bg-amber-50/30 text-xs space-y-2">
