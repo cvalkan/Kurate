@@ -194,7 +194,11 @@ async def toggle_pause():
     await db.settings.update_one({"key": "global"}, {"$set": {"paused": new_state}}, upsert=True)
     invalidate_settings_cache()
     _invalidate_admin_cache()  # Global pause affects all categories
-    if not new_state:
+    if new_state:
+        # Immediately stop any running summary generation
+        from services.scheduler import stop_summary_generation
+        stop_summary_generation()
+    else:
         wake_scheduler()  # Wake immediately on unpause
     return {"paused": new_state}
 

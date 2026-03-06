@@ -35,6 +35,16 @@ _category_status: Dict[str, dict] = {}
 # Track summary generation progress (per-category)
 _summary_gen_progress: Dict[str, dict] = {}
 
+# Instant stop flag for summary generation — set by pause toggle,
+# checked inside gen_one without waiting for settings cache refresh
+_summary_gen_stop = False
+
+
+def stop_summary_generation():
+    """Signal all running summary generation to stop immediately."""
+    global _summary_gen_stop
+    _summary_gen_stop = True
+
 
 def get_summary_gen_progress(category: str = None) -> dict:
     """Get the current summary generation progress for a category."""
@@ -698,6 +708,8 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     All three models generate summaries, but only Claude Thinking is
     used in live tournament comparisons.
     """
+    global _summary_gen_stop
+    _summary_gen_stop = False  # Clear stop flag on new run
     settings = await get_settings()
     parallel = settings.get("summary_parallel", 10)
 
@@ -736,8 +748,10 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
     async def gen_one(paper, model_info):
         nonlocal generated, failed, skipped
-        # Always check for pause mid-generation — even force-started jobs should
-        # be stoppable by the admin pressing pause
+        # Instant stop check — no cache delay
+        if _summary_gen_stop:
+            return
+        # Also check settings for pause
         s = await get_settings()
         if s.get("paused", False):
             return
@@ -750,6 +764,9 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             return
 
         async with sem:
+            # Re-check stop flag after acquiring semaphore
+            if _summary_gen_stop:
+                return
             s2 = await get_settings()
             if s2.get("paused", False):
                 return
