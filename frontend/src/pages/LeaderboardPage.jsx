@@ -25,6 +25,7 @@ export default function LeaderboardPage() {
   const [warmingUp, setWarmingUp] = useState(false);
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
+  const [communityCorrelation, setCommunityCorrelation] = useState(null);
   const [isRanking, setIsRanking] = useState(false);
 
   const [allTags, setAllTags] = useState([]);
@@ -135,6 +136,7 @@ export default function LeaderboardPage() {
         setTotalPapers(res.data.total_papers || 0);
         setTotalMatches(res.data.total_matches || 0);
         setIsRanking(res.data.is_ranking || false);
+        setCommunityCorrelation(res.data.community_correlation || null);
         setLoading(false);
       }
     } catch (err) {
@@ -204,6 +206,16 @@ export default function LeaderboardPage() {
         isRanking={isRanking} hasSelectedTags={hasSelectedTags} isTagMode={isTagMode}
         tagMode={tagMode} selectedTags={selectedTags}
       />
+
+      {communityCorrelation && (
+        <div className="mb-3 flex items-center gap-2 text-[11px] text-muted-foreground bg-secondary/20 rounded-md px-3 py-1.5" data-testid="community-correlation">
+          <svg className="h-3.5 w-3.5 text-pink-400" viewBox="0 0 20 20" fill="currentColor"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>
+          <span>
+            Community correlation (vs <a href="https://alphaxiv.org" target="_blank" rel="noopener noreferrer" className="underline">AlphaXiv</a> likes): <span className="font-mono font-medium text-foreground">{communityCorrelation.rho >= 0 ? "+" : ""}{communityCorrelation.rho}</span> Spearman {"\u03C1"}
+            <span className="ml-1 text-muted-foreground/60">({communityCorrelation.n} papers, p={communityCorrelation.p_value < 0.001 ? "<0.001" : communityCorrelation.p_value})</span>
+          </span>
+        </div>
+      )}
 
       {hasSelectedTags && <StatsToggle globalStats={globalStats} setGlobalStats={setGlobalStats} />}
 

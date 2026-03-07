@@ -90,6 +90,12 @@ async def _refresh_cache():
     # Use dynamic active categories from settings
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
+    # --- Load AlphaXiv community likes (if available) ---
+    alphaxiv_likes = {}
+    async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
+        if doc.get("likes") is not None:
+            alphaxiv_likes[doc["id"]] = doc["likes"]
+
     for cat_id in active_cats:
         cat_papers = papers_by_cat.get(cat_id, [])
         if not cat_papers:
@@ -111,6 +117,12 @@ async def _refresh_cache():
                        and all_matches[i]["paper2_id"] in cat_paper_ids]
 
         full = await compute_leaderboard_async(cat_papers, cat_matches)
+
+        # Inject AlphaXiv community likes into leaderboard entries
+        for entry in full:
+            likes = alphaxiv_likes.get(entry["id"])
+            if likes is not None:
+                entry["community_likes"] = likes
         # Yield to event loop after CPU-bound leaderboard computation
         await asyncio.sleep(0)
 
@@ -137,8 +149,20 @@ async def _refresh_cache():
             "month": filter_and_rerank(utc_now - timedelta(days=30)),
             "_matches": len(cat_matches),
             "_papers": len(cat_papers),
-            "_is_ranking": True,  # Placeholder — updated after progress computation
+            "_is_ranking": True,
         }
+
+        # Compute community correlation if enough data
+        liked_entries = [(e["score"], e["community_likes"]) for e in full if "community_likes" in e]
+        if len(liked_entries) >= 10:
+            import scipy.stats
+            scores, likes = zip(*liked_entries)
+            rho, pval = scipy.stats.spearmanr(scores, likes)
+            categories_data[cat_id]["_community_correlation"] = {
+                "rho": round(rho, 4) if not (rho != rho) else None,
+                "p_value": round(pval, 4) if not (pval != pval) else None,
+                "n": len(liked_entries),
+            }
 
     # --- Derive "all papers" leaderboard from per-category results (no extra compute_leaderboard call) ---
     paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in all_papers}
@@ -561,6 +585,7 @@ async def get_leaderboard(
         "tags": None,
         "tag_mode": None,
         "warming_up": False,
+        "community_correlation": cat_data.get("_community_correlation"),
     }
 
 
