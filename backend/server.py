@@ -297,10 +297,12 @@ async def startup():
     # Pre-warm caches and run startup tasks in background.
     # Use globals() lookup to avoid NameError during hot-reload (uvicorn --reload
     # can fire the startup event before all module-level functions are defined).
+    # NOTE: _prewarm_consistency_cache is excluded from startup — it's too heavy
+    # for production (136K+ validation matches). Experiment caches compute on first request.
     import asyncio
     _bg_tasks = [
         "_prewarm_extraction_cache", "_prewarm_validation_cache",
-        "_prewarm_analysis_cache", "_prewarm_consistency_cache",
+        "_prewarm_analysis_cache",
         "_startup_dedup", "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab", "_startup_check_interrupted_tasks",
         "_startup_seed_targeted_matches",
