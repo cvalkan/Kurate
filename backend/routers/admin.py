@@ -1206,7 +1206,19 @@ MODEL_PRICING = {
 
 @router.get("/timeseries", dependencies=[Depends(verify_admin)])
 async def get_timeseries(category: Optional[str] = None):
-    """Return daily time-series data for papers, matches, tokens, costs."""
+    """Return daily time-series data for papers, matches, tokens, costs. Cached for 5 min."""
+    cache_key = category or "__all__"
+    cached = _get_admin_cached("timeseries", cache_key)
+    if cached:
+        return cached
+
+    result = await _compute_timeseries(category)
+    _set_admin_cached("timeseries", cache_key, result)
+    return result
+
+
+async def _compute_timeseries(category: Optional[str] = None):
+    """Heavy timeseries computation — separated for caching."""
     # --- Papers by day ---
     paper_query = {}
     if category:
@@ -1316,10 +1328,23 @@ async def get_timeseries(category: Optional[str] = None):
                 bucket["output_tokens"] += out_tok
                 bucket["cost"] += cost
 
-    # Merge summary dates into all_dates
-    all_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys()) + list(summary_daily.keys())))
+    # Merge summary dates into all_dates and fill gaps with zeros
+    raw_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys()) + list(summary_daily.keys())))
     settings_for_cats = await get_settings()
     all_cats = sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
+
+    # Generate continuous date range (no gaps)
+    if raw_dates:
+        from datetime import date as _date, timedelta as _td
+        start = _date.fromisoformat(raw_dates[0])
+        end = _date.fromisoformat(raw_dates[-1])
+        all_dates = []
+        cur = start
+        while cur <= end:
+            all_dates.append(cur.isoformat())
+            cur += _td(days=1)
+    else:
+        all_dates = []
 
     # Build daily series
     series = []
