@@ -101,8 +101,7 @@ async def single_item_scoring_status():
 
 @router.get("/single-item-scoring/results")
 async def single_item_scoring_results():
-    if _SINGLE_ITEM_CACHE["data"] and _SINGLE_ITEM_CACHE["data"].get("status") == "ok":
-        return _SINGLE_ITEM_CACHE["data"]
+    """Always compute fresh — single-item results change as scoring progresses."""
     result = await _compute_single_item_results()
     if result.get("status") == "ok":
         _SINGLE_ITEM_CACHE["data"] = result
