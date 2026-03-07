@@ -140,8 +140,9 @@ export default function InstitutionBiasSamePairSection() {
           <div className="px-3 py-2 bg-secondary/10 border-b border-border">
             <h3 className="text-xs font-medium">Does the Summarizer LLM Affect Prestige Bias?</h3>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              The summarizer reads the full paper text (including author names and affiliations) and produces an impact assessment.
-              If a summarizer leaks more institutional identity into the summary, judges reading it may show more prestige bias.
+              Restricted to the same shared pairs as the judge table above. The summarizer reads the full paper (including author names and affiliations).
+              If a summarizer leaks more institutional identity, judges reading its output may show more prestige bias.
+              Note: not all summarizers evaluated every shared pair, so N varies — but the pair pool is the same.
             </div>
           </div>
           <div className="p-3">

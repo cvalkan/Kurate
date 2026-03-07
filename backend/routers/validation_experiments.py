@@ -2769,11 +2769,11 @@ async def _compute_institution_bias_samepair():
         "abstract_plus_summary:gpt_summary": "GPT-5.2",
         "abstract_plus_summary:gemini_summary": "Gemini 3 Pro",
     }
-    # Re-aggregate all mode_matches across datasets (collected during the loop)
-    # We need to re-collect since mode_matches is per-dataset. Build a global version.
-    by_summarizer = {}
 
-    # Re-iterate datasets to collect per-summarizer stats on prestige-gap pairs only
+    # --- Per-summarizer bias on the SAME shared pairs as the judge table ---
+    # For each shared pair, find which content_modes have matches, and compute bias per mode
+    by_summarizer = defaultdict(lambda: {"ai_p": 0, "h_p": 0, "correct": 0, "total": 0})
+
     for ds_id in DATASETS:
         papers_local = {p["id"]: p for p in await db.validation_papers.find(
             {"dataset_id": ds_id}, {"_id": 0, "id": 1, "full_text": 1, "h1_avg_rating": 1}
@@ -2782,26 +2782,41 @@ async def _compute_institution_bias_samepair():
         ptier = {pid: _prestige_tier(i) for pid, i in pinst.items()}
         gt_local = {pid: p["h1_avg_rating"] for pid, p in papers_local.items() if p.get("h1_avg_rating") is not None}
 
+        # Get the shared pairs for this dataset (from the judge analysis above)
+        ds_shared = set()
+        pair_judge_map = defaultdict(dict)
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": {"$in": CONTENT_MODES}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "model_used": 1},
+        ):
+            pk = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+            jname = _judge_short(m.get("model_used"))
+            if jname in TARGET_JUDGES:
+                pair_judge_map[pk][jname] = True
+        ds_shared = {pk for pk, j in pair_judge_map.items() if all(jj in j for jj in TARGET_JUDGES)}
+
+        # Now iterate matches again, filtering to shared pairs only
         async for m in db.validation_matches.find(
             {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
              "content_mode": {"$in": CONTENT_MODES}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "content_mode": 1},
         ):
             p1, p2, winner = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+            pk = tuple(sorted([p1, p2]))
+            if pk not in ds_shared:
+                continue
             if p1 not in gt_local or p2 not in gt_local or gt_local[p1] == gt_local[p2]:
                 continue
-            t1 = ptier.get(p1, "other")
-            t2 = ptier.get(p2, "other")
+            t1, t2 = ptier.get(p1, "other"), ptier.get(p2, "other")
             has_p1 = t1 in ("big_tech", "top_uni")
             has_p2 = t2 in ("big_tech", "top_uni")
             if has_p1 == has_p2:
-                continue  # Not a prestige-gap pair
+                continue
             human_winner = p1 if gt_local[p1] > gt_local[p2] else p2
             prestigious_pid = p1 if has_p1 else p2
             cm = m.get("content_mode", "unknown")
             label = SUMMARIZER_LABELS.get(cm, cm)
-            if label not in by_summarizer:
-                by_summarizer[label] = {"ai_p": 0, "h_p": 0, "correct": 0, "total": 0}
             by_summarizer[label]["total"] += 1
             if winner == human_winner: by_summarizer[label]["correct"] += 1
             if winner == prestigious_pid: by_summarizer[label]["ai_p"] += 1
@@ -2809,7 +2824,7 @@ async def _compute_institution_bias_samepair():
 
     summarizer_bias = {}
     for label, s in by_summarizer.items():
-        if s["total"] >= 30:
+        if s["total"] >= 20:
             ai_pref = round(s["ai_p"] / s["total"] * 100, 1)
             h_pref = round(s["h_p"] / s["total"] * 100, 1)
             summarizer_bias[label] = {
