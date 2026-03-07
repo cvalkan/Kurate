@@ -109,9 +109,10 @@ async def step2_run_pairwise_matches():
             judge = judges[idx % len(judges)]
             try:
                 result = await compare_papers(
-                    p1, p2, model_override=judge,
+                    {**p1, "ai_impact_summary": p1.get("ai_impact_summary_thinking", "")},
+                    {**p2, "ai_impact_summary": p2.get("ai_impact_summary_thinking", "")},
                     content_mode="abstract_plus_summary",
-                    summary_source="thinking",
+                    model_override=judge,
                 )
                 if result and result.get("winner_id"):
                     import uuid
