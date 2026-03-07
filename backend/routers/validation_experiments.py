@@ -2425,3 +2425,196 @@ async def _compute_model_correlation_analysis():
         "by_format": fmt_results,
         "judges": ALL_JUDGES,
     }
+
+
+# ─── Institution Bias Analysis ──────────────────────────────────────────────────
+
+_INST_BIAS_CACHE = {"data": None}
+
+BIG_TECH_ORGS = {"google", "meta", "openai", "microsoft"}
+TOP_UNI_ORGS = {"stanford", "mit", "cmu", "berkeley", "princeton", "harvard", "oxford", "cambridge", "eth", "tsinghua", "peking"}
+
+_INSTITUTION_PATTERNS = {
+    "google": ["google", "deepmind", "google brain", "google cloud", "google research"],
+    "meta": ["meta ai", "facebook", " fair ", "meta "],
+    "microsoft": ["microsoft"],
+    "openai": ["openai"],
+    "stanford": ["stanford"],
+    "mit": ["mit ", "m.i.t.", "massachusetts institute of technology"],
+    "cmu": ["cmu", "carnegie mellon"],
+    "berkeley": ["uc berkeley", "university of california, berkeley"],
+    "princeton": ["princeton university"],
+    "harvard": ["harvard"],
+    "oxford": ["university of oxford"],
+    "cambridge": ["university of cambridge"],
+    "eth": ["eth zurich", "eth zürich"],
+    "tsinghua": ["tsinghua"],
+    "peking": ["peking university"],
+}
+
+
+def _extract_institutions(full_text):
+    header = (full_text or "")[:3000].lower()
+    found = set()
+    for inst, patterns in _INSTITUTION_PATTERNS.items():
+        for p in patterns:
+            if p in header:
+                found.add(inst)
+                break
+    return found
+
+
+def _prestige_tier(institutions):
+    if institutions & BIG_TECH_ORGS:
+        return "big_tech"
+    if institutions & TOP_UNI_ORGS:
+        return "top_uni"
+    return "other"
+
+
+def _judge_short(model_used):
+    m = (model_used or {}).get("model", "")
+    if "claude" in m and "4-6" in m: return "Opus 4.6"
+    if "claude" in m: return "Opus 4.5"
+    if "gpt" in m: return "GPT-5.2"
+    if "gemini" in m: return "Gemini 3 Pro"
+    return "unknown"
+
+
+@router.get("/institution-bias/results")
+async def institution_bias_results():
+    """Analyze whether AI judges show institutional prestige bias compared to human reviewers."""
+    if _INST_BIAS_CACHE["data"]:
+        return _INST_BIAS_CACHE["data"]
+    result = await _compute_institution_bias()
+    if result.get("status") == "ok":
+        _INST_BIAS_CACHE["data"] = result
+    return result
+
+
+async def _compute_institution_bias():
+    DATASETS = ["iclr-llm", "iclr-codegen", "iclr-fairness", "iclr-pdes", "iclr-ot",
+                "iclr-protein", "iclr-molecules", "iclr-optimization",
+                "elife-cancer", "elife-microbiology", "elife-neuro-100", "elife-comp-sys-bio"]
+    CONTENT_MODES = ["abstract_plus_summary", "abstract_plus_summary:opus46",
+                     "abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary",
+                     "abstract_plus_summary:thinking"]
+
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(100)
+    ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta}
+
+    # Accumulators
+    by_judge = defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0, "ai_prestige": 0, "human_prestige": 0}))
+    by_dataset = {}
+    by_tier_pair = defaultdict(lambda: {"correct": 0, "total": 0})
+    inst_distribution = Counter()
+
+    for ds_id in DATASETS:
+        papers = {p["id"]: p for p in await db.validation_papers.find(
+            {"dataset_id": ds_id}, {"_id": 0, "id": 1, "full_text": 1, "h1_avg_rating": 1}
+        ).to_list(5000)}
+
+        paper_insts = {pid: _extract_institutions(p.get("full_text")) for pid, p in papers.items()}
+        paper_tier = {pid: _prestige_tier(insts) for pid, insts in paper_insts.items()}
+        gt = {pid: p["h1_avg_rating"] for pid, p in papers.items() if p.get("h1_avg_rating") is not None}
+
+        # Count institution distribution
+        for pid, insts in paper_insts.items():
+            for i in insts:
+                inst_distribution[i] += 1
+
+        ds_cats = defaultdict(lambda: {"c": 0, "t": 0, "ai_p": 0, "h_p": 0})
+
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": {"$in": CONTENT_MODES}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+        ):
+            p1, p2, winner = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+            if p1 not in gt or p2 not in gt or gt[p1] == gt[p2]:
+                continue
+
+            human_winner = p1 if gt[p1] > gt[p2] else p2
+            correct = winner == human_winner
+            jname = _judge_short(m.get("model_used"))
+            t1, t2 = paper_tier.get(p1, "other"), paper_tier.get(p2, "other")
+            i1, i2 = paper_insts.get(p1, set()), paper_insts.get(p2, set())
+
+            # Category
+            if not i1 and not i2:
+                cat = "no_institution"
+            elif i1 & i2:
+                cat = "same_institution"
+            else:
+                cat = "cross_institution"
+
+            ds_cats[cat]["t"] += 1
+            if correct: ds_cats[cat]["c"] += 1
+            by_judge[jname][cat]["total"] += 1
+            if correct: by_judge[jname][cat]["correct"] += 1
+
+            # Tier pair tracking
+            tp = tuple(sorted([t1, t2]))
+            by_tier_pair[f"{tp[0]}_vs_{tp[1]}"]["total"] += 1
+            if correct: by_tier_pair[f"{tp[0]}_vs_{tp[1]}"]["correct"] += 1
+
+            # Prestige gap: one prestigious, one not
+            has_p1 = t1 in ("big_tech", "top_uni")
+            has_p2 = t2 in ("big_tech", "top_uni")
+            if has_p1 != has_p2:
+                prestigious_pid = p1 if has_p1 else p2
+                ds_cats["prestige_gap"]["t"] += 1
+                if correct: ds_cats["prestige_gap"]["c"] += 1
+                if winner == prestigious_pid: ds_cats["prestige_gap"]["ai_p"] += 1
+                if human_winner == prestigious_pid: ds_cats["prestige_gap"]["h_p"] += 1
+                by_judge[jname]["prestige_gap"]["total"] += 1
+                if correct: by_judge[jname]["prestige_gap"]["correct"] += 1
+                if winner == prestigious_pid: by_judge[jname]["prestige_gap"]["ai_prestige"] += 1
+                if human_winner == prestigious_pid: by_judge[jname]["prestige_gap"]["human_prestige"] += 1
+
+        by_dataset[ds_id] = {"name": ds_names.get(ds_id, ds_id), "categories": dict(ds_cats)}
+
+    # Build pooled results
+    categories = ["no_institution", "same_institution", "cross_institution", "prestige_gap"]
+    pooled = {}
+    for cat in categories:
+        tc = sum(by_judge[j][cat]["correct"] for j in by_judge)
+        tt = sum(by_judge[j][cat]["total"] for j in by_judge)
+        pooled[cat] = {"accuracy": round(tc / max(tt, 1) * 100, 1), "correct": tc, "total": tt}
+
+    # Per-judge prestige preference
+    judge_bias = {}
+    for jname in sorted(by_judge.keys()):
+        pg = by_judge[jname].get("prestige_gap", {})
+        t = pg.get("total", 0)
+        if t > 0:
+            ai_pref = round(pg["ai_prestige"] / t * 100, 1)
+            h_pref = round(pg["human_prestige"] / t * 100, 1)
+            judge_bias[jname] = {
+                "accuracy": round(pg["correct"] / t * 100, 1),
+                "ai_prestige_pct": ai_pref,
+                "human_prestige_pct": h_pref,
+                "bias_delta": round(ai_pref - h_pref, 1),
+                "total": t,
+            }
+
+    # Tier pair accuracy
+    tier_pairs = {}
+    for tp, stats in by_tier_pair.items():
+        if stats["total"] >= 20:
+            tier_pairs[tp] = {"accuracy": round(stats["correct"] / stats["total"] * 100, 1), **stats}
+
+    # Institution frequency
+    top_institutions = [{"name": k, "papers": v} for k, v in inst_distribution.most_common(15)]
+
+    return {
+        "status": "ok",
+        "pooled": pooled,
+        "by_judge": judge_bias,
+        "by_dataset": by_dataset,
+        "tier_pairs": tier_pairs,
+        "institutions": top_institutions,
+        "total_matches": sum(pooled[c]["total"] for c in categories if c != "prestige_gap"),
+        "total_datasets": len([d for d in by_dataset if by_dataset[d]["categories"]]),
+    }
+
