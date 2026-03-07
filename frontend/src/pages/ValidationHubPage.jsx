@@ -24,6 +24,7 @@ import ModelCorrelationSection from "./ModelCorrelationSection";
 import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
 import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
+import SingleItemScoringSection from "./SingleItemScoringSection";
 import AllPairsSection from "./AllPairsSection";
 import { DatasetView } from "./ValidationPage";
 
@@ -159,6 +160,7 @@ export default function ValidationHubPage() {
     "exp-consistency": { title: "Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
     "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
     "exp-model-correlation": { title: "Model Correlation", desc: "How much do different judge models agree on the same pairs? Pairwise agreement by dataset and input format." },
+    "exp-single-item": { title: "Single-Item Scoring", desc: "Can one LLM call per paper ('rate this 1-10') rank as well as a full pairwise tournament? Compares absolute scoring vs hundreds of pairwise comparisons." },
     "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
     "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
   };
@@ -248,6 +250,7 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-consistency", label: "Verdict Stability", sub: "Same-pair flips across conditions" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-cycle-analysis", label: "Intransitive Cycles", sub: "Condorcet paradox by context" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-model-correlation", label: "Model Correlation", sub: "Pairwise agreement matrices" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-single-item", label: "Single-Item Scoring", sub: "1 call vs tournament" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
               <CollapsibleGroup label="Prompt Variants" defaultOpen={selected === "exp-tie-allowed" || selected === "exp-multi-aspect"}>
                 <NavItem item={{ id: "exp-tie-allowed", label: "Tie-Allowed", sub: "Allow AI to abstain" }} selected={selected} onSelect={setSelected} />
@@ -311,6 +314,7 @@ export default function ValidationHubPage() {
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}
+          {selected === "exp-single-item" && <SingleItemScoringSection />}
           {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>

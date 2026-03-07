@@ -32,6 +32,244 @@ from routers.validation_utils import (
 
 router = APIRouter(prefix="/api/validation")
 
+
+# ─── Single-Item Scoring Experiment ────────────────────────────────────────────
+
+_single_item_state = {"running": False, "done": 0, "total": 0, "dataset_id": ""}
+_SINGLE_ITEM_CACHE = {"data": None}
+
+SINGLE_ITEM_PROMPT = {
+    "system_prompt": """You are a world-class scientific reviewer. You will be given a research paper's abstract and an AI-generated impact assessment. 
+
+Rate this paper on a scale of 1.0 to 10.0 (one decimal place) based on:
+- **Significance**: How important is the problem and how impactful are the findings?
+- **Rigor**: How strong is the methodology and evidence?
+- **Novelty**: How original is the contribution compared to existing work?
+- **Clarity**: How well is the work presented?
+
+Think carefully about each dimension before providing your overall score.
+
+Respond with ONLY a JSON object in this exact format:
+{"score": 7.5, "significance": 8, "rigor": 7, "novelty": 7, "clarity": 8, "reasoning": "Brief 1-2 sentence justification"}""",
+    "user_prompt": """Rate this paper:
+
+**Title:** {title}
+
+**Abstract:** {abstract}
+
+**AI Impact Assessment:** {summary}""",
+}
+
+
+@router.post("/single-item-scoring/run", dependencies=[Depends(verify_admin)])
+async def start_single_item_scoring(request: Request):
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    dataset_id = body.get("dataset_id", "elife-cancer")
+
+    if _single_item_state["running"]:
+        raise HTTPException(409, "Already running")
+
+    async def _bg():
+        try:
+            await _run_single_item_scoring(dataset_id)
+        except Exception as e:
+            logger.error(f"Single-item scoring failed: {e}")
+        finally:
+            _single_item_state["running"] = False
+
+    asyncio.create_task(_bg())
+    return {"status": "started", "dataset_id": dataset_id}
+
+
+@router.post("/single-item-scoring/stop", dependencies=[Depends(verify_admin)])
+async def stop_single_item_scoring():
+    _single_item_state["running"] = False
+    return {"status": "stopping"}
+
+
+@router.get("/single-item-scoring/status")
+async def single_item_scoring_status():
+    return _single_item_state
+
+
+@router.get("/single-item-scoring/results")
+async def single_item_scoring_results():
+    if _SINGLE_ITEM_CACHE["data"]:
+        return _SINGLE_ITEM_CACHE["data"]
+    result = await _compute_single_item_results()
+    if result.get("status") == "ok":
+        _SINGLE_ITEM_CACHE["data"] = result
+    return result
+
+
+async def _run_single_item_scoring(dataset_id: str):
+    """Score each paper individually with Opus 4.6 Thinking, store results."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    from core.config import EMERGENT_LLM_KEY
+    import json as _json
+
+    _single_item_state.update({"running": True, "done": 0, "total": 0, "dataset_id": dataset_id})
+
+    papers = await db.validation_papers.find(
+        {"dataset_id": dataset_id},
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "ai_impact_summary": 1}
+    ).to_list(5000)
+
+    need_scoring = [p for p in papers if p.get("abstract")]
+    _single_item_state["total"] = len(need_scoring)
+    logger.info(f"Single-item scoring: {len(need_scoring)} papers in {dataset_id}")
+
+    sem = asyncio.Semaphore(3)
+
+    async def score_one(paper):
+        if not _single_item_state["running"]:
+            return
+        async with sem:
+            if not _single_item_state["running"]:
+                return
+            prompt = SINGLE_ITEM_PROMPT["user_prompt"].format(
+                title=paper.get("title", ""),
+                abstract=paper.get("abstract", "")[:3000],
+                summary=paper.get("ai_impact_summary", "")[:4000],
+            )
+            try:
+                chat = LlmChat(
+                    api_key=EMERGENT_LLM_KEY,
+                    session_id=f"single-item-{paper['id'][:8]}",
+                    system_message=SINGLE_ITEM_PROMPT["system_prompt"],
+                ).with_model("anthropic", "claude-opus-4-6").with_params(
+                    extra_body={"thinking": {"type": "enabled", "budget_tokens": 8000}}
+                )
+                response = await chat.send_message(UserMessage(text=prompt))
+                text = str(response).strip()
+                # Parse JSON from response
+                start = text.find("{")
+                end = text.rfind("}") + 1
+                if start >= 0 and end > start:
+                    data = _json.loads(text[start:end])
+                    score = float(data.get("score", 0))
+                    if 1.0 <= score <= 10.0:
+                        await db.validation_papers.update_one(
+                            {"id": paper["id"], "dataset_id": dataset_id},
+                            {"$set": {
+                                "single_item_score": score,
+                                "single_item_details": data,
+                            }}
+                        )
+                        _single_item_state["done"] += 1
+                        return
+                logger.warning(f"Single-item: bad response for {paper['id'][:8]}: {text[:100]}")
+            except Exception as e:
+                logger.warning(f"Single-item scoring failed for {paper.get('title', '')[:30]}: {e}")
+
+    await asyncio.gather(*[score_one(p) for p in need_scoring], return_exceptions=True)
+    logger.info(f"Single-item scoring complete: {_single_item_state['done']}/{len(need_scoring)} scored")
+
+
+async def _compute_single_item_results():
+    """Compare single-item scores vs pairwise tournament vs human ground truth."""
+    # Collect all datasets that have single_item_score data
+    datasets_with_scores = await db.validation_papers.distinct(
+        "dataset_id", {"single_item_score": {"$exists": True}}
+    )
+    if not datasets_with_scores:
+        return {"status": "no_data"}
+
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(100)
+    ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta}
+
+    all_results = []
+    for ds_id in datasets_with_scores:
+        papers = await db.validation_papers.find(
+            {"dataset_id": ds_id, "single_item_score": {"$exists": True}},
+            {"_id": 0, "id": 1, "title": 1, "h1_avg_rating": 1, "single_item_score": 1,
+             "single_item_details": 1, "alphaxiv_likes": 1}
+        ).to_list(5000)
+
+        scored = [p for p in papers if p.get("single_item_score") and p.get("h1_avg_rating") is not None]
+        if len(scored) < 5:
+            continue
+
+        ai_scores = [p["single_item_score"] for p in scored]
+        human_scores = [p["h1_avg_rating"] for p in scored]
+
+        rho, p_val = scipy_stats.spearmanr(ai_scores, human_scores)
+        tau, tau_p = scipy_stats.kendalltau(ai_scores, human_scores)
+        pearson_r, pearson_p = scipy_stats.pearsonr(ai_scores, human_scores)
+
+        # Pairwise accuracy: for each pair, does single-item agree with human on who's better?
+        correct = 0
+        total_pairs = 0
+        for i in range(len(scored)):
+            for j in range(i + 1, len(scored)):
+                h1, h2 = scored[i]["h1_avg_rating"], scored[j]["h1_avg_rating"]
+                a1, a2 = scored[i]["single_item_score"], scored[j]["single_item_score"]
+                if h1 == h2:
+                    continue
+                total_pairs += 1
+                if (h1 > h2) == (a1 > a2):
+                    correct += 1
+
+        accuracy = round(correct / max(total_pairs, 1) * 100, 1)
+
+        # Compare with pairwise tournament accuracy on same dataset
+        pairwise_matches = await db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": {"$in": ["abstract_plus_summary", "abstract_plus_summary:opus46"]}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+        ).to_list(100000)
+
+        gt = {p["id"]: p["h1_avg_rating"] for p in scored}
+        pw_correct = 0
+        pw_total = 0
+        for m in pairwise_matches:
+            p1, p2, w = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+            if p1 not in gt or p2 not in gt or gt[p1] == gt[p2]:
+                continue
+            pw_total += 1
+            human_winner = p1 if gt[p1] > gt[p2] else p2
+            if w == human_winner:
+                pw_correct += 1
+        pw_accuracy = round(pw_correct / max(pw_total, 1) * 100, 1)
+
+        # Score distribution
+        score_dist = {}
+        for p in scored:
+            s = round(p["single_item_score"])
+            score_dist[s] = score_dist.get(s, 0) + 1
+
+        # Per-paper details
+        paper_details = sorted([{
+            "id": p["id"], "title": p.get("title", "")[:60],
+            "ai_score": p["single_item_score"],
+            "human_score": p["h1_avg_rating"],
+            "details": p.get("single_item_details", {}),
+        } for p in scored], key=lambda x: x["ai_score"], reverse=True)
+
+        all_results.append({
+            "dataset_id": ds_id,
+            "name": ds_names.get(ds_id, ds_id),
+            "papers_scored": len(scored),
+            "correlation": {
+                "spearman_rho": round(rho, 4) if not np.isnan(rho) else None,
+                "kendall_tau": round(tau, 4) if not np.isnan(tau) else None,
+                "pearson_r": round(pearson_r, 4) if not np.isnan(pearson_r) else None,
+            },
+            "single_item_accuracy": accuracy,
+            "single_item_pairs": total_pairs,
+            "pairwise_accuracy": pw_accuracy,
+            "pairwise_matches": pw_total,
+            "cost_ratio": f"{len(scored)} calls vs {pw_total} matches",
+            "score_distribution": dict(sorted(score_dist.items())),
+            "papers": paper_details,
+        })
+
+    return {
+        "status": "ok",
+        "datasets": all_results,
+    }
+
+
 # ─── Extended Thinking Experiment ──────────────────────────────────────────────
 
 _thinking_state = {"running": False, "done": 0, "total": 0, "step": "", "dataset_id": ""}

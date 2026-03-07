@@ -30,6 +30,7 @@ EXPERIMENT_REGISTRY = [
     "model-correlation",
     "institution-bias",
     "institution-bias-samepair",
+    "single-item-scoring",
 ]
 
 
@@ -39,7 +40,7 @@ def _get_cache_and_fn(name):
         consistency_cache, cycle_all_cache, sumab_results_cache,
         ae_cache, extended_thinking_cache, multi_aspect_cache,
     )
-    from routers.validation_experiments import _judge_comparison_cache, _model_correlation_cache, _INST_BIAS_CACHE, _INST_BIAS_SAMEPAIR_CACHE
+    from routers.validation_experiments import _judge_comparison_cache, _model_correlation_cache, _INST_BIAS_CACHE, _INST_BIAS_SAMEPAIR_CACHE, _SINGLE_ITEM_CACHE
 
     mapping = {
         "consistency": (consistency_cache, "routers.validation", "_compute_consistency_analysis"),
@@ -52,6 +53,7 @@ def _get_cache_and_fn(name):
         "model-correlation": (_model_correlation_cache, "routers.validation_experiments", "_compute_model_correlation_analysis"),
         "institution-bias": (_INST_BIAS_CACHE, "routers.validation_experiments", "_compute_institution_bias"),
         "institution-bias-samepair": (_INST_BIAS_SAMEPAIR_CACHE, "routers.validation_experiments", "_compute_institution_bias_samepair"),
+        "single-item-scoring": (_SINGLE_ITEM_CACHE, "routers.validation_experiments", "_compute_single_item_results"),
     }
     cache, module_path, fn_name = mapping[name]
     import importlib
