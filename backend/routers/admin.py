@@ -691,9 +691,11 @@ async def get_progress_estimate(category: str = "cs.RO"):
 
     cat_matches_done = sum(paper_match_count.values()) // 2
     cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
+    cat_total_in_db = await db.papers.count_documents({"categories.0": category})
 
     result = {
         "total_papers": total_papers,
+        "total_in_db": cat_total_in_db,
         "total_matches": cat_matches_done,
         "papers_with_pdf": cat_papers_with_pdf,
         "paused": is_paused,

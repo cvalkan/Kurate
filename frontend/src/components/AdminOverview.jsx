@@ -133,13 +133,13 @@ export function AdminOverview({
   const activity = scheduler.current_activity || "";
 
   const totalPapers = progress?.total_papers || status.total_papers || 0;
-  const totalPapersInDb = progress?.papers_with_pdf || totalPapers;
+  const totalInDb = progress?.total_in_db || progress?.papers_with_pdf || totalPapers;
   const papersWithPdf = progress?.papers_with_pdf || 0;
   const summariesCount = progress?.summary_coverage?.with_summaries || 0;
 
   // Only show activity indicators when there's actual work remaining AND system is active
   const systemActive = !progress?.global_paused;
-  const isDownloading = systemActive && papersWithPdf < totalPapers && (activity.includes("downloading") || activity.includes("Fetching"));
+  const isDownloading = systemActive && papersWithPdf < totalInDb && (activity.includes("downloading") || activity.includes("Fetching") || activity.includes("Downloading"));
   const isGenerating = isSummaryGenRunning || (systemActive && summariesCount < papersWithPdf && activity.includes("Generating summaries"));
 
   return (
@@ -205,7 +205,7 @@ export function AdminOverview({
             )}
           </div>
           <div data-testid="downloaded-count">
-            <span className="font-mono text-foreground font-medium">{papersWithPdf}</span>/<span className="font-mono">{totalPapersInDb}</span> downloaded
+            <span className="font-mono text-foreground font-medium">{papersWithPdf}</span>/<span className="font-mono">{totalInDb}</span> downloaded
             {isDownloading && <span className="text-accent animate-pulse ml-1">downloading...</span>}
           </div>
           <div data-testid="summarized-count">

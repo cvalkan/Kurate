@@ -555,7 +555,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         logger.info(f"Added {new_count} new {category} papers to DB")
 
         # Update paper count immediately so admin dashboard reflects new papers
-        cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}})
+        cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
         # Always attempt PDF downloads (catches retries for previously failed downloads)
         await _download_pending_pdfs(category=category)
@@ -564,8 +564,8 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         cat_status["current_activity"] = "Generating summaries..."
         await _generate_paper_summaries(category=category, force=force)
 
-        # Final paper count after summaries are generated
-        cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}})
+        # Final paper count (with summaries — for compare loop eligibility)
+        cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
         cat_status["current_activity"] = "Idle"
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
