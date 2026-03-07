@@ -2239,3 +2239,16 @@ async def get_background_tasks():
     from services.task_tracker import TaskTracker
     tasks = await TaskTracker.recent(limit=50)
     return {"tasks": tasks}
+
+
+
+@router.post("/precompute-experiments", dependencies=[Depends(verify_admin)])
+async def precompute_experiments():
+    """Compute all experiment results and save to a JSON file for production deployment.
+    
+    Run this in preview before deploying. Production loads the file on startup instead
+    of recomputing from the database (which takes 2-5 minutes and risks OOM).
+    """
+    from services.precompute import compute_and_export_all
+    result = await compute_and_export_all()
+    return {"status": "ok", **result}

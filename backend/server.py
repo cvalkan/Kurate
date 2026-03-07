@@ -363,9 +363,21 @@ async def _prewarm_analysis_cache():
 
 
 async def _prewarm_consistency_cache():
-    """Compute experiment caches in background. Delayed 90s to avoid interfering with
-    startup health checks. Each computation has a 90s timeout to prevent OOM/hangs."""
-    await asyncio.sleep(90)  # Well after health check (180s window)
+    """Load precomputed experiment results from file (instant).
+    Falls back to computing from DB if file doesn't exist (preview env)."""
+    await asyncio.sleep(5)  # Brief delay to let other startup tasks finish
+    try:
+        from services.precompute import load_precomputed
+        loaded = load_precomputed()
+        if loaded > 0:
+            logger.info(f"Experiment caches loaded from precomputed file ({loaded} caches)")
+            return  # Done — no computation needed
+    except Exception as e:
+        logger.warning(f"Precomputed file load failed: {e}")
+
+    # Fallback: compute from DB (preview environment or missing file)
+    logger.info("No precomputed file found — computing experiment caches from DB...")
+    await asyncio.sleep(85)  # Additional delay to stay within health check window
     try:
         from routers.validation import _compute_consistency_analysis, _compute_cycle_analysis_all
         from routers.validation_experiments import _compute_summarizer_ab_results, _compute_assessor_evaluator, _compute_extended_thinking_results, _compute_multi_aspect_results, _compute_judge_comparison, _compute_model_correlation_analysis
@@ -395,11 +407,11 @@ async def _prewarm_consistency_cache():
                     logger.info(f"  {name}: status={result.get('status')}")
                 await asyncio.sleep(1)
             except asyncio.TimeoutError:
-                logger.warning(f"  {name}: timed out (90s) — will compute on first request")
+                logger.warning(f"  {name}: timed out (90s)")
             except Exception as e:
                 logger.warning(f"  {name}: failed — {e}")
 
-        logger.info("Experiment caches computed")
+        logger.info("Experiment caches computed from DB")
 
     except Exception as e:
         logger.warning(f"Experiment cache init failed: {e}")
