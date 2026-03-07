@@ -2643,7 +2643,7 @@ async def _compute_institution_bias_samepair():
     CONTENT_MODES = ["abstract_plus_summary", "abstract_plus_summary:opus46",
                      "abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary",
                      "abstract_plus_summary:thinking"]
-    TARGET_JUDGES = {"Opus 4.6", "GPT-5.2", "Gemini 3 Pro"}
+    TARGET_JUDGES = {"Opus 4.5", "Opus 4.6", "GPT-5.2", "Gemini 3 Pro"}
 
     ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(100)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta}
