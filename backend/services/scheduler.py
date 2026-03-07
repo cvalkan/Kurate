@@ -1172,6 +1172,8 @@ def _select_pairs(
     """
     Goal-directed pair selection with 2-tier CI targets.
     1. Match neediest papers first (widest margin vs their tier's target)
+       - Established opponents selected by Elo proximity (not arbitrary)
+       - Needy-vs-needy matches preserved for efficiency (both papers benefit)
     2. Top-K cross-matches after rankings stabilize
     Repeat pairs only after all goals are met.
     """
@@ -1183,7 +1185,7 @@ def _select_pairs(
 
     ci_target = kwargs.get("ci_target", 10)
     ci_target_general = kwargs.get("ci_target_general", 15)
-    calibration_pct = kwargs.get("calibration_ratio", 50)  # % of matches against established papers
+    calibration_pct = kwargs.get("calibration_ratio", 50)
 
     comparisons = {}
     wins = {}
@@ -1197,8 +1199,22 @@ def _select_pairs(
         wins[pid] = w
         margins[pid] = wilson_margin_pct(w, c)
 
-    # Identify top-K papers
-    all_ranked = sorted(paper_ids, key=lambda pid: wins.get(pid, 0) / max(comparisons.get(pid, 0), 1), reverse=True)
+    # Compute Elo scores for score-aware opponent selection
+    ELO_BASE = 1200
+    elo_scores = {}
+    for pid in paper_ids:
+        w, c = wins[pid], comparisons[pid]
+        if c == 0:
+            elo_scores[pid] = ELO_BASE
+        else:
+            p_reg = max(0.02, min(0.98, (w + 0.5) / (c + 1.0)))
+            elo_scores[pid] = 400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE
+
+    elo_vals = sorted(elo_scores.values())
+    median_elo = elo_vals[len(elo_vals) // 2]
+
+    # Identify top-K papers using Elo (not raw win-rate)
+    all_ranked = sorted(paper_ids, key=lambda pid: elo_scores[pid], reverse=True)
     top_k_ids = set(all_ranked[:min(top_k, len(all_ranked))])
     top_k_list = all_ranked[:min(top_k, len(all_ranked))]
 
@@ -1235,15 +1251,20 @@ def _select_pairs(
         best_score = -1
 
         if prefer_established:
-            # Pick an established (converged) opponent — anchors new paper to existing rankings
+            # Pick established opponent closest to target Elo (not arbitrary first-found).
+            # New papers (0 matches) target median; papers with data target their current Elo.
+            target = median_elo if comparisons[p1] == 0 else elo_scores[p1]
+            best_dist = float('inf')
             for p2 in established:
                 if p2 == p1 or not can_pair(p2):
                     continue
                 pair_key = tuple(sorted([p1, p2]))
-                novel = pair_key not in compared_pairs
-                if novel:
+                if pair_key in compared_pairs:
+                    continue
+                dist = abs(elo_scores[p2] - target)
+                if dist < best_dist:
+                    best_dist = dist
                     best = p2
-                    break
         
         # If no established opponent found (or it's a needy-pair turn), pick another needy paper
         if best is None:
@@ -1299,24 +1320,24 @@ def _select_pairs(
         return pairs[:max_pairs]
 
     # --- Only when all goals likely met: repeat pairs for cross-model agreement ---
+    # Re-compare Elo-adjacent papers to validate ranking boundaries.
     if not needy:
         missing_topk = any(
             tuple(sorted([top_k_list[i], top_k_list[j]])) not in compared_pairs
             for i in range(len(top_k_list)) for j in range(i + 1, len(top_k_list))
         )
         if not missing_topk:
-            all_sorted = sorted(paper_ids, key=lambda pid: comparisons[pid])
-            for p1 in all_sorted:
-                if len(pairs) >= max_pairs or not can_pair(p1):
-                    continue
-                for p2 in all_sorted:
-                    if p2 == p1 or not can_pair(p2):
-                        continue
-                    if tuple(sorted([p1, p2])) in compared_pairs:
+            elo_sorted = sorted(paper_ids, key=lambda pid: elo_scores[pid])
+            for i in range(len(elo_sorted) - 1):
+                if len(pairs) >= max_pairs:
+                    break
+                p1, p2 = elo_sorted[i], elo_sorted[i + 1]
+                if can_pair(p1) and can_pair(p2):
+                    pk = tuple(sorted([p1, p2]))
+                    if pk in compared_pairs:  # Only repeat existing pairs
                         pairs.append((p1, p2))
                         round_count[p1] += 1
                         round_count[p2] += 1
-                        break
 
     return pairs[:max_pairs]
 
