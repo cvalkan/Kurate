@@ -47,7 +47,6 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Real-time summary generation progress tracking
 
 ## Pending Tasks
-- (P1) Refactor MIDL experiment pipeline into robust background task
 - (P2) Further refactor validation.py (2500+ lines)
 - (P2) Improve summary generation failure tracking (partial failures per model)
 - (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
@@ -57,8 +56,10 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
 
 ## Completed Work
 - Pre-computation system for production deployment
-- Single-Item Scoring experiment (competitive with pairwise)
+- Single-Item Scoring experiment — run on eLife, ICLR, MIDL, PeerRead ACL 2017
+- PeerRead results: Single-item 69.8% acc / ρ=0.494 vs Pairwise 67.3% / ρ=0.536
 - Institutional Bias Analysis with controlled same-pair analysis
 - AlphaXiv Integration for community popularity data
 - HTTP Security Headers middleware
-- Ground truth scoring fix for convergence consistency
+- Convergence chart fix: removed biased cross-tier filter, now uses all matches
+- Fixed single-item scoring startup bug (_single_item_state.running not set before bg task)

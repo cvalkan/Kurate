@@ -71,6 +71,7 @@ async def start_single_item_scoring(request: Request):
         raise HTTPException(409, "Already running")
 
     queue = dataset_ids if dataset_ids else [dataset_id]
+    _single_item_state["running"] = True
 
     async def _bg():
         try:
