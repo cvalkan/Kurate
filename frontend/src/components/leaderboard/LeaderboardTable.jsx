@@ -157,12 +157,6 @@ export function LeaderboardTable({
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
                 {paper.authors?.slice(0, 2).join(", ")}
                 {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
-                {paper.community_likes != null && (
-                  <span className="ml-1.5 inline-flex items-center gap-0.5 text-pink-400/70" title={`${paper.community_likes} AlphaXiv likes`}>
-                    <svg className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>
-                    {paper.community_likes}
-                  </span>
-                )}
               </p>
             </div>
             {showCatCol && (

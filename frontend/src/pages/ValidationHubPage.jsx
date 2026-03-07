@@ -41,6 +41,7 @@ function groupDatasets(datasets) {
     else if (name.startsWith("PeerRead ")) source = "PeerRead";
     else if (name.startsWith("F1000")) source = "F1000";
     else if (name.startsWith("ResearchHub")) source = "ResearchHub";
+    else if (name.startsWith("AlphaXiv")) source = "AlphaXiv";
     else source = "Other";
     if (!groups[source]) groups[source] = [];
     groups[source].push(ds);
@@ -126,7 +127,7 @@ export default function ValidationHubPage() {
   const pairwiseGroups = groupDatasets(datasets);
 
   // Public users only see ICLR, eLife, MIDL tournaments
-  const PUBLIC_SOURCES = new Set(["ICLR", "eLife", "MIDL"]);
+  const PUBLIC_SOURCES = new Set(["ICLR", "eLife", "MIDL", "AlphaXiv"]);
   const tournamentGroups = isAdmin
     ? allTournamentGroups
     : Object.fromEntries(Object.entries(allTournamentGroups).filter(([source]) => PUBLIC_SOURCES.has(source)));
