@@ -302,7 +302,7 @@ async def startup():
     import asyncio
     _bg_tasks = [
         "_prewarm_extraction_cache", "_prewarm_validation_cache",
-        "_prewarm_analysis_cache",
+        "_prewarm_analysis_cache", "_prewarm_consistency_cache",
         "_startup_dedup", "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab", "_startup_check_interrupted_tasks",
         "_startup_seed_targeted_matches",
@@ -363,8 +363,9 @@ async def _prewarm_analysis_cache():
 
 
 async def _prewarm_consistency_cache():
-    """Compute experiment caches once on startup. No TTL — experiment data is static on production."""
-    await asyncio.sleep(30)
+    """Compute experiment caches in background. Delayed 90s to avoid interfering with
+    startup health checks. Each computation has a 90s timeout to prevent OOM/hangs."""
+    await asyncio.sleep(90)  # Well after health check (180s window)
     try:
         from routers.validation import _compute_consistency_analysis, _compute_cycle_analysis_all
         from routers.validation_experiments import _compute_summarizer_ab_results, _compute_assessor_evaluator, _compute_extended_thinking_results, _compute_multi_aspect_results, _compute_judge_comparison, _compute_model_correlation_analysis
@@ -372,16 +373,20 @@ async def _prewarm_consistency_cache():
         from routers.validation_experiments import _judge_comparison_cache, _model_correlation_cache
         import time as _t
 
-        for name, fn, cache in [
+        all_caches = [
             ("consistency", _compute_consistency_analysis, consistency_cache),
             ("cycle-all", _compute_cycle_analysis_all, cycle_all_cache),
             ("summarizer-ab", _compute_summarizer_ab_results, sumab_results_cache),
             ("extended-thinking", _compute_extended_thinking_results, extended_thinking_cache),
             ("multi-aspect", _compute_multi_aspect_results, multi_aspect_cache),
             ("judge-comparison", _compute_judge_comparison, _judge_comparison_cache),
-        ]:
+            ("assessor-evaluator", _compute_assessor_evaluator, ae_cache),
+            ("model-correlation", _compute_model_correlation_analysis, _model_correlation_cache),
+        ]
+
+        for name, fn, cache in all_caches:
             try:
-                result = await fn()
+                result = await asyncio.wait_for(fn(), timeout=90)
                 if result.get("status") == "ok":
                     cache["data"] = result
                     cache["ts"] = _t.time()
@@ -389,28 +394,12 @@ async def _prewarm_consistency_cache():
                 else:
                     logger.info(f"  {name}: status={result.get('status')}")
                 await asyncio.sleep(1)
-            except Exception as e:
-                logger.warning(f"{name} cache failed: {e}")
-
-        logger.info("Experiment caches computed (permanent)")
-
-        # Deferred: assessor-evaluator and model-correlation (slower, non-critical)
-        await asyncio.sleep(2)
-        for name, fn, cache in [
-            ("assessor-evaluator", _compute_assessor_evaluator, ae_cache),
-            ("model-correlation", _compute_model_correlation_analysis, _model_correlation_cache),
-        ]:
-            try:
-                result = await asyncio.wait_for(fn(), timeout=120)
-                if result.get("status") == "ok":
-                    cache["data"] = result
-                    cache["ts"] = _t.time()
-                    logger.info(f"  {name}: cached (deferred)")
-                await asyncio.sleep(1)
             except asyncio.TimeoutError:
-                logger.warning(f"{name} deferred cache timed out (120s) — will compute on first request")
+                logger.warning(f"  {name}: timed out (90s) — will compute on first request")
             except Exception as e:
-                logger.warning(f"{name} deferred cache failed: {e}")
+                logger.warning(f"  {name}: failed — {e}")
+
+        logger.info("Experiment caches computed")
 
     except Exception as e:
         logger.warning(f"Experiment cache init failed: {e}")
