@@ -2661,18 +2661,22 @@ async def _compute_institution_bias_samepair():
         paper_tier = {pid: _prestige_tier(insts) for pid, insts in paper_insts.items()}
         gt = {pid: p["h1_avg_rating"] for pid, p in papers.items() if p.get("h1_avg_rating") is not None}
 
-        # Collect per-pair per-judge verdicts
+        # Collect per-pair per-judge verdicts AND per content_mode stats
         pair_by_judge = defaultdict(dict)  # pair_key -> {judge: winner_id}
+        # Also collect per-content_mode prestige stats (for summarizer bias analysis)
+        mode_matches = defaultdict(list)  # content_mode -> [(pk, judge, winner)]
         async for m in db.validation_matches.find(
             {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
              "content_mode": {"$in": CONTENT_MODES}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1, "content_mode": 1},
         ):
             p1, p2, winner = m["paper1_id"], m["paper2_id"], m.get("winner_id")
             pk = tuple(sorted([p1, p2]))
             jname = _judge_short(m.get("model_used"))
+            cm = m.get("content_mode", "unknown")
             if jname in TARGET_JUDGES:
                 pair_by_judge[pk][jname] = winner
+            mode_matches[cm].append((pk, jname, winner))
 
         # Filter to pairs where ALL 3 judges have evaluated
         shared_pairs = {pk: verdicts for pk, verdicts in pair_by_judge.items()
@@ -2757,10 +2761,70 @@ async def _compute_institution_bias_samepair():
 
     total_shared = sum(d.get("shared_pairs", 0) for d in by_dataset.values())
 
+    # --- Per-summarizer (content_mode) prestige bias ---
+    SUMMARIZER_LABELS = {
+        "abstract_plus_summary": "Opus 4.5",
+        "abstract_plus_summary:opus46": "Opus 4.6",
+        "abstract_plus_summary:thinking": "Opus 4.6 Thinking",
+        "abstract_plus_summary:gpt_summary": "GPT-5.2",
+        "abstract_plus_summary:gemini_summary": "Gemini 3 Pro",
+    }
+    # Re-aggregate all mode_matches across datasets (collected during the loop)
+    # We need to re-collect since mode_matches is per-dataset. Build a global version.
+    by_summarizer = {}
+
+    # Re-iterate datasets to collect per-summarizer stats on prestige-gap pairs only
+    for ds_id in DATASETS:
+        papers_local = {p["id"]: p for p in await db.validation_papers.find(
+            {"dataset_id": ds_id}, {"_id": 0, "id": 1, "full_text": 1, "h1_avg_rating": 1}
+        ).to_list(5000)}
+        pinst = {pid: _extract_institutions(p.get("full_text")) for pid, p in papers_local.items()}
+        ptier = {pid: _prestige_tier(i) for pid, i in pinst.items()}
+        gt_local = {pid: p["h1_avg_rating"] for pid, p in papers_local.items() if p.get("h1_avg_rating") is not None}
+
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": {"$in": CONTENT_MODES}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "content_mode": 1},
+        ):
+            p1, p2, winner = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+            if p1 not in gt_local or p2 not in gt_local or gt_local[p1] == gt_local[p2]:
+                continue
+            t1 = ptier.get(p1, "other")
+            t2 = ptier.get(p2, "other")
+            has_p1 = t1 in ("big_tech", "top_uni")
+            has_p2 = t2 in ("big_tech", "top_uni")
+            if has_p1 == has_p2:
+                continue  # Not a prestige-gap pair
+            human_winner = p1 if gt_local[p1] > gt_local[p2] else p2
+            prestigious_pid = p1 if has_p1 else p2
+            cm = m.get("content_mode", "unknown")
+            label = SUMMARIZER_LABELS.get(cm, cm)
+            if label not in by_summarizer:
+                by_summarizer[label] = {"ai_p": 0, "h_p": 0, "correct": 0, "total": 0}
+            by_summarizer[label]["total"] += 1
+            if winner == human_winner: by_summarizer[label]["correct"] += 1
+            if winner == prestigious_pid: by_summarizer[label]["ai_p"] += 1
+            if human_winner == prestigious_pid: by_summarizer[label]["h_p"] += 1
+
+    summarizer_bias = {}
+    for label, s in by_summarizer.items():
+        if s["total"] >= 30:
+            ai_pref = round(s["ai_p"] / s["total"] * 100, 1)
+            h_pref = round(s["h_p"] / s["total"] * 100, 1)
+            summarizer_bias[label] = {
+                "accuracy": round(s["correct"] / s["total"] * 100, 1),
+                "ai_prestige_pct": ai_pref,
+                "human_prestige_pct": h_pref,
+                "bias_delta": round(ai_pref - h_pref, 1),
+                "total": s["total"],
+            }
+
     return {
         "status": "ok",
         "pooled": pooled,
         "by_judge": judge_bias,
+        "by_summarizer": summarizer_bias,
         "by_dataset": by_dataset,
         "tier_pairs": tier_pairs,
         "total_shared_pairs": total_shared,

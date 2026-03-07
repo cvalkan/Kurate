@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Info, Building2, Lock } from "lucide-react";
+import { Info, Building2 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -15,11 +15,12 @@ export default function InstitutionBiasSamePairSection() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="text-xs text-muted-foreground text-center py-8">Loading same-pair institution bias analysis...</div>;
+  if (loading) return <div className="text-xs text-muted-foreground text-center py-8">Loading institution bias analysis...</div>;
   if (!data) return <div className="text-xs text-muted-foreground text-center py-8">No data available.</div>;
 
   const pooled = data.pooled || {};
   const byJudge = data.by_judge || {};
+  const bySummarizer = data.by_summarizer || {};
   const tierPairs = data.tier_pairs || {};
 
   return (
@@ -27,22 +28,31 @@ export default function InstitutionBiasSamePairSection() {
       {/* Design */}
       <div className="border border-border rounded-lg p-4">
         <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-          <Lock className="h-4 w-4" /> Institution Bias — Same-Pair Controlled
+          <Building2 className="h-4 w-4" /> Institution Prestige Bias Analysis
         </h3>
         <div className="text-xs text-muted-foreground space-y-1.5">
-          <p><strong>Question:</strong> Same as the general institution bias analysis, but with a stricter control: only pairs where <em>all 3 judges</em> (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair are included.</p>
-          <p><strong>Why this matters:</strong> The general analysis includes different pairs per judge, which can confound the comparison. Here, every judge sees the same set of paper pairs, so differences in bias are purely due to the judge model — not pair selection.</p>
-          <p><strong>Data:</strong> {data.total_shared_pairs?.toLocaleString()} shared pairs across {data.total_datasets} datasets where all 3 judges have verdicts.</p>
+          <p><strong>Question:</strong> Do AI judges favor papers from prestigious institutions (Google, Meta, Stanford, MIT, etc.) more than human reviewers do? And does the choice of summarizer LLM affect how much institutional identity leaks into the evaluation?</p>
+          <p><strong>Method:</strong> Extract author affiliations from paper headers. Classify as <em>Big Tech</em> (Google, Meta, OpenAI, Microsoft), <em>Top University</em> (Stanford, MIT, CMU, Berkeley, etc.), or <em>Other</em>. Compare AI judge accuracy and prestige preference rates.</p>
+          <p><strong>Same-pair control:</strong> Only pairs where all 4 judges (Opus 4.5, Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Differences between judges are purely due to the model — not pair selection.</p>
+          <p><strong>Pair categories:</strong></p>
+          <ul className="list-disc list-inside ml-2 space-y-0.5">
+            <li><strong>Prestige-gap:</strong> one paper from a prestigious institution, one from an unknown — tests whether AI over-favors the big name</li>
+            <li><strong>Cross-institution:</strong> papers from different identifiable institutions</li>
+            <li><strong>Same-institution:</strong> both papers share at least one institution</li>
+            <li><strong>No institution:</strong> neither paper has identifiable affiliations in the header</li>
+          </ul>
+          <p><strong>Data:</strong> {data.total_shared_pairs?.toLocaleString()} shared pairs across {data.total_datasets} datasets.</p>
         </div>
       </div>
 
       {/* Key finding */}
       {Object.keys(byJudge).length > 0 && (
         <div className="border-2 border-emerald-200 rounded-lg p-4 bg-emerald-50/30" data-testid="ibsp-finding">
-          <h3 className="text-xs font-semibold mb-2 text-emerald-900">Key Finding (Same-Pair Controlled)</h3>
+          <h3 className="text-xs font-semibold mb-2 text-emerald-900">Key Finding</h3>
           <p className="text-xs text-emerald-800/80">
-            On identical prestige-gap pairs, all judges pick the prestigious paper <em>less often</em> than human reviewers.
-            Bias deltas: {Object.entries(byJudge).sort((a, b) => a[1].bias_delta - b[1].bias_delta).map(([j, s]) => `${j} ${s.bias_delta}pp`).join(", ")}.
+            <strong>AI judges show less institutional prestige bias than human reviewers.</strong> On identical prestige-gap pairs, all judges pick the prestigious paper less often than humans do.
+            Bias deltas: {Object.entries(byJudge).sort((a, b) => a[1].bias_delta - b[1].bias_delta).map(([j, s]) => `${j} ${s.bias_delta > 0 ? "+" : ""}${s.bias_delta}pp`).join(", ")}.
+            {" "}(Negative = less biased than human reviewers.)
           </p>
         </div>
       )}
@@ -50,8 +60,8 @@ export default function InstitutionBiasSamePairSection() {
       {/* Pooled accuracy by category */}
       <div className="border border-border rounded-lg overflow-hidden" data-testid="ibsp-pooled">
         <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-          <h3 className="text-xs font-medium">Accuracy by Pair Category (Same-Pair Controlled)</h3>
-          <div className="text-[10px] text-muted-foreground mt-0.5">All 3 judges evaluated the exact same pairs. Only cross-tier pairs with clear human ground truth included.</div>
+          <h3 className="text-xs font-medium">Accuracy by Pair Category</h3>
+          <div className="text-[10px] text-muted-foreground mt-0.5">All 4 judges evaluated the exact same pairs. Only cross-tier pairs with clear human ground truth included.</div>
         </div>
         <div className="p-3">
           <table className="w-full text-[11px]">
@@ -89,7 +99,7 @@ export default function InstitutionBiasSamePairSection() {
       {/* Per-judge prestige preference */}
       <div className="border border-border rounded-lg overflow-hidden" data-testid="ibsp-judges">
         <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-          <h3 className="text-xs font-medium">Prestige Preference by Judge — Same Pairs</h3>
+          <h3 className="text-xs font-medium">Prestige Preference by Judge</h3>
           <div className="text-[10px] text-muted-foreground mt-0.5">
             Every row uses the exact same set of prestige-gap pairs. Differences are purely due to the judge model.
           </div>
@@ -100,8 +110,8 @@ export default function InstitutionBiasSamePairSection() {
               <tr className="border-b border-border text-[10px]">
                 <th className="text-left py-1.5 pr-3 font-medium">Judge</th>
                 <th className="text-right py-1.5 px-2 font-medium">Accuracy</th>
-                <th className="text-right py-1.5 px-2 font-medium">AI → Prestige</th>
-                <th className="text-right py-1.5 px-2 font-medium">Human → Prestige</th>
+                <th className="text-right py-1.5 px-2 font-medium">AI Picks Prestige</th>
+                <th className="text-right py-1.5 px-2 font-medium">Human Picks Prestige</th>
                 <th className="text-right py-1.5 px-2 font-medium">Bias Delta</th>
                 <th className="text-right py-1.5 px-2 font-medium">Pairs</th>
               </tr>
@@ -124,11 +134,53 @@ export default function InstitutionBiasSamePairSection() {
         </div>
       </div>
 
+      {/* Per-summarizer prestige preference */}
+      {Object.keys(bySummarizer).length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden" data-testid="ibsp-summarizers">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+            <h3 className="text-xs font-medium">Does the Summarizer LLM Affect Prestige Bias?</h3>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              The summarizer reads the full paper text (including author names and affiliations) and produces an impact assessment.
+              If a summarizer leaks more institutional identity into the summary, judges reading it may show more prestige bias.
+            </div>
+          </div>
+          <div className="p-3">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border text-[10px]">
+                  <th className="text-left py-1.5 pr-3 font-medium">Summarizer</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Accuracy</th>
+                  <th className="text-right py-1.5 px-2 font-medium">AI Picks Prestige</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Human Picks Prestige</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Bias Delta</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Pairs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(bySummarizer).sort((a, b) => a[1].bias_delta - b[1].bias_delta).map(([sum, stats]) => (
+                  <tr key={sum} className="border-b border-border/30">
+                    <td className="py-1.5 pr-3 font-medium">{sum}</td>
+                    <td className="text-right py-1.5 px-2 font-mono">{stats.accuracy}%</td>
+                    <td className="text-right py-1.5 px-2 font-mono">{stats.ai_prestige_pct}%</td>
+                    <td className="text-right py-1.5 px-2 font-mono">{stats.human_prestige_pct}%</td>
+                    <td className={`text-right py-1.5 px-2 font-mono font-semibold ${stats.bias_delta < 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {stats.bias_delta > 0 ? "+" : ""}{stats.bias_delta}pp
+                    </td>
+                    <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{stats.total.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Tier pair accuracy */}
       {Object.keys(tierPairs).length > 0 && (
         <div className="border border-border rounded-lg overflow-hidden" data-testid="ibsp-tiers">
           <div className="px-3 py-2 bg-secondary/10 border-b border-border">
             <h3 className="text-xs font-medium">Accuracy by Institution Tier Pairing</h3>
+            <div className="text-[10px] text-muted-foreground mt-0.5">How does accuracy vary based on the prestige levels of the two compared papers?</div>
           </div>
           <div className="p-3">
             <table className="w-full text-[11px]">
@@ -155,11 +207,13 @@ export default function InstitutionBiasSamePairSection() {
 
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-secondary/10">
-        <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Methodology</h3>
+        <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Methodology & Limitations</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li><strong>Same-pair control:</strong> Only pairs where Opus 4.6, GPT-5.2, AND Gemini 3 Pro all evaluated the same paper pair are included. This eliminates pair-selection confounds.</li>
-          <li><strong>Smaller N:</strong> The same-pair requirement reduces the dataset significantly compared to the general analysis. Results may have wider confidence intervals.</li>
-          <li><strong>Interpretation:</strong> If bias deltas are similar to the general analysis, the finding is robust. If they differ, the general analysis may have been confounded by pair selection.</li>
+          <li><strong>Same-pair control:</strong> Only pairs where all 4 judges evaluated the same paper pair are included, eliminating pair-selection confounds.</li>
+          <li><strong>Institution extraction:</strong> Pattern matching on the first 3000 characters of full text (author affiliations area). 15 major institutions tracked.</li>
+          <li><strong>Prestige tiers:</strong> Big Tech = Google/DeepMind, Meta/FAIR, OpenAI, Microsoft. Top University = Stanford, MIT, CMU, Berkeley, Princeton, Harvard, Oxford, Cambridge, ETH, Tsinghua, Peking.</li>
+          <li><strong>Summarizer bias:</strong> The summarizer reads the full paper (including authors), so it may encode institutional identity into the summary. The judge only sees the summary — but if the summary leaks prestige cues, the judge inherits that bias.</li>
+          <li><strong>Limitation:</strong> Human ground truth (ICLR/eLife reviewers) may itself be prestige-biased. A "fair" AI would match human bias, not eliminate it. Negative deltas indicate AI is less biased than the human baseline.</li>
         </ul>
       </div>
     </div>

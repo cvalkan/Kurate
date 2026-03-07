@@ -23,7 +23,6 @@ import JudgeComparisonSection from "./JudgeComparisonSection";
 import ModelCorrelationSection from "./ModelCorrelationSection";
 import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
-import InstitutionBiasSection from "./InstitutionBiasSection";
 import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import AllPairsSection from "./AllPairsSection";
 import { DatasetView } from "./ValidationPage";
@@ -264,9 +263,8 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-peerread-deep-dive", label: "ACL 2017", sub: "PeerRead" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-acmi-deep-dive", label: "Microbiology 100", sub: "ACMI" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
-              <CollapsibleGroup label="Summary Bias" defaultOpen={selected?.startsWith("exp-summary-bias") || selected?.startsWith("exp-institution-bias")}>
-                <NavItem item={{ id: "exp-institution-bias", label: "Institution Bias", sub: "All matches" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-institution-bias-samepair", label: "Institution Bias — Same Pairs", sub: "Controlled comparison" }} selected={selected} onSelect={setSelected} />
+              <CollapsibleGroup label="Bias Analysis" defaultOpen={selected?.startsWith("exp-institution-bias") || selected?.startsWith("exp-summary-bias")}>
+                <NavItem item={{ id: "exp-institution-bias-samepair", label: "Institution Bias", sub: "Same-pair controlled" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summary-bias", label: "Biomolecules", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summary-bias-econ", label: "Economics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summary-bias-phys", label: "Comp Physics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
@@ -312,7 +310,6 @@ export default function ValidationHubPage() {
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}
-          {selected === "exp-institution-bias" && <InstitutionBiasSection />}
           {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
