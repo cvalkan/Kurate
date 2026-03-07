@@ -75,11 +75,12 @@ async def start_single_item_scoring(request: Request):
     async def _bg():
         try:
             for ds_id in queue:
-                if not _single_item_state.get("running", True):
+                if not _single_item_state["running"]:
                     break
+                logger.info(f"Single-item scoring: starting {ds_id}")
                 await _run_single_item_scoring(ds_id)
         except Exception as e:
-            logger.error(f"Single-item scoring failed: {e}")
+            logger.error(f"Single-item scoring batch failed: {e}", exc_info=True)
         finally:
             _single_item_state["running"] = False
 
