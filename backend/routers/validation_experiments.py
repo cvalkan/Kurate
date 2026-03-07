@@ -2618,3 +2618,152 @@ async def _compute_institution_bias():
         "total_datasets": len([d for d in by_dataset if by_dataset[d]["categories"]]),
     }
 
+
+
+# ─── Institution Bias — Same-Pair Controlled ────────────────────────────────────
+
+_INST_BIAS_SAMEPAIR_CACHE = {"data": None}
+
+
+@router.get("/institution-bias-samepair/results")
+async def institution_bias_samepair_results():
+    """Same-pair controlled institution bias: only pairs where all 3 judges evaluated the same pair."""
+    if _INST_BIAS_SAMEPAIR_CACHE["data"]:
+        return _INST_BIAS_SAMEPAIR_CACHE["data"]
+    result = await _compute_institution_bias_samepair()
+    if result.get("status") == "ok":
+        _INST_BIAS_SAMEPAIR_CACHE["data"] = result
+    return result
+
+
+async def _compute_institution_bias_samepair():
+    DATASETS = ["iclr-llm", "iclr-codegen", "iclr-fairness", "iclr-pdes", "iclr-ot",
+                "iclr-protein", "iclr-molecules", "iclr-optimization",
+                "elife-cancer", "elife-microbiology", "elife-neuro-100", "elife-comp-sys-bio"]
+    CONTENT_MODES = ["abstract_plus_summary", "abstract_plus_summary:opus46",
+                     "abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary",
+                     "abstract_plus_summary:thinking"]
+    TARGET_JUDGES = {"Opus 4.6", "GPT-5.2", "Gemini 3 Pro"}
+
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(100)
+    ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta}
+
+    by_judge = defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0, "ai_prestige": 0, "human_prestige": 0}))
+    by_dataset = {}
+    by_tier_pair = defaultdict(lambda: {"correct": 0, "total": 0})
+
+    for ds_id in DATASETS:
+        papers = {p["id"]: p for p in await db.validation_papers.find(
+            {"dataset_id": ds_id}, {"_id": 0, "id": 1, "full_text": 1, "h1_avg_rating": 1}
+        ).to_list(5000)}
+
+        paper_insts = {pid: _extract_institutions(p.get("full_text")) for pid, p in papers.items()}
+        paper_tier = {pid: _prestige_tier(insts) for pid, insts in paper_insts.items()}
+        gt = {pid: p["h1_avg_rating"] for pid, p in papers.items() if p.get("h1_avg_rating") is not None}
+
+        # Collect per-pair per-judge verdicts
+        pair_by_judge = defaultdict(dict)  # pair_key -> {judge: winner_id}
+        async for m in db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": {"$in": CONTENT_MODES}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+        ):
+            p1, p2, winner = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+            pk = tuple(sorted([p1, p2]))
+            jname = _judge_short(m.get("model_used"))
+            if jname in TARGET_JUDGES:
+                pair_by_judge[pk][jname] = winner
+
+        # Filter to pairs where ALL 3 judges have evaluated
+        shared_pairs = {pk: verdicts for pk, verdicts in pair_by_judge.items()
+                        if len(verdicts) >= len(TARGET_JUDGES) and all(j in verdicts for j in TARGET_JUDGES)}
+
+        ds_cats = defaultdict(lambda: {"c": 0, "t": 0, "ai_p": 0, "h_p": 0})
+
+        for pk, verdicts in shared_pairs.items():
+            p1, p2 = pk
+            if p1 not in gt or p2 not in gt or gt[p1] == gt[p2]:
+                continue
+
+            human_winner = p1 if gt[p1] > gt[p2] else p2
+            t1, t2 = paper_tier.get(p1, "other"), paper_tier.get(p2, "other")
+            i1, i2 = paper_insts.get(p1, set()), paper_insts.get(p2, set())
+
+            if not i1 and not i2:
+                cat = "no_institution"
+            elif i1 & i2:
+                cat = "same_institution"
+            else:
+                cat = "cross_institution"
+
+            has_p1 = t1 in ("big_tech", "top_uni")
+            has_p2 = t2 in ("big_tech", "top_uni")
+            is_prestige_gap = has_p1 != has_p2
+            prestigious_pid = (p1 if has_p1 else p2) if is_prestige_gap else None
+
+            tp = tuple(sorted([t1, t2]))
+
+            for jname, winner in verdicts.items():
+                correct = winner == human_winner
+
+                ds_cats[cat]["t"] += 1
+                if correct: ds_cats[cat]["c"] += 1
+                by_judge[jname][cat]["total"] += 1
+                if correct: by_judge[jname][cat]["correct"] += 1
+
+                by_tier_pair[f"{tp[0]}_vs_{tp[1]}"]["total"] += 1
+                if correct: by_tier_pair[f"{tp[0]}_vs_{tp[1]}"]["correct"] += 1
+
+                if is_prestige_gap:
+                    ds_cats["prestige_gap"]["t"] += 1
+                    if correct: ds_cats["prestige_gap"]["c"] += 1
+                    if winner == prestigious_pid: ds_cats["prestige_gap"]["ai_p"] += 1
+                    if human_winner == prestigious_pid: ds_cats["prestige_gap"]["h_p"] += 1
+                    by_judge[jname]["prestige_gap"]["total"] += 1
+                    if correct: by_judge[jname]["prestige_gap"]["correct"] += 1
+                    if winner == prestigious_pid: by_judge[jname]["prestige_gap"]["ai_prestige"] += 1
+                    if human_winner == prestigious_pid: by_judge[jname]["prestige_gap"]["human_prestige"] += 1
+
+        by_dataset[ds_id] = {"name": ds_names.get(ds_id, ds_id), "categories": dict(ds_cats),
+                              "shared_pairs": len(shared_pairs)}
+
+    # Pooled
+    categories = ["no_institution", "same_institution", "cross_institution", "prestige_gap"]
+    pooled = {}
+    for cat in categories:
+        tc = sum(by_judge[j][cat]["correct"] for j in by_judge)
+        tt = sum(by_judge[j][cat]["total"] for j in by_judge)
+        pooled[cat] = {"accuracy": round(tc / max(tt, 1) * 100, 1), "correct": tc, "total": tt}
+
+    judge_bias = {}
+    for jname in sorted(by_judge.keys()):
+        pg = by_judge[jname].get("prestige_gap", {})
+        t = pg.get("total", 0)
+        if t > 0:
+            ai_pref = round(pg["ai_prestige"] / t * 100, 1)
+            h_pref = round(pg["human_prestige"] / t * 100, 1)
+            judge_bias[jname] = {
+                "accuracy": round(pg["correct"] / t * 100, 1),
+                "ai_prestige_pct": ai_pref,
+                "human_prestige_pct": h_pref,
+                "bias_delta": round(ai_pref - h_pref, 1),
+                "total": t,
+            }
+
+    tier_pairs = {}
+    for tp, stats in by_tier_pair.items():
+        if stats["total"] >= 10:
+            tier_pairs[tp] = {"accuracy": round(stats["correct"] / stats["total"] * 100, 1), **stats}
+
+    total_shared = sum(d.get("shared_pairs", 0) for d in by_dataset.values())
+
+    return {
+        "status": "ok",
+        "pooled": pooled,
+        "by_judge": judge_bias,
+        "by_dataset": by_dataset,
+        "tier_pairs": tier_pairs,
+        "total_shared_pairs": total_shared,
+        "total_matches": sum(pooled[c]["total"] for c in categories if c != "prestige_gap"),
+        "total_datasets": len([d for d in by_dataset if by_dataset[d].get("shared_pairs", 0) > 0]),
+    }

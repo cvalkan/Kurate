@@ -24,6 +24,7 @@ import ModelCorrelationSection from "./ModelCorrelationSection";
 import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
 import InstitutionBiasSection from "./InstitutionBiasSection";
+import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import AllPairsSection from "./AllPairsSection";
 import { DatasetView } from "./ValidationPage";
 
@@ -159,6 +160,7 @@ export default function ValidationHubPage() {
     "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
     "exp-model-correlation": { title: "Model Correlation", desc: "How much do different judge models agree on the same pairs? Pairwise agreement by dataset and input format." },
     "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
+    "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
   };
   pairwiseDatasets.forEach(ds => {
     sectionMeta[`pw-h2h-${ds.dataset_id}`] = {
@@ -262,8 +264,9 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-peerread-deep-dive", label: "ACL 2017", sub: "PeerRead" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-acmi-deep-dive", label: "Microbiology 100", sub: "ACMI" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
-              <CollapsibleGroup label="Summary Bias" defaultOpen={selected?.startsWith("exp-summary-bias") || selected === "exp-institution-bias"}>
-                <NavItem item={{ id: "exp-institution-bias", label: "Institution Bias", sub: "Prestige analysis" }} selected={selected} onSelect={setSelected} />
+              <CollapsibleGroup label="Summary Bias" defaultOpen={selected?.startsWith("exp-summary-bias") || selected?.startsWith("exp-institution-bias")}>
+                <NavItem item={{ id: "exp-institution-bias", label: "Institution Bias", sub: "All matches" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-institution-bias-samepair", label: "Institution Bias — Same Pairs", sub: "Controlled comparison" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summary-bias", label: "Biomolecules", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summary-bias-econ", label: "Economics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summary-bias-phys", label: "Comp Physics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
@@ -310,6 +313,7 @@ export default function ValidationHubPage() {
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}
           {selected === "exp-institution-bias" && <InstitutionBiasSection />}
+          {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
       </div>
