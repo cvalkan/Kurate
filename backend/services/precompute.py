@@ -1,19 +1,24 @@
 """
-Precomputed experiment results — export from preview, serve on production.
+Precomputed experiment + validation results — export from preview, serve on production.
 
-Export: POST /api/admin/precompute-experiments (runs all computations, saves to JSON file)
-Load:  On startup, if the JSON file exists, populate all caches from it — zero computation.
+Export: POST /api/admin/precompute-experiments (runs all computations, saves to JSON files)
+Load:  On startup, if JSON files exist, populate all caches — zero computation.
+
+Two files:
+  - experiment_results.json: global experiment caches (8 experiments)
+  - validation_results.json: per-dataset caches (status, pairwise, convergence, etc.)
 """
 import json
+import asyncio
 import os
 import time
 from pathlib import Path
-from core.config import logger
+from core.config import db, logger
 
-PRECOMPUTED_FILE = Path(__file__).parent.parent / "data" / "precomputed" / "experiment_results.json"
+PRECOMPUTED_DIR = Path(__file__).parent.parent / "data" / "precomputed"
+EXPERIMENT_FILE = PRECOMPUTED_DIR / "experiment_results.json"
+VALIDATION_FILE = PRECOMPUTED_DIR / "validation_results.json"
 
-# Registry: maps cache name → (cache_dict, compute_fn_import_path)
-# Populated at import time with the cache dicts; compute fns resolved lazily
 EXPERIMENT_REGISTRY = [
     "consistency",
     "cycle-all",
@@ -52,8 +57,31 @@ def _get_cache_and_fn(name):
 
 
 async def compute_and_export_all():
-    """Compute all experiment results and save to JSON file. Run in preview only."""
-    import asyncio
+    """Compute all experiment + validation results and save to JSON files."""
+    exp_results = await _compute_experiments()
+    val_results = await _compute_validation_datasets()
+
+    PRECOMPUTED_DIR.mkdir(parents=True, exist_ok=True)
+
+    with open(EXPERIMENT_FILE, "w") as f:
+        json.dump(exp_results, f)
+    exp_size = EXPERIMENT_FILE.stat().st_size / (1024 * 1024)
+
+    with open(VALIDATION_FILE, "w") as f:
+        json.dump(val_results, f)
+    val_size = VALIDATION_FILE.stat().st_size / (1024 * 1024)
+
+    logger.info(f"Precomputed {len(exp_results)} experiments ({exp_size:.1f} MB) + {len(val_results)} dataset caches ({val_size:.1f} MB)")
+    return {
+        "experiments": list(exp_results.keys()),
+        "datasets": list(val_results.keys()),
+        "experiment_file_mb": round(exp_size, 1),
+        "validation_file_mb": round(val_size, 1),
+    }
+
+
+async def _compute_experiments():
+    """Compute all global experiment caches."""
     results = {}
     for name in EXPERIMENT_REGISTRY:
         try:
@@ -68,23 +96,66 @@ async def compute_and_export_all():
                 logger.info(f"  precompute {name}: status={result.get('status')}")
         except Exception as e:
             logger.warning(f"  precompute {name}: failed — {e}")
+    return results
 
-    # Save to file
-    PRECOMPUTED_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(PRECOMPUTED_FILE, "w") as f:
-        json.dump(results, f)
-    size_mb = PRECOMPUTED_FILE.stat().st_size / (1024 * 1024)
-    logger.info(f"Precomputed {len(results)}/{len(EXPERIMENT_REGISTRY)} experiments → {PRECOMPUTED_FILE} ({size_mb:.1f} MB)")
-    return {"exported": list(results.keys()), "file": str(PRECOMPUTED_FILE), "size_mb": round(size_mb, 1)}
+
+async def _compute_validation_datasets():
+    """Compute per-dataset results (status, pairwise, irt, agreement, convergence, etc.)."""
+    from routers.validation import (
+        _compute_status, _compute_pairwise_results, _compute_convergence,
+        _compute_irt_results, _compute_agreement,
+        _compute_cross_mode_agreement, _compute_dual_dimension_results,
+    )
+
+    datasets = await db.validation_datasets.find({}, {"_id": 0}).to_list(100)
+    dataset_ids = [d["dataset_id"] for d in datasets]
+
+    results = {}
+    for ds_id in dataset_ids:
+        ds_cache = {}
+
+        # Use a list of (name, fn) — define with default args to capture ds_id correctly
+        def make_endpoints(did):
+            return [
+                ("status", lambda: _compute_status(did)),
+                ("pairwise", lambda: _compute_pairwise_results(did, None, None)),
+                ("irt", lambda: _compute_irt_results(did, None, None)),
+                ("agreement", lambda: _compute_agreement(did, None, None)),
+                ("cross-mode", lambda: _compute_cross_mode_agreement(did)),
+                ("convergence", lambda: _compute_convergence(did, None, 20)),
+                ("dual-dim", lambda: _compute_dual_dimension_results(did, None)),
+            ]
+
+        for ep_name, fn in make_endpoints(ds_id):
+            try:
+                result = await asyncio.wait_for(fn(), timeout=60)
+                ds_cache[ep_name] = result
+            except asyncio.TimeoutError:
+                logger.warning(f"  precompute {ds_id}/{ep_name}: timed out")
+            except Exception as e:
+                logger.warning(f"  precompute {ds_id}/{ep_name}: failed — {e}")
+
+        if ds_cache:
+            results[ds_id] = ds_cache
+            logger.info(f"  precompute {ds_id}: {len(ds_cache)} endpoints")
+
+    return results
 
 
 def load_precomputed():
-    """Load precomputed results from JSON file into caches. Returns count loaded."""
-    if not PRECOMPUTED_FILE.exists():
-        return 0
+    """Load precomputed results from JSON files into caches. Returns count loaded."""
+    loaded = 0
+    loaded += _load_experiments()
+    loaded += _load_validation()
+    return loaded
 
+
+def _load_experiments():
+    """Load experiment caches from file."""
+    if not EXPERIMENT_FILE.exists():
+        return 0
     try:
-        with open(PRECOMPUTED_FILE) as f:
+        with open(EXPERIMENT_FILE) as f:
             results = json.load(f)
     except Exception as e:
         logger.warning(f"Failed to load precomputed experiments: {e}")
@@ -98,9 +169,31 @@ def load_precomputed():
                 cache["data"] = results[name]
                 cache["ts"] = time.time()
                 loaded += 1
-            except Exception as e:
-                logger.warning(f"  precomputed {name}: load failed — {e}")
+            except Exception:
+                pass
+    if loaded:
+        logger.info(f"Loaded {loaded}/{len(EXPERIMENT_REGISTRY)} precomputed experiment caches")
+    return loaded
+
+
+def _load_validation():
+    """Load per-dataset validation caches from file."""
+    if not VALIDATION_FILE.exists():
+        return 0
+    try:
+        with open(VALIDATION_FILE) as f:
+            results = json.load(f)
+    except Exception as e:
+        logger.warning(f"Failed to load precomputed validation: {e}")
+        return 0
+
+    from routers.validation_utils import _result_cache
+    loaded = 0
+    for ds_id, endpoints in results.items():
+        for ep_name, data in endpoints.items():
+            _result_cache[(ep_name, ds_id, "")] = {"data": data, "ts": time.time()}
+            loaded += 1
 
     if loaded:
-        logger.info(f"Loaded {loaded}/{len(EXPERIMENT_REGISTRY)} precomputed experiment caches from file")
+        logger.info(f"Loaded {loaded} precomputed validation dataset caches ({len(results)} datasets)")
     return loaded
