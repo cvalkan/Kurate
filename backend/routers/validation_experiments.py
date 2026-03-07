@@ -112,10 +112,10 @@ async def _run_single_item_scoring(dataset_id: str):
 
     papers = await db.validation_papers.find(
         {"dataset_id": dataset_id},
-        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "ai_impact_summary": 1}
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "ai_impact_summary": 1, "single_item_score": 1}
     ).to_list(5000)
 
-    need_scoring = [p for p in papers if p.get("abstract")]
+    need_scoring = [p for p in papers if p.get("abstract") and not p.get("single_item_score")]
     _single_item_state["total"] = len(need_scoring)
     logger.info(f"Single-item scoring: {len(need_scoring)} papers in {dataset_id}")
 
@@ -213,10 +213,11 @@ async def _compute_single_item_results():
         accuracy = round(correct / max(total_pairs, 1) * 100, 1)
 
         # Compare with pairwise tournament accuracy on same dataset
+        # FAIR: only matches using the same Opus 4.5 summary (content_mode = "abstract_plus_summary")
         pairwise_matches = await db.validation_matches.find(
             {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
-             "content_mode": {"$in": ["abstract_plus_summary", "abstract_plus_summary:opus46"]}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+             "content_mode": "abstract_plus_summary"},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
         ).to_list(100000)
 
         gt = {p["id"]: p["h1_avg_rating"] for p in scored}
@@ -253,8 +254,24 @@ async def _compute_single_item_results():
         cla_scores = [d.get("clarity", 0) for d in details_list]
         avg_sub = [(s + r + n + c) / 4 for s, r, n, c in zip(sig_scores, rig_scores, nov_scores, cla_scores)]
 
+        # Compute pairwise tournament Spearman ρ via BT ranking
+        pw_rho = None
+        pw_pval = None
+        if pairwise_matches:
+            paper_dicts = [{"id": p["id"], "title": p.get("title", "")} for p in scored]
+            pw_lb = await compute_leaderboard_async(paper_dicts, pairwise_matches)
+            bt_scores = {e["id"]: e["score"] for e in pw_lb}
+            common_ids = [pid for pid in gt if pid in bt_scores]
+            if len(common_ids) >= 5:
+                bt_vals = [bt_scores[pid] for pid in common_ids]
+                gt_vals = [gt[pid] for pid in common_ids]
+                pw_rho_v, pw_pval_v = scipy_stats.spearmanr(bt_vals, gt_vals)
+                if not np.isnan(pw_rho_v):
+                    pw_rho = round(pw_rho_v, 4)
+                    pw_pval = round(pw_pval_v, 4) if pw_pval_v >= 0.001 else 0.0
+
         methods_comparison = [
-            {"method": "Pairwise Tournament", "accuracy": pw_accuracy, "pairs": pw_total, "spearman_rho": None, "p_value": None, "cost": f"{pw_total} matches"},
+            {"method": "Pairwise Tournament", "accuracy": pw_accuracy, "pairs": pw_total, "spearman_rho": pw_rho, "p_value": pw_pval, "cost": f"{pw_total} matches"},
             {**_pw_acc_and_rho(ai_scores, human_scores), "method": "Overall Score", "cost": f"{len(scored)} calls"},
             {**_pw_acc_and_rho(sig_scores, human_scores), "method": "Significance"},
             {**_pw_acc_and_rho(rig_scores, human_scores), "method": "Rigor"},
