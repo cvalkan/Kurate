@@ -232,6 +232,37 @@ async def _compute_single_item_results():
                 pw_correct += 1
         pw_accuracy = round(pw_correct / max(pw_total, 1) * 100, 1)
 
+        # --- Side-by-side comparison: all scoring methods ---
+        def _pw_acc_and_rho(scores, human_scores):
+            c = t = 0
+            for i in range(len(scores)):
+                for j in range(i + 1, len(scores)):
+                    if human_scores[i] == human_scores[j]: continue
+                    t += 1
+                    if (scores[i] > scores[j]) == (human_scores[i] > human_scores[j]): c += 1
+            acc = round(c / max(t, 1) * 100, 1)
+            rho_v, p_v = scipy_stats.spearmanr(scores, human_scores)
+            return {"accuracy": acc, "pairs": t,
+                    "spearman_rho": round(rho_v, 4) if not np.isnan(rho_v) else None,
+                    "p_value": round(p_v, 4) if p_v is not None and not np.isnan(p_v) else None}
+
+        details_list = [p.get("single_item_details", {}) for p in scored]
+        sig_scores = [d.get("significance", 0) for d in details_list]
+        rig_scores = [d.get("rigor", 0) for d in details_list]
+        nov_scores = [d.get("novelty", 0) for d in details_list]
+        cla_scores = [d.get("clarity", 0) for d in details_list]
+        avg_sub = [(s + r + n + c) / 4 for s, r, n, c in zip(sig_scores, rig_scores, nov_scores, cla_scores)]
+
+        methods_comparison = [
+            {"method": "Pairwise Tournament", "accuracy": pw_accuracy, "pairs": pw_total, "spearman_rho": None, "p_value": None, "cost": f"{pw_total} matches"},
+            {**_pw_acc_and_rho(ai_scores, human_scores), "method": "Overall Score", "cost": f"{len(scored)} calls"},
+            {**_pw_acc_and_rho(sig_scores, human_scores), "method": "Significance"},
+            {**_pw_acc_and_rho(rig_scores, human_scores), "method": "Rigor"},
+            {**_pw_acc_and_rho(nov_scores, human_scores), "method": "Novelty"},
+            {**_pw_acc_and_rho(cla_scores, human_scores), "method": "Clarity"},
+            {**_pw_acc_and_rho(avg_sub, human_scores), "method": "Avg Sub-score"},
+        ]
+
         # Score distribution
         score_dist = {}
         for p in scored:
@@ -255,6 +286,7 @@ async def _compute_single_item_results():
                 "kendall_tau": round(tau, 4) if not np.isnan(tau) else None,
                 "pearson_r": round(pearson_r, 4) if not np.isnan(pearson_r) else None,
             },
+            "methods_comparison": methods_comparison,
             "single_item_accuracy": accuracy,
             "single_item_pairs": total_pairs,
             "pairwise_accuracy": pw_accuracy,

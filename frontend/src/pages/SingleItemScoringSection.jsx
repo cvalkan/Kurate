@@ -62,6 +62,59 @@ export default function SingleItemScoringSection() {
             </div>
           </div>
 
+          {/* Methods comparison table */}
+          {ds.methods_comparison && (
+            <div className="border border-border rounded-lg overflow-hidden" data-testid="sis-methods">
+              <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+                <h3 className="text-xs font-medium">Side-by-Side: All Scoring Methods vs Human Ground Truth</h3>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  Pairwise accuracy: does the method agree with human GT on which paper is better? Spearman ρ: rank correlation with human scores.
+                </div>
+              </div>
+              <div className="p-3">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-border text-[10px]">
+                      <th className="text-left py-1.5 pr-3 font-medium">Method</th>
+                      <th className="text-right py-1.5 px-2 font-medium">Accuracy</th>
+                      <th className="text-right py-1.5 px-2 font-medium">Spearman ρ</th>
+                      <th className="text-right py-1.5 px-2 font-medium">p-value</th>
+                      <th className="text-right py-1.5 px-2 font-medium">Pairs</th>
+                      <th className="py-1.5 px-2 w-1/5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ds.methods_comparison.map((m, i) => {
+                      const best = Math.max(...ds.methods_comparison.map(x => x.accuracy || 0));
+                      const isBest = m.accuracy === best;
+                      const isPairwise = m.method === "Pairwise Tournament";
+                      return (
+                        <tr key={m.method} className={`border-b border-border/30 ${isPairwise ? "bg-violet-50/30" : ""} ${isBest ? "bg-emerald-50/30" : ""}`}>
+                          <td className={`py-1.5 pr-3 ${isBest ? "font-semibold" : "font-medium"}`}>
+                            {m.method}
+                            {m.cost && <span className="text-[9px] text-muted-foreground ml-1">({m.cost})</span>}
+                          </td>
+                          <td className={`text-right py-1.5 px-2 font-mono ${isBest ? "font-bold text-emerald-700" : ""}`}>{m.accuracy}%</td>
+                          <td className="text-right py-1.5 px-2 font-mono">{m.spearman_rho != null ? m.spearman_rho.toFixed(4) : "—"}</td>
+                          <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{m.p_value != null ? (m.p_value < 0.001 ? "<0.001" : m.p_value) : "—"}</td>
+                          <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{m.pairs?.toLocaleString()}</td>
+                          <td className="py-1.5 px-2">
+                            <div className="h-2.5 bg-secondary/30 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{
+                                width: `${(m.accuracy / 100) * 100}%`,
+                                backgroundColor: isPairwise ? "#8b5cf6" : isBest ? "#10b981" : "#3b82f6"
+                              }} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Correlation stats */}
           <div className="border border-border rounded-lg overflow-hidden" data-testid="sis-correlation">
             <div className="px-3 py-2 bg-secondary/10 border-b border-border">
