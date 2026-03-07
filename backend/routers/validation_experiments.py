@@ -65,20 +65,26 @@ Respond with ONLY a JSON object in this exact format:
 async def start_single_item_scoring(request: Request):
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     dataset_id = body.get("dataset_id", "elife-cancer")
+    dataset_ids = body.get("dataset_ids")  # Support batch: {"dataset_ids": ["iclr-llm", "iclr-fairness", ...]}
 
     if _single_item_state["running"]:
         raise HTTPException(409, "Already running")
 
+    queue = dataset_ids if dataset_ids else [dataset_id]
+
     async def _bg():
         try:
-            await _run_single_item_scoring(dataset_id)
+            for ds_id in queue:
+                if not _single_item_state.get("running", True):
+                    break
+                await _run_single_item_scoring(ds_id)
         except Exception as e:
             logger.error(f"Single-item scoring failed: {e}")
         finally:
             _single_item_state["running"] = False
 
     asyncio.create_task(_bg())
-    return {"status": "started", "dataset_id": dataset_id}
+    return {"status": "started", "datasets": queue}
 
 
 @router.post("/single-item-scoring/stop", dependencies=[Depends(verify_admin)])

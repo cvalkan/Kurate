@@ -4,16 +4,24 @@ import { Info, Scale, Zap } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-export default function SingleItemScoringSection() {
+export default function SingleItemScoringSection({ datasetId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     axios.get(`${API}/api/validation/single-item-scoring/results`, { timeout: 30000 })
-      .then(r => { if (r.data.status === "ok") setData(r.data); })
+      .then(r => {
+        if (r.data.status === "ok") {
+          // Filter to specific dataset if provided
+          if (datasetId && r.data.datasets) {
+            r.data.datasets = r.data.datasets.filter(d => d.dataset_id === datasetId);
+          }
+          if (r.data.datasets?.length) setData(r.data);
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [datasetId]);
 
   if (loading) return <div className="text-xs text-muted-foreground text-center py-8">Loading single-item scoring results...</div>;
   if (!data || !data.datasets?.length) return <div className="text-xs text-muted-foreground text-center py-8">No single-item scoring data yet. Run the experiment from the admin panel.</div>;

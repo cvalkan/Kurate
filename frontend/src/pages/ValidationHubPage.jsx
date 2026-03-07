@@ -147,6 +147,14 @@ export default function ValidationHubPage() {
     "pw-qeios": { title: "Pairwise — Qeios (Legacy)", desc: "Head-to-head AI comparison using Qeios open peer review data. Separate dataset — not part of main validation system." },
     "pw-scipost": { title: "Pairwise — SciPost (Legacy)", desc: "Per-dimension head-to-head comparison using SciPost peer review data. Separate dataset — not part of main validation system." },
     "si-scipost": { title: "Single-item — SciPost (Legacy)", desc: "AI rates each paper on 4 dimensions (1-6 scale). Separate dataset." },
+    "si-elife-cancer": { title: "Single-Item — eLife Cancer", desc: "Opus 4.6 Thinking rates each paper 1-10 with sub-dimensions. 80 papers, compared against pairwise tournament." },
+    "si-iclr-codegen": { title: "Single-Item — ICLR Code Gen", desc: "Opus 4.6 Thinking rates each paper 1-10. 62 papers with 29-level reviewer scores as ground truth." },
+    "si-iclr-llm": { title: "Single-Item — ICLR LLM", desc: "Opus 4.6 Thinking rates each paper 1-10. 73 papers." },
+    "si-iclr-fairness": { title: "Single-Item — ICLR Fairness", desc: "Opus 4.6 Thinking rates each paper 1-10. 68 papers." },
+    "si-iclr-protein": { title: "Single-Item — ICLR Protein", desc: "Opus 4.6 Thinking rates each paper 1-10. 46 papers." },
+    "si-iclr-pdes": { title: "Single-Item — ICLR PDEs", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 papers." },
+    "si-iclr-molecules": { title: "Single-Item — ICLR Molecules", desc: "Opus 4.6 Thinking rates each paper 1-10. 46 papers." },
+    "si-iclr-optimization": { title: "Single-Item — ICLR Optimization", desc: "Opus 4.6 Thinking rates each paper 1-10. 42 papers." },
     "exp-summarizer-ab": { title: "Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
     "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
     "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
@@ -213,12 +221,18 @@ export default function ValidationHubPage() {
             </CollapsibleGroup>
           )}
 
-          {/* Single-item — admin only */}
-          {isAdmin && (
-            <CollapsibleGroup label="Single-item (Legacy)" icon={Beaker} defaultOpen={selected === "si-scipost"}>
-              <NavItem item={{ id: "si-scipost", label: "SciPost" }} selected={selected} onSelect={setSelected} />
-            </CollapsibleGroup>
-          )}
+          {/* Single-item scoring — public for scored datasets, admin for SciPost legacy */}
+          <CollapsibleGroup label="Single-Item" icon={Beaker} defaultOpen={selected?.startsWith("si-")}>
+            <NavItem item={{ id: "si-elife-cancer", label: "eLife Cancer", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-iclr-codegen", label: "ICLR Code Gen", sub: "62 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-iclr-llm", label: "ICLR LLM", sub: "73 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-iclr-fairness", label: "ICLR Fairness", sub: "68 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-iclr-protein", label: "ICLR Protein", sub: "46 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-iclr-pdes", label: "ICLR PDEs", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-iclr-molecules", label: "ICLR Molecules", sub: "46 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-iclr-optimization", label: "ICLR Optimization", sub: "42 papers" }} selected={selected} onSelect={setSelected} />
+            {isAdmin && <NavItem item={{ id: "si-scipost", label: "SciPost (Legacy)" }} selected={selected} onSelect={setSelected} />}
+          </CollapsibleGroup>
 
           {/* Tournament — public shows ICLR/eLife/MIDL only */}
           <CollapsibleGroup label="Tournament" icon={Trophy} defaultOpen={!selected || selected?.startsWith("t-")}>
@@ -250,7 +264,6 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-consistency", label: "Verdict Stability", sub: "Same-pair flips across conditions" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-cycle-analysis", label: "Intransitive Cycles", sub: "Condorcet paradox by context" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-model-correlation", label: "Model Correlation", sub: "Pairwise agreement matrices" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-single-item", label: "Single-Item Scoring", sub: "1 call vs tournament" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
               <CollapsibleGroup label="Prompt Variants" defaultOpen={selected === "exp-tie-allowed" || selected === "exp-multi-aspect"}>
                 <NavItem item={{ id: "exp-tie-allowed", label: "Tie-Allowed", sub: "Allow AI to abstain" }} selected={selected} onSelect={setSelected} />
@@ -292,6 +305,14 @@ export default function ValidationHubPage() {
             return ds ? <PairwiseAgreementSection key={ds.dataset_id} datasetId={ds.dataset_id} datasetName={ds.name} /> : null;
           })()}
           {selected === "si-scipost" && <SciPostPage embedded />}
+          {selected === "si-elife-cancer" && <SingleItemScoringSection datasetId="elife-cancer" />}
+          {selected === "si-iclr-codegen" && <SingleItemScoringSection datasetId="iclr-codegen" />}
+          {selected === "si-iclr-llm" && <SingleItemScoringSection datasetId="iclr-llm" />}
+          {selected === "si-iclr-fairness" && <SingleItemScoringSection datasetId="iclr-fairness" />}
+          {selected === "si-iclr-protein" && <SingleItemScoringSection datasetId="iclr-protein" />}
+          {selected === "si-iclr-pdes" && <SingleItemScoringSection datasetId="iclr-pdes" />}
+          {selected === "si-iclr-molecules" && <SingleItemScoringSection datasetId="iclr-molecules" />}
+          {selected === "si-iclr-optimization" && <SingleItemScoringSection datasetId="iclr-optimization" />}
           {selected === "exp-summarizer-ab" && <SummarizerComparisonSection />}
           {selected === "exp-summary-bias" && <SummaryBiasSection category="q-bio.BM" />}
           {selected === "exp-summary-bias-econ" && <SummaryBiasSection category="econ.GN" />}
@@ -314,7 +335,6 @@ export default function ValidationHubPage() {
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}
-          {selected === "exp-single-item" && <SingleItemScoringSection />}
           {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>
