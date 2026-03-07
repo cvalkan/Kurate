@@ -2651,6 +2651,8 @@ async def _compute_institution_bias_samepair():
     by_judge = defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0, "ai_prestige": 0, "human_prestige": 0}))
     by_dataset = {}
     by_tier_pair = defaultdict(lambda: {"correct": 0, "total": 0})
+    # Accuracy breakdown by pair category (for bias-vs-quality analysis)
+    judge_by_cat = defaultdict(lambda: defaultdict(lambda: {"c": 0, "t": 0}))
 
     for ds_id in DATASETS:
         papers = {p["id"]: p for p in await db.validation_papers.find(
@@ -2715,6 +2717,13 @@ async def _compute_institution_bias_samepair():
                 by_judge[jname][cat]["total"] += 1
                 if correct: by_judge[jname][cat]["correct"] += 1
 
+                # Track judge accuracy per pair category
+                judge_by_cat[jname][cat]["t"] += 1
+                if correct: judge_by_cat[jname][cat]["c"] += 1
+                pair_cat_for_gap = "prestige_gap" if is_prestige_gap else ("no_institution" if cat == "no_institution" else "other_institution")
+                judge_by_cat[jname][pair_cat_for_gap]["t"] += 1
+                if correct: judge_by_cat[jname][pair_cat_for_gap]["c"] += 1
+
                 by_tier_pair[f"{tp[0]}_vs_{tp[1]}"]["total"] += 1
                 if correct: by_tier_pair[f"{tp[0]}_vs_{tp[1]}"]["correct"] += 1
 
@@ -2774,6 +2783,7 @@ async def _compute_institution_bias_samepair():
     # For each shared pair, find which content_modes have matches, and compute bias per mode
     by_summarizer = defaultdict(lambda: {"ai_p": 0, "h_p": 0, "correct": 0, "total": 0})
     by_matrix = defaultdict(lambda: {"ai_p": 0, "h_p": 0, "total": 0})
+    sum_by_cat = defaultdict(lambda: defaultdict(lambda: {"c": 0, "t": 0}))
 
     for ds_id in DATASETS:
         papers_local = {p["id"]: p for p in await db.validation_papers.find(
@@ -2810,11 +2820,30 @@ async def _compute_institution_bias_samepair():
             if p1 not in gt_local or p2 not in gt_local or gt_local[p1] == gt_local[p2]:
                 continue
             t1, t2 = ptier.get(p1, "other"), ptier.get(p2, "other")
+            i1, i2 = pinst.get(p1, set()), pinst.get(p2, set())
             has_p1 = t1 in ("big_tech", "top_uni")
             has_p2 = t2 in ("big_tech", "top_uni")
+            human_winner = p1 if gt_local[p1] > gt_local[p2] else p2
+            correct = winner == human_winner
+            cm = m.get("content_mode", "unknown")
+            label = SUMMARIZER_LABELS.get(cm, cm)
+            jname = _judge_short(m.get("model_used"))
+
+            # Determine pair category
+            if has_p1 != has_p2:
+                pair_cat = "prestige_gap"
+            elif not i1 and not i2:
+                pair_cat = "no_institution"
+            else:
+                pair_cat = "other_institution"
+
+            # Summarizer accuracy by pair category (all pairs, not just prestige-gap)
+            sum_by_cat[label][pair_cat]["t"] += 1
+            if correct: sum_by_cat[label][pair_cat]["c"] += 1
+
+            # Prestige-gap specific stats (bias metrics)
             if has_p1 == has_p2:
                 continue
-            human_winner = p1 if gt_local[p1] > gt_local[p2] else p2
             prestigious_pid = p1 if has_p1 else p2
             cm = m.get("content_mode", "unknown")
             label = SUMMARIZER_LABELS.get(cm, cm)
@@ -2851,12 +2880,35 @@ async def _compute_institution_bias_samepair():
             matrix[mk] = {"bias_delta": round(ai_pref - h_pref, 1), "total": s["total"],
                            "ai_prestige_pct": ai_pref, "human_prestige_pct": h_pref}
 
+    # Build accuracy-by-category breakdown for judges and summarizers
+    def _acc_pct(d):
+        return round(d["c"] / max(d["t"], 1) * 100, 1) if d["t"] else None
+
+    accuracy_by_category = {
+        "judges": {},
+        "summarizers": {},
+        "categories": ["prestige_gap", "no_institution", "other_institution"],
+    }
+    for jname in sorted(judge_by_cat.keys()):
+        accuracy_by_category["judges"][jname] = {
+            cat: {"accuracy": _acc_pct(judge_by_cat[jname][cat]), "total": judge_by_cat[jname][cat]["t"]}
+            for cat in ["prestige_gap", "no_institution", "other_institution"]
+            if judge_by_cat[jname][cat]["t"] > 0
+        }
+    for sname in sorted(sum_by_cat.keys()):
+        accuracy_by_category["summarizers"][sname] = {
+            cat: {"accuracy": _acc_pct(sum_by_cat[sname][cat]), "total": sum_by_cat[sname][cat]["t"]}
+            for cat in ["prestige_gap", "no_institution", "other_institution"]
+            if sum_by_cat[sname][cat]["t"] > 0
+        }
+
     return {
         "status": "ok",
         "pooled": pooled,
         "by_judge": judge_bias,
         "by_summarizer": summarizer_bias,
         "matrix": matrix,
+        "accuracy_by_category": accuracy_by_category,
         "by_dataset": by_dataset,
         "tier_pairs": tier_pairs,
         "total_shared_pairs": total_shared,

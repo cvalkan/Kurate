@@ -24,6 +24,8 @@ export default function InstitutionBiasSamePairSection() {
   const matrix = data.matrix || {};
   const tierPairs = data.tier_pairs || {};
 
+  const accByCat = data.accuracy_by_category || {};
+
   // Derive judges and summarizers from matrix keys
   const matrixJudges = [...new Set(Object.keys(matrix).map(k => k.split("|")[1]))].sort();
   const matrixSummarizers = [...new Set(Object.keys(matrix).map(k => k.split("|")[0]))].sort();
@@ -227,6 +229,83 @@ export default function InstitutionBiasSamePairSection() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Accuracy by pair category: is accuracy advantage from bias or quality? */}
+      {accByCat.judges && Object.keys(accByCat.judges).length > 0 && (
+        <div className="border-2 border-amber-200 rounded-lg overflow-hidden" data-testid="ibsp-acc-breakdown">
+          <div className="px-3 py-2 bg-amber-50/30 border-b border-amber-200">
+            <h3 className="text-xs font-semibold text-amber-900">Is Higher Accuracy Driven by Shared Bias?</h3>
+            <div className="text-[10px] text-amber-800/70 mt-0.5">
+              If a model's accuracy advantage is concentrated in prestige-gap pairs (where matching human bias helps), it suggests
+              bias inflation. If the advantage is uniform across all pair types, it's genuine quality detection.
+            </div>
+          </div>
+          <div className="p-3 space-y-4">
+            {/* Judge breakdown */}
+            <div>
+              <div className="text-[10px] font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">By Judge</div>
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border text-[10px]">
+                    <th className="text-left py-1 pr-3 font-medium">Judge</th>
+                    <th className="text-right py-1 px-2 font-medium">Prestige-Gap</th>
+                    <th className="text-right py-1 px-2 font-medium">No Institution</th>
+                    <th className="text-right py-1 px-2 font-medium">Other Inst.</th>
+                    <th className="text-right py-1 px-2 font-medium">Gap Advantage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(accByCat.judges).map(([name, cats]) => {
+                    const pg = cats.prestige_gap?.accuracy || 0;
+                    const ni = cats.no_institution?.accuracy || 0;
+                    const gap = pg && ni ? (pg - ni).toFixed(1) : "—";
+                    return (
+                      <tr key={name} className="border-b border-border/30">
+                        <td className="py-1 pr-3 font-medium">{name}</td>
+                        <td className="text-right py-1 px-2 font-mono">{cats.prestige_gap ? `${cats.prestige_gap.accuracy}%` : "—"}<span className="text-[9px] text-muted-foreground ml-1">({cats.prestige_gap?.total || 0})</span></td>
+                        <td className="text-right py-1 px-2 font-mono">{cats.no_institution ? `${cats.no_institution.accuracy}%` : "—"}<span className="text-[9px] text-muted-foreground ml-1">({cats.no_institution?.total || 0})</span></td>
+                        <td className="text-right py-1 px-2 font-mono">{cats.other_institution ? `${cats.other_institution.accuracy}%` : "—"}<span className="text-[9px] text-muted-foreground ml-1">({cats.other_institution?.total || 0})</span></td>
+                        <td className={`text-right py-1 px-2 font-mono font-semibold ${parseFloat(gap) > 5 ? "text-amber-600" : "text-muted-foreground"}`}>{gap !== "—" ? `+${gap}pp` : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* Summarizer breakdown */}
+            <div>
+              <div className="text-[10px] font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">By Summarizer</div>
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border text-[10px]">
+                    <th className="text-left py-1 pr-3 font-medium">Summarizer</th>
+                    <th className="text-right py-1 px-2 font-medium">Prestige-Gap</th>
+                    <th className="text-right py-1 px-2 font-medium">No Institution</th>
+                    <th className="text-right py-1 px-2 font-medium">Other Inst.</th>
+                    <th className="text-right py-1 px-2 font-medium">Gap Advantage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(accByCat.summarizers).map(([name, cats]) => {
+                    const pg = cats.prestige_gap?.accuracy || 0;
+                    const ni = cats.no_institution?.accuracy || 0;
+                    const gap = pg && ni ? (pg - ni).toFixed(1) : "—";
+                    return (
+                      <tr key={name} className="border-b border-border/30">
+                        <td className="py-1 pr-3 font-medium">{name}</td>
+                        <td className="text-right py-1 px-2 font-mono">{cats.prestige_gap ? `${cats.prestige_gap.accuracy}%` : "—"}<span className="text-[9px] text-muted-foreground ml-1">({cats.prestige_gap?.total || 0})</span></td>
+                        <td className="text-right py-1 px-2 font-mono">{cats.no_institution ? `${cats.no_institution.accuracy}%` : "—"}<span className="text-[9px] text-muted-foreground ml-1">({cats.no_institution?.total || 0})</span></td>
+                        <td className="text-right py-1 px-2 font-mono">{cats.other_institution ? `${cats.other_institution.accuracy}%` : "—"}<span className="text-[9px] text-muted-foreground ml-1">({cats.other_institution?.total || 0})</span></td>
+                        <td className={`text-right py-1 px-2 font-mono font-semibold ${parseFloat(gap) > 5 ? "text-amber-600" : "text-muted-foreground"}`}>{gap !== "—" ? `+${gap}pp` : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
