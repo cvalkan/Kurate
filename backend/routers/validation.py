@@ -1902,12 +1902,11 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
     if len(all_matches) < 10:
         return {"status": "no_data"}
 
-    # Filter out same-tier matches — they have no GT signal and add noise to rankings
-    gt_scores = build_paper_gt_scores(papers)
-    all_matches = filter_cross_tier_matches(all_matches, gt_scores)
-
-    if len(all_matches) < 10:
-        return {"status": "no_data"}
+    # NOTE: We intentionally do NOT filter same-tier matches here.
+    # Convergence measures Spearman ρ between AI BT ranking and human BT ranking.
+    # The human BT ranking is derived from granular expert ratings (not coarse tiers),
+    # so ALL AI matches contribute useful signal to the BT model — even matches
+    # between same-tier papers help establish within-tier ordering.
 
     all_matches.sort(key=lambda m: m.get("created_at", ""))
 
