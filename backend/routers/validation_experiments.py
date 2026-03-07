@@ -118,7 +118,8 @@ async def _run_single_item_scoring(dataset_id: str):
 
     papers = await db.validation_papers.find(
         {"dataset_id": dataset_id},
-        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "ai_impact_summary": 1, "single_item_score": 1}
+        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "ai_impact_summary": 1,
+         "ai_impact_summary_thinking": 1, "ai_impact_summary_opus46": 1, "single_item_score": 1}
     ).to_list(5000)
 
     need_scoring = [p for p in papers if p.get("abstract") and not p.get("single_item_score")]
@@ -136,7 +137,7 @@ async def _run_single_item_scoring(dataset_id: str):
             prompt = SINGLE_ITEM_PROMPT["user_prompt"].format(
                 title=paper.get("title", ""),
                 abstract=paper.get("abstract", "")[:3000],
-                summary=paper.get("ai_impact_summary", "")[:4000],
+                summary=(paper.get("ai_impact_summary_thinking") or paper.get("ai_impact_summary_opus46") or paper.get("ai_impact_summary", ""))[:4000],
             )
             try:
                 chat = LlmChat(
@@ -219,10 +220,28 @@ async def _compute_single_item_results():
         accuracy = round(correct / max(total_pairs, 1) * 100, 1)
 
         # Compare with pairwise tournament accuracy on same dataset
-        # FAIR: only matches using the same Opus 4.5 summary (content_mode = "abstract_plus_summary")
+        # Use content_mode matching the summary type: thinking if available, else default
+        # Detect which summary was used by checking the first scored paper
+        sample = scored[0] if scored else {}
+        sample_full = await db.validation_papers.find_one(
+            {"id": sample.get("id"), "dataset_id": ds_id},
+            {"_id": 0, "ai_impact_summary_thinking": 1}
+        ) if sample else None
+        has_thinking_summary = bool(sample_full and sample_full.get("ai_impact_summary_thinking"))
+
+        # For datasets scored with thinking summaries, compare against thinking pairwise matches
+        # For datasets scored with default summaries, compare against default pairwise matches
+        pw_content_mode = "abstract_plus_summary:thinking" if has_thinking_summary else "abstract_plus_summary"
+        # Fallback: if no thinking matches exist, use default
+        pw_count = await db.validation_matches.count_documents(
+            {"dataset_id": ds_id, "completed": True, "content_mode": pw_content_mode})
+        if pw_count == 0:
+            pw_content_mode = "abstract_plus_summary"
+        summary_model = "Opus 4.6 Thinking" if has_thinking_summary else "Opus 4.5"
+
         pairwise_matches = await db.validation_matches.find(
             {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
-             "content_mode": "abstract_plus_summary"},
+             "content_mode": pw_content_mode},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
         ).to_list(100000)
 
@@ -304,6 +323,8 @@ async def _compute_single_item_results():
             "dataset_id": ds_id,
             "name": ds_names.get(ds_id, ds_id),
             "papers_scored": len(scored),
+            "summary_model": summary_model,
+            "pairwise_content_mode": pw_content_mode,
             "correlation": {
                 "spearman_rho": round(rho, 4) if not np.isnan(rho) else None,
                 "kendall_tau": round(tau, 4) if not np.isnan(tau) else None,

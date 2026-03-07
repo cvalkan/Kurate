@@ -42,6 +42,13 @@ export default function SingleItemScoringSection({ datasetId }) {
 
       {data.datasets.map(ds => (
         <div key={ds.dataset_id} className="space-y-4">
+          {/* Model note */}
+          <div className="text-[10px] text-muted-foreground bg-secondary/20 rounded-md px-3 py-1.5">
+            <strong>Scorer:</strong> Opus 4.6 Thinking &middot;{" "}
+            <strong>Summary used:</strong> {ds.summary_model || "Opus 4.5"} &middot;{" "}
+            <strong>Pairwise comparison:</strong> matches using {ds.pairwise_content_mode === "abstract_plus_summary:thinking" ? "Opus 4.6 Thinking" : "Opus 4.5"} summaries ({ds.pairwise_matches} matches)
+          </div>
+
           {/* Key comparison */}
           <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50/30" data-testid="sis-comparison">
             <h3 className="text-xs font-semibold text-blue-900 mb-3">{ds.name}: Head-to-Head Comparison</h3>
