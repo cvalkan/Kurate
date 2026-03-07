@@ -114,14 +114,15 @@ async def step2_run_pairwise_matches():
                     content_mode="abstract_plus_summary",
                     model_override=judge,
                 )
-                if result and result.get("winner_id"):
+                if result and result.get("winner"):
                     import uuid
+                    wk = result["winner"]
                     await db.validation_matches.insert_one({
                         "id": str(uuid.uuid4()),
                         "dataset_id": DATASET_ID,
                         "paper1_id": p1_id,
                         "paper2_id": p2_id,
-                        "winner_id": result["winner_id"],
+                        "winner_id": p1_id if wk == "paper1" else p2_id,
                         "model_used": judge,
                         "content_mode": "abstract_plus_summary:thinking",
                         "completed": True,
