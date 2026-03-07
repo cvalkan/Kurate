@@ -399,12 +399,14 @@ async def _prewarm_consistency_cache():
             ("model-correlation", _compute_model_correlation_analysis, _model_correlation_cache),
         ]:
             try:
-                result = await fn()
+                result = await asyncio.wait_for(fn(), timeout=120)
                 if result.get("status") == "ok":
                     cache["data"] = result
                     cache["ts"] = _t.time()
                     logger.info(f"  {name}: cached (deferred)")
                 await asyncio.sleep(1)
+            except asyncio.TimeoutError:
+                logger.warning(f"{name} deferred cache timed out (120s) — will compute on first request")
             except Exception as e:
                 logger.warning(f"{name} deferred cache failed: {e}")
 
