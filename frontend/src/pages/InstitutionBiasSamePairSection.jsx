@@ -307,6 +307,14 @@ export default function InstitutionBiasSamePairSection() {
               </table>
             </div>
           </div>
+          {/* Conclusion */}
+          <div className="px-3 py-3 bg-amber-50/50 border-t border-amber-200">
+            <h4 className="text-[11px] font-semibold text-amber-900 mb-1.5">Conclusion</h4>
+            <div className="text-[10px] text-amber-800/80 space-y-1.5">
+              <p><strong>Judges:</strong> All 4 judges show a similar "Gap Advantage" (~8pp). This means every judge is more accurate on prestige-gap pairs than on no-institution pairs by roughly the same amount. Since this advantage is <em>uniform</em> across judges — not concentrated in the most bias-aligned judge (Opus 4.6) — the accuracy difference between judges is <strong>not driven by prestige bias</strong>. The likely explanation: prestige-gap pairs are inherently easier to judge because the quality gap between a top-lab paper and an unknown-institution paper tends to be larger.</p>
+              <p><strong>Summarizers:</strong> More nuance here. Opus 4.6 summaries have the largest Gap Advantage (+9.3pp) — suggesting they encode more institutional cues that make prestige-gap pairs <em>even easier</em> for judges. However, <strong>Opus 4.6 Thinking</strong> (the best summarizer overall at 84.9% on prestige-gap pairs) also leads on no-institution pairs (77.4% vs 68-71% for others). Since its lead is strongest where prestige can't help, its accuracy advantage is primarily <strong>genuine quality detection</strong>, with a small prestige component.</p>
+            </div>
+          </div>
         </div>
       )}
 
