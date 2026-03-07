@@ -2773,6 +2773,7 @@ async def _compute_institution_bias_samepair():
     # --- Per-summarizer bias on the SAME shared pairs as the judge table ---
     # For each shared pair, find which content_modes have matches, and compute bias per mode
     by_summarizer = defaultdict(lambda: {"ai_p": 0, "h_p": 0, "correct": 0, "total": 0})
+    by_matrix = defaultdict(lambda: {"ai_p": 0, "h_p": 0, "total": 0})
 
     for ds_id in DATASETS:
         papers_local = {p["id"]: p for p in await db.validation_papers.find(
@@ -2800,7 +2801,7 @@ async def _compute_institution_bias_samepair():
         async for m in db.validation_matches.find(
             {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
              "content_mode": {"$in": CONTENT_MODES}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "content_mode": 1},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "content_mode": 1, "model_used": 1},
         ):
             p1, p2, winner = m["paper1_id"], m["paper2_id"], m.get("winner_id")
             pk = tuple(sorted([p1, p2]))
@@ -2817,10 +2818,16 @@ async def _compute_institution_bias_samepair():
             prestigious_pid = p1 if has_p1 else p2
             cm = m.get("content_mode", "unknown")
             label = SUMMARIZER_LABELS.get(cm, cm)
+            jname = _judge_short(m.get("model_used"))
             by_summarizer[label]["total"] += 1
             if winner == human_winner: by_summarizer[label]["correct"] += 1
             if winner == prestigious_pid: by_summarizer[label]["ai_p"] += 1
             if human_winner == prestigious_pid: by_summarizer[label]["h_p"] += 1
+            # Matrix: summarizer × judge
+            mk = f"{label}|{jname}"
+            by_matrix[mk]["total"] += 1
+            if winner == prestigious_pid: by_matrix[mk]["ai_p"] += 1
+            if human_winner == prestigious_pid: by_matrix[mk]["h_p"] += 1
 
     summarizer_bias = {}
     for label, s in by_summarizer.items():
@@ -2835,11 +2842,21 @@ async def _compute_institution_bias_samepair():
                 "total": s["total"],
             }
 
+    # Build summarizer × judge matrix
+    matrix = {}
+    for mk, s in by_matrix.items():
+        if s["total"] >= 10:
+            ai_pref = round(s["ai_p"] / s["total"] * 100, 1)
+            h_pref = round(s["h_p"] / s["total"] * 100, 1)
+            matrix[mk] = {"bias_delta": round(ai_pref - h_pref, 1), "total": s["total"],
+                           "ai_prestige_pct": ai_pref, "human_prestige_pct": h_pref}
+
     return {
         "status": "ok",
         "pooled": pooled,
         "by_judge": judge_bias,
         "by_summarizer": summarizer_bias,
+        "matrix": matrix,
         "by_dataset": by_dataset,
         "tier_pairs": tier_pairs,
         "total_shared_pairs": total_shared,

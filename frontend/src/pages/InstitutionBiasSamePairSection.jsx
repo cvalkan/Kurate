@@ -21,7 +21,12 @@ export default function InstitutionBiasSamePairSection() {
   const pooled = data.pooled || {};
   const byJudge = data.by_judge || {};
   const bySummarizer = data.by_summarizer || {};
+  const matrix = data.matrix || {};
   const tierPairs = data.tier_pairs || {};
+
+  // Derive judges and summarizers from matrix keys
+  const matrixJudges = [...new Set(Object.keys(matrix).map(k => k.split("|")[1]))].sort();
+  const matrixSummarizers = [...new Set(Object.keys(matrix).map(k => k.split("|")[0]))].sort();
 
   return (
     <div className="space-y-5" data-testid="institution-bias-samepair">
@@ -133,6 +138,56 @@ export default function InstitutionBiasSamePairSection() {
           </table>
         </div>
       </div>
+
+      {/* Summarizer × Judge Matrix */}
+      {matrixJudges.length > 0 && matrixSummarizers.length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden" data-testid="ibsp-matrix">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+            <h3 className="text-xs font-medium">Summarizer x Judge Prestige Bias Matrix</h3>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              Bias delta (pp) for each summarizer–judge combination. Negative = less biased than human reviewers.
+              Rows = which LLM wrote the summary. Columns = which LLM judged. On the same shared pairs.
+            </div>
+          </div>
+          <div className="p-3 overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border text-[10px]">
+                  <th className="text-left py-1.5 pr-3 font-medium">Summarizer \ Judge</th>
+                  {matrixJudges.map(j => (
+                    <th key={j} className="text-center py-1.5 px-2 font-medium">{j}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {matrixSummarizers.map(sum => (
+                  <tr key={sum} className="border-b border-border/30">
+                    <td className="py-1.5 pr-3 font-medium">{sum}</td>
+                    {matrixJudges.map(judge => {
+                      const cell = matrix[`${sum}|${judge}`];
+                      if (!cell) return <td key={judge} className="text-center py-1.5 px-2 text-muted-foreground/40">—</td>;
+                      const d = cell.bias_delta;
+                      const intensity = Math.min(Math.abs(d) / 10, 1);
+                      const bg = d < 0
+                        ? `rgba(16, 185, 129, ${intensity * 0.3})`
+                        : `rgba(239, 68, 68, ${intensity * 0.3})`;
+                      return (
+                        <td key={judge} className="text-center py-1.5 px-2" style={{ backgroundColor: bg }}>
+                          <span className={`font-mono font-semibold text-[11px] ${d < 0 ? "text-emerald-700" : "text-red-700"}`}>
+                            {d > 0 ? "+" : ""}{d}
+                          </span>
+                          <br />
+                          <span className="text-[9px] text-muted-foreground">{cell.total}</span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Per-summarizer prestige preference */}
       {Object.keys(bySummarizer).length > 0 && (
