@@ -182,18 +182,19 @@ async def _refresh_cache():
     _cache["_failed_by_cat"] = dict(failed_by_cat)
 
     # Pre-compute PDF counts and storage stats per category (for admin panel)
+    # Use aggregation to count chars server-side — avoids loading full_text over the network
     pdf_by_cat = Counter()
     storage_chars_by_cat = Counter()
     storage_chars_total = 0
-    async for p in db.papers.find(
-        {"full_text": {"$ne": None}},
-        {"_id": 0, "categories": 1, "full_text": 1},
-    ):
-        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
-        pdf_by_cat[cat] += 1
-        chars = len(p.get("full_text", ""))
-        storage_chars_by_cat[cat] += chars
-        storage_chars_total += chars
+    async for doc in db.papers.aggregate([
+        {"$match": {"full_text": {"$ne": None}}},
+        {"$project": {"cat": {"$arrayElemAt": ["$categories", 0]}, "chars": {"$strLenCP": {"$ifNull": ["$full_text", ""]}}}},
+        {"$group": {"_id": "$cat", "count": {"$sum": 1}, "chars": {"$sum": "$chars"}}},
+    ]):
+        cat = doc["_id"] or "unknown"
+        pdf_by_cat[cat] = doc["count"]
+        storage_chars_by_cat[cat] = doc["chars"]
+        storage_chars_total += doc["chars"]
     _cache["_pdf_by_cat"] = dict(pdf_by_cat)
     _cache["_storage"] = {
         "total_chars": storage_chars_total,
