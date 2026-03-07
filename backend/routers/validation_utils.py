@@ -220,9 +220,12 @@ def build_content_mode_filter(content_mode: Optional[str] = None, abstract_only:
 # ─── Ground Truth Scores ──────────────────────────────────────────────────────
 
 def build_paper_gt_scores(papers: list) -> dict:
-    """Build {paper_id: gt_score} from tier decisions, composite scores, or avg ratings.
-    Returns only papers with a usable GT signal. Higher score = better paper."""
-    # Use a unified scale where higher = better (consistent with _TIER in iclr_deep_dive.py)
+    """Build {paper_id: gt_score} from human evaluation averages, composite scores, or tier decisions.
+    Returns only papers with a usable GT signal. Higher score = better paper.
+    
+    Priority: h1_avg_rating (most granular) > composite_score > evaluation avg > tier decision.
+    Using granular scores ensures convergence curves include all cross-score pairs
+    and Spearman rho is consistent with single-item scoring comparisons."""
     DECISION_SCORE = {
         "oral": 4, "spotlight": 3, "poster": 2, "withdrawn": 1,
         "desk rejected": 0, "reject": 0,
@@ -230,9 +233,10 @@ def build_paper_gt_scores(papers: list) -> dict:
     gt = {}
     for p in papers:
         pid = p["id"]
-        t = norm_tier(p.get("decision"))
-        if t and t in DECISION_SCORE:
-            gt[pid] = DECISION_SCORE[t]
+        # Prefer h1_avg_rating — the precomputed average of all human evaluations
+        h1 = p.get("h1_avg_rating")
+        if h1 is not None:
+            gt[pid] = h1
             continue
         cs = p.get("composite_score")
         if cs is not None:
@@ -242,6 +246,10 @@ def build_paper_gt_scores(papers: list) -> dict:
         ratings = [e["rating_value"] for e in evals if e.get("rating_value")]
         if ratings:
             gt[pid] = sum(ratings) / len(ratings)
+            continue
+        t = norm_tier(p.get("decision"))
+        if t and t in DECISION_SCORE:
+            gt[pid] = DECISION_SCORE[t]
     return gt
 
 
