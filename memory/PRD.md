@@ -56,10 +56,14 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
 
 ## Completed Work
 - Pre-computation system for production deployment
-- Single-Item Scoring experiment — run on eLife, ICLR, MIDL, PeerRead ACL 2017
-- PeerRead results: Single-item 69.8% acc / ρ=0.494 vs Pairwise 67.3% / ρ=0.536
+- Single-Item Scoring experiment — run on eLife, ICLR, MIDL, PeerRead, RH-50, Qeios Social
+- PeerRead results: SI 69.8% / ρ=0.494 vs PW 67.3% / ρ=0.536
+- RH-50 results: SI 77.5% / ρ=0.650 vs PW 74% / ρ=0.590
+- Qeios Social results: SI 73.9% / ρ=0.653 vs PW 70.3% / ρ=0.546
+- Controlled PW Thinking Judge experiment on Qeios + RH-50: SI still wins with equalized model
 - Institutional Bias Analysis with controlled same-pair analysis
 - AlphaXiv Integration for community popularity data
 - HTTP Security Headers middleware
 - Convergence chart fix: removed biased cross-tier filter, now uses all matches
 - Fixed single-item scoring startup bug (_single_item_state.running not set before bg task)
+- Analysis: SI tie handling is fair (~50% acc on tied pairs), Spearman avg-rank correct but coarser

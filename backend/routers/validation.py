@@ -1358,6 +1358,7 @@ async def get_available_modes(dataset_id: str = Query(...)):
         "gemini_summary": "Abstract + Summary (Gemini 3 Pro)",
         "opus46": "Abstract + Summary (Opus 4.6)",
         "thinking": "Abstract + Summary (Opus 4.6 Thinking)",
+        "thinking_judge": "Abstract + Summary (Opus 4.6 Thinking Judge)",
         "tie_v1": "Abstract + Summary (Tie-Allowed)",
         "multi_aspect": "Abstract + Summary (Multi-Aspect)",
     }
@@ -2218,6 +2219,7 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     SUMMARY_TAG_LABELS = {
         "gpt_summary": "GPT-5.2", "gemini_summary": "Gemini 3 Pro",
         "opus46": "Opus 4.6", "thinking": "Opus 4.6 Thinking",
+        "thinking_judge": "Opus 4.6 Thinking Judge",
         "tie_v1": "Tie-Allowed",
         "multi_aspect": "Multi-Aspect",
     }

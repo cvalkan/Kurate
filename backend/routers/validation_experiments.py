@@ -296,8 +296,44 @@ async def _compute_single_item_results():
                     pw_rho = round(pw_rho_v, 4)
                     pw_pval = round(pw_pval_v, 4) if pw_pval_v >= 0.001 else 0.0
 
+        # Check for controlled thinking_judge pairwise experiment
+        tj_matches = await db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": "abstract_plus_summary:thinking_judge"},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
+        ).to_list(100000)
+        tj_row = None
+        if len(tj_matches) >= 20:
+            tj_correct = tj_total = 0
+            for m in tj_matches:
+                p1, p2, w = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+                if p1 not in gt or p2 not in gt or gt[p1] == gt[p2]:
+                    continue
+                tj_total += 1
+                if w == (p1 if gt[p1] > gt[p2] else p2):
+                    tj_correct += 1
+            tj_acc = round(tj_correct / max(tj_total, 1) * 100, 1)
+            tj_rho = tj_pval = None
+            paper_dicts_tj = [{"id": p["id"], "title": p.get("title", "")} for p in scored]
+            tj_lb = await compute_leaderboard_async(paper_dicts_tj, tj_matches)
+            tj_bt = {e["id"]: e["score"] for e in tj_lb}
+            tj_common = [pid for pid in gt if pid in tj_bt]
+            if len(tj_common) >= 5:
+                tj_bt_vals = [tj_bt[pid] for pid in tj_common]
+                tj_gt_vals = [gt[pid] for pid in tj_common]
+                tj_rho_v, tj_pval_v = scipy_stats.spearmanr(tj_bt_vals, tj_gt_vals)
+                if not np.isnan(tj_rho_v):
+                    tj_rho = round(tj_rho_v, 4)
+                    tj_pval = round(tj_pval_v, 4) if tj_pval_v >= 0.001 else 0.0
+            tj_row = {"method": "PW Thinking Judge", "accuracy": tj_acc, "pairs": tj_total,
+                       "spearman_rho": tj_rho, "p_value": tj_pval, "cost": f"{tj_total} matches"}
+
         methods_comparison = [
             {"method": "Pairwise Tournament", "accuracy": pw_accuracy, "pairs": pw_total, "spearman_rho": pw_rho, "p_value": pw_pval, "cost": f"{pw_total} matches"},
+        ]
+        if tj_row:
+            methods_comparison.append(tj_row)
+        methods_comparison += [
             {**_pw_acc_and_rho(ai_scores, human_scores), "method": "Overall Score", "cost": f"{len(scored)} calls"},
             {**_pw_acc_and_rho(sig_scores, human_scores), "method": "Significance"},
             {**_pw_acc_and_rho(rig_scores, human_scores), "method": "Rigor"},
