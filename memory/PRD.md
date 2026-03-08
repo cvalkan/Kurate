@@ -56,10 +56,11 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
 
 ## Completed Work
 - Pre-computation system for production deployment
-- Single-Item Scoring experiment — run on eLife, ICLR, MIDL, PeerRead, RH-50, Qeios Social
-- PeerRead results: SI 69.8% / ρ=0.494 vs PW 67.3% / ρ=0.536
-- RH-50 results: SI 77.5% / ρ=0.650 vs PW 74% / ρ=0.590
-- Qeios Social results: SI 73.9% / ρ=0.653 vs PW 70.3% / ρ=0.546
+- Single-Item Scoring experiment — run on eLife (Cancer + Neuro), ICLR (7 datasets), MIDL, PeerRead, RH-50, Qeios Social
+- "Surprisingly Popular" analysis: BT_rank - SI_rank as independent quality predictor
+  - Significant (ρ=0.4-0.6) on comparative-GT datasets (ICLR, PeerRead, eLife Neuro)
+  - Not significant on standalone-GT datasets (Qeios, RH-50, eLife Cancer)
+  - When methods disagree: BT right 75% on eLife Neuro, SI right 71% on RH-50
 - Controlled PW Thinking Judge experiment on Qeios + RH-50: SI still wins with equalized model
 - Institutional Bias Analysis with controlled same-pair analysis
 - AlphaXiv Integration for community popularity data

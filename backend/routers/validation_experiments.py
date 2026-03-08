@@ -356,6 +356,58 @@ async def _compute_single_item_results():
             "details": p.get("single_item_details", {}),
         } for p in scored], key=lambda x: x["ai_score"], reverse=True)
 
+        # Surprisingly Popular analysis: BT_norm - SI_norm as independent signal
+        sp_analysis = None
+        if pairwise_matches and len(scored) >= 10:
+            from collections import defaultdict as _dd
+            _wins = _dd(int)
+            _total = _dd(int)
+            for m in pairwise_matches:
+                p1, p2, w = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+                if p1 in gt and p2 in gt:
+                    _total[p1] += 1; _total[p2] += 1
+                    if w == p1: _wins[p1] += 1
+                    elif w == p2: _wins[p2] += 1
+            _bt = {pid: _wins[pid] / max(_total[pid], 1) for pid in gt if _total.get(pid, 0) > 0}
+            _common = [pid for pid in gt if pid in _bt]
+            if len(_common) >= 10:
+                _si_v = np.array([gt[pid] for pid in _common])  # placeholder
+                _si_v = np.array([scored_map[pid] for pid in _common if pid in scored_map]) if 'scored_map' in dir() else None
+                # Build scored_map
+                scored_map = {p["id"]: p["single_item_score"] for p in scored}
+                _common = [pid for pid in gt if pid in _bt and pid in scored_map]
+                if len(_common) >= 10:
+                    _si_arr = np.array([scored_map[pid] for pid in _common])
+                    _bt_arr = np.array([_bt[pid] for pid in _common])
+                    _gt_arr = np.array([gt[pid] for pid in _common])
+                    _si_n = (_si_arr - _si_arr.min()) / max(_si_arr.max() - _si_arr.min(), 0.001)
+                    _bt_n = (_bt_arr - _bt_arr.min()) / max(_bt_arr.max() - _bt_arr.min(), 0.001)
+                    _sp = _bt_n - _si_n
+                    _sp_rho, _sp_p = scipy_stats.spearmanr(_sp, _gt_arr)
+                    # Disagreement analysis
+                    _si_right = _bt_right = _disagree = 0
+                    for i in range(len(_common)):
+                        for j in range(i + 1, len(_common)):
+                            a, b = _common[i], _common[j]
+                            if gt[a] == gt[b]: continue
+                            si_a = scored_map[a] > scored_map[b]
+                            bt_a = _bt[a] > _bt[b]
+                            gt_a = gt[a] > gt[b]
+                            if si_a == bt_a: continue
+                            _disagree += 1
+                            if si_a == gt_a: _si_right += 1
+                            if bt_a == gt_a: _bt_right += 1
+                    sp_analysis = {
+                        "sp_rho": round(float(_sp_rho), 4) if not np.isnan(_sp_rho) else None,
+                        "sp_p_value": round(float(_sp_p), 4) if _sp_p >= 0.0001 else 0.0,
+                        "significant": bool(_sp_p < 0.05),
+                        "disagreement_pairs": _disagree,
+                        "si_right_when_disagree": _si_right,
+                        "bt_right_when_disagree": _bt_right,
+                        "si_right_pct": round(_si_right / max(_disagree, 1) * 100, 1),
+                        "bt_right_pct": round(_bt_right / max(_disagree, 1) * 100, 1),
+                    }
+
         all_results.append({
             "dataset_id": ds_id,
             "name": ds_names.get(ds_id, ds_id),
@@ -375,6 +427,7 @@ async def _compute_single_item_results():
             "cost_ratio": f"{len(scored)} calls vs {pw_total} matches",
             "score_distribution": dict(sorted(score_dist.items())),
             "papers": paper_details,
+            "sp_analysis": sp_analysis,
         })
 
     return {

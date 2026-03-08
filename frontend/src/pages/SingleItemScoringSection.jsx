@@ -151,6 +151,54 @@ export default function SingleItemScoringSection({ datasetId }) {
             </div>
           </div>
 
+          {/* SP Analysis — "Surprisingly Popular" signal */}
+          {ds.sp_analysis && (
+            <div className="border border-border rounded-lg overflow-hidden" data-testid="sis-sp-analysis">
+              <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+                <h3 className="text-xs font-medium">"Surprisingly Popular" Analysis: BT Rank - SI Rank</h3>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  Does the gap between pairwise ranking and standalone scoring predict paper quality? Inspired by the Surprisingly Popular algorithm.
+                </div>
+              </div>
+              <div className="p-3 space-y-3">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className={`border rounded-lg p-2 ${ds.sp_analysis.significant ? "border-emerald-300 bg-emerald-50/30" : "border-border/50"}`}>
+                    <div className="text-[10px] text-muted-foreground">SP Signal vs GT</div>
+                    <div className="text-lg font-mono font-semibold">
+                      {ds.sp_analysis.sp_rho != null ? (ds.sp_analysis.sp_rho > 0 ? "+" : "") + ds.sp_analysis.sp_rho.toFixed(3) : "—"}
+                    </div>
+                    <div className="text-[9px] text-muted-foreground">
+                      {ds.sp_analysis.significant ? "p < 0.05" : `p = ${ds.sp_analysis.sp_p_value}`}
+                    </div>
+                  </div>
+                  <div className="border border-border/50 rounded-lg p-2">
+                    <div className="text-[10px] text-muted-foreground">When Methods Disagree</div>
+                    <div className="text-lg font-mono font-semibold">{ds.sp_analysis.disagreement_pairs}</div>
+                    <div className="text-[9px] text-muted-foreground">paper pairs</div>
+                  </div>
+                  <div className="border border-border/50 rounded-lg p-2">
+                    <div className="text-[10px] text-muted-foreground">Who's Right?</div>
+                    <div className="text-sm font-mono font-semibold">
+                      {ds.sp_analysis.bt_right_pct > ds.sp_analysis.si_right_pct
+                        ? <span className="text-violet-700">BT {ds.sp_analysis.bt_right_pct}%</span>
+                        : <span className="text-blue-700">SI {ds.sp_analysis.si_right_pct}%</span>}
+                    </div>
+                    <div className="text-[9px] text-muted-foreground">
+                      {ds.sp_analysis.bt_right_pct > ds.sp_analysis.si_right_pct
+                        ? `SI ${ds.sp_analysis.si_right_pct}%`
+                        : `BT ${ds.sp_analysis.bt_right_pct}%`}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[10px] text-muted-foreground border-t border-border/30 pt-2">
+                  {ds.sp_analysis.significant
+                    ? <><strong>SP signal is significant:</strong> The pure BT-minus-SI gap independently predicts human quality (Spearman rho = {ds.sp_analysis.sp_rho?.toFixed(3)}). Pairwise comparison reveals quality dimensions that standalone scoring misses — the "surprisingly competitive" papers are genuinely better.</>
+                    : <><strong>SP signal is not significant:</strong> The BT-SI gap does not predict human quality on this dataset. Both methods capture the same underlying signal; pairwise adds no unique information beyond standalone scoring.</>}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Score distribution */}
           <div className="border border-border rounded-lg overflow-hidden" data-testid="sis-distribution">
             <div className="px-3 py-2 bg-secondary/10 border-b border-border">
