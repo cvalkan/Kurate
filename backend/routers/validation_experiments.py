@@ -101,8 +101,17 @@ async def single_item_scoring_status():
 
 
 @router.get("/single-item-scoring/results")
-async def single_item_scoring_results():
-    """Always compute fresh — single-item results change as scoring progresses."""
+async def single_item_scoring_results(dataset_id: str = Query(None)):
+    """Return single-item scoring results. Uses cache when available."""
+    # Return cached data if available (populated by precompute or previous computation)
+    if _SINGLE_ITEM_CACHE.get("data") and _SINGLE_ITEM_CACHE["data"].get("status") == "ok":
+        cached = _SINGLE_ITEM_CACHE["data"]
+        # If a specific dataset is requested and we have global results, filter
+        if dataset_id and "datasets" in cached:
+            ds_results = [d for d in cached["datasets"] if d.get("dataset_id") == dataset_id]
+            if ds_results:
+                return {"status": "ok", "datasets": ds_results, "summary": cached.get("summary", {})}
+        return cached
     result = await _compute_single_item_results()
     if result.get("status") == "ok":
         _SINGLE_ITEM_CACHE["data"] = result

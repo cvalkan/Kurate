@@ -193,12 +193,23 @@ def _load_validation():
         logger.warning(f"Failed to load precomputed validation: {e}")
         return 0
 
-    from routers.validation_utils import _result_cache
+    from routers.validation_utils import _result_cache, convergence_all_cache
+    # Endpoints that the frontend requests with content_mode="abstract" (the default)
+    _CONTENT_MODE_ENDPOINTS = {"pairwise", "irt", "agreement", "convergence"}
     loaded = 0
     for ds_id, endpoints in results.items():
         for ep_name, data in endpoints.items():
+            # Store with empty key (for direct/no-mode requests)
             _result_cache[(ep_name, ds_id, "")] = {"data": data, "ts": time.time()}
             loaded += 1
+            # Also store with "abstract" key for endpoints the frontend requests with content_mode
+            if ep_name in _CONTENT_MODE_ENDPOINTS:
+                _result_cache[(ep_name, ds_id, "abstract")] = {"data": data, "ts": time.time()}
+                loaded += 1
+            # Populate convergence_all_cache from single-mode convergence data
+            if ep_name == "convergence" and data:
+                convergence_all_cache[ds_id] = {"data": data, "ts": time.time()}
+                loaded += 1
 
     if loaded:
         logger.info(f"Loaded {loaded} precomputed validation dataset caches ({len(results)} datasets)")
