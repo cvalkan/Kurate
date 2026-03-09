@@ -27,7 +27,7 @@ Build a robust system for ranking and validating AI model performance on scienti
 
 ### Frontend Build URL Fix
 - Frontend was serving a stale production build with old backend URL (`llm-tournament-debug.preview.emergentagent.com`)
-- Rebuilt with correct `REACT_APP_BACKEND_URL=https://paper-judge-arena-1.preview.emergentagent.com`
+- Rebuilt with correct `REACT_APP_BACKEND_URL=https://llm-ranker.preview.emergentagent.com`
 
 ### Matchmaking Improvement (Elo-Aware Opponent Selection)
 - Established opponent selection now picks the paper closest to the new paper's estimated Elo
