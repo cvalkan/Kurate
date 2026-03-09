@@ -40,28 +40,23 @@ function StatCard({ label, value, icon: Icon }) {
 
 function RatingGenSection({ adminCat }) {
   const [status, setStatus] = useState(null);
-  const [polling, setPolling] = useState(false);
 
   const poll = useCallback(() => {
     axios.get(`${API}/api/admin/rating-status`, { headers: getAdminHeaders() })
-      .then(r => {
-        setStatus(r.data);
-        if (!r.data.running) setPolling(false);
-      })
-      .catch(() => setPolling(false));
+      .then(r => setStatus(r.data))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!polling) return;
-    const iv = setInterval(poll, 3000);
+    poll(); // Initial fetch
+    const iv = setInterval(poll, 5000);
     return () => clearInterval(iv);
-  }, [polling, poll]);
+  }, [poll]);
 
   const start = async () => {
     try {
-      const res = await axios.post(`${API}/api/admin/generate-ratings`, { category: adminCat, limit: 100 }, { headers: getAdminHeaders() });
+      await axios.post(`${API}/api/admin/generate-ratings`, { category: adminCat, limit: 100 }, { headers: getAdminHeaders() });
       toast.success(`Rating generation started for ${adminCat || "all"}`);
-      setPolling(true);
       setTimeout(poll, 2000);
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to start rating generation");
@@ -69,6 +64,7 @@ function RatingGenSection({ adminCat }) {
   };
 
   const running = status?.running;
+  const stats = status?.stats || {};
 
   return (
     <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="rating-gen-section">
@@ -81,8 +77,13 @@ function RatingGenSection({ adminCat }) {
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {running
               ? `Generating... ${status.done}/${status.total} rated (${status.category})`
-              : "Generate 1-10 ratings from existing Claude Thinking summaries"}
+              : `${stats.rated || 0} / ${stats.total || 0} papers rated across all categories`}
           </p>
+          {stats.total > 0 && (
+            <div className="mt-1.5 w-48 h-1.5 bg-secondary rounded-full overflow-hidden">
+              <div className="h-full bg-accent/70 rounded-full transition-all" style={{ width: `${Math.min(100, (stats.rated / stats.total) * 100)}%` }} />
+            </div>
+          )}
         </div>
         <Button
           onClick={start}

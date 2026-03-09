@@ -2356,7 +2356,10 @@ async def generate_ratings(request: Request):
 
 @router.get("/rating-status", dependencies=[Depends(verify_admin)])
 async def rating_status():
-    return _rating_gen_state
+    # Include overall stats alongside the running state
+    total_with_summaries = await db.papers.count_documents({"summaries": {"$exists": True, "$ne": {}}})
+    total_rated = await db.papers.count_documents({"ai_rating": {"$exists": True}})
+    return {**_rating_gen_state, "stats": {"rated": total_rated, "total": total_with_summaries}}
 
 
 @router.post("/stop-ratings", dependencies=[Depends(verify_admin)])
