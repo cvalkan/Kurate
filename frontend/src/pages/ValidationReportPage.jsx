@@ -117,54 +117,19 @@ export default function ValidationReportPage() {
       {/* 3. Summarizer x Judge Matrix */}
       {/* 3. Input Format */}
       <Section num="3" title="Which Input Format Works Best?">
-        <p>Pairwise accuracy against human GT. Fully controlled: each row compares format A vs format B on the <em>exact same paper pairs judged by the exact same model</em>. Only the input format differs.</p>
-        <div className="overflow-x-auto mt-1">
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-1 pr-2">Comparison</th>
-                <th className="text-right py-1 px-1">Format A</th>
-                <th className="text-right py-1 px-1">Format B</th>
-                <th className="text-right py-1 px-1">Gap</th>
-                <th className="text-right py-1 px-1">Pairs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { a: "Abs+Sum (Thinking)", b: "Abstract only", aa: 75.7, ba: 68.6, n: 523 },
-                { a: "Full PDF", b: "Abstract only", aa: 76.1, ba: 69.0, n: 2219 },
-                { a: "Abs+Sum (Opus 4.6)", b: "Abstract only", aa: 75.3, ba: 67.7, n: 1355 },
-                { a: "Abs+Sum (Opus 4.5)", b: "Abstract only", aa: 75.2, ba: 69.6, n: 5409 },
-                { a: "Abs+Sum (Thinking)", b: "Abs+Sum (Opus 4.5)", aa: 78.2, ba: 73.9, n: 3634 },
-                { a: "Abs+Sum (Thinking)", b: "Full PDF", aa: 77.1, ba: 71.4, n: 865 },
-                { a: "Deep Dive", b: "Abs+Sum (Opus 4.5)", aa: 73.5, ba: 71.4, n: 4256 },
-                { a: "Abs+Sum (Opus 4.5)", b: "Full PDF", aa: 74.6, ba: 74.6, n: 6247 },
-                { a: "Abs+Sum (Thinking)", b: "Deep Dive", aa: 77.7, ba: 76.8, n: 678 },
-              ].map((r, i) => (
-                <tr key={i} className="border-b border-border/20">
-                  <td className="py-0.5 pr-2">{r.a} vs {r.b}</td>
-                  <td className="text-right py-0.5 px-1 font-mono font-bold">{r.aa}%</td>
-                  <td className="text-right py-0.5 px-1 font-mono">{r.ba}%</td>
-                  <td className={`text-right py-0.5 px-1 font-mono ${r.aa - r.ba > 3 ? "text-emerald-700 font-semibold" : ""}`}>{(r.aa - r.ba) > 0 ? "+" : ""}{(r.aa - r.ba).toFixed(1)}pp</td>
-                  <td className="text-right py-0.5 px-1 font-mono text-muted-foreground">{r.n.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-[10px] mt-2">Head-to-head W-L record (wins/losses across all controlled matchups):</p>
+        <p>Pairwise accuracy against human GT. Normalized: same 3 judges (GPT-5.2, Gemini, Opus 4.6), averaged per dataset then across datasets — so no single dataset or judge dominates.</p>
         <div className="space-y-0.5 mt-1">
           {[
-            { fmt: "Abs+Sum (Opus 4.6 Thinking)", wl: "5-0" },
-            { fmt: "Deep Dive (2-pass)", wl: "4-1" },
-            { fmt: "Abs+Sum (Opus 4.6)", wl: "3-2" },
-            { fmt: "Full PDF", wl: "1-3" },
-            { fmt: "Abs+Sum (Opus 4.5)", wl: "1-3" },
-            { fmt: "Abstract only", wl: "0-5" },
-          ].map((r, i) => <Row key={r.fmt} label={r.fmt} value={r.wl} bold={i === 0} />)}
+            { fmt: "Abs + Summary (Opus 4.6 Thinking)", acc: "77.4%", n: "14 datasets, 8,279 pairs" },
+            { fmt: "Abs + Summary (Opus 4.6)", acc: "73.6%", n: "14 datasets, 11,012 pairs" },
+            { fmt: "Deep Dive (2-pass)", acc: "72.1%", n: "7 datasets, 3,768 pairs" },
+            { fmt: "Abs + Summary (Opus 4.5)", acc: "70.5%", n: "14 datasets, 25,353 pairs" },
+            { fmt: "Full PDF", acc: "69.5%", n: "12 datasets, 7,487 pairs" },
+            { fmt: "Abstract only", acc: "65.5%", n: "7 datasets, 5,025 pairs" },
+          ].map((r, i) => <Row key={r.fmt} label={`${r.fmt} (${r.n})`} value={r.acc} bold={i === 0} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Thinking summaries go undefeated (5-0), beating every other format on identical pairs. The biggest gains: +7pp over abstract-only, +5.7pp over Full PDF, +4.4pp over Opus 4.5. Full PDF and Opus 4.5 summaries are statistically tied (74.6% each on 6,247 shared pairs). Abstract-only loses every matchup — the AI needs more context than just the abstract.
+          <strong>Verdict:</strong> Thinking summaries lead at 77.4%, +6.9pp over Opus 4.5 summaries and +7.9pp over Full PDF. The biggest gain comes from using <em>any</em> AI summary vs abstract-only (+5-12pp). Full PDF underperforms AI summaries despite having more content — irrelevant sections add noise. Deep Dive and Abstract are tested on fewer datasets (7 vs 14), so their numbers are less comparable.
         </p>
       </Section>
 
