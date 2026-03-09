@@ -38,6 +38,67 @@ function StatCard({ label, value, icon: Icon }) {
   );
 }
 
+function RatingGenSection({ adminCat }) {
+  const [status, setStatus] = useState(null);
+  const [polling, setPolling] = useState(false);
+
+  const poll = useCallback(() => {
+    axios.get(`${API}/api/admin/rating-status`, { headers: getAdminHeaders() })
+      .then(r => {
+        setStatus(r.data);
+        if (!r.data.running) setPolling(false);
+      })
+      .catch(() => setPolling(false));
+  }, []);
+
+  useEffect(() => {
+    if (!polling) return;
+    const iv = setInterval(poll, 3000);
+    return () => clearInterval(iv);
+  }, [polling, poll]);
+
+  const start = async () => {
+    try {
+      const res = await axios.post(`${API}/api/admin/generate-ratings`, { category: adminCat, limit: 100 }, { headers: getAdminHeaders() });
+      toast.success(`Rating generation started for ${adminCat || "all"}`);
+      setPolling(true);
+      setTimeout(poll, 2000);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to start rating generation");
+    }
+  };
+
+  const running = status?.running;
+
+  return (
+    <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="rating-gen-section">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-medium flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            AI Ratings (Single-Item)
+          </h3>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {running
+              ? `Generating... ${status.done}/${status.total} rated (${status.category})`
+              : "Generate 1-10 ratings from existing Claude Thinking summaries"}
+          </p>
+        </div>
+        <Button
+          onClick={start}
+          disabled={running}
+          size="sm"
+          className="gap-1.5 text-xs h-8 bg-secondary text-foreground hover:bg-secondary/80"
+          data-testid="generate-ratings-btn"
+        >
+          <Sparkles className={`h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
+          {running ? `${status.done}/${status.total}` : "Generate Ratings (100 papers)"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function AdminOverview({
   status, progress, usageStats, categories, adminCat, setAdminCat,
   triggerFetch, loading, onRefresh,
@@ -264,30 +325,7 @@ export function AdminOverview({
       </div>
 
       {/* Section: Generate AI Ratings */}
-      <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="rating-gen-section">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-medium flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              AI Ratings (Single-Item)
-            </h3>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Generate 1-10 ratings from existing Claude Thinking summaries</p>
-          </div>
-          <Button
-            onClick={async () => {
-              try {
-                await axios.post(`${API}/api/admin/generate-ratings`, { category: adminCat, limit: 100 }, { headers: getAdminHeaders() });
-              } catch {}
-            }}
-            size="sm"
-            className="gap-1.5 text-xs h-8 bg-secondary text-foreground hover:bg-secondary/80"
-            data-testid="generate-ratings-btn"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Generate Ratings (100 papers)
-          </Button>
-        </div>
-      </div>
+      <RatingGenSection adminCat={adminCat} />
 
       {/* Section 2: Tournament Progress */}
       {progress && (
