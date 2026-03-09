@@ -106,35 +106,42 @@ export default function ValidationReportPage() {
           <Row label="Thinking (Opus 4.6 Thinking summaries)" value={`${thk.thinking_accuracy || "?"}% (${thk.thinking_matches || "?"} pairs)`} />
           <Row label="Lift" value={`+${thk.lift || "?"}pp (McNemar p=${thk.mcnemar?.p_value || "?"})`} />
         </div>
-        <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Minimal lift (+0.3pp, not significant). Extended thinking helps the <em>summarizer</em> quality (Finding 1), but when used only for <em>judging</em> the same content, the gain is negligible. The summary quality matters more than the thinking budget for comparison.
+        <p className="mt-2 border-t border-border/30 pt-2 text-amber-700">
+          <strong>Caution — misleading comparison:</strong> This experiment compares on <em>different</em> paper pairs ({thk.baseline_gt_pairs || "?"} vs {thk.thinking_matches || "?"}).
+          The controlled test (Finding 1) uses the <em>same</em> 1,521 pairs and shows a clear +6pp improvement for Thinking summaries.
+          Trust Finding 1 — the +0.3pp here reflects pair-set differences, not a real lack of improvement.
         </p>
       </Section>
 
       {/* 3. Best Judge */}
       <Section num="3" title="Which Judge Model is Best?">
-        <p>Same content shown to different judges. Accuracy on shared pairs:</p>
+        <p>Same content shown to different judges. Accuracy on {jc.judges?.[0]?.total_pairs || "?"} shared pairs:</p>
         <div className="space-y-0.5 mt-1">
-          {(jc.judges || []).map((j, i) => (
+          {(jc.judges || []).sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0)).map((j, i) => (
             <Row key={i} label={j.label || j.name || "?"} value={`${j.accuracy}% (rho=${j.avg_rho?.toFixed(3) || "?"})`} bold={i === 0} />
           ))}
+          {jc.round_robin && <Row label="Round-Robin (rotating)" value={`${jc.round_robin.accuracy}%`} />}
           {jc.majority_vote && <Row label="Majority Vote (3 judges)" value={`${jc.majority_vote.accuracy}%`} />}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> All judge models perform within ~1pp of each other (74-75%). Majority vote doesn't help. The judge model matters far less than the summarizer model — the bottleneck is input quality, not judgment quality.
+          <strong>Verdict:</strong> All judge models perform within ~1.2pp of each other (74-75%). No clear winner. Majority vote and round-robin don't outperform the best single judge. The judge model matters far less than the summarizer model (+6pp between summarizers vs ~1pp between judges).
         </p>
       </Section>
 
       {/* 4. Summarizer x Judge Matrix */}
       <Section num="4" title="Summarizer x Judge: Best Combination?">
-        <p>Full interaction matrix (pooled). Top 5 combos:</p>
+        <p>Full interaction matrix (pooled). Excluding Opus 4.6 non-thinking as summarizer. Top combos:</p>
         <div className="space-y-0.5 mt-1">
-          {Object.entries(ae).sort((a, b) => (b[1].accuracy || 0) - (a[1].accuracy || 0)).slice(0, 5).map(([key, val]) => (
-            <Row key={key} label={key} value={`${val.accuracy}% (${val.total} pairs)`} bold={key.includes("Thinking") && key.includes("GPT")} />
+          {Object.entries(ae)
+            .filter(([key]) => !key.startsWith("Opus 4.6|") || key.startsWith("Opus 4.6 Thinking"))
+            .sort((a, b) => (b[1].accuracy || 0) - (a[1].accuracy || 0))
+            .slice(0, 7)
+            .map(([key, val]) => (
+              <Row key={key} label={key} value={`${val.accuracy}% (${val.total} pairs)`} bold={key.includes("Thinking") && key.includes("GPT")} />
           ))}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Opus 4.6 Thinking summaries + GPT-5.2 judge = 85.0% — the best combo. Interestingly, a Claude summarizer + GPT judge outperforms Claude-only. Cross-model diversity helps.
+          <strong>Verdict:</strong> Opus 4.6 Thinking + GPT-5.2 judge = 85% — the best combo. Cross-model diversity (Claude summarizer + GPT judge) outperforms same-model (Claude + Claude). Opus 4.5 summaries are ~5-7pp behind regardless of judge.
         </p>
       </Section>
 
