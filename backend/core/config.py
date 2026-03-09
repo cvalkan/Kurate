@@ -137,4 +137,6 @@ DEFAULT_SETTINGS = {
     "paused": False,
     "summary_source": "claude",
     "summary_parallel": 10,
+    "show_rating_column": True,
+    "show_gap_column": True,
 }

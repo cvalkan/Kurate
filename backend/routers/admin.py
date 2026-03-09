@@ -2260,19 +2260,19 @@ _rating_gen_state = {"running": False, "done": 0, "total": 0, "category": ""}
 
 @router.post("/generate-ratings", dependencies=[Depends(verify_admin)])
 async def generate_ratings(request: Request):
-    """Generate single-item AI ratings for papers using existing Claude Thinking summaries.
+    """Generate single-item AI ratings for ALL unrated papers in a category.
     
-    Uses a lightweight prompt that reads the existing summary and outputs 1-10 ratings.
-    Runs on the most recent papers first.
+    Non-blocking: processes in batches of 5 with yields between batches.
+    Stoppable: check _rating_gen_state["running"] between each paper.
+    Resumable: only processes papers without ai_rating, so re-running skips already-rated ones.
     """
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     category = body.get("category")
-    limit = body.get("limit", 50)
 
     if _rating_gen_state["running"]:
         raise HTTPException(409, "Rating generation already running")
 
-    _rating_gen_state.update({"running": True, "done": 0, "total": 0, "category": category or "all"})
+    _rating_gen_state.update({"running": True, "done": 0, "total": 0, "failed": 0, "category": category or "all"})
 
     async def _bg():
         try:
@@ -2288,10 +2288,10 @@ async def generate_ratings(request: Request):
             
             papers = await db.papers.find(
                 query,
-                {"_id": 0, "id": 1, "title": 1, "abstract": 1, "summaries": 1, "added_at": 1}
-            ).sort("added_at", -1).limit(limit).to_list(limit)
+                {"_id": 0, "id": 1, "title": 1, "abstract": 1, "summaries": 1}
+            ).to_list(10000)
 
-            # Filter to papers that have a Claude Thinking summary
+            # Filter to papers that have a summary (Claude Thinking or fallback)
             eligible = []
             for p in papers:
                 summary = _get_paper_summary(p, "anthropic:claude-opus-4-6:thinking")
@@ -2301,12 +2301,14 @@ async def generate_ratings(request: Request):
             _rating_gen_state["total"] = len(eligible)
             logger.info(f"Rating generation: {len(eligible)} papers in {category or 'all'}")
 
-            sem = asyncio.Semaphore(5)
-
-            async def rate_one(paper, summary):
+            # Process in batches of 3 to stay non-blocking
+            BATCH = 3
+            for batch_start in range(0, len(eligible), BATCH):
                 if not _rating_gen_state["running"]:
-                    return
-                async with sem:
+                    break
+                batch = eligible[batch_start:batch_start + BATCH]
+
+                async def rate_one(paper, summary):
                     if not _rating_gen_state["running"]:
                         return
                     prompt = RATING_EXTRACTION_PROMPT["user_prompt"].format(
@@ -2343,19 +2345,24 @@ async def generate_ratings(request: Request):
                                 )
                                 _rating_gen_state["done"] += 1
                                 return
+                        _rating_gen_state["failed"] += 1
                         logger.warning(f"Rating: bad response for {paper['id'][:8]}: {text[:100]}")
                     except Exception as e:
+                        _rating_gen_state["failed"] += 1
                         logger.warning(f"Rating failed for {paper.get('title', '')[:30]}: {e}")
 
-            await asyncio.gather(*[rate_one(p, s) for p, s in eligible], return_exceptions=True)
-            logger.info(f"Rating generation complete: {_rating_gen_state['done']}/{len(eligible)}")
+                await asyncio.gather(*[rate_one(p, s) for p, s in batch], return_exceptions=True)
+                # Yield to event loop between batches — keeps the server responsive
+                await asyncio.sleep(0.5)
+
+            logger.info(f"Rating generation complete: {_rating_gen_state['done']}/{len(eligible)} ({_rating_gen_state['failed']} failed)")
         except Exception as e:
             logger.error(f"Rating generation failed: {e}", exc_info=True)
         finally:
             _rating_gen_state["running"] = False
 
     asyncio.create_task(_bg())
-    return {"status": "started", "category": category, "limit": limit}
+    return {"status": "started", "category": category}
 
 
 @router.get("/rating-status", dependencies=[Depends(verify_admin)])

@@ -55,12 +55,20 @@ function RatingGenSection({ adminCat }) {
 
   const start = async () => {
     try {
-      await axios.post(`${API}/api/admin/generate-ratings`, { category: adminCat, limit: 100 }, { headers: getAdminHeaders() });
-      toast.success(`Rating generation started for ${adminCat || "all"}`);
+      await axios.post(`${API}/api/admin/generate-ratings`, { category: adminCat }, { headers: getAdminHeaders() });
+      toast.success(`Rating generation started for ${adminCat || "all categories"}`);
       setTimeout(poll, 2000);
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to start rating generation");
     }
+  };
+
+  const stop = async () => {
+    try {
+      await axios.post(`${API}/api/admin/stop-ratings`, {}, { headers: getAdminHeaders() });
+      toast.info("Stopping...");
+      setTimeout(poll, 2000);
+    } catch {}
   };
 
   const running = status?.running;
@@ -79,16 +87,18 @@ function RatingGenSection({ adminCat }) {
             Generate 1-10 ratings from existing Claude Thinking summaries
           </p>
         </div>
-        <Button
-          onClick={start}
-          disabled={running}
-          size="sm"
-          className="gap-1.5 text-xs h-8 bg-secondary text-foreground hover:bg-secondary/80"
-          data-testid="generate-ratings-btn"
-        >
-          <Sparkles className={`h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
-          {running ? `${status.done}/${status.total}` : "Generate Ratings (100 papers)"}
-        </Button>
+        <div className="flex gap-2">
+          {running ? (
+            <Button onClick={stop} size="sm" variant="destructive" className="gap-1.5 text-xs h-8" data-testid="stop-ratings-btn">
+              Stop ({status.done}/{status.total})
+            </Button>
+          ) : (
+            <Button onClick={start} size="sm" className="gap-1.5 text-xs h-8 bg-secondary text-foreground hover:bg-secondary/80" data-testid="generate-ratings-btn">
+              <Sparkles className="h-3.5 w-3.5" />
+              Generate Ratings
+            </Button>
+          )}
+        </div>
       </div>
       {/* Current task progress */}
       {running && (

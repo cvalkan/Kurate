@@ -183,6 +183,8 @@ export default function AdminPage() {
         updates.summary_source = editSettings.summary_source;
       }
       if (editSettings.paused !== settings.paused) updates.paused = editSettings.paused;
+      if (editSettings.show_rating_column !== settings.show_rating_column) updates.show_rating_column = editSettings.show_rating_column;
+      if (editSettings.show_gap_column !== settings.show_gap_column) updates.show_gap_column = editSettings.show_gap_column;
       if (editSettings.admin_password && editSettings.admin_password !== settings.admin_password) updates.admin_password = editSettings.admin_password;
       if (Object.keys(updates).length === 0) { toast.info("No changes to save"); return; }
       await axios.put(`${API}/api/admin/settings`, updates, { headers: getAdminHeaders() });
@@ -319,6 +321,16 @@ export default function AdminPage() {
               <Label className="text-xs">Paused</Label>
               <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
               <TooltipContent side="right"><p className="max-w-52 text-xs">Stop all automatic processing (comparisons and paper fetching).</p></TooltipContent></Tooltip>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch checked={editSettings.show_rating_column !== false} onCheckedChange={(v) => setEditSettings({ ...editSettings, show_rating_column: v })} />
+                <Label className="text-xs">Show Rating column</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={editSettings.show_gap_column !== false} onCheckedChange={(v) => setEditSettings({ ...editSettings, show_gap_column: v })} />
+                <Label className="text-xs">Show Gap column</Label>
+              </div>
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">

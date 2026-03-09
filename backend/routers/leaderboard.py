@@ -598,6 +598,9 @@ async def get_leaderboard(
     # Apply search filter
     data = _apply_search(data, search)
 
+    from core.auth import get_settings
+    settings = await get_settings()
+
     return {
         "leaderboard": data[offset:offset + limit],
         "total_papers": cat_data.get("_papers", 0),
@@ -610,6 +613,8 @@ async def get_leaderboard(
         "tag_mode": None,
         "warming_up": False,
         "community_correlation": cat_data.get("_community_correlation"),
+        "show_rating_column": settings.get("show_rating_column", True),
+        "show_gap_column": settings.get("show_gap_column", True),
     }
 
 

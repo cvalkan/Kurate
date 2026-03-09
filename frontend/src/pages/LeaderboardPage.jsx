@@ -26,6 +26,8 @@ export default function LeaderboardPage() {
   const [totalPapers, setTotalPapers] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
   const [isRanking, setIsRanking] = useState(false);
+  const [showRatingCol, setShowRatingCol] = useState(true);
+  const [showGapCol, setShowGapCol] = useState(true);
 
   const [allTags, setAllTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState(() => {
@@ -135,6 +137,8 @@ export default function LeaderboardPage() {
         setTotalPapers(res.data.total_papers || 0);
         setTotalMatches(res.data.total_matches || 0);
         setIsRanking(res.data.is_ranking || false);
+        if (res.data.show_rating_column !== undefined) setShowRatingCol(res.data.show_rating_column);
+        if (res.data.show_gap_column !== undefined) setShowGapCol(res.data.show_gap_column);
         setLoading(false);
       }
     } catch (err) {
@@ -228,6 +232,7 @@ export default function LeaderboardPage() {
         debouncedKeyword={debouncedKeyword} keyword={keyword}
         displayCount={displayCount} setDisplayCount={setDisplayCount}
         sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
+        showRatingCol={showRatingCol} showGapCol={showGapCol}
       />
 
       <div className="mt-6 text-center text-xs text-muted-foreground">
