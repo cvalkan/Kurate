@@ -25,6 +25,7 @@ import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
 import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import SingleItemScoringSection from "./SingleItemScoringSection";
+import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
 import { DatasetView } from "./ValidationPage";
 
@@ -174,6 +175,7 @@ export default function ValidationHubPage() {
     "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
     "exp-model-correlation": { title: "Model Correlation", desc: "How much do different judge models agree on the same pairs? Pairwise agreement by dataset and input format." },
     "exp-single-item": { title: "Single-Item Scoring", desc: "Can one LLM call per paper ('rate this 1-10') rank as well as a full pairwise tournament? Compares absolute scoring vs hundreds of pairwise comparisons." },
+    "report-summary": { title: "Validation Summary Report", desc: "Comprehensive analysis across all datasets: single-item vs pairwise, the GT generation hypothesis, the Surprisingly Popular signal, and practical recommendations." },
     "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
     "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
   };
@@ -206,6 +208,9 @@ export default function ValidationHubPage() {
 
       <div className="flex gap-5">
         <nav className="w-56 shrink-0 space-y-3 max-h-[calc(100vh-120px)] overflow-y-auto" data-testid="validation-sidebar">
+          {/* Summary Report */}
+          <NavItem item={{ id: "report-summary", label: "Summary Report", sub: "All findings" }} selected={selected} onSelect={setSelected} />
+
           {/* Pairwise — admin only */}
           {isAdmin && (
             <CollapsibleGroup label="Pairwise" icon={GitCompare} defaultOpen={selected?.startsWith("pw-")}>
@@ -315,6 +320,7 @@ export default function ValidationHubPage() {
             return ds ? <PairwiseAgreementSection key={ds.dataset_id} datasetId={ds.dataset_id} datasetName={ds.name} /> : null;
           })()}
           {selected === "si-scipost" && <SciPostPage embedded />}
+          {selected === "report-summary" && <ValidationReportPage />}
           {selected === "si-elife-cancer" && <SingleItemScoringSection datasetId="elife-cancer" />}
           {selected === "si-iclr-codegen" && <SingleItemScoringSection datasetId="iclr-codegen" />}
           {selected === "si-iclr-llm" && <SingleItemScoringSection datasetId="iclr-llm" />}
