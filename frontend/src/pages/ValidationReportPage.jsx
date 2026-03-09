@@ -99,37 +99,23 @@ export default function ValidationReportPage() {
         </p>
       </Section>
 
-      {/* 2. Extended Thinking */}
-      <Section num="2" title="Does Extended Thinking Help?">
-        <div className="space-y-0.5">
-          <Row label="Baseline (Opus 4.5 summaries)" value={`${thk.baseline_accuracy || "?"}% (${thk.baseline_gt_pairs || "?"} pairs)`} />
-          <Row label="Thinking (Opus 4.6 Thinking summaries)" value={`${thk.thinking_accuracy || "?"}% (${thk.thinking_matches || "?"} pairs)`} />
-          <Row label="Lift" value={`+${thk.lift || "?"}pp (McNemar p=${thk.mcnemar?.p_value || "?"})`} />
-        </div>
-        <p className="mt-2 border-t border-border/30 pt-2 text-amber-700">
-          <strong>Caution — misleading comparison:</strong> This experiment compares on <em>different</em> paper pairs ({thk.baseline_gt_pairs || "?"} vs {thk.thinking_matches || "?"}).
-          The controlled test (Finding 1) uses the <em>same</em> 1,521 pairs and shows a clear +6pp improvement for Thinking summaries.
-          Trust Finding 1 — the +0.3pp here reflects pair-set differences, not a real lack of improvement.
-        </p>
-      </Section>
-
-      {/* 3. Best Judge */}
-      <Section num="3" title="Which Judge Model is Best?">
+      {/* 2. Best Judge */}
+      <Section num="2" title="Which Judge Model is Best?">
         <p>Same content shown to different judges. Accuracy on {jc.judges?.[0]?.total_pairs || "?"} shared pairs:</p>
         <div className="space-y-0.5 mt-1">
           {(jc.judges || []).sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0)).map((j, i) => (
             <Row key={i} label={j.label || j.name || "?"} value={`${j.accuracy}% (rho=${j.avg_rho?.toFixed(3) || "?"})`} bold={i === 0} />
           ))}
-          {jc.round_robin && <Row label="Round-Robin (rotating)" value={`${jc.round_robin.accuracy}%`} />}
-          {jc.majority_vote && <Row label="Majority Vote (3 judges)" value={`${jc.majority_vote.accuracy}%`} />}
+          {jc.round_robin && <Row label="Round-Robin (rotating)" value={`${jc.round_robin.accuracy}% (rho=${jc.round_robin.avg_rho?.toFixed(3) || "?"})`} />}
+          {jc.majority_vote && <Row label="Majority Vote (3 judges)" value={`${jc.majority_vote.accuracy}% (rho=${jc.majority_vote.avg_rho?.toFixed(3) || "?"})`} />}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> All judge models perform within ~1.2pp of each other (74-75%). No clear winner. Majority vote and round-robin don't outperform the best single judge. The judge model matters far less than the summarizer model (+6pp between summarizers vs ~1pp between judges).
+          <strong>Verdict:</strong> All judge models perform within ~1.2pp of each other (72-75%). No clear winner. Majority vote and round-robin don't outperform the best single judge. The judge model matters far less than the summarizer model (+6pp between summarizers vs ~1pp between judges).
         </p>
       </Section>
 
-      {/* 4. Summarizer x Judge Matrix */}
-      <Section num="4" title="Summarizer x Judge: Best Combination?">
+      {/* 3. Summarizer x Judge Matrix */}
+      <Section num="3" title="Summarizer x Judge: Best Combination?">
         <p>Full interaction matrix (pooled). Excluding Opus 4.6 non-thinking as summarizer. Top combos:</p>
         <div className="space-y-0.5 mt-1">
           {Object.entries(ae)
@@ -146,7 +132,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 5. Input Format */}
-      <Section num="5" title="Which Input Format Works Best?">
+      <Section num="4" title="Which Input Format Works Best?">
         <p>Verdict stability by format (lower flip rate = more consistent):</p>
         <div className="space-y-0.5 mt-1">
           {[
@@ -165,7 +151,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 6. Multi-Aspect */}
-      <Section num="6" title="Does Multi-Aspect Judging Help?">
+      <Section num="5" title="Does Multi-Aspect Judging Help?">
         <p>5-dimension scoring (novelty, rigor, applications, clarity, significance) vs holistic verdict:</p>
         <div className="space-y-0.5 mt-1">
           <Row label="Holistic (standard)" value={`${ma.baseline?.rate || "?"}%`} bold />
@@ -178,7 +164,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 7. Consistency */}
-      <Section num="7" title="How Consistent Are the Judgments?">
+      <Section num="6" title="How Consistent Are the Judgments?">
         <p>Same pair shown under different conditions — how often does the verdict flip?</p>
         <div className="space-y-0.5 mt-1">
           <Row label="Cross-model flip rate (same format, different judge)" value="~14-16%" />
@@ -192,7 +178,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 8. Intransitive Cycles */}
-      <Section num="8" title="How Often Do Intransitive Cycles Occur?">
+      <Section num="7" title="How Often Do Intransitive Cycles Occur?">
         <p>A beats B, B beats C, C beats A — a violation of transitivity:</p>
         <div className="space-y-0.5 mt-1">
           <Row label="Overall cycle rate" value={`${cy.rate || "?"}% of triples`} />
@@ -207,7 +193,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 9. Model Agreement */}
-      <Section num="9" title="How Much Do Models Agree?">
+      <Section num="8" title="How Much Do Models Agree?">
         <p>Pairwise agreement rates on the same paper pairs:</p>
         <div className="space-y-0.5 mt-1">
           {(Array.isArray(mc) ? mc : []).slice(0, 6).map((p, i) => (
@@ -220,7 +206,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 10. Institution Bias */}
-      <Section num="10" title="Do LLMs Favor Prestigious Institutions?">
+      <Section num="9" title="Do LLMs Favor Prestigious Institutions?">
         <p>Does the AI judge favor papers from top institutions (MIT, Stanford, Google, etc.)?</p>
         <div className="space-y-0.5 mt-1">
           <Row label="Cross-institution accuracy" value={`${ib.cross_institution?.accuracy || "?"}%`} />
@@ -238,7 +224,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 11. Single-Item vs Pairwise */}
-      <Section num="11" title="Single-Item Scoring vs Pairwise Tournament">
+      <Section num="10" title="Single-Item Scoring vs Pairwise Tournament">
         <p>Can 1 LLM call per paper match hundreds of pairwise comparisons? Results across {ds.length} datasets:</p>
         <div className="overflow-x-auto mt-1">
           <table className="w-full text-[10px]">
@@ -248,9 +234,9 @@ export default function ValidationReportPage() {
                 <th className="text-center py-1 px-1">GT</th>
                 <th className="text-right py-1 px-1">SI Acc</th>
                 <th className="text-right py-1 px-1">PW Acc</th>
+                <th className="text-right py-1 px-1">SI rho</th>
+                <th className="text-right py-1 px-1">PW rho</th>
                 <th className="text-center py-1 px-1">Winner</th>
-                <th className="text-right py-1 px-1">SP rho</th>
-                <th className="text-center py-1 px-1">SP sig</th>
               </tr>
             </thead>
             <tbody>
@@ -261,7 +247,6 @@ export default function ValidationReportPage() {
               }).map(d => {
                 const pw = d.methods_comparison?.[0] || {};
                 const si = d.methods_comparison?.find(m => m.method === "Overall Score") || {};
-                const sp = d.sp_analysis || {};
                 const pwWins = (pw.accuracy || 0) > (si.accuracy || 0);
                 const gt = GT_TYPE[d.dataset_id] || "?";
                 return (
@@ -272,12 +257,10 @@ export default function ValidationReportPage() {
                     </td>
                     <td className={`text-right py-0.5 px-1 font-mono ${!pwWins ? "font-bold" : ""}`}>{si.accuracy}%</td>
                     <td className={`text-right py-0.5 px-1 font-mono ${pwWins ? "font-bold" : ""}`}>{pw.accuracy}%</td>
+                    <td className={`text-right py-0.5 px-1 font-mono ${(si.spearman_rho || 0) > (pw.spearman_rho || 0) ? "font-bold" : ""}`}>{si.spearman_rho?.toFixed(3) || "—"}</td>
+                    <td className={`text-right py-0.5 px-1 font-mono ${(pw.spearman_rho || 0) > (si.spearman_rho || 0) ? "font-bold" : ""}`}>{pw.spearman_rho?.toFixed(3) || "—"}</td>
                     <td className="text-center py-0.5 px-1">
                       <span className={`text-[9px] font-semibold ${pwWins ? "text-violet-700" : "text-emerald-700"}`}>{pwWins ? "PW" : "SI"}</span>
-                    </td>
-                    <td className="text-right py-0.5 px-1 font-mono">{sp.sp_rho != null ? (sp.sp_rho > 0 ? "+" : "") + sp.sp_rho.toFixed(2) : "—"}</td>
-                    <td className="text-center py-0.5 px-1">
-                      {sp.significant ? <CheckCircle className="h-2.5 w-2.5 text-emerald-600 inline" /> : <XCircle className="h-2.5 w-2.5 text-muted-foreground/40 inline" />}
                     </td>
                   </tr>
                 );
@@ -291,12 +274,17 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 12. SP Signal */}
-      <Section num="12" title="The 'Surprisingly Popular' Signal">
+      <Section num="11" title="The 'Surprisingly Popular' Signal">
         <p>The gap between pairwise rank and standalone rank (BT - SI) independently predicts quality:</p>
         <div className="space-y-0.5 mt-1">
-          {ds.filter(d => d.sp_analysis?.significant).sort((a, b) => (b.sp_analysis?.sp_rho || 0) - (a.sp_analysis?.sp_rho || 0)).map(d => (
-            <Row key={d.dataset_id} label={d.name} value={`rho=${d.sp_analysis.sp_rho?.toFixed(3)}, BT right ${d.sp_analysis.bt_right_pct}% when disagree`} />
-          ))}
+          {ds.filter(d => d.sp_analysis).sort((a, b) => (b.sp_analysis?.sp_rho || 0) - (a.sp_analysis?.sp_rho || 0)).map(d => {
+            const sp = d.sp_analysis;
+            return (
+              <Row key={d.dataset_id} label={d.name}
+                value={`rho=${sp.sp_rho != null ? (sp.sp_rho > 0 ? "+" : "") + sp.sp_rho.toFixed(3) : "?"} ${sp.significant ? `BT right ${sp.bt_right_pct}%` : `SI right ${sp.si_right_pct}%`} ${sp.significant ? "***" : "(ns)"}`}
+                bold={sp.significant} />
+            );
+          })}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
           <strong>What high-SP papers share:</strong> 6/7 top "surprisingly competitive" papers across ICLR are practical systems/frameworks — L2MAC, fairret, BioBridge, etc. Single-item scoring systematically undervalues engineering contributions whose strengths only emerge in comparison. The SP signal detects "hidden practical value."
@@ -307,7 +295,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 13. Practical Recommendations */}
-      <Section num="13" title="Practical Recommendations">
+      <Section num="12" title="Practical Recommendations">
         <div className="space-y-2">
           <div className="border border-border/50 rounded p-2">
             <div className="font-semibold text-foreground text-[11px]">Screening (cost-efficient)</div>
