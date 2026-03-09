@@ -2303,59 +2303,56 @@ async def generate_ratings(request: Request):
             _rating_gen_state["total"] = len(eligible)
             logger.info(f"Rating generation: {len(eligible)} papers in {category or 'all'}")
 
-            # Process in batches of 3 to stay non-blocking
-            BATCH = 3
-            for batch_start in range(0, len(eligible), BATCH):
+            # Process ONE at a time with generous yields to keep the server responsive
+            for i, (paper, summary) in enumerate(eligible):
                 if not _rating_gen_state["running"]:
                     break
-                batch = eligible[batch_start:batch_start + BATCH]
 
-                async def rate_one(paper, summary):
-                    if not _rating_gen_state["running"]:
-                        return
-                    prompt = RATING_EXTRACTION_PROMPT["user_prompt"].format(
-                        title=paper.get("title", ""),
-                        abstract=(paper.get("abstract", "") or "")[:2000],
-                        summary=summary[:4000],
+                prompt = RATING_EXTRACTION_PROMPT["user_prompt"].format(
+                    title=paper.get("title", ""),
+                    abstract=(paper.get("abstract", "") or "")[:2000],
+                    summary=summary[:4000],
+                )
+                try:
+                    chat = LlmChat(
+                        api_key=EMERGENT_LLM_KEY,
+                        session_id=f"rate-{paper['id'][:8]}",
+                        system_message=RATING_EXTRACTION_PROMPT["system_prompt"],
+                    ).with_model("anthropic", "claude-opus-4-6").with_params(
+                        extra_body={"thinking": {"type": "enabled", "budget_tokens": 4000}}
                     )
-                    try:
-                        chat = LlmChat(
-                            api_key=EMERGENT_LLM_KEY,
-                            session_id=f"rate-{paper['id'][:8]}",
-                            system_message=RATING_EXTRACTION_PROMPT["system_prompt"],
-                        ).with_model("anthropic", "claude-opus-4-6").with_params(
-                            extra_body={"thinking": {"type": "enabled", "budget_tokens": 4000}}
-                        )
-                        response = await chat.send_message(UserMessage(text=prompt))
-                        text = str(response).strip()
-                        start = text.find("{")
-                        end = text.rfind("}") + 1
-                        if start >= 0 and end > start:
-                            data = _json.loads(text[start:end])
-                            score = float(data.get("score", 0))
-                            if 1.0 <= score <= 10.0:
-                                rating = {
-                                    "score": round(score, 1),
-                                    "significance": round(float(data.get("significance", 0)), 1),
-                                    "rigor": round(float(data.get("rigor", 0)), 1),
-                                    "novelty": round(float(data.get("novelty", 0)), 1),
-                                    "clarity": round(float(data.get("clarity", 0)), 1),
-                                }
-                                await db.papers.update_one(
-                                    {"id": paper["id"]},
-                                    {"$set": {"ai_rating": rating}}
-                                )
-                                _rating_gen_state["done"] += 1
-                                return
+                    response = await chat.send_message(UserMessage(text=prompt))
+                    text = str(response).strip()
+                    start = text.find("{")
+                    end = text.rfind("}") + 1
+                    if start >= 0 and end > start:
+                        data = _json.loads(text[start:end])
+                        score = float(data.get("score", 0))
+                        if 1.0 <= score <= 10.0:
+                            rating = {
+                                "score": round(score, 1),
+                                "significance": round(float(data.get("significance", 0)), 1),
+                                "rigor": round(float(data.get("rigor", 0)), 1),
+                                "novelty": round(float(data.get("novelty", 0)), 1),
+                                "clarity": round(float(data.get("clarity", 0)), 1),
+                            }
+                            await db.papers.update_one(
+                                {"id": paper["id"]},
+                                {"$set": {"ai_rating": rating}}
+                            )
+                            _rating_gen_state["done"] += 1
+                        else:
+                            _rating_gen_state["failed"] += 1
+                            logger.warning(f"Rating: bad score {score} for {paper['id'][:8]}")
+                    else:
                         _rating_gen_state["failed"] += 1
-                        logger.warning(f"Rating: bad response for {paper['id'][:8]}: {text[:100]}")
-                    except Exception as e:
-                        _rating_gen_state["failed"] += 1
-                        logger.warning(f"Rating failed for {paper.get('title', '')[:30]}: {e}")
+                        logger.warning(f"Rating: no JSON for {paper['id'][:8]}: {text[:100]}")
+                except Exception as e:
+                    _rating_gen_state["failed"] += 1
+                    logger.warning(f"Rating failed for {paper.get('title', '')[:30]}: {e}")
 
-                await asyncio.gather(*[rate_one(p, s) for p, s in batch], return_exceptions=True)
-                # Yield to event loop between batches — keeps the server responsive
-                await asyncio.sleep(0.5)
+                # Yield to event loop after each paper — keeps the server fully responsive
+                await asyncio.sleep(1)
 
             logger.info(f"Rating generation complete: {_rating_gen_state['done']}/{len(eligible)} ({_rating_gen_state['failed']} failed)")
         except Exception as e:
