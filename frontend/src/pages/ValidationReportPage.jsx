@@ -115,43 +115,27 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 3. Summarizer x Judge Matrix */}
-      <Section num="3" title="Summarizer x Judge: Best Combination?">
-        <p>Full interaction matrix (pooled). Excluding Opus 4.6 non-thinking as summarizer. Top combos:</p>
-        <div className="space-y-0.5 mt-1">
-          {Object.entries(ae)
-            .filter(([key]) => !key.startsWith("Opus 4.6|") || key.startsWith("Opus 4.6 Thinking"))
-            .sort((a, b) => (b[1].accuracy || 0) - (a[1].accuracy || 0))
-            .slice(0, 7)
-            .map(([key, val]) => (
-              <Row key={key} label={key} value={`${val.accuracy}% (${val.total} pairs)`} bold={key.includes("Thinking") && key.includes("GPT")} />
-          ))}
-        </div>
-        <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Opus 4.6 Thinking + GPT-5.2 judge = 85% — the best combo. Cross-model diversity (Claude summarizer + GPT judge) outperforms same-model (Claude + Claude). Opus 4.5 summaries are ~5-7pp behind regardless of judge.
-        </p>
-      </Section>
-
-      {/* 5. Input Format */}
-      <Section num="4" title="Which Input Format Works Best?">
-        <p>Verdict stability by format (lower flip rate = more consistent):</p>
+      {/* 3. Input Format */}
+      <Section num="3" title="Which Input Format Works Best?">
+        <p>How often does the same pair get a different verdict when the input format changes? (Flip rate = % of pairs where the winner flips when the same judge sees a different representation of the same two papers.)</p>
         <div className="space-y-0.5 mt-1">
           {[
             { fmt: "AI Summary only", flip: "10.1%" },
             { fmt: "Abstract + Summary (Opus 4.6)", flip: "12.8%" },
-            { fmt: "Deep Dive (2-pass)", flip: "14.4%" },
             { fmt: "Abstract + Summary (Opus 4.5)", flip: "14.3%" },
+            { fmt: "Deep Dive (2-pass)", flip: "14.4%" },
             { fmt: "Full PDF", flip: "16.8%" },
             { fmt: "Extract (scraped text)", flip: "18.2%" },
             { fmt: "Abstract only", flip: "18.6%" },
-          ].map(r => <Row key={r.fmt} label={r.fmt} value={`flip rate ${r.flip}`} bold={r.fmt.includes("AI Summary")} />)}
+          ].map(r => <Row key={r.fmt} label={r.fmt} value={r.flip} bold={r.fmt.includes("AI Summary")} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
           <strong>Verdict:</strong> "Abstract + AI Summary" is the sweet spot — higher accuracy than abstract-only, more consistent than full PDF. Full PDF adds noise (irrelevant sections confuse the judge). AI summary condenses the paper into a judgment-friendly format.
         </p>
       </Section>
 
-      {/* 6. Multi-Aspect */}
-      <Section num="5" title="Does Multi-Aspect Judging Help?">
+      {/* 4. Multi-Aspect */}
+      <Section num="4" title="Does Multi-Aspect Judging Help?">
         <p>5-dimension scoring (novelty, rigor, applications, clarity, significance) vs holistic verdict:</p>
         <div className="space-y-0.5 mt-1">
           <Row label="Holistic (standard)" value={`${ma.baseline?.rate || "?"}%`} bold />
@@ -163,37 +147,46 @@ export default function ValidationReportPage() {
         </p>
       </Section>
 
-      {/* 7. Consistency */}
-      <Section num="6" title="How Consistent Are the Judgments?">
-        <p>Same pair shown under different conditions — how often does the verdict flip?</p>
+      {/* 5. Consistency */}
+      <Section num="5" title="How Consistent Are the Judgments?">
+        <p>Same pair shown under different input formats — how often does the verdict flip? (Cross-format flip rate per judge model.)</p>
         <div className="space-y-0.5 mt-1">
-          <Row label="Cross-model flip rate (same format, different judge)" value="~14-16%" />
-          <Row label="Cross-format flip rate (same judge, different input)" value="~13-18%" />
-          <Row label="Most stable judge" value="Opus 4.6 (8.2% cross-format flips)" bold />
-          <Row label="Least stable" value="GPT-5.2 (15.7% cross-format flips)" />
+          {[
+            { name: "Opus 4.6", rate: "8.2%" },
+            { name: "Opus 4.5", rate: "13.4%" },
+            { name: "Gemini 3 Pro", rate: "15.0%" },
+            { name: "GPT-5.2", rate: "15.7%" },
+          ].map((j, i) => <Row key={j.name} label={j.name} value={j.rate} bold={i === 0} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> ~15% of verdicts flip when conditions change. Opus 4.6 is the most consistent judge. Format changes cause as many flips as model changes — reinforcing that input quality is the primary variable.
+          <strong>Verdict:</strong> Opus 4.6 is nearly 2x more stable than GPT-5.2 across format changes. ~15% flip rate means roughly 1 in 7 verdicts changes when the input representation changes — reinforcing that input quality is a primary variable.
         </p>
       </Section>
 
-      {/* 8. Intransitive Cycles */}
-      <Section num="7" title="How Often Do Intransitive Cycles Occur?">
-        <p>A beats B, B beats C, C beats A — a violation of transitivity:</p>
+      {/* 6. Intransitive Cycles */}
+      <Section num="6" title="How Often Do Intransitive Cycles Occur?">
+        <p>A beats B, B beats C, C beats A — a violation of transitivity. Cycle rate per judge:</p>
         <div className="space-y-0.5 mt-1">
-          <Row label="Overall cycle rate" value={`${cy.rate || "?"}% of triples`} />
+          {[
+            { name: "Opus 4.6", rate: "0.95%" },
+            { name: "Opus 4.5", rate: "2.22%" },
+            { name: "Gemini 3 Pro", rate: "3.10%" },
+            { name: "GPT-5.2", rate: "3.57%" },
+          ].map((j, i) => <Row key={j.name} label={j.name} value={j.rate} bold={i === 0} />)}
+        </div>
+        <p className="text-[10px] mt-1">By paper quality gap:</p>
+        <div className="space-y-0.5">
           <Row label="Close-rated papers" value={`${cy.by_gap?.close?.rate || "?"}%`} />
+          <Row label="Mid-gap papers" value={`${cy.by_gap?.mid?.rate || "?"}%`} />
           <Row label="Far-rated papers" value={`${cy.by_gap?.far?.rate || "?"}%`} />
-          <Row label="Most transitive judge" value="Opus 4.6 (0.88%)" bold />
-          <Row label="Least transitive" value="GPT-5.2 (4.22%)" />
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> 3.4% cycle rate overall — low but nonzero. Cycles are 2x more common for closely-rated papers (expected — harder to distinguish). Opus 4.6 is 5x more transitive than GPT-5.2.
+          <strong>Verdict:</strong> Opus 4.6 produces 4x fewer cycles than GPT-5.2. Cycles are ~2x more common for closely-rated papers (expected — harder to distinguish). Overall 3.4% cycle rate is low but nonzero.
         </p>
       </Section>
 
       {/* 9. Model Agreement */}
-      <Section num="8" title="How Much Do Models Agree?">
+      <Section num="7" title="How Much Do Models Agree?">
         <p>Pairwise agreement rates on the same paper pairs:</p>
         <div className="space-y-0.5 mt-1">
           {(Array.isArray(mc) ? mc : []).slice(0, 6).map((p, i) => (
@@ -206,7 +199,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 10. Institution Bias */}
-      <Section num="9" title="Do LLMs Favor Prestigious Institutions?">
+      <Section num="8" title="Do LLMs Favor Prestigious Institutions?">
         <p>Does the AI judge favor papers from top institutions (MIT, Stanford, Google, etc.)?</p>
         <div className="space-y-0.5 mt-1">
           <Row label="Cross-institution accuracy" value={`${ib.cross_institution?.accuracy || "?"}%`} />
@@ -224,7 +217,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 11. Single-Item vs Pairwise */}
-      <Section num="10" title="Single-Item Scoring vs Pairwise Tournament">
+      <Section num="9" title="Single-Item Scoring vs Pairwise Tournament">
         <p>Can 1 LLM call per paper match hundreds of pairwise comparisons? Results across {ds.length} datasets:</p>
         <div className="overflow-x-auto mt-1">
           <table className="w-full text-[10px]">
@@ -274,7 +267,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 12. SP Signal */}
-      <Section num="11" title="The 'Surprisingly Popular' Signal">
+      <Section num="10" title="The 'Surprisingly Popular' Signal">
         <p>The gap between pairwise rank and standalone rank (BT - SI) independently predicts quality:</p>
         <div className="space-y-0.5 mt-1">
           {ds.filter(d => d.sp_analysis).sort((a, b) => (b.sp_analysis?.sp_rho || 0) - (a.sp_analysis?.sp_rho || 0)).map(d => {
@@ -295,7 +288,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 13. Practical Recommendations */}
-      <Section num="12" title="Practical Recommendations">
+      <Section num="11" title="Practical Recommendations">
         <div className="space-y-2">
           <div className="border border-border/50 rounded p-2">
             <div className="font-semibold text-foreground text-[11px]">Screening (cost-efficient)</div>
