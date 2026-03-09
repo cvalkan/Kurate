@@ -60,6 +60,8 @@ class SettingsUpdate(BaseModel):
     summary_source: Optional[str] = None
     paused: Optional[bool] = None
     admin_password: Optional[str] = None
+    show_rating_column: Optional[bool] = None
+    show_gap_column: Optional[bool] = None
 
 
 class PromptUpdate(BaseModel):
