@@ -117,20 +117,19 @@ export default function ValidationReportPage() {
       {/* 3. Summarizer x Judge Matrix */}
       {/* 3. Input Format */}
       <Section num="3" title="Which Input Format Works Best?">
-        <p>How often does the same pair get a different verdict when the input format changes? (Flip rate = % of pairs where the winner flips when the same judge sees a different representation of the same two papers.)</p>
+        <p>Pairwise accuracy against human GT, by input format (judge-averaged to control for judge quality differences):</p>
         <div className="space-y-0.5 mt-1">
           {[
-            { fmt: "AI Summary only", flip: "10.1%" },
-            { fmt: "Abstract + Summary (Opus 4.6)", flip: "12.8%" },
-            { fmt: "Abstract + Summary (Opus 4.5)", flip: "14.3%" },
-            { fmt: "Deep Dive (2-pass)", flip: "14.4%" },
-            { fmt: "Full PDF", flip: "16.8%" },
-            { fmt: "Extract (scraped text)", flip: "18.2%" },
-            { fmt: "Abstract only", flip: "18.6%" },
-          ].map(r => <Row key={r.fmt} label={r.fmt} value={r.flip} bold={r.fmt.includes("AI Summary")} />)}
+            { fmt: "Abs + Summary (Thinking)", acc: "74.1%", pairs: "8,279" },
+            { fmt: "Deep Dive (2-pass)", acc: "73.1%", pairs: "5,177" },
+            { fmt: "Abs + Summary (Opus 4.6)", acc: "72.8%", pairs: "14,766" },
+            { fmt: "Full PDF", acc: "72.0%", pairs: "11,595" },
+            { fmt: "Abs + Summary (Opus 4.5)", acc: "71.9%", pairs: "40,883" },
+            { fmt: "Abstract only", acc: "67.8%", pairs: "9,690" },
+          ].map(r => <Row key={r.fmt} label={`${r.fmt} (${r.pairs} pairs)`} value={r.acc} bold={r.fmt.includes("Thinking")} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> "Abstract + AI Summary" is the sweet spot — higher accuracy than abstract-only, more consistent than full PDF. Full PDF adds noise (irrelevant sections confuse the judge). AI summary condenses the paper into a judgment-friendly format.
+          <strong>Verdict:</strong> Abstract + AI Summary (Thinking) achieves the highest accuracy (74.1%), +6pp over abstract-only (67.8%). Upgrading the summary from Opus 4.5 to Thinking gives +2pp. Full PDF is surprisingly mediocre (72%) — irrelevant sections add noise. Abstract alone is the worst: the AI needs more context than just the abstract to judge well.
         </p>
       </Section>
 
