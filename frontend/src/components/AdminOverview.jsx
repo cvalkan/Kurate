@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   RefreshCw, Swords, FileText, CheckCircle2, XCircle, Search,
-  Clock, Download, Activity,
+  Clock, Download, Activity, Sparkles,
 } from "lucide-react";
 import { ModelBadge } from "@/components/ModelBadge";
 import { toast } from "sonner";
@@ -260,6 +260,32 @@ export function AdminOverview({
               {backfilling ? "Starting..." : `Generate ${papersWithPdf - summariesCount} missing summaries`}
             </Button>
           )}
+        </div>
+      </div>
+
+      {/* Section: Generate AI Ratings */}
+      <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="rating-gen-section">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-medium flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              AI Ratings (Single-Item)
+            </h3>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Generate 1-10 ratings from existing Claude Thinking summaries</p>
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await axios.post(`${API}/api/admin/generate-ratings`, { category: adminCat, limit: 100 }, { headers: getAdminHeaders() });
+              } catch {}
+            }}
+            size="sm"
+            className="gap-1.5 text-xs h-8 bg-secondary text-foreground hover:bg-secondary/80"
+            data-testid="generate-ratings-btn"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Generate Ratings (100 papers)
+          </Button>
         </div>
       </div>
 

@@ -77,6 +77,22 @@ export default function PromptsPage() {
               userPrompt={prompts.summary?.user_prompt}
             />
           )}
+          {prompts.rating_extraction && (
+            <PromptBlock
+              label="Rating Extraction Prompt"
+              icon={Bot}
+              systemPrompt={prompts.rating_extraction?.system_prompt}
+              userPrompt={prompts.rating_extraction?.user_prompt}
+            />
+          )}
+          {prompts.single_item && (
+            <PromptBlock
+              label="Single-Item Scoring Prompt (Validation)"
+              icon={Sparkles}
+              systemPrompt={prompts.single_item?.system_prompt}
+              userPrompt={prompts.single_item?.user_prompt}
+            />
+          )}
         </div>
       )}
 

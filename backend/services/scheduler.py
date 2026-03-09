@@ -783,12 +783,19 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                 if not isinstance(summary_val, str):
                     summary_val = str(summary_val)
                 if len(summary_val) > 50:
+                    update_fields = {
+                        f"summaries.{mk}": summary_val,
+                        f"summary_dates.{mk}": datetime.now(timezone.utc).isoformat(),
+                    }
+                    # Parse ratings from Claude Thinking summaries
+                    if "thinking" in mk:
+                        from services.llm import parse_ratings_from_summary
+                        ratings = parse_ratings_from_summary(summary_val)
+                        if ratings:
+                            update_fields["ai_rating"] = ratings
                     await db.papers.update_one(
                         {"id": paper["id"]},
-                        {"$set": {
-                            f"summaries.{mk}": summary_val,
-                            f"summary_dates.{mk}": datetime.now(timezone.utc).isoformat(),
-                        }},
+                        {"$set": update_fields},
                     )
                     generated += 1
                     _sync_progress()

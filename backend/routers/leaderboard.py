@@ -96,6 +96,13 @@ async def _refresh_cache():
         if doc.get("likes") is not None:
             alphaxiv_likes[doc["id"]] = doc["likes"]
 
+    # --- Load AI ratings (single-item scores from summary generation) ---
+    ai_ratings = {}
+    for p in all_papers:
+        rating = p.get("ai_rating")
+        if rating and isinstance(rating, dict) and rating.get("score"):
+            ai_ratings[p["id"]] = round(rating["score"], 1)
+
     for cat_id in active_cats:
         cat_papers = papers_by_cat.get(cat_id, [])
         if not cat_papers:
@@ -118,11 +125,14 @@ async def _refresh_cache():
 
         full = await compute_leaderboard_async(cat_papers, cat_matches)
 
-        # Inject AlphaXiv community likes into leaderboard entries
+        # Inject AlphaXiv community likes and AI ratings into leaderboard entries
         for entry in full:
             likes = alphaxiv_likes.get(entry["id"])
             if likes is not None:
                 entry["community_likes"] = likes
+            ai_r = ai_ratings.get(entry["id"])
+            if ai_r is not None:
+                entry["ai_rating"] = ai_r
         # Yield to event loop after CPU-bound leaderboard computation
         await asyncio.sleep(0)
 
@@ -878,9 +888,25 @@ async def get_public_prompts():
             "user_prompt": IMPACT_ASSESSMENT_PROMPT["user_prompt"],
         }
 
+    # Rating extraction prompt
+    from services.llm import RATING_EXTRACTION_PROMPT
+    rating_prompt = {
+        "system_prompt": RATING_EXTRACTION_PROMPT["system_prompt"],
+        "user_prompt": RATING_EXTRACTION_PROMPT["user_prompt"],
+    }
+
+    # Single-item scoring prompt (from validation experiments)
+    from routers.validation_experiments import SINGLE_ITEM_PROMPT
+    single_item_prompt = {
+        "system_prompt": SINGLE_ITEM_PROMPT["system_prompt"],
+        "user_prompt": SINGLE_ITEM_PROMPT["user_prompt"],
+    }
+
     return {
         "evaluation": eval_prompt,
         "summary": summary_prompt,
+        "rating_extraction": rating_prompt,
+        "single_item": single_item_prompt,
     }
 
 

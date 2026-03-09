@@ -2252,3 +2252,114 @@ async def precompute_experiments():
     from services.precompute import compute_and_export_all
     result = await compute_and_export_all()
     return {"status": "ok", **result}
+
+
+# --- Generate AI Ratings from existing summaries ---
+_rating_gen_state = {"running": False, "done": 0, "total": 0, "category": ""}
+
+
+@router.post("/generate-ratings", dependencies=[Depends(verify_admin)])
+async def generate_ratings(request: Request):
+    """Generate single-item AI ratings for papers using existing Claude Thinking summaries.
+    
+    Uses a lightweight prompt that reads the existing summary and outputs 1-10 ratings.
+    Runs on the most recent papers first.
+    """
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    category = body.get("category")
+    limit = body.get("limit", 50)
+
+    if _rating_gen_state["running"]:
+        raise HTTPException(409, "Rating generation already running")
+
+    _rating_gen_state.update({"running": True, "done": 0, "total": 0, "category": category or "all"})
+
+    async def _bg():
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            from core.config import EMERGENT_LLM_KEY
+            from services.llm import RATING_EXTRACTION_PROMPT
+            from services.scheduler import _get_paper_summary
+            import json as _json
+
+            query = {"ai_rating": {"$exists": False}, "summaries": {"$exists": True, "$ne": {}}}
+            if category:
+                query["categories.0"] = category
+            
+            papers = await db.papers.find(
+                query,
+                {"_id": 0, "id": 1, "title": 1, "summaries": 1, "added_at": 1}
+            ).sort("added_at", -1).limit(limit).to_list(limit)
+
+            # Filter to papers that have a Claude Thinking summary
+            eligible = []
+            for p in papers:
+                summary = _get_paper_summary(p, "anthropic:claude-opus-4-6:thinking")
+                if summary:
+                    eligible.append((p, summary))
+
+            _rating_gen_state["total"] = len(eligible)
+            logger.info(f"Rating generation: {len(eligible)} papers in {category or 'all'}")
+
+            sem = asyncio.Semaphore(5)
+
+            async def rate_one(paper, summary):
+                if not _rating_gen_state["running"]:
+                    return
+                async with sem:
+                    if not _rating_gen_state["running"]:
+                        return
+                    prompt = RATING_EXTRACTION_PROMPT["user_prompt"].format(summary=summary[:6000])
+                    try:
+                        chat = LlmChat(
+                            api_key=EMERGENT_LLM_KEY,
+                            session_id=f"rate-{paper['id'][:8]}",
+                            system_message=RATING_EXTRACTION_PROMPT["system_prompt"],
+                        ).with_model("anthropic", "claude-opus-4-6").with_params(
+                            extra_body={"thinking": {"type": "enabled", "budget_tokens": 4000}}
+                        )
+                        response = await chat.send_message(UserMessage(text=prompt))
+                        text = str(response).strip()
+                        start = text.find("{")
+                        end = text.rfind("}") + 1
+                        if start >= 0 and end > start:
+                            data = _json.loads(text[start:end])
+                            score = float(data.get("score", 0))
+                            if 1.0 <= score <= 10.0:
+                                rating = {
+                                    "score": round(score, 1),
+                                    "significance": round(float(data.get("significance", 0)), 1),
+                                    "rigor": round(float(data.get("rigor", 0)), 1),
+                                    "novelty": round(float(data.get("novelty", 0)), 1),
+                                    "clarity": round(float(data.get("clarity", 0)), 1),
+                                }
+                                await db.papers.update_one(
+                                    {"id": paper["id"]},
+                                    {"$set": {"ai_rating": rating}}
+                                )
+                                _rating_gen_state["done"] += 1
+                                return
+                        logger.warning(f"Rating: bad response for {paper['id'][:8]}: {text[:100]}")
+                    except Exception as e:
+                        logger.warning(f"Rating failed for {paper.get('title', '')[:30]}: {e}")
+
+            await asyncio.gather(*[rate_one(p, s) for p, s in eligible], return_exceptions=True)
+            logger.info(f"Rating generation complete: {_rating_gen_state['done']}/{len(eligible)}")
+        except Exception as e:
+            logger.error(f"Rating generation failed: {e}", exc_info=True)
+        finally:
+            _rating_gen_state["running"] = False
+
+    asyncio.create_task(_bg())
+    return {"status": "started", "category": category, "limit": limit}
+
+
+@router.get("/rating-status", dependencies=[Depends(verify_admin)])
+async def rating_status():
+    return _rating_gen_state
+
+
+@router.post("/stop-ratings", dependencies=[Depends(verify_admin)])
+async def stop_ratings():
+    _rating_gen_state["running"] = False
+    return {"status": "stopping"}

@@ -772,7 +772,13 @@ Write up to 1000 words (can be shorter if the paper warrants it). Structure your
 
 Feel free to add any other observations you deem important for judging scientific impact (e.g., scalability, reproducibility, dataset contributions, theoretical insights, comparison to prior art).
 
-Be specific and analytical — avoid generic praise. Your assessment should give enough detail for another evaluator to judge this paper's impact without reading the full text.""",
+Be specific and analytical — avoid generic praise. Your assessment should give enough detail for another evaluator to judge this paper's impact without reading the full text.
+
+After your assessment, provide numerical ratings on a JSON line. Rate each dimension from 1.0 to 10.0 (one decimal place):
+
+```json
+{"score": 7.5, "significance": 8.0, "rigor": 7.0, "novelty": 7.5, "clarity": 8.0}
+```""",
 
     "user_prompt": """Write a scientific impact assessment for the following paper:
 
@@ -781,7 +787,7 @@ Be specific and analytical — avoid generic praise. Your assessment should give
 **Content:**
 {content}
 
-Write your impact assessment (up to 1000 words):""",
+Write your impact assessment (up to 1000 words), then provide your numerical ratings as a JSON line at the end:""",
 }
 
 
@@ -860,6 +866,52 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
 
     logger.error(f"Impact assessment failed for {paper.get('title', '')[:50]}")
     return None
+
+
+
+def parse_ratings_from_summary(summary_text: str) -> Optional[dict]:
+    """Extract JSON ratings block from the end of a summary text.
+    Returns dict with score/significance/rigor/novelty/clarity, or None."""
+    if not summary_text:
+        return None
+    import re as _re
+    # Look for JSON block near the end of the text
+    matches = list(_re.finditer(r'\{[^{}]*"score"[^{}]*\}', summary_text))
+    if not matches:
+        return None
+    try:
+        data = json.loads(matches[-1].group())
+        score = float(data.get("score", 0))
+        if 1.0 <= score <= 10.0:
+            return {
+                "score": round(score, 1),
+                "significance": round(float(data.get("significance", 0)), 1),
+                "rigor": round(float(data.get("rigor", 0)), 1),
+                "novelty": round(float(data.get("novelty", 0)), 1),
+                "clarity": round(float(data.get("clarity", 0)), 1),
+            }
+    except (json.JSONDecodeError, ValueError, TypeError):
+        pass
+    return None
+
+
+RATING_EXTRACTION_PROMPT = {
+    "system_prompt": """You are a scientific reviewer. You will be given an AI-generated impact assessment of a research paper. Based on this assessment, provide numerical ratings.
+
+Rate each dimension from 1.0 to 10.0 (one decimal place):
+- **score**: Overall quality and impact
+- **significance**: How important is the problem and findings?
+- **rigor**: How strong is the methodology?
+- **novelty**: How original is the contribution?
+- **clarity**: How well is the work presented?
+
+Respond with ONLY a JSON object:
+{"score": 7.5, "significance": 8.0, "rigor": 7.0, "novelty": 7.5, "clarity": 8.0}""",
+
+    "user_prompt": """Rate this paper based on the following impact assessment:
+
+{summary}""",
+}
 
 
 async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None, char_limit: int = None) -> Optional[Dict]:
