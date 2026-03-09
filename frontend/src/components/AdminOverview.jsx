@@ -42,10 +42,11 @@ function RatingGenSection({ adminCat }) {
   const [status, setStatus] = useState(null);
 
   const poll = useCallback(() => {
-    axios.get(`${API}/api/admin/rating-status`, { headers: getAdminHeaders() })
+    const params = adminCat ? `?category=${encodeURIComponent(adminCat)}` : "";
+    axios.get(`${API}/api/admin/rating-status${params}`, { headers: getAdminHeaders() })
       .then(r => setStatus(r.data))
       .catch(() => {});
-  }, []);
+  }, [adminCat]);
 
   useEffect(() => {
     poll();

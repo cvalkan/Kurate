@@ -2368,19 +2368,22 @@ async def generate_ratings(request: Request):
 
 
 @router.get("/rating-status", dependencies=[Depends(verify_admin)])
-async def rating_status():
-    # Include overall + per-category stats
-    total_with_summaries = await db.papers.count_documents({"summaries": {"$exists": True, "$ne": {}}})
-    total_rated = await db.papers.count_documents({"ai_rating": {"$exists": True}})
-    
-    # Per-category for the currently running category
+async def rating_status(category: str = None):
+    # Use pre-computed stats from leaderboard background cache (instant, no DB queries)
+    from routers.leaderboard import _cache as lb_cache
+    cached_stats = lb_cache.get("_rating_stats", {})
+
+    overall = cached_stats.get("__all__", {})
+    total_rated = overall.get("rated", 0)
+    total_with_summaries = overall.get("with_summaries", 0)
+
+    # Per-category stats for the requested category (admin's selected tab)
     cat_stats = None
-    cat = _rating_gen_state.get("category")
+    cat = category or _rating_gen_state.get("category")
     if cat and cat != "all":
-        cat_total = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
-        cat_rated = await db.papers.count_documents({"categories.0": cat, "ai_rating": {"$exists": True}})
-        cat_stats = {"category": cat, "rated": cat_rated, "total": cat_total}
-    
+        cs = cached_stats.get(cat, {})
+        cat_stats = {"category": cat, "rated": cs.get("rated", 0), "total": cs.get("with_summaries", 0)}
+
     return {**_rating_gen_state, "stats": {"rated": total_rated, "total": total_with_summaries}, "cat_stats": cat_stats}
 
 

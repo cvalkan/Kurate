@@ -405,6 +405,22 @@ async def _refresh_cache():
 
     _cache["_summary_stats"] = summary_stats_by_cat
 
+    # --- Pre-compute per-category rating stats (for instant admin panel display) ---
+    rating_stats = {"__all__": {"rated": 0, "with_summaries": 0}}
+    for p in all_papers:
+        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
+        if cat not in rating_stats:
+            rating_stats[cat] = {"rated": 0, "with_summaries": 0}
+        has_summary = bool(p.get("summaries"))
+        has_rating = bool(p.get("ai_rating") and isinstance(p.get("ai_rating"), dict) and p["ai_rating"].get("score"))
+        if has_summary:
+            rating_stats[cat]["with_summaries"] += 1
+            rating_stats["__all__"]["with_summaries"] += 1
+        if has_rating:
+            rating_stats[cat]["rated"] += 1
+            rating_stats["__all__"]["rated"] += 1
+    _cache["_rating_stats"] = rating_stats
+
     # Invalidate tag cache on data refresh
     _tag_cache.clear()
 

@@ -45,6 +45,9 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Analysis cache refresh: every 5 minutes
 - Connection pool: 50 max, 10 min
 
+## Recent Fix (Mar 9 2026)
+- **Admin rating-status performance**: Moved per-category rating counts into the background leaderboard cache. The `/api/admin/rating-status` endpoint now accepts a `category` param and reads from pre-computed cache (~16ms) instead of doing 2-4 MongoDB `count_documents` calls (~200ms each). Category switching in admin panel is now instant.
+
 ## Pending Tasks
 - (P2) Further refactor validation.py (2500+ lines)
 - (P2) Improve summary generation failure tracking (partial failures per model)
