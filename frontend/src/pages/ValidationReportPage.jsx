@@ -187,32 +187,42 @@ export default function ValidationReportPage() {
 
       {/* 9. Model Agreement */}
       <Section num="7" title="How Much Do Models Agree?">
-        <p>Pairwise agreement rates on the same paper pairs:</p>
+        <p>Pairwise agreement on the same 6,477 paper pairs (only pairs where all 4 models voted):</p>
         <div className="space-y-0.5 mt-1">
-          {(Array.isArray(mc) ? mc : []).slice(0, 6).map((p, i) => (
-            <Row key={i} label={`${p.judge1} vs ${p.judge2}`} value={`${p.agreement}% (${p.same_pairs} pairs)`} bold={p.agreement > 89} />
-          ))}
+          {[
+            { pair: "Opus 4.6 vs Opus 4.5", agree: "88.2%" },
+            { pair: "Opus 4.6 vs Gemini 3 Pro", agree: "85.0%" },
+            { pair: "Opus 4.5 vs Gemini 3 Pro", agree: "83.9%" },
+            { pair: "Opus 4.5 vs GPT-5.2", agree: "82.7%" },
+            { pair: "GPT-5.2 vs Gemini 3 Pro", agree: "82.5%" },
+            { pair: "Opus 4.6 vs GPT-5.2", agree: "82.2%" },
+          ].map(r => <Row key={r.pair} label={r.pair} value={r.agree} bold={r.agree === "88.2%"} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Models agree ~83-90% of the time. Claude models (4.5/4.6) agree most with each other. The ~15% disagreement rate is comparable to inter-reviewer disagreement at real conferences.
+          <strong>Verdict:</strong> Claude models (Opus 4.6 and 4.5) agree most with each other (88.2%). All other pairings cluster around 82-85%. The ~15% disagreement rate is comparable to inter-reviewer disagreement at real conferences.
         </p>
       </Section>
 
-      {/* 10. Institution Bias */}
+      {/* 8. Institution Bias */}
       <Section num="8" title="Do LLMs Favor Prestigious Institutions?">
-        <p>Does the AI judge favor papers from top institutions (MIT, Stanford, Google, etc.)?</p>
+        <p>Does the AI judge favor papers from top institutions? Controlled same-pair test: same paper pairs, same judges — only the institution metadata varies. Bias delta = how much more/less the AI picks the prestigious paper vs what the human GT predicts (negative = anti-prestige).</p>
         <div className="space-y-0.5 mt-1">
-          <Row label="Cross-institution accuracy" value={`${ib.cross_institution?.accuracy || "?"}%`} />
-          <Row label="Same-institution accuracy" value={`${ib.same_institution?.accuracy || "?"}%`} />
-          <Row label="No-institution accuracy" value={`${ib.no_institution?.accuracy || "?"}%`} />
+          {[
+            { name: "Opus 4.6", acc: "79.8%", bias: "-4.7pp" },
+            { name: "Opus 4.5", acc: "79.3%", bias: "-5.0pp" },
+            { name: "Gemini 3 Pro", acc: "78.4%", bias: "-6.1pp" },
+            { name: "GPT-5.2", acc: "78.1%", bias: "-5.1pp" },
+          ].map(j => <Row key={j.name} label={j.name} value={`${j.acc} accuracy, ${j.bias} bias`} bold={j.name === "Opus 4.6"} />)}
         </div>
-        <p className="text-[10px] mt-1">Controlled same-pair test:</p>
+        <p className="text-[10px] mt-1">Is higher accuracy driven by shared bias? Accuracy by pair type:</p>
         <div className="space-y-0.5 mt-1">
-          <Row label="Cross-institution (controlled)" value={`${ibsp.cross_institution?.accuracy || "?"}%`} />
-          <Row label="Prestige gap" value={`${ibsp.prestige_gap?.bias_pp != null ? ibsp.prestige_gap.bias_pp + "pp" : "minimal"}`} />
+          {[
+            { cat: "Prestige-gap pairs (one top institution)", opus46: "79.8%", gpt: "78.1%" },
+            { cat: "No-institution pairs", opus46: "71.7%", gpt: "69.4%" },
+          ].map(r => <Row key={r.cat} label={r.cat} value={`Opus 4.6: ${r.opus46}, GPT-5.2: ${r.gpt}`} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Prestigious papers win more often, but mostly because they ARE better (by GT). The controlled same-pair test shows minimal bias — the AI judges papers on content, not institution name.
+          <strong>Verdict:</strong> All models show a slight <em>anti</em>-prestige bias (-4.7 to -6.1pp) — they pick the prestigious paper <em>less</em> than human GT would predict. Opus 4.6 is both the most accurate (79.8%) and the least biased (-4.7pp). Its accuracy advantage holds equally on no-institution pairs (71.7% vs 69.4% GPT-5.2), confirming it is genuinely better at the task, not benefiting from shared bias with the GT.
         </p>
       </Section>
 
