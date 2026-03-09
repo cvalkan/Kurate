@@ -2379,8 +2379,12 @@ async def rating_status(category: str = None):
 
     # Per-category stats for the requested category (admin's selected tab)
     cat_stats = None
-    cat = category or _rating_gen_state.get("category")
-    if cat and cat != "all":
+    if category and category != "all":
+        cs = cached_stats.get(category, {})
+        cat_stats = {"category": category, "rated": cs.get("rated", 0), "total": cs.get("with_summaries", 0)}
+    elif not category and _rating_gen_state.get("category") and _rating_gen_state["category"] != "all":
+        # Fallback: show the running generation's category only if no explicit category requested
+        cat = _rating_gen_state["category"]
         cs = cached_stats.get(cat, {})
         cat_stats = {"category": cat, "rated": cs.get("rated", 0), "total": cs.get("with_summaries", 0)}
 

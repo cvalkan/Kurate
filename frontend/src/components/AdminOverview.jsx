@@ -42,13 +42,15 @@ function RatingGenSection({ adminCat }) {
   const [status, setStatus] = useState(null);
 
   const poll = useCallback(() => {
-    const params = adminCat ? `?category=${encodeURIComponent(adminCat)}` : "";
-    axios.get(`${API}/api/admin/rating-status${params}`, { headers: getAdminHeaders() })
+    if (!adminCat) return;
+    axios.get(`${API}/api/admin/rating-status`, { headers: getAdminHeaders(), params: { category: adminCat } })
       .then(r => setStatus(r.data))
       .catch(() => {});
   }, [adminCat]);
 
+  // Clear stale data immediately on category switch, then fetch fresh
   useEffect(() => {
+    setStatus(null);
     poll();
     const iv = setInterval(poll, 4000);
     return () => clearInterval(iv);
