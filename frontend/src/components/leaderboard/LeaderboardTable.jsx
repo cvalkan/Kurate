@@ -85,6 +85,7 @@ export function LeaderboardTable({
         case "comparisons": return getComparisons(p) || 0;
         case "community_likes": return p.community_likes || 0;
         case "ai_rating": return p.ai_rating || 0;
+        case "sp_score": return p.sp_score || 0;
         case "published": return p.published || "";
         default: return 0;
       }
@@ -99,8 +100,8 @@ export function LeaderboardTable({
   }, [leaderboard, sortKey, sortDir, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gridCls = showCatCol
-    ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem_3rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_3rem_7rem]"
-    : "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem_3rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_3rem_7rem]";
+    ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem_3rem_3rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_3rem_3rem_7rem]"
+    : "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem_3rem_3rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_3rem_3rem_7rem]";
 
   const visibleList = sorted.slice(0, displayCount);
   const hasMore = sorted.length > visibleList.length;
@@ -144,6 +145,7 @@ export function LeaderboardTable({
           <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={COLUMN_TIPS.wilson_margin} />
           <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />
           <SortHeader label="AI" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip="Single-item AI rating (1-10) from Opus 4.6 Thinking" />
+          <SortHeader label="SP" sortKey="sp_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip="Surprisingly Popular score: BT percentile minus AI percentile. Positive = paper does better in competition than its standalone rating suggests." />
           <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden md:flex" tip={COLUMN_TIPS.published} />
         </div>
         {visibleList.map((paper, idx) => (
@@ -173,6 +175,7 @@ export function LeaderboardTable({
             </div>
             <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:block">{getComparisons(paper)}</div>
             <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:block">{paper.ai_rating || "—"}</div>
+            <div className={`text-right font-mono text-[10px] sm:text-xs hidden sm:block ${paper.sp_score > 0 ? "text-emerald-600" : paper.sp_score < 0 ? "text-red-400" : "text-muted-foreground"}`}>{paper.sp_score != null ? (paper.sp_score > 0 ? "+" : "") + paper.sp_score : "—"}</div>
             <div className="text-right text-xs text-muted-foreground hidden md:block">
               {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
             </div>
