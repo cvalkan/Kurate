@@ -213,16 +213,75 @@ export default function ValidationReportPage() {
           <Row label="GPT-5.2" value="73.4%  (delta: -5.1pp)" />
           <Row label="Gemini 3 Pro" value="72.4%  (delta: -6.1pp)" />
         </div>
-        <p className="text-[10px] mt-2">Accuracy (how often each is correct, regardless of prestige direction):</p>
-        <div className="space-y-0.5 mt-0.5">
-          <Row label="Opus 4.6" value="79.8%" bold />
-          <Row label="Opus 4.5" value="79.3%" />
-          <Row label="Gemini 3 Pro" value="78.4%" />
-          <Row label="GPT-5.2" value="78.1%" />
+
+        <div className="mt-3 p-3 border border-amber-200 rounded-lg bg-amber-50/30">
+          <h4 className="text-[11px] font-semibold text-amber-900 mb-1">Is Higher Accuracy Driven by Shared Bias?</h4>
+          <p className="text-[10px] text-amber-800/80 mb-2">If a model's accuracy advantage is concentrated in prestige-gap pairs (where matching human bias helps), it suggests bias inflation. If the advantage is uniform across all pair types, it's genuine quality detection.</p>
+
+          <p className="text-[10px] font-medium text-amber-900/70 mt-2 mb-1">BY JUDGE</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[10px]">
+              <thead><tr className="border-b border-amber-200">
+                <th className="text-left py-1 pr-2">Judge</th>
+                <th className="text-right py-1 px-1">Prestige-Gap</th>
+                <th className="text-right py-1 px-1">No Institution</th>
+                <th className="text-right py-1 px-1">Other Inst.</th>
+                <th className="text-right py-1 px-1">Gap Advantage</th>
+              </tr></thead>
+              <tbody>
+                {[
+                  { name: "GPT-5.2", pg: "78.1%", pgn: 1891, ni: "69.4%", nin: 5200, oi: "73%", oin: 455, gap: "+8.7pp" },
+                  { name: "Gemini 3 Pro", pg: "78.4%", pgn: 1891, ni: "71%", nin: 5200, oi: "68.4%", oin: 455, gap: "+7.4pp" },
+                  { name: "Opus 4.5", pg: "79.3%", pgn: 1891, ni: "70.8%", nin: 5200, oi: "75.6%", oin: 455, gap: "+8.5pp" },
+                  { name: "Opus 4.6", pg: "79.8%", pgn: 1891, ni: "71.7%", nin: 5200, oi: "74.7%", oin: 455, gap: "+8.1pp" },
+                ].map(j => (
+                  <tr key={j.name} className="border-b border-amber-100">
+                    <td className="py-0.5 pr-2">{j.name}</td>
+                    <td className="text-right py-0.5 px-1 font-mono">{j.pg} <span className="text-muted-foreground">({j.pgn})</span></td>
+                    <td className="text-right py-0.5 px-1 font-mono">{j.ni} <span className="text-muted-foreground">({j.nin})</span></td>
+                    <td className="text-right py-0.5 px-1 font-mono">{j.oi} <span className="text-muted-foreground">({j.oin})</span></td>
+                    <td className="text-right py-0.5 px-1 font-mono text-amber-700">{j.gap}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-[10px] font-medium text-amber-900/70 mt-3 mb-1">BY SUMMARIZER</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[10px]">
+              <thead><tr className="border-b border-amber-200">
+                <th className="text-left py-1 pr-2">Summarizer</th>
+                <th className="text-right py-1 px-1">Prestige-Gap</th>
+                <th className="text-right py-1 px-1">No Institution</th>
+                <th className="text-right py-1 px-1">Other Inst.</th>
+                <th className="text-right py-1 px-1">Gap Advantage</th>
+              </tr></thead>
+              <tbody>
+                {[
+                  { name: "GPT-5.2", pg: "75.2%", pgn: 979, ni: "69.1%", nin: 1077, oi: "71.4%", oin: 241, gap: "+6.1pp" },
+                  { name: "Gemini 3 Pro", pg: "74.5%", pgn: 705, ni: "68.8%", nin: 836, oi: "70.7%", oin: 188, gap: "+5.7pp" },
+                  { name: "Opus 4.5", pg: "78.4%", pgn: 6791, ni: "70.7%", nin: 9330, oi: "72%", oin: 1649, gap: "+7.7pp" },
+                  { name: "Opus 4.6", pg: "80%", pgn: 2064, ni: "70.7%", nin: 3230, oi: "74.9%", oin: 593, gap: "+9.3pp" },
+                  { name: "Opus 4.6 Thinking", pg: "84.9%", pgn: 985, ni: "77.4%", nin: 1201, oi: "79.3%", oin: 242, gap: "+7.5pp" },
+                ].map(s => (
+                  <tr key={s.name} className="border-b border-amber-100">
+                    <td className="py-0.5 pr-2">{s.name}</td>
+                    <td className="text-right py-0.5 px-1 font-mono">{s.pg} <span className="text-muted-foreground">({s.pgn})</span></td>
+                    <td className="text-right py-0.5 px-1 font-mono">{s.ni} <span className="text-muted-foreground">({s.nin})</span></td>
+                    <td className="text-right py-0.5 px-1 font-mono">{s.oi} <span className="text-muted-foreground">({s.oin})</span></td>
+                    <td className="text-right py-0.5 px-1 font-mono text-amber-700">{s.gap}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-3 pt-2 border-t border-amber-200 text-[10px] text-amber-900/80 space-y-1.5">
+            <p><strong>Judges:</strong> All 4 judges show a similar "Gap Advantage" (~8pp). This means every judge is more accurate on prestige-gap pairs than on no-institution pairs by roughly the same amount. Since this advantage is <em>uniform</em> across judges — not concentrated in the most bias-aligned judge (Opus 4.6) — the accuracy difference between judges is <strong>not driven by prestige bias</strong>. The likely explanation: prestige-gap pairs are inherently easier to judge because the quality gap between a top-lab paper and an unknown-institution paper tends to be larger.</p>
+            <p><strong>Summarizers:</strong> More nuance here. Opus 4.6 summaries have the largest Gap Advantage (+9.3pp) — suggesting they encode more institutional cues that make prestige-gap pairs <em>even easier</em> for judges. However, <strong>Opus 4.6 Thinking</strong> (the best summarizer overall at 84.9% on prestige-gap pairs) also leads on no-institution pairs (77.4% vs 68-71% for others). Since its lead is strongest where prestige can't help, its accuracy advantage is primarily <strong>genuine quality detection</strong>, with a small prestige component.</p>
+          </div>
         </div>
-        <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> All AI models are more egalitarian than human reviewers — they pick the prestigious paper 4.7-6.1pp <em>less</em> than humans do. Opus 4.6 is the closest to humans (73.8% vs 78.5%) and the most accurate (79.8%). Whether this makes Opus 4.6 the "most prestige-biased AI" or the "best calibrated" depends on whether the human GT itself reflects prestige bias. The accuracy data suggests Opus 4.6 is detecting genuine quality signals that happen to correlate with prestige, not just deferring to institution names.
-        </p>
       </Section>
 
       {/* 11. Single-Item vs Pairwise */}
