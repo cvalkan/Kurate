@@ -1,276 +1,325 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FileText, TrendingUp, Scale, Zap, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { FileText, CheckCircle, XCircle } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-// Hardcoded GT classification based on our investigation
 const GT_TYPE = {
   "iclr-codegen": "comparative", "iclr-llm": "comparative", "iclr-protein": "comparative",
   "iclr-fairness": "comparative", "iclr-pdes": "comparative", "iclr-molecules": "comparative",
   "iclr-optimization": "comparative", "elife-neuro-100": "comparative", "peerread_acl_2017": "comparative",
   "elife-cancer": "standalone", "elife-microbiology": "standalone", "elife-comp-sys-bio": "standalone",
-  "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
-  "qeios-health": "standalone", "qeios-life": "standalone", "researchhub-50": "standalone",
-  "researchhub-62": "standalone", "researchhub": "standalone",
+  "midl-medical-imaging": "standalone", "qeios-social": "standalone", "researchhub-50": "standalone",
 };
 
-const GT_REASON = {
-  comparative: "Reviewers see many papers and calibrate scores across them",
-  standalone: "Each paper reviewed independently, no cross-paper comparison",
-};
+function Section({ num, title, children }) {
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="px-4 py-2.5 bg-secondary/10 border-b border-border">
+        <h3 className="text-sm font-semibold">{num}. {title}</h3>
+      </div>
+      <div className="px-4 py-3 text-xs text-muted-foreground space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function Row({ label, value, bold }) {
+  return (
+    <div className="flex justify-between items-baseline border-b border-border/20 py-0.5">
+      <span>{label}</span>
+      <span className={`font-mono ${bold ? "font-bold text-foreground" : ""}`}>{value}</span>
+    </div>
+  );
+}
 
 export default function ValidationReportPage() {
-  const [data, setData] = useState(null);
+  const [experiments, setExperiments] = useState(null);
+  const [siData, setSiData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get(`${API}/api/validation/single-item-scoring/results`, { timeout: 30000 })
-      .then(r => { if (r.data.status === "ok") setData(r.data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      axios.get(`${API}/api/validation/single-item-scoring/results`, { timeout: 30000 }).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/consistency-analysis`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/cycle-analysis-all`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/extended-thinking/results`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/multi-aspect/results`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/judge-comparison/results`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/summarizer-ab/results`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/model-correlation-analysis/results`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/institution-bias/results`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/institution-bias-samepair/results`).then(r => r.data).catch(() => null),
+      axios.get(`${API}/api/validation/assessor-evaluator/results`).then(r => r.data).catch(() => null),
+    ]).then(([si, consistency, cycles, thinking, multiAspect, judges, summarizer, correlation, bias, biasSP, ae]) => {
+      setSiData(si);
+      setExperiments({ consistency, cycles, thinking, multiAspect, judges, summarizer, correlation, bias, biasSP, ae });
+    }).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="text-xs text-muted-foreground text-center py-12">Loading report data...</div>;
-  if (!data?.datasets?.length) return <div className="text-xs text-muted-foreground text-center py-12">No data available yet.</div>;
+  if (loading) return <div className="text-xs text-muted-foreground text-center py-12">Loading all experiment data...</div>;
 
-  const ds = data.datasets;
+  const ex = experiments || {};
+  const ds = siData?.datasets || [];
 
-  // Classify
-  const comparative = ds.filter(d => GT_TYPE[d.dataset_id] === "comparative");
-  const standalone = ds.filter(d => GT_TYPE[d.dataset_id] === "standalone");
-
-  // Stats
-  const siWinsAcc = ds.filter(d => {
-    const pw = d.methods_comparison?.[0];
-    const si = d.methods_comparison?.find(m => m.method === "Overall Score");
-    return si && pw && (si.accuracy || 0) > (pw.accuracy || 0);
-  });
-  const pwWinsAcc = ds.filter(d => {
-    const pw = d.methods_comparison?.[0];
-    const si = d.methods_comparison?.find(m => m.method === "Overall Score");
-    return si && pw && (pw.accuracy || 0) > (si.accuracy || 0);
-  });
+  // Pre-extract key numbers
+  const summ = ex.summarizer?.pooled || {};
+  const thk = ex.thinking || {};
+  const jc = ex.judges || {};
+  const ma = ex.multiAspect || {};
+  const cs = ex.consistency?.verdict_stability || {};
+  const cy = ex.cycles?.pooled_all || {};
+  const mc = ex.correlation?.pooled || [];
+  const ib = ex.bias?.pooled || {};
+  const ibsp = ex.biasSP?.pooled || {};
+  const ae = ex.ae?.pooled || {};
 
   return (
-    <div className="space-y-6" data-testid="validation-report">
-      {/* Header */}
-      <div className="border border-border rounded-lg p-5">
-        <h2 className="text-lg font-semibold flex items-center gap-2 mb-2">
-          <FileText className="h-5 w-5" /> Validation Summary Report
+    <div className="space-y-4" data-testid="validation-report-full">
+      <div className="border border-border rounded-lg p-4">
+        <h2 className="text-lg font-semibold flex items-center gap-2 mb-1">
+          <FileText className="h-5 w-5" /> Complete Validation Report
         </h2>
-        <p className="text-xs text-muted-foreground">
-          Comprehensive analysis across {ds.length} datasets comparing single-item scoring, pairwise tournament,
-          and the "Surprisingly Popular" signal. Total: {ds.reduce((s, d) => s + (d.papers_scored || 0), 0)} papers scored,{" "}
-          {ds.reduce((s, d) => s + (d.pairwise_matches || 0), 0).toLocaleString()} pairwise matches analyzed.
+        <p className="text-[11px] text-muted-foreground">
+          All experiments and findings from PaperSumo's AI judge validation, condensed. Covers {ds.length} single-item datasets,
+          {" "}{ex.summarizer?.pooled_datasets || "12+"} pairwise datasets, and 11 distinct experiments.
         </p>
       </div>
 
-      {/* Finding 1: SI vs PW */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-4 py-3 bg-secondary/10 border-b border-border">
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            <Scale className="h-4 w-4" /> Finding 1: Single-Item vs Pairwise Tournament
-          </h3>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            Single-item scoring (1 LLM call/paper) vs pairwise tournament (N comparisons). Which method better predicts human ground truth?
-          </p>
+      {/* 1. Best Summarizer */}
+      <Section num="1" title="Which Summarizer Model is Best?">
+        <p>Abstract + AI summary fed to pairwise judges. Pooled accuracy across 12 datasets (1,521 common pairs):</p>
+        <div className="space-y-0.5 mt-1">
+          {["Opus 4.6 Thinking", "Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"].map(name => {
+            const v = summ[name] || {};
+            return <Row key={name} label={name} value={`${v.accuracy || "?"}% acc, rho=${v.avg_rho || "?"}`} bold={name === "Opus 4.6 Thinking"} />;
+          })}
         </div>
-        <div className="p-4">
-          <table className="w-full text-[11px]" data-testid="report-main-table">
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> Opus 4.6 Thinking is the best summarizer (82.3%), followed by Opus 4.6 (81.2%). Claude models dominate; GPT and Gemini trail by ~8-10pp. Upgrading from Opus 4.5 to 4.6 gives +5pp; adding extended thinking gives another +1pp.
+        </p>
+      </Section>
+
+      {/* 2. Extended Thinking */}
+      <Section num="2" title="Does Extended Thinking Help?">
+        <div className="space-y-0.5">
+          <Row label="Baseline (Opus 4.5 summaries)" value={`${thk.baseline_accuracy || "?"}% (${thk.baseline_gt_pairs || "?"} pairs)`} />
+          <Row label="Thinking (Opus 4.6 Thinking summaries)" value={`${thk.thinking_accuracy || "?"}% (${thk.thinking_matches || "?"} pairs)`} />
+          <Row label="Lift" value={`+${thk.lift || "?"}pp (McNemar p=${thk.mcnemar?.p_value || "?"})`} />
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> Minimal lift (+0.3pp, not significant). Extended thinking helps the <em>summarizer</em> quality (Finding 1), but when used only for <em>judging</em> the same content, the gain is negligible. The summary quality matters more than the thinking budget for comparison.
+        </p>
+      </Section>
+
+      {/* 3. Best Judge */}
+      <Section num="3" title="Which Judge Model is Best?">
+        <p>Same content shown to different judges. Accuracy on shared pairs:</p>
+        <div className="space-y-0.5 mt-1">
+          {(jc.judges || []).map((j, i) => (
+            <Row key={i} label={j.label || j.name || "?"} value={`${j.accuracy}% (rho=${j.avg_rho?.toFixed(3) || "?"})`} bold={i === 0} />
+          ))}
+          {jc.majority_vote && <Row label="Majority Vote (3 judges)" value={`${jc.majority_vote.accuracy}%`} />}
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> All judge models perform within ~1pp of each other (74-75%). Majority vote doesn't help. The judge model matters far less than the summarizer model — the bottleneck is input quality, not judgment quality.
+        </p>
+      </Section>
+
+      {/* 4. Summarizer x Judge Matrix */}
+      <Section num="4" title="Summarizer x Judge: Best Combination?">
+        <p>Full interaction matrix (pooled). Top 5 combos:</p>
+        <div className="space-y-0.5 mt-1">
+          {Object.entries(ae).sort((a, b) => (b[1].accuracy || 0) - (a[1].accuracy || 0)).slice(0, 5).map(([key, val]) => (
+            <Row key={key} label={key} value={`${val.accuracy}% (${val.total} pairs)`} bold={key.includes("Thinking") && key.includes("GPT")} />
+          ))}
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> Opus 4.6 Thinking summaries + GPT-5.2 judge = 85.0% — the best combo. Interestingly, a Claude summarizer + GPT judge outperforms Claude-only. Cross-model diversity helps.
+        </p>
+      </Section>
+
+      {/* 5. Input Format */}
+      <Section num="5" title="Which Input Format Works Best?">
+        <p>Verdict stability by format (lower flip rate = more consistent):</p>
+        <div className="space-y-0.5 mt-1">
+          {[
+            { fmt: "AI Summary only", flip: "10.1%" },
+            { fmt: "Abstract + Summary (Opus 4.6)", flip: "12.8%" },
+            { fmt: "Deep Dive (2-pass)", flip: "14.4%" },
+            { fmt: "Abstract + Summary (Opus 4.5)", flip: "14.3%" },
+            { fmt: "Full PDF", flip: "16.8%" },
+            { fmt: "Extract (scraped text)", flip: "18.2%" },
+            { fmt: "Abstract only", flip: "18.6%" },
+          ].map(r => <Row key={r.fmt} label={r.fmt} value={`flip rate ${r.flip}`} bold={r.fmt.includes("AI Summary")} />)}
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> "Abstract + AI Summary" is the sweet spot — higher accuracy than abstract-only, more consistent than full PDF. Full PDF adds noise (irrelevant sections confuse the judge). AI summary condenses the paper into a judgment-friendly format.
+        </p>
+      </Section>
+
+      {/* 6. Multi-Aspect */}
+      <Section num="6" title="Does Multi-Aspect Judging Help?">
+        <p>5-dimension scoring (novelty, rigor, applications, clarity, significance) vs holistic verdict:</p>
+        <div className="space-y-0.5 mt-1">
+          <Row label="Holistic (standard)" value={`${ma.baseline?.rate || "?"}%`} bold />
+          <Row label="Multi-aspect aggregate (majority of 5 dims)" value={`${ma.aggregate?.rate || "?"}%`} />
+          <Row label="Lift" value={`${ma.lift || "?"}pp`} />
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> Multi-aspect is <em>worse</em> (-5.3pp). Breaking the judgment into sub-dimensions loses the holistic signal. The AI is better at making a single comparative judgment than aggregating 5 separate ones.
+        </p>
+      </Section>
+
+      {/* 7. Consistency */}
+      <Section num="7" title="How Consistent Are the Judgments?">
+        <p>Same pair shown under different conditions — how often does the verdict flip?</p>
+        <div className="space-y-0.5 mt-1">
+          <Row label="Cross-model flip rate (same format, different judge)" value="~14-16%" />
+          <Row label="Cross-format flip rate (same judge, different input)" value="~13-18%" />
+          <Row label="Most stable judge" value="Opus 4.6 (8.2% cross-format flips)" bold />
+          <Row label="Least stable" value="GPT-5.2 (15.7% cross-format flips)" />
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> ~15% of verdicts flip when conditions change. Opus 4.6 is the most consistent judge. Format changes cause as many flips as model changes — reinforcing that input quality is the primary variable.
+        </p>
+      </Section>
+
+      {/* 8. Intransitive Cycles */}
+      <Section num="8" title="How Often Do Intransitive Cycles Occur?">
+        <p>A beats B, B beats C, C beats A — a violation of transitivity:</p>
+        <div className="space-y-0.5 mt-1">
+          <Row label="Overall cycle rate" value={`${cy.rate || "?"}% of triples`} />
+          <Row label="Close-rated papers" value={`${cy.by_gap?.close?.rate || "?"}%`} />
+          <Row label="Far-rated papers" value={`${cy.by_gap?.far?.rate || "?"}%`} />
+          <Row label="Most transitive judge" value="Opus 4.6 (0.88%)" bold />
+          <Row label="Least transitive" value="GPT-5.2 (4.22%)" />
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> 3.4% cycle rate overall — low but nonzero. Cycles are 2x more common for closely-rated papers (expected — harder to distinguish). Opus 4.6 is 5x more transitive than GPT-5.2.
+        </p>
+      </Section>
+
+      {/* 9. Model Agreement */}
+      <Section num="9" title="How Much Do Models Agree?">
+        <p>Pairwise agreement rates on the same paper pairs:</p>
+        <div className="space-y-0.5 mt-1">
+          {(Array.isArray(mc) ? mc : []).slice(0, 6).map((p, i) => (
+            <Row key={i} label={`${p.judge1} vs ${p.judge2}`} value={`${p.agreement}% (${p.same_pairs} pairs)`} bold={p.agreement > 89} />
+          ))}
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> Models agree ~83-90% of the time. Claude models (4.5/4.6) agree most with each other. The ~15% disagreement rate is comparable to inter-reviewer disagreement at real conferences.
+        </p>
+      </Section>
+
+      {/* 10. Institution Bias */}
+      <Section num="10" title="Do LLMs Favor Prestigious Institutions?">
+        <p>Does the AI judge favor papers from top institutions (MIT, Stanford, Google, etc.)?</p>
+        <div className="space-y-0.5 mt-1">
+          <Row label="Cross-institution accuracy" value={`${ib.cross_institution?.accuracy || "?"}%`} />
+          <Row label="Same-institution accuracy" value={`${ib.same_institution?.accuracy || "?"}%`} />
+          <Row label="No-institution accuracy" value={`${ib.no_institution?.accuracy || "?"}%`} />
+        </div>
+        <p className="text-[10px] mt-1">Controlled same-pair test:</p>
+        <div className="space-y-0.5 mt-1">
+          <Row label="Cross-institution (controlled)" value={`${ibsp.cross_institution?.accuracy || "?"}%`} />
+          <Row label="Prestige gap" value={`${ibsp.prestige_gap?.bias_pp != null ? ibsp.prestige_gap.bias_pp + "pp" : "minimal"}`} />
+        </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> Prestigious papers win more often, but mostly because they ARE better (by GT). The controlled same-pair test shows minimal bias — the AI judges papers on content, not institution name.
+        </p>
+      </Section>
+
+      {/* 11. Single-Item vs Pairwise */}
+      <Section num="11" title="Single-Item Scoring vs Pairwise Tournament">
+        <p>Can 1 LLM call per paper match hundreds of pairwise comparisons? Results across {ds.length} datasets:</p>
+        <div className="overflow-x-auto mt-1">
+          <table className="w-full text-[10px]">
             <thead>
-              <tr className="border-b border-border text-[10px]">
-                <th className="text-left py-1.5 pr-2 font-medium">Dataset</th>
-                <th className="text-center py-1.5 px-1 font-medium">Papers</th>
-                <th className="text-center py-1.5 px-1 font-medium">GT Type</th>
-                <th className="text-right py-1.5 px-1 font-medium">SI Acc</th>
-                <th className="text-right py-1.5 px-1 font-medium">PW Acc</th>
-                <th className="text-right py-1.5 px-1 font-medium">SI rho</th>
-                <th className="text-right py-1.5 px-1 font-medium">PW rho</th>
-                <th className="text-center py-1.5 px-1 font-medium">Winner</th>
-                <th className="text-right py-1.5 px-1 font-medium">SP rho</th>
-                <th className="text-center py-1.5 px-1 font-medium">SP sig?</th>
+              <tr className="border-b border-border">
+                <th className="text-left py-1 pr-2">Dataset</th>
+                <th className="text-center py-1 px-1">GT</th>
+                <th className="text-right py-1 px-1">SI Acc</th>
+                <th className="text-right py-1 px-1">PW Acc</th>
+                <th className="text-center py-1 px-1">Winner</th>
+                <th className="text-right py-1 px-1">SP rho</th>
+                <th className="text-center py-1 px-1">SP sig</th>
               </tr>
             </thead>
             <tbody>
               {ds.sort((a, b) => {
                 const ga = GT_TYPE[a.dataset_id] === "comparative" ? 0 : 1;
                 const gb = GT_TYPE[b.dataset_id] === "comparative" ? 0 : 1;
-                return ga - gb || (b.methods_comparison?.[0]?.spearman_rho || 0) - (a.methods_comparison?.[0]?.spearman_rho || 0);
+                return ga - gb;
               }).map(d => {
                 const pw = d.methods_comparison?.[0] || {};
                 const si = d.methods_comparison?.find(m => m.method === "Overall Score") || {};
                 const sp = d.sp_analysis || {};
-                const gtType = GT_TYPE[d.dataset_id] || "unknown";
                 const pwWins = (pw.accuracy || 0) > (si.accuracy || 0);
+                const gt = GT_TYPE[d.dataset_id] || "?";
                 return (
-                  <tr key={d.dataset_id} className={`border-b border-border/30 ${gtType === "comparative" ? "bg-violet-50/20" : "bg-blue-50/20"}`}>
-                    <td className="py-1.5 pr-2 font-medium">{d.name}</td>
-                    <td className="text-center py-1.5 px-1 font-mono">{d.papers_scored}</td>
-                    <td className="text-center py-1.5 px-1">
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${gtType === "comparative" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
-                        {gtType}
-                      </span>
+                  <tr key={d.dataset_id} className="border-b border-border/20">
+                    <td className="py-0.5 pr-2">{d.name}</td>
+                    <td className="text-center py-0.5 px-1">
+                      <span className={`text-[8px] px-1 rounded ${gt === "comparative" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>{gt.slice(0, 4)}</span>
                     </td>
-                    <td className={`text-right py-1.5 px-1 font-mono ${!pwWins ? "font-bold text-emerald-700" : ""}`}>{si.accuracy}%</td>
-                    <td className={`text-right py-1.5 px-1 font-mono ${pwWins ? "font-bold text-violet-700" : ""}`}>{pw.accuracy}%</td>
-                    <td className={`text-right py-1.5 px-1 font-mono ${(si.spearman_rho || 0) > (pw.spearman_rho || 0) ? "font-bold" : ""}`}>{si.spearman_rho?.toFixed(3) || "—"}</td>
-                    <td className={`text-right py-1.5 px-1 font-mono ${(pw.spearman_rho || 0) > (si.spearman_rho || 0) ? "font-bold" : ""}`}>{pw.spearman_rho?.toFixed(3) || "—"}</td>
-                    <td className="text-center py-1.5 px-1">
-                      <span className={`text-[9px] font-semibold ${pwWins ? "text-violet-700" : "text-emerald-700"}`}>
-                        {pwWins ? "PW" : "SI"}
-                      </span>
+                    <td className={`text-right py-0.5 px-1 font-mono ${!pwWins ? "font-bold" : ""}`}>{si.accuracy}%</td>
+                    <td className={`text-right py-0.5 px-1 font-mono ${pwWins ? "font-bold" : ""}`}>{pw.accuracy}%</td>
+                    <td className="text-center py-0.5 px-1">
+                      <span className={`text-[9px] font-semibold ${pwWins ? "text-violet-700" : "text-emerald-700"}`}>{pwWins ? "PW" : "SI"}</span>
                     </td>
-                    <td className={`text-right py-1.5 px-1 font-mono ${sp.significant ? "font-semibold" : "text-muted-foreground"}`}>
-                      {sp.sp_rho != null ? (sp.sp_rho > 0 ? "+" : "") + sp.sp_rho.toFixed(3) : "—"}
-                    </td>
-                    <td className="text-center py-1.5 px-1">
-                      {sp.significant
-                        ? <CheckCircle className="h-3 w-3 text-emerald-600 inline" />
-                        : <XCircle className="h-3 w-3 text-muted-foreground/50 inline" />}
+                    <td className="text-right py-0.5 px-1 font-mono">{sp.sp_rho != null ? (sp.sp_rho > 0 ? "+" : "") + sp.sp_rho.toFixed(2) : "—"}</td>
+                    <td className="text-center py-0.5 px-1">
+                      {sp.significant ? <CheckCircle className="h-2.5 w-2.5 text-emerald-600 inline" /> : <XCircle className="h-2.5 w-2.5 text-muted-foreground/40 inline" />}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <div className="mt-3 flex gap-4 text-[10px] text-muted-foreground">
-            <span><span className="inline-block w-3 h-3 bg-violet-100 rounded mr-1" />Comparative GT</span>
-            <span><span className="inline-block w-3 h-3 bg-blue-100 rounded mr-1" />Standalone GT</span>
-            <span className="text-violet-700 font-semibold">PW</span> = Pairwise wins on accuracy
-            <span className="text-emerald-700 font-semibold">SI</span> = Single-Item wins on accuracy
-          </div>
         </div>
-      </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, eLife Neuro, PeerRead) at 67-89% vs 65-77%. Single-item wins on all standalone-GT datasets (Qeios, RH-50, eLife Cancer) at 74-78% vs 64-74%. The optimal method mirrors the GT generation process. Controlled experiment (same model for both) confirms this is domain-dependent, not a model artifact.
+        </p>
+      </Section>
 
-      {/* Finding 2: The GT Hypothesis */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-4 py-3 bg-secondary/10 border-b border-border">
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            <TrendingUp className="h-4 w-4" /> Finding 2: The Ground Truth Generation Hypothesis
-          </h3>
+      {/* 12. SP Signal */}
+      <Section num="12" title="The 'Surprisingly Popular' Signal">
+        <p>The gap between pairwise rank and standalone rank (BT - SI) independently predicts quality:</p>
+        <div className="space-y-0.5 mt-1">
+          {ds.filter(d => d.sp_analysis?.significant).sort((a, b) => (b.sp_analysis?.sp_rho || 0) - (a.sp_analysis?.sp_rho || 0)).map(d => (
+            <Row key={d.dataset_id} label={d.name} value={`rho=${d.sp_analysis.sp_rho?.toFixed(3)}, BT right ${d.sp_analysis.bt_right_pct}% when disagree`} />
+          ))}
         </div>
-        <div className="p-4 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            The optimal AI evaluation method mirrors the cognitive process that generated the ground truth:
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="border border-violet-200 rounded-lg p-3 bg-violet-50/30">
-              <div className="text-xs font-semibold text-violet-900 mb-1">Comparative GT</div>
-              <div className="text-[10px] text-violet-800/70 mb-2">{GT_REASON.comparative}</div>
-              <div className="text-[10px] space-y-0.5">
-                <div><strong>Datasets:</strong> ICLR (7), eLife Neuroscience, PeerRead ACL 2017</div>
-                <div><strong>Winner:</strong> Pairwise tournament ({comparative.filter(d => (d.methods_comparison?.[0]?.accuracy || 0) > (d.methods_comparison?.find(m => m.method === "Overall Score")?.accuracy || 0)).length}/{comparative.length} datasets)</div>
-                <div><strong>SP signal:</strong> Significant on {comparative.filter(d => d.sp_analysis?.significant).length}/{comparative.length} datasets</div>
-              </div>
-            </div>
-            <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/30">
-              <div className="text-xs font-semibold text-blue-900 mb-1">Standalone GT</div>
-              <div className="text-[10px] text-blue-800/70 mb-2">{GT_REASON.standalone}</div>
-              <div className="text-[10px] space-y-0.5">
-                <div><strong>Datasets:</strong> eLife Cancer, MIDL, Qeios Social, ResearchHub 50</div>
-                <div><strong>Winner:</strong> Single-item scoring ({standalone.filter(d => (d.methods_comparison?.find(m => m.method === "Overall Score")?.accuracy || 0) > (d.methods_comparison?.[0]?.accuracy || 0)).length}/{standalone.length} datasets)</div>
-                <div><strong>SP signal:</strong> Significant on {standalone.filter(d => d.sp_analysis?.significant).length}/{standalone.length} datasets</div>
-              </div>
-            </div>
-          </div>
-          <div className="text-[10px] text-muted-foreground border-t border-border/30 pt-2">
-            <strong>Controlled experiment:</strong> Running pairwise with the same model as single-item (Opus 4.6 Thinking) on Qeios and RH-50
-            confirmed that single-item still wins — the advantage is domain-dependent, not a model quality artifact.
-          </div>
-        </div>
-      </div>
+        <p className="mt-2 border-t border-border/30 pt-2">
+          <strong>What high-SP papers share:</strong> 6/7 top "surprisingly competitive" papers across ICLR are practical systems/frameworks — L2MAC, fairret, BioBridge, etc. Single-item scoring systematically undervalues engineering contributions whose strengths only emerge in comparison. The SP signal detects "hidden practical value."
+        </p>
+        <p className="mt-1">
+          <strong>Caveat:</strong> SP measures comparative strength everywhere, but we can only validate it against comparative GT. On standalone-GT datasets the signal is unmeasurable, not necessarily absent.
+        </p>
+      </Section>
 
-      {/* Finding 3: SP Signal */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-4 py-3 bg-secondary/10 border-b border-border">
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            <Zap className="h-4 w-4" /> Finding 3: The "Surprisingly Popular" Signal
-          </h3>
-        </div>
-        <div className="p-4 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            The gap between pairwise ranking and standalone scoring (BT_rank - SI_rank) is itself a quality predictor,
-            analogous to the Surprisingly Popular algorithm. Papers that rank higher in competition than expected from their
-            solo score carry a "comparative strength" signal.
-          </p>
-          <div className="grid grid-cols-2 gap-4 text-[10px]">
-            <div className="border border-emerald-200 rounded-lg p-3 bg-emerald-50/20">
-              <div className="font-semibold text-emerald-800 mb-1">Where SP works (comparative GT)</div>
-              <div className="space-y-0.5 text-emerald-800/80">
-                {ds.filter(d => d.sp_analysis?.significant).sort((a,b) => (b.sp_analysis?.sp_rho || 0) - (a.sp_analysis?.sp_rho || 0)).map(d => (
-                  <div key={d.dataset_id} className="flex justify-between">
-                    <span>{d.name}</span>
-                    <span className="font-mono font-semibold">rho = +{d.sp_analysis.sp_rho.toFixed(3)}, BT right {d.sp_analysis.bt_right_pct}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="border border-border/50 rounded-lg p-3">
-              <div className="font-semibold text-muted-foreground mb-1">Where SP is noise (standalone GT)</div>
-              <div className="space-y-0.5 text-muted-foreground">
-                {ds.filter(d => !d.sp_analysis?.significant && d.sp_analysis).sort((a,b) => (b.sp_analysis?.sp_rho || 0) - (a.sp_analysis?.sp_rho || 0)).map(d => (
-                  <div key={d.dataset_id} className="flex justify-between">
-                    <span>{d.name}</span>
-                    <span className="font-mono">rho = {d.sp_analysis.sp_rho > 0 ? "+" : ""}{d.sp_analysis.sp_rho.toFixed(3)}, SI right {d.sp_analysis.si_right_pct}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* 13. Practical Recommendations */}
+      <Section num="13" title="Practical Recommendations">
+        <div className="space-y-2">
+          <div className="border border-border/50 rounded p-2">
+            <div className="font-semibold text-foreground text-[11px]">Screening (cost-efficient)</div>
+            <p>Single-item scoring: 1 LLM call per paper. Use Opus 4.6 Thinking. Works best for standalone-quality assessment.</p>
           </div>
-          <div className="text-[10px] text-muted-foreground border-t border-border/30 pt-2">
-            <strong>Caveat:</strong> SP measures "comparative strength" everywhere. On standalone-GT datasets we cannot validate it
-            because the GT doesn't capture this dimension — the signal may still be real but unmeasurable against the available ground truth.
+          <div className="border border-border/50 rounded p-2">
+            <div className="font-semibold text-foreground text-[11px]">Competitive ranking (maximum accuracy)</div>
+            <p>Pairwise tournament with Opus 4.6 Thinking summaries + round-robin judges. Abstract + AI summary as input format. ~10 matches/paper for convergence.</p>
+          </div>
+          <div className="border border-border/50 rounded p-2">
+            <div className="font-semibold text-foreground text-[11px]">Two-stage pipeline (best of both)</div>
+            <p>Single-item to screen top 20%, then pairwise among those. Use SP signal to flag "surprisingly competitive" papers that standalone scoring would miss.</p>
+          </div>
+          <div className="border border-border/50 rounded p-2">
+            <div className="font-semibold text-foreground text-[11px]">What NOT to do</div>
+            <p>Don't use multi-aspect judging (-5pp). Don't use full PDF as input (more noise, worse consistency). Don't expect majority vote to beat individual judges.</p>
           </div>
         </div>
-      </div>
-
-      {/* Finding 4: What SP reveals */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-4 py-3 bg-secondary/10 border-b border-border">
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            <AlertTriangle className="h-4 w-4" /> Finding 4: What High-SP Papers Have in Common
-          </h3>
-        </div>
-        <div className="p-4 space-y-2 text-xs text-muted-foreground">
-          <p>
-            Across 7 ICLR datasets, the top "surprisingly competitive" paper (highest BT rank minus SI rank) consistently shares traits:
-          </p>
-          <ul className="list-disc list-inside space-y-1 ml-2">
-            <li><strong>Practical systems/frameworks</strong> — 6/7 are tool-building papers (L2MAC, fairret, S-MNN, BioBridge, etc.) rather than theoretical contributions</li>
-            <li><strong>Underrated by standalone scoring</strong> — median SI rank at 42nd percentile; abstracts sound incremental or engineering-heavy</li>
-            <li><strong>Revealed in comparison</strong> — median BT rank in top 15%; practical advantages become obvious head-to-head against flashier papers</li>
-            <li><strong>BT closer to human GT in 6/7 cases</strong> — the pairwise tournament correctly identifies these as high-quality</li>
-          </ul>
-          <p className="border-t border-border/30 pt-2">
-            <strong>Interpretation:</strong> Single-item LLM scoring has a systematic bias toward novelty claims over demonstrated utility.
-            The SP signal detects "engineering excellence" — papers whose value emerges from comparison rather than from impressive-sounding abstracts.
-          </p>
-        </div>
-      </div>
-
-      {/* Practical recommendations */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-4 py-3 bg-secondary/10 border-b border-border">
-          <h3 className="text-sm font-semibold">Practical Recommendations</h3>
-        </div>
-        <div className="p-4 space-y-2 text-xs text-muted-foreground">
-          <div className="grid grid-cols-1 gap-3">
-            <div className="border border-border/50 rounded-lg p-3">
-              <div className="font-semibold text-foreground mb-1">For screening large paper volumes</div>
-              <p>Use single-item scoring (1 LLM call per paper). At 10x lower cost, it matches or beats pairwise accuracy on standalone-GT domains and provides a useful first pass everywhere.</p>
-            </div>
-            <div className="border border-border/50 rounded-lg p-3">
-              <div className="font-semibold text-foreground mb-1">For competitive ranking (e.g., conference selection)</div>
-              <p>Use pairwise tournament. On comparative-GT datasets it consistently outperforms (82-89% accuracy vs 67-77% for single-item). The BT model captures relative quality that absolute scoring misses.</p>
-            </div>
-            <div className="border border-border/50 rounded-lg p-3">
-              <div className="font-semibold text-foreground mb-1">For maximum accuracy: two-stage pipeline</div>
-              <p>Single-item to screen the top 20%, then pairwise among those. This combines SI's cost efficiency with PW's comparative precision. The SP signal can flag "surprisingly competitive" papers that SI would otherwise miss.</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      </Section>
     </div>
   );
 }
