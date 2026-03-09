@@ -81,11 +81,57 @@ function RenderedLine({ text }) {
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+/** Strip JSON ratings block from end of summary and return [cleanText, ratings] */
+function extractRatingsFromSummary(text) {
+  if (!text) return [text, null];
+  // Match ```json { ... } ``` or bare { "score": ... } at end
+  const jsonBlockRe = /\n*```json\s*\n?\s*(\{[^}]*"score"[^}]*\})\s*\n?```\s*$/;
+  const bareJsonRe = /\n*(\{[^}]*"score"[^}]*\})\s*$/;
+  let match = text.match(jsonBlockRe) || text.match(bareJsonRe);
+  if (match) {
+    try {
+      const ratings = JSON.parse(match[1]);
+      if (ratings.score >= 1 && ratings.score <= 10) {
+        return [text.slice(0, match.index).trimEnd(), ratings];
+      }
+    } catch {}
+  }
+  return [text, null];
+}
+
+function RatingBadge({ ratings }) {
+  if (!ratings) return null;
+  const dims = [
+    { key: "significance", label: "Sig", color: "bg-blue-100 text-blue-700" },
+    { key: "rigor", label: "Rig", color: "bg-emerald-100 text-emerald-700" },
+    { key: "novelty", label: "Nov", color: "bg-violet-100 text-violet-700" },
+    { key: "clarity", label: "Cla", color: "bg-amber-100 text-amber-700" },
+  ];
+  return (
+    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30" data-testid="summary-ratings">
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-muted-foreground">Rating:</span>
+        <span className="text-sm font-mono font-bold">{ratings.score}</span>
+        <span className="text-[10px] text-muted-foreground">/ 10</span>
+      </div>
+      <div className="flex gap-1">
+        {dims.map(d => (
+          <span key={d.key} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${d.color}`}>
+            {d.label} {ratings[d.key]}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SummaryText({ text }) {
   if (!text) return null;
+  const [cleanText, ratings] = extractRatingsFromSummary(text);
   return (
-    <div className="text-sm leading-relaxed space-y-2">
-      {text.split("\n").filter(l => l.trim()).map((line, i) => {
+    <>
+      <div className="text-sm leading-relaxed space-y-2">
+        {cleanText.split("\n").filter(l => l.trim()).map((line, i) => {
         // Markdown headers: ## or ###
         const h2Match = line.match(/^#{1,3}\s+(.+)$/);
         if (h2Match) {
@@ -114,7 +160,9 @@ function SummaryText({ text }) {
         }
         return <p key={i}>{line}</p>;
       })}
-    </div>
+      </div>
+      <RatingBadge ratings={ratings} />
+    </>
   );
 }
 
