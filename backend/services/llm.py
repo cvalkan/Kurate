@@ -896,21 +896,26 @@ def parse_ratings_from_summary(summary_text: str) -> Optional[dict]:
 
 
 RATING_EXTRACTION_PROMPT = {
-    "system_prompt": """You are a scientific reviewer. You will be given an AI-generated impact assessment of a research paper. Based on this assessment, provide numerical ratings.
+    "system_prompt": """You are a scientific reviewer. Rate this paper on each dimension from 1.0 to 10.0 (one decimal place):
 
-Rate each dimension from 1.0 to 10.0 (one decimal place):
 - **score**: Overall quality and impact
 - **significance**: How important is the problem and findings?
-- **rigor**: How strong is the methodology?
-- **novelty**: How original is the contribution?
+- **rigor**: How strong is the methodology and evidence?
+- **novelty**: How original is the contribution compared to existing work?
 - **clarity**: How well is the work presented?
+
+Think carefully about each dimension before providing your overall score.
 
 Respond with ONLY a JSON object:
 {"score": 7.5, "significance": 8.0, "rigor": 7.0, "novelty": 7.5, "clarity": 8.0}""",
 
-    "user_prompt": """Rate this paper based on the following impact assessment:
+    "user_prompt": """Rate this paper:
 
-{summary}""",
+**Title:** {title}
+
+**Abstract:** {abstract}
+
+**AI Impact Assessment:** {summary}""",
 }
 
 

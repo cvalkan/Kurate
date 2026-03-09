@@ -2288,7 +2288,7 @@ async def generate_ratings(request: Request):
             
             papers = await db.papers.find(
                 query,
-                {"_id": 0, "id": 1, "title": 1, "summaries": 1, "added_at": 1}
+                {"_id": 0, "id": 1, "title": 1, "abstract": 1, "summaries": 1, "added_at": 1}
             ).sort("added_at", -1).limit(limit).to_list(limit)
 
             # Filter to papers that have a Claude Thinking summary
@@ -2309,7 +2309,11 @@ async def generate_ratings(request: Request):
                 async with sem:
                     if not _rating_gen_state["running"]:
                         return
-                    prompt = RATING_EXTRACTION_PROMPT["user_prompt"].format(summary=summary[:6000])
+                    prompt = RATING_EXTRACTION_PROMPT["user_prompt"].format(
+                        title=paper.get("title", ""),
+                        abstract=(paper.get("abstract", "") or "")[:2000],
+                        summary=summary[:4000],
+                    )
                     try:
                         chat = LlmChat(
                             api_key=EMERGENT_LLM_KEY,

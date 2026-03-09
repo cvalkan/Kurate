@@ -902,25 +902,17 @@ async def get_public_prompts():
             "user_prompt": IMPACT_ASSESSMENT_PROMPT["user_prompt"],
         }
 
-    # Rating extraction prompt
+    # Rating prompt (unified — used for both live rating generation and validation)
     from services.llm import RATING_EXTRACTION_PROMPT
     rating_prompt = {
         "system_prompt": RATING_EXTRACTION_PROMPT["system_prompt"],
         "user_prompt": RATING_EXTRACTION_PROMPT["user_prompt"],
     }
 
-    # Single-item scoring prompt (from validation experiments)
-    from routers.validation_experiments import SINGLE_ITEM_PROMPT
-    single_item_prompt = {
-        "system_prompt": SINGLE_ITEM_PROMPT["system_prompt"],
-        "user_prompt": SINGLE_ITEM_PROMPT["user_prompt"],
-    }
-
     return {
         "evaluation": eval_prompt,
         "summary": summary_prompt,
-        "rating_extraction": rating_prompt,
-        "single_item": single_item_prompt,
+        "rating": rating_prompt,
     }
 
 

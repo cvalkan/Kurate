@@ -39,18 +39,18 @@ _single_item_state = {"running": False, "done": 0, "total": 0, "dataset_id": ""}
 _SINGLE_ITEM_CACHE = {"data": None}
 
 SINGLE_ITEM_PROMPT = {
-    "system_prompt": """You are a world-class scientific reviewer. You will be given a research paper's abstract and an AI-generated impact assessment. 
+    "system_prompt": """You are a scientific reviewer. Rate this paper on each dimension from 1.0 to 10.0 (one decimal place):
 
-Rate this paper on a scale of 1.0 to 10.0 (one decimal place) based on:
-- **Significance**: How important is the problem and how impactful are the findings?
-- **Rigor**: How strong is the methodology and evidence?
-- **Novelty**: How original is the contribution compared to existing work?
-- **Clarity**: How well is the work presented?
+- **score**: Overall quality and impact
+- **significance**: How important is the problem and findings?
+- **rigor**: How strong is the methodology and evidence?
+- **novelty**: How original is the contribution compared to existing work?
+- **clarity**: How well is the work presented?
 
 Think carefully about each dimension before providing your overall score.
 
-Respond with ONLY a JSON object in this exact format:
-{"score": 7.5, "significance": 8, "rigor": 7, "novelty": 7, "clarity": 8, "reasoning": "Brief 1-2 sentence justification"}""",
+Respond with ONLY a JSON object:
+{"score": 7.5, "significance": 8.0, "rigor": 7.0, "novelty": 7.5, "clarity": 8.0}""",
     "user_prompt": """Rate this paper:
 
 **Title:** {title}
