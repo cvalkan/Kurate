@@ -384,12 +384,18 @@ async def _compute_single_item_results():
                     _bt_n = (_bt_arr - _bt_arr.min()) / max(_bt_arr.max() - _bt_arr.min(), 0.001)
                     _sp = _bt_n - _si_n
                     _sp_rho, _sp_p = scipy_stats.spearmanr(_sp, _gt_arr)
+                    # SP pairwise accuracy
+                    _sp_map = {pid: _sp[i] for i, pid in enumerate(_common)}
+                    _sp_correct = _sp_total = 0
                     # Disagreement analysis
                     _si_right = _bt_right = _disagree = 0
                     for i in range(len(_common)):
                         for j in range(i + 1, len(_common)):
                             a, b = _common[i], _common[j]
                             if gt[a] == gt[b]: continue
+                            _sp_total += 1
+                            if (_sp_map[a] > _sp_map[b]) == (gt[a] > gt[b]):
+                                _sp_correct += 1
                             si_a = scored_map[a] > scored_map[b]
                             bt_a = _bt[a] > _bt[b]
                             gt_a = gt[a] > gt[b]
@@ -401,6 +407,8 @@ async def _compute_single_item_results():
                         "sp_rho": round(float(_sp_rho), 4) if not np.isnan(_sp_rho) else None,
                         "sp_p_value": round(float(_sp_p), 4) if _sp_p >= 0.0001 else 0.0,
                         "significant": bool(_sp_p < 0.05),
+                        "sp_accuracy": round(_sp_correct / max(_sp_total, 1) * 100, 1),
+                        "sp_pairs": _sp_total,
                         "disagreement_pairs": _disagree,
                         "si_right_when_disagree": _si_right,
                         "bt_right_when_disagree": _bt_right,

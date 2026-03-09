@@ -275,18 +275,33 @@ export default function ValidationReportPage() {
         </p>
       </Section>
 
-      {/* 12. SP Signal */}
+      {/* 10. SP Signal */}
       <Section num="10" title="The 'Surprisingly Popular' Signal">
         <p>The gap between pairwise rank and standalone rank (BT - SI) independently predicts quality:</p>
-        <div className="space-y-0.5 mt-1">
-          {ds.filter(d => d.sp_analysis).sort((a, b) => (b.sp_analysis?.sp_rho || 0) - (a.sp_analysis?.sp_rho || 0)).map(d => {
-            const sp = d.sp_analysis;
-            return (
-              <Row key={d.dataset_id} label={d.name}
-                value={`rho=${sp.sp_rho != null ? (sp.sp_rho > 0 ? "+" : "") + sp.sp_rho.toFixed(3) : "?"} ${sp.significant ? `BT right ${sp.bt_right_pct}%` : `SI right ${sp.si_right_pct}%`} ${sp.significant ? "***" : "(ns)"}`}
-                bold={sp.significant} />
-            );
-          })}
+        <div className="overflow-x-auto mt-1">
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-1 pr-2">Dataset</th>
+                <th className="text-right py-1 px-1">SP rho</th>
+                <th className="text-right py-1 px-1">SP Accuracy</th>
+                <th className="text-center py-1 px-1">Sig?</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ds.filter(d => d.sp_analysis).sort((a, b) => (b.sp_analysis?.sp_rho || 0) - (a.sp_analysis?.sp_rho || 0)).map(d => {
+                const sp = d.sp_analysis;
+                return (
+                  <tr key={d.dataset_id} className="border-b border-border/20">
+                    <td className="py-0.5 pr-2">{d.name}</td>
+                    <td className="text-right py-0.5 px-1 font-mono">{sp.sp_rho != null ? (sp.sp_rho > 0 ? "+" : "") + sp.sp_rho.toFixed(3) : "—"}</td>
+                    <td className="text-right py-0.5 px-1 font-mono">{sp.sp_accuracy != null ? sp.sp_accuracy + "%" : "—"}</td>
+                    <td className="text-center py-0.5 px-1">{sp.significant ? "***" : "(ns)"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
           <strong>What high-SP papers share:</strong> 6/7 top "surprisingly competitive" papers across ICLR are practical systems/frameworks — L2MAC, fairret, BioBridge, etc. Single-item scoring systematically undervalues engineering contributions whose strengths only emerge in comparison. The SP signal detects "hidden practical value."
