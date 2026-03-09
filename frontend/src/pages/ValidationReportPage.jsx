@@ -117,19 +117,19 @@ export default function ValidationReportPage() {
       {/* 3. Summarizer x Judge Matrix */}
       {/* 3. Input Format */}
       <Section num="3" title="Which Input Format Works Best?">
-        <p>Pairwise accuracy against human GT, by input format (judge-averaged to control for judge quality differences):</p>
+        <p>Pairwise accuracy against human GT. Fair comparison: 14 shared datasets, 3 shared judges (GPT-5.2, Gemini 3 Pro, Opus 4.6). Judge-averaged to control for judge quality.</p>
         <div className="space-y-0.5 mt-1">
           {[
-            { fmt: "Abs + Summary (Thinking)", acc: "74.1%", pairs: "8,279" },
-            { fmt: "Deep Dive (2-pass)", acc: "73.1%", pairs: "5,177" },
-            { fmt: "Abs + Summary (Opus 4.6)", acc: "72.8%", pairs: "14,766" },
-            { fmt: "Full PDF", acc: "72.0%", pairs: "11,595" },
-            { fmt: "Abs + Summary (Opus 4.5)", acc: "71.9%", pairs: "40,883" },
-            { fmt: "Abstract only", acc: "67.8%", pairs: "9,690" },
-          ].map(r => <Row key={r.fmt} label={`${r.fmt} (${r.pairs} pairs)`} value={r.acc} bold={r.fmt.includes("Thinking")} />)}
+            { fmt: "Abs + Summary (Opus 4.6 Thinking)", acc: "74.1%", pairs: "8,279" },
+            { fmt: "Deep Dive (2-pass)", acc: "74.1%", pairs: "3,768" },
+            { fmt: "Abs + Summary (Opus 4.6)", acc: "73.1%", pairs: "11,012" },
+            { fmt: "Abs + Summary (Opus 4.5)", acc: "72.9%", pairs: "25,353" },
+            { fmt: "Full PDF", acc: "71.3%", pairs: "7,487" },
+            { fmt: "Abstract only", acc: "67.1%", pairs: "5,025" },
+          ].map((r, i) => <Row key={r.fmt} label={`${r.fmt} (${r.pairs} pairs)`} value={r.acc} bold={i < 2} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Abstract + AI Summary (Thinking) achieves the highest accuracy (74.1%), +6pp over abstract-only (67.8%). Upgrading the summary from Opus 4.5 to Thinking gives +2pp. Full PDF is surprisingly mediocre (72%) — irrelevant sections add noise. Abstract alone is the worst: the AI needs more context than just the abstract to judge well.
+          <strong>Verdict:</strong> Thinking summaries and Deep Dive are tied at 74.1% — both +7pp over abstract-only. The gap between Opus 4.5 and Thinking summaries is only 1.2pp — most of the value comes from having <em>any</em> AI summary, not from which model generates it. Full PDF underperforms AI-summarized formats: irrelevant sections add noise.
         </p>
       </Section>
 
