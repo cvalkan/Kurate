@@ -99,10 +99,15 @@ export function LeaderboardTable({
     });
   }, [leaderboard, sortKey, sortDir, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Dynamic grid: base columns + optional Rating + Gap
-  const gridCls = showCatCol
-    ? "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4rem_4.5rem_4rem_4rem_4rem_7rem] md:grid-cols-[3rem_1fr_4.5rem_5rem_4.5rem_4.5rem_4rem_7rem]"
-    : "grid-cols-[2rem_1fr_3rem] sm:grid-cols-[2.5rem_1fr_4.5rem_4rem_4rem_4rem_7rem] md:grid-cols-[3rem_1fr_5rem_4.5rem_4.5rem_4rem_7rem]";
+  // Build grid template based on visible columns
+  const cols = ["3rem", "1fr"]; // # + Paper
+  if (showCatCol) cols.push("4.5rem"); // Cat
+  cols.push("5rem", "4.5rem", "4.5rem", "4rem"); // Score, Win%, CI, Match
+  if (showRatingCol) cols.push("3.5rem"); // Rating
+  if (showGapCol) cols.push("3.5rem"); // Gap
+  cols.push("6rem"); // Published
+  const gridStyle = { gridTemplateColumns: cols.join(" ") };
+  const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
   const visibleList = sorted.slice(0, displayCount);
   const hasMore = sorted.length > visibleList.length;
@@ -137,21 +142,24 @@ export function LeaderboardTable({
         <div className="text-xs text-muted-foreground mb-2">Showing {leaderboard.length} papers matching "{keyword}"</div>
       )}
       <div className="border border-border rounded-lg overflow-x-auto" data-testid="leaderboard-table">
-        <div className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none ${gridCls}`}>
+        <div className={`${gridBase} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`} style={gridStyle}>
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
-          {showCatCol && <div className="text-center hidden sm:block">Cat</div>}
+          {showCatCol && <div className="text-center">Cat</div>}
           <SortHeader label={scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
-          <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />
-          <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={COLUMN_TIPS.wilson_margin} />
-          <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />
-          <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden md:flex" tip={COLUMN_TIPS.published} />
+          <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />
+          <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.wilson_margin} />
+          <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />
+          {showRatingCol && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
+          {showGapCol && <SortHeader label="Gap" sortKey="sp_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Tournament rank minus standalone rating rank. Positive = does better in competition." />}
+          <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.published} />
         </div>
         {visibleList.map((paper, idx) => (
           <Link
             key={paper.id}
             to={`/paper/${paper.id}`}
-            className={`grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${gridCls} ${idx < 3 && !debouncedKeyword && (!sortKey || sortKey === "rank") ? "bg-accent/[0.02]" : ""}`}
+            className={`${gridBase} py-2 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 && !debouncedKeyword && (!sortKey || sortKey === "rank") ? "bg-accent/[0.02]" : ""}`}
+            style={gridStyle}
             data-testid={`leaderboard-row-${idx}`}
           >
             <div><RankBadge rank={paper._displayRank ?? paper.rank} /></div>
@@ -163,24 +171,20 @@ export function LeaderboardTable({
               </p>
             </div>
             {showCatCol && (
-              <div className="text-center hidden sm:block">
+              <div className="text-center">
                 <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono bg-secondary text-muted-foreground">{paper.primary_category || "?"}</span>
               </div>
             )}
             <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper)}</div>
-            <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:block">{getWinRate(paper)}%</div>
-            <div className="text-right font-mono text-xs text-muted-foreground hidden sm:block">
+            <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper)}%</div>
+            <div className="text-right font-mono text-xs text-muted-foreground">
               {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}%` : "--"; })()}
             </div>
-            <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:block">{getComparisons(paper)}</div>
-            <div className="text-right text-[10px] text-muted-foreground hidden md:flex flex-col items-end gap-0.5">
-              <span className="text-xs">{paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}</span>
-              {(showRatingCol || showGapCol) && (paper.ai_rating || paper.sp_score != null) && (
-                <span className="flex gap-1.5 font-mono">
-                  {showRatingCol && paper.ai_rating && <span title="AI Rating (1-10)">R:{paper.ai_rating}</span>}
-                  {showGapCol && paper.sp_score != null && <span className={paper.sp_score > 0 ? "text-emerald-600" : paper.sp_score < 0 ? "text-red-400" : ""} title="Gap: Tournament rank vs standalone rating rank">G:{paper.sp_score > 0 ? "+" : ""}{paper.sp_score}</span>}
-                </span>
-              )}
+            <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper)}</div>
+            {showRatingCol && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{paper.ai_rating || "—"}</div>}
+            {showGapCol && <div className={`text-right font-mono text-[10px] sm:text-xs ${paper.sp_score > 0 ? "text-emerald-600" : paper.sp_score < 0 ? "text-red-400" : "text-muted-foreground"}`}>{paper.sp_score != null ? (paper.sp_score > 0 ? "+" : "") + paper.sp_score : "—"}</div>}
+            <div className="text-right text-xs text-muted-foreground">
+              {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
             </div>
           </Link>
         ))}
