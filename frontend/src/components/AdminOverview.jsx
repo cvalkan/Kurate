@@ -48,8 +48,8 @@ function RatingGenSection({ adminCat }) {
   }, []);
 
   useEffect(() => {
-    poll(); // Initial fetch
-    const iv = setInterval(poll, 5000);
+    poll();
+    const iv = setInterval(poll, 4000);
     return () => clearInterval(iv);
   }, [poll]);
 
@@ -65,25 +65,19 @@ function RatingGenSection({ adminCat }) {
 
   const running = status?.running;
   const stats = status?.stats || {};
+  const catStats = status?.cat_stats;
 
   return (
     <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="rating-gen-section">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-2">
         <div>
           <h3 className="text-sm font-medium flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" />
             AI Ratings (Single-Item)
           </h3>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            {running
-              ? `Generating... ${status.done}/${status.total} rated (${status.category})`
-              : `${stats.rated || 0} / ${stats.total || 0} papers rated across all categories`}
+            Generate 1-10 ratings from existing Claude Thinking summaries
           </p>
-          {stats.total > 0 && (
-            <div className="mt-1.5 w-48 h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div className="h-full bg-accent/70 rounded-full transition-all" style={{ width: `${Math.min(100, (stats.rated / stats.total) * 100)}%` }} />
-            </div>
-          )}
         </div>
         <Button
           onClick={start}
@@ -95,6 +89,38 @@ function RatingGenSection({ adminCat }) {
           <Sparkles className={`h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
           {running ? `${status.done}/${status.total}` : "Generate Ratings (100 papers)"}
         </Button>
+      </div>
+      {/* Current task progress */}
+      {running && (
+        <div className="mb-2">
+          <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
+            <span>Current: {status.category || "all"}</span>
+            <span>{status.done}/{status.total} ({status.total > 0 ? Math.round(status.done / status.total * 100) : 0}%)</span>
+          </div>
+          <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${status.total > 0 ? (status.done / status.total) * 100 : 0}%` }} />
+          </div>
+        </div>
+      )}
+      {/* Per-category progress (from DB, updates even when task finishes) */}
+      {catStats && (
+        <div className="mb-2">
+          <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
+            <span>{catStats.category}</span>
+            <span>{catStats.rated}/{catStats.total} rated</span>
+          </div>
+          <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+            <div className="h-full bg-blue-400 rounded-full transition-all" style={{ width: `${catStats.total > 0 ? (catStats.rated / catStats.total) * 100 : 0}%` }} />
+          </div>
+        </div>
+      )}
+      {/* Overall progress */}
+      <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
+        <span>Overall</span>
+        <span>{stats.rated || 0}/{stats.total || 0} papers rated ({stats.total > 0 ? Math.round((stats.rated / stats.total) * 100) : 0}%)</span>
+      </div>
+      <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+        <div className="h-full bg-accent/60 rounded-full transition-all" style={{ width: `${stats.total > 0 ? (stats.rated / stats.total) * 100 : 0}%` }} />
       </div>
     </div>
   );
