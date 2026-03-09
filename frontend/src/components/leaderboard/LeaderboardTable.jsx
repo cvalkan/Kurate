@@ -144,8 +144,8 @@ export function LeaderboardTable({
           <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />
           <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={COLUMN_TIPS.wilson_margin} />
           <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />
-          <SortHeader label="AI" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip="Single-item AI rating (1-10) from Opus 4.6 Thinking" />
-          <SortHeader label="SP" sortKey="sp_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip="Surprisingly Popular score: BT percentile minus AI percentile. Positive = paper does better in competition than its standalone rating suggests." />
+          <SortHeader label="Score" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip="Single-item AI quality score (1-10) from Opus 4.6 Thinking. Based on significance, rigor, novelty, and clarity." />
+          <SortHeader label="Gap" sortKey="sp_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden sm:flex" tip="Tournament rank minus standalone score rank. Positive = paper does better in competition than its standalone score suggests. Negative = paper looks better on paper than in head-to-head." />
           <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end hidden md:flex" tip={COLUMN_TIPS.published} />
         </div>
         {visibleList.map((paper, idx) => (
