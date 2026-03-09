@@ -8,6 +8,7 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **Backend**: FastAPI + MongoDB
 - **LLMs**: GPT-5.2, Claude Opus 4.6, Gemini 3 Pro (via Emergent LLM key)
 - **Domain**: kurate.org
+- **Preview**: llm-ranker.preview.emergentagent.com
 
 ## Optimal Configuration (as of Mar 2 2026)
 - **Summarizer**: Opus 4.6 Thinking (used in live tournaments; GPT/Gemini summaries generated for analysis only)
@@ -15,56 +16,57 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **Input format**: Abstract + AI impact assessment summary
 - **Summary source**: "claude" (only Claude Thinking summaries used in live tournaments)
 
-## Recent Updates (Mar 7 2026)
+## Current State (Mar 9 2026)
+- 1218 papers, 39022 matches, 10 active categories
+- 25 validation datasets, 141963 validation matches, 3158 validation papers
+- All validation experiments publicly accessible
+- Leaderboard shows Rating and Gap columns (togglable via admin)
+- Security headers fully implemented
+- All endpoints returning 200, no broken pages
 
-### Ground Truth Scoring Fix (Critical)
-- **Root cause**: `build_paper_gt_scores()` prioritized coarse tier decisions (Oral=4, Poster=2) over granular human evaluation ratings (21+ unique values)
-- **Impact**: For MIDL (only 2 tiers), 60% of matches were filtered as "same-tier", truncating convergence curves to ~4 avg matches/paper
-- **Fix**: Changed priority order: `h1_avg_rating` > `composite_score` > evaluation avg > tier decision
-- **Result**: All 607 MIDL thinking matches now included; convergence extends to 15 avg matches/paper
-- **Spearman rho consistency**: Convergence (0.348) now aligns with Single-Item scoring (0.3177) — both use evaluation-based GT
-- **Side effect**: All datasets benefit from more granular GT; precomputed data updated
+## Deployment Readiness (Mar 9 2026)
 
-### Frontend Build URL Fix
-- Frontend was serving a stale production build with old backend URL (`llm-tournament-debug.preview.emergentagent.com`)
-- Rebuilt with correct `REACT_APP_BACKEND_URL=https://llm-ranker.preview.emergentagent.com`
+### Verified
+- Frontend rebuilt with correct REACT_APP_BACKEND_URL (llm-ranker)
+- All backend test files updated with correct URLs
+- All API endpoints tested and returning 200
+- Security headers present (HSTS, CSP, X-Frame-Options, etc.)
+- MongoDB indexes all created (papers, matches, validation_*, settings)
+- Precomputed experiment caches loading on startup (172 caches)
+- Admin login working with correct password
+- All frontend pages rendering correctly
+- Leaderboard Rating/Gap columns visible and sortable
+- Validation Hub showing all sections (Pairwise, Single-Item, Tournament, Experiments)
 
-### Matchmaking Improvement (Elo-Aware Opponent Selection)
-- Established opponent selection now picks the paper closest to the new paper's estimated Elo
-- Top-K identification now uses regularized Elo scores instead of raw win-rate
-- Post-convergence repeat logic now re-matches Elo-adjacent papers
-- Simulation showed +3.4% ranking correlation improvement
-
-### GPT 5.4 Summarizer Experiment
-- Added GPT 5.4 as experimental summarizer using user's own OpenAI key
-- Results: GPT-5.4 accuracy=76.6%, tied with Opus 4.5, below Opus 4.6 Thinking (85.4%)
-
-### Pipeline Fixes (Mar 6 2026)
-- Fixed summary filter lost after PDF re-fetch
-- Fixed failed PDF downloads permanently excluding papers
-- PDF download cap increased from 200 to 500
-- Pause now stops summary generation instantly
-- Real-time summary generation progress tracking
+### Performance
+- Health: ~200ms, Categories: ~130ms, Leaderboard: ~200ms
+- Validation endpoints: 110-280ms (cached)
+- Background cache refresh: ~1s every 60s
+- Analysis cache refresh: every 5 minutes
+- Connection pool: 50 max, 10 min
 
 ## Pending Tasks
 - (P2) Further refactor validation.py (2500+ lines)
 - (P2) Improve summary generation failure tracking (partial failures per model)
+- (P2) Verify all ICLR datasets fully scored in single-item experiment
+- (Future) Consolidate MIDL experiment pipeline into single robust background task
 - (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
 
 ## Key Issue: Budget Exhaustion
-The Emergent LLM key budget gets exhausted during large-scale summary generation. User needs to top up via Profile → Universal Key → Add Balance.
+The Emergent LLM key budget gets exhausted during large-scale summary generation. User needs to top up via Profile -> Universal Key -> Add Balance.
 
 ## Completed Work
 - Pre-computation system for production deployment
-- Single-Item Scoring experiment — run on eLife (Cancer + Neuro), ICLR (7 datasets), MIDL, PeerRead, RH-50, Qeios Social
+- Single-Item Scoring experiment - run on eLife (Cancer + Neuro), ICLR (7 datasets), MIDL, PeerRead, RH-50, Qeios Social
 - "Surprisingly Popular" analysis: BT_rank - SI_rank as independent quality predictor
-  - Significant (ρ=0.4-0.6) on comparative-GT datasets (ICLR, PeerRead, eLife Neuro)
-  - Not significant on standalone-GT datasets (Qeios, RH-50, eLife Cancer)
-  - When methods disagree: BT right 75% on eLife Neuro, SI right 71% on RH-50
-- Controlled PW Thinking Judge experiment on Qeios + RH-50: SI still wins with equalized model
+- Controlled PW Thinking Judge experiment on Qeios + RH-50
 - Institutional Bias Analysis with controlled same-pair analysis
 - AlphaXiv Integration for community popularity data
 - HTTP Security Headers middleware
-- Convergence chart fix: removed biased cross-tier filter, now uses all matches
-- Fixed single-item scoring startup bug (_single_item_state.running not set before bg task)
-- Analysis: SI tie handling is fair (~50% acc on tied pairs), Spearman avg-rank correct but coarser
+- Convergence chart fix
+- Live Leaderboard Metric Integration (Rating + Gap columns)
+- Admin controls for leaderboard column visibility
+- Non-blocking rating generation for existing papers
+- Comprehensive Validation Summary Report page
+- Frontend rebuild for llm-ranker fork (Mar 9 2026)
+- Deployment readiness verification (Mar 9 2026)
