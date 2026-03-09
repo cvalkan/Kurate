@@ -211,9 +211,8 @@ export default function ValidationHubPage() {
           {/* Summary Report */}
           <NavItem item={{ id: "report-summary", label: "Summary Report", sub: "All findings" }} selected={selected} onSelect={setSelected} />
 
-          {/* Pairwise — admin only */}
-          {isAdmin && (
-            <CollapsibleGroup label="Pairwise" icon={GitCompare} defaultOpen={selected?.startsWith("pw-")}>
+          {/* Pairwise */}
+          <CollapsibleGroup label="Pairwise" icon={GitCompare} defaultOpen={selected?.startsWith("pw-")}>
               {Object.entries(pairwiseGroups).map(([source, items]) => (
                 <SourceGroup
                   key={`pw-${source}`}
@@ -229,8 +228,8 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "pw-scipost", label: "SciPost", sub: "Separate dataset" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
             </CollapsibleGroup>
-          )}
 
+          {/* Single-item scoring */}
           {/* Single-item scoring — public for scored datasets, admin for SciPost legacy */}
           <CollapsibleGroup label="Single-Item" icon={Beaker} defaultOpen={selected?.startsWith("si-")}>
             <NavItem item={{ id: "si-elife-cancer", label: "eLife Cancer", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
@@ -263,8 +262,8 @@ export default function ValidationHubPage() {
             ))}
           </CollapsibleGroup>
 
-          {/* Experiments — admin only */}
-          {isAdmin && (
+          {/* Experiments */}
+          
             <CollapsibleGroup label="Experiments" icon={FlaskRound} defaultOpen={selected?.startsWith("exp-")}>
               <CollapsibleGroup label="Summarizer Quality" defaultOpen={selected === "exp-summarizer-cross" || selected === "exp-summarizer-ab" || selected === "exp-thinking-overview"}>
                 <NavItem item={{ id: "exp-summarizer-cross", label: "Accuracy by Summarizer", sub: "GPT vs Gemini vs Opus" }} selected={selected} onSelect={setSelected} />
@@ -302,7 +301,7 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-summary-bias-phys", label: "Comp Physics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
             </CollapsibleGroup>
-          )}
+
         </nav>
 
         <div className="flex-1 min-w-0">

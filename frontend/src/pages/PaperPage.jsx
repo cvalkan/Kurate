@@ -102,32 +102,33 @@ function extractRatingsFromSummary(text) {
 function RatingBadge({ ratings }) {
   if (!ratings) return null;
   const dims = [
-    { key: "significance", label: "Sig", color: "bg-blue-100 text-blue-700" },
-    { key: "rigor", label: "Rig", color: "bg-emerald-100 text-emerald-700" },
-    { key: "novelty", label: "Nov", color: "bg-violet-100 text-violet-700" },
-    { key: "clarity", label: "Cla", color: "bg-amber-100 text-amber-700" },
+    { key: "significance", label: "Significance", color: "bg-blue-100 text-blue-700" },
+    { key: "rigor", label: "Rigor", color: "bg-emerald-100 text-emerald-700" },
+    { key: "novelty", label: "Novelty", color: "bg-violet-100 text-violet-700" },
+    { key: "clarity", label: "Clarity", color: "bg-amber-100 text-amber-700" },
   ];
   return (
-    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30" data-testid="summary-ratings">
+    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30 flex-wrap" data-testid="summary-ratings">
       <div className="flex items-center gap-1">
         <span className="text-[10px] text-muted-foreground">Rating:</span>
         <span className="text-sm font-mono font-bold">{ratings.score}</span>
         <span className="text-[10px] text-muted-foreground">/ 10</span>
       </div>
-      <div className="flex gap-1">
-        {dims.map(d => (
+      <div className="flex gap-1 flex-wrap">
+        {dims.map(d => ratings[d.key] ? (
           <span key={d.key} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${d.color}`}>
             {d.label} {ratings[d.key]}
           </span>
-        ))}
+        ) : null)}
       </div>
     </div>
   );
 }
 
-function SummaryText({ text }) {
+function SummaryText({ text, fallbackRatings }) {
   if (!text) return null;
-  const [cleanText, ratings] = extractRatingsFromSummary(text);
+  const [cleanText, inlineRatings] = extractRatingsFromSummary(text);
+  const ratings = inlineRatings || fallbackRatings;
   return (
     <>
       <div className="text-sm leading-relaxed space-y-2">
@@ -304,7 +305,7 @@ export default function PaperPage() {
             </TabsList>
             {summaryEntries.map(e => (
               <TabsContent key={e.tabId} value={e.tabId} data-testid={`summary-content-${e.provider}`}>
-                <SummaryText text={e.text} />
+                <SummaryText text={e.text} fallbackRatings={e.provider === "anthropic" ? paper.ai_rating : null} />
                 {e.date && (
                   <p className="text-[10px] text-muted-foreground mt-3">
                     Generated {new Date(e.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
@@ -325,7 +326,7 @@ export default function PaperPage() {
               <ModelBadge model={paper.summary_model_used} />
             )}
           </div>
-          <SummaryText text={paper.impact_summary} />
+          <SummaryText text={paper.impact_summary} fallbackRatings={paper.ai_rating} />
           {paper.summary_generated_at && (
             <p className="text-[10px] text-muted-foreground mt-3">
               Generated {new Date(paper.summary_generated_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
