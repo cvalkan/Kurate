@@ -204,24 +204,24 @@ export default function ValidationReportPage() {
 
       {/* 8. Institution Bias */}
       <Section num="8" title="Do LLMs Favor Prestigious Institutions?">
-        <p>Does the AI judge favor papers from top institutions? Controlled same-pair test: same paper pairs, same judges — only the institution metadata varies. Bias delta = how much more/less the AI picks the prestigious paper vs what the human GT predicts (negative = anti-prestige).</p>
+        <p>Controlled same-pair test: 1,891 pairs where one paper is from a prestigious institution (MIT, Stanford, Google, etc.). Same judges, same pairs — only institution metadata varies.</p>
+        <p className="mt-1"><em>How often does each pick the prestigious paper?</em></p>
         <div className="space-y-0.5 mt-1">
-          {[
-            { name: "Opus 4.6", acc: "79.8%", bias: "-4.7pp" },
-            { name: "Opus 4.5", acc: "79.3%", bias: "-5.0pp" },
-            { name: "Gemini 3 Pro", acc: "78.4%", bias: "-6.1pp" },
-            { name: "GPT-5.2", acc: "78.1%", bias: "-5.1pp" },
-          ].map(j => <Row key={j.name} label={j.name} value={`${j.acc} accuracy, ${j.bias} bias`} bold={j.name === "Opus 4.6"} />)}
+          <Row label="Human GT (reviewers)" value="78.5%" bold />
+          <Row label="Opus 4.6" value="73.8%  (delta: -4.7pp vs humans)" />
+          <Row label="Opus 4.5" value="73.5%  (delta: -5.0pp)" />
+          <Row label="GPT-5.2" value="73.4%  (delta: -5.1pp)" />
+          <Row label="Gemini 3 Pro" value="72.4%  (delta: -6.1pp)" />
         </div>
-        <p className="text-[10px] mt-1">Is higher accuracy driven by shared bias? Accuracy by pair type:</p>
-        <div className="space-y-0.5 mt-1">
-          {[
-            { cat: "Prestige-gap pairs (one top institution)", opus46: "79.8%", gpt: "78.1%" },
-            { cat: "No-institution pairs", opus46: "71.7%", gpt: "69.4%" },
-          ].map(r => <Row key={r.cat} label={r.cat} value={`Opus 4.6: ${r.opus46}, GPT-5.2: ${r.gpt}`} />)}
+        <p className="text-[10px] mt-2">Accuracy (how often each is correct, regardless of prestige direction):</p>
+        <div className="space-y-0.5 mt-0.5">
+          <Row label="Opus 4.6" value="79.8%" bold />
+          <Row label="Opus 4.5" value="79.3%" />
+          <Row label="Gemini 3 Pro" value="78.4%" />
+          <Row label="GPT-5.2" value="78.1%" />
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> All models show a slight <em>anti</em>-prestige bias (-4.7 to -6.1pp) — they pick the prestigious paper <em>less</em> than human GT would predict. Opus 4.6 is both the most accurate (79.8%) and the least biased (-4.7pp). Its accuracy advantage holds equally on no-institution pairs (71.7% vs 69.4% GPT-5.2), confirming it is genuinely better at the task, not benefiting from shared bias with the GT.
+          <strong>Verdict:</strong> All AI models are more egalitarian than human reviewers — they pick the prestigious paper 4.7-6.1pp <em>less</em> than humans do. Opus 4.6 is the closest to humans (73.8% vs 78.5%) and the most accurate (79.8%). Whether this makes Opus 4.6 the "most prestige-biased AI" or the "best calibrated" depends on whether the human GT itself reflects prestige bias. The accuracy data suggests Opus 4.6 is detecting genuine quality signals that happen to correlate with prestige, not just deferring to institution names.
         </p>
       </Section>
 
