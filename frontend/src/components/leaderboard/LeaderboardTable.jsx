@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Trophy, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -99,13 +99,29 @@ export function LeaderboardTable({
     });
   }, [leaderboard, sortKey, sortDir, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build grid template based on visible columns
-  const cols = ["3rem", "1fr"]; // # + Paper
-  if (showCatCol) cols.push("4.5rem"); // Cat
-  cols.push("5rem", "4.5rem", "4.5rem", "4rem"); // Score, Win%, CI, Match
-  if (showRatingCol) cols.push("3.5rem"); // Rating
-  if (showGapCol) cols.push("3.5rem"); // Gap
-  cols.push("6rem"); // Published
+  // Build grid template based on visible columns and screen size
+  // Mobile: #, Paper, Score only. Tablet: +Win%, Match. Desktop: all columns.
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      setIsMobile(window.innerWidth < 640);
+      setIsTablet(window.innerWidth < 1024);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const cols = ["2.5rem", "1fr"]; // # + Paper
+  if (showCatCol && !isMobile) cols.push("4.5rem"); // Cat
+  cols.push(isMobile ? "3.5rem" : "5rem"); // Score
+  if (!isMobile) cols.push("4.5rem"); // Win%
+  if (!isMobile && !isTablet) cols.push("4.5rem"); // CI
+  if (!isMobile) cols.push("4rem"); // Match
+  if (showRatingCol && !isMobile && !isTablet) cols.push("3.5rem"); // Rating
+  if (showGapCol && !isMobile && !isTablet) cols.push("3.5rem"); // Gap
+  if (!isMobile) cols.push("6rem"); // Published
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
@@ -145,14 +161,14 @@ export function LeaderboardTable({
         <div className={`${gridBase} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`} style={gridStyle}>
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
-          {showCatCol && <div className="text-center">Cat</div>}
-          <SortHeader label={scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
-          <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />
-          <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.wilson_margin} />
-          <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />
-          {showRatingCol && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
-          {showGapCol && <SortHeader label="Gap" sortKey="sp_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Tournament rank minus standalone rating rank. Positive = does better in competition." />}
-          <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.published} />
+          {showCatCol && !isMobile && <div className="text-center">Cat</div>}
+          <SortHeader label={isMobile ? "Elo" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
+          {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
+          {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.wilson_margin} />}
+          {!isMobile && <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />}
+          {showRatingCol && !isMobile && !isTablet && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
+          {showGapCol && !isMobile && !isTablet && <SortHeader label="Gap" sortKey="sp_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Tournament rank minus standalone rating rank. Positive = does better in competition." />}
+          {!isMobile && <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.published} />}
         </div>
         {visibleList.map((paper, idx) => (
           <Link
@@ -170,22 +186,22 @@ export function LeaderboardTable({
                 {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
               </p>
             </div>
-            {showCatCol && (
+            {showCatCol && !isMobile && (
               <div className="text-center">
                 <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono bg-secondary text-muted-foreground">{paper.primary_category || "?"}</span>
               </div>
             )}
             <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper)}</div>
-            <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper)}%</div>
-            <div className="text-right font-mono text-xs text-muted-foreground">
+            {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper)}%</div>}
+            {!isMobile && !isTablet && <div className="text-right font-mono text-xs text-muted-foreground">
               {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}%` : "--"; })()}
-            </div>
-            <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper)}</div>
-            {showRatingCol && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{paper.ai_rating || "—"}</div>}
-            {showGapCol && <div className={`text-right font-mono text-[10px] sm:text-xs ${paper.sp_score > 0 ? "text-emerald-600" : paper.sp_score < 0 ? "text-red-400" : "text-muted-foreground"}`}>{paper.sp_score != null ? (paper.sp_score > 0 ? "+" : "") + paper.sp_score : "—"}</div>}
-            <div className="text-right text-xs text-muted-foreground">
+            </div>}
+            {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper)}</div>}
+            {showRatingCol && !isMobile && !isTablet && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{paper.ai_rating || "—"}</div>}
+            {showGapCol && !isMobile && !isTablet && <div className={`text-right font-mono text-[10px] sm:text-xs ${paper.sp_score > 0 ? "text-emerald-600" : paper.sp_score < 0 ? "text-red-400" : "text-muted-foreground"}`}>{paper.sp_score != null ? (paper.sp_score > 0 ? "+" : "") + paper.sp_score : "—"}</div>}
+            {!isMobile && <div className="text-right text-xs text-muted-foreground">
               {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
-            </div>
+            </div>}
           </Link>
         ))}
       </div>
