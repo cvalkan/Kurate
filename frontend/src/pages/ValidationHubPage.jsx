@@ -164,6 +164,7 @@ export default function ValidationHubPage() {
       "si-peerread": { title: "Single-Item — PeerRead ACL 2017", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 computational linguistics papers with 1-5 recommendation scores." },
       "si-researchhub-50": { title: "Single-Item — ResearchHub 50", desc: "Opus 4.6 Thinking rates each paper 1-10. 50 biology/biomedical papers from paid peer reviews (1-5 scale)." },
       "si-qeios-social": { title: "Single-Item — Qeios Social Sciences", desc: "Opus 4.6 Thinking rates each paper 1-10. 50 social science papers with 3-60 independent reviewer ratings." },
+      "si-qeios-physical": { title: "Single-Item — Qeios Physical Sciences", desc: "Opus 4.6 Thinking rates each paper 1-10. 50 physical science papers with 3-45 independent reviewer ratings." },
       "si-elife-neuro": { title: "Single-Item — eLife Neuroscience", desc: "Opus 4.6 Thinking rates each paper 1-10. 100 neuroscience papers with comparative editor assessments." },
       "exp-summarizer-ab": { title: "Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
       "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
@@ -247,6 +248,7 @@ export default function ValidationHubPage() {
             <NavItem item={{ id: "si-peerread", label: "PeerRead ACL 2017", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-researchhub-50", label: "ResearchHub 50", sub: "50 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-qeios-social", label: "Qeios Social Sciences", sub: "50 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-qeios-physical", label: "Qeios Physical Sciences", sub: "50 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-elife-neuro", label: "eLife Neuroscience", sub: "100 papers" }} selected={selected} onSelect={setSelected} />
             {isAdmin && <NavItem item={{ id: "si-scipost", label: "SciPost (Legacy)" }} selected={selected} onSelect={setSelected} />}
           </CollapsibleGroup>
@@ -335,6 +337,7 @@ export default function ValidationHubPage() {
           {selected === "si-peerread" && <SingleItemScoringSection datasetId="peerread_acl_2017" />}
           {selected === "si-researchhub-50" && <SingleItemScoringSection datasetId="researchhub-50" />}
           {selected === "si-qeios-social" && <SingleItemScoringSection datasetId="qeios-social" />}
+          {selected === "si-qeios-physical" && <SingleItemScoringSection datasetId="qeios-physical" />}
           {selected === "si-elife-neuro" && <SingleItemScoringSection datasetId="elife-neuro-100" />}
           {selected === "exp-summarizer-ab" && <SummarizerComparisonSection />}
           {selected === "exp-summary-bias" && <SummaryBiasSection category="q-bio.BM" />}

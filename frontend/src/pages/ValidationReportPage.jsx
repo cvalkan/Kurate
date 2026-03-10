@@ -9,7 +9,8 @@ const GT_TYPE = {
   "iclr-fairness": "comparative", "iclr-pdes": "comparative", "iclr-molecules": "comparative",
   "iclr-optimization": "comparative", "elife-neuro-100": "comparative", "peerread_acl_2017": "comparative",
   "elife-cancer": "standalone", "elife-microbiology": "standalone", "elife-comp-sys-bio": "standalone",
-  "midl-medical-imaging": "standalone", "qeios-social": "standalone", "researchhub-50": "standalone",
+  "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
+  "researchhub-50": "standalone",
 };
 
 function Section({ num, title, children }) {
@@ -330,7 +331,7 @@ export default function ValidationReportPage() {
           </table>
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, eLife Neuro, PeerRead) at 67-89% vs 65-77%. Single-item wins on all standalone-GT datasets (Qeios, RH-50, eLife Cancer) at 74-78% vs 64-74%. The optimal method mirrors the GT generation process. Controlled experiment (same model for both) confirms this is domain-dependent, not a model artifact.
+          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, eLife Neuro, PeerRead) at 67-89% vs 65-77%. Single-item wins on all 4 standalone-GT datasets (Qeios Social & Physical, RH-50, eLife Cancer) at 64-78% vs 43-74%. The optimal method mirrors the GT generation process: pairwise for comparative GT, single-item for standalone ratings. Controlled experiment (same model for both) confirms this is domain-dependent, not a model artifact.
         </p>
       </Section>
 
