@@ -106,7 +106,7 @@ async def _compute_experiments():
 
 
 async def _compute_validation_datasets():
-    """Compute per-dataset results (status, pairwise, irt, agreement, convergence, convergence-all, etc.)."""
+    """Compute per-dataset results for ALL content modes (status, pairwise, irt, agreement, convergence, convergence-all, etc.)."""
     from routers.validation import (
         _compute_status, _compute_pairwise_results, _compute_convergence,
         _compute_irt_results, _compute_agreement,
@@ -121,20 +121,27 @@ async def _compute_validation_datasets():
     for ds_id in dataset_ids:
         ds_cache = {}
 
-        # Use a list of (name, fn) — define with default args to capture ds_id correctly
-        def make_endpoints(did):
-            return [
-                ("status", lambda: _compute_status(did)),
-                ("pairwise", lambda: _compute_pairwise_results(did, None, None)),
-                ("irt", lambda: _compute_irt_results(did, None, None)),
-                ("agreement", lambda: _compute_agreement(did, None, None)),
-                ("cross-mode", lambda: _compute_cross_mode_agreement(did)),
-                ("convergence", lambda: _compute_convergence(did, None, 20)),
-                ("convergence-all", lambda: get_convergence_all(dataset_id=did, steps=20)),
-                ("dual-dim", lambda: _compute_dual_dimension_results(did, None)),
-            ]
+        # Discover ALL available content modes for this dataset
+        mode_pipeline = [
+            {"$match": {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True}}},
+            {"$group": {"_id": {"$ifNull": ["$content_mode", "none"]}, "count": {"$sum": 1}}},
+        ]
+        modes_with_data = []
+        async for doc in db.validation_matches.aggregate(mode_pipeline):
+            cm = doc["_id"]
+            if cm in ("none", None, ""):
+                cm = "extract"
+            if doc["count"] >= 10:
+                modes_with_data.append(cm)
+        if not modes_with_data:
+            modes_with_data = ["abstract"]
 
-        for ep_name, fn in make_endpoints(ds_id):
+        # Mode-independent endpoints
+        for ep_name, fn in [
+            ("status", lambda: _compute_status(ds_id)),
+            ("cross-mode", lambda: _compute_cross_mode_agreement(ds_id)),
+            ("convergence-all", lambda: get_convergence_all(dataset_id=ds_id, steps=20)),
+        ]:
             try:
                 result = await asyncio.wait_for(fn(), timeout=120)
                 ds_cache[ep_name] = result
@@ -143,9 +150,30 @@ async def _compute_validation_datasets():
             except Exception as e:
                 logger.warning(f"  precompute {ds_id}/{ep_name}: failed — {e}")
 
+        # Per-mode endpoints: compute for EVERY content mode
+        for mode in modes_with_data:
+            mode_suffix = f":{mode}" if mode != "abstract" else ""
+            for ep_base, fn_factory in [
+                ("pairwise", lambda m=mode: _compute_pairwise_results(ds_id, None, m)),
+                ("irt", lambda m=mode: _compute_irt_results(ds_id, None, m)),
+                ("agreement", lambda m=mode: _compute_agreement(ds_id, None, m)),
+                ("convergence", lambda m=mode: _compute_convergence(ds_id, m, 20)),
+                ("dual-dim", lambda m=mode: _compute_dual_dimension_results(ds_id, m)),
+            ]:
+                cache_key = f"{ep_base}{mode_suffix}"
+                try:
+                    result = await asyncio.wait_for(fn_factory(), timeout=60)
+                    ds_cache[cache_key] = result
+                except asyncio.TimeoutError:
+                    logger.warning(f"  precompute {ds_id}/{cache_key}: timed out")
+                except Exception as e:
+                    logger.warning(f"  precompute {ds_id}/{cache_key}: failed — {e}")
+
+            await asyncio.sleep(0)  # Yield between modes
+
         if ds_cache:
             results[ds_id] = ds_cache
-            logger.info(f"  precompute {ds_id}: {len(ds_cache)} endpoints")
+            logger.info(f"  precompute {ds_id}: {len(ds_cache)} endpoints ({len(modes_with_data)} modes)")
 
     return results
 
@@ -196,8 +224,8 @@ def _load_validation():
         return 0
 
     from routers.validation_utils import _result_cache, convergence_all_cache
-    # Endpoints that the frontend requests with content_mode="abstract" (the default)
-    _CONTENT_MODE_ENDPOINTS = {"pairwise", "irt", "agreement", "convergence"}
+    # Base endpoint names (without mode suffix)
+    _MODE_ENDPOINTS = {"pairwise", "irt", "agreement", "convergence", "dual-dim"}
     loaded = 0
     for ds_id, endpoints in results.items():
         for ep_name, data in endpoints.items():
@@ -207,12 +235,27 @@ def _load_validation():
                     convergence_all_cache[ds_id] = {"data": data, "ts": time.time()}
                     loaded += 1
                 continue
-            # Store with empty key (for direct/no-mode requests)
-            _result_cache[(ep_name, ds_id, "")] = {"data": data, "ts": time.time()}
-            loaded += 1
-            # Also store with "abstract" key for endpoints the frontend requests with content_mode
-            if ep_name in _CONTENT_MODE_ENDPOINTS:
-                _result_cache[(ep_name, ds_id, "abstract")] = {"data": data, "ts": time.time()}
+
+            # Parse "pairwise:abstract_plus_summary:thinking" → base="pairwise", mode="abstract_plus_summary:thinking"
+            # Or "pairwise" → base="pairwise", mode=""
+            # Or "status" → base="status", mode=""
+            parts = ep_name.split(":", 1)
+            base = parts[0]
+            mode = parts[1] if len(parts) > 1 else ""
+
+            if base in _MODE_ENDPOINTS and mode:
+                # Per-mode entry: store with the exact content_mode
+                _result_cache[(base, ds_id, mode)] = {"data": data, "ts": time.time()}
+                loaded += 1
+            elif base in _MODE_ENDPOINTS:
+                # Default mode entry: store with "" and "abstract"
+                _result_cache[(base, ds_id, "")] = {"data": data, "ts": time.time()}
+                loaded += 1
+                _result_cache[(base, ds_id, "abstract")] = {"data": data, "ts": time.time()}
+                loaded += 1
+            else:
+                # Non-mode endpoints (status, cross-mode)
+                _result_cache[(base, ds_id, "")] = {"data": data, "ts": time.time()}
                 loaded += 1
 
     if loaded:
