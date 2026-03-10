@@ -136,50 +136,47 @@ async def _run_single_item_scoring(dataset_id: str):
     _single_item_state["total"] = len(need_scoring)
     logger.info(f"Single-item scoring: {len(need_scoring)} papers in {dataset_id}")
 
-    sem = asyncio.Semaphore(3)
-
-    async def score_one(paper):
+    # Process one at a time to keep the server responsive
+    for i, paper in enumerate(need_scoring):
         if not _single_item_state["running"]:
-            return
-        async with sem:
-            if not _single_item_state["running"]:
-                return
-            prompt = SINGLE_ITEM_PROMPT["user_prompt"].format(
-                title=paper.get("title", ""),
-                abstract=paper.get("abstract", "")[:3000],
-                summary=(paper.get("ai_impact_summary_thinking") or paper.get("ai_impact_summary_opus46") or paper.get("ai_impact_summary", ""))[:4000],
+            break
+        prompt = SINGLE_ITEM_PROMPT["user_prompt"].format(
+            title=paper.get("title", ""),
+            abstract=paper.get("abstract", "")[:3000],
+            summary=(paper.get("ai_impact_summary_thinking") or paper.get("ai_impact_summary_opus46") or paper.get("ai_impact_summary", ""))[:4000],
+        )
+        try:
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"single-item-{paper['id'][:8]}",
+                system_message=SINGLE_ITEM_PROMPT["system_prompt"],
+            ).with_model("anthropic", "claude-opus-4-6").with_params(
+                extra_body={"thinking": {"type": "enabled", "budget_tokens": 8000}}
             )
-            try:
-                chat = LlmChat(
-                    api_key=EMERGENT_LLM_KEY,
-                    session_id=f"single-item-{paper['id'][:8]}",
-                    system_message=SINGLE_ITEM_PROMPT["system_prompt"],
-                ).with_model("anthropic", "claude-opus-4-6").with_params(
-                    extra_body={"thinking": {"type": "enabled", "budget_tokens": 8000}}
-                )
-                response = await chat.send_message(UserMessage(text=prompt))
-                text = str(response).strip()
-                # Parse JSON from response
-                start = text.find("{")
-                end = text.rfind("}") + 1
-                if start >= 0 and end > start:
-                    data = _json.loads(text[start:end])
-                    score = float(data.get("score", 0))
-                    if 1.0 <= score <= 10.0:
-                        await db.validation_papers.update_one(
-                            {"id": paper["id"], "dataset_id": dataset_id},
-                            {"$set": {
-                                "single_item_score": score,
-                                "single_item_details": data,
-                            }}
-                        )
-                        _single_item_state["done"] += 1
-                        return
+            response = await chat.send_message(UserMessage(text=prompt))
+            text = str(response).strip()
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start >= 0 and end > start:
+                data = _json.loads(text[start:end])
+                score = float(data.get("score", 0))
+                if 1.0 <= score <= 10.0:
+                    await db.validation_papers.update_one(
+                        {"id": paper["id"], "dataset_id": dataset_id},
+                        {"$set": {
+                            "single_item_score": score,
+                            "single_item_details": data,
+                        }}
+                    )
+                    _single_item_state["done"] += 1
+                else:
+                    logger.warning(f"Single-item: bad score {score} for {paper['id'][:8]}")
+            else:
                 logger.warning(f"Single-item: bad response for {paper['id'][:8]}: {text[:100]}")
-            except Exception as e:
-                logger.warning(f"Single-item scoring failed for {paper.get('title', '')[:30]}: {e}")
+        except Exception as e:
+            logger.warning(f"Single-item scoring failed for {paper.get('title', '')[:30]}: {e}")
+        await asyncio.sleep(1)  # Yield between papers
 
-    await asyncio.gather(*[score_one(p) for p in need_scoring], return_exceptions=True)
     logger.info(f"Single-item scoring complete: {_single_item_state['done']}/{len(need_scoring)} scored")
 
 
