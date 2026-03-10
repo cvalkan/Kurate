@@ -106,11 +106,12 @@ async def _compute_experiments():
 
 
 async def _compute_validation_datasets():
-    """Compute per-dataset results (status, pairwise, irt, agreement, convergence, etc.)."""
+    """Compute per-dataset results (status, pairwise, irt, agreement, convergence, convergence-all, etc.)."""
     from routers.validation import (
         _compute_status, _compute_pairwise_results, _compute_convergence,
         _compute_irt_results, _compute_agreement,
         _compute_cross_mode_agreement, _compute_dual_dimension_results,
+        get_convergence_all,
     )
 
     datasets = await db.validation_datasets.find({}, {"_id": 0}).to_list(100)
@@ -129,12 +130,13 @@ async def _compute_validation_datasets():
                 ("agreement", lambda: _compute_agreement(did, None, None)),
                 ("cross-mode", lambda: _compute_cross_mode_agreement(did)),
                 ("convergence", lambda: _compute_convergence(did, None, 20)),
+                ("convergence-all", lambda: get_convergence_all(dataset_id=did, steps=20)),
                 ("dual-dim", lambda: _compute_dual_dimension_results(did, None)),
             ]
 
         for ep_name, fn in make_endpoints(ds_id):
             try:
-                result = await asyncio.wait_for(fn(), timeout=60)
+                result = await asyncio.wait_for(fn(), timeout=120)
                 ds_cache[ep_name] = result
             except asyncio.TimeoutError:
                 logger.warning(f"  precompute {ds_id}/{ep_name}: timed out")
@@ -199,16 +201,18 @@ def _load_validation():
     loaded = 0
     for ds_id, endpoints in results.items():
         for ep_name, data in endpoints.items():
+            # convergence-all goes into its own dedicated cache (multi-mode format)
+            if ep_name == "convergence-all":
+                if data and data.get("status") == "ok" and data.get("modes"):
+                    convergence_all_cache[ds_id] = {"data": data, "ts": time.time()}
+                    loaded += 1
+                continue
             # Store with empty key (for direct/no-mode requests)
             _result_cache[(ep_name, ds_id, "")] = {"data": data, "ts": time.time()}
             loaded += 1
             # Also store with "abstract" key for endpoints the frontend requests with content_mode
             if ep_name in _CONTENT_MODE_ENDPOINTS:
                 _result_cache[(ep_name, ds_id, "abstract")] = {"data": data, "ts": time.time()}
-                loaded += 1
-            # Populate convergence_all_cache from single-mode convergence data
-            if ep_name == "convergence" and data:
-                convergence_all_cache[ds_id] = {"data": data, "ts": time.time()}
                 loaded += 1
 
     if loaded:

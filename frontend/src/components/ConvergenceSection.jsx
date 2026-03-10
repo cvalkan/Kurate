@@ -88,7 +88,14 @@ export function ValidationConvergence({ datasets }) {
     });
   }, [datasets]);
 
-  if (loading || !Object.keys(curves).length) return null;
+  if (loading) return <div className="h-64 bg-secondary/20 rounded-lg animate-pulse" />;
+  if (!Object.keys(curves).length) return (
+    <div className="text-center py-12 text-muted-foreground">
+      <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-30" />
+      <p className="text-sm">No convergence data available yet.</p>
+      <p className="text-xs mt-1">Run more tournament matches to generate convergence curves.</p>
+    </div>
+  );
   return <ConvergenceChart curves={curves} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} />;
 }
 
