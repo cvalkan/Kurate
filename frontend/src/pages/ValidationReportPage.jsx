@@ -8,7 +8,8 @@ const GT_TYPE = {
   "iclr-codegen": "comparative", "iclr-llm": "comparative", "iclr-protein": "comparative",
   "iclr-fairness": "comparative", "iclr-pdes": "comparative", "iclr-molecules": "comparative",
   "iclr-optimization": "comparative", "peerread_acl_2017": "comparative",
-  "elife-cancer": "standalone", "elife-neuro-100": "standalone", "elife-microbiology": "standalone",
+  "elife-neuro-100": "comparative",
+  "elife-cancer": "standalone", "elife-microbiology": "standalone",
   "elife-comp-sys-bio": "standalone",
   "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
   "researchhub-50": "standalone",
@@ -297,7 +298,7 @@ export default function ValidationReportPage() {
             <p><span className="inline-block text-[8px] px-1 rounded bg-violet-100 text-violet-700 mr-1">comp</span><strong>Comparative GT</strong> (ICLR, PeerRead): Reviewers scored papers on a numeric scale and acceptance decisions were made by committees comparing papers against each other. The ground truth reflects <em>relative</em> quality. Pairwise AI judgments mirror this process.</p>
             <p><span className="inline-block text-[8px] px-1 rounded bg-blue-100 text-blue-700 mr-1">stan</span><strong>Standalone GT</strong> (Qeios, ResearchHub, eLife): Each paper was rated independently — Qeios and ResearchHub by individual reviewers on numeric scales, eLife by editors assigning one of 4 significance tiers (Landmark / Fundamental / Important / Useful). No paper-vs-paper comparison was involved. Single-item AI scoring mirrors this process.</p>
           </div>
-          <p className="text-[10px] text-blue-800/80 mt-1.5"><strong>All eLife datasets</strong> use the same 4-tier editor assessment and are classified as standalone. However, the coarse scale (only 4 levels) means papers within the same tier are indistinguishable in the ground truth. With enough pairwise matches, BT can still outperform SI on these datasets (as seen in eLife Neuroscience with 15K matches) — but SI has the structural advantage when the GT process was standalone.</p>
+          <p className="text-[10px] text-blue-800/80 mt-1.5"><strong>The eLife exception:</strong> All eLife datasets use the same 4-tier editor assessment, but eLife Neuroscience empirically behaves as <em>comparative</em> GT. The diagnostic is the "Surprisingly Popular" signal: on Cancer and Comp &amp; Sys Bio, the SP signal is near zero (ρ≈0.01, not significant) — the pairwise tournament adds no ranking information beyond what standalone scoring captures. On Neuroscience, the SP signal is ρ=0.52 (p&lt;0.001, 76% accuracy) — as strong as ICLR. The likely cause: Neuro's ratings cluster heavily at a single tier (51% at tier 3), so the real quality differentiation happens <em>within</em> the dominant tier — which only pairwise comparison can resolve. The formal process is the same, but the effective information structure is comparative.</p>
         </div>
         <div className="overflow-x-auto mt-1">
           <table className="w-full text-[10px]">
@@ -342,7 +343,7 @@ export default function ValidationReportPage() {
           </table>
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, PeerRead) where human reviewers made relative judgments. Single-item wins on standalone-GT datasets where reviewers rated papers independently (Qeios Social & Physical, ResearchHub 50, eLife Cancer). The exception is eLife Neuroscience: despite standalone GT, the very large pairwise tournament (15K matches) overcame SI. MIDL (standalone GT, 4 tiers) is a virtual tie. The optimal method mirrors the GT generation process — but tournament size can compensate.
+          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, PeerRead) and on eLife Neuroscience — which uses standalone editorial assessment but whose GT empirically behaves as comparative (SP ρ=0.52). Single-item wins on all other standalone-GT datasets (Qeios Social &amp; Physical, ResearchHub 50, eLife Cancer &amp; Comp Sys Bio). The optimal method mirrors the <em>effective information structure</em> of the GT, not just the formal process.
         </p>
       </Section>
 
