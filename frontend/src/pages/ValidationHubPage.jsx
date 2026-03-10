@@ -167,6 +167,7 @@ export default function ValidationHubPage() {
       "si-qeios-physical": { title: "Single-Item — Qeios Physical Sciences", desc: "Opus 4.6 Thinking rates each paper 1-10. 50 physical science papers with 3-45 independent reviewer ratings." },
       "si-elife-neuro": { title: "Single-Item — eLife Neuroscience", desc: "Opus 4.6 Thinking rates each paper 1-10. 100 neuroscience papers with comparative editor assessments." },
       "si-elife-csb": { title: "Single-Item — eLife Comp & Sys Bio", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 computational and systems biology papers with editor significance assessments." },
+      "si-elife-micro": { title: "Single-Item — eLife Microbiology", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 microbiology and infectious disease papers with editor significance assessments." },
       "exp-summarizer-ab": { title: "Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
       "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
       "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
@@ -252,6 +253,7 @@ export default function ValidationHubPage() {
             <NavItem item={{ id: "si-qeios-physical", label: "Qeios Physical Sciences", sub: "50 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-elife-neuro", label: "eLife Neuroscience", sub: "100 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-elife-csb", label: "eLife Comp & Sys Bio", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-elife-micro", label: "eLife Microbiology", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
             {isAdmin && <NavItem item={{ id: "si-scipost", label: "SciPost (Legacy)" }} selected={selected} onSelect={setSelected} />}
           </CollapsibleGroup>
 
@@ -342,6 +344,7 @@ export default function ValidationHubPage() {
           {selected === "si-qeios-physical" && <SingleItemScoringSection datasetId="qeios-physical" />}
           {selected === "si-elife-neuro" && <SingleItemScoringSection datasetId="elife-neuro-100" />}
           {selected === "si-elife-csb" && <SingleItemScoringSection datasetId="elife-comp-sys-bio" />}
+          {selected === "si-elife-micro" && <SingleItemScoringSection datasetId="elife-microbiology" />}
           {selected === "exp-summarizer-ab" && <SummarizerComparisonSection />}
           {selected === "exp-summary-bias" && <SummaryBiasSection category="q-bio.BM" />}
           {selected === "exp-summary-bias-econ" && <SummaryBiasSection category="econ.GN" />}
