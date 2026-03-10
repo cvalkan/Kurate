@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import {
   FlaskConical, GitCompare, Beaker, Trophy, ChevronRight, FlaskRound,
@@ -125,14 +125,17 @@ export default function ValidationHubPage() {
   useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 
   const pairwiseDatasets = datasets;
-  const allTournamentGroups = groupDatasets(datasets);
-  const pairwiseGroups = groupDatasets(datasets);
+  const allTournamentGroups = useMemo(() => groupDatasets(datasets), [datasets]);
+  const pairwiseGroups = useMemo(() => groupDatasets(datasets), [datasets]);
 
   // Public users only see ICLR, eLife, MIDL tournaments
-  const PUBLIC_SOURCES = new Set(["ICLR", "eLife", "MIDL", "AlphaXiv"]);
-  const tournamentGroups = isAdmin
-    ? allTournamentGroups
-    : Object.fromEntries(Object.entries(allTournamentGroups).filter(([source]) => PUBLIC_SOURCES.has(source)));
+  const PUBLIC_SOURCES = useMemo(() => new Set(["ICLR", "eLife", "MIDL", "AlphaXiv"]), []);
+  const tournamentGroups = useMemo(() =>
+    isAdmin
+      ? allTournamentGroups
+      : Object.fromEntries(Object.entries(allTournamentGroups).filter(([source]) => PUBLIC_SOURCES.has(source))),
+    [isAdmin, allTournamentGroups, PUBLIC_SOURCES]
+  );
 
   // Auto-open the group containing the selected item
   const selectedTournamentSource = Object.entries(tournamentGroups).find(
@@ -144,51 +147,51 @@ export default function ValidationHubPage() {
 
   const activeDataset = datasets.find(ds => selected === `t-${ds.dataset_id}`);
 
-  const sectionMeta = {
-    "pw-qeios": { title: "Pairwise — Qeios (Legacy)", desc: "Head-to-head AI comparison using Qeios open peer review data. Separate dataset — not part of main validation system." },
-    "pw-scipost": { title: "Pairwise — SciPost (Legacy)", desc: "Per-dimension head-to-head comparison using SciPost peer review data. Separate dataset — not part of main validation system." },
-    "si-scipost": { title: "Single-item — SciPost (Legacy)", desc: "AI rates each paper on 4 dimensions (1-6 scale). Separate dataset." },
-    "si-elife-cancer": { title: "Single-Item — eLife Cancer", desc: "Opus 4.6 Thinking rates each paper 1-10 with sub-dimensions. 80 papers, compared against pairwise tournament." },
-    "si-iclr-codegen": { title: "Single-Item — ICLR Code Gen", desc: "Opus 4.6 Thinking rates each paper 1-10. 62 papers with 29-level reviewer scores as ground truth." },
-    "si-iclr-llm": { title: "Single-Item — ICLR LLM", desc: "Opus 4.6 Thinking rates each paper 1-10. 73 papers." },
-    "si-iclr-fairness": { title: "Single-Item — ICLR Fairness", desc: "Opus 4.6 Thinking rates each paper 1-10. 68 papers." },
-    "si-iclr-protein": { title: "Single-Item — ICLR Protein", desc: "Opus 4.6 Thinking rates each paper 1-10. 46 papers." },
-    "si-iclr-pdes": { title: "Single-Item — ICLR PDEs", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 papers." },
-    "si-iclr-molecules": { title: "Single-Item — ICLR Molecules", desc: "Opus 4.6 Thinking rates each paper 1-10. 46 papers." },
-    "si-midl": { title: "Single-Item — MIDL Medical Imaging", desc: "Opus 4.6 Thinking rates each paper 1-10. 81 medical imaging papers with 3 reviewers per paper." },
-    "si-iclr-optimization": { title: "Single-Item — ICLR Optimization", desc: "Opus 4.6 Thinking rates each paper 1-10. 42 papers." },
-    "si-peerread": { title: "Single-Item — PeerRead ACL 2017", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 computational linguistics papers with 1-5 recommendation scores." },
-    "si-researchhub-50": { title: "Single-Item — ResearchHub 50", desc: "Opus 4.6 Thinking rates each paper 1-10. 50 biology/biomedical papers from paid peer reviews (1-5 scale)." },
-    "si-qeios-social": { title: "Single-Item — Qeios Social Sciences", desc: "Opus 4.6 Thinking rates each paper 1-10. 50 social science papers with 3-60 independent reviewer ratings." },
-    "si-elife-neuro": { title: "Single-Item — eLife Neuroscience", desc: "Opus 4.6 Thinking rates each paper 1-10. 100 neuroscience papers with comparative editor assessments." },
-    "exp-summarizer-ab": { title: "Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
-    "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
-    "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
-    "exp-summary-bias-phys": { title: "Summary Bias — Comp Physics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
-    "exp-thinking-overview": { title: "Extended Thinking", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
-    "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
-    "exp-multi-aspect": { title: "Multi-Aspect Judging", desc: "Does breaking the judgment into 5 separate dimensions (novelty, applications, rigor, breadth, timeliness) improve accuracy over a single holistic verdict?" },
-    "exp-judge-comparison": { title: "Accuracy by Judge", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs (4 judges × 9 datasets × 200 pairs)." },
-    "exp-summarizer-cross": { title: "Accuracy by Summarizer", desc: "How does the choice of summarizer model (GPT-5.2, Gemini 3 Pro, Opus 4.5/4.6) affect tournament accuracy? Same-pair comparison across 12 ICLR and eLife datasets." },
-    "exp-assessor-evaluator": { title: "Summarizer × Judge Matrix", desc: "Full interaction matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
-    "exp-consistency": { title: "Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
-    "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
-    "exp-model-correlation": { title: "Model Correlation", desc: "How much do different judge models agree on the same pairs? Pairwise agreement by dataset and input format." },
-    "exp-single-item": { title: "Single-Item Scoring", desc: "Can one LLM call per paper ('rate this 1-10') rank as well as a full pairwise tournament? Compares absolute scoring vs hundreds of pairwise comparisons." },
-    "report-summary": { title: "Validation Summary Report", desc: "Comprehensive analysis across all datasets: single-item vs pairwise, the GT generation hypothesis, the Surprisingly Popular signal, and practical recommendations." },
-    "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
-    "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
-  };
-  pairwiseDatasets.forEach(ds => {
-    sectionMeta[`pw-h2h-${ds.dataset_id}`] = {
-      title: `Pairwise — ${ds.name}`,
-      desc: `How often do different input formats and AI models agree with human expert judgments?`,
+  const meta = useMemo(() => {
+    const STATIC_META = {
+      "pw-qeios": { title: "Pairwise — Qeios (Legacy)", desc: "Head-to-head AI comparison using Qeios open peer review data. Separate dataset — not part of main validation system." },
+      "pw-scipost": { title: "Pairwise — SciPost (Legacy)", desc: "Per-dimension head-to-head comparison using SciPost peer review data. Separate dataset — not part of main validation system." },
+      "si-scipost": { title: "Single-item — SciPost (Legacy)", desc: "AI rates each paper on 4 dimensions (1-6 scale). Separate dataset." },
+      "si-elife-cancer": { title: "Single-Item — eLife Cancer", desc: "Opus 4.6 Thinking rates each paper 1-10 with sub-dimensions. 80 papers, compared against pairwise tournament." },
+      "si-iclr-codegen": { title: "Single-Item — ICLR Code Gen", desc: "Opus 4.6 Thinking rates each paper 1-10. 62 papers with 29-level reviewer scores as ground truth." },
+      "si-iclr-llm": { title: "Single-Item — ICLR LLM", desc: "Opus 4.6 Thinking rates each paper 1-10. 73 papers." },
+      "si-iclr-fairness": { title: "Single-Item — ICLR Fairness", desc: "Opus 4.6 Thinking rates each paper 1-10. 68 papers." },
+      "si-iclr-protein": { title: "Single-Item — ICLR Protein", desc: "Opus 4.6 Thinking rates each paper 1-10. 46 papers." },
+      "si-iclr-pdes": { title: "Single-Item — ICLR PDEs", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 papers." },
+      "si-iclr-molecules": { title: "Single-Item — ICLR Molecules", desc: "Opus 4.6 Thinking rates each paper 1-10. 46 papers." },
+      "si-midl": { title: "Single-Item — MIDL Medical Imaging", desc: "Opus 4.6 Thinking rates each paper 1-10. 81 medical imaging papers with 3 reviewers per paper." },
+      "si-iclr-optimization": { title: "Single-Item — ICLR Optimization", desc: "Opus 4.6 Thinking rates each paper 1-10. 42 papers." },
+      "si-peerread": { title: "Single-Item — PeerRead ACL 2017", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 computational linguistics papers with 1-5 recommendation scores." },
+      "si-researchhub-50": { title: "Single-Item — ResearchHub 50", desc: "Opus 4.6 Thinking rates each paper 1-10. 50 biology/biomedical papers from paid peer reviews (1-5 scale)." },
+      "si-qeios-social": { title: "Single-Item — Qeios Social Sciences", desc: "Opus 4.6 Thinking rates each paper 1-10. 50 social science papers with 3-60 independent reviewer ratings." },
+      "si-elife-neuro": { title: "Single-Item — eLife Neuroscience", desc: "Opus 4.6 Thinking rates each paper 1-10. 100 neuroscience papers with comparative editor assessments." },
+      "exp-summarizer-ab": { title: "Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
+      "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
+      "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
+      "exp-summary-bias-phys": { title: "Summary Bias — Comp Physics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
+      "exp-thinking-overview": { title: "Extended Thinking", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
+      "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
+      "exp-multi-aspect": { title: "Multi-Aspect Judging", desc: "Does breaking the judgment into 5 separate dimensions (novelty, applications, rigor, breadth, timeliness) improve accuracy over a single holistic verdict?" },
+      "exp-judge-comparison": { title: "Accuracy by Judge", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs (4 judges × 9 datasets × 200 pairs)." },
+      "exp-summarizer-cross": { title: "Accuracy by Summarizer", desc: "How does the choice of summarizer model (GPT-5.2, Gemini 3 Pro, Opus 4.5/4.6) affect tournament accuracy? Same-pair comparison across 12 ICLR and eLife datasets." },
+      "exp-assessor-evaluator": { title: "Summarizer × Judge Matrix", desc: "Full interaction matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
+      "exp-consistency": { title: "Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
+      "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
+      "exp-model-correlation": { title: "Model Correlation", desc: "How much do different judge models agree on the same pairs? Pairwise agreement by dataset and input format." },
+      "exp-single-item": { title: "Single-Item Scoring", desc: "Can one LLM call per paper ('rate this 1-10') rank as well as a full pairwise tournament? Compares absolute scoring vs hundreds of pairwise comparisons." },
+      "report-summary": { title: "Validation Summary Report", desc: "Comprehensive analysis across all datasets: single-item vs pairwise, the GT generation hypothesis, the Surprisingly Popular signal, and practical recommendations." },
+      "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
+      "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
     };
-  });
-  if (activeDataset) {
-    sectionMeta[selected] = { title: `Tournament — ${activeDataset.name}`, desc: activeDataset.description || activeDataset.source || "" };
-  }
-  const meta = sectionMeta[selected] || { title: "", desc: "" };
+    if (!selected) return { title: "", desc: "" };
+    if (STATIC_META[selected]) return STATIC_META[selected];
+    // Dynamic: pairwise dataset
+    const pwDs = pairwiseDatasets.find(d => `pw-h2h-${d.dataset_id}` === selected);
+    if (pwDs) return { title: `Pairwise — ${pwDs.name}`, desc: "How often do different input formats and AI models agree with human expert judgments?" };
+    // Dynamic: tournament dataset
+    if (activeDataset) return { title: `Tournament — ${activeDataset.name}`, desc: activeDataset.description || activeDataset.source || "" };
+    return { title: "", desc: "" };
+  }, [selected, activeDataset, pairwiseDatasets]);
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-7xl py-6 md:py-10">

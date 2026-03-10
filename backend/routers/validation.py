@@ -56,9 +56,18 @@ def _get_state(dataset_id: str) -> dict:
 
 # ─── Datasets ──────────────────────────────────────────────────────────────────
 
+_datasets_cache = {"data": None, "ts": 0}
+_DATASETS_TTL = 300  # 5 minutes — dataset list rarely changes
+
+
 @router.get("/datasets")
 async def list_datasets():
-    """List all validation datasets."""
+    """List all validation datasets. Cached for 5 minutes."""
+    import time as _t
+    now = _t.time()
+    if _datasets_cache["data"] and now - _datasets_cache["ts"] < _DATASETS_TTL:
+        return _datasets_cache["data"]
+
     pipeline = [
         {"$group": {
             "_id": "$dataset_id",
@@ -97,7 +106,10 @@ async def list_datasets():
             "tournament_running": state["running"],
         })
 
-    return {"datasets": datasets}
+    result = {"datasets": datasets}
+    _datasets_cache["data"] = result
+    _datasets_cache["ts"] = now
+    return result
 
 
 @router.post("/stop-tournament", dependencies=[Depends(verify_admin)])
