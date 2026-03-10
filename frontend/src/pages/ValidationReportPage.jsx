@@ -7,8 +7,9 @@ const API = process.env.REACT_APP_BACKEND_URL;
 const GT_TYPE = {
   "iclr-codegen": "comparative", "iclr-llm": "comparative", "iclr-protein": "comparative",
   "iclr-fairness": "comparative", "iclr-pdes": "comparative", "iclr-molecules": "comparative",
-  "iclr-optimization": "comparative", "elife-neuro-100": "comparative", "peerread_acl_2017": "comparative",
-  "elife-cancer": "standalone", "elife-microbiology": "standalone", "elife-comp-sys-bio": "standalone",
+  "iclr-optimization": "comparative", "peerread_acl_2017": "comparative",
+  "elife-cancer": "standalone", "elife-neuro-100": "standalone", "elife-microbiology": "standalone",
+  "elife-comp-sys-bio": "standalone",
   "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
   "researchhub-50": "standalone",
 };
@@ -288,6 +289,16 @@ export default function ValidationReportPage() {
       {/* 11. Single-Item vs Pairwise */}
       <Section num="9" title="Single-Item Scoring vs Pairwise Tournament">
         <p>Can 1 LLM call per paper match hundreds of pairwise comparisons? Results across {ds.length} datasets:</p>
+
+        <div className="my-2 p-3 border border-blue-200 rounded-lg bg-blue-50/30">
+          <h4 className="text-[11px] font-semibold text-blue-900 mb-1">Why Ground Truth Type Matters</h4>
+          <p className="text-[10px] text-blue-800/80 mb-1.5">The "GT" column indicates how human reviewers generated the ground truth — this is the single strongest predictor of which AI method wins:</p>
+          <div className="text-[10px] text-blue-800/80 space-y-1">
+            <p><span className="inline-block text-[8px] px-1 rounded bg-violet-100 text-violet-700 mr-1">comp</span><strong>Comparative GT</strong> (ICLR, PeerRead): Reviewers scored papers on a numeric scale and acceptance decisions were made by committees comparing papers against each other. The ground truth reflects <em>relative</em> quality. Pairwise AI judgments mirror this process.</p>
+            <p><span className="inline-block text-[8px] px-1 rounded bg-blue-100 text-blue-700 mr-1">stan</span><strong>Standalone GT</strong> (Qeios, ResearchHub, eLife): Each paper was rated independently — Qeios and ResearchHub by individual reviewers on numeric scales, eLife by editors assigning one of 4 significance tiers (Landmark / Fundamental / Important / Useful). No paper-vs-paper comparison was involved. Single-item AI scoring mirrors this process.</p>
+          </div>
+          <p className="text-[10px] text-blue-800/80 mt-1.5"><strong>All eLife datasets</strong> use the same 4-tier editor assessment and are classified as standalone. However, the coarse scale (only 4 levels) means papers within the same tier are indistinguishable in the ground truth. With enough pairwise matches, BT can still outperform SI on these datasets (as seen in eLife Neuroscience with 15K matches) — but SI has the structural advantage when the GT process was standalone.</p>
+        </div>
         <div className="overflow-x-auto mt-1">
           <table className="w-full text-[10px]">
             <thead>
@@ -331,7 +342,7 @@ export default function ValidationReportPage() {
           </table>
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, eLife Neuro, PeerRead) at 67-89% vs 65-77%. Single-item wins on all 4 standalone-GT datasets (Qeios Social & Physical, RH-50, eLife Cancer) at 64-78% vs 43-74%. The optimal method mirrors the GT generation process: pairwise for comparative GT, single-item for standalone ratings. Controlled experiment (same model for both) confirms this is domain-dependent, not a model artifact.
+          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, PeerRead) where human reviewers made relative judgments. Single-item wins on standalone-GT datasets where reviewers rated papers independently (Qeios Social & Physical, ResearchHub 50, eLife Cancer). The exception is eLife Neuroscience: despite standalone GT, the very large pairwise tournament (15K matches) overcame SI. MIDL (standalone GT, 4 tiers) is a virtual tie. The optimal method mirrors the GT generation process — but tournament size can compensate.
         </p>
       </Section>
 
