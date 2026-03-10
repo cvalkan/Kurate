@@ -136,7 +136,7 @@ async def _refresh_cache():
 
         # Compute SP score (BT percentile - AI percentile) for papers with both signals
         entries_with_both = [e for e in full if e.get("ai_rating") and e.get("comparisons", 0) >= 3]
-        if len(entries_with_both) >= 5:
+        if len(entries_with_both) >= 2:
             from scipy import stats as _sp_stats
             import numpy as _np
             _bt_vals = _np.array([e["score"] for e in entries_with_both])
@@ -558,11 +558,12 @@ async def get_categories():
 
 
 def _apply_search(data: list, search: str) -> list:
-    """Filter leaderboard entries by title search and re-rank."""
+    """Filter leaderboard entries by title or author search and re-rank."""
     if not search:
         return data
     search_lower = search.lower()
-    filtered = [p for p in data if search_lower in p.get("title", "").lower()]
+    filtered = [p for p in data if search_lower in p.get("title", "").lower()
+                or any(search_lower in a.lower() for a in (p.get("authors") or []))]
     # Re-rank the filtered results
     return [{**p, "rank": i + 1} for i, p in enumerate(filtered)]
 

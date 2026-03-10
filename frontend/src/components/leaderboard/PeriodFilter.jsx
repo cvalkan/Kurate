@@ -35,7 +35,7 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
       </div>
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-        <Input placeholder="Search titles..." value={keyword} onChange={e => setKeyword(e.target.value)} className="h-8 text-xs pl-8 w-full sm:w-48" data-testid="keyword-search" />
+        <Input placeholder="Search papers..." value={keyword} onChange={e => setKeyword(e.target.value)} className="h-8 text-xs pl-8 w-full sm:w-48" data-testid="keyword-search" />
         {keyword && (
           <button onClick={() => setKeyword("")} className="absolute right-2 top-1/2 -translate-y-1/2">
             <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
