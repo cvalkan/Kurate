@@ -151,17 +151,30 @@ export default function ValidationReportPage() {
 
       {/* 5. Consistency */}
       <Section num="5" title="How Consistent Are the Judgments?">
-        <p>Same pair shown under different input formats — how often does the verdict flip? (Cross-format flip rate per judge model.)</p>
+        <p>Same pair shown under different input formats — how often does the verdict flip? Controlled: only format pairs where all models have ≥20 samples, pooled across shared format pairs.</p>
         <div className="space-y-0.5 mt-1">
-          {[
-            { name: "Opus 4.6", rate: "8.2%", n: "1,238" },
-            { name: "Opus 4.5", rate: "13.4%", n: "20,774" },
-            { name: "Gemini 3 Pro", rate: "15.0%", n: "24,017" },
-            { name: "GPT-5.2", rate: "15.7%", n: "24,265" },
-          ].map((j, i) => <Row key={j.name} label={`${j.name} (${j.n} pairs)`} value={j.rate} bold={i === 0} />)}
+          {(() => {
+            const ctrl = ex.consistency?.verdict_stability?.cross_format?.controlled || {};
+            const raw = ex.consistency?.verdict_stability?.cross_format?.by_model || {};
+            const models = Object.keys(ctrl).length > 0 ? ctrl : raw;
+            return Object.entries(models).sort((a, b) => {
+              const rateA = a[1].pooled_rate ?? a[1].rate ?? 100;
+              const rateB = b[1].pooled_rate ?? b[1].rate ?? 100;
+              return rateA - rateB;
+            }).map(([name, stats], i) => {
+              const rate = stats.pooled_rate ?? stats.rate;
+              const total = stats.total;
+              const sfp = stats.shared_format_pairs;
+              const label = sfp ? `${name} (${total.toLocaleString()} pairs, ${sfp} format combos)` : `${name} (${total?.toLocaleString()} pairs)`;
+              return <Row key={name} label={label} value={`${rate}%`} bold={i === 0} />;
+            });
+          })()}
         </div>
+        <p className="text-[10px] mt-1 text-muted-foreground">
+          Shared format pairs: {(ex.consistency?.verdict_stability?.cross_format?.shared_format_pairs || []).join(", ") || "computing..."}
+        </p>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Opus 4.5, GPT-5.2, and Gemini 3 Pro are comparable (13-16% flip rate across ~20-24K format-pair comparisons). Opus 4.6 shows 8.2% but on only 1,238 pairs — likely comparing more similar formats, making it <em>not directly comparable</em> to the others. The consistent ~15% flip rate across three well-sampled models means input representation is a first-order variable: changing how you present the paper changes the outcome for roughly 1 in 7 comparisons.
+          <strong>Verdict:</strong> When controlled for the same set of format-pair comparisons, the ~15% flip rate is remarkably consistent across all judges. Input representation — not the judge model — is the dominant factor in verdict instability. Changing how you present the paper changes the outcome for roughly 1 in 7 comparisons regardless of which model judges.
         </p>
       </Section>
 

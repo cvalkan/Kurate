@@ -1487,35 +1487,41 @@ async def _compute_convergence(category, steps):
     total = len(all_matches)
     steps = min(max(steps, 5), 40)
 
-    # Compute max avg matches/paper
+    # Compute max avg matches/paper (over ALL papers, not just active)
     full_counts = defaultdict(int)
     for m in all_matches:
         full_counts[m["paper1_id"]] += 1
         full_counts[m["paper2_id"]] += 1
-    active_pids = [pid for pid in pid_set if full_counts[pid] > 0]
-    max_avg = sum(full_counts[pid] for pid in active_pids) / max(len(active_pids), 1)
+    max_avg = sum(full_counts[pid] for pid in pid_set) / max(n_papers, 1)
 
     # Pre-compute cumulative avg-per-paper at every match index (O(n) once)
+    # avg = total_participations / ALL_papers (not just active), so sub-1.0 values are possible
     import bisect
-    _active_set = set()
     _total_match_sum = 0
     _cum_avg = [0.0] * (total + 1)
     for i, m in enumerate(all_matches):
         if m["paper1_id"] in pid_set:
-            _active_set.add(m["paper1_id"])
             _total_match_sum += 1
         if m["paper2_id"] in pid_set:
-            _active_set.add(m["paper2_id"])
             _total_match_sum += 1
-        _cum_avg[i + 1] = _total_match_sum / len(_active_set) if _active_set else 0
+        _cum_avg[i + 1] = _total_match_sum / n_papers
 
-    # Generate sample indices from uniform 0.25-step avg-per-paper targets
+    # Generate sample indices from avg-per-paper targets
+    # Step size adapts to dataset size: 0.25 for small, larger for big datasets
     sample_indices = set()
     avg_targets = []
-    t = 0.25
-    while t <= max_avg + 0.25:
-        avg_targets.append(t)
-        t = round(t + 0.25, 2)
+    # For large datasets (>200 papers), use coarser steps to keep computation <30s
+    fine_step = 0.25 if n_papers <= 500 else 0.5 if n_papers <= 1000 else 1.0
+    coarse_step = 1.0 if n_papers <= 500 else 2.0 if n_papers <= 1000 else 4.0
+    fine_limit = min(10.0, max_avg)
+    t = fine_step
+    while t <= fine_limit:
+        avg_targets.append(round(t, 2))
+        t += fine_step
+    t = fine_limit + coarse_step
+    while t <= max_avg + coarse_step:
+        avg_targets.append(round(t, 1))
+        t += coarse_step
     if avg_targets and avg_targets[-1] < max_avg * 0.95:
         avg_targets.append(max_avg)
 
@@ -1529,7 +1535,11 @@ async def _compute_convergence(category, steps):
 
     sample_indices = sorted(sample_indices)
 
-    curve = []
+    # Start with explicit origin point
+    curve = [{
+        "matches": 0, "avg_matches_per_paper": 0, "papers_covered": 0,
+        "spearman": 0, "kendall": 0, "pearson": 0,
+    }]
     for best_n in sample_indices:
         subset = all_matches[:best_n]
         paper_match_count = defaultdict(int)
@@ -1541,7 +1551,7 @@ async def _compute_convergence(category, steps):
         if len(active) < 5:
             continue
 
-        avg_mpp = sum(paper_match_count[pid] for pid in active) / len(active)
+        avg_mpp = sum(paper_match_count[pid] for pid in pid_set) / n_papers
 
         sub_lb = await compute_leaderboard_async(paper_dicts, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}

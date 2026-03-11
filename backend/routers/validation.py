@@ -982,6 +982,29 @@ async def _compute_consistency_analysis():
                         model_pair_flips[key][0] += 1
                         format_flip_total[fmt][0] += 1
 
+    # Controlled cross-format: per (model, format_pair) → flip rate
+    # Then average across shared format pairs for fair comparison
+    model_fmtpair_flips = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # model → format_pair → [flips, total]
+    for pair, ctx in pair_ctx.items():
+        by_model = defaultdict(dict)
+        for (mk, fmt), winner in ctx.items():
+            by_model[mk][fmt] = winner
+        for mk, fmt_winners in by_model.items():
+            fmts = list(fmt_winners.items())
+            for i in range(len(fmts)):
+                for j in range(i + 1, len(fmts)):
+                    fa, wa = fmts[i]
+                    fb, wb = fmts[j]
+                    if fa not in CORE_FORMATS or fb not in CORE_FORMATS:
+                        continue
+                    fp_key = tuple(sorted([fa, fb]))
+                    model_fmtpair_flips[mk][fp_key][1] += 1
+                    if wa != wb:
+                        model_fmtpair_flips[mk][fp_key][0] += 1
+
+    # Find format pairs shared by well-sampled models — computed after _rate is defined below
+    all_models_in_data = set(model_fmtpair_flips.keys())
+
     # ── Section 2: Condorcet Cycles per (model, format) ──
     # Group: (dataset, pair, model, format) → winner
     mf_pairs = defaultdict(dict)  # (model, format) → {pair: winner}
@@ -1217,6 +1240,37 @@ async def _compute_consistency_analysis():
             "rate": _rate(cyc, tri), "is_self": is_self,
         }
 
+    # ── Controlled cross-format flip comparison ──
+    # Only compare format pairs shared by well-sampled models (≥5K total pairs)
+    MIN_TOTAL_FOR_CONTROLLED = 5000
+    controlled_models = {mk for mk in all_models_in_data if model_flip_total[mk][1] >= MIN_TOTAL_FOR_CONTROLLED}
+    shared_format_pairs = set()
+    if controlled_models:
+        first_model = next(iter(controlled_models))
+        shared_format_pairs = set(fp for fp, v in model_fmtpair_flips[first_model].items() if v[1] >= 20)
+        for mk in controlled_models:
+            shared_format_pairs &= set(fp for fp, v in model_fmtpair_flips[mk].items() if v[1] >= 20)
+
+    controlled_flip_rates = {}
+    for mk in sorted(controlled_models):
+        if not shared_format_pairs:
+            continue
+        total_flips = 0
+        total_pairs = 0
+        per_fp_rates = []
+        for fp in shared_format_pairs:
+            v = model_fmtpair_flips[mk][fp]
+            total_flips += v[0]
+            total_pairs += v[1]
+            per_fp_rates.append(v[0] / max(v[1], 1))
+        controlled_flip_rates[mk] = {
+            "pooled_rate": _rate(total_flips, total_pairs),
+            "mean_rate": round(sum(per_fp_rates) / len(per_fp_rates) * 100, 1) if per_fp_rates else 0,
+            "flips": total_flips,
+            "total": total_pairs,
+            "shared_format_pairs": len(shared_format_pairs),
+        }
+
     # ── Build final response ──
 
     models_seen = sorted(set(mk for (mk, _) in mf_cycles))
@@ -1235,6 +1289,8 @@ async def _compute_consistency_analysis():
                                    for (a, b), v in sorted(format_pair_flips.items(), key=lambda x: -x[1][1]) if v[1] >= 20},
                 "by_model": {mk: {"flips": v[0], "total": v[1], "rate": _rate(v[0], v[1])}
                              for mk, v in sorted(model_flip_total.items()) if v[1] >= 20},
+                "controlled": controlled_flip_rates,
+                "shared_format_pairs": [f"{a} vs {b}" for (a, b) in sorted(shared_format_pairs)],
             },
             "cross_model": {
                 "by_model_pair": {f"{a} vs {b}": {"flips": v[0], "total": v[1], "rate": _rate(v[0], v[1])}
