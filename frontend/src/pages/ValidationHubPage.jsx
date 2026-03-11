@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
   FlaskConical, GitCompare, Beaker, Trophy, ChevronRight, FlaskRound,
@@ -99,28 +100,45 @@ function SourceGroup({ source, items, selected, onSelect, defaultOpen }) {
 }
 
 export default function ValidationHubPage() {
-  const [selected, setSelected] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selected, setSelectedInternal] = useState(searchParams.get("v") || null);
   const [datasets, setDatasets] = useState([]);
   const isAdmin = !!sessionStorage.getItem("admin_token");
+
+  // Sync URL with selection
+  const setSelected = useCallback((id) => {
+    setSelectedInternal(id);
+    if (id) {
+      setSearchParams({ v: id }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  }, [setSearchParams]);
+
+  // Read from URL on mount
+  useEffect(() => {
+    const v = searchParams.get("v");
+    if (v && v !== selected) setSelectedInternal(v);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchDatasets = useCallback(async () => {
     try {
       const r = await axios.get(`${API}/api/validation/datasets`);
       const ds = r.data.datasets || [];
       setDatasets(ds);
-      // Auto-select first available item
-      if (!selected && ds.length) {
+      // Auto-select first available item only if nothing selected from URL
+      const urlV = searchParams.get("v");
+      if (!selected && !urlV && ds.length) {
         if (isAdmin) {
           setSelected("pw-qeios");
         } else {
-          // Public: default to first ICLR tournament dataset
           const iclr = ds.find(d => d.name?.startsWith("ICLR "));
           if (iclr) setSelected(`t-${iclr.dataset_id}`);
           else setSelected(`t-${ds[0].dataset_id}`);
         }
       }
     } catch (e) { console.error(e); }
-  }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdmin, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 

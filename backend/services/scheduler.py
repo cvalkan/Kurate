@@ -793,6 +793,14 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                         ratings = parse_ratings_from_summary(summary_val)
                         if ratings:
                             update_fields["ai_rating"] = ratings
+                    # Store per-model ratings for SI inter-model correlation
+                    from services.llm import parse_ratings_from_summary as _parse_ratings
+                    _model_ratings = _parse_ratings(summary_val)
+                    if _model_ratings:
+                        # Map model key to short name: anthropic:claude-opus-4-6:thinking -> claude
+                        _model_short = "claude" if "anthropic" in mk else "gpt" if "openai" in mk else "gemini" if "gemini" in mk else None
+                        if _model_short:
+                            update_fields[f"ai_ratings_by_model.{_model_short}"] = _model_ratings
                     await db.papers.update_one(
                         {"id": paper["id"]},
                         {"$set": update_fields},

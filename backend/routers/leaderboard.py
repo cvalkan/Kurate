@@ -1487,7 +1487,7 @@ async def _compute_convergence(category, steps):
     total = len(all_matches)
     steps = min(max(steps, 5), 40)
 
-    # Compute max avg matches/paper for integer x-axis
+    # Compute max avg matches/paper
     full_counts = defaultdict(int)
     for m in all_matches:
         full_counts[m["paper1_id"]] += 1
@@ -1495,37 +1495,56 @@ async def _compute_convergence(category, steps):
     active_pids = [pid for pid in pid_set if full_counts[pid] > 0]
     max_avg = sum(full_counts[pid] for pid in active_pids) / max(len(active_pids), 1)
 
-    step_size = max(1, int(max_avg / steps))
-    if step_size >= 5:
-        step_size = (step_size // 5) * 5
-    # Include fine-grained early points (1, 2, 3, ...) to capture the ramp-up from 0
-    early_points = list(range(1, min(step_size + 1, int(max_avg) + 1)))
-    main_points = list(range(step_size, int(max_avg) + step_size, step_size))
-    x_targets = sorted(set(early_points + main_points))
-    if not x_targets or x_targets[-1] < max_avg * 0.95:
-        x_targets.append(int(max_avg) + 1)
+    # Pre-compute cumulative avg-per-paper at every match index (O(n) once)
+    import bisect
+    _active_set = set()
+    _total_match_sum = 0
+    _cum_avg = [0.0] * (total + 1)
+    for i, m in enumerate(all_matches):
+        if m["paper1_id"] in pid_set:
+            _active_set.add(m["paper1_id"])
+            _total_match_sum += 1
+        if m["paper2_id"] in pid_set:
+            _active_set.add(m["paper2_id"])
+            _total_match_sum += 1
+        _cum_avg[i + 1] = _total_match_sum / len(_active_set) if _active_set else 0
+
+    # Generate sample indices: Phase 1 (absolute) + Phase 2 (avg-per-paper targets)
+    sample_indices = set()
+    # Phase 1: absolute match counts for the very start
+    # Scale to dataset size: sample more frequently for larger datasets
+    phase1_step = max(1, total // 500)
+    phase1_limit = min(total // 5, 500)
+    for n in range(phase1_step, phase1_limit + 1, phase1_step):
+        sample_indices.add(n)
+    # Phase 2: fine-grained avg-per-paper targets (same as validation)
+    avg_targets = []
+    for t_10 in range(10, 51, 5):  # 1.0, 1.5, 2.0, ..., 5.0
+        t = t_10 / 10
+        if t <= max_avg:
+            avg_targets.append(t)
+    for t in range(6, min(16, int(max_avg) + 1)):
+        avg_targets.append(float(t))
+    if max_avg > 15:
+        late_steps = max(steps - 25, 10)
+        late_step_size = max(1, int((max_avg - 15) / late_steps))
+        for t in range(15 + late_step_size, int(max_avg) + late_step_size, late_step_size):
+            avg_targets.append(float(t))
+    if avg_targets and avg_targets[-1] < max_avg * 0.95:
+        avg_targets.append(max_avg)
+
+    for target_avg in avg_targets:
+        idx = bisect.bisect_left(_cum_avg, target_avg, 1, total + 1)
+        if idx <= total:
+            sample_indices.add(idx)
+    # Always include the final point
+    if total > 0:
+        sample_indices.add(total)
+
+    sample_indices = sorted(sample_indices)
 
     curve = []
-    for target_avg in x_targets:
-        lo, hi = 1, total
-        best_n = total
-        while lo <= hi:
-            mid = (lo + hi) // 2
-            counts = defaultdict(int)
-            for m in all_matches[:mid]:
-                counts[m["paper1_id"]] += 1
-                counts[m["paper2_id"]] += 1
-            active = [pid for pid in pid_set if counts[pid] > 0]
-            if not active:
-                lo = mid + 1
-                continue
-            avg = sum(counts[pid] for pid in active) / len(active)
-            if avg < target_avg:
-                lo = mid + 1
-            else:
-                best_n = mid
-                hi = mid - 1
-
+    for best_n in sample_indices:
         subset = all_matches[:best_n]
         paper_match_count = defaultdict(int)
         for m in subset:
@@ -1558,7 +1577,7 @@ async def _compute_convergence(category, steps):
 
         point = {
             "matches": best_n,
-            "avg_matches_per_paper": round(avg_mpp),
+            "avg_matches_per_paper": round(avg_mpp, 1),
             "papers_covered": len(active),
             "spearman": round(sp, 4),
             "kendall": round(kt, 4),

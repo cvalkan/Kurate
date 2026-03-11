@@ -59,9 +59,11 @@ Build a robust system for ranking and validating AI model performance on scienti
 The Emergent LLM key budget gets exhausted during large-scale summary generation. User needs to top up via Profile -> Universal Key -> Add Balance.
 
 ## Completed Work
+- Linkable validation sub-URLs via ?v= search params (Mar 11 2026)
+- Higher resolution leaderboard convergence matching validation charts (Mar 11 2026)
+- Auto per-model SI rating extraction from summaries in scheduler (Mar 11 2026)
 - Precomputed analysis caches for Model Correlation page (Mar 11 2026)
 - Log/linear scale toggle on convergence charts (Mar 11 2026)
-- Increased convergence resolution at low match counts (Mar 11 2026)
 - Single-Item Rating Analysis section with model toggle on Model Analysis page (Mar 11 2026)
 - Pre-computation system for production deployment
 - Single-Item Scoring experiment - run on eLife (Cancer + Neuro), ICLR (7 datasets), MIDL, PeerRead, RH-50, Qeios Social
