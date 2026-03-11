@@ -1241,18 +1241,16 @@ async def _compute_consistency_analysis():
         }
 
     # ── Controlled cross-format flip comparison ──
-    # Only compare format pairs shared by well-sampled models (≥5K total pairs)
-    MIN_TOTAL_FOR_CONTROLLED = 5000
-    controlled_models = {mk for mk in all_models_in_data if model_flip_total[mk][1] >= MIN_TOTAL_FOR_CONTROLLED}
+    # Include ALL models. Find format pairs shared by all, with ≥5 samples each.
     shared_format_pairs = set()
-    if controlled_models:
-        first_model = next(iter(controlled_models))
-        shared_format_pairs = set(fp for fp, v in model_fmtpair_flips[first_model].items() if v[1] >= 20)
-        for mk in controlled_models:
-            shared_format_pairs &= set(fp for fp, v in model_fmtpair_flips[mk].items() if v[1] >= 20)
+    if all_models_in_data:
+        first_model = next(iter(all_models_in_data))
+        shared_format_pairs = set(fp for fp, v in model_fmtpair_flips[first_model].items() if v[1] >= 5)
+        for mk in all_models_in_data:
+            shared_format_pairs &= set(fp for fp, v in model_fmtpair_flips[mk].items() if v[1] >= 5)
 
     controlled_flip_rates = {}
-    for mk in sorted(controlled_models):
+    for mk in sorted(all_models_in_data):
         if not shared_format_pairs:
             continue
         total_flips = 0
