@@ -223,6 +223,25 @@ def _load_validation():
         logger.warning(f"Failed to load precomputed validation: {e}")
         return 0
 
+    # Build SI correlation lookup from precomputed experiment cache
+    si_by_dataset = {}
+    if EXPERIMENT_FILE.exists():
+        try:
+            with open(EXPERIMENT_FILE) as f:
+                exp_data = json.load(f)
+            si_exp = exp_data.get("single-item-scoring", {})
+            if si_exp.get("status") == "ok":
+                for ds in si_exp.get("datasets", []):
+                    corr = ds.get("correlation", {})
+                    si_by_dataset[ds["dataset_id"]] = {
+                        "spearman": corr.get("spearman_rho"),
+                        "kendall": corr.get("kendall_tau"),
+                        "pearson": corr.get("pearson_r"),
+                        "papers_scored": ds.get("papers_scored", 0),
+                    }
+        except Exception:
+            pass
+
     from routers.validation_utils import _result_cache, convergence_all_cache
     # Base endpoint names (without mode suffix)
     _MODE_ENDPOINTS = {"pairwise", "irt", "agreement", "convergence", "dual-dim"}
@@ -232,6 +251,9 @@ def _load_validation():
             # convergence-all goes into its own dedicated cache (multi-mode format)
             if ep_name == "convergence-all":
                 if data and data.get("status") == "ok" and data.get("modes"):
+                    # Inject SI correlation if available and not already present
+                    if ds_id in si_by_dataset and "si_correlation" not in data:
+                        data["si_correlation"] = si_by_dataset[ds_id]
                     convergence_all_cache[ds_id] = {"data": data, "ts": time.time()}
                     loaded += 1
                 continue

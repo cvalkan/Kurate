@@ -1,38 +1,39 @@
 <analysis>**original_problem_statement**:
 The user's primary goal is to build a robust system for validating AI model performance on scientific papers. This has evolved into a full-stack application featuring a leaderboard tournament where different LLMs act as judges to rank papers.
 
-The scope of this session expanded significantly to include: diagnosing and fixing data inconsistencies on the validation charts, running a series of new experiments (single-item scoring, controlled comparisons), deeply analyzing the Surprisingly Popular (SP) signal, creating a comprehensive report summarizing all findings, and integrating the new rating metrics directly into the live tournament leaderboard with corresponding admin controls.
+The scope of recent work was to conduct a deep analysis of different evaluation methods (single-item vs. pairwise), run a series of new experiments to test emerging hypotheses, fix major performance bottlenecks, improve the mobile UI, and integrate all findings into the application's reporting and validation pages. The central hypothesis that emerged is that Single-Item (SI) scoring is superior for topically diverse datasets, while Pairwise (PW) comparison is better for topically homogeneous datasets.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a mature full-stack platform (FastAPI backend, React frontend) for running and analyzing AI judging tournaments. Key features include:
--   A live tournament system with a leaderboard that now includes columns for Rating (from single-item scoring) and Gap (the Surprisingly Popular signal).
--   A robust data pipeline that automatically generates summaries and extracts single-item ratings for new papers.
--   An admin dashboard for managing tournament categories, viewing prompts, and controlling the live leaderboard's appearance. It features a non-blocking, stoppable/resumable function to generate ratings for existing papers.
--   A comprehensive suite of validation and experiment pages, now publicly accessible, which includes a new Overall Summary report that consolidates all key findings from experiments on model performance, biases, and methodologies.
+A mature full-stack platform (FastAPI backend, React frontend) for running and analyzing AI judging tournaments. Key features include:
+-   A live, mobile-responsive tournament leaderboard with sortable Rating (single-item score) and Gap columns, and a search that includes authors.
+-   A highly performant suite of public validation pages, whose content is served from a pre-computed cache, preventing slow database queries. This includes a comprehensive Overall Summary report that has been continuously updated with the latest experiment findings.
+-   A robust data pipeline that can generate different types of AI summaries (e.g., Opus 4.6 Thinking) without overwriting existing ones.
+-   An admin dashboard with non-blocking background tasks for generating ratings, and near-instant visibility of per-category statistics.
 
 **Last working item**:
--   **Last item agent was working**: The user reported that the agent's previous fix for the leaderboard UI was incorrect (it merged columns instead of keeping them separate). The agent was tasked with re-implementing the fix to ensure the Rating and Gap columns are separate, sortable, and do not break the grid layout.
+-   **Last item agent was working**: The user requested a new experiment on the ResearchHub Genetics dataset (a curated set of 80 papers) to further test the topic diversity hypothesis. The agent created the dataset, generated new Opus 4.6 Thinking summaries, ran both pairwise and single-item scoring experiments, and found that SI scoring performed better, confirming the hypothesis. The final step was integrating these new results into a dedicated validation page, updating the summary report, and regenerating the precomputed cache files.
 -   **Status**: USER VERIFICATION PENDING
 -   **Agent Testing Done**: Y
--   **Which testing method agent to use?**: Manual testing. The next agent should navigate to the leaderboard page and confirm the Rating and Gap columns are separate, sortable, and the layout is correct. The visibility toggles in the admin panel should also be tested.
+-   **Which testing method agent to use?**: Manual testing. The next agent should instruct the user to navigate to the Validation -> Single-Item Scoring section, click on ResearchHub Genetics, and verify the results page. They should also check the Overall Summary report to confirm the findings are integrated.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1**: (P0) Final verification of the leaderboard UI for Rating and Gap columns.
+-   **Issue 1**: (P0) Final user verification of the ResearchHub Genetics experiment results and their integration into the UI.
 
 **Issues Detail**:
--   **Issue 1: Final verification of the leaderboard UI for Rating and Gap columns.**
-    -   **Attempted fixes**: An initial attempt broke the UI grid. A second attempt incorrectly merged the columns. The final, correct attempt uses dynamic  via a  attribute to properly render the columns, making them separate and sortable.
+-   **Issue 1: Final user verification of the ResearchHub Genetics experiment.**
+    -   **Attempted fixes**: N/A (This is a new feature completion).
     -   **Next debug checklist**:
-        1.  Navigate to the main leaderboard.
-        2.  Confirm the Rating and Gap columns render correctly as distinct, sortable columns.
-        3.  Go to the admin settings () and toggle the visibility switches for both columns.
-        4.  Verify that the leaderboard UI updates correctly (columns hide/show) without breaking the layout.
-    -   **Why fix this issue and what will be achieved with the fix?**: To fulfill the user's request of having new single-item rating data visible and functional on the live leaderboard.
+        1.  Navigate to the Validation section.
+        2.  Expand the Single-Item Scoring sidebar menu.
+        3.  Click on the new ResearchHub Genetics link.
+        4.  Verify the page loads quickly and displays the comparison between Single-Item and Pairwise scoring.
+        5.  Navigate to the Overall Summary report and confirm the table and verdict text have been updated to include this new experiment.
+    -   **Why fix this issue and what will be achieved with the fix?**: This completes the user's latest request and adds the final piece of evidence for the core topic diversity hypothesis.
     -   **Status**: USER VERIFICATION PENDING
-    -   **Is recurring issue?**: Y (Agent struggled with this React grid layout).
+    -   **Is recurring issue?**: N
     -   **Should Test frontend/backend/both after fix?**: Frontend
     -   **Blocked on other issue**: None
 
@@ -41,33 +42,31 @@ None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks**:
-    -   (P0) Complete user verification for the leaderboard UI fix (Issue 1).
+    -   (P0) Complete user verification for the ResearchHub Genetics experiment (Issue 1).
 -   **Future Tasks**:
     -   (P1) Consolidate the fragile MIDL experiment pipeline into a single, robust background task.
+    -   (P2) Explore adding new validation datasets from OpenReview, with NeurIPS, COLM (for LLM-on-LLM analysis), and CoRL (to complement the live robotics leaderboard) being top candidates.
     -   (P2) Add missing HTTP security headers.
     -   (P2) Improve summary generation failure tracking UI.
     -   (P2) Continue refactoring the monolithic  file.
-    -   (P2) Verify if all ICLR datasets were fully scored in the single-item experiment, as noted in the initial handoff summary.
+    -   (P2) Verify if all original ICLR datasets were fully scored in the single-item experiment (a task carried over from a previous session).
 
 **Completed work in this session**
--   **Live Leaderboard Metric Integration**:
-    -   Integrated single-item ratings into the live summary generation pipeline.
-    -   Added sortable Rating and Gap columns to the leaderboard.
-    -   Implemented admin controls to toggle the visibility of these columns.
--   **Surprisingly Popular (SP) Signal Analysis**:
-    -   Discovered and validated that the SP signal (BT rank - SI rank) is a strong predictor of quality on datasets with *comparative* ground truth (e.g., ICLR).
-    -   Added a dedicated SP analysis section to all relevant validation pages.
-    -   Analyzed the characteristics of high-SP papers on the live leaderboard.
--   **Comprehensive Validation Report**:
-    -   Created a new Overall Summary page that consolidates findings from all experiments into a single, structured report.
-    -   Iteratively refined the report based on user feedback to ensure fair comparisons and clear conclusions.
--   **Admin & Pipeline Enhancements**:
-    -   Created a non-blocking, stoppable, and resumable admin function for generating single-item ratings for existing papers, complete with progress bars.
-    -   Unified the redundant rating-extraction and single-item-scoring prompts into a single, efficient prompt.
+-   **Major Performance Overhauls**:
+    -   Fixed extremely slow validation pages (>20s to <250ms) by implementing and debugging a comprehensive pre-computation cache system. This involved fixing a critical cache-key mismatch bug and ensuring all content-mode variants were pre-cached.
+    -   Fixed a sluggish admin panel by caching per-category rating statistics.
+    -   Fixed UI freezes by making the background rating generation task fully non-blocking ().
+    -   Fixed UI lag when expanding the validation sidebar by memoizing expensive React components () and caching the underlying API endpoint.
+-   **New Experiments & Hypothesis Refinement**:
+    -   Conducted multiple new experiments (Qeios Physical Sciences, eLife datasets, ResearchHub Cancer, ResearchHub Genetics).
+    -   **Refined the central hypothesis from GT-type to Topic Diversity**: The key finding is that Single-Item (SI) scoring excels on topically diverse datasets, while Pairwise (PW) is superior for topically homogeneous datasets where subtle, within-domain differences need direct comparison.
 -   **UI/UX and Bug Fixes**:
-    -   Fixed a critical bug on the MIDL convergence chart where data was being incorrectly filtered and truncated.
-    -   Made all validation and experiment pages publicly visible.
-    -   Refined the paper detail page to strip raw JSON from summaries and display a clean, formatted rating badge with spelled-out labels.
+    -   Fixed the leaderboard's mobile view to be a clean, readable 3-column layout.
+    -   Added proper loading/error states to validation charts, preventing blank pages.
+    -   Fixed the Gap score calculation to work for categories with few papers.
+-   **Feature Enhancements**:
+    -   Extended the leaderboard search functionality to include author names.
+    -   Refactored the validation pipeline to support generating new Thinking summaries () without overwriting existing ones.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: Add missing HTTP security headers.**
@@ -83,7 +82,7 @@ None.
 -   **Issue 3: Lack of transparency in summary generation failures.**
     -   **Debug checklist**: Modify summary generation progress tracking in  and expose it in the admin UI.
     -   **Why to solve this issue and what will be achieved with this?**: Provides better observability into the health of LLM API calls.
-    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Should Test frontend/backend/both after fix**: Both
     -   **Is recurring issue?**: N
 
 **Known issue recurrence from previous fork**
@@ -93,83 +92,76 @@ None.
 
 
 **Key Technical Concepts**
--   **Surprisingly Popular (SP) Signal**: The difference between a paper's rank from a pairwise tournament (BT rank) and its rank from standalone scoring (SI rank). Found to be a strong quality predictor on datasets with a *comparative* ground truth.
--   **Comparative vs. Standalone Ground Truth**: A key insight that the best AI evaluation method (pairwise vs. single-item) depends on the cognitive process used to generate the human ground truth.
--   **Controlled Comparisons**: Ensuring experiments are fair by controlling for variables like the specific paper pairs and judge models used.
--   **Non-blocking Background Tasks**: The rating generation task was refactored to run in small, non-blocking batches using  to prevent server saturation.
--   **Dynamic UI Configuration**: The leaderboard fetches admin settings from the backend to conditionally render columns, allowing for dynamic UI changes without a code deployment.
+-   **Topic Diversity Hypothesis**: The core finding of the session. SI wins when papers are topically diverse; PW wins when papers are topically homogeneous. Ground Truth (GT) type is a proxy for this, not the cause.
+-   **Precomputed Caching**: The main performance strategy. Expensive DB computations are run once, stored in version-controlled JSON files (), and loaded into an in-memory cache on server startup. This made validation pages >100x faster.
+-   **Non-blocking Async Tasks**: The long-running rating generation was made non-blocking by switching from concurrent batches to a sequential loop with  between each call, yielding the event loop and keeping the UI responsive.
+-   **React Memoization**:  was used in  to cache expensive component calculations, fixing UI lag when interacting with the sidebar.
 
 **key DB schema**
 -   ****:
-    -    (dict): Added to store single-item scores (). Populated by the main pipeline and the manual rating task.
--   ****:
-    -    (bool): NEW, controls visibility of the 'Rating' column.
-    -    (bool): NEW, controls visibility of the 'Gap' column.
--   ****:
-    -   The  document in the DB was updated to include the JSON rating structure, unifying the summary and rating generation step.
+    -    (dict): Added to store summaries generated with the thinking mode (e.g., from Opus 4.6), keeping them separate from standard summaries in .
 
 **changes in tech stack**
 -   None.
 
 **All files of reference**
--   : Contains the logic for all experiments.
--   : Injects new data and settings into the leaderboard response.
--   : Contains the non-blocking rating generation and settings management.
--   : Renders the leaderboard grid with dynamic, sortable columns.
--   : Contains the UI controls for new features.
--   : Renders the paper detail page with the clean rating badge.
--   : The comprehensive experiment report page.
+-   : Contains all experiment and result-serving logic.
+-   : The heart of the performance fix; loads precomputed JSONs into memory.
+-   : The script used to generate the critical cache files.
+-   : The main report summarizing all findings.
+-   : The sidebar and routing for all validation pages.
+-   : The responsive leaderboard component.
+-   The entire  directory.
 
 **Areas that need refactoring**:
--    remains monolithic and is a prime candidate for being split into smaller, feature-specific modules.
+-    is still monolithic and a prime candidate for being split into smaller, feature-specific modules.
 
 **key api endpoints**
--   : (Modified) Saves leaderboard visibility settings.
--   : (New) Triggers the non-blocking rating generation task.
--   : (New) Polls the status of the rating generation task.
--   : (Modified) Response now includes , , and .
--   : (Modified) Response now includes  data.
+-   : (New/Used) Triggers regeneration of all validation cache files.
+-   : (Modified) Now cached to improve sidebar performance.
+-   : (Modified) Now all read from the precomputed in-memory cache, making them near-instant.
+-   : (Modified) Now uses a cached value and accepts a  parameter for instant stats.
 
 **Critical Info for New Agent**
-1.  **Rating Generation is Non-Blocking**: The task to generate ratings for existing papers runs in the background in small batches to keep the server responsive. It can be started and stopped from the admin panel.
-2.  **Two Sources for Ratings**: A paper's  can come from (1) being automatically parsed from a new summary or (2) being generated after-the-fact for an old summary. The UI handles both cases.
-3.  **The Gap Signal is Context-Dependent**: The Gap score is the Surprisingly Popular signal. Analysis showed this signal is most meaningful on datasets with a *comparative* ground truth (like ICLR).
-4.  **Admin Toggles Control Leaderboard Columns**: The Rating and Gap columns are controlled by settings in the Admin panel. If they don't appear, check there first.
+1.  **The Topic Diversity Hypothesis is Central**: This is the key insight from all recent experiments. SI is not universally better on standalone GT; it's better on *topically diverse* standalone GT. PW wins on *topically homogeneous* datasets, even those with standalone GT.
+2.  **Performance Relies on Precomputed Cache**: The validation section's speed is entirely dependent on the JSON files in . If you run new experiments, you **must** run the  endpoint and restart the server to see performance benefits and correct data in the UI.
+3.  **Use Thinking Summaries for New Experiments**: For new validation runs, generate summaries into the  field. The code is now set up to prefer this field, ensuring new experiments use higher-quality inputs without overwriting old data.
 
 **documents and test reports created in this job**
 -    (Updated)
--    (New file)
+-   All files within the  directory have been regenerated and expanded multiple times.
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Reports the leaderboard layout is broken after an incorrect fix and demands a proper implementation with separate, sortable columns. (Status: )
-2.  **User**: Asks to spell out rating abbreviations on the paper page and make validation pages public. (Status: )
-3.  **User**: Requests admin settings to show/hide leaderboard columns and asks for the rating generation to be non-blocking and resumable. (Status: )
-4.  **User**: Points out that raw JSON is visible in summaries and should be styled as a badge. (Status: )
-5.  **User**: Asks to create a new category and verify that the pipeline generates summaries with ratings automatically. (Status: )
-6.  **User**: Suggests unifying the redundant rating prompts. (Status: )
-7.  **User**: Asks the agent to stop the rating generation task. (Status: )
-8.  **User**: Reports issues with the rating generation progress bars. (Status: )
-9.  **User**: Reports the preview is unresponsive. (Status: , agent fixed by restarting the saturated backend).
-10. **User**: Identifies several issues: the public summary prompt is outdated, new prompts aren't in the admin UI, and asks to rename AI to Score and SP to Gap. (Status: )
+1.  **User**: Asks why ResearchHub-50 and ResearchHub-Cancer results differ. (Status: , led to topic diversity hypothesis)
+2.  **User**: Asks agent to run an experiment on ResearchHub Genetics (80 papers) to confirm the hypothesis. (Status: , work is pending verification)
+3.  **User**: Acknowledges the precomputation of  data and asks to proceed. (Status: )
+4.  **User**: Asks if all validation JSONs are ready for deployment. (Status: )
+5.  **User**: Asks for clarification on why precomputed files would need to be regenerated on production. (Status: )
+6.  **User**: Reports that the mobile view of the leaderboard is broken. (Status: )
+7.  **User**: Reports that correlation chart pages are not loading on the production site. (Status: )
+8.  **User**: States that the fix for convergence charts worked, but switching between tournament input formats is still sluggish. (Status: )
+9.  **User**: Reports that expanding the Tournament menu item in the sidebar lags. (Status: )
+10. **User**: Asks why the Gap score is missing for some items and requests extending the search box to include authors. (Status: )
 
 **Project Health Check:**
--   **Broken**: None. The backend saturation was temporary and resolved by making the task non-blocking. The UI layout was being fixed as the last action.
+-   **Broken**: None.
 -   **Mocked**: None.
 
 **3rd Party Integrations**
 -   **LLM Providers**: Anthropic (Claude), OpenAI (GPT), Google (Gemini) via .
 -   **Emergent LLM Key**: Used for most LLM API calls.
--   **Data Sources**: OpenReview, eLife, Crossref, Sciety.org, ArXiv, ChemRxiv, AlphaXiv.
+-   **Data Sources**: OpenReview, eLife, Crossref, Sciety.org, ArXiv, ChemRxiv, AlphaXiv, ResearchHub.
 -   **Authentication**: Emergent-managed Google Auth.
 
 **Testing status**
--   **Testing agent used after significant changes**: NO
+-   **Testing agent used after significant changes**: YES, a full readiness check was performed at the beginning of the session.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: None.
--   **Known regressions**: The leaderboard layout was temporarily broken, but a fix was implemented and is pending verification.
+-   **Known regressions**: None. All regressions identified during the session (e.g., performance issues, UI bugs) were fixed.
 
 **Credentials to test flow:**
 -   The admin password can be found in the  environment variable in the  file.
 
 **What agent forgot to execute**
--   The initial handoff mentioned a pending task to verify if all ICLR datasets from the *previous* fork were fully and successfully scored in the single-item experiment. This task was not addressed in this session.</analysis>
+-   The task from the initial handoff summary to verify if all ICLR datasets from the previous fork were fully and successfully scored in the single-item experiment was not addressed in this session.</analysis>

@@ -59,6 +59,7 @@ Build a robust system for ranking and validating AI model performance on scienti
 The Emergent LLM key budget gets exhausted during large-scale summary generation. User needs to top up via Profile -> Universal Key -> Add Balance.
 
 ## Completed Work
+- SI correlation reference line on all validation tournament convergence charts (Mar 11 2026)
 - Pre-computation system for production deployment
 - Single-Item Scoring experiment - run on eLife (Cancer + Neuro), ICLR (7 datasets), MIDL, PeerRead, RH-50, Qeios Social
 - "Surprisingly Popular" analysis: BT_rank - SI_rank as independent quality predictor

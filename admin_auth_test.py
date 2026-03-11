@@ -6,7 +6,7 @@ Quick admin auth test with correct header format
 import requests
 import json
 
-API_BASE = "https://llm-ranker.preview.emergentagent.com/api"
+API_BASE = "https://ai-eval-lab.preview.emergentagent.com/api"
 
 def test_admin_auth():
     print("Testing admin authentication...")
