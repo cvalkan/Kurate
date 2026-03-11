@@ -1378,7 +1378,7 @@ async def _compute_si_rating_stats(category, model):
             if cat not in cat_groups:
                 cat_groups[cat] = []
             cat_groups[cat].append(p["rating"])
-        for cat, ratings in sorted(cat_groups.items(), key=lambda x: -len(x[1])):
+        for cat, ratings in sorted(cat_groups.items(), key=lambda x: -np.mean([r.get("score", 0) for r in x[1] if r.get("score")])):
             if len(ratings) < 3:
                 continue
             scores = [r.get("score", 0) for r in ratings if r.get("score")]
@@ -1420,6 +1420,39 @@ async def _compute_si_rating_stats(category, model):
                     "n": len(common),
                 }
 
+    # Per-model comparison: variance, mean, inter-metric correlation
+    model_comparison = {}
+    METRICS = ["score", "significance", "rigor", "novelty", "clarity"]
+    for mk in ("claude", "gpt", "gemini"):
+        mk_ratings = []
+        for p in papers:
+            r = _get_paper_si_rating(p, mk)
+            if r and isinstance(r, dict) and r.get("score"):
+                mk_ratings.append(r)
+        if len(mk_ratings) < 10:
+            continue
+        mk_scores = [r["score"] for r in mk_ratings]
+        # Average inter-metric correlation (all pairs of sub-scores)
+        pair_rhos = []
+        for mi in range(len(METRICS)):
+            for mj in range(mi + 1, len(METRICS)):
+                v1 = [r.get(METRICS[mi], 0) for r in mk_ratings if r.get(METRICS[mi])]
+                v2 = [r.get(METRICS[mj], 0) for r in mk_ratings if r.get(METRICS[mj])]
+                n = min(len(v1), len(v2))
+                if n >= 10:
+                    rho, _ = scipy_stats.spearmanr(v1[:n], v2[:n])
+                    if not np.isnan(rho):
+                        pair_rhos.append(float(rho))
+        model_comparison[mk] = {
+            "n": len(mk_ratings),
+            "mean": round(float(np.mean(mk_scores)), 2),
+            "std": round(float(np.std(mk_scores, ddof=1)), 2) if len(mk_scores) > 1 else 0,
+            "min": round(min(mk_scores), 1),
+            "max": round(max(mk_scores), 1),
+            "range_used": round(max(mk_scores) - min(mk_scores), 1),
+            "avg_inter_metric_rho": round(float(np.mean(pair_rhos)), 3) if pair_rhos else None,
+        }
+
     return {
         "status": "ok",
         "total_papers": len(filtered),
@@ -1429,6 +1462,7 @@ async def _compute_si_rating_stats(category, model):
         "metric_correlations": metric_correlations,
         "by_category": by_category,
         "inter_model_si": inter_model_si,
+        "model_comparison": model_comparison,
     }
 
 

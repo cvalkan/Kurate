@@ -354,6 +354,76 @@ export function SiRatingSection({ category }) {
               </div>
             )}
           </div>
+
+          {/* Model comparison: variance vs correlation */}
+          {data.model_comparison && Object.keys(data.model_comparison).length >= 2 && (
+            <div className="mt-4 p-3 border border-border rounded-lg" data-testid="si-model-comparison">
+              <h3 className="text-sm font-medium mb-1">Cross-Model Rating Behavior</h3>
+              <p className="text-[10px] text-muted-foreground mb-3">
+                How do the 3 models differ in their rating patterns? Models that use a wider score range (higher {"\u03C3"}) produce more discriminative rankings.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[10px]" style={{ tableLayout: "fixed" }}>
+                  <colgroup>
+                    <col />
+                    <col style={{ width: "55px" }} />
+                    <col style={{ width: "55px" }} />
+                    <col style={{ width: "50px" }} />
+                    <col style={{ width: "65px" }} />
+                    <col style={{ width: "80px" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-1 pr-1">Model</th>
+                      <th className="text-right py-1 px-1">Mean</th>
+                      <th className="text-right py-1 px-1">{"\u03C3"}</th>
+                      <th className="text-right py-1 px-1">Range</th>
+                      <th className="text-right py-1 px-1">Avg Inter-{"\u03C1"}</th>
+                      <th className="text-right py-1 px-1">Papers</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(data.model_comparison)
+                      .sort((a, b) => b[1].std - a[1].std)
+                      .map(([mk, s]) => {
+                        const labels = { claude: "Claude Opus", gpt: "GPT-5.2", gemini: "Gemini 3 Pro" };
+                        return (
+                          <tr key={mk} className="border-b border-border/20">
+                            <td className="py-0.5 pr-1 font-medium">{labels[mk] || mk}</td>
+                            <td className="text-right py-0.5 px-1 font-mono">{s.mean}</td>
+                            <td className="text-right py-0.5 px-1 font-mono font-bold">{s.std}</td>
+                            <td className="text-right py-0.5 px-1 font-mono">{s.min}-{s.max}</td>
+                            <td className="text-right py-0.5 px-1 font-mono">{s.avg_inter_metric_rho ?? "—"}</td>
+                            <td className="text-right py-0.5 px-1 font-mono text-muted-foreground">{s.n}</td>
+                          </tr>
+                        );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {(() => {
+                const entries = Object.entries(data.model_comparison);
+                if (entries.length < 2) return null;
+                const sorted = entries.sort((a, b) => b[1].std - a[1].std);
+                const widest = sorted[0];
+                const narrowest = sorted[sorted.length - 1];
+                const labels = { claude: "Claude", gpt: "GPT-5.2", gemini: "Gemini" };
+                const wName = labels[widest[0]] || widest[0];
+                const nName = labels[narrowest[0]] || narrowest[0];
+                const wRho = widest[1].avg_inter_metric_rho;
+                const nRho = narrowest[1].avg_inter_metric_rho;
+                return (
+                  <p className="mt-2 text-[10px] text-muted-foreground border-t border-border/30 pt-2">
+                    <strong>Observation:</strong> {wName} uses the widest score range ({"\u03C3"}={widest[1].std}, range {widest[1].min}-{widest[1].max}) yet also has the
+                    {wRho && nRho && wRho > nRho ? " highest " : " high "}
+                    inter-metric correlation (avg {"\u03C1"}={wRho ?? "—"}). This suggests {wName} applies a consistent "quality multiplier" across all dimensions — when it thinks a paper is good, all sub-scores rise together. {nName} ({"\u03C3"}={narrowest[1].std}) compresses scores into a narrow band
+                    {nRho ? ` with lower inter-metric correlation (${"\u03C1"}=${nRho})` : ""},
+                    {" "}suggesting more independent (but less discriminative) dimension scoring.
+                  </p>
+                );
+              })()}
+            </div>
+          )}
         </>
       )}
     </div>
