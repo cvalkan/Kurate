@@ -29,7 +29,13 @@ function Section({ num, title, children }) {
 function DataTable({ headers, rows, boldIdx }) {
   return (
     <div className="overflow-x-auto mt-1">
-      <table className="w-full text-[10px]">
+      <table className="w-full text-[10px]" style={{ tableLayout: "fixed" }}>
+        <colgroup>
+          <col />
+          {headers.slice(1).map((_, i) => (
+            <col key={i} style={{ width: `${Math.max(80, 100 / headers.length)}px` }} />
+          ))}
+        </colgroup>
         <thead>
           <tr className="border-b border-border">
             {headers.map((h, i) => (
@@ -258,13 +264,20 @@ export default function ValidationReportPage() {
 
           <p className="text-[10px] font-medium text-amber-900/70 mt-2 mb-1">BY JUDGE</p>
           <div className="overflow-x-auto">
-            <table className="w-full text-[10px]">
+            <table className="w-full text-[10px]" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                <col />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "100px" }} />
+              </colgroup>
               <thead><tr className="border-b border-amber-200">
                 <th className="text-left py-1 pr-2">Judge</th>
                 <th className="text-right py-1 px-1">Prestige-Gap</th>
                 <th className="text-right py-1 px-1">No Institution</th>
                 <th className="text-right py-1 px-1">Other Inst.</th>
-                <th className="text-right py-1 px-1">Gap Advantage</th>
+                <th className="text-right py-1 px-1">Gap Adv.</th>
               </tr></thead>
               <tbody>
                 {[
@@ -287,13 +300,20 @@ export default function ValidationReportPage() {
 
           <p className="text-[10px] font-medium text-amber-900/70 mt-3 mb-1">BY SUMMARIZER</p>
           <div className="overflow-x-auto">
-            <table className="w-full text-[10px]">
+            <table className="w-full text-[10px]" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                <col />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "100px" }} />
+              </colgroup>
               <thead><tr className="border-b border-amber-200">
                 <th className="text-left py-1 pr-2">Summarizer</th>
                 <th className="text-right py-1 px-1">Prestige-Gap</th>
                 <th className="text-right py-1 px-1">No Institution</th>
                 <th className="text-right py-1 px-1">Other Inst.</th>
-                <th className="text-right py-1 px-1">Gap Advantage</th>
+                <th className="text-right py-1 px-1">Gap Adv.</th>
               </tr></thead>
               <tbody>
                 {[
