@@ -12,7 +12,7 @@ const GT_TYPE = {
   "elife-cancer": "standalone", "elife-microbiology": "standalone",
   "elife-comp-sys-bio": "standalone",
   "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
-  "researchhub-50": "standalone",
+  "researchhub-50": "standalone", "researchhub-cancer": "standalone",
 };
 
 function Section({ num, title, children }) {
@@ -343,7 +343,7 @@ export default function ValidationReportPage() {
           </table>
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, PeerRead) and on eLife Neuroscience — which uses standalone editorial assessment but whose GT empirically behaves as comparative (SP ρ=0.52). Single-item wins on all other standalone-GT datasets (Qeios Social &amp; Physical, ResearchHub 50, eLife Cancer &amp; Comp Sys Bio). The optimal method mirrors the <em>effective information structure</em> of the GT, not just the formal process.
+          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, PeerRead) and on eLife Neuroscience — which uses standalone editorial assessment but whose GT empirically behaves as comparative (Gap ρ=0.52). Single-item wins on most standalone-GT datasets (Qeios, ResearchHub 50, eLife Cancer/CSB/Micro). The exception among standalone datasets is ResearchHub Cancer: despite standalone GT, PW wins — likely because all 80 papers are in the same narrow domain (cancer biology), making within-topic quality differences harder for standalone scoring. Domain specificity compounds the challenge, similar to MIDL.
         </p>
       </Section>
 
