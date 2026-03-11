@@ -12,7 +12,7 @@ const GT_TYPE = {
   "elife-cancer": "standalone", "elife-microbiology": "standalone",
   "elife-comp-sys-bio": "standalone",
   "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
-  "researchhub-50": "standalone", "researchhub-cancer": "standalone",
+  "researchhub-50": "standalone", "researchhub-cancer": "standalone", "researchhub-genetics": "standalone",
 };
 
 function Section({ num, title, children }) {

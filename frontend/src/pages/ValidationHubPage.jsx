@@ -169,6 +169,7 @@ export default function ValidationHubPage() {
       "si-elife-csb": { title: "Single-Item — eLife Comp & Sys Bio", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 computational and systems biology papers with editor significance assessments." },
       "si-elife-micro": { title: "Single-Item — eLife Microbiology", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 microbiology and infectious disease papers with editor significance assessments." },
       "si-rh-cancer": { title: "Single-Item — ResearchHub Cancer", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 cancer biology papers with independent paid peer review ratings (1-5 scale)." },
+      "si-rh-genetics": { title: "Single-Item — ResearchHub Genetics", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 genetics/genomics papers with independent paid peer review ratings (1-5 scale)." },
       "exp-summarizer-ab": { title: "Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
       "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
       "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
@@ -256,6 +257,7 @@ export default function ValidationHubPage() {
             <NavItem item={{ id: "si-elife-csb", label: "eLife Comp & Sys Bio", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-elife-micro", label: "eLife Microbiology", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-rh-cancer", label: "ResearchHub Cancer", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-rh-genetics", label: "ResearchHub Genetics", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
             {isAdmin && <NavItem item={{ id: "si-scipost", label: "SciPost (Legacy)" }} selected={selected} onSelect={setSelected} />}
           </CollapsibleGroup>
 
@@ -348,6 +350,7 @@ export default function ValidationHubPage() {
           {selected === "si-elife-csb" && <SingleItemScoringSection datasetId="elife-comp-sys-bio" />}
           {selected === "si-elife-micro" && <SingleItemScoringSection datasetId="elife-microbiology" />}
           {selected === "si-rh-cancer" && <SingleItemScoringSection datasetId="researchhub-cancer" />}
+          {selected === "si-rh-genetics" && <SingleItemScoringSection datasetId="researchhub-genetics" />}
           {selected === "exp-summarizer-ab" && <SummarizerComparisonSection />}
           {selected === "exp-summary-bias" && <SummaryBiasSection category="q-bio.BM" />}
           {selected === "exp-summary-bias-econ" && <SummaryBiasSection category="econ.GN" />}
