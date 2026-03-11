@@ -1509,26 +1509,13 @@ async def _compute_convergence(category, steps):
             _total_match_sum += 1
         _cum_avg[i + 1] = _total_match_sum / len(_active_set) if _active_set else 0
 
-    # Generate sample indices: Phase 1 (absolute) + Phase 2 (avg-per-paper targets)
+    # Generate sample indices from uniform 0.25-step avg-per-paper targets
     sample_indices = set()
-    # Phase 1: dense absolute sampling at the very start for fine-grained early curve
-    phase1_step = max(1, total // 2000)
-    phase1_limit = min(total // 5, 2000)
-    for n in range(phase1_step, phase1_limit + 1, phase1_step):
-        sample_indices.add(n)
-    # Phase 2: fine-grained avg-per-paper targets (same as validation)
     avg_targets = []
-    for t_10 in range(5, 51, 5):  # 0.5, 1.0, 1.5, 2.0, ..., 5.0
-        t = t_10 / 10
-        if t <= max_avg:
-            avg_targets.append(t)
-    for t in range(6, min(16, int(max_avg) + 1)):
-        avg_targets.append(float(t))
-    if max_avg > 15:
-        late_steps = max(steps - 25, 10)
-        late_step_size = max(1, int((max_avg - 15) / late_steps))
-        for t in range(15 + late_step_size, int(max_avg) + late_step_size, late_step_size):
-            avg_targets.append(float(t))
+    t = 0.25
+    while t <= max_avg + 0.25:
+        avg_targets.append(t)
+        t = round(t + 0.25, 2)
     if avg_targets and avg_targets[-1] < max_avg * 0.95:
         avg_targets.append(max_avg)
 

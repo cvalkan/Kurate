@@ -154,14 +154,14 @@ export default function ValidationReportPage() {
         <p>Same pair shown under different input formats — how often does the verdict flip? (Cross-format flip rate per judge model.)</p>
         <div className="space-y-0.5 mt-1">
           {[
-            { name: "Opus 4.6", rate: "8.2%" },
-            { name: "Opus 4.5", rate: "13.4%" },
-            { name: "Gemini 3 Pro", rate: "15.0%" },
-            { name: "GPT-5.2", rate: "15.7%" },
-          ].map((j, i) => <Row key={j.name} label={j.name} value={j.rate} bold={i === 0} />)}
+            { name: "Opus 4.6", rate: "8.2%", n: "1,238" },
+            { name: "Opus 4.5", rate: "13.4%", n: "20,774" },
+            { name: "Gemini 3 Pro", rate: "15.0%", n: "24,017" },
+            { name: "GPT-5.2", rate: "15.7%", n: "24,265" },
+          ].map((j, i) => <Row key={j.name} label={`${j.name} (${j.n} pairs)`} value={j.rate} bold={i === 0} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Opus 4.6 is the most stable judge — nearly twice as consistent as GPT-5.2 across input format changes. The ~15% flip rate across all models means input representation is a first-order variable: changing how you present the paper changes the outcome for 1 in 7 comparisons.
+          <strong>Verdict:</strong> Opus 4.5, GPT-5.2, and Gemini 3 Pro are comparable (13-16% flip rate across ~20-24K format-pair comparisons). Opus 4.6 shows 8.2% but on only 1,238 pairs — likely comparing more similar formats, making it <em>not directly comparable</em> to the others. The consistent ~15% flip rate across three well-sampled models means input representation is a first-order variable: changing how you present the paper changes the outcome for roughly 1 in 7 comparisons.
         </p>
       </Section>
 
