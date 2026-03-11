@@ -98,7 +98,7 @@ export default function ValidationReportPage() {
           })}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Opus 4.6 Thinking is the best summarizer (82.3%), followed by Opus 4.6 (81.2%). Claude models dominate; GPT and Gemini trail by ~8-10pp. Upgrading from Opus 4.5 to 4.6 gives +5pp; adding extended thinking gives another +1pp.
+          <strong>Verdict:</strong> The choice of summarizer is the most impactful decision in the pipeline. Claude dominates — Opus 4.6 Thinking leads, with the thinking budget providing a modest but consistent edge. GPT and Gemini trail significantly, suggesting Claude's reasoning better captures what human reviewers value.
         </p>
       </Section>
 
@@ -113,7 +113,7 @@ export default function ValidationReportPage() {
           {jc.majority_vote && <Row label="Majority Vote (3 judges)" value={`${jc.majority_vote.accuracy}% (rho=${jc.majority_vote.avg_rho?.toFixed(3) || "?"})`} />}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> All judge models perform within ~1.2pp of each other (72-75%). No clear winner. Majority vote and round-robin don't outperform the best single judge. The judge model matters far less than the summarizer model (+6pp between summarizers vs ~1pp between judges).
+          <strong>Verdict:</strong> The judge model barely matters — all models perform within a narrow band. Ensembling (majority vote, round-robin) provides no advantage over the best individual judge. This contrasts sharply with summarizer choice, which has 6x the impact. Invest in better summaries, not better judges.
         </p>
       </Section>
 
@@ -132,7 +132,7 @@ export default function ValidationReportPage() {
           ].map((r, i) => <Row key={r.fmt} label={`${r.fmt} (${r.n})`} value={r.acc} bold={i === 0} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Thinking summaries lead at 77.4%, +6.9pp over Opus 4.5 summaries and +7.9pp over Full PDF. The biggest gain comes from using <em>any</em> AI summary vs abstract-only (+5-12pp). Full PDF underperforms AI summaries despite having more content — irrelevant sections add noise. Deep Dive and Abstract are tested on fewer datasets (7 vs 14), so their numbers are less comparable.
+          <strong>Verdict:</strong> AI-generated summaries unlock most of the accuracy gains — any summary is far better than raw abstract. Thinking summaries provide the strongest signal. Full PDFs underperform summaries despite having more content, suggesting that irrelevant sections introduce noise that hurts judgment quality.
         </p>
       </Section>
 
@@ -145,7 +145,7 @@ export default function ValidationReportPage() {
           <Row label="Lift" value={`${ma.lift || "?"}pp`} />
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Multi-aspect is <em>worse</em> (-5.3pp). Breaking the judgment into sub-dimensions loses the holistic signal. The AI is better at making a single comparative judgment than aggregating 5 separate ones.
+          <strong>Verdict:</strong> Decomposing judgment into sub-dimensions actively hurts accuracy. The AI is better at making a single holistic "which paper has more impact?" decision than aggregating five separate dimension scores. The whole is greater than the sum of its parts.
         </p>
       </Section>
 
@@ -161,7 +161,7 @@ export default function ValidationReportPage() {
           ].map((j, i) => <Row key={j.name} label={j.name} value={j.rate} bold={i === 0} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Opus 4.6 is nearly 2x more stable than GPT-5.2 across format changes. ~15% flip rate means roughly 1 in 7 verdicts changes when the input representation changes — reinforcing that input quality is a primary variable.
+          <strong>Verdict:</strong> Opus 4.6 is the most stable judge — nearly twice as consistent as GPT-5.2 across input format changes. The ~15% flip rate across all models means input representation is a first-order variable: changing how you present the paper changes the outcome for 1 in 7 comparisons.
         </p>
       </Section>
 
@@ -183,7 +183,7 @@ export default function ValidationReportPage() {
           <Row label="Far-rated papers" value={`${cy.by_gap?.far?.rate || "?"}%`} />
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Opus 4.6 produces 4x fewer cycles than GPT-5.2. Cycles are ~2x more common for closely-rated papers (expected — harder to distinguish). Overall 3.4% cycle rate is low but nonzero.
+          <strong>Verdict:</strong> Transitivity violations are rare but real. Opus 4.6 is 4x more transitive than GPT-5.2, producing almost perfectly consistent preference orderings. Cycles concentrate on closely-rated papers where quality differences are genuinely ambiguous — this is expected noise, not a fundamental flaw.
         </p>
       </Section>
 
@@ -201,7 +201,7 @@ export default function ValidationReportPage() {
           ].map(r => <Row key={r.pair} label={r.pair} value={r.agree} bold={r.agree === "88.2%"} />)}
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Claude models (Opus 4.6 and 4.5) agree most with each other (88.2%). All other pairings cluster around 82-85%. The ~15% disagreement rate is comparable to inter-reviewer disagreement at real conferences.
+          <strong>Verdict:</strong> The Claude model family forms a tight cluster (88% agreement), while cross-family pairs show ~82-85% agreement. The overall ~15% disagreement rate mirrors inter-reviewer disagreement at human peer review venues — AI judges are as (dis)agreeable as human reviewers.
         </p>
       </Section>
 
@@ -343,7 +343,7 @@ export default function ValidationReportPage() {
           </table>
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> Pairwise wins on all comparative-GT datasets (ICLR, PeerRead) and on eLife Neuroscience — which uses standalone editorial assessment but whose GT empirically behaves as comparative (Gap ρ=0.52). Single-item wins on most standalone-GT datasets (Qeios, ResearchHub 50, eLife Cancer/CSB/Micro). The exception among standalone datasets is ResearchHub Cancer: despite standalone GT, PW wins — likely because all 80 papers are in the same narrow domain (cancer biology), making within-topic quality differences harder for standalone scoring. Domain specificity compounds the challenge, similar to MIDL.
+          <strong>Verdict:</strong> The ground truth generation process determines which method wins. Pairwise dominates when human reviewers compared papers against each other (ICLR, PeerRead, eLife Neuro). Single-item wins when papers were rated independently (Qeios, ResearchHub, most eLife). The exception: narrow-domain datasets (ResearchHub Cancer, MIDL) where within-topic distinctions require head-to-head comparison even with standalone GT.
         </p>
       </Section>
 
@@ -383,27 +383,6 @@ export default function ValidationReportPage() {
         </p>
       </Section>
 
-      {/* 13. Practical Recommendations */}
-      <Section num="11" title="Practical Recommendations">
-        <div className="space-y-2">
-          <div className="border border-border/50 rounded p-2">
-            <div className="font-semibold text-foreground text-[11px]">Screening (cost-efficient)</div>
-            <p>Single-item scoring: 1 LLM call per paper. Use Opus 4.6 Thinking. Works best for standalone-quality assessment.</p>
-          </div>
-          <div className="border border-border/50 rounded p-2">
-            <div className="font-semibold text-foreground text-[11px]">Competitive ranking (maximum accuracy)</div>
-            <p>Pairwise tournament with Opus 4.6 Thinking summaries + round-robin judges. Abstract + AI summary as input format. ~10 matches/paper for convergence.</p>
-          </div>
-          <div className="border border-border/50 rounded p-2">
-            <div className="font-semibold text-foreground text-[11px]">Two-stage pipeline (best of both)</div>
-            <p>Single-item to screen top 20%, then pairwise among those. Use SP signal to flag "surprisingly competitive" papers that standalone scoring would miss.</p>
-          </div>
-          <div className="border border-border/50 rounded p-2">
-            <div className="font-semibold text-foreground text-[11px]">What NOT to do</div>
-            <p>Don't use multi-aspect judging (-5pp). Don't use full PDF as input (more noise, worse consistency). Don't expect majority vote to beat individual judges.</p>
-          </div>
-        </div>
-      </Section>
     </div>
   );
 }

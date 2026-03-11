@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
@@ -940,7 +941,26 @@ function CycleAnalysis({ data }) {
 // ─── Dataset Detail View ────────────────────────────────────────────────────
 
 export function DatasetView({ ds, isAdmin, hideHeader = false }) {
-  const [tab, setTab] = useState("standard");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab");
+  const [tab, setTabInternal] = useState(urlTab || "standard");
+
+  const setTab = useCallback((id) => {
+    setTabInternal(id);
+    const params = Object.fromEntries(searchParams.entries());
+    if (id && id !== "standard") {
+      params.tab = id;
+    } else {
+      delete params.tab;
+    }
+    setSearchParams(params, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // Sync from URL on mount/change
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && t !== tab) setTabInternal(t);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tabs = [
     { id: "standard", label: "Ranking Correlation", icon: BarChart3 },
