@@ -45,6 +45,7 @@ function groupDatasets(datasets) {
     else if (name.startsWith("F1000")) source = "F1000";
     else if (name.startsWith("ResearchHub")) source = "ResearchHub";
     else if (name.startsWith("AlphaXiv")) source = "AlphaXiv";
+    else if (name.startsWith("NeurIPS")) source = "NeurIPS";
     else source = "Other";
     if (!groups[source]) groups[source] = [];
     groups[source].push(ds);
@@ -147,7 +148,7 @@ export default function ValidationHubPage() {
   const pairwiseGroups = useMemo(() => groupDatasets(datasets), [datasets]);
 
   // Public users only see ICLR, eLife, MIDL tournaments
-  const PUBLIC_SOURCES = useMemo(() => new Set(["ICLR", "eLife", "MIDL", "AlphaXiv"]), []);
+  const PUBLIC_SOURCES = useMemo(() => new Set(["ICLR", "eLife", "MIDL", "AlphaXiv", "NeurIPS"]), []);
   const tournamentGroups = useMemo(() =>
     isAdmin
       ? allTournamentGroups
@@ -188,6 +189,7 @@ export default function ValidationHubPage() {
       "si-elife-micro": { title: "Single-Item — eLife Microbiology", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 microbiology and infectious disease papers with editor significance assessments." },
       "si-rh-cancer": { title: "Single-Item — ResearchHub Cancer", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 cancer biology papers with independent paid peer review ratings (1-5 scale)." },
       "si-rh-genetics": { title: "Single-Item — ResearchHub Genetics", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 genetics/genomics papers with independent paid peer review ratings (1-5 scale)." },
+      "si-neurips-cv": { title: "Single-Item — NeurIPS Computer Vision", desc: "Opus 4.6 Thinking rates each paper 1-10. 80 NeurIPS 2024 computer vision papers with 2-4 reviewer scores." },
       "exp-summarizer-ab": { title: "Opus 4.5 vs 4.6", desc: "Which summarizer helps AI judges agree with human experts more? Pairwise comparison across ICLR and eLife datasets." },
       "exp-summary-bias": { title: "Summary Bias — Biomolecules", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
       "exp-summary-bias-econ": { title: "Summary Bias — Economics", desc: "Does the LLM that wrote the summary bias the judge? 3 judges x 3 summary sources x 200 matches." },
@@ -276,6 +278,7 @@ export default function ValidationHubPage() {
             <NavItem item={{ id: "si-elife-micro", label: "eLife Microbiology", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-rh-cancer", label: "ResearchHub Cancer", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "si-rh-genetics", label: "ResearchHub Genetics", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "si-neurips-cv", label: "NeurIPS Computer Vision", sub: "80 papers" }} selected={selected} onSelect={setSelected} />
             {isAdmin && <NavItem item={{ id: "si-scipost", label: "SciPost (Legacy)" }} selected={selected} onSelect={setSelected} />}
           </CollapsibleGroup>
 
@@ -369,6 +372,7 @@ export default function ValidationHubPage() {
           {selected === "si-elife-micro" && <SingleItemScoringSection datasetId="elife-microbiology" />}
           {selected === "si-rh-cancer" && <SingleItemScoringSection datasetId="researchhub-cancer" />}
           {selected === "si-rh-genetics" && <SingleItemScoringSection datasetId="researchhub-genetics" />}
+          {selected === "si-neurips-cv" && <SingleItemScoringSection datasetId="neurips-cv" />}
           {selected === "exp-summarizer-ab" && <SummarizerComparisonSection />}
           {selected === "exp-summary-bias" && <SummaryBiasSection category="q-bio.BM" />}
           {selected === "exp-summary-bias-econ" && <SummaryBiasSection category="econ.GN" />}

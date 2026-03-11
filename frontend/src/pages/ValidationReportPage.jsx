@@ -13,6 +13,7 @@ const GT_TYPE = {
   "elife-comp-sys-bio": "standalone",
   "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
   "researchhub-50": "standalone", "researchhub-cancer": "standalone", "researchhub-genetics": "standalone",
+  "neurips-cv": "comparative",
 };
 
 function Section({ num, title, children }) {
