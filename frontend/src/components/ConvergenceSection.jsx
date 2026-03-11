@@ -150,6 +150,13 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
     return row;
   });
 
+  // Start curve from origin for leaderboard convergence
+  if (isLeaderboard && corrChartData.length > 0 && corrChartData[0].x > 0) {
+    const originRow = { x: 0 };
+    dsIds.forEach(did => { originRow[`${did}_${metric}`] = 0; });
+    corrChartData.unshift(originRow);
+  }
+
   // Build top-k chart data
   const topkChartData = hasTopK ? xValues.map(x => {
     const row = { x };
