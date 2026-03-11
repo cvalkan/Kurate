@@ -176,26 +176,31 @@ export default function ValidationReportPage() {
 
       {/* 5. Consistency */}
       <Section num="5" title="How Consistent Are the Judgments?">
-        <p>Same pair shown under different input formats — how often does the verdict flip? Controlled: only format pairs where all 4 models have data.</p>
+        <p>Same pair shown under different input formats — how often does the verdict flip? Controlled: averaged across {(() => {
+          const ctrl = ex.consistency?.verdict_stability?.cross_format?.controlled;
+          return ctrl ? Object.values(ctrl)[0]?.shared_format_pairs || "?" : "?";
+        })()} shared format pairs where all 4 models have data.</p>
         {(() => {
           const ctrl = ex.consistency?.verdict_stability?.cross_format?.controlled || {};
           const raw = ex.consistency?.verdict_stability?.cross_format?.by_model || {};
-          const models = Object.keys(ctrl).length > 0 ? ctrl : raw;
-          const sorted = Object.entries(models).sort((a, b) => (a[1].pooled_rate ?? a[1].rate ?? 100) - (b[1].pooled_rate ?? b[1].rate ?? 100));
+          const hasCtrl = Object.keys(ctrl).length > 0;
+          const models = hasCtrl ? ctrl : raw;
+          const sorted = Object.entries(models).sort((a, b) =>
+            (a[1].mean_rate ?? a[1].rate ?? 100) - (b[1].mean_rate ?? b[1].rate ?? 100)
+          );
           return (
             <DataTable
-              headers={["Judge", "Pairs", "Format Combos", "Flip Rate"]}
+              headers={["Judge", "Controlled Flip Rate", "Pairs"]}
               rows={sorted.map(([name, stats]) => [
                 name,
+                `${stats.mean_rate ?? stats.rate}%`,
                 (stats.total || 0).toLocaleString(),
-                stats.shared_format_pairs || "—",
-                `${stats.pooled_rate ?? stats.rate}%`,
               ])}
             />
           );
         })()}
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> When controlled for the same set of format-pair comparisons, the flip rate is remarkably consistent across all judges. Input representation — not the judge model — is the dominant factor in verdict instability. Changing how you present the paper changes the outcome for roughly 1 in 7 comparisons regardless of which model judges.
+          <strong>Verdict:</strong> When controlled for identical format-pair comparisons, Claude models (Opus 4.5 and 4.6) are the most stable judges at ~13% flip rate. GPT-5.2 is least stable at ~15%. The 2pp spread between models is real but modest — the dominant factor remains the input format itself, not which model judges it.
         </p>
       </Section>
 
