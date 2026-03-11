@@ -2404,6 +2404,57 @@ async def backfill_claude_ratings():
     return {"status": "ok", "updated": result.modified_count}
 
 
+@router.post("/backfill-summary-ratings", dependencies=[Depends(verify_admin)])
+async def backfill_summary_ratings():
+    """Parse SI ratings from existing model summaries and store in ai_ratings_by_model.
+    
+    No LLM calls — just extracts JSON rating blocks already embedded in summary text.
+    Safe to re-run: skips models that already have ratings for a paper.
+    """
+    from services.llm import parse_ratings_from_summary
+
+    MODEL_MAP = {
+        "openai:gpt-5_2": "gpt",
+        "gemini:gemini-3-pro-preview": "gemini",
+        "anthropic:claude-opus-4-6:thinking": "claude",
+        "anthropic:claude-opus-4-6": "claude",
+        "anthropic:claude-opus-4-5-20251101": "claude",
+    }
+
+    papers = await db.papers.find(
+        {"summaries": {"$exists": True, "$ne": {}}},
+        {"_id": 0, "id": 1, "summaries": 1, "ai_ratings_by_model": 1, "ai_rating": 1}
+    ).to_list(20000)
+
+    stats = {"parsed": 0, "skipped": 0, "no_rating": 0, "by_model": {}}
+    for p in papers:
+        existing = p.get("ai_ratings_by_model", {}) or {}
+        update = {}
+        for summary_key, text in p.get("summaries", {}).items():
+            model_short = MODEL_MAP.get(summary_key)
+            if not model_short:
+                continue
+            if model_short in existing and isinstance(existing[model_short], dict) and existing[model_short].get("score"):
+                stats["skipped"] += 1
+                continue
+            if not isinstance(text, str):
+                continue
+            rating = parse_ratings_from_summary(text)
+            if rating:
+                update[f"ai_ratings_by_model.{model_short}"] = rating
+                if model_short == "claude" and not p.get("ai_rating"):
+                    update["ai_rating"] = rating
+                stats["parsed"] += 1
+                stats["by_model"][model_short] = stats["by_model"].get(model_short, 0) + 1
+            else:
+                stats["no_rating"] += 1
+
+        if update:
+            await db.papers.update_one({"id": p["id"]}, {"$set": update})
+
+    return {"status": "ok", **stats}
+
+
 
 # --- Per-model SI Rating Generation ---
 _model_rating_state = {"running": False, "done": 0, "total": 0, "failed": 0, "model": ""}
