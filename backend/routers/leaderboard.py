@@ -1249,7 +1249,7 @@ _SI_MODEL_KEYS = {
 
 def _get_paper_si_rating(paper, model=None):
     """Get SI rating for a paper, optionally filtered by model.
-    Returns the rating dict or None."""
+    When model=None, returns the average across all available models."""
     if model:
         by_model = paper.get("ai_ratings_by_model", {})
         if isinstance(by_model, dict) and by_model.get(model):
@@ -1258,7 +1258,17 @@ def _get_paper_si_rating(paper, model=None):
         if model == "claude":
             return paper.get("ai_rating")
         return None
-    # No model filter: return ai_rating (default) or any available
+    # No model filter: average across all available per-model ratings
+    by_model = paper.get("ai_ratings_by_model", {})
+    if isinstance(by_model, dict):
+        ratings = [r for r in by_model.values() if isinstance(r, dict) and r.get("score")]
+        if ratings:
+            FIELDS = ["score", "significance", "rigor", "novelty", "clarity"]
+            avg = {}
+            for f in FIELDS:
+                vals = [r[f] for r in ratings if r.get(f)]
+                avg[f] = round(sum(vals) / len(vals), 1) if vals else 0
+            return avg
     return paper.get("ai_rating")
 
 
