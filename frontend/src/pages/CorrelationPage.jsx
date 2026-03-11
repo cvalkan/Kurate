@@ -134,7 +134,7 @@ export default function CorrelationPage() {
         description='Full-text evaluation: "Which paper has higher scientific impact?"'
       />
 
-      <SiRatingSection category={category || null} />
+      <SiRatingSection category={category || null} modelCorrelationData={data} />
 
       <div className="mb-6">
         <LeaderboardConvergence category={category || null} />

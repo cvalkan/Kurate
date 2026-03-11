@@ -126,9 +126,100 @@ function CorrelationMatrix({ correlations }) {
   );
 }
 
+const MODEL_COLORS = {
+  "Claude Opus": "#ea580c",
+  "gemini-3-pro-preview": "#2563eb",
+  "gpt-5.2": "#16a34a",
+};
+
+function InterModelHeatmap({ correlationData }) {
+  if (!correlationData?.models?.length || !correlationData?.correlations) return null;
+  const { models, correlations } = correlationData;
+  const names = models.map(m => m.short);
+  const n = names.length;
+
+  // Build matrix
+  const matrix = Array.from({ length: n }, () => Array(n).fill(1));
+  for (const [pair, stats] of Object.entries(correlations)) {
+    // Find which model indices match
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (pair.includes(models[i].key) && pair.includes(models[j].key)) {
+          matrix[i][j] = stats.spearman_r;
+          matrix[j][i] = stats.spearman_r;
+        }
+      }
+    }
+  }
+
+  const cellSize = 56;
+  const labelW = 90;
+  const labelH = 20;
+  const w = labelW + n * cellSize;
+  const h = labelH + n * cellSize;
+
+  const heatColor = (v) => {
+    if (v >= 1) return "#dbeafe";
+    if (v >= 0.8) return "#22c55e";
+    if (v >= 0.7) return "#86efac";
+    if (v >= 0.6) return "#fde68a";
+    if (v >= 0.5) return "#fbbf24";
+    return "#f87171";
+  };
+
+  return (
+    <div data-testid="inter-model-heatmap">
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-sm">
+        {/* Column labels */}
+        {names.map((name, j) => (
+          <text key={`col-${j}`} x={labelW + j * cellSize + cellSize / 2} y={labelH - 4}
+            textAnchor="middle" className="text-[8px] fill-muted-foreground font-medium">
+            {name.length > 10 ? name.slice(0, 10) + ".." : name}
+          </text>
+        ))}
+        {/* Rows */}
+        {names.map((name, i) => (
+          <g key={`row-${i}`}>
+            <text x={labelW - 4} y={labelH + i * cellSize + cellSize / 2 + 3}
+              textAnchor="end" className="text-[8px] fill-muted-foreground font-medium">
+              {name.length > 12 ? name.slice(0, 12) + ".." : name}
+            </text>
+            {names.map((_, j) => {
+              const val = matrix[i][j];
+              const isdiag = i === j;
+              return (
+                <g key={`cell-${i}-${j}`}>
+                  <rect
+                    x={labelW + j * cellSize + 1} y={labelH + i * cellSize + 1}
+                    width={cellSize - 2} height={cellSize - 2}
+                    rx={4}
+                    fill={isdiag ? "#f1f5f9" : heatColor(val)}
+                    fillOpacity={isdiag ? 1 : 0.8}
+                  />
+                  <text
+                    x={labelW + j * cellSize + cellSize / 2}
+                    y={labelH + i * cellSize + cellSize / 2 + 4}
+                    textAnchor="middle"
+                    className={`font-mono font-bold ${isdiag ? "text-[9px] fill-muted-foreground" : "text-[11px] fill-foreground"}`}
+                  >
+                    {isdiag ? "1.00" : val.toFixed(2)}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+
 function CategoryBreakdown({ categories }) {
   if (!categories?.length) return null;
-  const maxCount = Math.max(...categories.map(c => c.count));
+  const maxScore = Math.max(...categories.map(c => c.mean_score));
+  const minScore = Math.min(...categories.map(c => c.mean_score));
+  const range = maxScore - minScore || 1;
 
   return (
     <div className="space-y-1" data-testid="si-category-breakdown">
@@ -137,8 +228,12 @@ function CategoryBreakdown({ categories }) {
           <span className="w-20 font-mono text-muted-foreground truncate" title={c.category}>{c.category}</span>
           <div className="flex-1 h-3 bg-secondary/30 rounded overflow-hidden">
             <div
-              className="h-full bg-accent/60 rounded"
-              style={{ width: `${(c.count / maxCount) * 100}%` }}
+              className="h-full rounded"
+              style={{
+                width: `${((c.mean_score - minScore + range * 0.15) / (range * 1.15)) * 100}%`,
+                backgroundColor: c.mean_score >= 6 ? "#22c55e" : c.mean_score >= 5 ? "#f59e0b" : "#ef4444",
+                opacity: 0.6,
+              }}
             />
           </div>
           <span className="font-mono w-16 text-right text-muted-foreground">{c.mean_score} ({c.count})</span>
@@ -148,7 +243,7 @@ function CategoryBreakdown({ categories }) {
   );
 }
 
-export function SiRatingSection({ category }) {
+export function SiRatingSection({ category, modelCorrelationData }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const cacheRef = useRef({});
@@ -228,8 +323,8 @@ export function SiRatingSection({ category }) {
         })}
       </div>
 
-      {/* Inter-metric correlation + category breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Inter-metric correlation + inter-model correlation + category breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {Object.keys(data.metric_correlations).length > 0 && (
           <div className="p-3 border border-border rounded-lg">
             <h3 className="text-sm font-medium mb-2">Inter-Metric Correlation (Spearman)</h3>
@@ -240,11 +335,21 @@ export function SiRatingSection({ category }) {
           </div>
         )}
 
+        {modelCorrelationData?.models?.length > 1 && (
+          <div className="p-3 border border-border rounded-lg">
+            <h3 className="text-sm font-medium mb-2">Inter-Model Correlation (Spearman)</h3>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Rank correlation between LLM judges from pairwise tournament matches.
+            </p>
+            <InterModelHeatmap correlationData={modelCorrelationData} />
+          </div>
+        )}
+
         {data.by_category?.length > 0 && (
           <div className="p-3 border border-border rounded-lg">
             <h3 className="text-sm font-medium mb-2">Mean Score by Category</h3>
             <p className="text-[10px] text-muted-foreground mb-2">
-              Average overall score per primary category. Bars show relative paper count.
+              Average overall score per primary category. Bars show mean score.
             </p>
             <CategoryBreakdown categories={data.by_category} />
           </div>
