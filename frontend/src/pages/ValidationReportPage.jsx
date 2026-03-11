@@ -175,7 +175,7 @@ export default function ValidationReportPage() {
       </Section>
 
       {/* 5. Consistency */}
-      <Section num="5" title="How Consistent Are the Judgments?">
+      <Section num="5" title="How Sensitive Are Judges to the Input Format?">
         <p>Same pair shown under different input formats — how often does the verdict flip? Controlled: averaged across {(() => {
           const ctrl = ex.consistency?.verdict_stability?.cross_format?.controlled;
           return ctrl ? Object.values(ctrl)[0]?.shared_format_pairs || "?" : "?";
