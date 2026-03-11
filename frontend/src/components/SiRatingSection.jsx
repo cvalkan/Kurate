@@ -73,11 +73,16 @@ function CorrelationMatrix({ correlations }) {
     matrix[pair] = data.spearman;
   }
   const cellColor = (v) => {
+    if (v >= 1.0) return "bg-secondary/30 text-muted-foreground";
     if (v >= 0.9) return "bg-green-100 text-green-800";
     if (v >= 0.8) return "bg-green-50 text-green-700";
     if (v >= 0.7) return "bg-amber-50 text-amber-700";
     if (v >= 0.5) return "bg-orange-50 text-orange-700";
     return "bg-red-50 text-red-700";
+  };
+  const getVal = (m1, m2) => {
+    if (m1 === m2) return 1.0;
+    return matrix[`${m1} vs ${m2}`] ?? matrix[`${m2} vs ${m1}`] ?? null;
   };
   return (
     <div className="overflow-x-auto" data-testid="si-correlation-matrix">
@@ -85,21 +90,20 @@ function CorrelationMatrix({ correlations }) {
         <thead>
           <tr>
             <th className="p-1"></th>
-            {metrics.slice(1).map(m => (
+            {metrics.map(m => (
               <th key={m} className="p-1 text-center text-muted-foreground font-medium">{METRIC_LABELS[m].slice(0, 3)}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {metrics.slice(0, -1).map((m1, i) => (
+          {metrics.map((m1) => (
             <tr key={m1}>
               <td className="p-1 font-medium text-muted-foreground">{METRIC_LABELS[m1].slice(0, 4)}</td>
-              {metrics.slice(1).map((m2, j) => {
-                if (j < i) return <td key={m2} className="p-1"></td>;
-                const rho = matrix[`${m1} vs ${m2}`];
-                if (rho === undefined) return <td key={m2} className="p-1 text-center text-muted-foreground">-</td>;
+              {metrics.map((m2) => {
+                const val = getVal(m1, m2);
+                if (val === null) return <td key={m2} className="p-1 text-center text-muted-foreground">-</td>;
                 return (
-                  <td key={m2} className={`p-1 text-center font-mono font-medium rounded ${cellColor(rho)}`}>{rho.toFixed(2)}</td>
+                  <td key={m2} className={`p-1 text-center font-mono font-medium rounded ${cellColor(val)}`}>{val.toFixed(2)}</td>
                 );
               })}
             </tr>
