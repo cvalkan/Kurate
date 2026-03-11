@@ -18,6 +18,7 @@ from core.config import db, logger
 PRECOMPUTED_DIR = Path(__file__).parent.parent / "data" / "precomputed"
 EXPERIMENT_FILE = PRECOMPUTED_DIR / "experiment_results.json"
 VALIDATION_FILE = PRECOMPUTED_DIR / "validation_results.json"
+ANALYSIS_FILE = PRECOMPUTED_DIR / "analysis_results.json"
 
 EXPERIMENT_REGISTRY = [
     "consistency",
@@ -63,9 +64,10 @@ def _get_cache_and_fn(name):
 
 
 async def compute_and_export_all():
-    """Compute all experiment + validation results and save to JSON files."""
+    """Compute all experiment + validation + analysis results and save to JSON files."""
     exp_results = await _compute_experiments()
     val_results = await _compute_validation_datasets()
+    analysis_results = await _compute_analysis_caches()
 
     PRECOMPUTED_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -77,12 +79,18 @@ async def compute_and_export_all():
         json.dump(val_results, f)
     val_size = VALIDATION_FILE.stat().st_size / (1024 * 1024)
 
-    logger.info(f"Precomputed {len(exp_results)} experiments ({exp_size:.1f} MB) + {len(val_results)} dataset caches ({val_size:.1f} MB)")
+    with open(ANALYSIS_FILE, "w") as f:
+        json.dump(analysis_results, f)
+    analysis_size = ANALYSIS_FILE.stat().st_size / (1024 * 1024)
+
+    logger.info(f"Precomputed {len(exp_results)} experiments ({exp_size:.1f} MB) + {len(val_results)} dataset caches ({val_size:.1f} MB) + {len(analysis_results)} analysis caches ({analysis_size:.1f} MB)")
     return {
         "experiments": list(exp_results.keys()),
         "datasets": list(val_results.keys()),
+        "analysis_endpoints": len(analysis_results),
         "experiment_file_mb": round(exp_size, 1),
         "validation_file_mb": round(val_size, 1),
+        "analysis_file_mb": round(analysis_size, 1),
     }
 
 
@@ -178,11 +186,57 @@ async def _compute_validation_datasets():
     return results
 
 
+async def _compute_analysis_caches():
+    """Compute Model Correlation page data: model-correlation, convergence, si-rating-stats per category."""
+    from routers.leaderboard import _compute_model_correlation, _compute_convergence, _compute_si_rating_stats
+    from core.config import CATEGORIES
+
+    results = {}
+
+    # Get categories
+    categories = [None]  # None = all categories
+    for cat_info in CATEGORIES:
+        cat_id = cat_info["id"] if isinstance(cat_info, dict) else cat_info
+        categories.append(cat_id)
+
+    for cat in categories:
+        cat_key = cat or "__all__"
+        # model-correlation
+        try:
+            result = await asyncio.wait_for(_compute_model_correlation(cat, None), timeout=60)
+            if result.get("models"):
+                results[f"model-correlation:{cat_key}"] = result
+        except Exception as e:
+            logger.warning(f"  precompute analysis model-correlation/{cat_key}: {e}")
+
+        # convergence
+        try:
+            result = await asyncio.wait_for(_compute_convergence(cat, 20), timeout=60)
+            if result.get("status") == "ok":
+                results[f"convergence:{cat_key}:20"] = result
+        except Exception as e:
+            logger.warning(f"  precompute analysis convergence/{cat_key}: {e}")
+
+        # si-rating-stats (no model filter)
+        try:
+            result = await asyncio.wait_for(_compute_si_rating_stats(cat, None), timeout=30)
+            if result.get("status") == "ok":
+                results[f"si-rating-stats:{cat_key}:all"] = result
+        except Exception as e:
+            logger.warning(f"  precompute analysis si-rating-stats/{cat_key}: {e}")
+
+        await asyncio.sleep(0)
+
+    logger.info(f"  precompute analysis: {len(results)} endpoints across {len(categories)} categories")
+    return results
+
+
 def load_precomputed():
     """Load precomputed results from JSON files into caches. Returns count loaded."""
     loaded = 0
     loaded += _load_experiments()
     loaded += _load_validation()
+    loaded += _load_analysis()
     return loaded
 
 
@@ -260,4 +314,34 @@ def _load_validation():
 
     if loaded:
         logger.info(f"Loaded {loaded} precomputed validation dataset caches ({len(results)} datasets)")
+    return loaded
+
+
+def _load_analysis():
+    """Load precomputed analysis caches (model-correlation, convergence, si-rating-stats)."""
+    if not ANALYSIS_FILE.exists():
+        return 0
+    try:
+        with open(ANALYSIS_FILE) as f:
+            results = json.load(f)
+    except Exception as e:
+        logger.warning(f"Failed to load precomputed analysis: {e}")
+        return 0
+
+    from routers.leaderboard import _analysis_cache
+
+    loaded = 0
+    for key, data in results.items():
+        # Parse key format: "endpoint:category:extra"
+        parts = key.split(":", 2)
+        endpoint = parts[0]
+        category = parts[1] if len(parts) > 1 else "__all__"
+        extra = parts[2] if len(parts) > 2 else ""
+
+        cache_key = (endpoint, category, extra)
+        _analysis_cache[cache_key] = {"data": data, "ts": time.time()}
+        loaded += 1
+
+    if loaded:
+        logger.info(f"Loaded {loaded} precomputed analysis caches")
     return loaded

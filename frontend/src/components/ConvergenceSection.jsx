@@ -59,6 +59,7 @@ export function ValidationConvergence({ datasets }) {
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState("spearman");
   const [showTopK, setShowTopK] = useState(false);
+  const [logScale, setLogScale] = useState(false);
 
   useEffect(() => {
     if (!datasets?.length) return;
@@ -96,7 +97,7 @@ export function ValidationConvergence({ datasets }) {
       <p className="text-xs mt-1">Run more tournament matches to generate convergence curves.</p>
     </div>
   );
-  return <ConvergenceChart curves={curves} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} />;
+  return <ConvergenceChart curves={curves} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} logScale={logScale} setLogScale={setLogScale} />;
 }
 
 /** Single-category convergence for leaderboard tournament. */
@@ -105,6 +106,7 @@ export function LeaderboardConvergence({ category }) {
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState("spearman");
   const [showTopK, setShowTopK] = useState(false);
+  const [logScale, setLogScale] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,11 +121,11 @@ export function LeaderboardConvergence({ category }) {
 
   if (!curve) return loading ? <div className="h-64 bg-secondary/20 rounded-lg animate-pulse" /> : null;
   const label = category || "All Categories";
-  return <ConvergenceChart curves={{ all: { ...curve, name: label } }} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} compact isLeaderboard />;
+  return <ConvergenceChart curves={{ all: { ...curve, name: label } }} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} logScale={logScale} setLogScale={setLogScale} compact isLeaderboard />;
 }
 
 /** Shared chart renderer. */
-function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, compact = false, isLeaderboard = false }) {
+function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, logScale = false, setLogScale, compact = false, isLeaderboard = false }) {
   const dsIds = Object.keys(curves);
 
   // Determine available top-k values
@@ -149,13 +151,6 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
     });
     return row;
   });
-
-  // Start curve from origin for leaderboard convergence
-  if (isLeaderboard && corrChartData.length > 0 && corrChartData[0].x > 0) {
-    const originRow = { x: 0 };
-    dsIds.forEach(did => { originRow[`${did}_${metric}`] = 0; });
-    corrChartData.unshift(originRow);
-  }
 
   // Build top-k chart data
   const topkChartData = hasTopK ? xValues.map(x => {
@@ -199,10 +194,23 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
   }) : [];
 
   const maxX = Math.max(...xValues, 1);
-  // Nice x-axis ticks: 0, 5, 10, 15... or 0, 10, 20... depending on range
+  // Nice x-axis ticks
   const tickInterval = maxX > 60 ? 10 : maxX > 30 ? 5 : maxX > 15 ? 5 : 2;
-  const xTicks = [];
-  for (let t = 0; t <= maxX + tickInterval; t += tickInterval) xTicks.push(t);
+  const linearTicks = [];
+  for (let t = 0; t <= maxX + tickInterval; t += tickInterval) linearTicks.push(t);
+
+  // Log scale: transform data and build log ticks
+  const logCorrData = logScale ? corrChartData.map(row => ({ ...row, x: row.x > 0 ? Math.log10(row.x) : -0.3 })) : corrChartData;
+  const logTopkData = logScale ? topkChartData.map(row => ({ ...row, x: row.x > 0 ? Math.log10(row.x) : -0.3 })) : topkChartData;
+  const logTierData = logScale && tierChartData.length ? tierChartData.map(row => ({ ...row, x: row.x > 0 ? Math.log10(row.x) : -0.3 })) : tierChartData;
+  const logDualData = logScale && dualChartData.length ? dualChartData.map(row => ({ ...row, x: row.x > 0 ? Math.log10(row.x) : -0.3 })) : dualChartData;
+
+  // Log ticks: 1, 2, 5, 10, 20, 50, 100, 200...
+  const logTickValues = [1, 2, 5, 10, 20, 50, 100, 200, 500].filter(v => v <= maxX * 1.1);
+  const logTicks = logTickValues.map(v => Math.log10(v));
+  const xTicks = logScale ? logTicks : linearTicks;
+  const xDomain = logScale ? [0, Math.log10(maxX) * 1.05] : [0, "dataMax"];
+  const xTickFmt = logScale ? (v => { const raw = Math.round(Math.pow(10, v)); return raw >= 1 ? raw : ""; }) : undefined;
 
   return (
     <div className="space-y-3" data-testid="convergence-section">
@@ -239,6 +247,18 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               ))}
             </div>
           )}
+          {setLogScale && (
+            <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="convergence-scale-toggle">
+              <button onClick={() => setLogScale(false)}
+                className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${!logScale ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                Linear
+              </button>
+              <button onClick={() => setLogScale(true)}
+                className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${logScale ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                Log
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -246,8 +266,9 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
       {!showTopK && (
         <div className="border border-border rounded-lg p-3" data-testid="convergence-corr-chart">
           <ResponsiveContainer width="100%" height={compact ? 220 : 280}>
-            <LineChart data={corrChartData}>
-              <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
+            <LineChart data={logCorrData}>
+              <XAxis dataKey="x" type="number" domain={xDomain} ticks={xTicks} tick={{ fontSize: 10 }}
+                tickFormatter={xTickFmt}
                 label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
               <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={v => v.toFixed(1)}
                 label={{ value: METRICS.find(m => m.id === metric)?.label, angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
@@ -274,8 +295,9 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
             <p className="text-[10px] text-muted-foreground">AI ranking correlation with ICLR acceptance tiers (Oral &gt; Spotlight &gt; Poster &gt; Reject)</p>
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={tierChartData}>
-              <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
+            <LineChart data={logTierData}>
+              <XAxis dataKey="x" type="number" domain={xDomain} ticks={xTicks} tick={{ fontSize: 10 }}
+                tickFormatter={xTickFmt}
                 label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
               <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={v => v.toFixed(1)}
                 label={{ value: "Tier Spearman ρ", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
@@ -298,8 +320,9 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
             <p className="text-[10px] text-muted-foreground">AI BT ranking vs human BT ranking from significance preferences (useful → landmark)</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={dualChartData}>
-              <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
+            <LineChart data={logDualData}>
+              <XAxis dataKey="x" type="number" domain={xDomain} ticks={xTicks} tick={{ fontSize: 10 }}
+                tickFormatter={xTickFmt}
                 label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
               <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={v => v.toFixed(1)}
                 label={{ value: "Spearman ρ", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
@@ -323,8 +346,9 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
             <p className="text-[10px] text-muted-foreground">AI BT ranking vs human BT ranking from strength preferences (inadequate → exceptional)</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={dualChartData}>
-              <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
+            <LineChart data={logDualData}>
+              <XAxis dataKey="x" type="number" domain={xDomain} ticks={xTicks} tick={{ fontSize: 10 }}
+                tickFormatter={xTickFmt}
                 label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
               <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={v => v.toFixed(1)}
                 label={{ value: "Spearman ρ", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />
@@ -342,8 +366,9 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
       {showTopK && hasTopK && (
         <div className="border border-border rounded-lg p-3" data-testid="convergence-topk-chart">
           <ResponsiveContainer width="100%" height={compact ? 220 : 280}>
-            <LineChart data={topkChartData}>
-              <XAxis dataKey="x" type="number" domain={[0, "dataMax"]} ticks={xTicks} tick={{ fontSize: 10 }}
+            <LineChart data={logTopkData}>
+              <XAxis dataKey="x" type="number" domain={xDomain} ticks={xTicks} tick={{ fontSize: 10 }}
+                tickFormatter={xTickFmt}
                 label={{ value: "Avg matches per paper", position: "insideBottom", offset: -5, fontSize: 10 }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`}
                 label={{ value: `Top-${topKValues[0]} overlap with ground truth`, angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }} />

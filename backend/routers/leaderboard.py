@@ -1498,7 +1498,10 @@ async def _compute_convergence(category, steps):
     step_size = max(1, int(max_avg / steps))
     if step_size >= 5:
         step_size = (step_size // 5) * 5
-    x_targets = list(range(step_size, int(max_avg) + step_size, step_size))
+    # Include fine-grained early points (1, 2, 3, ...) to capture the ramp-up from 0
+    early_points = list(range(1, min(step_size + 1, int(max_avg) + 1)))
+    main_points = list(range(step_size, int(max_avg) + step_size, step_size))
+    x_targets = sorted(set(early_points + main_points))
     if not x_targets or x_targets[-1] < max_avg * 0.95:
         x_targets.append(int(max_avg) + 1)
 
