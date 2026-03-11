@@ -2338,7 +2338,7 @@ async def generate_ratings(request: Request):
                             }
                             await db.papers.update_one(
                                 {"id": paper["id"]},
-                                {"$set": {"ai_rating": rating}}
+                                {"$set": {"ai_rating": rating, "ai_ratings_by_model.claude": rating}}
                             )
                             _rating_gen_state["done"] += 1
                         else:
@@ -2391,4 +2391,138 @@ async def rating_status(category: str = None):
 @router.post("/stop-ratings", dependencies=[Depends(verify_admin)])
 async def stop_ratings():
     _rating_gen_state["running"] = False
+    return {"status": "stopping"}
+
+
+@router.post("/backfill-claude-ratings", dependencies=[Depends(verify_admin)])
+async def backfill_claude_ratings():
+    """Copy existing ai_rating to ai_ratings_by_model.claude for papers that have it."""
+    result = await db.papers.update_many(
+        {"ai_rating": {"$exists": True}, "ai_ratings_by_model.claude": {"$exists": False}},
+        [{"$set": {"ai_ratings_by_model.claude": "$ai_rating"}}]
+    )
+    return {"status": "ok", "updated": result.modified_count}
+
+
+
+# --- Per-model SI Rating Generation ---
+_model_rating_state = {"running": False, "done": 0, "total": 0, "failed": 0, "model": ""}
+
+_RATING_MODEL_CONFIG = {
+    "gpt": {"provider": "openai", "model": "gpt-5.2", "summary_key": "openai:gpt-5_2", "extra_params": {}},
+    "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview", "summary_key": "gemini:gemini-3-pro-preview", "extra_params": {}},
+    "claude": {"provider": "anthropic", "model": "claude-opus-4-6", "summary_key": "anthropic:claude-opus-4-6:thinking",
+               "extra_params": {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": 4000}}}},
+}
+
+
+@router.post("/generate-model-ratings", dependencies=[Depends(verify_admin)])
+async def generate_model_ratings(request: Request):
+    """Generate SI ratings using a specific model (gpt, gemini, claude).
+    Each model rates papers using its own summary. Stores in ai_ratings_by_model.{model}.
+    """
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    model = body.get("model", "gpt")
+    category = body.get("category")
+
+    if model not in _RATING_MODEL_CONFIG:
+        raise HTTPException(400, f"Unknown model: {model}. Use: {list(_RATING_MODEL_CONFIG.keys())}")
+
+    if _model_rating_state["running"]:
+        raise HTTPException(409, f"Model rating generation already running ({_model_rating_state['model']})")
+
+    config = _RATING_MODEL_CONFIG[model]
+    _model_rating_state.update({"running": True, "done": 0, "total": 0, "failed": 0, "model": model})
+
+    async def _bg():
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            from core.config import EMERGENT_LLM_KEY
+            from services.llm import RATING_EXTRACTION_PROMPT
+            import json as _json
+
+            query = {
+                f"ai_ratings_by_model.{model}": {"$exists": False},
+                f"summaries.{config['summary_key']}": {"$exists": True},
+            }
+            if category:
+                query["categories.0"] = category
+
+            papers = await db.papers.find(
+                query,
+                {"_id": 0, "id": 1, "title": 1, "abstract": 1, f"summaries.{config['summary_key']}": 1}
+            ).to_list(10000)
+
+            eligible = [(p, p["summaries"][config["summary_key"]]) for p in papers
+                        if isinstance(p.get("summaries", {}).get(config["summary_key"]), str)
+                        and len(p["summaries"][config["summary_key"]]) > 50]
+
+            _model_rating_state["total"] = len(eligible)
+            logger.info(f"Model rating generation ({model}): {len(eligible)} papers")
+
+            for paper, summary in eligible:
+                if not _model_rating_state["running"]:
+                    break
+
+                prompt = RATING_EXTRACTION_PROMPT["user_prompt"].format(
+                    title=paper.get("title", ""),
+                    abstract=(paper.get("abstract", "") or "")[:2000],
+                    summary=summary[:4000],
+                )
+                try:
+                    chat = LlmChat(
+                        api_key=EMERGENT_LLM_KEY,
+                        session_id=f"rate-{model}-{paper['id'][:8]}",
+                        system_message=RATING_EXTRACTION_PROMPT["system_prompt"],
+                    ).with_model(config["provider"], config["model"])
+                    if config["extra_params"]:
+                        chat = chat.with_params(**config["extra_params"])
+                    response = await chat.send_message(UserMessage(text=prompt))
+                    text = str(response).strip()
+                    start = text.find("{")
+                    end = text.rfind("}") + 1
+                    if start >= 0 and end > start:
+                        data = _json.loads(text[start:end])
+                        score = float(data.get("score", 0))
+                        if 1.0 <= score <= 10.0:
+                            rating = {
+                                "score": round(score, 1),
+                                "significance": round(float(data.get("significance", 0)), 1),
+                                "rigor": round(float(data.get("rigor", 0)), 1),
+                                "novelty": round(float(data.get("novelty", 0)), 1),
+                                "clarity": round(float(data.get("clarity", 0)), 1),
+                            }
+                            update = {f"ai_ratings_by_model.{model}": rating}
+                            if model == "claude":
+                                update["ai_rating"] = rating
+                            await db.papers.update_one({"id": paper["id"]}, {"$set": update})
+                            _model_rating_state["done"] += 1
+                        else:
+                            _model_rating_state["failed"] += 1
+                    else:
+                        _model_rating_state["failed"] += 1
+                except Exception as e:
+                    _model_rating_state["failed"] += 1
+                    logger.warning(f"Model rating ({model}) failed for {paper.get('title', '')[:30]}: {e}")
+
+                await asyncio.sleep(1)
+
+            logger.info(f"Model rating ({model}) complete: {_model_rating_state['done']}/{len(eligible)} ({_model_rating_state['failed']} failed)")
+        except Exception as e:
+            logger.error(f"Model rating ({model}) failed: {e}", exc_info=True)
+        finally:
+            _model_rating_state["running"] = False
+
+    asyncio.create_task(_bg())
+    return {"status": "started", "model": model, "category": category}
+
+
+@router.get("/model-rating-status", dependencies=[Depends(verify_admin)])
+async def model_rating_status():
+    return _model_rating_state
+
+
+@router.post("/stop-model-ratings", dependencies=[Depends(verify_admin)])
+async def stop_model_ratings():
+    _model_rating_state["running"] = False
     return {"status": "stopping"}

@@ -1280,15 +1280,19 @@ async def _compute_si_rating_stats(category, model):
         {"_id": 0, "id": 1, "ai_rating": 1, "ai_ratings_by_model": 1, "categories": 1}
     ).to_list(10000)
 
-    # Determine which models have data
+    # Determine which models have data (avoid double-counting)
     available_models = []
     model_counts = {"claude": 0, "gpt": 0, "gemini": 0}
     for p in papers:
-        if p.get("ai_rating") and p["ai_rating"].get("score"):
-            model_counts["claude"] += 1
         by_model = p.get("ai_ratings_by_model", {})
+        has_by_model_claude = isinstance(by_model, dict) and isinstance(by_model.get("claude"), dict) and by_model["claude"].get("score")
+        # Count claude from ai_ratings_by_model first, fall back to ai_rating
+        if has_by_model_claude:
+            model_counts["claude"] += 1
+        elif p.get("ai_rating") and p["ai_rating"].get("score"):
+            model_counts["claude"] += 1
         if isinstance(by_model, dict):
-            for mk in ("claude", "gpt", "gemini"):
+            for mk in ("gpt", "gemini"):
                 r = by_model.get(mk)
                 if isinstance(r, dict) and r.get("score"):
                     model_counts[mk] += 1
