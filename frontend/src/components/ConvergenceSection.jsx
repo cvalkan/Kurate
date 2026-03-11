@@ -56,7 +56,6 @@ function Tip({ active, payload, label }) {
 /** Multi-dataset convergence for validation tournaments. */
 export function ValidationConvergence({ datasets }) {
   const [curves, setCurves] = useState({});
-  const [siCorrelation, setSiCorrelation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState("spearman");
   const [showTopK, setShowTopK] = useState(false);
@@ -72,11 +71,8 @@ export function ValidationConvergence({ datasets }) {
       )
     ).then(results => {
       const c = {};
-      let si = null;
       for (const r of results) {
         if (!r || r.data?.status !== "ok" || !r.data.modes) continue;
-        // Pick up SI correlation from the first dataset that has it
-        if (!si && r.data.si_correlation) si = r.data.si_correlation;
         for (const [modeId, modeData] of Object.entries(r.data.modes)) {
           if (!modeData.curve?.length) continue;
           const key = datasets.length === 1 ? modeId : `${r.dsId}__${modeId}`;
@@ -85,7 +81,6 @@ export function ValidationConvergence({ datasets }) {
         }
       }
       setCurves(c);
-      setSiCorrelation(si);
       setLoading(false);
     }).catch(err => {
       console.error("Convergence fetch error:", err);
@@ -101,7 +96,7 @@ export function ValidationConvergence({ datasets }) {
       <p className="text-xs mt-1">Run more tournament matches to generate convergence curves.</p>
     </div>
   );
-  return <ConvergenceChart curves={curves} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} siCorrelation={siCorrelation} />;
+  return <ConvergenceChart curves={curves} metric={metric} setMetric={setMetric} showTopK={showTopK} setShowTopK={setShowTopK} />;
 }
 
 /** Single-category convergence for leaderboard tournament. */
@@ -128,7 +123,7 @@ export function LeaderboardConvergence({ category }) {
 }
 
 /** Shared chart renderer. */
-function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, compact = false, isLeaderboard = false, siCorrelation = null }) {
+function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, compact = false, isLeaderboard = false }) {
   const dsIds = Object.keys(curves);
 
   // Determine available top-k values
@@ -254,10 +249,6 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, co
               {dsIds.length <= 1 && <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
               {isLeaderboard && metric === "spearman" && (
                 <ReferenceLine y={0.95} stroke="#22c55e" strokeDasharray="4 4" label={{ value: "ρ = 0.95", position: "right", fontSize: 9, fill: "#22c55e" }} />
-              )}
-              {siCorrelation && siCorrelation[metric] != null && (
-                <ReferenceLine y={siCorrelation[metric]} stroke="#f97316" strokeDasharray="6 3"
-                  label={{ value: `SI ${METRICS.find(m => m.id === metric)?.label} = ${siCorrelation[metric].toFixed(3)}`, position: "right", fontSize: 9, fill: "#f97316" }} />
               )}
               {dsIds.map((did, i) => (
                 <Line key={did} type="monotone" dataKey={`${did}_${metric}`} name={curves[did].name}

@@ -2367,47 +2367,7 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
         if data.get("status") == "ok" and data.get("curve"):
             by_mode[mode_info["id"]] = {**data, "name": mode_info["label"]}
 
-    # Compute SI correlation as a baseline reference line
-    si_correlation = None
-    # First try: look up from precomputed single-item scoring experiment cache
-    try:
-        from routers.validation_experiments import _SINGLE_ITEM_CACHE
-        si_data = _SINGLE_ITEM_CACHE.get("data")
-        if si_data and si_data.get("status") == "ok":
-            for ds in si_data.get("datasets", []):
-                if ds.get("dataset_id") == dataset_id:
-                    corr = ds.get("correlation", {})
-                    si_correlation = {
-                        "spearman": corr.get("spearman_rho"),
-                        "kendall": corr.get("kendall_tau"),
-                        "pearson": corr.get("pearson_r"),
-                        "papers_scored": ds.get("papers_scored", 0),
-                    }
-                    break
-    except Exception:
-        pass
-    # Fallback: compute from DB if papers have single_item_score
-    if not si_correlation:
-        si_scored = [p for p in papers if p.get("single_item_score") and p.get("h1_avg_rating") is not None]
-        if len(si_scored) >= 5:
-            si_vals = [p["single_item_score"] for p in si_scored]
-            gt_vals = [p["h1_avg_rating"] for p in si_scored]
-            try:
-                si_rho, _ = scipy_stats.spearmanr(si_vals, gt_vals)
-                si_tau, _ = scipy_stats.kendalltau(si_vals, gt_vals)
-                si_pearson, _ = scipy_stats.pearsonr(si_vals, gt_vals)
-                si_correlation = {
-                    "spearman": round(float(si_rho), 4) if not np.isnan(si_rho) else None,
-                    "kendall": round(float(si_tau), 4) if not np.isnan(si_tau) else None,
-                    "pearson": round(float(si_pearson), 4) if not np.isnan(si_pearson) else None,
-                    "papers_scored": len(si_scored),
-                }
-            except Exception:
-                pass
-
     result = {"status": "ok", "dataset_id": dataset_id, "modes": by_mode}
-    if si_correlation:
-        result["si_correlation"] = si_correlation
     if by_mode:
         convergence_all_cache[dataset_id] = {"data": result, "ts": _time.time()}
     return result
