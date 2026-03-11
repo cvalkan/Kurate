@@ -1226,6 +1226,116 @@ async def _compute_model_correlation(category, mode):
 
 
 
+@router.get("/si-rating-stats")
+async def get_si_rating_stats(
+    category: Optional[str] = Query(None, description="Filter by primary category"),
+):
+    """Single-item rating distributions and inter-metric correlations from live leaderboard data."""
+    cached = _get_analysis_cached("si-rating-stats", category)
+    if cached:
+        return cached
+    result = await _compute_si_rating_stats(category)
+    _set_analysis_cached("si-rating-stats", category, "", result)
+    return result
+
+
+async def _compute_si_rating_stats(category):
+    import numpy as np
+    from scipy import stats as scipy_stats
+    from collections import Counter
+
+    query = {"ai_rating": {"$exists": True}, "ai_rating.score": {"$gt": 0}}
+    if category:
+        query["categories.0"] = category
+
+    papers = await db.papers.find(
+        query,
+        {"_id": 0, "id": 1, "ai_rating": 1, "categories": 1}
+    ).to_list(10000)
+
+    if len(papers) < 5:
+        return {"status": "insufficient_data", "total_papers": len(papers)}
+
+    METRICS = ["score", "significance", "rigor", "novelty", "clarity"]
+
+    # Extract arrays
+    arrays = {}
+    for m in METRICS:
+        arrays[m] = [p["ai_rating"].get(m, 0) for p in papers if p["ai_rating"].get(m)]
+
+    # 1. Distribution histograms (0.5-width bins from 1.0 to 10.0)
+    bins = [round(1.0 + i * 0.5, 1) for i in range(19)]  # 1.0, 1.5, 2.0 ... 10.0
+    distributions = {}
+    for m in METRICS:
+        vals = arrays[m]
+        if not vals:
+            continue
+        hist = Counter()
+        for v in vals:
+            bucket = round(round(v * 2) / 2, 1)  # round to nearest 0.5
+            bucket = max(1.0, min(10.0, bucket))
+            hist[bucket] += 1
+        distributions[m] = {
+            "histogram": [{"bin": b, "count": hist.get(b, 0)} for b in bins],
+            "mean": round(float(np.mean(vals)), 2),
+            "median": round(float(np.median(vals)), 1),
+            "std": round(float(np.std(vals, ddof=1)), 2) if len(vals) > 1 else 0,
+            "min": round(min(vals), 1),
+            "max": round(max(vals), 1),
+            "n": len(vals),
+        }
+
+    # 2. Inter-metric correlation matrix
+    metric_correlations = {}
+    for i, m1 in enumerate(METRICS):
+        for j, m2 in enumerate(METRICS):
+            if j <= i:
+                continue
+            v1 = arrays[m1]
+            v2 = arrays[m2]
+            n = min(len(v1), len(v2))
+            if n < 5:
+                continue
+            rho, p_val = scipy_stats.spearmanr(v1[:n], v2[:n])
+            if not np.isnan(rho):
+                metric_correlations[f"{m1} vs {m2}"] = {
+                    "spearman": round(float(rho), 3),
+                    "p_value": round(float(p_val), 4) if p_val >= 0.0001 else 0.0,
+                    "n": n,
+                }
+
+    # 3. Per-category summary (only when viewing all categories)
+    by_category = []
+    if not category:
+        cat_groups = {}
+        for p in papers:
+            cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
+            if cat not in cat_groups:
+                cat_groups[cat] = []
+            cat_groups[cat].append(p["ai_rating"])
+        for cat, ratings in sorted(cat_groups.items(), key=lambda x: -len(x[1])):
+            if len(ratings) < 3:
+                continue
+            scores = [r.get("score", 0) for r in ratings if r.get("score")]
+            if scores:
+                by_category.append({
+                    "category": cat,
+                    "count": len(ratings),
+                    "mean_score": round(float(np.mean(scores)), 2),
+                    "median_score": round(float(np.median(scores)), 1),
+                    "std_score": round(float(np.std(scores, ddof=1)), 2) if len(scores) > 1 else 0,
+                })
+
+    return {
+        "status": "ok",
+        "total_papers": len(papers),
+        "category": category,
+        "distributions": distributions,
+        "metric_correlations": metric_correlations,
+        "by_category": by_category,
+    }
+
+
 @router.get("/convergence")
 async def get_convergence(
     category: Optional[str] = Query(None),

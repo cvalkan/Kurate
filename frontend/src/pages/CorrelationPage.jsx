@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { BarChart3, ChevronDown } from "lucide-react";
 import { CorrelationSection } from "@/components/CorrelationSection";
 import { LeaderboardConvergence } from "@/components/ConvergenceSection";
+import { SiRatingSection } from "@/components/SiRatingSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -132,6 +133,8 @@ export default function CorrelationPage() {
         title="Standard Tournament"
         description='Full-text evaluation: "Which paper has higher scientific impact?"'
       />
+
+      <SiRatingSection category={category || null} />
 
       <div className="mb-6">
         <LeaderboardConvergence category={category || null} />
