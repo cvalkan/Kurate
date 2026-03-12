@@ -1748,6 +1748,19 @@ async def get_monthly_archive(category: str, year: int, month: int):
         return {"status": "not_found"}
     return doc
 
+@router.get("/archive/{category}/older")
+async def get_older_archive(category: str):
+    """Get the 'Older' catch-all archive for papers before the first weekly snapshot."""
+    doc = await db.leaderboard_archives.find_one(
+        {"category": category, "period_type": "older"},
+        {"_id": 0}
+    )
+    if not doc:
+        return {"status": "not_found"}
+    return doc
+
+
+
 
 async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     """Create a frozen leaderboard snapshot for the given category.

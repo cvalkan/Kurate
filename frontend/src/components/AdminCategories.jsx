@@ -24,6 +24,7 @@ export function AdminCategories({ onCategoriesChanged }) {
   const [saving, setSaving] = useState(false);
   const [estimating, setEstimating] = useState(null);
   const [estimates, setEstimates] = useState({});
+  const [archiveFreq, setArchiveFreq] = useState({});
   const dropdownRef = useRef(null);
 
   const hasChanges = pendingAdds.size > 0 || pendingRemoves.size > 0;
@@ -33,6 +34,9 @@ export function AdminCategories({ onCategoriesChanged }) {
       const res = await axios.get(`${API}/api/admin/arxiv-categories`, { headers: getAdminHeaders() });
       setAllCategories(res.data.categories || []);
       setActiveIds(res.data.active || []);
+      // Load archive frequency
+      const freqRes = await axios.get(`${API}/api/admin/archive/frequency`, { headers: getAdminHeaders() }).catch(() => ({ data: {} }));
+      setArchiveFreq(freqRes.data || {});
     } catch {
       toast.error("Failed to load categories");
     } finally {
@@ -190,6 +194,26 @@ export function AdminCategories({ onCategoriesChanged }) {
                 )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
+                {!isPendingRemove && (
+                  <select
+                    value={archiveFreq[c.id] || archiveFreq.default || "weekly"}
+                    onChange={async (e) => {
+                      const freq = e.target.value;
+                      try {
+                        await axios.post(`${API}/api/admin/archive/set-frequency`,
+                          { category: c.id, frequency: freq },
+                          { headers: { ...getAdminHeaders(), "Content-Type": "application/json" } }
+                        );
+                        setArchiveFreq(prev => ({ ...prev, [c.id]: freq }));
+                      } catch { toast.error("Failed to save"); }
+                    }}
+                    className="h-7 text-[10px] px-1.5 rounded border border-border bg-background text-muted-foreground cursor-pointer"
+                    data-testid={`freq-${c.id}`}
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                )}
                 {!est && !isPendingRemove && (
                   <Button variant="ghost" size="sm" className="h-7 text-[10px] text-muted-foreground"
                     onClick={() => handleEstimate(c.id)} disabled={estimating === c.id}

@@ -26,9 +26,14 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
 
   const handleArchiveClick = async (archive) => {
     setArchiveOpen(false);
-    const slug = archive.period_type === "weekly" ? `w${archive.week}` : `m${archive.month}`;
+    const slug = archive.period_type === "older"
+      ? "older"
+      : archive.period_type === "weekly" ? `w${archive.week}` : `m${archive.month}`;
+    const url = archive.period_type === "older"
+      ? `${API}/api/archive/${archive.category}/older`
+      : `${API}/api/archive/${archive.category}/${archive.year}/${slug}`;
     try {
-      const res = await axios.get(`${API}/api/archive/${archive.category}/${archive.year}/${slug}`);
+      const res = await axios.get(url);
       if (res.data.leaderboard) {
         onArchiveSelect(res.data);
       }
