@@ -2636,3 +2636,133 @@ async def get_archive_frequency():
     """Get current archive frequency settings."""
     settings = await get_settings()
     return settings.get("archive_frequency", {"default": "weekly"})
+
+
+@router.post("/archive/backfill", dependencies=[Depends(verify_admin)])
+async def backfill_archives():
+    """Create historical weekly archive snapshots from existing match data."""
+    from services.ranking import compute_leaderboard_async
+    from datetime import timedelta
+
+    settings = await get_settings()
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+
+    # Find the earliest match date
+    oldest = await db.matches.find_one(
+        {"completed": True, "mode": {"$exists": False}},
+        {"_id": 0, "created_at": 1}, sort=[("created_at", 1)]
+    )
+    if not oldest:
+        return {"status": "no_data"}
+
+    start_dt = datetime.fromisoformat(oldest["created_at"].replace("Z", "+00:00"))
+    # Round up to next Monday
+    days_until_monday = (7 - start_dt.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7
+    first_monday = (start_dt + timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    utc_now = datetime.now(timezone.utc)
+
+    # Load all papers and matches once
+    all_papers = await db.papers.find(
+        {"summaries": {"$exists": True, "$ne": {}}},
+        {"_id": 0, "id": 1, "title": 1, "authors": 1, "published": 1, "link": 1,
+         "arxiv_id": 1, "categories": 1, "ai_rating": 1, "score": 1}
+    ).to_list(5000)
+
+    all_matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1,
+         "primary_category": 1, "completed": 1, "failed": 1}
+    ).to_list(200000)
+
+    # Parse dates
+    paper_dates = {}
+    for p in all_papers:
+        try:
+            paper_dates[p["id"]] = datetime.fromisoformat(p.get("published", "").replace("Z", "+00:00"))
+        except:
+            pass
+
+    match_dates = []
+    for m in all_matches:
+        try:
+            m["_dt"] = datetime.fromisoformat(m["created_at"].replace("Z", "+00:00"))
+            match_dates.append(m)
+        except:
+            pass
+    match_dates.sort(key=lambda m: m["_dt"])
+
+    created = 0
+    monday = first_monday
+    while monday < utc_now:
+        year = monday.isocalendar()[0]
+        week = monday.isocalendar()[1]
+        week_start = monday - timedelta(days=7)
+
+        for cat in active_cats:
+            # Check if already exists
+            existing = await db.leaderboard_archives.find_one(
+                {"category": cat, "year": year, "week": week, "period_type": "weekly"})
+            if existing:
+                continue
+
+            # Papers published in this week's window
+            cat_papers = [p for p in all_papers
+                          if p.get("categories", [""])[0] == cat
+                          and p["id"] in paper_dates
+                          and week_start <= paper_dates[p["id"]] < monday]
+            if len(cat_papers) < 3:
+                continue
+
+            cat_pids = {p["id"] for p in cat_papers}
+
+            # All matches up to this Monday for these papers
+            cat_matches = [m for m in match_dates
+                           if m["_dt"] < monday
+                           and m["paper1_id"] in cat_pids
+                           and m["paper2_id"] in cat_pids]
+            if len(cat_matches) < 5:
+                continue
+
+            # Compute BT leaderboard
+            lb = await compute_leaderboard_async(cat_papers, cat_matches)
+
+            frozen = []
+            for entry in lb:
+                frozen.append({
+                    "rank": entry.get("rank"),
+                    "id": entry.get("id"),
+                    "title": entry.get("title", ""),
+                    "authors": entry.get("authors", []),
+                    "score": entry.get("score"),
+                    "wins": entry.get("wins"),
+                    "losses": entry.get("losses"),
+                    "comparisons": entry.get("comparisons"),
+                    "win_rate": entry.get("win_rate"),
+                    "published": entry.get("published"),
+                    "link": entry.get("link"),
+                    "arxiv_id": entry.get("arxiv_id"),
+                })
+
+            doc = {
+                "category": cat,
+                "period_type": "weekly",
+                "year": year,
+                "week": week,
+                "month": None,
+                "label": f"Week {week}, {year}",
+                "paper_count": len(frozen),
+                "match_count": len(cat_matches),
+                "leaderboard": frozen,
+                "created_at": monday.isoformat(),
+            }
+            await db.leaderboard_archives.insert_one(doc)
+            created += 1
+
+        monday += timedelta(weeks=1)
+        await asyncio.sleep(0)
+
+    logger.info(f"Archive backfill complete: {created} snapshots created")
+    return {"status": "ok", "created": created}
