@@ -2690,8 +2690,21 @@ async def backfill_archives():
 
     all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1}
     ).to_list(500000)
+
+    # Parse match dates for time-scoped snapshots
+    for m in all_matches:
+        ca = m.get("created_at", "")
+        if isinstance(ca, str) and ca:
+            try:
+                m["_ts"] = datetime.fromisoformat(ca.replace("Z", "+00:00"))
+            except Exception:
+                m["_ts"] = None
+        elif isinstance(ca, datetime):
+            m["_ts"] = ca if ca.tzinfo else ca.replace(tzinfo=timezone.utc)
+        else:
+            m["_ts"] = None
 
     # Build lookup maps
     paper_by_id = {p["id"]: p for p in all_papers}
@@ -2716,11 +2729,13 @@ async def backfill_archives():
     if not paper_dates:
         return {"status": "no_data"}
 
-    # --- Helper: compute archive for a set of paper IDs ---
-    async def compute_archive(cat_papers, cat_pids):
-        """Run BT on cat_papers + their opponents from all_matches. Return ranked list filtered to cat_pids."""
-        # Find all matches involving these papers
-        cat_matches = [m for m in all_matches if m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids]
+    # --- Helper: compute archive for a set of paper IDs, scoped to matches before cutoff ---
+    async def compute_archive(cat_papers, cat_pids, cutoff):
+        """Run BT on cat_papers using only matches created before cutoff. Return ranked list filtered to cat_pids."""
+        # Find matches involving these papers, created before the cutoff
+        cat_matches = [m for m in all_matches
+                       if (m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids)
+                       and (m.get("_ts") is None or m["_ts"] <= cutoff)]
         if not cat_matches:
             # No matches: return papers with default scores
             result = [{"rank": i + 1, **{k: p.get(k) for k in FROZEN_FIELDS if k != "rank"}} for i, p in enumerate(cat_papers)]
@@ -2786,7 +2801,9 @@ async def backfill_archives():
                 continue
 
             cat_pids = {p["id"] for p in cat_papers}
-            lb = await compute_archive(cat_papers, cat_pids)
+            # Cutoff: end of the labeled week (papers get a full week of matches)
+            match_cutoff = monday + timedelta(days=7)
+            lb = await compute_archive(cat_papers, cat_pids, match_cutoff)
 
             await db.leaderboard_archives.insert_one({
                 "category": cat, "period_type": "weekly",
@@ -2818,7 +2835,9 @@ async def backfill_archives():
                 continue
 
             cat_pids = {p["id"] for p in cat_papers}
-            lb = await compute_archive(cat_papers, cat_pids)
+            # Cutoff: one week after month ends (papers get time to accumulate matches)
+            match_cutoff = month_end + timedelta(days=7)
+            lb = await compute_archive(cat_papers, cat_pids, match_cutoff)
 
             await db.leaderboard_archives.insert_one({
                 "category": cat, "period_type": "monthly",
@@ -2871,7 +2890,7 @@ async def backfill_archives():
                 continue
 
             older_pids = {p["id"] for p in older_papers}
-            lb = await compute_archive(older_papers, older_pids)
+            lb = await compute_archive(older_papers, older_pids, cutoff)
 
             await db.leaderboard_archives.insert_one({
                 "category": cat, "period_type": ptype,
