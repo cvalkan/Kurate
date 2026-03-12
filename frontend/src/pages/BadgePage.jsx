@@ -8,12 +8,6 @@ import { toast } from "sonner";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-const TIER_STYLES = {
-  Gold:   { bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-700", medal: "bg-[#D4A017]" },
-  Silver: { bg: "bg-gray-50",  border: "border-gray-300",  text: "text-gray-500",  medal: "bg-[#8A8A8A]" },
-  Bronze: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-700", medal: "bg-[#CD7F32]" },
-};
-
 export default function BadgePage() {
   const { category, year, slug, paperId } = useParams();
   const [data, setData] = useState(null);
@@ -52,10 +46,9 @@ export default function BadgePage() {
     );
   }
 
-  const style = TIER_STYLES[data.tier] || TIER_STYLES.Gold;
   const shareUrl = `${API}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
   const imageUrl = `${API}${data.image_url}`;
-  const tweetText = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} (${data.archive_label}) on @KurateAI!\n\n${shareUrl}`;
+  const tweetText = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on @KurateAI!\n\n${shareUrl}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -72,73 +65,31 @@ export default function BadgePage() {
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, "_blank");
   };
 
+  const truncTitle = data.title?.length > 70 ? data.title.slice(0, 67) + "..." : data.title;
+  const authors3 = data.authors?.slice(0, 3).join(", ") + (data.authors?.length > 3 ? ` +${data.authors.length - 3}` : "");
+
   return (
     <>
       <Helmet>
         <title>{`#${data.rank} ${data.tier} — ${data.title} | Kurate.org`}</title>
-        <meta property="og:title" content={`#${data.rank} ${data.tier} in ${data.category_name} — ${data.archive_label}`} />
-        <meta property="og:description" content={`${data.title} | Ranked by scientific impact | Kurate.org`} />
+        <meta property="og:title" content={`#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label}`} />
+        <meta property="og:description" content={`${data.title} | AI-ranked by scientific impact | Kurate.org`} />
         <meta property="og:image" content={imageUrl} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:type" content="article" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={`#${data.rank} ${data.tier} in ${data.category_name}`} />
+        <meta name="twitter:title" content={`#${data.rank} ${data.tier} in ${data.category_name} Preprints`} />
         <meta name="twitter:description" content={data.title} />
         <meta name="twitter:image" content={imageUrl} />
       </Helmet>
 
       <div className="container mx-auto px-4 max-w-3xl py-8 md:py-12">
-        {/* Badge Card */}
-        <div className={`rounded-xl border ${style.border} ${style.bg} p-6 md:p-8 mb-6 shadow-sm`} data-testid="badge-card">
-          {/* Top: Period + Category + Kurate brand */}
-          <div className="flex items-center justify-between mb-5">
-            <div className="text-sm font-medium text-foreground">
-              {data.archive_label} · {data.category_name}
-            </div>
-            <span className="text-xs text-muted-foreground font-medium tracking-wide">Kurate.org</span>
-          </div>
+        <h2 className="font-heading text-lg font-semibold mb-1">Share your badge</h2>
+        <p className="text-sm text-muted-foreground mb-6">Preview how it looks on social platforms</p>
 
-          {/* Medal + Title + Authors */}
-          <div className="flex items-start gap-4 mb-6">
-            <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl md:text-3xl shrink-0 ${style.medal}`}>
-              #{data.rank}
-            </div>
-            <div className="min-w-0">
-              <span className={`text-xs font-bold uppercase tracking-widest ${style.text}`}>{data.tier}</span>
-              <h1 className="font-heading text-lg md:text-xl font-semibold leading-tight mt-1" data-testid="badge-title">
-                {data.title}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1.5">
-                {data.authors?.slice(0, 5).join(", ")}
-                {data.authors?.length > 5 && ` +${data.authors.length - 5}`}
-              </p>
-            </div>
-          </div>
-
-          {/* Stats: Score, Win Rate, Top X of Y */}
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="text-center p-3 bg-white/70 rounded-lg">
-              <div className="font-mono text-xl font-bold">{data.score}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Elo Score</div>
-            </div>
-            <div className="text-center p-3 bg-white/70 rounded-lg">
-              <div className="font-mono text-xl font-bold">{data.win_rate}%</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Win Rate</div>
-            </div>
-            <div className="text-center p-3 bg-white/70 rounded-lg">
-              <div className="font-mono text-xl font-bold">Top {data.rank} of {data.paper_count}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Ranking</div>
-            </div>
-          </div>
-
-          <div className="text-xs text-muted-foreground">
-            Ranked by scientific impact · Kurate.org
-          </div>
-        </div>
-
-        {/* Share section */}
-        <div className="flex flex-wrap items-center gap-2 mb-8" data-testid="share-section">
+        {/* Share buttons */}
+        <div className="flex flex-wrap items-center gap-2 mb-6" data-testid="share-section">
           <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={copyLink} data-testid="copy-link-btn">
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied!" : "Copy Link"}
@@ -157,6 +108,57 @@ export default function BadgePage() {
               arXiv:{data.arxiv_id} <ExternalLink className="h-3 w-3" />
             </a>
           )}
+        </div>
+
+        {/* X (Twitter) Preview */}
+        <div className="mb-6" data-testid="x-preview">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-2">X / Twitter Preview</div>
+          <div className="border border-border rounded-xl overflow-hidden bg-white max-w-lg">
+            {/* Tweet content */}
+            <div className="p-3 pb-2">
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-8 h-8 rounded-full bg-secondary" />
+                <div>
+                  <span className="text-sm font-bold">Author Name</span>
+                  <span className="text-xs text-muted-foreground ml-1">@author</span>
+                </div>
+              </div>
+              <p className="text-sm leading-snug">Our paper "{truncTitle}" ranked #{data.rank} in {data.category_name} Preprints ({data.archive_label}) on <span className="text-accent">@KurateAI</span>!</p>
+            </div>
+            {/* Card preview */}
+            <div className="mx-3 mb-3 border border-border rounded-lg overflow-hidden">
+              <img src={imageUrl} alt="Badge" className="w-full" loading="lazy" />
+              <div className="px-3 py-2 bg-gray-50">
+                <div className="text-[10px] text-muted-foreground">kurate.org</div>
+                <div className="text-xs font-medium truncate">#{data.rank} {data.tier} in {data.category_name} Preprints — {data.archive_label}</div>
+                <div className="text-[10px] text-muted-foreground truncate">{data.title}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* LinkedIn Preview */}
+        <div className="mb-8" data-testid="linkedin-preview">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-2">LinkedIn Preview</div>
+          <div className="border border-border rounded-lg overflow-hidden bg-white max-w-lg">
+            {/* Post header */}
+            <div className="p-3 pb-2">
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-10 h-10 rounded-full bg-secondary" />
+                <div>
+                  <div className="text-sm font-bold">Author Name</div>
+                  <div className="text-[10px] text-muted-foreground">Researcher · 1h</div>
+                </div>
+              </div>
+              <p className="text-sm leading-snug">Excited to share: our paper ranked #{data.rank} in {data.category_name} Preprints for {data.archive_label} on Kurate.org!</p>
+            </div>
+            {/* Card */}
+            <img src={imageUrl} alt="Badge" className="w-full" loading="lazy" />
+            <div className="px-3 py-2 bg-gray-50 border-t border-border">
+              <div className="text-[10px] text-muted-foreground">kurate.org</div>
+              <div className="text-xs font-medium">#{data.rank} {data.tier} in {data.category_name} Preprints — {data.archive_label}</div>
+            </div>
+          </div>
         </div>
 
         {/* CTA */}
