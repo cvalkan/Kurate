@@ -51,11 +51,15 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **Admin rating-status performance**: Moved per-category rating counts into the background leaderboard cache. The `/api/admin/rating-status` endpoint now accepts a `category` param and reads from pre-computed cache (~16ms) instead of doing 2-4 MongoDB `count_documents` calls (~200ms each). Category switching in admin panel is now instant.
 
 ## Pending Tasks
+- (P0) ORCID OAuth credentials needed: Register at orcid.org/developer-tools, add ORCID_CLIENT_ID, ORCID_CLIENT_SECRET, ORCID_REDIRECT_URI to backend .env
 - (P2) Further refactor validation.py (2500+ lines)
 - (P2) Improve summary generation failure tracking (partial failures per model)
 - (P2) Verify all ICLR datasets fully scored in single-item experiment
 - (Future) Consolidate MIDL experiment pipeline into single robust background task
 - (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
+- (Future) Author profile pages showing all claimed papers
+- (Future) Manual claim admin review queue
+- (Future) Batch claiming — eligible papers endpoint
 
 ## Key Issue: Budget Exhaustion
 The Emergent LLM key budget gets exhausted during large-scale summary generation. User needs to top up via Profile -> Universal Key -> Add Balance.
@@ -81,3 +85,8 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
 - Comprehensive Validation Summary Report page
 - Frontend rebuild for llm-ranker fork (Mar 9 2026)
 - Deployment readiness verification (Mar 9 2026)
+- Author Verification MVP: ORCID OAuth + Semantic Scholar claiming (Mar 12 2026)
+  - Backend: /api/claim/* endpoints (connect ORCID, claim papers, verify via S2)
+  - Frontend: AuthorClaimSection on paper pages, OrcidCallbackPage
+  - Multi-signal verification: S2 direct ORCID match, S2 author papers, fallback to manual review
+  - Verified badges display on paper pages
