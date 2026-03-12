@@ -1,10 +1,11 @@
 """Shareable badge generation for top-ranked papers."""
 
 import io
+import html as html_mod
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response, HTMLResponse
-from PIL import Image, ImageDraw, ImageFont
+import cairosvg
 from typing import Optional
 
 from core.config import db, logger
@@ -185,168 +186,77 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 
 
 
-def _draw_medal(draw, cx, cy, radius, tier_name, rank, font):
-    """Draw a sleek 3D medal coin with proper gold/silver/bronze coloring."""
-    r = radius
-    # Tier-specific color palettes for realistic metal look
-    palettes = {
-        "Gold": {
-            "rim": (160, 120, 10), "face": (212, 175, 55), "inner": (235, 200, 80),
-            "highlight": (255, 235, 150), "shadow": (130, 95, 5),
-        },
-        "Silver": {
-            "rim": (120, 120, 130), "face": (180, 185, 195), "inner": (200, 205, 215),
-            "highlight": (235, 238, 245), "shadow": (95, 95, 105),
-        },
-        "Bronze": {
-            "rim": (140, 85, 20), "face": (205, 127, 50), "inner": (225, 155, 80),
-            "highlight": (245, 195, 140), "shadow": (110, 65, 10),
-        },
+
+def _esc(text: str) -> str:
+    """Escape text for SVG XML."""
+    return html_mod.escape(str(text))
+
+
+def _svg_medal(cx, cy, r, tier_name, rank):
+    """Generate SVG elements for a 3D medal coin."""
+    colors = {
+        "Gold": {"rim": "#a07a0a", "face": "#d4af37", "inner": "#ebc850", "hl": "#ffeb96", "sh": "#825f05"},
+        "Silver": {"rim": "#78788a", "face": "#b4b9c3", "inner": "#c8cdd7", "hl": "#ebeef5", "sh": "#5f5f69"},
+        "Bronze": {"rim": "#8c5514", "face": "#cd7f32", "inner": "#e19b50", "hl": "#f5c38c", "sh": "#6e410a"},
     }
-    p = palettes.get(tier_name, palettes["Silver"])
-
-    # Outer rim
-    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=p["rim"])
-    # Main face
-    inner_r = r - 5
-    draw.ellipse([cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r], fill=p["face"])
-    # Raised inner disc
-    disc_r = r - 12
-    draw.ellipse([cx - disc_r, cy - disc_r, cx + disc_r, cy + disc_r], fill=p["inner"])
-    # Rim groove (between rim and face)
-    draw.ellipse([cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r], fill=None, outline=p["shadow"], width=1)
-    draw.ellipse([cx - disc_r, cy - disc_r, cx + disc_r, cy + disc_r], fill=None, outline=p["rim"], width=1)
-    # Top highlight arc (simulate light source top-left)
-    hl_r = r - 16
-    draw.arc([cx - hl_r - 4, cy - hl_r - 4, cx + hl_r - 8, cy + hl_r - 8], start=200, end=340, fill=p["highlight"], width=3)
-    # Rank text with shadow
-    rank_text = f"#{rank}"
-    bbox = draw.textbbox((0, 0), rank_text, font=font)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
-    draw.text((cx - tw // 2 + 1, cy - th // 2 - 3), rank_text, fill=p["shadow"], font=font)
-    draw.text((cx - tw // 2, cy - th // 2 - 4), rank_text, fill=(255, 255, 255), font=font)
+    c = colors.get(tier_name, colors["Silver"])
+    return f"""
+    <circle cx="{cx}" cy="{cy}" r="{r}" fill="{c['rim']}"/>
+    <circle cx="{cx}" cy="{cy}" r="{r - 4}" fill="{c['face']}"/>
+    <circle cx="{cx}" cy="{cy}" r="{r - 11}" fill="{c['inner']}"/>
+    <circle cx="{cx}" cy="{cy}" r="{r - 4}" fill="none" stroke="{c['sh']}" stroke-width="1"/>
+    <circle cx="{cx}" cy="{cy}" r="{r - 11}" fill="none" stroke="{c['rim']}" stroke-width="1"/>
+    <path d="M {cx - r + 20} {cy - r + 24} A {r - 16} {r - 16} 0 0 1 {cx + r - 28} {cy - r + 18}" fill="none" stroke="{c['hl']}" stroke-width="3" stroke-linecap="round"/>
+    <text x="{cx}" y="{cy + 2}" font-family="Liberation Sans" font-weight="bold" font-size="56" fill="{c['sh']}" text-anchor="middle" dominant-baseline="central" dx="1" dy="1">#{rank}</text>
+    <text x="{cx}" y="{cy}" font-family="Liberation Sans" font-weight="bold" font-size="56" fill="white" text-anchor="middle" dominant-baseline="central">#{rank}</text>
+    """
 
 
-def _draw_kurate_wordmark(draw, x, y, font_bold, font_regular, color_dark, color_accent):
-    """Draw the Kurate.org wordmark. 'Ku' and '.org' in accent, 'rate' in dark."""
-    # All same font size (font_bold for everything)
-    draw.text((x, y), "Ku", fill=color_accent, font=font_bold)
-    ku_bbox = draw.textbbox((0, 0), "Ku", font=font_bold)
-    kw = ku_bbox[2] - ku_bbox[0]
-    draw.text((x + kw - 1, y), "rate", fill=color_dark, font=font_bold)
-    rate_bbox = draw.textbbox((0, 0), "rate", font=font_bold)
-    rw = rate_bbox[2] - rate_bbox[0]
-    draw.text((x + kw + rw - 1, y), ".org", fill=color_accent, font=font_regular)
-
-
-def _render_badge_image(data: dict) -> bytes:
-    """Render a light card badge image (1200x630) for social sharing."""
-    W, H = 1200, 630
-    paper = data["paper"]
-    tier = data["tier"]
-    rank = paper["rank"]
-
-    tier_hex = tier["color"]
-    tier_rgb = tuple(int(tier_hex.lstrip("#")[i:i+2], 16) for i in (0, 2, 4))
-    tier_bg = {
-        "Gold": (255, 251, 235), "Silver": (249, 250, 251), "Bronze": (255, 247, 237),
-    }.get(tier["name"], (249, 250, 251))
-
-    bg = (245, 245, 248)
-    card_bg = tier_bg
-    text_dark = (26, 26, 46)
-    text_muted = (130, 130, 150)
-    accent = (70, 90, 220)
-    divider = (210, 210, 220)
-
-    img = Image.new("RGB", (W, H), bg)
-    draw = ImageDraw.Draw(img)
-
-    try:
-        f_header = ImageFont.truetype(FONT_BOLD, 26)
-        f_header_sm = ImageFont.truetype(FONT_REGULAR, 20)
-        f_tier = ImageFont.truetype(FONT_BOLD, 20)
-        f_title = ImageFont.truetype(FONT_BOLD, 38)
-        f_rank = ImageFont.truetype(FONT_BOLD, 58)
-        f_authors = ImageFont.truetype(FONT_REGULAR, 24)
-        f_stat_val = ImageFont.truetype(FONT_BOLD, 36)
-        f_stat_lbl = ImageFont.truetype(FONT_REGULAR, 18)
-        f_footer = ImageFont.truetype(FONT_REGULAR, 22)
-        f_brand = ImageFont.truetype(FONT_BOLD, 72)
-        f_brand_reg = ImageFont.truetype(FONT_REGULAR, 72)
-        f_brand_sm = ImageFont.truetype(FONT_REGULAR, 30)
-    except Exception:
-        f_header = f_header_sm = f_tier = f_title = f_rank = f_authors = ImageFont.load_default()
-        f_stat_val = f_stat_lbl = f_footer = f_brand = f_brand_sm = f_header
-
-    # Card with tier-colored border
-    m = 28
-    draw.rounded_rectangle([m - 2, m - 2, W - m + 2, H - m + 2], radius=18, fill=tier_rgb)
-    draw.rounded_rectangle([m, m, W - m, H - m], radius=16, fill=card_bg)
-
-    pad = 45
-
-    # === ROW 1: Kurate.org wordmark (right-aligned, large) ===
-    logo_y = m + 15
-    # Measure wordmark width to right-align
-    _ku_w = draw.textbbox((0, 0), "Ku", font=f_brand)[2]
-    _rate_w = draw.textbbox((0, 0), "rate", font=f_brand)[2]
-    _org_w = draw.textbbox((0, 0), ".org", font=f_brand_reg)[2]
-    logo_total_w = _ku_w + _rate_w + _org_w
-    _draw_kurate_wordmark(draw, W - m - pad - logo_total_w, logo_y, f_brand, f_brand_reg, text_dark, accent)
-
-    # === ROW 2: Period + Category (left) ===
-    top_y = logo_y + 65
-    cat_name = data["category_name"]
-    header_text = f"{data['archive_label']}  ·  {cat_name} Preprints  ·  arXiv"
-    draw.text((m + pad, top_y), header_text, fill=text_dark, font=f_header)
-
-    # === MEDAL + TITLE + AUTHORS ===
-    section_y = top_y + 42
-    medal_r = 48
-    cx = m + pad + medal_r + 5
-    cy = section_y + medal_r + 12
-    _draw_medal(draw, cx, cy, medal_r, tier["name"], rank, f_rank)
-
-    content_x = cx + medal_r + 28
-    content_w = W - m - pad - content_x
-
-    # Tier label
-    draw.text((content_x, section_y), tier["name"].upper(), fill=tier_rgb, font=f_tier)
-
-    # Title (max 2 lines)
-    title_y = section_y + 30
-    title = paper.get("title", "")
-    words = title.split()
+def _svg_wordwrap(text, max_chars):
+    """Split text into lines of max_chars, breaking on words."""
+    words = text.split()
     lines, cur = [], ""
-    for word in words:
-        test = f"{cur} {word}".strip()
-        bbox = draw.textbbox((0, 0), test, font=f_title)
-        if bbox[2] - bbox[0] > content_w:
-            if cur:
-                lines.append(cur)
-            cur = word
+    for w in words:
+        test = f"{cur} {w}".strip()
+        if len(test) > max_chars and cur:
+            lines.append(cur)
+            cur = w
         else:
             cur = test
     if cur:
         lines.append(cur)
-    for i, line in enumerate(lines[:2]):
-        if i == 1 and len(lines) > 2:
-            line = line[:-3] + "..." if len(line) > 3 else "..."
-        draw.text((content_x, title_y + i * 48), line, fill=text_dark, font=f_title)
+    return lines
 
-    # Authors
-    authors_y = title_y + 48 * min(len(lines), 2) + 10
+
+def _render_badge_image(data: dict) -> bytes:
+    """Render badge as SVG then convert to pixel-perfect PNG via CairoSVG."""
+    W, H = 1200, 630
+    paper = data["paper"]
+    tier = data["tier"]
+    rank = paper["rank"]
+    tier_name = tier["name"]
+    tier_hex = tier["color"]
+
+    tier_bg = {"Gold": "#fffbeb", "Silver": "#f9fafb", "Bronze": "#fff7ed"}.get(tier_name, "#f9fafb")
+    accent = "#465adc"
+    dark = "#1a1a2e"
+    muted = "#82829a"
+
+    medal_svg = _svg_medal(120, 310, 50, tier_name, rank)
+
+    title_lines = _svg_wordwrap(paper.get("title", ""), 42)
+    title_svg = ""
+    for i, line in enumerate(title_lines[:2]):
+        display = _esc(line)
+        if i == 1 and len(title_lines) > 2:
+            display = _esc(line[:-3] + "...") if len(line) > 3 else "..."
+        title_svg += f'<text x="195" y="{240 + i * 44}" font-family="Liberation Sans" font-weight="bold" font-size="36" fill="{dark}">{display}</text>\n'
+
     authors = paper.get("authors", [])
-    authors_str = ", ".join(authors[:4])
+    a_str = ", ".join(authors[:4])
     if len(authors) > 4:
-        authors_str += f" +{len(authors) - 4}"
-    draw.text((content_x, authors_y), _truncate(authors_str, 70), fill=text_muted, font=f_authors)
-
-    # === STATS ROW (3 boxes) ===
-    stats_y = H - m - 155
-    draw.line([(m + pad, stats_y - 12), (W - m - pad, stats_y - 12)], fill=divider, width=1)
+        a_str += f" +{len(authors) - 4}"
+    authors_y = 240 + min(len(title_lines), 2) * 44 + 10
 
     paper_count = data["paper_count"]
     stats = [
@@ -354,28 +264,50 @@ def _render_badge_image(data: dict) -> bytes:
         (str(paper.get("score", "?")), "Elo Score"),
         (f"{paper.get('win_rate', '?')}%", "Win Rate"),
     ]
-
-    total_w = W - 2 * m - 2 * pad
-    box_w = (total_w - 20) // 3
+    sy = 460
+    bw = 340
+    stats_svg = ""
     for i, (val, label) in enumerate(stats):
-        bx = m + pad + i * (box_w + 10)
-        draw.rounded_rectangle([(bx, stats_y), (bx + box_w, stats_y + 85)], radius=10, fill=(255, 255, 255))
-        vbbox = draw.textbbox((0, 0), val, font=f_stat_val)
-        vw = vbbox[2] - vbbox[0]
-        draw.text((bx + box_w // 2 - vw // 2, stats_y + 10), val, fill=text_dark, font=f_stat_val)
-        lbbox = draw.textbbox((0, 0), label, font=f_stat_lbl)
-        lw = lbbox[2] - lbbox[0]
-        draw.text((bx + box_w // 2 - lw // 2, stats_y + 55), label, fill=text_muted, font=f_stat_lbl)
+        bx = 50 + i * (bw + 12)
+        stats_svg += f"""
+        <rect x="{bx}" y="{sy}" width="{bw}" height="85" rx="10" fill="white"/>
+        <text x="{bx + bw // 2}" y="{sy + 38}" font-family="Liberation Sans" font-weight="bold" font-size="34" fill="{dark}" text-anchor="middle">{_esc(val)}</text>
+        <text x="{bx + bw // 2}" y="{sy + 65}" font-family="Liberation Sans" font-size="18" fill="{muted}" text-anchor="middle">{_esc(label)}</text>
+        """
 
-    # === FOOTER ===
-    footer_y = H - m - 50
-    draw.text((m + pad, footer_y),
-        "Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament",
-        fill=text_muted, font=f_footer)
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
+  <rect width="{W}" height="{H}" fill="#f5f5f8"/>
+  <rect x="28" y="28" width="{W - 56}" height="{H - 56}" rx="16" fill="{tier_hex}"/>
+  <rect x="30" y="30" width="{W - 60}" height="{H - 60}" rx="14" fill="{tier_bg}"/>
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
-    return buf.getvalue()
+  <text x="{W - 55}" y="90" font-family="Liberation Sans" font-weight="bold" font-size="64" text-anchor="end">
+    <tspan fill="{accent}">Ku</tspan><tspan fill="{dark}">rate</tspan><tspan fill="{accent}" font-weight="normal">.org</tspan>
+  </text>
+
+  <text x="50" y="90" font-family="Liberation Sans" font-weight="bold" font-size="26" fill="{dark}">
+    {_esc(data['archive_label'])}  \u00b7  {_esc(data['category_name'])} Preprints  \u00b7  arXiv
+  </text>
+
+  <line x1="50" y1="110" x2="{W - 50}" y2="110" stroke="#d4d4dc" stroke-width="1"/>
+
+  {medal_svg}
+
+  <text x="195" y="200" font-family="Liberation Sans" font-weight="bold" font-size="20" fill="{tier_hex}">{tier_name.upper()}</text>
+
+  {title_svg}
+
+  <text x="195" y="{authors_y + 20}" font-family="Liberation Sans" font-size="24" fill="{muted}">{_esc(a_str[:80])}</text>
+
+  <line x1="50" y1="{sy - 15}" x2="{W - 50}" y2="{sy - 15}" stroke="#d4d4dc" stroke-width="1"/>
+
+  {stats_svg}
+
+  <text x="50" y="{H - 42}" font-family="Liberation Sans" font-size="20" fill="{muted}">
+    Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament
+  </text>
+</svg>"""
+
+    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=W, output_height=H)
 
 
 # Monthly badges
