@@ -449,6 +449,16 @@ async def _refresh_cache():
     ]
     _cache["_default_category"] = active_cats[0] if active_cats else "cs.RO"
 
+    # Pre-load archive list (lightweight metadata only)
+    try:
+        archive_docs = await db.leaderboard_archives.find(
+            {}, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1,
+                 "period_type": 1, "paper_count": 1, "match_count": 1, "label": 1}
+        ).sort([("year", -1), ("week", -1)]).to_list(500)
+        _cache["_archives"] = archive_docs
+    except Exception:
+        _cache["_archives"] = []
+
 
 async def _bg_cache_loop():
     """Background loop that keeps the cache fresh."""
@@ -649,6 +659,7 @@ async def get_leaderboard(
         "community_correlation": cat_data.get("_community_correlation"),
         "show_rating_column": settings.get("show_rating_column", True),
         "show_gap_column": settings.get("show_gap_column", True),
+        "archives": [a for a in cache.get("_archives", []) if a.get("category") == category],
     }
 
 

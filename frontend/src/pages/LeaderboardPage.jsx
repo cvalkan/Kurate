@@ -28,6 +28,7 @@ export default function LeaderboardPage() {
   const [isRanking, setIsRanking] = useState(false);
   const [showRatingCol, setShowRatingCol] = useState(true);
   const [showGapCol, setShowGapCol] = useState(true);
+  const [archives, setArchives] = useState([]);
 
   const [allTags, setAllTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState(() => {
@@ -139,6 +140,7 @@ export default function LeaderboardPage() {
         setIsRanking(res.data.is_ranking || false);
         if (res.data.show_rating_column !== undefined) setShowRatingCol(res.data.show_rating_column);
         if (res.data.show_gap_column !== undefined) setShowGapCol(res.data.show_gap_column);
+        if (res.data.archives) setArchives(res.data.archives);
         setLoading(false);
       }
     } catch (err) {
@@ -213,7 +215,7 @@ export default function LeaderboardPage() {
 
       <PeriodFilter
         period={period} setPeriod={setPeriod} keyword={keyword} setKeyword={setKeyword}
-        isLoggedIn={isLoggedIn} requireAuth={requireAuth} category={category}
+        isLoggedIn={isLoggedIn} requireAuth={requireAuth} category={category} archives={archives}
       />
 
       {warmingUp && (
