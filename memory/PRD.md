@@ -23,6 +23,7 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Leaderboard shows Rating and Gap columns (togglable via admin)
 - Security headers fully implemented
 - All endpoints returning 200, no broken pages
+- Archive backfill now includes ai_rating + sp_score (Gap) in frozen snapshots (Mar 12 2026)
 - Archive system fully operational on production (109 snapshots backfilled Mar 12 2026)
 
 ## Deployment Readiness (Mar 9 2026)

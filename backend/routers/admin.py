@@ -2657,7 +2657,8 @@ async def backfill_archives():
     from datetime import timedelta
 
     FROZEN_FIELDS = ["rank", "id", "title", "authors", "score", "wins", "losses",
-                     "comparisons", "win_rate", "ci", "wilson_margin", "published", "link", "arxiv_id"]
+                     "comparisons", "win_rate", "ci", "wilson_margin", "published", "link", "arxiv_id",
+                     "ai_rating", "sp_score"]
     MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June",
                    "July", "August", "September", "October", "November", "December"]
 
@@ -2671,11 +2672,21 @@ async def backfill_archives():
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
     utc_now = datetime.now(timezone.utc)
 
+    # Drop existing archives so we regenerate with full field set (ai_rating, sp_score)
+    await db.leaderboard_archives.delete_many({})
+
     # --- Load all data once ---
     all_papers = await db.papers.find(
         {}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "published": 1, "link": 1,
              "arxiv_id": 1, "categories": 1, "ai_rating": 1}
     ).to_list(50000)
+
+    # Build ai_ratings lookup
+    ai_ratings = {}
+    for p in all_papers:
+        rating = p.get("ai_rating")
+        if rating and isinstance(rating, dict) and rating.get("score"):
+            ai_ratings[p["id"]] = round(rating["score"], 1)
 
     all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
@@ -2727,6 +2738,25 @@ async def backfill_archives():
         lb = [e for e in lb if e["id"] in cat_pids]
         for i, e in enumerate(lb):
             e["rank"] = i + 1
+
+        # Inject ai_rating and compute sp_score
+        for e in lb:
+            ai_r = ai_ratings.get(e["id"])
+            if ai_r is not None:
+                e["ai_rating"] = ai_r
+
+        entries_with_both = [e for e in lb if e.get("ai_rating") and e.get("comparisons", 0) >= 3]
+        if len(entries_with_both) >= 2:
+            from scipy import stats as _sp_stats
+            import numpy as _np
+            _bt_vals = _np.array([e["score"] for e in entries_with_both])
+            _si_vals = _np.array([e["ai_rating"] for e in entries_with_both])
+            _bt_pct = _sp_stats.rankdata(_bt_vals) / len(entries_with_both) * 100
+            _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
+            _sp_raw = _bt_pct - _si_pct
+            for i, entry in enumerate(entries_with_both):
+                entry["sp_score"] = round(float(_sp_raw[i]), 1)
+
         return lb
 
     created = 0
