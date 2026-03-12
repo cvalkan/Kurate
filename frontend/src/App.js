@@ -12,6 +12,7 @@ import PromptsPage from "@/pages/PromptsPage";
 import AuthCallback from "@/pages/AuthCallback";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import ValidationHubPage from "@/pages/ValidationHubPage";
+import ArchivePage from "@/pages/ArchivePage";
 import Navbar from "@/components/Navbar";
 
 function AppRouter() {
@@ -27,6 +28,7 @@ function AppRouter() {
       <main className="pb-12">
         <Routes>
           <Route path="/" element={<LeaderboardPage />} />
+          <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<ArchivePage />} />
           <Route path="/correlation" element={<CorrelationPage />} />
           <Route path="/methodology" element={<MethodologyPage />} />
           <Route path="/validation" element={<ValidationHubPage />} />

@@ -10,6 +10,7 @@ import { StatusBar } from "@/components/leaderboard/StatusBar";
 import { StatsToggle } from "@/components/leaderboard/StatsToggle";
 import { PeriodFilter } from "@/components/leaderboard/PeriodFilter";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
+import { ArchiveList } from "@/components/leaderboard/ArchiveList";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -106,6 +107,7 @@ export default function LeaderboardPage() {
 
   const fetchLeaderboard = useCallback(async () => {
     if (!category && !isTagMode) return;
+    if (period === "archive") return;  // Archive mode uses its own data source
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -216,24 +218,30 @@ export default function LeaderboardPage() {
         isLoggedIn={isLoggedIn} requireAuth={requireAuth}
       />
 
-      {warmingUp && (
-        <div className="mb-4 p-4 bg-accent/10 border border-accent/30 rounded-lg flex items-center gap-3" data-testid="warming-up-banner">
-          <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
-          <div>
-            <p className="text-sm font-medium text-accent">Warming up...</p>
-            <p className="text-xs text-muted-foreground">Leaderboard data is being prepared. This only happens once after deployment.</p>
-          </div>
-        </div>
-      )}
+      {period === "archive" ? (
+        <ArchiveList category={category} />
+      ) : (
+        <>
+          {warmingUp && (
+            <div className="mb-4 p-4 bg-accent/10 border border-accent/30 rounded-lg flex items-center gap-3" data-testid="warming-up-banner">
+              <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
+              <div>
+                <p className="text-sm font-medium text-accent">Warming up...</p>
+                <p className="text-xs text-muted-foreground">Leaderboard data is being prepared. This only happens once after deployment.</p>
+              </div>
+            </div>
+          )}
 
-      <LeaderboardTable
-        leaderboard={leaderboard} loading={loading} showCatCol={isTagMode}
-        hasSelectedTags={hasSelectedTags} globalStats={globalStats}
-        debouncedKeyword={debouncedKeyword} keyword={keyword}
-        displayCount={displayCount} setDisplayCount={setDisplayCount}
-        sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
-        showRatingCol={showRatingCol} showGapCol={showGapCol}
-      />
+          <LeaderboardTable
+            leaderboard={leaderboard} loading={loading} showCatCol={isTagMode}
+            hasSelectedTags={hasSelectedTags} globalStats={globalStats}
+            debouncedKeyword={debouncedKeyword} keyword={keyword}
+            displayCount={displayCount} setDisplayCount={setDisplayCount}
+            sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
+            showRatingCol={showRatingCol} showGapCol={showGapCol}
+          />
+        </>
+      )}
 
       <div className="mt-6 text-center text-xs text-muted-foreground">
         {hasSelectedTags

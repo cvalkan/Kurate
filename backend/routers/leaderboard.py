@@ -475,6 +475,7 @@ def start_cache_bg():
     if not _bg_task_started:
         asyncio.create_task(_bg_cache_loop())
         asyncio.create_task(_bg_analysis_cache_loop())
+        asyncio.create_task(_bg_archive_loop())
 
 
 async def _bg_analysis_cache_loop():
@@ -501,6 +502,22 @@ async def _bg_analysis_cache_loop():
         except Exception as e:
             logger.warning(f"Analysis cache refresh failed: {e}")
         await asyncio.sleep(300)  # Refresh every 5 minutes
+
+
+
+async def _bg_archive_loop():
+    """Background loop that checks and creates archive snapshots daily at 00:00 UTC."""
+    await asyncio.sleep(30)  # Wait for cache to warm
+    while True:
+        try:
+            await run_archive_snapshots()
+        except Exception as e:
+            logger.warning(f"Archive snapshot check failed: {e}")
+        # Sleep until next day at 00:05 UTC
+        now = datetime.now(timezone.utc)
+        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
+        sleep_seconds = (tomorrow - now).total_seconds()
+        await asyncio.sleep(max(sleep_seconds, 3600))  # At least 1 hour between checks
 
 
 async def _get_cached_leaderboard():
@@ -1666,9 +1683,155 @@ async def sitemap():
         if pid:
             urls.append(f"  <url><loc>{base}/paper/{pid}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>")
 
+    # Add archive pages
+    archives = await db.leaderboard_archives.find(
+        {}, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1}
+    ).to_list(1000)
+    for a in archives:
+        slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
+        urls.append(f"  <url><loc>{base}/leaderboard/{a['category']}/{a['year']}/{slug}</loc><changefreq>never</changefreq><priority>0.6</priority></url>")
+
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     xml += "\n".join(urls)
     xml += "\n</urlset>"
 
     return Response(content=xml, media_type="application/xml")
+
+
+# ─── Weekly Archive System ───────────────────────────────────────────────────
+
+@router.get("/archive/list")
+async def list_archives(category: str = Query(None)):
+    """List available archived leaderboard snapshots for a category."""
+    query = {}
+    if category:
+        query["category"] = category
+    archives = await db.leaderboard_archives.find(
+        query, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1,
+                "period_type": 1, "paper_count": 1, "match_count": 1, "created_at": 1, "label": 1}
+    ).sort([("year", -1), ("week", -1), ("month", -1)]).to_list(200)
+    return {"archives": archives}
+
+
+@router.get("/archive/{category}/{year}/w{week}")
+async def get_weekly_archive(category: str, year: int, week: int):
+    """Get a specific weekly archive snapshot."""
+    doc = await db.leaderboard_archives.find_one(
+        {"category": category, "year": year, "week": week, "period_type": "weekly"},
+        {"_id": 0}
+    )
+    if not doc:
+        return {"status": "not_found"}
+    return doc
+
+
+@router.get("/archive/{category}/{year}/m{month}")
+async def get_monthly_archive(category: str, year: int, month: int):
+    """Get a specific monthly archive snapshot."""
+    doc = await db.leaderboard_archives.find_one(
+        {"category": category, "year": year, "month": month, "period_type": "monthly"},
+        {"_id": 0}
+    )
+    if not doc:
+        return {"status": "not_found"}
+    return doc
+
+
+async def create_archive_snapshot(category: str, period_type: str = "weekly"):
+    """Create a frozen leaderboard snapshot for the given category.
+    Called by the scheduler at the configured interval."""
+    utc_now = datetime.now(timezone.utc)
+    year = utc_now.isocalendar()[0]
+    week = utc_now.isocalendar()[1]
+    month = utc_now.month
+
+    # Check if this snapshot already exists
+    if period_type == "weekly":
+        existing = await db.leaderboard_archives.find_one(
+            {"category": category, "year": year, "week": week, "period_type": "weekly"})
+    else:
+        existing = await db.leaderboard_archives.find_one(
+            {"category": category, "year": year, "month": month, "period_type": "monthly"})
+    if existing:
+        return None  # Already archived
+
+    # Get the current "week" leaderboard from cache
+    cat_data = _cache.get("categories", {}).get(category, {})
+    week_lb = cat_data.get("week", [])
+    if not week_lb:
+        return None
+
+    # Freeze the leaderboard: store essential fields only
+    frozen_entries = []
+    for entry in week_lb:
+        frozen_entries.append({
+            "rank": entry.get("rank"),
+            "id": entry.get("id"),
+            "title": entry.get("title", ""),
+            "authors": entry.get("authors", []),
+            "score": entry.get("score"),
+            "wins": entry.get("wins"),
+            "losses": entry.get("losses"),
+            "comparisons": entry.get("comparisons"),
+            "win_rate": entry.get("win_rate"),
+            "published": entry.get("published"),
+            "link": entry.get("link"),
+            "arxiv_id": entry.get("arxiv_id"),
+            "ai_rating": entry.get("ai_rating"),
+            "sp_score": entry.get("sp_score"),
+        })
+
+    if period_type == "weekly":
+        label = f"Week {week}, {year}"
+    else:
+        month_names = ["", "January", "February", "March", "April", "May", "June",
+                       "July", "August", "September", "October", "November", "December"]
+        label = f"{month_names[month]} {year}"
+
+    doc = {
+        "category": category,
+        "period_type": period_type,
+        "year": year,
+        "week": week if period_type == "weekly" else None,
+        "month": month if period_type == "monthly" else None,
+        "label": label,
+        "paper_count": len(frozen_entries),
+        "match_count": cat_data.get("_matches", 0),
+        "leaderboard": frozen_entries,
+        "created_at": utc_now.isoformat(),
+    }
+
+    await db.leaderboard_archives.insert_one(doc)
+    logger.info(f"Archive snapshot created: {category} {label} ({len(frozen_entries)} papers)")
+    return doc
+
+
+async def run_archive_snapshots():
+    """Check all categories and create snapshots as needed based on admin settings."""
+    from core.auth import get_settings
+    settings = await get_settings()
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+    archive_config = settings.get("archive_frequency", {})
+    default_freq = archive_config.get("default", "weekly")
+
+    utc_now = datetime.now(timezone.utc)
+    # Only run on Mondays for weekly, 1st of month for monthly
+    is_monday = utc_now.weekday() == 0
+    is_first = utc_now.day == 1
+
+    created = 0
+    for cat in active_cats:
+        freq = archive_config.get(cat, default_freq)
+        if freq == "weekly" and is_monday:
+            result = await create_archive_snapshot(cat, "weekly")
+            if result:
+                created += 1
+        elif freq == "monthly" and is_first:
+            result = await create_archive_snapshot(cat, "monthly")
+            if result:
+                created += 1
+
+    if created:
+        logger.info(f"Archive snapshots: {created} new snapshots created")
+    return created

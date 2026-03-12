@@ -2577,3 +2577,62 @@ async def model_rating_status():
 async def stop_model_ratings():
     _model_rating_state["running"] = False
     return {"status": "stopping"}
+
+
+# --- Archive Management ---
+
+@router.post("/archive/snapshot", dependencies=[Depends(verify_admin)])
+async def create_snapshot(request: Request):
+    """Manually create an archive snapshot for a category."""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    category = body.get("category")
+    period_type = body.get("period_type", "weekly")
+    if not category:
+        raise HTTPException(400, "category required")
+    from routers.leaderboard import create_archive_snapshot
+    result = await create_archive_snapshot(category, period_type)
+    if result:
+        return {"status": "created", "label": result["label"], "papers": result["paper_count"]}
+    return {"status": "already_exists"}
+
+
+@router.post("/archive/snapshot-all", dependencies=[Depends(verify_admin)])
+async def create_all_snapshots():
+    """Create archive snapshots for ALL active categories (ignoring day-of-week check)."""
+    from routers.leaderboard import create_archive_snapshot
+    settings = await get_settings()
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+    archive_config = settings.get("archive_frequency", {})
+    default_freq = archive_config.get("default", "weekly")
+    created = 0
+    for cat in active_cats:
+        freq = archive_config.get(cat, default_freq)
+        result = await create_archive_snapshot(cat, freq)
+        if result:
+            created += 1
+    return {"status": "ok", "created": created, "categories": len(active_cats)}
+
+
+@router.post("/archive/set-frequency", dependencies=[Depends(verify_admin)])
+async def set_archive_frequency(request: Request):
+    """Set archive frequency per category. Body: {"category": "cs.RO", "frequency": "weekly"|"monthly"}
+    Or set default: {"default": "weekly"}"""
+    body = await request.json()
+    settings = await get_settings()
+    archive_config = settings.get("archive_frequency", {})
+
+    if "default" in body:
+        archive_config["default"] = body["default"]
+    if "category" in body and "frequency" in body:
+        archive_config[body["category"]] = body["frequency"]
+
+    await db.settings.update_one({"key": "global"}, {"$set": {"archive_frequency": archive_config}})
+    invalidate_settings_cache()
+    return {"status": "ok", "archive_frequency": archive_config}
+
+
+@router.get("/archive/frequency", dependencies=[Depends(verify_admin)])
+async def get_archive_frequency():
+    """Get current archive frequency settings."""
+    settings = await get_settings()
+    return settings.get("archive_frequency", {"default": "weekly"})

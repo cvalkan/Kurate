@@ -1,13 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Clock, Calendar, CalendarDays, Infinity, Search, X, Lock } from "lucide-react";
+import { Clock, Calendar, CalendarDays, Infinity, Search, X, Lock, Archive } from "lucide-react";
 
 const PERIODS = [
   { key: "recent", label: "Most Recent", icon: Clock },
   { key: "week", label: "Last 7 Days", icon: Calendar },
   { key: "month", label: "Last 30 Days", icon: CalendarDays },
   { key: "all", label: "All Time", icon: Infinity },
+  { key: "archive", label: "Archive", icon: Archive },
 ];
 
 export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedIn, requireAuth }) {

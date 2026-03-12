@@ -176,6 +176,10 @@ async def startup():
         await db.summary_bias_matches.create_index([("original_match_id", 1), ("judge_key", 1), ("summary_key", 1)])
         # Ranking snapshots for convergence tracking
         await db.ranking_snapshots.create_index([("category", 1), ("round", -1)])
+        # Leaderboard archives (weekly/monthly frozen snapshots)
+        await db.leaderboard_archives.create_index([("category", 1), ("year", -1), ("week", -1)])
+        await db.leaderboard_archives.create_index([("category", 1), ("year", -1), ("month", -1)])
+        await db.leaderboard_archives.create_index([("category", 1), ("period_type", 1), ("year", -1)])
         # Summarizer-ab task queue (for auto-resume on restart)
         await db.summarizer_ab_tasks.create_index([("dataset_id", 1), ("summarizer", 1)], unique=True)
         logger.info("MongoDB indexes created")
