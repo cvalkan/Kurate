@@ -9,9 +9,9 @@ import { toast } from "sonner";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const TIER_STYLES = {
-  Gold:   { bg: "bg-[#451a03]", border: "border-l-[6px] border-amber-400", text: "text-amber-400", statBg: "bg-amber-400/10" },
-  Silver: { bg: "bg-[#1e293b]", border: "border-l-[6px] border-slate-300", text: "text-slate-300", statBg: "bg-slate-300/10" },
-  Bronze: { bg: "bg-[#431407]", border: "border-l-[6px] border-amber-600", text: "text-amber-600", statBg: "bg-amber-600/10" },
+  Gold:   { bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-700", emoji: "1st" },
+  Silver: { bg: "bg-gray-50",  border: "border-gray-300",  text: "text-gray-600",  emoji: "2nd" },
+  Bronze: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-700", emoji: "3rd" },
 };
 
 export default function BadgePage() {
@@ -90,22 +90,21 @@ export default function BadgePage() {
 
       <div className="container mx-auto px-4 max-w-3xl py-8 md:py-12">
         {/* Badge Card */}
-        <div className={`rounded-xl ${style.border} ${style.bg} p-6 md:p-8 mb-6`} data-testid="badge-card">
-          <div className="flex items-start gap-5 mb-6">
-            <div className="shrink-0 text-center">
-              <div className="font-mono text-5xl md:text-6xl font-bold" style={{ color: data.tier_color }}>
-                #{data.rank}
-              </div>
-              <div className={`text-sm font-bold uppercase tracking-widest mt-1 ${style.text}`}>{data.tier}</div>
+        <div className={`rounded-xl border-2 ${style.border} ${style.bg} p-6 md:p-8 mb-6`} data-testid="badge-card">
+          <div className="flex items-start gap-4 mb-6">
+            <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl md:text-3xl shrink-0`}
+              style={{ backgroundColor: data.tier_color }}>
+              #{data.rank}
             </div>
             <div className="min-w-0">
-              <div className="text-xs text-slate-400 mb-2">
-                {data.category_name} · {data.archive_label}
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-sm font-bold uppercase tracking-wide ${style.text}`}>{data.tier}</span>
+                <span className="text-sm text-muted-foreground">{data.category_name}</span>
               </div>
-              <h1 className="font-heading text-lg md:text-xl font-semibold leading-tight text-white" data-testid="badge-title">
+              <h1 className="font-heading text-lg md:text-xl font-semibold leading-tight" data-testid="badge-title">
                 {data.title}
               </h1>
-              <p className="text-sm text-slate-400 mt-2">
+              <p className="text-sm text-muted-foreground mt-1.5">
                 {data.authors?.slice(0, 5).join(", ")}
                 {data.authors?.length > 5 && ` +${data.authors.length - 5}`}
               </p>
@@ -113,22 +112,27 @@ export default function BadgePage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            {[
-              [data.score, "Elo Score"],
-              [`${data.win_rate}%`, "Win Rate"],
-              [data.comparisons, "Matches"],
-              [`of ${data.paper_count}`, "Papers"],
-            ].map(([val, lbl]) => (
-              <div key={lbl} className={`text-center p-3 rounded-lg ${style.statBg}`}>
-                <div className="font-mono text-xl font-bold text-white">{val}</div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-500 mt-0.5">{lbl}</div>
-              </div>
-            ))}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div className="text-center p-3 bg-white/60 rounded-lg">
+              <div className="font-mono text-xl font-bold">{data.score}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">Elo Score</div>
+            </div>
+            <div className="text-center p-3 bg-white/60 rounded-lg">
+              <div className="font-mono text-xl font-bold">{data.win_rate}%</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">Win Rate</div>
+            </div>
+            <div className="text-center p-3 bg-white/60 rounded-lg">
+              <div className="font-mono text-xl font-bold">{data.comparisons}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">Matches</div>
+            </div>
+            <div className="text-center p-3 bg-white/60 rounded-lg">
+              <div className="font-mono text-xl font-bold">of {data.paper_count}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">Papers</div>
+            </div>
           </div>
 
-          <div className="text-[11px] text-slate-500">
-            Ranked by AI pairwise tournament · PaperSumo by Kurate.org
+          <div className="text-xs text-muted-foreground">
+            {data.archive_label} · Ranked by AI pairwise tournament
           </div>
         </div>
 
