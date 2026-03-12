@@ -21,7 +21,11 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
   useEffect(() => {
     const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    window.addEventListener("scroll", () => setArchiveOpen(false), true);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      window.removeEventListener("scroll", () => setArchiveOpen(false), true);
+    };
   }, []);
 
   const handleArchiveClick = async (archive) => {
