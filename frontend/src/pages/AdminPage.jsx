@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
-  Sliders,
+  Sliders, ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
@@ -214,6 +214,7 @@ export default function AdminPage() {
     { key: "prompt", label: "Prompt", icon: FileText },
     { key: "experiment", label: "Experiment", icon: FlaskConical },
     { key: "suggestions", label: "Suggestions", icon: MessageSquare },
+    { key: "claims", label: "Claims", icon: ShieldCheck },
     { key: "users", label: "Users", icon: Users },
   ];
 
@@ -431,6 +432,8 @@ export default function AdminPage() {
 
       {activeTab === "suggestions" && <AdminSuggestions />}
 
+      {activeTab === "claims" && <AdminClaims />}
+
       {activeTab === "users" && <AdminUsers />}
     </div>
   );
@@ -520,6 +523,87 @@ function AdminSuggestions() {
     </div>
   );
 }
+
+function AdminClaims() {
+  const [claims, setClaims] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchClaims = async () => {
+    try {
+      const res = await axios.get(`${API}/api/claim/admin/pending`, { headers: getAdminHeaders() });
+      setClaims(res.data.pending || []);
+    } catch (err) {
+      console.error("Failed to load claims:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchClaims(); }, []);
+
+  const handleAction = async (paperId, orcidId, action) => {
+    try {
+      await axios.post(`${API}/api/claim/admin/${action}/${paperId}/${orcidId}`, {}, { headers: getAdminHeaders() });
+      toast.success(action === "approve" ? "Claim approved — badge granted" : "Claim rejected");
+      fetchClaims();
+    } catch { toast.error("Action failed"); }
+  };
+
+  if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-secondary/30 rounded-lg animate-pulse" />)}</div>;
+
+  return (
+    <div className="space-y-4" data-testid="admin-claims">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-lg font-medium">Author Claim Requests</h2>
+        <span className="text-xs text-muted-foreground">{claims.length} pending</span>
+      </div>
+
+      {claims.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground border border-border rounded-lg">
+          <ShieldCheck className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No pending claims.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {claims.map((c, i) => (
+            <div key={`${c.paper_id}-${c.claimer_orcid}`} className="p-4 border border-border rounded-lg bg-background" data-testid={`claim-${i}`}>
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{c.paper_title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Authors: {(c.paper_authors || []).slice(0, 4).join(", ")}
+                    {(c.paper_authors || []).length > 4 && ` +${c.paper_authors.length - 4}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button size="sm" className="h-7 text-xs gap-1 bg-green-600 hover:bg-green-700" onClick={() => handleAction(c.paper_id, c.claimer_orcid, "approve")} data-testid={`approve-${i}`}>
+                    Approve
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-red-600 hover:bg-red-50" onClick={() => handleAction(c.paper_id, c.claimer_orcid, "reject")} data-testid={`reject-${i}`}>
+                    Reject
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                <span className="font-medium text-foreground">{c.claimer_name}</span>
+                <a href={`https://orcid.org/${c.claimer_orcid}`} target="_blank" rel="noopener noreferrer" className="text-[#A6CE39] hover:underline">
+                  {c.claimer_orcid}
+                </a>
+                {c.arxiv_id && (
+                  <a href={`https://arxiv.org/abs/${c.arxiv_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                    arXiv:{c.arxiv_id}
+                  </a>
+                )}
+                <span>{c.claimed_at ? new Date(c.claimed_at).toLocaleString() : ""}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function AdminUsers() {
   const [users, setUsers] = useState([]);
