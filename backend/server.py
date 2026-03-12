@@ -18,6 +18,7 @@ from routers.scipost import router as scipost_router
 from routers.qeios import router as qeios_router
 from routers.summary_bias import router as summary_bias_router
 from routers.claims import router as claims_router
+from routers.badges import router as badges_router
 from services.scheduler import start_scheduler
 
 app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
@@ -98,6 +99,7 @@ app.include_router(scipost_router)
 app.include_router(qeios_router)
 app.include_router(summary_bias_router)
 app.include_router(claims_router)
+app.include_router(badges_router)
 
 _cors_raw = os.environ.get("CORS_ORIGINS", "https://kurate.org,https://www.kurate.org,https://papersumo.kurate.org")
 _cors_allow_all = _cors_raw.strip() == "*"
