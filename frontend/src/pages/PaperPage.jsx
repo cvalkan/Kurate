@@ -183,6 +183,7 @@ function AbstractText({ text }) {
 export default function PaperPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [paperBadges, setPaperBadges] = useState([]);
@@ -231,6 +232,7 @@ export default function PaperPage() {
   const { paper, matches, stats } = data;
   const winRate = stats.comparisons > 0 ? Math.round((stats.wins / stats.comparisons) * 100) : 0;
   const summaryEntries = getSummaryEntries(paper.summaries, paper.summary_dates);
+  const isVerifiedAuthor = user?.orcid_id && (paper.claimed_by || []).some(c => c.orcid_id === user.orcid_id && c.verified);
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-4xl py-6 md:py-10">
@@ -297,8 +299,8 @@ export default function PaperPage() {
         claims={paper.claimed_by || []}
       />
 
-      {/* Tournament Badges */}
-      {paperBadges.length > 0 && (
+      {/* Tournament Badges — only visible to verified authors */}
+      {isVerifiedAuthor && paperBadges.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-6" data-testid="paper-badges">
           <Trophy className="h-4 w-4 text-muted-foreground" />
           {paperBadges.map((b, i) => (
