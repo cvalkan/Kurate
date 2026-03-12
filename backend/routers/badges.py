@@ -158,7 +158,7 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
     canonical_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/share"
 
     og_title = f"#{rank} {tier_name} in {cat_name} — {archive_label}"
-    og_desc = f"{title} by {authors} | Score {score} | PaperSumo by Kurate.org"
+    og_desc = f"{title} by {authors} | Ranked by scientific impact | Kurate.org"
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -185,156 +185,154 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 
 
 
-def _draw_trophy(draw, x, y, size, color):
-    """Draw a simple trophy icon using geometric shapes."""
-    s = size
-    # Cup body (trapezoid via polygon)
-    draw.polygon([
-        (x - s * 0.4, y - s * 0.1),
-        (x + s * 0.4, y - s * 0.1),
-        (x + s * 0.25, y + s * 0.35),
-        (x - s * 0.25, y + s * 0.35),
-    ], fill=color)
-    # Cup rim
-    draw.rectangle([(x - s * 0.45, y - s * 0.2), (x + s * 0.45, y - s * 0.1)], fill=color)
-    # Stem
-    draw.rectangle([(x - s * 0.06, y + s * 0.35), (x + s * 0.06, y + s * 0.5)], fill=color)
-    # Base
-    draw.rectangle([(x - s * 0.2, y + s * 0.47), (x + s * 0.2, y + s * 0.55)], fill=color)
-
-
 def _render_badge_image(data: dict) -> bytes:
-    """Render a rich card badge image using Pillow."""
+    """Render a light card badge image (1200x630) matching the frontend design."""
     W, H = 1200, 630
     paper = data["paper"]
     tier = data["tier"]
     rank = paper["rank"]
 
-    # Colors
-    bg_color = (15, 15, 25)
-    card_color = (25, 25, 40)
-    text_white = (240, 240, 245)
-    text_muted = (140, 140, 160)
-    text_dim = (80, 85, 100)
+    # Tier colors
     tier_hex = tier["color"]
     tier_rgb = tuple(int(tier_hex.lstrip("#")[i:i+2], 16) for i in (0, 2, 4))
-    accent = (100, 120, 255)
+    tier_bg = {
+        "Gold": (255, 251, 235), "Silver": (249, 250, 251), "Bronze": (255, 247, 237),
+    }.get(tier["name"], (249, 250, 251))
 
-    img = Image.new("RGB", (W, H), bg_color)
+    # Colors — light theme
+    bg = (245, 245, 248)
+    card_bg = tier_bg
+    text_dark = (30, 30, 40)
+    text_body = (60, 60, 75)
+    text_muted = (130, 130, 150)
+    stat_bg = (255, 255, 255, 180)
+    border_color = tier_rgb
+    divider = (210, 210, 220)
+
+    img = Image.new("RGB", (W, H), bg)
     draw = ImageDraw.Draw(img)
 
     # Fonts
     try:
-        font_title = ImageFont.truetype(FONT_BOLD, 32)
-        font_large = ImageFont.truetype(FONT_BOLD, 72)
-        font_tier = ImageFont.truetype(FONT_BOLD, 28)
-        font_body = ImageFont.truetype(FONT_REGULAR, 22)
-        font_small = ImageFont.truetype(FONT_REGULAR, 18)
-        font_logo = ImageFont.truetype(FONT_BOLD, 22)
-        font_logo_sm = ImageFont.truetype(FONT_REGULAR, 16)
-        font_stat_val = ImageFont.truetype(FONT_BOLD, 26)
-        font_stat_lbl = ImageFont.truetype(FONT_REGULAR, 14)
+        f_header = ImageFont.truetype(FONT_BOLD, 20)
+        f_tier = ImageFont.truetype(FONT_BOLD, 16)
+        f_title = ImageFont.truetype(FONT_BOLD, 34)
+        f_rank = ImageFont.truetype(FONT_BOLD, 56)
+        f_authors = ImageFont.truetype(FONT_REGULAR, 22)
+        f_stat_val = ImageFont.truetype(FONT_BOLD, 32)
+        f_stat_lbl = ImageFont.truetype(FONT_REGULAR, 14)
+        f_footer = ImageFont.truetype(FONT_REGULAR, 16)
+        f_brand = ImageFont.truetype(FONT_BOLD, 16)
     except Exception:
-        font_title = font_large = font_tier = font_body = font_small = ImageFont.load_default()
-        font_logo = font_logo_sm = font_stat_val = font_stat_lbl = font_small
+        f_header = f_tier = f_title = f_rank = f_authors = f_stat_val = f_stat_lbl = f_footer = f_brand = ImageFont.load_default()
 
-    # Card background
-    card_margin = 40
-    draw.rounded_rectangle(
-        [card_margin, card_margin, W - card_margin, H - card_margin],
-        radius=20, fill=card_color,
-    )
+    # Card with border
+    m = 30
+    # Border (drawn as a slightly larger rounded rect behind the card)
+    draw.rounded_rectangle([m - 2, m - 2, W - m + 2, H - m + 2], radius=18, fill=border_color)
+    draw.rounded_rectangle([m, m, W - m, H - m], radius=16, fill=card_bg)
 
-    # === TOP ROW: Logo (left) + Category/Period (right) ===
-    header_y = 55
+    pad = 50  # inner padding from card edge
 
-    # Trophy icon + PaperSumo brand (top-left)
-    _draw_trophy(draw, 85, header_y + 12, 22, accent)
-    logo_x = 105
-    draw.text((logo_x, header_y - 2), "Paper", fill=text_white, font=font_logo)
-    paper_bbox = draw.textbbox((0, 0), "Paper", font=font_logo)
-    draw.text((logo_x + paper_bbox[2] - paper_bbox[0], header_y - 2), "Sumo", fill=accent, font=font_logo)
-    sumo_bbox = draw.textbbox((0, 0), "Sumo", font=font_logo)
-    by_x = logo_x + paper_bbox[2] - paper_bbox[0] + sumo_bbox[2] - sumo_bbox[0] + 8
-    draw.text((by_x, header_y + 3), "by Kurate.org", fill=text_dim, font=font_logo_sm)
+    # === TOP ROW: Period + Category (left) · Kurate.org (right) ===
+    top_y = m + 30
+    header_text = f"{data['archive_label']}  ·  {data['category_name']}"
+    draw.text((m + pad, top_y), header_text, fill=text_dark, font=f_header)
 
-    # Category + Period (top-right)
-    period_text = f"{data['category_name']}  ·  {data['archive_label']}"
-    period_bbox = draw.textbbox((0, 0), period_text, font=font_small)
-    draw.text((W - 60 - (period_bbox[2] - period_bbox[0]), header_y + 2), period_text, fill=text_muted, font=font_small)
+    # Kurate.org brand (right)
+    brand = "Kurate.org"
+    brand_bbox = draw.textbbox((0, 0), brand, font=f_brand)
+    draw.text((W - m - pad - (brand_bbox[2] - brand_bbox[0]), top_y + 2), brand, fill=text_muted, font=f_brand)
 
-    # Thin separator
-    draw.line([(60, header_y + 38), (W - 60, header_y + 38)], fill=(40, 42, 55), width=1)
+    # === MEDAL + TITLE + AUTHORS ===
+    section_y = top_y + 45
 
-    # === MAIN SECTION: Medal + Content ===
-    main_y = header_y + 55
-
-    # Left: Medal circle
-    cx, cy = 160, main_y + 100
-    medal_r = 65
-    for i in range(3):
-        r = medal_r + 7 - i * 3
+    # Medal circle
+    medal_r = 48
+    cx = m + pad + medal_r + 5
+    cy = section_y + medal_r + 15
+    # Glow rings
+    for i in range(2):
+        r = medal_r + 5 - i * 3
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=None, outline=tier_rgb, width=2)
     draw.ellipse([cx - medal_r, cy - medal_r, cx + medal_r, cy + medal_r], fill=tier_rgb)
     rank_text = f"#{rank}"
-    rank_bbox = draw.textbbox((0, 0), rank_text, font=font_large)
-    rank_w = rank_bbox[2] - rank_bbox[0]
-    rank_h = rank_bbox[3] - rank_bbox[1]
-    draw.text((cx - rank_w // 2, cy - rank_h // 2 - 6), rank_text, fill=(255, 255, 255), font=font_large)
+    rank_bbox = draw.textbbox((0, 0), rank_text, font=f_rank)
+    rw = rank_bbox[2] - rank_bbox[0]
+    rh = rank_bbox[3] - rank_bbox[1]
+    draw.text((cx - rw // 2, cy - rh // 2 - 4), rank_text, fill=(255, 255, 255), font=f_rank)
 
-    # Right: Content
-    content_x = 270
-    content_w = W - content_x - 60
+    # Content right of medal
+    content_x = cx + medal_r + 25
+    content_w = W - m - pad - content_x
 
     # Tier label
-    draw.text((content_x, main_y), tier["name"].upper(), fill=tier_rgb, font=font_tier)
+    tier_text = tier["name"].upper()
+    draw.text((content_x, section_y), tier_text, fill=tier_rgb, font=f_tier)
 
-    # Paper title (2 lines max)
-    title_y = main_y + 45
+    # Title (max 2 lines)
+    title_y = section_y + 28
     title = paper.get("title", "")
     words = title.split()
     lines = []
-    current_line = ""
+    cur = ""
     for word in words:
-        test = f"{current_line} {word}".strip()
-        bbox = draw.textbbox((0, 0), test, font=font_title)
+        test = f"{cur} {word}".strip()
+        bbox = draw.textbbox((0, 0), test, font=f_title)
         if bbox[2] - bbox[0] > content_w:
-            if current_line:
-                lines.append(current_line)
-            current_line = word
+            if cur:
+                lines.append(cur)
+            cur = word
         else:
-            current_line = test
-    if current_line:
-        lines.append(current_line)
+            cur = test
+    if cur:
+        lines.append(cur)
     for i, line in enumerate(lines[:2]):
         if i == 1 and len(lines) > 2:
             line = line[:-3] + "..." if len(line) > 3 else "..."
-        draw.text((content_x, title_y + i * 40), line, fill=text_white, font=font_title)
+        draw.text((content_x, title_y + i * 44), line, fill=text_dark, font=f_title)
 
     # Authors
-    authors_y = title_y + 40 * min(len(lines), 2) + 12
+    authors_y = title_y + 44 * min(len(lines), 2) + 10
     authors = paper.get("authors", [])
     authors_str = ", ".join(authors[:4])
     if len(authors) > 4:
         authors_str += f" +{len(authors) - 4}"
-    draw.text((content_x, authors_y), _truncate(authors_str, 85), fill=text_muted, font=font_body)
+    draw.text((content_x, authors_y), _truncate(authors_str, 80), fill=text_muted, font=f_authors)
 
-    # === BOTTOM: Stats row ===
-    stats_y = H - 145
-    draw.line([(60, stats_y - 15), (W - 60, stats_y - 15)], fill=(40, 42, 55), width=1)
+    # === STATS ROW (3 boxes) ===
+    stats_y = H - m - 145
+    draw.line([(m + pad, stats_y - 10), (W - m - pad, stats_y - 10)], fill=divider, width=1)
 
-    paper_count = data['paper_count']
+    paper_count = data["paper_count"]
     stats = [
-        (str(paper.get("score", "?")), "ELO SCORE"),
-        (f"{paper.get('win_rate', '?')}%", "WIN RATE"),
-        (f"Top {rank} of {paper_count}", "RANKING"),
+        (str(paper.get("score", "?")), "Elo Score"),
+        (f"{paper.get('win_rate', '?')}%", "Win Rate"),
+        (f"Top {rank} of {paper_count}", "Ranking"),
     ]
 
-    col_w = content_w // len(stats)
+    total_w = W - 2 * m - 2 * pad
+    box_w = (total_w - 20) // 3  # 10px gap between boxes
     for i, (val, label) in enumerate(stats):
-        sx = content_x + i * col_w
-        draw.text((sx, stats_y), val, fill=text_white, font=font_stat_val)
-        draw.text((sx, stats_y + 35), label, fill=text_dim, font=font_stat_lbl)
+        bx = m + pad + i * (box_w + 10)
+        # Stat box background
+        draw.rounded_rectangle([(bx, stats_y), (bx + box_w, stats_y + 75)], radius=10, fill=(255, 255, 255))
+        # Value (centered)
+        vbbox = draw.textbbox((0, 0), val, font=f_stat_val)
+        vw = vbbox[2] - vbbox[0]
+        draw.text((bx + box_w // 2 - vw // 2, stats_y + 10), val, fill=text_dark, font=f_stat_val)
+        # Label (centered)
+        lbbox = draw.textbbox((0, 0), label, font=f_stat_lbl)
+        lw = lbbox[2] - lbbox[0]
+        draw.text((bx + box_w // 2 - lw // 2, stats_y + 50), label, fill=text_muted, font=f_stat_lbl)
+
+    # === FOOTER ===
+    footer_y = H - m - 42
+    draw.text((m + pad, footer_y), "Ranked by scientific impact", fill=text_muted, font=f_footer)
+    # Kurate.org right
+    k_text = "Kurate.org"
+    k_bbox = draw.textbbox((0, 0), k_text, font=f_brand)
+    draw.text((W - m - pad - (k_bbox[2] - k_bbox[0]), footer_y), k_text, fill=text_muted, font=f_brand)
 
     # Export
     buf = io.BytesIO()

@@ -9,9 +9,9 @@ import { toast } from "sonner";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const TIER_STYLES = {
-  Gold:   { bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-700", emoji: "1st" },
-  Silver: { bg: "bg-gray-50",  border: "border-gray-300",  text: "text-gray-600",  emoji: "2nd" },
-  Bronze: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-700", emoji: "3rd" },
+  Gold:   { bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-700", medal: "bg-[#D4A017]" },
+  Silver: { bg: "bg-gray-50",  border: "border-gray-300",  text: "text-gray-500",  medal: "bg-[#8A8A8A]" },
+  Bronze: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-700", medal: "bg-[#CD7F32]" },
 };
 
 export default function BadgePage() {
@@ -75,9 +75,9 @@ export default function BadgePage() {
   return (
     <>
       <Helmet>
-        <title>{`#${data.rank} ${data.tier} — ${data.title} | PaperSumo`}</title>
+        <title>{`#${data.rank} ${data.tier} — ${data.title} | Kurate.org`}</title>
         <meta property="og:title" content={`#${data.rank} ${data.tier} in ${data.category_name} — ${data.archive_label}`} />
-        <meta property="og:description" content={`${data.title} by ${data.authors?.slice(0, 3).join(", ")}${data.authors?.length > 3 ? " et al." : ""}`} />
+        <meta property="og:description" content={`${data.title} | Ranked by scientific impact | Kurate.org`} />
         <meta property="og:image" content={imageUrl} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
@@ -90,18 +90,23 @@ export default function BadgePage() {
 
       <div className="container mx-auto px-4 max-w-3xl py-8 md:py-12">
         {/* Badge Card */}
-        <div className={`rounded-xl border-2 ${style.border} ${style.bg} p-6 md:p-8 mb-6`} data-testid="badge-card">
+        <div className={`rounded-xl border ${style.border} ${style.bg} p-6 md:p-8 mb-6 shadow-sm`} data-testid="badge-card">
+          {/* Top: Period + Category + Kurate brand */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="text-sm font-medium text-foreground">
+              {data.archive_label} · {data.category_name}
+            </div>
+            <span className="text-xs text-muted-foreground font-medium tracking-wide">Kurate.org</span>
+          </div>
+
+          {/* Medal + Title + Authors */}
           <div className="flex items-start gap-4 mb-6">
-            <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl md:text-3xl shrink-0`}
-              style={{ backgroundColor: data.tier_color }}>
+            <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl md:text-3xl shrink-0 ${style.medal}`}>
               #{data.rank}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`text-sm font-bold uppercase tracking-wide ${style.text}`}>{data.tier}</span>
-                <span className="text-sm text-muted-foreground">{data.category_name}</span>
-              </div>
-              <h1 className="font-heading text-lg md:text-xl font-semibold leading-tight" data-testid="badge-title">
+              <span className={`text-xs font-bold uppercase tracking-widest ${style.text}`}>{data.tier}</span>
+              <h1 className="font-heading text-lg md:text-xl font-semibold leading-tight mt-1" data-testid="badge-title">
                 {data.title}
               </h1>
               <p className="text-sm text-muted-foreground mt-1.5">
@@ -111,28 +116,24 @@ export default function BadgePage() {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            <div className="text-center p-3 bg-white/60 rounded-lg">
+          {/* Stats: Score, Win Rate, Top X of Y */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="text-center p-3 bg-white/70 rounded-lg">
               <div className="font-mono text-xl font-bold">{data.score}</div>
               <div className="text-[11px] text-muted-foreground mt-0.5">Elo Score</div>
             </div>
-            <div className="text-center p-3 bg-white/60 rounded-lg">
+            <div className="text-center p-3 bg-white/70 rounded-lg">
               <div className="font-mono text-xl font-bold">{data.win_rate}%</div>
               <div className="text-[11px] text-muted-foreground mt-0.5">Win Rate</div>
             </div>
-            <div className="text-center p-3 bg-white/60 rounded-lg">
-              <div className="font-mono text-xl font-bold">{data.comparisons}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Matches</div>
-            </div>
-            <div className="text-center p-3 bg-white/60 rounded-lg">
-              <div className="font-mono text-xl font-bold">of {data.paper_count}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Papers</div>
+            <div className="text-center p-3 bg-white/70 rounded-lg">
+              <div className="font-mono text-xl font-bold">Top {data.rank} of {data.paper_count}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">Ranking</div>
             </div>
           </div>
 
           <div className="text-xs text-muted-foreground">
-            {data.archive_label} · Ranked by AI pairwise tournament
+            Ranked by scientific impact · Kurate.org
           </div>
         </div>
 
@@ -156,11 +157,6 @@ export default function BadgePage() {
               arXiv:{data.arxiv_id} <ExternalLink className="h-3 w-3" />
             </a>
           )}
-        </div>
-
-        {/* OG Image preview */}
-        <div className="rounded-lg overflow-hidden border border-border mb-6" data-testid="badge-image-preview">
-          <img src={imageUrl} alt={`Badge for ${data.title}`} className="w-full" loading="lazy" />
         </div>
 
         {/* CTA */}
