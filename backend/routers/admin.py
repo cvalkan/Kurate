@@ -2754,7 +2754,7 @@ async def backfill_archives():
                 "month": None,
                 "label": f"Week {week}, {year}",
                 "paper_count": len(frozen),
-                "match_count": len(cat_matches),
+                "match_count": sum((e.get("comparisons") or 0) for e in frozen) // 2,
                 "leaderboard": frozen,
                 "created_at": monday.isoformat(),
             }

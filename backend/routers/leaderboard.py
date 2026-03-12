@@ -1808,7 +1808,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
         "month": month if period_type == "monthly" else None,
         "label": label,
         "paper_count": len(frozen_entries),
-        "match_count": cat_data.get("_matches", 0),
+        "match_count": sum(e.get("comparisons") or 0 for e in frozen_entries) // 2,
         "leaderboard": frozen_entries,
         "created_at": utc_now.isoformat(),
     }
