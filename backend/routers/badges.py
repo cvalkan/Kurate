@@ -246,22 +246,19 @@ def _render_badge_image(data: dict) -> bytes:
     M = 30; P = 50
     CW = W - 2*M - 2*P
 
-    # Row 1: header (y=78)
     hdr_y = 78
-
-    # Row 2: content starts at y=115
-    content_y = 115
+    content_y = 100  # tighter: was 115
     medal_r = 48
     medal_cx = M + P + medal_r
-    medal_cy = content_y + medal_r + 22
+    medal_cy = content_y + medal_r + 18
     tx = medal_cx + medal_r + 25
 
     medal_svg = _svg_medal(medal_cx, medal_cy, medal_r, tier_name, rank)
 
-    # Title word wrap
+    # Title
     title_lines = _svg_wordwrap(paper.get("title", ""), 36)
-    tier_lbl_y = content_y + 18
-    title_y0 = tier_lbl_y + 35
+    tier_lbl_y = content_y + 14
+    title_y0 = tier_lbl_y + 32
     title_svg = ""
     for i, line in enumerate(title_lines[:2]):
         d = _esc(line)
@@ -276,9 +273,26 @@ def _render_badge_image(data: dict) -> bytes:
         a_str += f" +{len(authors) - 4}"
     auth_y = title_y0 + min(len(title_lines), 2) * 44 + 8
 
-    # Stats: tight after authors, min y=390
+    # Categories + publication date (new row after authors)
+    categories = paper.get("categories") or [data.get("category", "")]
+    pub_date = paper.get("published", "")
+    if pub_date:
+        try:
+            from datetime import datetime as _dt
+            pub_dt = _dt.fromisoformat(pub_date.replace("Z", "+00:00"))
+            pub_str = pub_dt.strftime("%b %d, %Y")
+        except Exception:
+            pub_str = ""
+    else:
+        pub_str = ""
+    cats_str = " · ".join(categories[:3])
+    if pub_str:
+        cats_str += f"  ·  {pub_str}"
+    meta_y = auth_y + 30
+
+    # Stats: tight after metadata
     stats_h = 80
-    sy = max(auth_y + 45, 390)
+    sy = max(meta_y + 35, 390)
     bw = (CW - 24) // 3
     paper_count = data["paper_count"]
     stats = [
@@ -295,7 +309,7 @@ def _render_badge_image(data: dict) -> bytes:
         <text x="{bx + bw // 2}" y="{sy + 60}" font-family="Liberation Sans" font-size="17" fill="{muted}" text-anchor="middle">{_esc(label)}</text>
         """
 
-    footer_y = H - M - 16
+    footer_y = sy + stats_h + 30  # tight below stats
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
   <rect width="{W}" height="{H}" fill="#f5f5f8"/>
@@ -316,12 +330,13 @@ def _render_badge_image(data: dict) -> bytes:
   <text x="{tx}" y="{tier_lbl_y}" font-family="Liberation Sans" font-weight="bold" font-size="20" fill="{tier_hex}">{tier_name.upper()}</text>
   {title_svg}
   <text x="{tx}" y="{auth_y}" font-family="Liberation Sans" font-size="23" fill="{muted}">{_esc(a_str[:70])}</text>
+  <text x="{tx}" y="{meta_y}" font-family="Liberation Sans" font-size="19" fill="{muted}">{_esc(cats_str)}</text>
 
   <line x1="{M+P}" y1="{sy-10}" x2="{W-M-P}" y2="{sy-10}" stroke="#d4d4dc" stroke-width="1"/>
 
   {stats_svg}
 
-  <text x="{M+P}" y="{footer_y}" font-family="Liberation Sans" font-size="18" fill="{muted}">
+  <text x="{M+P}" y="{footer_y}" font-family="Liberation Sans" font-size="22" fill="{muted}">
     Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament
   </text>
 </svg>"""
