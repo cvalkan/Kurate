@@ -53,12 +53,12 @@ export default function BadgePage() {
   }
 
   const style = TIER_STYLES[data.tier] || TIER_STYLES.Gold;
-  const badgeUrl = window.location.href;
+  const shareUrl = `${API}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
   const imageUrl = `${API}${data.image_url}`;
-  const tweetText = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} (${data.archive_label}) on @KurateAI!\n\n${badgeUrl}`;
+  const tweetText = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} (${data.archive_label}) on @KurateAI!\n\n${shareUrl}`;
 
   const copyLink = () => {
-    navigator.clipboard.writeText(badgeUrl);
+    navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     toast.success("Link copied!");
     setTimeout(() => setCopied(false), 2000);
@@ -69,7 +69,7 @@ export default function BadgePage() {
   };
 
   const shareLinkedIn = () => {
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(badgeUrl)}`, "_blank");
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, "_blank");
   };
 
   return (

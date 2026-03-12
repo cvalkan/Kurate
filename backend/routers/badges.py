@@ -2,8 +2,8 @@
 
 import io
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import Response
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import Response, HTMLResponse
 from PIL import Image, ImageDraw, ImageFont
 from typing import Optional
 
@@ -102,6 +102,86 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
     img_bytes = _render_badge_image(data)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+@router.get("/{category}/{year}/w{week}/{paper_id}/share", response_class=HTMLResponse)
+async def get_badge_share_page(category: str, year: int, week: int, paper_id: str, request: Request):
+    """Server-rendered HTML page with OG meta tags for social sharing.
+    Crawlers (Twitter, LinkedIn) get the OG tags. Browsers get redirected to the SPA."""
+    data = await _get_badge_data(category, year, week, paper_id)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", ""))
+    scheme = request.headers.get("x-forwarded-proto", "https")
+    base_url = f"{scheme}://{host}"
+    return _render_share_html(data, category, year, f"w{week}", paper_id, base_url)
+
+
+@router.get("/{category}/{year}/m{month}/{paper_id}/share", response_class=HTMLResponse)
+async def get_monthly_badge_share_page(category: str, year: int, month: int, paper_id: str, request: Request):
+    """Server-rendered share page for monthly badges."""
+    archive = await db.leaderboard_archives.find_one(
+        {"category": category, "year": year, "month": month, "period_type": "monthly"}, {"_id": 0})
+    if not archive:
+        raise HTTPException(404, "Archive not found")
+    lb = archive.get("leaderboard", [])
+    paper = next((p for p in lb if p.get("id") == paper_id), None)
+    if not paper:
+        raise HTTPException(404, "Paper not found")
+    tier = _get_tier(paper["rank"])
+    if not tier:
+        raise HTTPException(404, "Not in top 3")
+    data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
+            "category": category, "category_name": CATEGORIES.get(category, category),
+            "paper_count": archive.get("paper_count", len(lb)), "year": year}
+    base_url = f"{request.headers.get('x-forwarded-proto', 'https')}://{request.headers.get('x-forwarded-host', request.headers.get('host', ''))}"
+    return _render_share_html(data, category, year, f"m{month}", paper_id, base_url)
+
+
+def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id: str, base_url: str) -> str:
+    """Generate HTML with OG meta tags for social crawlers + browser redirect."""
+    import html as html_mod
+    p = data["paper"]
+    tier = data["tier"]
+    title = html_mod.escape(p.get("title", ""))
+    authors = html_mod.escape(", ".join(p.get("authors", [])[:3]))
+    if len(p.get("authors", [])) > 3:
+        authors += f" +{len(p['authors']) - 3}"
+    cat_name = html_mod.escape(data["category_name"])
+    archive_label = html_mod.escape(data["archive_label"])
+    rank = p["rank"]
+    score = p.get("score", "?")
+    tier_name = tier["name"]
+
+    # Absolute URLs for social crawlers
+    image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png"
+    spa_url = f"/badge/{category}/{year}/{slug}/{paper_id}"
+    canonical_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/share"
+
+    og_title = f"#{rank} {tier_name} in {cat_name} — {archive_label}"
+    og_desc = f"{title} by {authors} | Score {score} | PaperSumo by Kurate.org"
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{og_title} | PaperSumo</title>
+<meta property="og:title" content="{og_title}">
+<meta property="og:description" content="{og_desc}">
+<meta property="og:image" content="{image_url}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="{canonical_url}">
+<meta property="og:type" content="article">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{og_title}">
+<meta name="twitter:description" content="{og_desc}">
+<meta name="twitter:image" content="{image_url}">
+<meta http-equiv="refresh" content="0;url={spa_url}">
+</head>
+<body>
+<p>Redirecting to <a href="{spa_url}">badge page</a>...</p>
+</body>
+</html>"""
+
 
 
 def _render_badge_image(data: dict) -> bytes:
