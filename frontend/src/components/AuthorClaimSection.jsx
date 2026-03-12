@@ -123,6 +123,23 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
         </div>
       )}
 
+      {/* Prompt for non-logged-in users */}
+      {!user && (
+        <div className="p-3 bg-secondary/30 rounded-lg border border-border" data-testid="claim-panel-guest">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Are you an author?</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Sign in and verify via ORCID to get a verified badge
+              </p>
+            </div>
+            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => window.dispatchEvent(new Event("open-auth-modal"))} data-testid="sign-in-to-claim-btn">
+              Sign in to claim
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Already claimed by this user (pending) */}
       {user && userClaim && !userClaim.verified && !claimResult && (
         <div className="p-3 rounded-lg border bg-amber-50 border-amber-200" data-testid="claim-pending">
