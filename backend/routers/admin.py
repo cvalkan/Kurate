@@ -2702,9 +2702,8 @@ async def backfill_archives():
         year = monday.isocalendar()[0]
         week = monday.isocalendar()[1]
         week_start = monday - timedelta(days=7)
-        week_end = monday  # Matches up to the END of this week (= start of next week)
-        # Use next Monday as cutoff so the archive captures the full week's tournament activity
-        match_cutoff = monday + timedelta(days=7)
+        # Use all matches up to now — the archive captures each cohort's current tournament state
+        match_cutoff = utc_now
 
         for cat in active_cats:
             existing = await db.leaderboard_archives.find_one(

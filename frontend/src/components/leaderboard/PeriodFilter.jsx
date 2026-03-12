@@ -33,13 +33,21 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
     const slug = archive.period_type === "older"
       ? "older"
       : archive.period_type === "weekly" ? `w${archive.week}` : `m${archive.month}`;
-    const url = archive.period_type === "older"
+    const apiUrl = archive.period_type === "older"
       ? `${API}/api/archive/${archive.category}/older`
       : `${API}/api/archive/${archive.category}/${archive.year}/${slug}`;
     try {
-      const res = await axios.get(url);
+      const res = await axios.get(apiUrl);
       if (res.data.leaderboard) {
         onArchiveSelect(res.data);
+        // Update URL for shareability (without triggering React re-render)
+        const shareSlug = archive.period_type === "older" ? "older"
+          : archive.period_type === "weekly" ? `${archive.year}-w${archive.week}`
+          : `${archive.year}-m${archive.month}`;
+        const params = new URLSearchParams(window.location.search);
+        params.set("archive", shareSlug);
+        params.delete("period");
+        window.history.replaceState(null, "", `?${params.toString()}`);
       }
     } catch (e) {
       console.error("Failed to load archive:", e);
@@ -63,7 +71,13 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
             </Tooltip>
           ) : (
             <Button key={p.key} variant={period === p.key ? "default" : "ghost"} size="sm"
-              onClick={() => { setPeriod(p.key); if (onArchiveSelect) onArchiveSelect(null); }}
+              onClick={() => {
+                setPeriod(p.key);
+                if (onArchiveSelect) onArchiveSelect(null);
+                // Clear archive URL param
+                const params = new URLSearchParams(window.location.search);
+                if (params.has("archive")) { params.delete("archive"); window.history.replaceState(null, "", `?${params.toString()}`); }
+              }}
               className="gap-1.5 text-xs h-8 shrink-0" data-testid={`filter-${p.key}`}>
               <Icon className="h-3.5 w-3.5" /> {p.label}
             </Button>

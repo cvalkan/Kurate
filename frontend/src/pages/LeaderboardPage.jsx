@@ -29,7 +29,7 @@ export default function LeaderboardPage() {
   const [showRatingCol, setShowRatingCol] = useState(true);
   const [showGapCol, setShowGapCol] = useState(true);
   const [archives, setArchives] = useState([]);
-  const [activeArchive, setActiveArchive] = useState(null); // {label, leaderboard, ...}
+  const [activeArchive, setActiveArchive] = useState(null);
 
   const [allTags, setAllTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState(() => {
@@ -173,6 +173,26 @@ export default function LeaderboardPage() {
     const interval = setInterval(fetchLeaderboard, 30000);
     return () => clearInterval(interval);
   }, [fetchLeaderboard, isTagMode]);
+
+  // Load archive from URL param on mount (after archives list is populated)
+  useEffect(() => {
+    const slug = new URLSearchParams(window.location.search).get("archive");
+    if (!slug || !archives.length || activeArchive) return;
+    const match = archives.find(a => {
+      const s = a.period_type === "older" ? "older"
+        : a.period_type === "weekly" ? `${a.year}-w${a.week}` : `${a.year}-m${a.month}`;
+      return s === slug;
+    });
+    if (!match) return;
+    const apiSlug = match.period_type === "older" ? "older"
+      : match.period_type === "weekly" ? `w${match.week}` : `m${match.month}`;
+    const url = match.period_type === "older"
+      ? `${API}/api/archive/${match.category}/older`
+      : `${API}/api/archive/${match.category}/${match.year}/${apiSlug}`;
+    axios.get(url).then(r => { if (r.data.leaderboard) { setActiveArchive(r.data); setLoading(false); } }).catch(() => {});
+  }, [archives]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
 
   const title = hasSelectedTags
     ? `${selectedTags.join(tagMode === "and" ? " \u2229 " : " \u222A ")} Papers`
