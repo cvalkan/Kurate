@@ -19,6 +19,7 @@ S2_API_KEY = os.environ.get("S2_API_KEY", "")
 
 S2_BASE = "https://api.semanticscholar.org/graph/v1"
 ORCID_BASE = "https://orcid.org"
+ORCID_PUB_API = "https://pub.orcid.org/v3.0"
 
 
 # --- Helpers ---
@@ -27,6 +28,59 @@ async def _get_current_user(request: Request) -> Optional[dict]:
     """Extract user from session (reuse auth module logic)."""
     from routers.auth import _get_current_user as _auth_get_user
     return await _auth_get_user(request)
+
+
+async def _fetch_orcid_verification(orcid_id: str) -> dict:
+    """Fetch ORCID verification status: verified-email flag + public email domains."""
+    result = {"verified_email": False, "verified_primary_email": False, "email_domains": [], "claimed": False}
+
+    # 1. Public API: get history flags (needs client credentials token)
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Get client credentials token
+            token_res = await client.post(
+                f"{ORCID_BASE}/oauth/token",
+                data={
+                    "client_id": ORCID_CLIENT_ID,
+                    "client_secret": ORCID_CLIENT_SECRET,
+                    "grant_type": "client_credentials",
+                    "scope": "/read-public",
+                },
+                headers={"Accept": "application/json"},
+            )
+            if token_res.status_code == 200:
+                access_token = token_res.json().get("access_token")
+                # Fetch record with history
+                rec_res = await client.get(
+                    f"{ORCID_PUB_API}/{orcid_id}/record",
+                    headers={"Accept": "application/json", "Authorization": f"Bearer {access_token}"},
+                )
+                if rec_res.status_code == 200:
+                    data = rec_res.json()
+                    history = data.get("history") or {}
+                    result["verified_email"] = history.get("verified-email", False)
+                    result["verified_primary_email"] = history.get("verified-primary-email", False)
+                    result["claimed"] = history.get("claimed", False)
+    except Exception as e:
+        logger.warning(f"ORCID public API check failed: {e}")
+
+    # 2. Public record JSON: get email domains (if user set visibility to PUBLIC)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            pr_res = await client.get(
+                f"{ORCID_BASE}/{orcid_id}/public-record.json",
+                headers={"Accept": "application/json"},
+            )
+            if pr_res.status_code == 200:
+                pr_data = pr_res.json()
+                email_domains = (pr_data.get("emails") or {}).get("emailDomains") or []
+                for d in email_domains:
+                    if d.get("visibility") == "PUBLIC" and d.get("value"):
+                        result["email_domains"].append(d["value"])
+    except Exception as e:
+        logger.warning(f"ORCID public-record.json check failed: {e}")
+
+    return result
 
 
 def _s2_headers():
@@ -83,10 +137,17 @@ async def _s2_get_author_papers(s2_author_id: str, limit: int = 500) -> list:
     return []
 
 
-async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "") -> dict:
-    """Run multi-signal verification pipeline. Returns {verified, method, confidence}."""
+async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "",
+                             orcid_has_verified_email: bool = False) -> dict:
+    """Run multi-signal verification pipeline. Returns {verified, method, confidence}.
+    
+    Name-based matches (signals 2 & 4) only auto-verify if the ORCID account
+    has a verified email — this prevents gaming via fake ORCID accounts.
+    """
 
-    # Signal 1: S2 paper reverse lookup — check ORCID linkage on S2 (instant, highest confidence)
+    name_match_result = None  # Store best name match for admin context
+
+    # Signal 1: S2 paper reverse lookup — check ORCID linkage on S2 (highest confidence)
     s2_paper = await _s2_lookup_paper(arxiv_id)
     if s2_paper:
         for author in s2_paper.get("authors", []):
@@ -100,21 +161,23 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "")
                     "matched_name": author.get("name"),
                 }
 
-        # Signal 2: S2 paper author name match (high coverage — S2 has most papers)
-        # ORCID proves identity, S2 provides the authoritative author list
+        # Signal 2: S2 paper author name match
         if orcid_name and s2_paper.get("authors"):
             match = _fuzzy_name_match(orcid_name, [a.get("name", "") for a in s2_paper["authors"]])
             if match:
                 matched_author = s2_paper["authors"][match["index"]]
-                return {
-                    "verified": True,
-                    "method": "s2_name_match",
-                    "confidence": match["score"],
-                    "s2_author_id": matched_author.get("authorId"),
-                    "matched_name": matched_author.get("name"),
-                }
+                if orcid_has_verified_email:
+                    return {
+                        "verified": True,
+                        "method": "s2_name_match",
+                        "confidence": match["score"],
+                        "s2_author_id": matched_author.get("authorId"),
+                        "matched_name": matched_author.get("name"),
+                    }
+                else:
+                    name_match_result = {"method": "s2_name_match", "matched_name": matched_author.get("name"), "score": match["score"]}
 
-    # Signal 3: S2 author search by ORCID → paper list
+    # Signal 3: S2 author search by ORCID → paper list (high confidence, no email needed)
     s2_author = await _s2_search_author_by_orcid(orcid_id)
     if s2_author:
         papers = await _s2_get_author_papers(s2_author["authorId"])
@@ -129,8 +192,8 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "")
                     "matched_name": s2_author.get("name"),
                 }
 
-    # Signal 4: Name match against our own DB author list (fallback)
-    if orcid_name:
+    # Signal 4: Name match against our own DB author list
+    if orcid_name and not name_match_result:
         paper_doc = await db.papers.find_one(
             {"arxiv_id": {"$regex": f"^{arxiv_id}"}},
             {"_id": 0, "authors": 1},
@@ -138,15 +201,23 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "")
         if paper_doc and paper_doc.get("authors"):
             match = _fuzzy_name_match(orcid_name, paper_doc["authors"])
             if match:
-                return {
-                    "verified": True,
-                    "method": "db_name_match",
-                    "confidence": match["score"],
-                    "matched_name": paper_doc["authors"][match["index"]],
-                }
+                if orcid_has_verified_email:
+                    return {
+                        "verified": True,
+                        "method": "db_name_match",
+                        "confidence": match["score"],
+                        "matched_name": paper_doc["authors"][match["index"]],
+                    }
+                else:
+                    name_match_result = {"method": "db_name_match", "matched_name": paper_doc["authors"][match["index"]], "score": match["score"]}
 
-    # No automatic verification possible
-    return {"verified": False, "method": "no_match", "confidence": 0.0}
+    # No auto-verification — return with name match info for admin context
+    return {
+        "verified": False,
+        "method": name_match_result["method"] if name_match_result else "no_match",
+        "confidence": 0.0,
+        "name_match": name_match_result,  # Helpful for admin review
+    }
 
 
 def _normalize_name(name: str) -> str:
@@ -276,6 +347,9 @@ async def connect_orcid(body: OrcidCallbackRequest, request: Request):
         raise HTTPException(400, "No ORCID ID returned")
 
     # Upsert author_verifications record
+    # Fetch ORCID verification status (verified email, public email domains)
+    orcid_verification = await _fetch_orcid_verification(orcid_id)
+
     await db.author_verifications.update_one(
         {"user_id": user["user_id"]},
         {
@@ -283,6 +357,9 @@ async def connect_orcid(body: OrcidCallbackRequest, request: Request):
                 "orcid_id": orcid_id,
                 "orcid_name": orcid_name or user.get("name", ""),
                 "orcid_connected_at": datetime.now(timezone.utc).isoformat(),
+                "orcid_verified_email": orcid_verification["verified_email"],
+                "orcid_email_domains": orcid_verification["email_domains"],
+                "orcid_claimed": orcid_verification["claimed"],
             },
             "$setOnInsert": {
                 "user_id": user["user_id"],
@@ -299,7 +376,7 @@ async def connect_orcid(body: OrcidCallbackRequest, request: Request):
         {"$set": {"orcid_id": orcid_id}},
     )
 
-    logger.info(f"ORCID connected: user={user['user_id']} orcid={orcid_id}")
+    logger.info(f"ORCID connected: user={user['user_id']} orcid={orcid_id} verified_email={orcid_verification['verified_email']} domains={orcid_verification['email_domains']}")
     return {"status": "ok", "orcid_id": orcid_id, "orcid_name": orcid_name}
 
 
@@ -374,7 +451,8 @@ async def claim_paper(paper_id: str, request: Request):
 
     # Run verification
     orcid_name = verification.get("orcid_name", user.get("name", ""))
-    result = await _verify_authorship(orcid_id, arxiv_id, orcid_name)
+    orcid_has_verified_email = verification.get("orcid_verified_email", False)
+    result = await _verify_authorship(orcid_id, arxiv_id, orcid_name, orcid_has_verified_email)
 
     claim_record = {
         "orcid_id": orcid_id,
@@ -383,6 +461,9 @@ async def claim_paper(paper_id: str, request: Request):
         "verified": result["verified"],
         "method": result["method"],
         "confidence": result["confidence"],
+        "orcid_verified_email": orcid_has_verified_email,
+        "orcid_email_domains": verification.get("orcid_email_domains", []),
+        "name_match": result.get("name_match"),
         "claimed_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -476,6 +557,9 @@ async def list_pending_claims():
                     "claimer_name": c.get("author_name"),
                     "claimer_email": email_map.get(c.get("user_id"), ""),
                     "claimer_orcid": c.get("orcid_id"),
+                    "orcid_verified_email": c.get("orcid_verified_email", False),
+                    "orcid_email_domains": c.get("orcid_email_domains", []),
+                    "name_match": c.get("name_match"),
                     "claimed_at": c.get("claimed_at"),
                 })
     return {"pending": pending}

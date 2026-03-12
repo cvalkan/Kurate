@@ -584,12 +584,24 @@ function AdminClaims() {
                   </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
                 <span className="font-medium text-foreground">{c.claimer_name}</span>
                 {c.claimer_email && <span>{c.claimer_email}</span>}
                 <a href={`https://orcid.org/${c.claimer_orcid}`} target="_blank" rel="noopener noreferrer" className="text-[#A6CE39] hover:underline">
                   {c.claimer_orcid}
                 </a>
+                {c.orcid_verified_email ? (
+                  <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 font-medium">
+                    verified email{c.orcid_email_domains?.length > 0 ? `: ${c.orcid_email_domains.join(", ")}` : ""}
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 font-medium">no verified email</span>
+                )}
+                {c.name_match && (
+                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
+                    name match: {c.name_match.matched_name} ({Math.round(c.name_match.score * 100)}%)
+                  </span>
+                )}
                 {c.arxiv_id && (
                   <a href={`https://arxiv.org/abs/${c.arxiv_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
                     arXiv:{c.arxiv_id}
