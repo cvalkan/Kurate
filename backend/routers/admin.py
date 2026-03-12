@@ -2696,9 +2696,19 @@ async def backfill_archives():
 
     created = 0
 
+    # Skip categories with no match data (no tournament activity)
+    paper_cat_map = {}
+    for p in all_papers:
+        paper_cat_map[p["id"]] = (p.get("categories") or [""])[0] if p.get("categories") else ""
+    cats_with_matches = set()
+    for m in match_dates:
+        cats_with_matches.add(paper_cat_map.get(m["paper1_id"], ""))
+        cats_with_matches.add(paper_cat_map.get(m["paper2_id"], ""))
+    active_cats = [c for c in active_cats if c in cats_with_matches]
+
     # --- Weekly archives for ALL categories ---
     monday = first_monday
-    while monday < utc_now:
+    while monday < utc_now + timedelta(days=7):  # Include current week
         year = monday.isocalendar()[0]
         week = monday.isocalendar()[1]
         week_start = monday - timedelta(days=7)
