@@ -358,7 +358,7 @@ async def claim_paper(paper_id: str, request: Request):
     orcid_id = verification["orcid_id"]
 
     # Check paper exists
-    paper = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "arxiv_id": 1, "title": 1, "claimed_by": 1})
+    paper = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "arxiv_id": 1, "title": 1, "authors": 1, "claimed_by": 1})
     if not paper:
         raise HTTPException(404, "Paper not found")
 
@@ -412,8 +412,17 @@ async def claim_paper(paper_id: str, request: Request):
             {"id": paper_id},
             {"$push": {"claimed_by": claim_record}},
         )
+        # Notify admin via email
+        await _notify_admin_pending_claim(
+            claimer_name=orcid_name,
+            claimer_orcid=orcid_id,
+            paper_title=paper.get("title", "Unknown"),
+            paper_id=paper_id,
+            arxiv_id=paper.get("arxiv_id", ""),
+            paper_authors=paper.get("authors", []) if paper else [],
+        )
         logger.info(f"Paper claim pending: user={user['user_id']} paper={paper_id}")
-        return {"status": "pending", "message": "Could not automatically verify. Claim submitted for manual review."}
+        return {"status": "pending", "message": "Could not automatically verify. Claim submitted for admin review."}
 
 
 @router.get("/paper/{paper_id}")
@@ -439,3 +448,164 @@ async def get_paper_claims(paper_id: str):
         if c.get("verified")
     ]
     return {"claims": public_claims}
+
+
+async def _notify_admin_pending_claim(claimer_name: str, claimer_orcid: str,
+                                       paper_title: str, paper_id: str,
+                                       arxiv_id: str, paper_authors: list):
+    """Send email to admin about a pending claim that needs manual review."""
+    import resend
+    import asyncio
+
+    resend_key = os.environ.get("RESEND_API_KEY")
+    sender = os.environ.get("SENDER_EMAIL", "noreply@kurate.org")
+    if not resend_key:
+        logger.warning("No RESEND_API_KEY — skipping admin claim notification")
+        return
+
+    resend.api_key = resend_key
+    authors_str = ", ".join(paper_authors[:10])
+
+    html = f"""
+    <div style="font-family: -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
+      <h2 style="color: #1a1a2e; margin-bottom: 4px;">Pending Paper Claim</h2>
+      <p style="color: #888; font-size: 13px; margin-top: 0;">A claim needs manual review on PaperSumo</p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
+      <table style="font-size: 14px; color: #333; width: 100%; border-collapse: collapse;">
+        <tr><td style="padding: 6px 0; color: #888; width: 100px;">Claimer</td>
+            <td style="padding: 6px 0; font-weight: 600;">{claimer_name}</td></tr>
+        <tr><td style="padding: 6px 0; color: #888;">ORCID</td>
+            <td style="padding: 6px 0;"><a href="https://orcid.org/{claimer_orcid}" style="color: #A6CE39;">{claimer_orcid}</a></td></tr>
+        <tr><td style="padding: 6px 0; color: #888;">Paper</td>
+            <td style="padding: 6px 0; font-weight: 500;">{paper_title}</td></tr>
+        <tr><td style="padding: 6px 0; color: #888;">arXiv</td>
+            <td style="padding: 6px 0;"><a href="https://arxiv.org/abs/{arxiv_id}" style="color: #1a1a2e;">{arxiv_id}</a></td></tr>
+        <tr><td style="padding: 6px 0; color: #888;">Authors</td>
+            <td style="padding: 6px 0;">{authors_str}</td></tr>
+      </table>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
+      <p style="color: #888; font-size: 12px;">
+        The name "<strong>{claimer_name}</strong>" did not match any author on this paper.
+        Review this claim in the <a href="https://kurate.org/admin/dashboard" style="color: #1a1a2e;">admin dashboard</a>.
+      </p>
+    </div>
+    """
+
+    try:
+        await asyncio.to_thread(resend.Emails.send, {
+            "from": sender,
+            "to": [sender],  # Send to self (admin)
+            "subject": f"[PaperSumo] Pending claim: {claimer_name} → {paper_title[:50]}",
+            "html": html,
+        })
+        logger.info(f"Admin notified of pending claim: {claimer_name} → {paper_title[:40]}")
+    except Exception as e:
+        logger.warning(f"Failed to send admin claim notification: {e}")
+
+
+# --- Admin endpoints for claim review ---
+
+@router.get("/admin/pending")
+async def list_pending_claims(request: Request):
+    """Admin: list all papers with pending (unverified) claims."""
+    from core.auth import verify_admin
+    token = request.headers.get("x-admin-token", "")
+    if not token:
+        raise HTTPException(401, "Admin token required")
+    # Reuse admin verification
+    from core.auth import get_settings
+    import hmac
+    from core.config import DEFAULT_SETTINGS
+    settings = await get_settings()
+    stored_pw = settings.get("admin_password", DEFAULT_SETTINGS["admin_password"])
+    if not hmac.compare_digest(token, stored_pw):
+        raise HTTPException(403, "Invalid admin credentials")
+
+    papers = await db.papers.find(
+        {"claimed_by": {"$elemMatch": {"verified": False}}},
+        {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1, "claimed_by": 1},
+    ).to_list(500)
+
+    pending = []
+    for p in papers:
+        for c in p.get("claimed_by", []):
+            if not c.get("verified"):
+                pending.append({
+                    "paper_id": p["id"],
+                    "paper_title": p.get("title", ""),
+                    "paper_authors": p.get("authors", []),
+                    "arxiv_id": p.get("arxiv_id", ""),
+                    "claimer_name": c.get("author_name"),
+                    "claimer_orcid": c.get("orcid_id"),
+                    "claimed_at": c.get("claimed_at"),
+                })
+    return {"pending": pending}
+
+
+@router.post("/admin/approve/{paper_id}/{orcid_id}")
+async def approve_claim(paper_id: str, orcid_id: str, request: Request):
+    """Admin: approve a pending claim."""
+    from core.auth import get_settings
+    from core.config import DEFAULT_SETTINGS
+    import hmac
+    token = request.headers.get("x-admin-token", "")
+    settings = await get_settings()
+    stored_pw = settings.get("admin_password", DEFAULT_SETTINGS["admin_password"])
+    if not token or not hmac.compare_digest(token, stored_pw):
+        raise HTTPException(403, "Invalid admin credentials")
+
+    # Update the claim to verified
+    result = await db.papers.update_one(
+        {"id": paper_id, "claimed_by.orcid_id": orcid_id, "claimed_by.verified": False},
+        {"$set": {
+            "claimed_by.$.verified": True,
+            "claimed_by.$.method": "admin_approved",
+            "claimed_by.$.confidence": 1.0,
+        }},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(404, "Pending claim not found")
+
+    # Also add to user's verified papers
+    claim_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "title": 1, "arxiv_id": 1, "claimed_by": 1})
+    if claim_doc:
+        for c in claim_doc.get("claimed_by", []):
+            if c.get("orcid_id") == orcid_id:
+                await db.author_verifications.update_one(
+                    {"orcid_id": orcid_id},
+                    {"$push": {"verified_papers": {
+                        "paper_id": paper_id,
+                        "arxiv_id": claim_doc.get("arxiv_id"),
+                        "title": claim_doc.get("title", ""),
+                        "method": "admin_approved",
+                        "verified_at": datetime.now(timezone.utc).isoformat(),
+                        "confidence": 1.0,
+                    }}},
+                )
+                break
+
+    logger.info(f"Claim approved by admin: paper={paper_id} orcid={orcid_id}")
+    return {"status": "approved"}
+
+
+@router.post("/admin/reject/{paper_id}/{orcid_id}")
+async def reject_claim(paper_id: str, orcid_id: str, request: Request):
+    """Admin: reject and remove a pending claim."""
+    from core.auth import get_settings
+    from core.config import DEFAULT_SETTINGS
+    import hmac
+    token = request.headers.get("x-admin-token", "")
+    settings = await get_settings()
+    stored_pw = settings.get("admin_password", DEFAULT_SETTINGS["admin_password"])
+    if not token or not hmac.compare_digest(token, stored_pw):
+        raise HTTPException(403, "Invalid admin credentials")
+
+    result = await db.papers.update_one(
+        {"id": paper_id},
+        {"$pull": {"claimed_by": {"orcid_id": orcid_id, "verified": False}}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(404, "Pending claim not found")
+
+    logger.info(f"Claim rejected by admin: paper={paper_id} orcid={orcid_id}")
+    return {"status": "rejected"}

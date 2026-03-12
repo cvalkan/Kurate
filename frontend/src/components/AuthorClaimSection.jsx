@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Loader2, ShieldCheck, Link2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, ShieldCheck, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -17,28 +17,18 @@ function OrcidIcon({ className }) {
 }
 
 export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
-  const { user, getAuthHeaders } = useAuth();
-  const [orcidStatus, setOrcidStatus] = useState(null); // null = not checked, object = checked
+  const { user, getAuthHeaders, checkAuth } = useAuth();
   const [claiming, setClaiming] = useState(false);
   const [claimResult, setClaimResult] = useState(null);
-  const [loadingOrcid, setLoadingOrcid] = useState(false);
 
   const verifiedClaims = claims.filter(c => c.verified);
-  const userClaim = claims.find(c => c.orcid_id === user?.orcid_id);
+  const pendingClaims = claims.filter(c => !c.verified);
+  const userClaim = user?.orcid_id
+    ? claims.find(c => c.orcid_id === user.orcid_id)
+    : null;
 
-  const checkOrcid = async () => {
-    setLoadingOrcid(true);
-    try {
-      const res = await axios.get(`${API}/api/claim/my-orcid`, {
-        withCredentials: true, headers: getAuthHeaders(),
-      });
-      setOrcidStatus(res.data);
-    } catch {
-      setOrcidStatus({ connected: false });
-    } finally {
-      setLoadingOrcid(false);
-    }
-  };
+  // Derive ORCID status directly from user context — no extra API call needed
+  const orcidLinked = !!user?.orcid_id;
 
   const connectOrcid = async () => {
     try {
@@ -51,7 +41,7 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
       window.location.href = res.data.url;
     } catch (err) {
       if (err.response?.status === 503) {
-        toast.error("ORCID integration is not yet configured. Please contact admin.");
+        toast.error("ORCID integration is not yet configured.");
       } else {
         toast.error("Failed to start ORCID connection");
       }
@@ -71,7 +61,7 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
       } else if (res.data.status === "already_claimed") {
         toast.info("You've already claimed this paper");
       } else {
-        toast.info("Claim submitted for manual review");
+        toast.info("Claim submitted for admin review");
       }
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to claim paper");
@@ -102,7 +92,7 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
         </div>
       )}
 
-      {/* Claim button — only for logged-in users who haven't claimed */}
+      {/* Claim panel — for logged-in users who haven't claimed this paper yet */}
       {user && !userClaim && !claimResult && (
         <div className="p-3 bg-secondary/30 rounded-lg border border-border" data-testid="claim-panel">
           <div className="flex items-center justify-between gap-3">
@@ -112,12 +102,7 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
                 Verify your authorship via ORCID to get a verified badge
               </p>
             </div>
-            {!orcidStatus ? (
-              <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={checkOrcid} disabled={loadingOrcid} data-testid="check-orcid-btn">
-                {loadingOrcid ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <OrcidIcon className="h-3.5 w-3.5" />}
-                Link ORCID & Claim
-              </Button>
-            ) : !orcidStatus.connected ? (
+            {!orcidLinked ? (
               <Button size="sm" className="gap-1.5 shrink-0 bg-[#A6CE39] hover:bg-[#96be29] text-white" onClick={connectOrcid} data-testid="connect-orcid-btn">
                 <OrcidIcon className="h-3.5 w-3.5" />
                 Connect ORCID
@@ -126,7 +111,7 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <OrcidIcon className="h-3 w-3" />
-                  {orcidStatus.orcid_id}
+                  {user.orcid_id}
                 </span>
                 <Button size="sm" className="gap-1.5 shrink-0" onClick={claimPaper} disabled={claiming} data-testid="claim-paper-btn">
                   {claiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
@@ -138,7 +123,17 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
         </div>
       )}
 
-      {/* Claim result */}
+      {/* Already claimed by this user (pending) */}
+      {user && userClaim && !userClaim.verified && !claimResult && (
+        <div className="p-3 rounded-lg border bg-amber-50 border-amber-200" data-testid="claim-pending">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <span className="text-sm text-amber-800">Your claim is pending admin review</span>
+          </div>
+        </div>
+      )}
+
+      {/* Claim result (just submitted) */}
       {claimResult && (
         <div className={`p-3 rounded-lg border ${
           claimResult.status === "verified" ? "bg-green-50 border-green-200" :
@@ -161,7 +156,7 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
             ) : (
               <>
                 <AlertCircle className="h-4 w-4 text-amber-600" />
-                <span className="text-sm text-amber-800">{claimResult.message}</span>
+                <span className="text-sm text-amber-800">Claim submitted for admin review</span>
               </>
             )}
           </div>
