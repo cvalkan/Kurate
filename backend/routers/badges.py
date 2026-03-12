@@ -242,67 +242,87 @@ def _render_badge_image(data: dict) -> bytes:
     dark = "#1a1a2e"
     muted = "#82829a"
 
-    medal_svg = _svg_medal(120, 310, 50, tier_name, rank)
+    # --- Layout constants (top to bottom, tight spacing) ---
+    M = 30       # card margin
+    P = 50       # inner padding
+    row1_y = 80  # header row baseline
+    row2_y = 130 # medal + title start
+    medal_r = 48
+    medal_cx = M + P + medal_r
+    medal_cy = row2_y + medal_r + 8
+    tx = medal_cx + medal_r + 25  # text X (right of medal)
 
-    title_lines = _svg_wordwrap(paper.get("title", ""), 42)
+    medal_svg = _svg_medal(medal_cx, medal_cy, medal_r, tier_name, rank)
+
+    # Title
+    title_lines = _svg_wordwrap(paper.get("title", ""), 38)
+    tier_label_y = row2_y + 8
+    title_start_y = tier_label_y + 30
     title_svg = ""
     for i, line in enumerate(title_lines[:2]):
         display = _esc(line)
         if i == 1 and len(title_lines) > 2:
             display = _esc(line[:-3] + "...") if len(line) > 3 else "..."
-        title_svg += f'<text x="195" y="{240 + i * 44}" font-family="Liberation Sans" font-weight="bold" font-size="36" fill="{dark}">{display}</text>\n'
+        title_svg += f'<text x="{tx}" y="{title_start_y + i * 44}" font-family="Liberation Sans" font-weight="bold" font-size="36" fill="{dark}">{display}</text>\n'
 
+    # Authors
     authors = paper.get("authors", [])
     a_str = ", ".join(authors[:4])
     if len(authors) > 4:
         a_str += f" +{len(authors) - 4}"
-    authors_y = 240 + min(len(title_lines), 2) * 44 + 10
+    authors_y = title_start_y + min(len(title_lines), 2) * 44 + 6
 
+    # Stats row — positioned relative to bottom
+    stats_h = 85
+    footer_h = 40
+    sy = H - M - footer_h - stats_h - 20  # stats Y
+    bw = (W - 2 * M - 2 * P - 24) // 3    # box width (3 boxes with 12px gaps)
     paper_count = data["paper_count"]
     stats = [
         (f"Top {rank} of {paper_count}", "Papers"),
         (str(paper.get("score", "?")), "Elo Score"),
         (f"{paper.get('win_rate', '?')}%", "Win Rate"),
     ]
-    sy = 460
-    bw = 340
     stats_svg = ""
     for i, (val, label) in enumerate(stats):
-        bx = 50 + i * (bw + 12)
+        bx = M + P + i * (bw + 12)
         stats_svg += f"""
-        <rect x="{bx}" y="{sy}" width="{bw}" height="85" rx="10" fill="white"/>
+        <rect x="{bx}" y="{sy}" width="{bw}" height="{stats_h}" rx="10" fill="white"/>
         <text x="{bx + bw // 2}" y="{sy + 38}" font-family="Liberation Sans" font-weight="bold" font-size="34" fill="{dark}" text-anchor="middle">{_esc(val)}</text>
         <text x="{bx + bw // 2}" y="{sy + 65}" font-family="Liberation Sans" font-size="18" fill="{muted}" text-anchor="middle">{_esc(label)}</text>
         """
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
   <rect width="{W}" height="{H}" fill="#f5f5f8"/>
-  <rect x="28" y="28" width="{W - 56}" height="{H - 56}" rx="16" fill="{tier_hex}"/>
-  <rect x="30" y="30" width="{W - 60}" height="{H - 60}" rx="14" fill="{tier_bg}"/>
+  <rect x="{M - 2}" y="{M - 2}" width="{W - 2*M + 4}" height="{H - 2*M + 4}" rx="16" fill="{tier_hex}"/>
+  <rect x="{M}" y="{M}" width="{W - 2*M}" height="{H - 2*M}" rx="14" fill="{tier_bg}"/>
 
-  <text x="{W - 55}" y="90" font-family="Liberation Sans" font-weight="bold" font-size="64" text-anchor="end">
-    <tspan fill="{accent}">Ku</tspan><tspan fill="{dark}">rate</tspan><tspan fill="{accent}" font-weight="normal">.org</tspan>
-  </text>
-
-  <text x="50" y="90" font-family="Liberation Sans" font-weight="bold" font-size="26" fill="{dark}">
+  <!-- Header: period+category left, Kurate.org right -->
+  <text x="{M + P}" y="{row1_y}" font-family="Liberation Sans" font-weight="bold" font-size="26" fill="{dark}">
     {_esc(data['archive_label'])}  \u00b7  {_esc(data['category_name'])} Preprints  \u00b7  arXiv
   </text>
+  <text x="{W - M - P}" y="{row1_y}" font-family="Liberation Sans" font-size="52" text-anchor="end">
+    <tspan font-weight="bold" fill="{accent}">Ku</tspan><tspan font-weight="bold" fill="{dark}">rate</tspan><tspan fill="{accent}">.org</tspan>
+  </text>
 
-  <line x1="50" y1="110" x2="{W - 50}" y2="110" stroke="#d4d4dc" stroke-width="1"/>
+  <line x1="{M + P}" y1="{row1_y + 18}" x2="{W - M - P}" y2="{row1_y + 18}" stroke="#d4d4dc" stroke-width="1"/>
 
+  <!-- Medal -->
   {medal_svg}
 
-  <text x="195" y="200" font-family="Liberation Sans" font-weight="bold" font-size="20" fill="{tier_hex}">{tier_name.upper()}</text>
-
+  <!-- Tier + Title + Authors -->
+  <text x="{tx}" y="{tier_label_y}" font-family="Liberation Sans" font-weight="bold" font-size="20" fill="{tier_hex}">{tier_name.upper()}</text>
   {title_svg}
+  <text x="{tx}" y="{authors_y}" font-family="Liberation Sans" font-size="24" fill="{muted}">{_esc(a_str[:75])}</text>
 
-  <text x="195" y="{authors_y + 20}" font-family="Liberation Sans" font-size="24" fill="{muted}">{_esc(a_str[:80])}</text>
+  <!-- Divider above stats -->
+  <line x1="{M + P}" y1="{sy - 12}" x2="{W - M - P}" y2="{sy - 12}" stroke="#d4d4dc" stroke-width="1"/>
 
-  <line x1="50" y1="{sy - 15}" x2="{W - 50}" y2="{sy - 15}" stroke="#d4d4dc" stroke-width="1"/>
-
+  <!-- Stats boxes -->
   {stats_svg}
 
-  <text x="50" y="{H - 42}" font-family="Liberation Sans" font-size="20" fill="{muted}">
+  <!-- Footer -->
+  <text x="{M + P}" y="{H - M - 14}" font-family="Liberation Sans" font-size="19" fill="{muted}">
     Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament
   </text>
 </svg>"""
