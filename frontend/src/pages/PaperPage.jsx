@@ -301,18 +301,26 @@ export default function PaperPage() {
       {paperBadges.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-6" data-testid="paper-badges">
           <Trophy className="h-4 w-4 text-muted-foreground" />
-          {paperBadges.map((b, i) => (
-            <Link key={i} to={b.badge_url}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium hover:opacity-80 transition-opacity"
-              style={{ borderColor: b.tier_color, color: b.tier_color }}
-              data-testid={`paper-badge-${i}`}
-            >
-              <span className="w-5 h-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold" style={{ backgroundColor: b.tier_color }}>
-                {b.rank}
-              </span>
-              {b.tier} · {b.category_name} · {b.archive_label}
-            </Link>
-          ))}
+          {paperBadges.map((b, i) => {
+            const archiveSlug = b.badge_url.split("/").pop(); // paper_id — not useful
+            // Extract slug from badge_url: /badge/cs.RO/2026/w7/paperId -> w7
+            const parts = b.badge_url.split("/");
+            const yearSlug = parts[3]; // 2026
+            const periodSlug = parts[4]; // w7 or m2
+            const archiveParam = `${yearSlug}-${periodSlug}`;
+            return (
+              <Link key={i} to={`/?category=${b.category}&archive=${archiveParam}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium hover:opacity-80 transition-opacity"
+                style={{ borderColor: b.tier_color, color: b.tier_color }}
+                data-testid={`paper-badge-${i}`}
+              >
+                <span className="w-5 h-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold" style={{ backgroundColor: b.tier_color }}>
+                  {b.rank}
+                </span>
+                {b.tier} · {b.category_name} · {b.archive_label}
+              </Link>
+            );
+          })}
         </div>
       )}
 

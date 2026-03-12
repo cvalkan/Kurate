@@ -153,7 +153,9 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 
     # Absolute URLs for social crawlers
     image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png"
-    spa_url = f"/badge/{category}/{year}/{slug}/{paper_id}"
+    # Redirect browsers to the archive page with the paper highlighted
+    archive_slug = slug.replace("w", "w").replace("m", "m")  # w7 or m2
+    redirect_url = f"/?category={category}&archive={year}-{archive_slug}"
     canonical_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/share"
 
     og_title = f"#{rank} {tier_name} in {cat_name} — {archive_label}"
@@ -175,10 +177,10 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
-<meta http-equiv="refresh" content="0;url={spa_url}">
+<meta http-equiv="refresh" content="0;url={redirect_url}">
 </head>
 <body>
-<p>Redirecting to <a href="{spa_url}">badge page</a>...</p>
+<p>Redirecting to <a href="{redirect_url}">archive page</a>...</p>
 </body>
 </html>"""
 
