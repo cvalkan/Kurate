@@ -1,205 +1,171 @@
 {
-  "metadata": {
-    "version": "1.0.0",
-    "author": "E1",
-    "project": "ArXiv Paper Tournament",
-    "theme": "Swiss Lab / Scientific Authority"
+  "project_name": "PaperSumo Badges",
+  "version": "1.0",
+  "design_philosophy": {
+    "core_identity": "Scientific Prestige meets Modern Fintech",
+    "vibe": "Exclusive, Data-Rich, Dark Mode, High Contrast",
+    "anti_patterns": [
+      "Generic certificate scrollwork",
+      "Gradients that look like WordArt",
+      "Low contrast text",
+      "Cluttered academic citation formats"
+    ]
   },
-  "design_system": {
-    "typography": {
-      "font_family": {
-        "headings": "IBM Plex Sans, sans-serif",
-        "body": "Inter, sans-serif",
-        "mono": "JetBrains Mono, monospace"
-      },
-      "weights": {
-        "light": 300,
-        "regular": 400,
-        "medium": 500,
-        "semibold": 600,
-        "bold": 700
-      },
-      "scale": {
-        "h1": "text-4xl md:text-5xl lg:text-6xl tracking-tight font-semibold",
-        "h2": "text-3xl md:text-4xl tracking-tight font-medium",
-        "h3": "text-2xl md:text-3xl tracking-tight font-medium",
-        "h4": "text-xl md:text-2xl tracking-normal font-medium",
-        "body_lg": "text-lg leading-relaxed",
-        "body_base": "text-base leading-relaxed",
-        "body_sm": "text-sm leading-relaxed",
-        "caption": "text-xs tracking-wide uppercase text-muted-foreground"
-      }
+  "typography": {
+    "font_family": "Liberation Sans",
+    "weights": {
+      "regular": "LiberationSans-Regular.ttf",
+      "bold": "LiberationSans-Bold.ttf"
     },
-    "colors": {
-      "palette": {
-        "primary": {
-          "DEFAULT": "#0F172A",
-          "foreground": "#F8FAFC",
-          "hover": "#1E293B"
+    "hierarchy": {
+      "rank_number": {
+        "size": 180,
+        "weight": "bold",
+        "tracking": "tight",
+        "description": "The visual anchor. Massive, unapologetic."
+      },
+      "tier_label": {
+        "size": 36,
+        "weight": "bold",
+        "case": "uppercase",
+        "tracking": "wide (2px)"
+      },
+      "title": {
+        "size": 48,
+        "weight": "bold",
+        "leading": 60,
+        "description": "High readability, max 2 lines."
+      },
+      "authors": {
+        "size": 32,
+        "weight": "regular",
+        "color": "muted"
+      },
+      "stats_value": {
+        "size": 42,
+        "weight": "bold",
+        "description": "Monospaced feel via layout"
+      },
+      "stats_label": {
+        "size": 20,
+        "weight": "regular",
+        "case": "uppercase",
+        "color": "muted"
+      },
+      "brand": {
+        "size": 24,
+        "weight": "bold",
+        "opacity": 0.8
+      }
+    }
+  },
+  "colors": {
+    "theme": "Dark Luxury",
+    "backgrounds": {
+      "deep_obsidian": "#050505",
+      "midnight_navy": "#0F172A",
+      "rich_charcoal": "#18181B"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#94A3B8",
+      "tertiary": "#475569"
+    },
+    "tiers": {
+      "gold": {
+        "primary": "#FBBF24",
+        "glow": "#78350F",
+        "rgb": [251, 191, 36],
+        "bg_accent": "#451a03"
+      },
+      "silver": {
+        "primary": "#E2E8F0",
+        "glow": "#475569",
+        "rgb": [226, 232, 240],
+        "bg_accent": "#1e293b"
+      },
+      "bronze": {
+        "primary": "#D97706",
+        "glow": "#7C2D12",
+        "rgb": [217, 119, 6],
+        "bg_accent": "#431407"
+      }
+    }
+  },
+  "concepts": [
+    {
+      "id": "concept_a",
+      "name": "The Obsidian Slab (Recommended)",
+      "description": "A vertical split layout. Left 25% is a solid colored sidebar (Tier Color) housing the Rank. Right 75% is deep obsidian showing the data. This creates a bold 'stop-scrolling' visual anchor.",
+      "layout_logic": {
+        "canvas": [1200, 630],
+        "sidebar": {
+          "width": 300,
+          "color": "Tier Primary or Darkened Tier",
+          "elements": [
+            { "type": "text", "content": "#RANK", "align": "center", "y": "center_visual" },
+            { "type": "text", "content": "TIER NAME", "align": "center", "y": "below_rank" }
+          ]
         },
-        "secondary": {
-          "DEFAULT": "#F1F5F9",
-          "foreground": "#0F172A",
-          "hover": "#E2E8F0"
-        },
-        "accent": {
-          "DEFAULT": "#2563EB",
-          "foreground": "#FFFFFF",
-          "hover": "#1D4ED8"
-        },
-        "background": {
-          "DEFAULT": "#FFFFFF",
-          "subtle": "#F8FAFC"
-        },
-        "surface": {
-          "DEFAULT": "#FFFFFF",
-          "hover": "#F8FAFC"
-        },
-        "border": {
-          "DEFAULT": "#E2E8F0",
-          "subtle": "#F1F5F9"
-        },
-        "muted": {
-          "DEFAULT": "#64748B",
-          "foreground": "#94A3B8"
-        },
-        "rank": {
-          "gold": "#F59E0B",
-          "silver": "#94A3B8",
-          "bronze": "#B45309"
+        "main_area": {
+          "x_start": 360,
+          "width": 780,
+          "elements": [
+            { "type": "text", "content": "CATEGORY • ARCHIVE", "y": 60, "style": "label_muted" },
+            { "type": "text", "content": "TITLE", "y": 110, "max_lines": 2, "style": "heading_white" },
+            { "type": "text", "content": "AUTHORS", "y": "below_title + 30", "style": "body_muted" },
+            { "type": "grid", "y": 480, "columns": 4, "elements": ["ELO", "WIN RATE", "MATCHES", "PAPERS"] },
+            { "type": "text", "content": "PaperSumo by Kurate.org", "y": 570, "align": "right", "style": "brand_logo" }
+          ]
         }
-      },
-      "gradients": {
-        "subtle_glow": "radial-gradient(circle at center, rgba(37, 99, 235, 0.15) 0%, transparent 70%)"
       }
     },
-    "spacing": {
-      "container_padding": "p-6 md:p-8 lg:p-12",
-      "section_gap": "gap-8 md:gap-12",
-      "component_gap": "gap-4",
-      "internal_padding": "p-4 md:p-6"
-    },
-    "radius": {
-      "default": "rounded-md",
-      "card": "rounded-lg",
-      "button": "rounded-md",
-      "input": "rounded-md"
-    },
-    "shadows": {
-      "card": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
-      "card_hover": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
-      "dropdown": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)"
-    }
-  },
-  "components": {
-    "buttons": {
-      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2 rounded-md font-medium transition-colors",
-      "outline": "border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 rounded-md font-medium transition-colors",
-      "ghost": "hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 rounded-md font-medium transition-colors"
-    },
-    "cards": {
-      "base": "bg-card text-card-foreground rounded-lg border border-border shadow-sm p-6 transition-all duration-200",
-      "interactive": "hover:shadow-md hover:border-accent/50 cursor-pointer"
-    },
-    "inputs": {
-      "base": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-    },
-    "bracket": {
-      "connector_color": "#CBD5E1",
-      "connector_width": "2px",
-      "match_card_bg": "#FFFFFF",
-      "match_card_border": "#E2E8F0",
-      "winner_highlight": "#EFF6FF",
-      "winner_border": "#2563EB"
-    }
-  },
-  "layout": {
-    "grid_systems": {
-      "tetris": "grid grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-8",
-      "control_room": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4"
-    },
-    "containers": {
-      "main": "container mx-auto px-4 md:px-6 max-w-7xl",
-      "narrow": "container mx-auto px-4 md:px-6 max-w-4xl"
-    }
-  },
-  "assets": {
-    "images": {
-      "hero_abstract": {
-        "url": "https://images.pexels.com/photos/17484975/pexels-photo-17484975.png",
-        "alt": "Abstract scientific network visualization",
-        "usage": "Hero section background or decorative element"
-      },
-      "lab_research": {
-        "url": "https://images.unsplash.com/photo-1576669801838-1b1c52121e6a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwyfHxjbGVhbiUyMG1vZGVybiUyMGxhYm9yYXRvcnklMjByZXNlYXJjaHxlbnwwfHx8fDE3NjgwNTU4ODV8MA&ixlib=rb-4.1.0&q=85",
-        "alt": "Modern laboratory equipment",
-        "usage": "About section or 'How it works' visualization"
-      },
-      "scientist_working": {
-        "url": "https://images.pexels.com/photos/4021793/pexels-photo-4021793.jpeg",
-        "alt": "Scientist analyzing data",
-        "usage": "User persona representation or empty state"
+    {
+      "id": "concept_b",
+      "name": "The Orbit",
+      "description": "Centralized radial design. A glowing ring (Tier Color) in the center holds the rank. Data floats around it.",
+      "layout_logic": {
+        "canvas": [1200, 630],
+        "background": "Radial Gradient (simulated via concentric circles)",
+        "center_piece": {
+          "x": 600,
+          "y": 250,
+          "radius": 120,
+          "stroke": 4,
+          "content": "#RANK"
+        },
+        "details": {
+          "y_start": 420,
+          "align": "center",
+          "elements": ["TITLE", "AUTHORS", "STATS_ROW"]
+        }
       }
-    },
-    "icons": {
-      "library": "lucide-react",
-      "style": "Stroke width 1.5px or 2px, consistent size (w-4 h-4, w-5 h-5, w-6 h-6)"
     }
-  },
-  "motion": {
-    "transitions": {
-      "default": "transition-all duration-200 ease-in-out",
-      "slow": "transition-all duration-500 ease-in-out"
+  ],
+  "implementation_guidelines": {
+    "backend_pillow": {
+      "file_path": "/app/backend/routers/badges.py",
+      "instructions": [
+        "Replace the current simple drawing logic with Concept A (Obsidian Slab).",
+        "Use 'Image.new' with 'RGB' and the background color (15, 23, 42).",
+        "Draw a rectangle for the sidebar: [(0,0), (300, 630)]. Fill with Tier Dark Accent.",
+        "Draw a massive vertical line or accent bar: [(295, 0), (300, 630)] fill with Tier Bright Color.",
+        "Title Text Wrap: Write a helper function to wrap text at ~35 characters for font size 48.",
+        "Stats Grid: Calculate X positions dynamically: x=360, x=560, x=760, x=960."
+      ]
     },
-    "animations": {
-      "fade_in": "animate-in fade-in duration-500",
-      "slide_up": "animate-in slide-in-from-bottom-4 duration-500",
-      "pulse_subtle": "animate-pulse"
-    }
-  },
-  "accessibility": {
-    "contrast": {
-      "rule": "Ensure text has at least 4.5:1 contrast ratio against background.",
-      "interactive": "Focus states must be clearly visible with ring or border change."
-    },
-    "testing": {
-      "attribute": "data-testid",
-      "format": "kebab-case",
-      "examples": [
-        "tournament-start-button",
-        "topic-select-dropdown",
-        "paper-card-title"
+    "frontend_react": {
+      "file_path": "/app/frontend/src/pages/BadgePage.jsx",
+      "instructions": [
+        "Update the 'TIER_STYLES' to match the new 'Dark Luxury' palette.",
+        "Change the 'badge-card' container to have a dark background (slate-950) instead of the current light styles.",
+        "Use 'border-l-8' (left border) colored by Tier to mimic the image design.",
+        "Ensure the 'Share' buttons are prominent and high-contrast."
       ]
     }
   },
-  "instructions_to_main_agent": {
-    "general": [
-      "Do not use gradients for backgrounds unless specified.",
-      "Avoid 'Inter' for headings; use 'IBM Plex Sans'.",
-      "Use 'JetBrains Mono' for all scores, IDs, and data metrics.",
-      "Ensure all interactive elements have hover and focus states.",
-      "Use the 'Tetris' grid for the landing page and 'Control Room' grid for the tournament dashboard.",
-      "Implement a 'Light Mode' first approach, but support 'Dark Mode' via Tailwind classes.",
-      "Use 'sonner' for all toast notifications.",
-      "Use 'lucide-react' for icons."
-    ],
-    "implementation_steps": [
-      "1. Configure Tailwind theme with the specified colors and fonts.",
-      "2. Create the layout shell (Navbar, Footer, Main Container).",
-      "3. Build the 'Home' page using the Tetris grid and Topic selection cards.",
-      "4. Build the 'Tournament' page with the Control Room grid (Bracket view, Log feed, Stats).",
-      "5. Implement the 'Bracket' component using SVG connectors and Flexbox/Grid.",
-      "6. Build the 'Results' page with a ranked list/table.",
-      "7. Ensure all components have 'data-testid' attributes."
-    ],
-    "universal_guidelines": [
-      "Create depth through layered design elements with z-index hierarchy.",
-      "Use glass-morphism effects with backdrop filters (12-24px blur) for overlays.",
-      "Do NOT apply universal transition (e.g., transition: all).",
-      "Do NOT center align the app container.",
-      "Always use modern button styles.",
-      "NEVER use AI assistant Emoji characters."
-    ]
+  "asset_generation": {
+    "icons": "Use Lucide React icons in frontend. No external assets for Pillow (draw geometric shapes).",
+    "logo": "Render 'PaperSumo' as text in Pillow using the Bold font."
   }
 }
