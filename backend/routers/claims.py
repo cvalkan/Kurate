@@ -82,10 +82,10 @@ async def _s2_get_author_papers(s2_author_id: str, limit: int = 500) -> list:
     return []
 
 
-async def _verify_authorship(orcid_id: str, arxiv_id: str) -> dict:
+async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "") -> dict:
     """Run multi-signal verification pipeline. Returns {verified, method, confidence}."""
 
-    # Signal 1: S2 paper reverse lookup (fastest — single API call)
+    # Signal 1: S2 paper reverse lookup — check ORCID linkage on S2 (instant, highest confidence)
     s2_paper = await _s2_lookup_paper(arxiv_id)
     if s2_paper:
         for author in s2_paper.get("authors", []):
@@ -99,7 +99,21 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str) -> dict:
                     "matched_name": author.get("name"),
                 }
 
-    # Signal 2: S2 author search → paper list
+        # Signal 2: S2 paper author name match (high coverage — S2 has most papers)
+        # ORCID proves identity, S2 provides the authoritative author list
+        if orcid_name and s2_paper.get("authors"):
+            match = _fuzzy_name_match(orcid_name, [a.get("name", "") for a in s2_paper["authors"]])
+            if match:
+                matched_author = s2_paper["authors"][match["index"]]
+                return {
+                    "verified": True,
+                    "method": "s2_name_match",
+                    "confidence": match["score"],
+                    "s2_author_id": matched_author.get("authorId"),
+                    "matched_name": matched_author.get("name"),
+                }
+
+    # Signal 3: S2 author search by ORCID → paper list
     s2_author = await _s2_search_author_by_orcid(orcid_id)
     if s2_author:
         papers = await _s2_get_author_papers(s2_author["authorId"])
@@ -114,8 +128,95 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str) -> dict:
                     "matched_name": s2_author.get("name"),
                 }
 
+    # Signal 4: Name match against our own DB author list (fallback)
+    if orcid_name:
+        paper_doc = await db.papers.find_one(
+            {"arxiv_id": {"$regex": f"^{arxiv_id}"}},
+            {"_id": 0, "authors": 1},
+        )
+        if paper_doc and paper_doc.get("authors"):
+            match = _fuzzy_name_match(orcid_name, paper_doc["authors"])
+            if match:
+                return {
+                    "verified": True,
+                    "method": "db_name_match",
+                    "confidence": match["score"],
+                    "matched_name": paper_doc["authors"][match["index"]],
+                }
+
     # No automatic verification possible
     return {"verified": False, "method": "no_match", "confidence": 0.0}
+
+
+def _normalize_name(name: str) -> str:
+    """Normalize a name for comparison: lowercase, strip accents, collapse whitespace."""
+    import unicodedata
+    name = unicodedata.normalize("NFKD", name)
+    name = "".join(c for c in name if not unicodedata.combining(c))
+    return " ".join(name.lower().split())
+
+
+def _fuzzy_name_match(orcid_name: str, author_names: list, threshold: float = 0.85) -> dict | None:
+    """Match ORCID profile name against a list of author names.
+    
+    Handles: first/last order variations, initials, unicode.
+    Returns {index, score} or None.
+    """
+    norm_orcid = _normalize_name(orcid_name)
+    orcid_parts = set(norm_orcid.split())
+
+    best_score = 0.0
+    best_idx = -1
+
+    for i, author_name in enumerate(author_names):
+        if not author_name:
+            continue
+        norm_author = _normalize_name(author_name)
+        author_parts = set(norm_author.split())
+
+        # Exact match
+        if norm_orcid == norm_author:
+            return {"index": i, "score": 1.0}
+
+        # Check if last names match and first name/initial matches
+        # Try both orderings (First Last vs Last First)
+        orcid_list = norm_orcid.split()
+        author_list = norm_author.split()
+
+        if len(orcid_list) >= 2 and len(author_list) >= 2:
+            # Check last name match
+            if orcid_list[-1] == author_list[-1]:
+                # Check first name or initial
+                o_first = orcid_list[0]
+                a_first = author_list[0]
+                if o_first == a_first or o_first[0] == a_first[0]:
+                    score = 0.95 if o_first == a_first else 0.90
+                    if score > best_score:
+                        best_score = score
+                        best_idx = i
+
+            # Reversed order: author is "Last, First"
+            if orcid_list[-1] == author_list[0].rstrip(","):
+                o_first = orcid_list[0]
+                a_first = author_list[-1]
+                if o_first == a_first or o_first[0] == a_first[0]:
+                    score = 0.95 if o_first == a_first else 0.90
+                    if score > best_score:
+                        best_score = score
+                        best_idx = i
+
+        # Token overlap (handles middle names, suffixes)
+        if len(orcid_parts) >= 2 and len(author_parts) >= 2:
+            overlap = len(orcid_parts & author_parts)
+            total = max(len(orcid_parts), len(author_parts))
+            token_score = overlap / total
+            if token_score > best_score and token_score >= 0.65:
+                best_score = token_score
+                best_idx = i
+
+    if best_score >= threshold and best_idx >= 0:
+        return {"index": best_idx, "score": round(best_score, 2)}
+    return None
 
 
 # --- ORCID OAuth ---
@@ -271,7 +372,8 @@ async def claim_paper(paper_id: str, request: Request):
         return {"status": "already_claimed", "method": "existing"}
 
     # Run verification
-    result = await _verify_authorship(orcid_id, arxiv_id)
+    orcid_name = verification.get("orcid_name", user.get("name", ""))
+    result = await _verify_authorship(orcid_id, arxiv_id, orcid_name)
 
     claim_record = {
         "orcid_id": orcid_id,
