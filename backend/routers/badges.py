@@ -242,41 +242,44 @@ def _render_badge_image(data: dict) -> bytes:
     dark = "#1a1a2e"
     muted = "#82829a"
 
-    # --- Layout constants (top to bottom, tight spacing) ---
-    M = 30       # card margin
-    P = 50       # inner padding
-    row1_y = 80  # header row baseline
-    row2_y = 130 # medal + title start
+    # --- Layout ---
+    M = 30; P = 50
+    CW = W - 2*M - 2*P
+
+    # Row 1: header (y=78)
+    hdr_y = 78
+
+    # Row 2: content starts at y=115
+    content_y = 115
     medal_r = 48
     medal_cx = M + P + medal_r
-    medal_cy = row2_y + medal_r + 8
-    tx = medal_cx + medal_r + 25  # text X (right of medal)
+    medal_cy = content_y + medal_r + 22
+    tx = medal_cx + medal_r + 25
 
     medal_svg = _svg_medal(medal_cx, medal_cy, medal_r, tier_name, rank)
 
-    # Title
-    title_lines = _svg_wordwrap(paper.get("title", ""), 38)
-    tier_label_y = row2_y + 8
-    title_start_y = tier_label_y + 30
+    # Title word wrap
+    title_lines = _svg_wordwrap(paper.get("title", ""), 36)
+    tier_lbl_y = content_y + 18
+    title_y0 = tier_lbl_y + 35
     title_svg = ""
     for i, line in enumerate(title_lines[:2]):
-        display = _esc(line)
+        d = _esc(line)
         if i == 1 and len(title_lines) > 2:
-            display = _esc(line[:-3] + "...") if len(line) > 3 else "..."
-        title_svg += f'<text x="{tx}" y="{title_start_y + i * 44}" font-family="Liberation Sans" font-weight="bold" font-size="36" fill="{dark}">{display}</text>\n'
+            d = _esc(line[:-3] + "...") if len(line) > 3 else "..."
+        title_svg += f'<text x="{tx}" y="{title_y0 + i * 44}" font-family="Liberation Sans" font-weight="bold" font-size="36" fill="{dark}">{d}</text>\n'
 
     # Authors
     authors = paper.get("authors", [])
     a_str = ", ".join(authors[:4])
     if len(authors) > 4:
         a_str += f" +{len(authors) - 4}"
-    authors_y = title_start_y + min(len(title_lines), 2) * 44 + 6
+    auth_y = title_y0 + min(len(title_lines), 2) * 44 + 8
 
-    # Stats row — positioned relative to bottom
-    stats_h = 85
-    footer_h = 40
-    sy = H - M - footer_h - stats_h - 20  # stats Y
-    bw = (W - 2 * M - 2 * P - 24) // 3    # box width (3 boxes with 12px gaps)
+    # Stats: tight after authors, min y=390
+    stats_h = 80
+    sy = max(auth_y + 45, 390)
+    bw = (CW - 24) // 3
     paper_count = data["paper_count"]
     stats = [
         (f"Top {rank} of {paper_count}", "Papers"),
@@ -288,46 +291,43 @@ def _render_badge_image(data: dict) -> bytes:
         bx = M + P + i * (bw + 12)
         stats_svg += f"""
         <rect x="{bx}" y="{sy}" width="{bw}" height="{stats_h}" rx="10" fill="white"/>
-        <text x="{bx + bw // 2}" y="{sy + 38}" font-family="Liberation Sans" font-weight="bold" font-size="34" fill="{dark}" text-anchor="middle">{_esc(val)}</text>
-        <text x="{bx + bw // 2}" y="{sy + 65}" font-family="Liberation Sans" font-size="18" fill="{muted}" text-anchor="middle">{_esc(label)}</text>
+        <text x="{bx + bw // 2}" y="{sy + 35}" font-family="Liberation Sans" font-weight="bold" font-size="32" fill="{dark}" text-anchor="middle">{_esc(val)}</text>
+        <text x="{bx + bw // 2}" y="{sy + 60}" font-family="Liberation Sans" font-size="17" fill="{muted}" text-anchor="middle">{_esc(label)}</text>
         """
+
+    footer_y = H - M - 16
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
   <rect width="{W}" height="{H}" fill="#f5f5f8"/>
-  <rect x="{M - 2}" y="{M - 2}" width="{W - 2*M + 4}" height="{H - 2*M + 4}" rx="16" fill="{tier_hex}"/>
-  <rect x="{M}" y="{M}" width="{W - 2*M}" height="{H - 2*M}" rx="14" fill="{tier_bg}"/>
+  <rect x="{M-2}" y="{M-2}" width="{W-2*M+4}" height="{H-2*M+4}" rx="16" fill="{tier_hex}"/>
+  <rect x="{M}" y="{M}" width="{W-2*M}" height="{H-2*M}" rx="14" fill="{tier_bg}"/>
 
-  <!-- Header: period+category left, Kurate.org right -->
-  <text x="{M + P}" y="{row1_y}" font-family="Liberation Sans" font-weight="bold" font-size="26" fill="{dark}">
+  <text x="{M+P}" y="{hdr_y}" font-family="Liberation Sans" font-weight="bold" font-size="24" fill="{dark}">
     {_esc(data['archive_label'])}  \u00b7  {_esc(data['category_name'])} Preprints  \u00b7  arXiv
   </text>
-  <text x="{W - M - P}" y="{row1_y}" font-family="Liberation Sans" font-size="52" text-anchor="end">
-    <tspan font-weight="bold" fill="{accent}">Ku</tspan><tspan font-weight="bold" fill="{dark}">rate</tspan><tspan fill="{accent}">.org</tspan>
-  </text>
+  <text x="{W-M-P-235}" y="{hdr_y-2}" font-family="Liberation Sans" font-weight="bold" font-size="46" fill="{accent}">Ku</text>
+  <text x="{W-M-P-170}" y="{hdr_y-2}" font-family="Liberation Sans" font-weight="bold" font-size="46" fill="{dark}">rate</text>
+  <text x="{W-M-P-68}" y="{hdr_y-2}" font-family="Liberation Sans" font-size="46" fill="{accent}">.org</text>
 
-  <line x1="{M + P}" y1="{row1_y + 18}" x2="{W - M - P}" y2="{row1_y + 18}" stroke="#d4d4dc" stroke-width="1"/>
+  <line x1="{M+P}" y1="{hdr_y+12}" x2="{W-M-P}" y2="{hdr_y+12}" stroke="#d4d4dc" stroke-width="1"/>
 
-  <!-- Medal -->
   {medal_svg}
 
-  <!-- Tier + Title + Authors -->
-  <text x="{tx}" y="{tier_label_y}" font-family="Liberation Sans" font-weight="bold" font-size="20" fill="{tier_hex}">{tier_name.upper()}</text>
+  <text x="{tx}" y="{tier_lbl_y}" font-family="Liberation Sans" font-weight="bold" font-size="20" fill="{tier_hex}">{tier_name.upper()}</text>
   {title_svg}
-  <text x="{tx}" y="{authors_y}" font-family="Liberation Sans" font-size="24" fill="{muted}">{_esc(a_str[:75])}</text>
+  <text x="{tx}" y="{auth_y}" font-family="Liberation Sans" font-size="23" fill="{muted}">{_esc(a_str[:70])}</text>
 
-  <!-- Divider above stats -->
-  <line x1="{M + P}" y1="{sy - 12}" x2="{W - M - P}" y2="{sy - 12}" stroke="#d4d4dc" stroke-width="1"/>
+  <line x1="{M+P}" y1="{sy-10}" x2="{W-M-P}" y2="{sy-10}" stroke="#d4d4dc" stroke-width="1"/>
 
-  <!-- Stats boxes -->
   {stats_svg}
 
-  <!-- Footer -->
-  <text x="{M + P}" y="{H - M - 14}" font-family="Liberation Sans" font-size="19" fill="{muted}">
+  <text x="{M+P}" y="{footer_y}" font-family="Liberation Sans" font-size="18" fill="{muted}">
     Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament
   </text>
 </svg>"""
 
     return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=W, output_height=H)
+
 
 
 # Monthly badges
