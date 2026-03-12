@@ -154,8 +154,7 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
     # Absolute URLs for social crawlers
     image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png"
     # Redirect browsers to the archive page with the paper highlighted
-    archive_slug = slug.replace("w", "w").replace("m", "m")  # w7 or m2
-    redirect_url = f"/?category={category}&archive={year}-{archive_slug}"
+    redirect_url = f"/?cat={category}&archive={year}-{slug}"
     canonical_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/share"
 
     og_title = f"#{rank} {tier_name} in {cat_name} — {archive_label}"
