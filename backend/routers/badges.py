@@ -185,31 +185,46 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 
 
 
-def _draw_medal(draw, cx, cy, radius, tier_rgb, rank, font):
-    """Draw a sleek 3D-style medal coin with depth."""
+def _draw_medal(draw, cx, cy, radius, tier_name, rank, font):
+    """Draw a sleek 3D medal coin with proper gold/silver/bronze coloring."""
     r = radius
-    # Outer rim (darker)
-    rim_color = tuple(max(0, c - 40) for c in tier_rgb)
-    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=rim_color)
-    # Inner face (slightly smaller, main color)
-    inner_r = r - 4
-    draw.ellipse([cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r], fill=tier_rgb)
-    # Inner ring groove
-    groove_r = r - 10
-    groove_color = tuple(max(0, c - 25) for c in tier_rgb)
-    draw.ellipse([cx - groove_r, cy - groove_r, cx + groove_r, cy + groove_r], fill=None, outline=groove_color, width=2)
-    # Highlight (top-left arc simulation — lighter ellipse offset up-left)
-    highlight = tuple(min(255, c + 60) for c in tier_rgb)
-    hl_r = r - 14
-    draw.ellipse([cx - hl_r - 6, cy - hl_r - 6, cx + hl_r - 12, cy + hl_r - 12], fill=None, outline=highlight, width=2)
-    # Rank text (centered, white with slight shadow)
+    # Tier-specific color palettes for realistic metal look
+    palettes = {
+        "Gold": {
+            "rim": (160, 120, 10), "face": (212, 175, 55), "inner": (235, 200, 80),
+            "highlight": (255, 235, 150), "shadow": (130, 95, 5),
+        },
+        "Silver": {
+            "rim": (120, 120, 130), "face": (180, 185, 195), "inner": (200, 205, 215),
+            "highlight": (235, 238, 245), "shadow": (95, 95, 105),
+        },
+        "Bronze": {
+            "rim": (140, 85, 20), "face": (205, 127, 50), "inner": (225, 155, 80),
+            "highlight": (245, 195, 140), "shadow": (110, 65, 10),
+        },
+    }
+    p = palettes.get(tier_name, palettes["Silver"])
+
+    # Outer rim
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=p["rim"])
+    # Main face
+    inner_r = r - 5
+    draw.ellipse([cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r], fill=p["face"])
+    # Raised inner disc
+    disc_r = r - 12
+    draw.ellipse([cx - disc_r, cy - disc_r, cx + disc_r, cy + disc_r], fill=p["inner"])
+    # Rim groove (between rim and face)
+    draw.ellipse([cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r], fill=None, outline=p["shadow"], width=1)
+    draw.ellipse([cx - disc_r, cy - disc_r, cx + disc_r, cy + disc_r], fill=None, outline=p["rim"], width=1)
+    # Top highlight arc (simulate light source top-left)
+    hl_r = r - 16
+    draw.arc([cx - hl_r - 4, cy - hl_r - 4, cx + hl_r - 8, cy + hl_r - 8], start=200, end=340, fill=p["highlight"], width=3)
+    # Rank text with shadow
     rank_text = f"#{rank}"
     bbox = draw.textbbox((0, 0), rank_text, font=font)
     tw = bbox[2] - bbox[0]
     th = bbox[3] - bbox[1]
-    # Shadow
-    draw.text((cx - tw // 2 + 1, cy - th // 2 - 3), rank_text, fill=rim_color, font=font)
-    # Text
+    draw.text((cx - tw // 2 + 1, cy - th // 2 - 3), rank_text, fill=p["shadow"], font=font)
     draw.text((cx - tw // 2, cy - th // 2 - 4), rank_text, fill=(255, 255, 255), font=font)
 
 
@@ -218,10 +233,10 @@ def _draw_kurate_wordmark(draw, x, y, font_bold, font_regular, color_dark, color
     draw.text((x, y), "K", fill=color_accent, font=font_bold)
     k_bbox = draw.textbbox((0, 0), "K", font=font_bold)
     kw = k_bbox[2] - k_bbox[0]
-    draw.text((x + kw, y), "urate", fill=color_dark, font=font_bold)
+    draw.text((x + kw - 1, y), "urate", fill=color_dark, font=font_bold)
     u_bbox = draw.textbbox((0, 0), "urate", font=font_bold)
     uw = u_bbox[2] - u_bbox[0]
-    draw.text((x + kw + uw, y + 2), ".org", fill=color_accent, font=font_regular)
+    draw.text((x + kw + uw + 2, y + 4), ".org", fill=color_accent, font=font_regular)
 
 
 def _render_badge_image(data: dict) -> bytes:
@@ -256,9 +271,9 @@ def _render_badge_image(data: dict) -> bytes:
         f_authors = ImageFont.truetype(FONT_REGULAR, 24)
         f_stat_val = ImageFont.truetype(FONT_BOLD, 36)
         f_stat_lbl = ImageFont.truetype(FONT_REGULAR, 18)
-        f_footer = ImageFont.truetype(FONT_REGULAR, 18)
-        f_brand = ImageFont.truetype(FONT_BOLD, 22)
-        f_brand_sm = ImageFont.truetype(FONT_REGULAR, 18)
+        f_footer = ImageFont.truetype(FONT_REGULAR, 20)
+        f_brand = ImageFont.truetype(FONT_BOLD, 40)
+        f_brand_sm = ImageFont.truetype(FONT_REGULAR, 30)
     except Exception:
         f_header = f_header_sm = f_tier = f_title = f_rank = f_authors = ImageFont.load_default()
         f_stat_val = f_stat_lbl = f_footer = f_brand = f_brand_sm = f_header
@@ -276,15 +291,15 @@ def _render_badge_image(data: dict) -> bytes:
     header_text = f"{data['archive_label']}  ·  {cat_name} Preprints  ·  arXiv"
     draw.text((m + pad, top_y), header_text, fill=text_dark, font=f_header)
 
-    # Kurate.org wordmark (right)
-    _draw_kurate_wordmark(draw, W - m - pad - 148, top_y, f_brand, f_brand_sm, text_dark, accent)
+    # Kurate.org wordmark (right, large)
+    _draw_kurate_wordmark(draw, W - m - pad - 280, top_y - 6, f_brand, f_brand_sm, text_dark, accent)
 
     # === MEDAL + TITLE + AUTHORS ===
     section_y = top_y + 50
     medal_r = 50
     cx = m + pad + medal_r + 5
     cy = section_y + medal_r + 15
-    _draw_medal(draw, cx, cy, medal_r, tier_rgb, rank, f_rank)
+    _draw_medal(draw, cx, cy, medal_r, tier["name"], rank, f_rank)
 
     content_x = cx + medal_r + 28
     content_w = W - m - pad - content_x
@@ -327,9 +342,9 @@ def _render_badge_image(data: dict) -> bytes:
 
     paper_count = data["paper_count"]
     stats = [
+        (f"Top {rank} of {paper_count}", "Papers"),
         (str(paper.get("score", "?")), "Elo Score"),
         (f"{paper.get('win_rate', '?')}%", "Win Rate"),
-        (f"Top {rank} of {paper_count}", "Papers"),
     ]
 
     total_w = W - 2 * m - 2 * pad
@@ -345,11 +360,10 @@ def _render_badge_image(data: dict) -> bytes:
         draw.text((bx + box_w // 2 - lw // 2, stats_y + 55), label, fill=text_muted, font=f_stat_lbl)
 
     # === FOOTER ===
-    footer_y = H - m - 45
-    draw.text((m + pad, footer_y), "AI-ranked by scientific impact  ·  kurate.org/methodology", fill=text_muted, font=f_footer)
-    # Kurate.org right
-    k_bbox = draw.textbbox((0, 0), "Kurate.org", font=f_brand_sm)
-    draw.text((W - m - pad - (k_bbox[2] - k_bbox[0]), footer_y), "Kurate.org", fill=text_muted, font=f_brand_sm)
+    footer_y = H - m - 48
+    draw.text((m + pad, footer_y),
+        "Ranked by novelty, rigor, significance & clarity via AI pairwise tournament",
+        fill=text_muted, font=f_footer)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
