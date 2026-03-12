@@ -88,5 +88,6 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
 - Author Verification MVP: ORCID OAuth + Semantic Scholar claiming (Mar 12 2026)
   - Backend: /api/claim/* endpoints (connect ORCID, claim papers, verify via S2)
   - Frontend: AuthorClaimSection on paper pages, OrcidCallbackPage
-  - Multi-signal verification: S2 direct ORCID match, S2 author papers, fallback to manual review
+  - Multi-signal verification: S2 direct ORCID match, S2 name match, DB name match, fallback to manual review
   - Verified badges display on paper pages
+  - ORCID credentials configured and OAuth redirect tested end-to-end
