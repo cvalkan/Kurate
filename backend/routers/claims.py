@@ -137,17 +137,52 @@ async def _s2_get_author_papers(s2_author_id: str, limit: int = 500) -> list:
     return []
 
 
+FREE_EMAIL_DOMAINS = {
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com",
+    "protonmail.com", "proton.me", "icloud.com", "mail.com", "aol.com",
+    "zoho.com", "yandex.com", "gmx.com", "gmx.net", "tutanota.com",
+    "fastmail.com", "mailinator.com", "guerrillamail.com",
+}
+
+
+def _compute_trust_level(name_matched: bool, verified_email: bool,
+                          email_domains: list) -> dict:
+    """Compute trust level (1-8) and label for admin display."""
+    has_public_domain = len(email_domains) > 0
+    is_institutional = has_public_domain and all(d.lower() not in FREE_EMAIL_DOMAINS for d in email_domains)
+    is_free = has_public_domain and not is_institutional
+    domain_str = ", ".join(email_domains) if email_domains else None
+
+    if name_matched and verified_email and is_institutional:
+        return {"level": 1, "label": f"name match · verified · {domain_str}"}
+    if not name_matched and verified_email and is_institutional:
+        return {"level": 2, "label": f"no name match · verified · {domain_str}"}
+    if name_matched and verified_email and is_free:
+        return {"level": 3, "label": f"name match · verified · {domain_str}"}
+    if name_matched and verified_email and not has_public_domain:
+        return {"level": 4, "label": "name match · verified · domain hidden"}
+    if name_matched and not verified_email:
+        return {"level": 5, "label": "name match · unverified email"}
+    if not name_matched and verified_email and is_free:
+        return {"level": 6, "label": f"no name match · verified · {domain_str}"}
+    if not name_matched and verified_email and not has_public_domain:
+        return {"level": 7, "label": "no name match · verified · domain hidden"}
+    # no name match, no verified email
+    return {"level": 8, "label": "no name match · unverified email"}
+
+
 async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "",
-                             orcid_has_verified_email: bool = False) -> dict:
-    """Run multi-signal verification pipeline. Returns {verified, method, confidence}.
-    
-    Name-based matches (signals 2 & 4) only auto-verify if the ORCID account
-    has a verified email — this prevents gaming via fake ORCID accounts.
-    """
+                             orcid_verified_email: bool = False,
+                             orcid_email_domains: list = None) -> dict:
+    """Run verification pipeline. Only S2 ORCID-linked signals auto-verify.
+    Name matches are never auto-verified — they provide trust context for admin review."""
 
-    name_match_result = None  # Store best name match for admin context
+    if orcid_email_domains is None:
+        orcid_email_domains = []
 
-    # Signal 1: S2 paper reverse lookup — check ORCID linkage on S2 (highest confidence)
+    name_match_result = None
+
+    # Signal 1: S2 paper reverse lookup — ORCID linked on S2 (auto-verify)
     s2_paper = await _s2_lookup_paper(arxiv_id)
     if s2_paper:
         for author in s2_paper.get("authors", []):
@@ -161,23 +196,13 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "",
                     "matched_name": author.get("name"),
                 }
 
-        # Signal 2: S2 paper author name match
+        # Check name match on S2 author list (for admin context only)
         if orcid_name and s2_paper.get("authors"):
             match = _fuzzy_name_match(orcid_name, [a.get("name", "") for a in s2_paper["authors"]])
             if match:
-                matched_author = s2_paper["authors"][match["index"]]
-                if orcid_has_verified_email:
-                    return {
-                        "verified": True,
-                        "method": "s2_name_match",
-                        "confidence": match["score"],
-                        "s2_author_id": matched_author.get("authorId"),
-                        "matched_name": matched_author.get("name"),
-                    }
-                else:
-                    name_match_result = {"method": "s2_name_match", "matched_name": matched_author.get("name"), "score": match["score"]}
+                name_match_result = {"method": "s2_name_match", "matched_name": s2_paper["authors"][match["index"]].get("name"), "score": match["score"]}
 
-    # Signal 3: S2 author search by ORCID → paper list (high confidence, no email needed)
+    # Signal 3: S2 author search by ORCID → paper list (auto-verify)
     s2_author = await _s2_search_author_by_orcid(orcid_id)
     if s2_author:
         papers = await _s2_get_author_papers(s2_author["authorId"])
@@ -192,7 +217,7 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "",
                     "matched_name": s2_author.get("name"),
                 }
 
-    # Signal 4: Name match against our own DB author list
+    # Check name match on DB author list (for admin context only)
     if orcid_name and not name_match_result:
         paper_doc = await db.papers.find_one(
             {"arxiv_id": {"$regex": f"^{arxiv_id}"}},
@@ -201,22 +226,21 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "",
         if paper_doc and paper_doc.get("authors"):
             match = _fuzzy_name_match(orcid_name, paper_doc["authors"])
             if match:
-                if orcid_has_verified_email:
-                    return {
-                        "verified": True,
-                        "method": "db_name_match",
-                        "confidence": match["score"],
-                        "matched_name": paper_doc["authors"][match["index"]],
-                    }
-                else:
-                    name_match_result = {"method": "db_name_match", "matched_name": paper_doc["authors"][match["index"]], "score": match["score"]}
+                name_match_result = {"method": "db_name_match", "matched_name": paper_doc["authors"][match["index"]], "score": match["score"]}
 
-    # No auto-verification — return with name match info for admin context
+    # Compute trust level for admin
+    trust = _compute_trust_level(
+        name_matched=name_match_result is not None,
+        verified_email=orcid_verified_email,
+        email_domains=orcid_email_domains,
+    )
+
     return {
         "verified": False,
         "method": name_match_result["method"] if name_match_result else "no_match",
         "confidence": 0.0,
-        "name_match": name_match_result,  # Helpful for admin review
+        "name_match": name_match_result,
+        "trust": trust,
     }
 
 
@@ -451,8 +475,9 @@ async def claim_paper(paper_id: str, request: Request):
 
     # Run verification
     orcid_name = verification.get("orcid_name", user.get("name", ""))
-    orcid_has_verified_email = verification.get("orcid_verified_email", False)
-    result = await _verify_authorship(orcid_id, arxiv_id, orcid_name, orcid_has_verified_email)
+    orcid_verified_email = verification.get("orcid_verified_email", False)
+    orcid_email_domains = verification.get("orcid_email_domains", [])
+    result = await _verify_authorship(orcid_id, arxiv_id, orcid_name, orcid_verified_email, orcid_email_domains)
 
     claim_record = {
         "orcid_id": orcid_id,
@@ -461,9 +486,10 @@ async def claim_paper(paper_id: str, request: Request):
         "verified": result["verified"],
         "method": result["method"],
         "confidence": result["confidence"],
-        "orcid_verified_email": orcid_has_verified_email,
-        "orcid_email_domains": verification.get("orcid_email_domains", []),
+        "orcid_verified_email": orcid_verified_email,
+        "orcid_email_domains": orcid_email_domains,
         "name_match": result.get("name_match"),
+        "trust": result.get("trust"),
         "claimed_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -557,8 +583,7 @@ async def list_pending_claims():
                     "claimer_name": c.get("author_name"),
                     "claimer_email": email_map.get(c.get("user_id"), ""),
                     "claimer_orcid": c.get("orcid_id"),
-                    "orcid_verified_email": c.get("orcid_verified_email", False),
-                    "orcid_email_domains": c.get("orcid_email_domains", []),
+                    "trust": c.get("trust", {}),
                     "name_match": c.get("name_match"),
                     "claimed_at": c.get("claimed_at"),
                 })
