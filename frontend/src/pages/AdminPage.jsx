@@ -526,12 +526,17 @@ function AdminSuggestions() {
 
 function AdminClaims() {
   const [claims, setClaims] = useState([]);
+  const [verified, setVerified] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchClaims = async () => {
     try {
-      const res = await axios.get(`${API}/api/claim/admin/pending`, { headers: getAdminHeaders() });
-      setClaims(res.data.pending || []);
+      const [pendingRes, verifiedRes] = await Promise.all([
+        axios.get(`${API}/api/claim/admin/pending`, { headers: getAdminHeaders() }),
+        axios.get(`${API}/api/claim/admin/verified`, { headers: getAdminHeaders() }),
+      ]);
+      setClaims(pendingRes.data.pending || []);
+      setVerified(verifiedRes.data.verified || []);
     } catch (err) {
       console.error("Failed to load claims:", err);
     } finally {
@@ -544,7 +549,10 @@ function AdminClaims() {
   const handleAction = async (paperId, orcidId, action) => {
     try {
       await axios.post(`${API}/api/claim/admin/${action}/${paperId}/${orcidId}`, {}, { headers: getAdminHeaders() });
-      toast.success(action === "approve" ? "Claim approved — badge granted" : "Claim rejected");
+      toast.success(
+        action === "approve" ? "Claim approved — badge granted" :
+        action === "reject" ? "Claim rejected" : "Claim revoked"
+      );
       fetchClaims();
     } catch { toast.error("Action failed"); }
   };
@@ -616,6 +624,44 @@ function AdminClaims() {
                   </span>
                 )}
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Accepted Claims */}
+      <div className="flex items-center justify-between mt-8">
+        <h2 className="font-heading text-lg font-medium">Accepted Claims</h2>
+        <span className="text-xs text-muted-foreground">{verified.length} verified</span>
+      </div>
+
+      {verified.length === 0 ? (
+        <div className="p-6 text-center text-muted-foreground border border-border rounded-lg">
+          <p className="text-sm">No accepted claims yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {verified.map((c, i) => (
+            <div key={`${c.paper_id}-${c.claimer_orcid}`} className="p-3 border border-border rounded-lg bg-secondary/10 flex items-center justify-between gap-3" data-testid={`verified-claim-${i}`}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{c.paper_title}</p>
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
+                  <span className="font-medium text-foreground">{c.claimer_name}</span>
+                  {c.claimer_email && <span>{c.claimer_email}</span>}
+                  <a href={`https://orcid.org/${c.claimer_orcid}`} target="_blank" rel="noopener noreferrer" className="text-[#A6CE39] hover:underline">
+                    {c.claimer_orcid}
+                  </a>
+                  <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">{c.method?.replace(/_/g, " ")}</span>
+                  {c.arxiv_id && (
+                    <a href={`https://arxiv.org/abs/${c.arxiv_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      {c.arxiv_id}
+                    </a>
+                  )}
+                </div>
+              </div>
+              <Button variant="outline" size="sm" className="h-7 text-[10px] text-red-600 hover:bg-red-50 shrink-0" onClick={() => handleAction(c.paper_id, c.claimer_orcid, "revoke")} data-testid={`revoke-${i}`}>
+                Remove
+              </Button>
             </div>
           ))}
         </div>

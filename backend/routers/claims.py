@@ -627,3 +627,58 @@ async def reject_claim(paper_id: str, orcid_id: str):
 
     logger.info(f"Claim rejected by admin: paper={paper_id} orcid={orcid_id}")
     return {"status": "rejected"}
+
+
+@router.get("/admin/verified", dependencies=[Depends(verify_admin)])
+async def list_verified_claims():
+    """Admin: list all verified (accepted) claims."""
+    papers = await db.papers.find(
+        {"claimed_by": {"$elemMatch": {"verified": True}}},
+        {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1, "claimed_by": 1},
+    ).to_list(5000)
+
+    user_ids = set()
+    for p in papers:
+        for c in p.get("claimed_by", []):
+            if c.get("verified") and c.get("user_id"):
+                user_ids.add(c["user_id"])
+    email_map = {}
+    if user_ids:
+        users = await db.users.find({"user_id": {"$in": list(user_ids)}}, {"_id": 0, "user_id": 1, "email": 1}).to_list(500)
+        email_map = {u["user_id"]: u.get("email", "") for u in users}
+
+    verified = []
+    for p in papers:
+        for c in p.get("claimed_by", []):
+            if c.get("verified"):
+                verified.append({
+                    "paper_id": p["id"],
+                    "paper_title": p.get("title", ""),
+                    "arxiv_id": p.get("arxiv_id", ""),
+                    "claimer_name": c.get("author_name"),
+                    "claimer_email": email_map.get(c.get("user_id"), ""),
+                    "claimer_orcid": c.get("orcid_id"),
+                    "method": c.get("method", ""),
+                    "claimed_at": c.get("claimed_at"),
+                })
+    return {"verified": verified}
+
+
+@router.post("/admin/revoke/{paper_id}/{orcid_id}", dependencies=[Depends(verify_admin)])
+async def revoke_claim(paper_id: str, orcid_id: str):
+    """Admin: revoke a verified claim (remove badge)."""
+    result = await db.papers.update_one(
+        {"id": paper_id},
+        {"$pull": {"claimed_by": {"orcid_id": orcid_id, "verified": True}}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(404, "Verified claim not found")
+
+    # Also remove from user's verified papers
+    await db.author_verifications.update_one(
+        {"orcid_id": orcid_id},
+        {"$pull": {"verified_papers": {"paper_id": paper_id}}},
+    )
+
+    logger.info(f"Claim revoked by admin: paper={paper_id} orcid={orcid_id}")
+    return {"status": "revoked"}
