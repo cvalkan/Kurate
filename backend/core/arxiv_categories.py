@@ -167,6 +167,17 @@ ARXIV_TAXONOMY = {
     "stat.ML": "Machine Learning (Statistics)",
     "stat.OT": "Other Statistics",
     "stat.TH": "Statistics Theory",
+    # ChemRxiv
+    "chemrxiv.IC": "Inorganic Chemistry",
+    "chemrxiv.OC": "Organic Chemistry",
+    "chemrxiv.PC": "Physical Chemistry",
+    "chemrxiv.BC": "Biological Chemistry",
+    "chemrxiv.AC": "Analytical Chemistry",
+    "chemrxiv.MS": "Materials Science",
+    "chemrxiv.CE": "Chemical Engineering",
+    "chemrxiv.TC": "Theoretical and Computational Chemistry",
+    "chemrxiv.EC": "Environmental Chemistry",
+    "chemrxiv.NC": "Nanoscience",
 }
 
 # Group labels for organized display
@@ -181,6 +192,7 @@ ARXIV_GROUPS = {
     "q-bio": "Quantitative Biology",
     "q-fin": "Quantitative Finance",
     "stat": "Statistics",
+    "chemrxiv": "Chemistry (ChemRxiv)",
 }
 
 
