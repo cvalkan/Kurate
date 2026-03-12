@@ -276,11 +276,12 @@ def _render_badge_image(data: dict) -> bytes:
     # Categories
     svg = svg.replace(">cs.RO \u00b7 cs.AI \u00b7 cs.LG<", f">{cats_str}<")
 
-    # Stats — "Top X of Y" with split colors (rank in blue, "of Y" in dark)
+    # Stats — "Top X of Y" with split colors (keep parent fill blue, tspan overrides "of Y" to dark)
     for r in [1, 2, 3]:
-        old_stat = f'>Top {r} of 264<'
-        new_stat = f'><tspan fill="#4285F4">Top {rank} </tspan><tspan fill="#1a1a1a">of {paper_count}</tspan><'
-        svg = svg.replace(old_stat, new_stat)
+        svg = svg.replace(
+            f'fill="#4285F4">Top {r} of 264<',
+            f'fill="#4285F4">Top {rank} <tspan fill="#1a1a1a">of {paper_count}</tspan><'
+        )
     svg = svg.replace(">1472<", f">{score}<")
     svg = svg.replace(">1520<", f">{score}<")
     svg = svg.replace(">1445<", f">{score}<")
