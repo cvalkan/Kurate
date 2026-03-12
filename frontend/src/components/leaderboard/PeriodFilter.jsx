@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Clock, Calendar, CalendarDays, Infinity, Search, X, Lock, Archive, ChevronDown } from "lucide-react";
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 const PERIODS = [
   { key: "recent", label: "Most Recent", icon: Clock },
@@ -12,16 +14,28 @@ const PERIODS = [
   { key: "all", label: "All Time", icon: Infinity },
 ];
 
-export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedIn, requireAuth, archives = [] }) {
+export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedIn, requireAuth, archives = [], onArchiveSelect }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const archiveRef = useRef(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const handleArchiveClick = async (archive) => {
+    setArchiveOpen(false);
+    const slug = archive.period_type === "weekly" ? `w${archive.week}` : `m${archive.month}`;
+    try {
+      const res = await axios.get(`${API}/api/archive/${archive.category}/${archive.year}/${slug}`);
+      if (res.data.leaderboard) {
+        onArchiveSelect(res.data);
+      }
+    } catch (e) {
+      console.error("Failed to load archive:", e);
+    }
+  };
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-6">
@@ -39,7 +53,9 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
               <TooltipContent><p className="text-xs">Sign in to access {p.label.toLowerCase()} view</p></TooltipContent>
             </Tooltip>
           ) : (
-            <Button key={p.key} variant={period === p.key ? "default" : "ghost"} size="sm" onClick={() => setPeriod(p.key)} className="gap-1.5 text-xs h-8 shrink-0" data-testid={`filter-${p.key}`}>
+            <Button key={p.key} variant={period === p.key ? "default" : "ghost"} size="sm"
+              onClick={() => { setPeriod(p.key); if (onArchiveSelect) onArchiveSelect(null); }}
+              className="gap-1.5 text-xs h-8 shrink-0" data-testid={`filter-${p.key}`}>
               <Icon className="h-3.5 w-3.5" /> {p.label}
             </Button>
           );
@@ -63,10 +79,7 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
                   return (
                     <button
                       key={`${a.category}-${a.year}-${slug}`}
-                      onClick={() => {
-                        setArchiveOpen(false);
-                        navigate(`/leaderboard/${a.category}/${a.year}/${slug}`);
-                      }}
+                      onClick={() => handleArchiveClick(a)}
                       className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors flex items-center justify-between"
                     >
                       <span>{a.label}</span>

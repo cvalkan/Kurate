@@ -4,6 +4,7 @@ import axios from "axios";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { SuggestionModal } from "@/components/SuggestionModal";
+import { Archive, X } from "lucide-react";
 import { CategoryTabs } from "@/components/leaderboard/CategoryTabs";
 import { TagFilter } from "@/components/leaderboard/TagFilter";
 import { StatusBar } from "@/components/leaderboard/StatusBar";
@@ -29,6 +30,7 @@ export default function LeaderboardPage() {
   const [showRatingCol, setShowRatingCol] = useState(true);
   const [showGapCol, setShowGapCol] = useState(true);
   const [archives, setArchives] = useState([]);
+  const [activeArchive, setActiveArchive] = useState(null); // {label, leaderboard, ...}
 
   const [allTags, setAllTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState(() => {
@@ -214,9 +216,23 @@ export default function LeaderboardPage() {
       {hasSelectedTags && <StatsToggle globalStats={globalStats} setGlobalStats={setGlobalStats} />}
 
       <PeriodFilter
-        period={period} setPeriod={setPeriod} keyword={keyword} setKeyword={setKeyword}
-        isLoggedIn={isLoggedIn} requireAuth={requireAuth} category={category} archives={archives}
+        period={activeArchive ? null : period} setPeriod={setPeriod} keyword={keyword} setKeyword={setKeyword}
+        isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={archives}
+        onArchiveSelect={(data) => { setActiveArchive(data); if (data) setLoading(false); }}
       />
+
+      {activeArchive && (
+        <div className="mb-4 px-3 py-2 bg-secondary/30 border border-border rounded-lg flex items-center justify-between text-xs">
+          <span className="font-medium">
+            <Archive className="h-3 w-3 inline mr-1.5" />
+            Viewing archived snapshot: <span className="text-accent">{activeArchive.label}</span>
+            <span className="text-muted-foreground ml-2">{activeArchive.paper_count} papers, {activeArchive.match_count?.toLocaleString()} matches</span>
+          </span>
+          <button onClick={() => setActiveArchive(null)} className="text-muted-foreground hover:text-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {warmingUp && (
             <div className="mb-4 p-4 bg-accent/10 border border-accent/30 rounded-lg flex items-center gap-3" data-testid="warming-up-banner">
@@ -229,10 +245,12 @@ export default function LeaderboardPage() {
           )}
 
           <LeaderboardTable
-            leaderboard={leaderboard} loading={loading} showCatCol={isTagMode}
+            leaderboard={activeArchive ? activeArchive.leaderboard : leaderboard}
+            loading={loading && !activeArchive} showCatCol={isTagMode}
             hasSelectedTags={hasSelectedTags} globalStats={globalStats}
             debouncedKeyword={debouncedKeyword} keyword={keyword}
-            displayCount={displayCount} setDisplayCount={setDisplayCount}
+            displayCount={activeArchive ? 999 : displayCount}
+            setDisplayCount={setDisplayCount}
             sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
             showRatingCol={showRatingCol} showGapCol={showGapCol}
           />
