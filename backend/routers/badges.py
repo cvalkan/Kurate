@@ -222,7 +222,7 @@ def _render_badge_image(data: dict) -> bytes:
         svg = f.read()
 
     # Dynamic data
-    title_lines = _wordwrap(paper.get("title", ""), 50)
+    title_lines = _wordwrap(paper.get("title", ""), 46)
     title_line1 = _esc(title_lines[0]) if len(title_lines) > 0 else ""
     title_line2 = ""
     if len(title_lines) > 1:
