@@ -2644,30 +2644,46 @@ async def get_archive_frequency():
 
 @router.post("/archive/backfill", dependencies=[Depends(verify_admin)])
 async def backfill_archives():
-    """Create historical weekly AND monthly archive snapshots for all categories.
-    Uses actual match data for proper BT computation."""
+    """Create weekly AND monthly archive snapshots for all active categories.
+    
+    Design:
+    - Both weekly and monthly archives always created for every category
+    - Each archive = papers published in that time window, ranked by ALL their matches to date
+    - Idempotent: skips archives that already exist
+    - Skips categories with no tournament matches
+    - Creates "Older" catch-all for papers published before the first archive window
+    """
     from services.ranking import compute_leaderboard_async
     from datetime import timedelta
 
+    FROZEN_FIELDS = ["rank", "id", "title", "authors", "score", "wins", "losses",
+                     "comparisons", "win_rate", "ci", "wilson_margin", "published", "link", "arxiv_id"]
+    MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June",
+                   "July", "August", "September", "October", "November", "December"]
+
+    def freeze(lb_entries):
+        return [{k: e.get(k) for k in FROZEN_FIELDS} for e in lb_entries]
+
+    def match_count(frozen):
+        return sum((e.get("comparisons") or 0) for e in frozen) // 2
+
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
-
     utc_now = datetime.now(timezone.utc)
 
-    # Load all papers and matches once
-    # Load ALL papers (not just with summaries) so BT can match opponent papers
+    # --- Load all data once ---
     all_papers = await db.papers.find(
-        {},
-        {"_id": 0, "id": 1, "title": 1, "authors": 1, "published": 1, "link": 1,
-         "arxiv_id": 1, "categories": 1, "ai_rating": 1, "score": 1,
-         "wins": 1, "losses": 1, "comparisons": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1}
-    ).to_list(10000)
+        {}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "published": 1, "link": 1,
+             "arxiv_id": 1, "categories": 1, "ai_rating": 1}
+    ).to_list(50000)
 
     all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1, "completed": 1, "failed": 1}
-    ).to_list(200000)
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
+    ).to_list(500000)
 
+    # Build lookup maps
+    paper_by_id = {p["id"]: p for p in all_papers}
     paper_dates = {}
     for p in all_papers:
         try:
@@ -2675,166 +2691,112 @@ async def backfill_archives():
         except:
             pass
 
-    match_dates = []
-    for m in all_matches:
-        try:
-            m["_dt"] = datetime.fromisoformat(m["created_at"].replace("Z", "+00:00"))
-            match_dates.append(m)
-        except:
-            pass
-    match_dates.sort(key=lambda m: m["_dt"])
+    paper_cat = {}
+    for p in all_papers:
+        paper_cat[p["id"]] = (p.get("categories") or [""])[0] if p.get("categories") else ""
 
-    start_dt = match_dates[0]["_dt"] if match_dates else (min(paper_dates.values()) if paper_dates else utc_now)
+    # Skip categories with no matches
+    cats_with_matches = set()
+    for m in all_matches:
+        cats_with_matches.add(paper_cat.get(m["paper1_id"], ""))
+        cats_with_matches.add(paper_cat.get(m["paper2_id"], ""))
+    active_cats = [c for c in active_cats if c in cats_with_matches]
 
     if not paper_dates:
         return {"status": "no_data"}
 
-    days_until_monday = (7 - start_dt.weekday()) % 7
-    if days_until_monday == 0:
-        days_until_monday = 7
-    first_monday = (start_dt + timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+    # --- Helper: compute archive for a set of paper IDs ---
+    async def compute_archive(cat_papers, cat_pids):
+        """Run BT on cat_papers + their opponents from all_matches. Return ranked list filtered to cat_pids."""
+        # Find all matches involving these papers
+        cat_matches = [m for m in all_matches if m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids]
+        if not cat_matches:
+            # No matches: return papers with default scores
+            result = [{"rank": i + 1, **{k: p.get(k) for k in FROZEN_FIELDS if k != "rank"}} for i, p in enumerate(cat_papers)]
+            return result
+
+        # Include opponent papers for BT
+        opp_ids = set()
+        for m in cat_matches:
+            opp_ids.add(m["paper1_id"])
+            opp_ids.add(m["paper2_id"])
+        opp_ids -= cat_pids
+        opp_papers = [paper_by_id[pid] for pid in opp_ids if pid in paper_by_id]
+
+        lb = await compute_leaderboard_async(cat_papers + opp_papers, cat_matches)
+        lb = [e for e in lb if e["id"] in cat_pids]
+        for i, e in enumerate(lb):
+            e["rank"] = i + 1
+        return lb
 
     created = 0
 
-    # Skip categories with no match data (no tournament activity)
-    paper_cat_map = {}
-    for p in all_papers:
-        paper_cat_map[p["id"]] = (p.get("categories") or [""])[0] if p.get("categories") else ""
-    cats_with_matches = set()
-    for m in match_dates:
-        cats_with_matches.add(paper_cat_map.get(m["paper1_id"], ""))
-        cats_with_matches.add(paper_cat_map.get(m["paper2_id"], ""))
-    active_cats = [c for c in active_cats if c in cats_with_matches]
+    # --- Determine time range ---
+    earliest_paper = min(paper_dates.values())
+    # First Monday on or after the earliest paper
+    days_to_monday = (7 - earliest_paper.weekday()) % 7
+    first_monday = (earliest_paper + timedelta(days=days_to_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+    # If earliest paper IS on Monday, first_monday = that Monday (not +7)
 
-    # --- Weekly archives for ALL categories ---
+    # --- WEEKLY archives ---
     monday = first_monday
-    while monday < utc_now + timedelta(days=7):  # Include current week
-        year = monday.isocalendar()[0]
-        week = monday.isocalendar()[1]
+    while monday <= utc_now + timedelta(days=7):
+        year, week = monday.isocalendar()[0], monday.isocalendar()[1]
         week_start = monday - timedelta(days=7)
-        # Use all matches up to now — the archive captures each cohort's current tournament state
-        match_cutoff = utc_now
 
         for cat in active_cats:
-            existing = await db.leaderboard_archives.find_one(
-                {"category": cat, "year": year, "week": week, "period_type": "weekly"})
-            if existing:
+            if await db.leaderboard_archives.find_one({"category": cat, "year": year, "week": week, "period_type": "weekly"}):
                 continue
 
             cat_papers = [p for p in all_papers
-                          if (p.get("categories") or [""])[0] == cat
+                          if paper_cat.get(p["id"]) == cat
                           and p["id"] in paper_dates
                           and week_start <= paper_dates[p["id"]] < monday]
             if not cat_papers:
                 continue
 
             cat_pids = {p["id"] for p in cat_papers}
+            lb = await compute_archive(cat_papers, cat_pids)
 
-            # All matches up to end of this week involving ANY of this week's papers
-            cat_matches = [m for m in match_dates
-                           if m["_dt"] < match_cutoff
-                           and (m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids)]
-
-            # Include opponent papers so BT scores are meaningful
-            opponent_ids = set()
-            for m in cat_matches:
-                opponent_ids.add(m["paper1_id"])
-                opponent_ids.add(m["paper2_id"])
-            opponent_ids -= cat_pids
-            all_bt_papers = cat_papers + [p for p in all_papers if p["id"] in opponent_ids]
-
-            lb = await compute_leaderboard_async(all_bt_papers, cat_matches)
-            lb = [e for e in lb if e["id"] in cat_pids]
-            for i, entry in enumerate(lb):
-                entry["rank"] = i + 1
-
-            frozen = []
-            for entry in lb:
-                frozen.append({
-                    "rank": entry.get("rank"),
-                    "id": entry.get("id"),
-                    "title": entry.get("title", ""),
-                    "authors": entry.get("authors", []),
-                    "score": entry.get("score"),
-                    "wins": entry.get("wins"),
-                    "losses": entry.get("losses"),
-                    "comparisons": entry.get("comparisons"),
-                    "win_rate": entry.get("win_rate"),
-                    "ci": entry.get("ci"),
-                    "wilson_margin": entry.get("wilson_margin"),
-                    "published": entry.get("published"),
-                    "link": entry.get("link"),
-                    "arxiv_id": entry.get("arxiv_id"),
-                })
-
-            doc = {
-                "category": cat,
-                "period_type": "weekly",
-                "year": year,
-                "week": week,
-                "month": None,
+            await db.leaderboard_archives.insert_one({
+                "category": cat, "period_type": "weekly",
+                "year": year, "week": week, "month": None,
                 "label": f"Week {week}, {year}",
-                "paper_count": len(frozen),
-                "match_count": sum((e.get("comparisons") or 0) for e in frozen) // 2,
-                "leaderboard": frozen,
-                "created_at": monday.isoformat(),
-            }
-            await db.leaderboard_archives.insert_one(doc)
+                "paper_count": len(lb), "match_count": match_count(lb),
+                "leaderboard": freeze(lb), "created_at": monday.isoformat(),
+            })
             created += 1
 
         monday += timedelta(weeks=1)
         await asyncio.sleep(0)
 
-    # --- Monthly archives for ALL categories ---
-    month_names = ["", "January", "February", "March", "April", "May", "June",
-                   "July", "August", "September", "October", "November", "December"]
-    cur_year = start_dt.year
-    cur_month = start_dt.month
+    # --- MONTHLY archives ---
+    cur_year, cur_month = earliest_paper.year, earliest_paper.month
     while (cur_year, cur_month) <= (utc_now.year, utc_now.month):
         month_start = datetime(cur_year, cur_month, 1, tzinfo=timezone.utc)
-        if cur_month == 12:
-            month_end = datetime(cur_year + 1, 1, 1, tzinfo=timezone.utc)
-        else:
-            month_end = datetime(cur_year, cur_month + 1, 1, tzinfo=timezone.utc)
+        month_end = datetime(cur_year + (1 if cur_month == 12 else 0), (cur_month % 12) + 1, 1, tzinfo=timezone.utc)
 
         for cat in active_cats:
-            existing = await db.leaderboard_archives.find_one(
-                {"category": cat, "year": cur_year, "month": cur_month, "period_type": "monthly"})
-            if existing:
+            if await db.leaderboard_archives.find_one({"category": cat, "year": cur_year, "month": cur_month, "period_type": "monthly"}):
                 continue
 
             cat_papers = [p for p in all_papers
-                          if (p.get("categories") or [""])[0] == cat
+                          if paper_cat.get(p["id"]) == cat
                           and p["id"] in paper_dates
                           and month_start <= paper_dates[p["id"]] < month_end]
             if not cat_papers:
                 continue
 
             cat_pids = {p["id"] for p in cat_papers}
-            cat_matches_sub = [m for m in match_dates if m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids]
-            opp_ids = ({m["paper1_id"] for m in cat_matches_sub} | {m["paper2_id"] for m in cat_matches_sub}) - cat_pids
-            lb = await compute_leaderboard_async(cat_papers + [p for p in all_papers if p["id"] in opp_ids], cat_matches_sub)
-            lb = [e for e in lb if e["id"] in cat_pids]
-            for i, e in enumerate(lb): e["rank"] = i + 1
-            frozen = [{
-                "rank": e.get("rank"), "id": e.get("id"), "title": e.get("title", ""),
-                "authors": e.get("authors", []), "score": e.get("score"),
-                "wins": e.get("wins"), "losses": e.get("losses"),
-                "comparisons": e.get("comparisons"), "win_rate": e.get("win_rate"),
-                "ci": e.get("ci"), "wilson_margin": e.get("wilson_margin"),
-                "published": e.get("published"), "link": e.get("link"), "arxiv_id": e.get("arxiv_id"),
-            } for e in lb]
+            lb = await compute_archive(cat_papers, cat_pids)
 
-            doc = {
+            await db.leaderboard_archives.insert_one({
                 "category": cat, "period_type": "monthly",
                 "year": cur_year, "week": None, "month": cur_month,
-                "label": f"{month_names[cur_month]} {cur_year}",
-                "paper_count": len(frozen),
-                "match_count": sum((e.get("comparisons") or 0) for e in frozen) // 2,
-                "leaderboard": frozen,
-                "created_at": month_end.isoformat(),
-            }
-            await db.leaderboard_archives.insert_one(doc)
+                "label": f"{MONTH_NAMES[cur_month]} {cur_year}",
+                "paper_count": len(lb), "match_count": match_count(lb),
+                "leaderboard": freeze(lb), "created_at": month_end.isoformat(),
+            })
             created += 1
 
         cur_month += 1
@@ -2843,83 +2805,52 @@ async def backfill_archives():
             cur_year += 1
         await asyncio.sleep(0)
 
-    # Create "Older" catch-all snapshots — one per type (weekly + monthly)
+    # --- "OLDER" catch-all: papers published before the first weekly/monthly archive ---
     for cat in active_cats:
-        for ptype, sort_field, find_query in [
-            ("weekly", [("year", 1), ("week", 1)], {"category": cat, "period_type": "weekly"}),
-            ("monthly", [("year", 1), ("month", 1)], {"category": cat, "period_type": "monthly"}),
-        ]:
-            existing_older = await db.leaderboard_archives.find_one(
-                {"category": cat, "period_type": ptype, "label": "Older"})
-            if existing_older:
+        all_cat_papers = [p for p in all_papers if paper_cat.get(p["id"]) == cat and p["id"] in paper_dates]
+        all_cat_pids = {p["id"] for p in all_cat_papers}
+        if not all_cat_papers:
+            continue
+
+        for ptype in ["weekly", "monthly"]:
+            if await db.leaderboard_archives.find_one({"category": cat, "period_type": ptype, "label": "Older"}):
                 continue
 
-            earliest = await db.leaderboard_archives.find_one(find_query, sort=sort_field)
-            if not earliest:
-                continue
-
-            # Compute cutoff: papers before the earliest archive of this type
+            # Find the earliest non-Older archive for this type
             if ptype == "weekly":
-                ea_monday = datetime.fromisocalendar(earliest["year"], earliest["week"], 1).replace(tzinfo=timezone.utc)
-                cutoff = ea_monday - timedelta(days=7)
+                earliest = await db.leaderboard_archives.find_one(
+                    {"category": cat, "period_type": "weekly", "label": {"$ne": "Older"}},
+                    sort=[("year", 1), ("week", 1)])
+                if not earliest:
+                    # No weekly archives at all — all papers are "Older"
+                    cutoff = utc_now
+                else:
+                    ea_monday = datetime.fromisocalendar(earliest["year"], earliest["week"], 1).replace(tzinfo=timezone.utc)
+                    cutoff = ea_monday - timedelta(days=7)
             else:
-                cutoff = datetime(earliest["year"], earliest["month"], 1, tzinfo=timezone.utc)
+                earliest = await db.leaderboard_archives.find_one(
+                    {"category": cat, "period_type": "monthly", "label": {"$ne": "Older"}},
+                    sort=[("year", 1), ("month", 1)])
+                if not earliest:
+                    cutoff = utc_now
+                else:
+                    cutoff = datetime(earliest["year"], earliest["month"], 1, tzinfo=timezone.utc)
 
-            cat_papers = [p for p in all_papers
-                          if (p.get("categories") or [""])[0] == cat
-                          and p["id"] in paper_dates
-                          and paper_dates[p["id"]] < cutoff]
-            if not cat_papers:
+            older_papers = [p for p in all_cat_papers if paper_dates[p["id"]] < cutoff]
+            if not older_papers:
                 continue
 
-            cat_pids = {p["id"] for p in cat_papers}
-            cat_matches_sub = [m for m in match_dates if m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids]
-            opp_ids = ({m["paper1_id"] for m in cat_matches_sub} | {m["paper2_id"] for m in cat_matches_sub}) - cat_pids
-            lb = await compute_leaderboard_async(cat_papers + [p for p in all_papers if p["id"] in opp_ids], cat_matches_sub)
-            lb = [e for e in lb if e["id"] in cat_pids]
-            for i, e in enumerate(lb): e["rank"] = i + 1
-            frozen = [{
-                "rank": e.get("rank"), "id": e.get("id"), "title": e.get("title", ""),
-                "authors": e.get("authors", []), "score": e.get("score"),
-                "wins": e.get("wins"), "losses": e.get("losses"),
-                "comparisons": e.get("comparisons"), "win_rate": e.get("win_rate"),
-                "ci": e.get("ci"), "wilson_margin": e.get("wilson_margin"),
-                "published": e.get("published"), "link": e.get("link"), "arxiv_id": e.get("arxiv_id"),
-            } for e in lb]
+            older_pids = {p["id"] for p in older_papers}
+            lb = await compute_archive(older_papers, older_pids)
 
-            doc = {
+            await db.leaderboard_archives.insert_one({
                 "category": cat, "period_type": ptype,
                 "year": 0, "week": 0 if ptype == "weekly" else None,
                 "month": 0 if ptype == "monthly" else None,
                 "label": "Older",
-                "paper_count": len(frozen),
-                "match_count": sum((e.get("comparisons") or 0) for e in frozen) // 2,
-                "leaderboard": frozen,
-                "created_at": cutoff.isoformat(),
-            }
-            await db.leaderboard_archives.insert_one(doc)
-            created += 1
-
-    # Create "Older" for categories that have NO weekly/monthly archives but DO have papers
-    for cat in active_cats:
-        has_any = await db.leaderboard_archives.find_one({"category": cat, "period_type": {"$in": ["weekly", "monthly"]}})
-        if has_any:
-            continue
-        for ptype in ["weekly", "monthly"]:
-            existing_older = await db.leaderboard_archives.find_one({"category": cat, "period_type": ptype, "label": "Older"})
-            if existing_older:
-                continue
-            cat_papers = [p for p in all_papers if (p.get("categories") or [""])[0] == cat and p["id"] in paper_dates]
-            if not cat_papers:
-                continue
-            cat_pids = {p["id"] for p in cat_papers}
-            cat_m = [m for m in match_dates if m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids]
-            opp_ids = ({m["paper1_id"] for m in cat_m} | {m["paper2_id"] for m in cat_m}) - cat_pids
-            lb = await compute_leaderboard_async(cat_papers + [p for p in all_papers if p["id"] in opp_ids], cat_m)
-            lb = [e for e in lb if e["id"] in cat_pids]
-            for i, e in enumerate(lb): e["rank"] = i + 1
-            frozen = [{"rank": e.get("rank"), "id": e.get("id"), "title": e.get("title", ""), "authors": e.get("authors", []), "score": e.get("score"), "wins": e.get("wins"), "losses": e.get("losses"), "comparisons": e.get("comparisons"), "win_rate": e.get("win_rate"), "ci": e.get("ci"), "wilson_margin": e.get("wilson_margin"), "published": e.get("published"), "link": e.get("link"), "arxiv_id": e.get("arxiv_id")} for e in lb]
-            await db.leaderboard_archives.insert_one({"category": cat, "period_type": ptype, "year": 0, "week": 0 if ptype == "weekly" else None, "month": 0 if ptype == "monthly" else None, "label": "Older", "paper_count": len(frozen), "match_count": sum((e.get("comparisons") or 0) for e in frozen) // 2, "leaderboard": frozen, "created_at": utc_now.isoformat()})
+                "paper_count": len(lb), "match_count": match_count(lb),
+                "leaderboard": freeze(lb), "created_at": cutoff.isoformat(),
+            })
             created += 1
 
     logger.info(f"Archive backfill complete: {created} snapshots created")

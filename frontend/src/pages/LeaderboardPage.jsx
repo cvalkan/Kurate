@@ -213,7 +213,8 @@ export default function LeaderboardPage() {
       </div>
 
       <CategoryTabs
-        categories={categories} category={category} setCategory={setCategory}
+        categories={categories} category={category}
+        setCategory={(cat) => { setCategory(cat); if (activeArchive) { setActiveArchive(null); setPeriod("week"); const p = new URLSearchParams(window.location.search); p.delete("archive"); window.history.replaceState(null, "", `?${p.toString()}`); } }}
         isTagMode={isTagMode} isLoggedIn={isLoggedIn} requireAuth={requireAuth}
         setSelectedTags={setSelectedTags} setTagFilterOpen={setTagFilterOpen}
         onSuggest={() => isLoggedIn ? setShowSuggestion(true) : requireAuth()}
