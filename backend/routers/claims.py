@@ -145,30 +145,19 @@ FREE_EMAIL_DOMAINS = {
 }
 
 
-def _compute_trust_level(name_matched: bool, verified_email: bool,
-                          email_domains: list) -> dict:
-    """Compute trust level (1-8) and label for admin display."""
+def _compute_trust_level(verified_email: bool, email_domains: list) -> dict:
+    """Compute email trust level and label for admin display."""
     has_public_domain = len(email_domains) > 0
     is_institutional = has_public_domain and all(d.lower() not in FREE_EMAIL_DOMAINS for d in email_domains)
-    is_free = has_public_domain and not is_institutional
     domain_str = ", ".join(email_domains) if email_domains else None
 
-    if name_matched and verified_email and is_institutional:
-        return {"level": 1, "label": f"name match · verified · {domain_str}"}
-    if not name_matched and verified_email and is_institutional:
-        return {"level": 2, "label": f"no name match · verified · {domain_str}"}
-    if name_matched and verified_email and is_free:
-        return {"level": 3, "label": f"name match · verified · {domain_str}"}
-    if name_matched and verified_email and not has_public_domain:
-        return {"level": 4, "label": "name match · verified · domain hidden"}
-    if name_matched and not verified_email:
-        return {"level": 5, "label": "name match · unverified email"}
-    if not name_matched and verified_email and is_free:
-        return {"level": 6, "label": f"no name match · verified · {domain_str}"}
-    if not name_matched and verified_email and not has_public_domain:
-        return {"level": 7, "label": "no name match · verified · domain hidden"}
-    # no name match, no verified email
-    return {"level": 8, "label": "no name match · unverified email"}
+    if verified_email and is_institutional:
+        return {"level": "high", "color": "green", "label": f"verified · {domain_str}"}
+    if verified_email and has_public_domain and not is_institutional:
+        return {"level": "medium", "color": "amber", "label": f"verified · {domain_str}"}
+    if verified_email and not has_public_domain:
+        return {"level": "medium", "color": "amber", "label": "verified · domain hidden"}
+    return {"level": "low", "color": "red", "label": "unverified email"}
 
 
 async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "",
@@ -228,9 +217,8 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "",
             if match:
                 name_match_result = {"method": "db_name_match", "matched_name": paper_doc["authors"][match["index"]], "score": match["score"]}
 
-    # Compute trust level for admin
+    # Compute trust level for admin (email-based only)
     trust = _compute_trust_level(
-        name_matched=name_match_result is not None,
         verified_email=orcid_verified_email,
         email_domains=orcid_email_domains,
     )

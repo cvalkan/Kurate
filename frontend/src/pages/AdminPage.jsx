@@ -592,12 +592,20 @@ function AdminClaims() {
                 </a>
                 {c.trust?.label && (
                   <span className={`px-1.5 py-0.5 rounded font-medium ${
-                    c.trust.level <= 2 ? "bg-green-50 text-green-700" :
-                    c.trust.level <= 4 ? "bg-amber-50 text-amber-700" :
-                    c.trust.level <= 6 ? "bg-orange-50 text-orange-700" :
+                    c.trust.color === "green" ? "bg-green-50 text-green-700" :
+                    c.trust.color === "amber" ? "bg-amber-50 text-amber-700" :
                     "bg-red-50 text-red-600"
-                  }`} data-testid={`trust-${i}`}>
-                    L{c.trust.level}: {c.trust.label}
+                  }`}>
+                    {c.trust.label}
+                  </span>
+                )}
+                {c.name_match ? (
+                  <span className="px-1.5 py-0.5 rounded font-medium bg-blue-50 text-blue-700">
+                    name match: {c.name_match.matched_name} ({Math.round(c.name_match.score * 100)}%)
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded font-medium bg-red-50 text-red-600">
+                    name mismatch
                   </span>
                 )}
                 {c.arxiv_id && (
