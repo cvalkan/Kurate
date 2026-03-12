@@ -2739,6 +2739,8 @@ async def backfill_archives():
                     "losses": entry.get("losses"),
                     "comparisons": entry.get("comparisons"),
                     "win_rate": entry.get("win_rate"),
+                    "ci": entry.get("ci"),
+                    "wilson_margin": entry.get("wilson_margin"),
                     "published": entry.get("published"),
                     "link": entry.get("link"),
                     "arxiv_id": entry.get("arxiv_id"),
@@ -2800,6 +2802,7 @@ async def backfill_archives():
             "authors": e.get("authors", []), "score": e.get("score"),
             "wins": e.get("wins"), "losses": e.get("losses"),
             "comparisons": e.get("comparisons"), "win_rate": e.get("win_rate"),
+            "ci": e.get("ci"), "wilson_margin": e.get("wilson_margin"),
             "published": e.get("published"), "link": e.get("link"), "arxiv_id": e.get("arxiv_id"),
         } for e in lb]
 

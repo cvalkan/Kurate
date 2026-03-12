@@ -1799,6 +1799,8 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
             "losses": entry.get("losses"),
             "comparisons": entry.get("comparisons"),
             "win_rate": entry.get("win_rate"),
+            "ci": entry.get("ci"),
+            "wilson_margin": entry.get("wilson_margin"),
             "published": entry.get("published"),
             "link": entry.get("link"),
             "arxiv_id": entry.get("arxiv_id"),
