@@ -323,6 +323,7 @@ async def get_me(request: Request):
         "picture": user.get("picture"),
         "email_verified": user.get("email_verified", False),
         "provider": user.get("provider", "email"),
+        "orcid_id": user.get("orcid_id"),
     }
 
 

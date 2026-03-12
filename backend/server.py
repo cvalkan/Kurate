@@ -17,6 +17,7 @@ from routers.pairwise import router as pairwise_router
 from routers.scipost import router as scipost_router
 from routers.qeios import router as qeios_router
 from routers.summary_bias import router as summary_bias_router
+from routers.claims import router as claims_router
 from services.scheduler import start_scheduler
 
 app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
@@ -96,6 +97,7 @@ app.include_router(pairwise_router)
 app.include_router(scipost_router)
 app.include_router(qeios_router)
 app.include_router(summary_bias_router)
+app.include_router(claims_router)
 
 _cors_raw = os.environ.get("CORS_ORIGINS", "https://kurate.org,https://www.kurate.org,https://papersumo.kurate.org")
 _cors_allow_all = _cors_raw.strip() == "*"
@@ -182,6 +184,9 @@ async def startup():
         await db.leaderboard_archives.create_index([("category", 1), ("period_type", 1), ("year", -1)])
         # Summarizer-ab task queue (for auto-resume on restart)
         await db.summarizer_ab_tasks.create_index([("dataset_id", 1), ("summarizer", 1)], unique=True)
+        # Author verifications (ORCID claiming)
+        await db.author_verifications.create_index("user_id", unique=True)
+        await db.author_verifications.create_index("orcid_id")
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")

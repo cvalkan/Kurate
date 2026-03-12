@@ -7,6 +7,8 @@ import { ModelBadge } from "@/components/ModelBadge";
 import {
   ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { AuthorClaimSection } from "@/components/AuthorClaimSection";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 
@@ -278,6 +280,13 @@ export default function PaperPage() {
           </div>
         )}
       </div>
+
+      {/* Author Verification & Claiming */}
+      <AuthorClaimSection
+        paperId={paper.id}
+        paperAuthors={paper.authors}
+        claims={paper.claimed_by || []}
+      />
 
       {/* Abstract */}
       {paper.abstract && (

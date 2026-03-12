@@ -13,6 +13,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import ValidationHubPage from "@/pages/ValidationHubPage";
 import ArchivePage from "@/pages/ArchivePage";
+import OrcidCallbackPage from "@/pages/OrcidCallbackPage";
 import Navbar from "@/components/Navbar";
 
 function AppRouter() {
@@ -37,6 +38,7 @@ function AppRouter() {
           <Route path="/admin" element={<AdminLoginPage />} />
           <Route path="/admin/dashboard" element={<AdminPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/auth/orcid/callback" element={<OrcidCallbackPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
         </Routes>
       </main>
