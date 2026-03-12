@@ -187,33 +187,12 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 
 
 
-def _esc(text: str) -> str:
-    """Escape text for SVG XML."""
-    return html_mod.escape(str(text))
+
+def _esc(t):
+    return html_mod.escape(str(t))
 
 
-def _svg_medal(cx, cy, r, tier_name, rank):
-    """Generate SVG elements for a 3D medal coin."""
-    colors = {
-        "Gold": {"rim": "#a07a0a", "face": "#d4af37", "inner": "#ebc850", "hl": "#ffeb96", "sh": "#825f05"},
-        "Silver": {"rim": "#78788a", "face": "#b4b9c3", "inner": "#c8cdd7", "hl": "#ebeef5", "sh": "#5f5f69"},
-        "Bronze": {"rim": "#8c5514", "face": "#cd7f32", "inner": "#e19b50", "hl": "#f5c38c", "sh": "#6e410a"},
-    }
-    c = colors.get(tier_name, colors["Silver"])
-    return f"""
-    <circle cx="{cx}" cy="{cy}" r="{r}" fill="{c['rim']}"/>
-    <circle cx="{cx}" cy="{cy}" r="{r - 4}" fill="{c['face']}"/>
-    <circle cx="{cx}" cy="{cy}" r="{r - 11}" fill="{c['inner']}"/>
-    <circle cx="{cx}" cy="{cy}" r="{r - 4}" fill="none" stroke="{c['sh']}" stroke-width="1"/>
-    <circle cx="{cx}" cy="{cy}" r="{r - 11}" fill="none" stroke="{c['rim']}" stroke-width="1"/>
-    <path d="M {cx - r + 20} {cy - r + 24} A {r - 16} {r - 16} 0 0 1 {cx + r - 28} {cy - r + 18}" fill="none" stroke="{c['hl']}" stroke-width="3" stroke-linecap="round"/>
-    <text x="{cx}" y="{cy + 2}" font-family="Liberation Sans" font-weight="bold" font-size="56" fill="{c['sh']}" text-anchor="middle" dominant-baseline="central" dx="1" dy="1">#{rank}</text>
-    <text x="{cx}" y="{cy}" font-family="Liberation Sans" font-weight="bold" font-size="56" fill="white" text-anchor="middle" dominant-baseline="central">#{rank}</text>
-    """
-
-
-def _svg_wordwrap(text, max_chars):
-    """Split text into lines of max_chars, breaking on words."""
+def _wordwrap(text, max_chars):
     words = text.split()
     lines, cur = [], ""
     for w in words:
@@ -229,121 +208,88 @@ def _svg_wordwrap(text, max_chars):
 
 
 def _render_badge_image(data: dict) -> bytes:
-    """Render badge as SVG then convert to pixel-perfect PNG via CairoSVG."""
-    W, H = 1200, 630
+    """Render badge using the designer SVG templates, inject dynamic data, convert to PNG."""
+    import os
     paper = data["paper"]
     tier = data["tier"]
     rank = paper["rank"]
     tier_name = tier["name"]
-    tier_hex = tier["color"]
 
-    tier_bg = {"Gold": "#fffbeb", "Silver": "#f9fafb", "Bronze": "#fff7ed"}.get(tier_name, "#f9fafb")
-    accent = "#465adc"
-    dark = "#1a1a2e"
-    muted = "#82829a"
+    # Load the correct SVG template
+    template_map = {"Gold": "badge_gold.svg", "Silver": "badge_silver.svg", "Bronze": "badge_bronze.svg"}
+    svg_path = os.path.join(os.path.dirname(__file__), "..", template_map.get(tier_name, "badge_silver.svg"))
+    with open(svg_path, "r") as f:
+        svg = f.read()
 
-    # --- Layout ---
-    M = 30; P = 50
-    CW = W - 2*M - 2*P
+    # Dynamic data
+    title_lines = _wordwrap(paper.get("title", ""), 32)
+    title_line1 = _esc(title_lines[0]) if len(title_lines) > 0 else ""
+    title_line2 = ""
+    if len(title_lines) > 1:
+        t2 = title_lines[1]
+        if len(title_lines) > 2:
+            t2 = t2[:-3] + "..." if len(t2) > 3 else "..."
+        title_line2 = _esc(t2)
 
-    hdr_y = 78
-    content_y = 100  # tighter: was 115
-    medal_r = 48
-    medal_cx = M + P + medal_r
-    medal_cy = content_y + medal_r + 18
-    tx = medal_cx + medal_r + 25
-
-    medal_svg = _svg_medal(medal_cx, medal_cy, medal_r, tier_name, rank)
-
-    # Title
-    title_lines = _svg_wordwrap(paper.get("title", ""), 36)
-    tier_lbl_y = content_y + 14
-    title_y0 = tier_lbl_y + 32
-    title_svg = ""
-    for i, line in enumerate(title_lines[:2]):
-        d = _esc(line)
-        if i == 1 and len(title_lines) > 2:
-            d = _esc(line[:-3] + "...") if len(line) > 3 else "..."
-        title_svg += f'<text x="{tx}" y="{title_y0 + i * 44}" font-family="Liberation Sans" font-weight="bold" font-size="36" fill="{dark}">{d}</text>\n'
-
-    # Authors
     authors = paper.get("authors", [])
-    a_str = ", ".join(authors[:4])
-    if len(authors) > 4:
-        a_str += f" +{len(authors) - 4}"
-    auth_y = title_y0 + min(len(title_lines), 2) * 44 + 8
+    authors_str = _esc(", ".join(authors[:4]) + (f" +{len(authors)-4}" if len(authors) > 4 else ""))
 
-    # Categories + publication date (new row after authors)
-    categories = paper.get("categories") or [data.get("category", "")]
     pub_date = paper.get("published", "")
+    pub_str = ""
     if pub_date:
         try:
             from datetime import datetime as _dt
-            pub_dt = _dt.fromisoformat(pub_date.replace("Z", "+00:00"))
-            pub_str = pub_dt.strftime("%b %d, %Y")
+            pub_str = _dt.fromisoformat(pub_date.replace("Z", "+00:00")).strftime("Published %B %-d, %Y on arXiv.org")
         except Exception:
-            pub_str = ""
-    else:
-        pub_str = ""
-    cats_str = " · ".join(categories[:3])
-    if pub_str:
-        cats_str += f"  ·  {pub_str}"
-    meta_y = auth_y + 30
+            pub_str = "Published on arXiv.org"
 
-    # Stats: tight after metadata
-    stats_h = 80
-    sy = max(meta_y + 35, 390)
-    bw = (CW - 24) // 3
-    paper_count = data["paper_count"]
-    stats = [
-        (f"Top {rank} of {paper_count}", "Papers"),
-        (str(paper.get("score", "?")), "Elo Score"),
-        (f"{paper.get('win_rate', '?')}%", "Win Rate"),
-    ]
-    stats_svg = ""
-    for i, (val, label) in enumerate(stats):
-        bx = M + P + i * (bw + 12)
-        stats_svg += f"""
-        <rect x="{bx}" y="{sy}" width="{bw}" height="{stats_h}" rx="10" fill="white"/>
-        <text x="{bx + bw // 2}" y="{sy + 35}" font-family="Liberation Sans" font-weight="bold" font-size="32" fill="{dark}" text-anchor="middle">{_esc(val)}</text>
-        <text x="{bx + bw // 2}" y="{sy + 60}" font-family="Liberation Sans" font-size="17" fill="{muted}" text-anchor="middle">{_esc(label)}</text>
-        """
+    categories = paper.get("categories") or [data.get("category", "")]
+    cats_str = _esc(" \u00b7 ".join(categories[:4]))
 
-    footer_y = sy + stats_h + 30  # tight below stats
+    archive_label = _esc(data.get("archive_label", ""))
+    cat_name = _esc(data.get("category_name", ""))
+    paper_count = data.get("paper_count", "?")
+    score = paper.get("score", "?")
+    win_rate = paper.get("win_rate", "?")
 
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
-  <rect width="{W}" height="{H}" fill="#f5f5f8"/>
-  <rect x="{M-2}" y="{M-2}" width="{W-2*M+4}" height="{H-2*M+4}" rx="16" fill="{tier_hex}"/>
-  <rect x="{M}" y="{M}" width="{W-2*M}" height="{H-2*M}" rx="14" fill="{tier_bg}"/>
+    # Replace placeholder text in the SVG
+    # Header
+    svg = svg.replace(">Week 11, 2026<", f">{archive_label}<")
+    svg = svg.replace(">Robotics Preprints<", f">{cat_name} Preprints<")
+    svg = svg.replace(">arXiv (cs.RO)<", f">arXiv ({_esc(data.get('category', ''))})<")
 
-  <text x="{M+P}" y="{hdr_y}" font-family="Liberation Sans" font-weight="bold" font-size="24" fill="{dark}">
-    {_esc(data['archive_label'])}  \u00b7  {_esc(data['category_name'])} Preprints  \u00b7  arXiv
-  </text>
-  <text x="{W-M-P-235}" y="{hdr_y-2}" font-family="Liberation Sans" font-weight="bold" font-size="46" fill="{accent}">Ku</text>
-  <text x="{W-M-P-170}" y="{hdr_y-2}" font-family="Liberation Sans" font-weight="bold" font-size="46" fill="{dark}">rate</text>
-  <text x="{W-M-P-68}" y="{hdr_y-2}" font-family="Liberation Sans" font-size="46" fill="{accent}">.org</text>
+    # Tier label + rank
+    tier_labels = {"Gold": "GOLD", "Silver": "SILVER", "Bronze": "BRONZE"}
+    svg = svg.replace(f">{tier_labels.get(tier_name, 'SILVER')}<", f">{tier_name.upper()}<")
+    svg = svg.replace(f">#{rank}<", f">#{rank}<")  # already correct
 
-  <line x1="{M+P}" y1="{hdr_y+12}" x2="{W-M-P}" y2="{hdr_y+12}" stroke="#d4d4dc" stroke-width="1"/>
+    # Title (two tspan lines)
+    svg = svg.replace(">Data Analogies Enable Efficient<", f">{title_line1}<")
+    svg = svg.replace(">Cross-Embodiment Transfer<", f">{title_line2}<")
 
-  {medal_svg}
+    # Authors
+    svg = svg.replace(">Jonathan Yang, Chelsea Finn, Dorsa Sadigh<", f">{authors_str}<")
 
-  <text x="{tx}" y="{tier_lbl_y}" font-family="Liberation Sans" font-weight="bold" font-size="20" fill="{tier_hex}">{tier_name.upper()}</text>
-  {title_svg}
-  <text x="{tx}" y="{auth_y}" font-family="Liberation Sans" font-size="23" fill="{muted}">{_esc(a_str[:70])}</text>
-  <text x="{tx}" y="{meta_y}" font-family="Liberation Sans" font-size="19" fill="{muted}">{_esc(cats_str)}</text>
+    # Publication date
+    svg = svg.replace(">Published March 8, 2026 on arXiv.org<", f">{_esc(pub_str)}<")
 
-  <line x1="{M+P}" y1="{sy-10}" x2="{W-M-P}" y2="{sy-10}" stroke="#d4d4dc" stroke-width="1"/>
+    # Categories
+    svg = svg.replace(">cs.RO \u00b7 cs.AI \u00b7 cs.LG<", f">{cats_str}<")
 
-  {stats_svg}
+    # Stats
+    svg = svg.replace(f">Top {rank} of 264<", f">Top {rank} of {paper_count}<")
+    # Handle all three rank variants
+    for r in [1, 2, 3]:
+        svg = svg.replace(f">Top {r} of 264<", f">Top {rank} of {paper_count}<")
+    svg = svg.replace(">1472<", f">{score}<")
+    svg = svg.replace(">1520<", f">{score}<")
+    svg = svg.replace(">1445<", f">{score}<")
+    svg = svg.replace(">84.0%<", f">{win_rate}%<")
+    svg = svg.replace(">89.2%<", f">{win_rate}%<")
+    svg = svg.replace(">79.5%<", f">{win_rate}%<")
 
-  <text x="{M+P}" y="{footer_y}" font-family="Liberation Sans" font-size="22" fill="{muted}">
-    Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament
-  </text>
-</svg>"""
-
-    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=W, output_height=H)
-
-
+    # Render SVG to PNG at OG image size (1200x630)
+    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=1280, output_height=784)
 
 # Monthly badges
 @router.get("/{category}/{year}/m{month}/{paper_id}")

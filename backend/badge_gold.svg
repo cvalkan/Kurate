@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 392" width="640" height="392">
+  <defs>
+    <filter id="cardShadow" x="-4%" y="-3%" width="108%" height="110%">
+      <feDropShadow dx="0" dy="2" stdDeviation="8" flood-color="#000" flood-opacity="0.06"/>
+    </filter>
+    <filter id="badgeShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2.5" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+    <!-- Gold face — warm specular highlight -->
+    <radialGradient id="goldSheen" cx="0.35" cy="0.3" r="0.7" fx="0.3" fy="0.25">
+      <stop offset="0%" stop-color="#fff8e0"/>
+      <stop offset="15%" stop-color="#fde68a"/>
+      <stop offset="35%" stop-color="#f6c94e"/>
+      <stop offset="55%" stop-color="#daa520"/>
+      <stop offset="75%" stop-color="#c49000"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </radialGradient>
+    <!-- Rim — beveled gold edge -->
+    <linearGradient id="goldRim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f5d56e"/>
+      <stop offset="20%" stop-color="#b8860b"/>
+      <stop offset="40%" stop-color="#e8c24a"/>
+      <stop offset="60%" stop-color="#a07608"/>
+      <stop offset="80%" stop-color="#dbb840"/>
+      <stop offset="100%" stop-color="#b8920e"/>
+    </linearGradient>
+    <!-- Inner ring -->
+    <linearGradient id="goldInner" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#e8c24a" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#fde68a" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#b8860b" stop-opacity="0.7"/>
+    </linearGradient>
+    <!-- Specular highlight overlay -->
+    <radialGradient id="goldHighlight" cx="0.3" cy="0.25" r="0.35" fx="0.28" fy="0.22">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="headerClip">
+      <rect x="12" y="12" width="616" height="52" rx="12" ry="12"/>
+    </clipPath>
+  </defs>
+
+  <!-- Card background -->
+  <rect x="12" y="12" width="616" height="368" rx="14" ry="14" fill="#ffffff" filter="url(#cardShadow)"/>
+
+  <!-- Header bar -->
+  <rect x="12" y="12" width="616" height="52" fill="#f0f4f8" clip-path="url(#headerClip)"/>
+  <rect x="12" y="48" width="616" height="16" fill="#f0f4f8"/>
+  <line x1="12" y1="64" x2="628" y2="64" stroke="#dde3ea" stroke-width="1"/>
+
+  <!-- Header text -->
+  <text x="32" y="45" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="500" fill="#6b6b6b">
+    <tspan>Week 11, 2026</tspan>
+    <tspan fill="#bbb"> · </tspan>
+    <tspan>Robotics Preprints</tspan>
+    <tspan fill="#bbb"> · </tspan>
+    <tspan>arXiv (cs.RO)</tspan>
+  </text>
+
+  <!-- Kurate.org logo -->
+  <text x="450" y="48" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="28" letter-spacing="-0.3"><tspan font-weight="800" fill="#4285F4">Ku</tspan><tspan font-weight="800" fill="#1a1a1a">rate</tspan><tspan font-weight="400" fill="#4285F4" font-size="25">.org</tspan></text>
+
+  <!-- Gold coin -->
+  <g filter="url(#badgeShadow)">
+    <circle cx="64" cy="124" r="33" fill="url(#goldRim)"/>
+    <circle cx="64" cy="124" r="30" fill="url(#goldSheen)"/>
+    <circle cx="64" cy="124" r="30" fill="url(#goldHighlight)"/>
+    <circle cx="64" cy="124" r="25" fill="none" stroke="url(#goldInner)" stroke-width="1.5"/>
+    <path d="M 42 109 A 27 27 0 0 1 80 105" fill="none" stroke="white" stroke-width="1.8" opacity="0.45"/>
+    <path d="M 48 140 A 22 22 0 0 0 80 140" fill="none" stroke="#fde68a" stroke-width="0.8" opacity="0.25"/>
+    <text x="64" y="125" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="23" font-weight="800" fill="#7a5c00">#1</text>
+  </g>
+
+  <!-- GOLD label -->
+  <text x="114" y="100" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="700" fill="#c49000" letter-spacing="2">GOLD</text>
+
+  <!-- Paper title -->
+  <text font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="700" fill="#1a1a1a">
+    <tspan x="114" y="124">Data Analogies Enable Efficient</tspan>
+    <tspan x="114" y="152">Cross-Embodiment Transfer</tspan>
+  </text>
+
+  <!-- Authors -->
+  <text x="114" y="178" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#6b7280">Jonathan Yang, Chelsea Finn, Dorsa Sadigh</text>
+
+  <!-- Publication date -->
+  <text x="114" y="201" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b7280">Published March 8, 2026 on arXiv.org</text>
+
+  <!-- arXiv categories -->
+  <text x="114" y="219" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b7280">cs.RO · cs.AI · cs.LG</text>
+
+  <!-- Stat boxes -->
+  <rect x="32" y="240" width="184" height="66" rx="10" ry="10" fill="#f0f4f8" stroke="#dde3ea" stroke-width="1"/>
+  <text x="124" y="264" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="700" fill="#4285F4">Top 1 of 264</text>
+  <text x="124" y="288" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b7280">Papers</text>
+
+  <rect x="228" y="240" width="184" height="66" rx="10" ry="10" fill="#f0f4f8" stroke="#dde3ea" stroke-width="1"/>
+  <text x="320" y="264" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="700" fill="#4285F4">1520</text>
+  <text x="320" y="288" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b7280">Elo Score</text>
+
+  <rect x="424" y="240" width="184" height="66" rx="10" ry="10" fill="#f0f4f8" stroke="#dde3ea" stroke-width="1"/>
+  <text x="516" y="264" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="700" fill="#34A853">89.2%</text>
+  <text x="516" y="288" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b7280">Win Rate</text>
+
+  <!-- Separator -->
+  <line x1="32" y1="330" x2="608" y2="330" stroke="#dde3ea" stroke-width="1"/>
+
+  <!-- Footer -->
+  <text x="32" y="358" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" fill="#6b7280">Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament</text>
+
+</svg>
