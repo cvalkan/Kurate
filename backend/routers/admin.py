@@ -2615,8 +2615,8 @@ async def create_all_snapshots():
 
 @router.post("/archive/set-frequency", dependencies=[Depends(verify_admin)])
 async def set_archive_frequency(request: Request):
-    """Set archive frequency per category. Body: {"category": "cs.RO", "frequency": "weekly"|"monthly"}
-    Or set default: {"default": "weekly"}"""
+    """Set which archive type to DISPLAY per category (weekly or monthly).
+    Both types are always computed and stored — this only controls the dropdown."""
     body = await request.json()
     settings = await get_settings()
     archive_config = settings.get("archive_frequency", {})
@@ -2625,6 +2625,10 @@ async def set_archive_frequency(request: Request):
         archive_config["default"] = body["default"]
     if "category" in body and "frequency" in body:
         archive_config[body["category"]] = body["frequency"]
+
+    await db.settings.update_one({"key": "global"}, {"$set": {"archive_frequency": archive_config}})
+    invalidate_settings_cache()
+    return {"status": "ok", "archive_frequency": archive_config}
 
     await db.settings.update_one({"key": "global"}, {"$set": {"archive_frequency": archive_config}})
     invalidate_settings_cache()
@@ -2640,7 +2644,8 @@ async def get_archive_frequency():
 
 @router.post("/archive/backfill", dependencies=[Depends(verify_admin)])
 async def backfill_archives():
-    """Create historical weekly archive snapshots from existing match data."""
+    """Create historical weekly AND monthly archive snapshots for all categories.
+    Both types always stored; admin setting controls which is displayed."""
     from services.ranking import compute_leaderboard_async
     from datetime import timedelta
 
@@ -2696,11 +2701,7 @@ async def backfill_archives():
 
     created = 0
 
-    # Determine frequency per category
-    archive_config = settings.get("archive_frequency", {})
-    default_freq = archive_config.get("default", "weekly")
-
-    # --- Weekly backfill ---
+    # --- Weekly archives for ALL categories ---
     monday = first_monday
     while monday < utc_now:
         year = monday.isocalendar()[0]
@@ -2708,10 +2709,6 @@ async def backfill_archives():
         week_start = monday - timedelta(days=7)
 
         for cat in active_cats:
-            freq = archive_config.get(cat, default_freq)
-            if freq != "weekly":
-                continue
-
             existing = await db.leaderboard_archives.find_one(
                 {"category": cat, "year": year, "week": week, "period_type": "weekly"})
             if existing:
@@ -2772,10 +2769,9 @@ async def backfill_archives():
         monday += timedelta(weeks=1)
         await asyncio.sleep(0)
 
-    # --- Monthly backfill ---
+    # --- Monthly archives for ALL categories ---
     month_names = ["", "January", "February", "March", "April", "May", "June",
                    "July", "August", "September", "October", "November", "December"]
-    # Iterate through each month from start to now
     cur_year = start_dt.year
     cur_month = start_dt.month
     while (cur_year, cur_month) <= (utc_now.year, utc_now.month):
@@ -2786,10 +2782,6 @@ async def backfill_archives():
             month_end = datetime(cur_year, cur_month + 1, 1, tzinfo=timezone.utc)
 
         for cat in active_cats:
-            freq = archive_config.get(cat, default_freq)
-            if freq != "monthly":
-                continue
-
             existing = await db.leaderboard_archives.find_one(
                 {"category": cat, "year": cur_year, "month": cur_month, "period_type": "monthly"})
             if existing:

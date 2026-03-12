@@ -659,8 +659,18 @@ async def get_leaderboard(
         "community_correlation": cat_data.get("_community_correlation"),
         "show_rating_column": settings.get("show_rating_column", True),
         "show_gap_column": settings.get("show_gap_column", True),
-        "archives": [a for a in cache.get("_archives", []) if a.get("category") == category],
+        "archives": _filter_archives_by_frequency(
+            [a for a in cache.get("_archives", []) if a.get("category") == category],
+            category, settings),
     }
+
+
+def _filter_archives_by_frequency(archives, category, settings):
+    """Filter archive list to show only the type configured by admin (weekly or monthly)."""
+    freq_config = settings.get("archive_frequency", {})
+    freq = freq_config.get(category, freq_config.get("default", "weekly"))
+    target_type = "monthly" if freq == "monthly" else "weekly"
+    return [a for a in archives if a.get("period_type") == target_type]
 
 
 async def _compute_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None):
@@ -1835,28 +1845,26 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
 
 
 async def run_archive_snapshots():
-    """Check all categories and create snapshots as needed based on admin settings."""
+    """Create both weekly and monthly snapshots as appropriate.
+    Weekly: every Monday. Monthly: 1st of month. Both always created for all categories."""
     from core.auth import get_settings
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
-    archive_config = settings.get("archive_frequency", {})
-    default_freq = archive_config.get("default", "weekly")
 
     utc_now = datetime.now(timezone.utc)
-    # Only run on Mondays for weekly, 1st of month for monthly
     is_monday = utc_now.weekday() == 0
     is_first = utc_now.day == 1
 
     created = 0
     for cat in active_cats:
-        freq = archive_config.get(cat, default_freq)
-        if freq == "weekly" and is_monday:
+        if is_monday:
             result = await create_archive_snapshot(cat, "weekly")
             if result:
                 created += 1
-        elif freq == "monthly" and is_first:
+        if is_first:
             result = await create_archive_snapshot(cat, "monthly")
             if result:
+                created += 1
                 created += 1
 
     if created:
