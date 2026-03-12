@@ -564,15 +564,17 @@ function AdminClaims() {
           <p className="text-sm">No pending claims.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {claims.map((c, i) => (
-            <div key={`${c.paper_id}-${c.claimer_orcid}`} className="p-4 border border-border rounded-lg bg-background" data-testid={`claim-${i}`}>
-              <div className="flex items-start justify-between gap-3 mb-2">
+            <div key={`${c.paper_id}-${c.claimer_orcid}`} className="p-4 border border-border rounded-lg bg-background space-y-3" data-testid={`claim-${i}`}>
+              {/* Row 1: Paper */}
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{c.paper_title}</p>
+                  <p className="text-sm font-medium">{c.paper_title}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Authors: {(c.paper_authors || []).slice(0, 4).join(", ")}
-                    {(c.paper_authors || []).length > 4 && ` +${c.paper_authors.length - 4}`}
+                    {(c.paper_authors || []).slice(0, 5).join(", ")}
+                    {(c.paper_authors || []).length > 5 && ` +${c.paper_authors.length - 5}`}
+                    {c.arxiv_id && <> · <a href={`https://arxiv.org/abs/${c.arxiv_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{c.arxiv_id}</a></>}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -584,36 +586,35 @@ function AdminClaims() {
                   </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
-                <span className="font-medium text-foreground">{c.claimer_name}</span>
-                {c.claimer_email && <span>{c.claimer_email}</span>}
-                <a href={`https://orcid.org/${c.claimer_orcid}`} target="_blank" rel="noopener noreferrer" className="text-[#A6CE39] hover:underline">
+              {/* Row 2: Claimer identity */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-medium">{c.claimer_name}</span>
+                {c.claimer_email && <span className="text-muted-foreground">{c.claimer_email}</span>}
+                <a href={`https://orcid.org/${c.claimer_orcid}`} target="_blank" rel="noopener noreferrer" className="text-[#A6CE39] hover:underline text-[11px]">
                   {c.claimer_orcid}
                 </a>
+                <span className="text-[10px] text-muted-foreground ml-auto">{c.claimed_at ? new Date(c.claimed_at).toLocaleString() : ""}</span>
+              </div>
+              {/* Row 3: Trust signals */}
+              <div className="flex items-center gap-2">
                 {c.trust?.label && (
-                  <span className={`px-1.5 py-0.5 rounded font-medium ${
-                    c.trust.color === "green" ? "bg-green-50 text-green-700" :
-                    c.trust.color === "amber" ? "bg-amber-50 text-amber-700" :
-                    "bg-red-50 text-red-600"
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                    c.trust.color === "green" ? "bg-green-100 text-green-800" :
+                    c.trust.color === "amber" ? "bg-amber-100 text-amber-800" :
+                    "bg-red-100 text-red-700"
                   }`}>
                     {c.trust.label}
                   </span>
                 )}
                 {c.name_match ? (
-                  <span className="px-1.5 py-0.5 rounded font-medium bg-blue-50 text-blue-700">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800">
                     name match: {c.name_match.matched_name} ({Math.round(c.name_match.score * 100)}%)
                   </span>
                 ) : (
-                  <span className="px-1.5 py-0.5 rounded font-medium bg-red-50 text-red-600">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
                     name mismatch
                   </span>
                 )}
-                {c.arxiv_id && (
-                  <a href={`https://arxiv.org/abs/${c.arxiv_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                    arXiv:{c.arxiv_id}
-                  </a>
-                )}
-                <span>{c.claimed_at ? new Date(c.claimed_at).toLocaleString() : ""}</span>
               </div>
             </div>
           ))}
