@@ -14,7 +14,7 @@ const PERIODS = [
   { key: "all", label: "All Time", icon: Infinity },
 ];
 
-export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedIn, requireAuth, archives = [], onArchiveSelect }) {
+export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedIn, requireAuth, archives = [], onArchiveSelect, activeArchiveLabel }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const archiveRef = useRef(null);
 
@@ -72,12 +72,13 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
         {archives.length > 0 && (
           <div className="relative shrink-0" ref={archiveRef}>
             <Button
-              variant="ghost" size="sm"
+              variant={activeArchiveLabel ? "default" : "ghost"} size="sm"
               onClick={() => setArchiveOpen(v => !v)}
               className="gap-1.5 text-xs h-8"
               data-testid="filter-archive"
             >
-              <Archive className="h-3.5 w-3.5" /> Archive
+              <Archive className="h-3.5 w-3.5" />
+              {activeArchiveLabel || "Archive"}
               <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
             </Button>
             {archiveOpen && (

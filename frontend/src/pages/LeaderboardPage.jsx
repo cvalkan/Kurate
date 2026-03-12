@@ -4,7 +4,6 @@ import axios from "axios";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { SuggestionModal } from "@/components/SuggestionModal";
-import { Archive, X } from "lucide-react";
 import { CategoryTabs } from "@/components/leaderboard/CategoryTabs";
 import { TagFilter } from "@/components/leaderboard/TagFilter";
 import { StatusBar } from "@/components/leaderboard/StatusBar";
@@ -208,8 +207,11 @@ export default function LeaderboardPage() {
       />
 
       <StatusBar
-        leaderboard={leaderboard} totalPapers={totalPapers} totalMatches={totalMatches}
-        isRanking={isRanking} hasSelectedTags={hasSelectedTags} isTagMode={isTagMode}
+        leaderboard={activeArchive ? activeArchive.leaderboard : leaderboard}
+        totalPapers={activeArchive ? activeArchive.paper_count : totalPapers}
+        totalMatches={activeArchive ? activeArchive.match_count : totalMatches}
+        isRanking={activeArchive ? false : isRanking}
+        hasSelectedTags={hasSelectedTags} isTagMode={isTagMode}
         tagMode={tagMode} selectedTags={selectedTags}
       />
 
@@ -219,20 +221,8 @@ export default function LeaderboardPage() {
         period={activeArchive ? null : period} setPeriod={setPeriod} keyword={keyword} setKeyword={setKeyword}
         isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={archives}
         onArchiveSelect={(data) => { setActiveArchive(data); if (data) setLoading(false); }}
+        activeArchiveLabel={activeArchive?.label}
       />
-
-      {activeArchive && (
-        <div className="mb-4 px-3 py-2 bg-secondary/30 border border-border rounded-lg flex items-center justify-between text-xs">
-          <span className="font-medium">
-            <Archive className="h-3 w-3 inline mr-1.5" />
-            Viewing archived snapshot: <span className="text-accent">{activeArchive.label}</span>
-            <span className="text-muted-foreground ml-2">{activeArchive.paper_count} papers, {activeArchive.match_count?.toLocaleString()} matches</span>
-          </span>
-          <button onClick={() => setActiveArchive(null)} className="text-muted-foreground hover:text-foreground">
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
 
       {warmingUp && (
             <div className="mb-4 p-4 bg-accent/10 border border-accent/30 rounded-lg flex items-center gap-3" data-testid="warming-up-banner">
