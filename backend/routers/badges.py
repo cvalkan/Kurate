@@ -248,17 +248,17 @@ def _render_badge_image(data: dict) -> bytes:
     draw = ImageDraw.Draw(img)
 
     try:
-        f_header = ImageFont.truetype(FONT_BOLD, 20)
-        f_header_sm = ImageFont.truetype(FONT_REGULAR, 16)
-        f_tier = ImageFont.truetype(FONT_BOLD, 15)
-        f_title = ImageFont.truetype(FONT_BOLD, 32)
-        f_rank = ImageFont.truetype(FONT_BOLD, 50)
-        f_authors = ImageFont.truetype(FONT_REGULAR, 20)
-        f_stat_val = ImageFont.truetype(FONT_BOLD, 30)
-        f_stat_lbl = ImageFont.truetype(FONT_REGULAR, 13)
-        f_footer = ImageFont.truetype(FONT_REGULAR, 14)
-        f_brand = ImageFont.truetype(FONT_BOLD, 18)
-        f_brand_sm = ImageFont.truetype(FONT_REGULAR, 14)
+        f_header = ImageFont.truetype(FONT_BOLD, 26)
+        f_header_sm = ImageFont.truetype(FONT_REGULAR, 20)
+        f_tier = ImageFont.truetype(FONT_BOLD, 20)
+        f_title = ImageFont.truetype(FONT_BOLD, 38)
+        f_rank = ImageFont.truetype(FONT_BOLD, 58)
+        f_authors = ImageFont.truetype(FONT_REGULAR, 24)
+        f_stat_val = ImageFont.truetype(FONT_BOLD, 36)
+        f_stat_lbl = ImageFont.truetype(FONT_REGULAR, 18)
+        f_footer = ImageFont.truetype(FONT_REGULAR, 18)
+        f_brand = ImageFont.truetype(FONT_BOLD, 22)
+        f_brand_sm = ImageFont.truetype(FONT_REGULAR, 18)
     except Exception:
         f_header = f_header_sm = f_tier = f_title = f_rank = f_authors = ImageFont.load_default()
         f_stat_val = f_stat_lbl = f_footer = f_brand = f_brand_sm = f_header
@@ -271,29 +271,29 @@ def _render_badge_image(data: dict) -> bytes:
     pad = 45
 
     # === TOP ROW: Period + Category (left) · Kurate wordmark (right) ===
-    top_y = m + 25
+    top_y = m + 22
     cat_name = data["category_name"]
     header_text = f"{data['archive_label']}  ·  {cat_name} Preprints  ·  arXiv"
     draw.text((m + pad, top_y), header_text, fill=text_dark, font=f_header)
 
     # Kurate.org wordmark (right)
-    _draw_kurate_wordmark(draw, W - m - pad - 120, top_y - 1, f_brand, f_brand_sm, text_dark, accent)
+    _draw_kurate_wordmark(draw, W - m - pad - 148, top_y, f_brand, f_brand_sm, text_dark, accent)
 
     # === MEDAL + TITLE + AUTHORS ===
-    section_y = top_y + 48
-    medal_r = 46
+    section_y = top_y + 50
+    medal_r = 50
     cx = m + pad + medal_r + 5
-    cy = section_y + medal_r + 12
+    cy = section_y + medal_r + 15
     _draw_medal(draw, cx, cy, medal_r, tier_rgb, rank, f_rank)
 
-    content_x = cx + medal_r + 25
+    content_x = cx + medal_r + 28
     content_w = W - m - pad - content_x
 
     # Tier label
     draw.text((content_x, section_y), tier["name"].upper(), fill=tier_rgb, font=f_tier)
 
     # Title (max 2 lines)
-    title_y = section_y + 25
+    title_y = section_y + 30
     title = paper.get("title", "")
     words = title.split()
     lines, cur = [], ""
@@ -311,19 +311,19 @@ def _render_badge_image(data: dict) -> bytes:
     for i, line in enumerate(lines[:2]):
         if i == 1 and len(lines) > 2:
             line = line[:-3] + "..." if len(line) > 3 else "..."
-        draw.text((content_x, title_y + i * 42), line, fill=text_dark, font=f_title)
+        draw.text((content_x, title_y + i * 48), line, fill=text_dark, font=f_title)
 
     # Authors
-    authors_y = title_y + 42 * min(len(lines), 2) + 8
+    authors_y = title_y + 48 * min(len(lines), 2) + 10
     authors = paper.get("authors", [])
     authors_str = ", ".join(authors[:4])
     if len(authors) > 4:
         authors_str += f" +{len(authors) - 4}"
-    draw.text((content_x, authors_y), _truncate(authors_str, 80), fill=text_muted, font=f_authors)
+    draw.text((content_x, authors_y), _truncate(authors_str, 70), fill=text_muted, font=f_authors)
 
     # === STATS ROW (3 boxes) ===
-    stats_y = H - m - 140
-    draw.line([(m + pad, stats_y - 10), (W - m - pad, stats_y - 10)], fill=divider, width=1)
+    stats_y = H - m - 155
+    draw.line([(m + pad, stats_y - 12), (W - m - pad, stats_y - 12)], fill=divider, width=1)
 
     paper_count = data["paper_count"]
     stats = [
@@ -336,16 +336,16 @@ def _render_badge_image(data: dict) -> bytes:
     box_w = (total_w - 20) // 3
     for i, (val, label) in enumerate(stats):
         bx = m + pad + i * (box_w + 10)
-        draw.rounded_rectangle([(bx, stats_y), (bx + box_w, stats_y + 72)], radius=10, fill=(255, 255, 255))
+        draw.rounded_rectangle([(bx, stats_y), (bx + box_w, stats_y + 85)], radius=10, fill=(255, 255, 255))
         vbbox = draw.textbbox((0, 0), val, font=f_stat_val)
         vw = vbbox[2] - vbbox[0]
-        draw.text((bx + box_w // 2 - vw // 2, stats_y + 8), val, fill=text_dark, font=f_stat_val)
+        draw.text((bx + box_w // 2 - vw // 2, stats_y + 10), val, fill=text_dark, font=f_stat_val)
         lbbox = draw.textbbox((0, 0), label, font=f_stat_lbl)
         lw = lbbox[2] - lbbox[0]
-        draw.text((bx + box_w // 2 - lw // 2, stats_y + 48), label, fill=text_muted, font=f_stat_lbl)
+        draw.text((bx + box_w // 2 - lw // 2, stats_y + 55), label, fill=text_muted, font=f_stat_lbl)
 
     # === FOOTER ===
-    footer_y = H - m - 40
+    footer_y = H - m - 45
     draw.text((m + pad, footer_y), "AI-ranked by scientific impact  ·  kurate.org/methodology", fill=text_muted, font=f_footer)
     # Kurate.org right
     k_bbox = draw.textbbox((0, 0), "Kurate.org", font=f_brand_sm)
