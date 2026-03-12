@@ -229,14 +229,15 @@ def _draw_medal(draw, cx, cy, radius, tier_name, rank, font):
 
 
 def _draw_kurate_wordmark(draw, x, y, font_bold, font_regular, color_dark, color_accent):
-    """Draw the Kurate.org wordmark with styled 'K'."""
-    draw.text((x, y), "K", fill=color_accent, font=font_bold)
-    k_bbox = draw.textbbox((0, 0), "K", font=font_bold)
-    kw = k_bbox[2] - k_bbox[0]
-    draw.text((x + kw - 1, y), "urate", fill=color_dark, font=font_bold)
-    u_bbox = draw.textbbox((0, 0), "urate", font=font_bold)
-    uw = u_bbox[2] - u_bbox[0]
-    draw.text((x + kw + uw + 2, y + 4), ".org", fill=color_accent, font=font_regular)
+    """Draw the Kurate.org wordmark. 'Ku' and '.org' in accent, 'rate' in dark."""
+    # All same font size (font_bold for everything)
+    draw.text((x, y), "Ku", fill=color_accent, font=font_bold)
+    ku_bbox = draw.textbbox((0, 0), "Ku", font=font_bold)
+    kw = ku_bbox[2] - ku_bbox[0]
+    draw.text((x + kw - 1, y), "rate", fill=color_dark, font=font_bold)
+    rate_bbox = draw.textbbox((0, 0), "rate", font=font_bold)
+    rw = rate_bbox[2] - rate_bbox[0]
+    draw.text((x + kw + rw - 1, y), ".org", fill=color_accent, font=font_bold)
 
 
 def _render_badge_image(data: dict) -> bytes:
@@ -292,7 +293,7 @@ def _render_badge_image(data: dict) -> bytes:
     draw.text((m + pad, top_y), header_text, fill=text_dark, font=f_header)
 
     # Kurate.org wordmark (right, large)
-    _draw_kurate_wordmark(draw, W - m - pad - 280, top_y - 6, f_brand, f_brand_sm, text_dark, accent)
+    _draw_kurate_wordmark(draw, W - m - pad - 320, top_y - 6, f_brand, f_brand_sm, text_dark, accent)
 
     # === MEDAL + TITLE + AUTHORS ===
     section_y = top_y + 50
