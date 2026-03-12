@@ -9,7 +9,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export default function OrcidCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { getAuthHeaders } = useAuth();
+  const { getAuthHeaders, checkAuth } = useAuth();
   const [status, setStatus] = useState("processing"); // processing | success | error
   const [message, setMessage] = useState("");
 
@@ -31,6 +31,8 @@ export default function OrcidCallbackPage() {
         );
         setStatus("success");
         setMessage(`ORCID ${res.data.orcid_id} linked successfully!`);
+        // Refresh auth context so user.orcid_id is available immediately
+        await checkAuth();
         // Redirect back after short delay
         setTimeout(() => {
           const returnTo = sessionStorage.getItem("orcid_return_to");

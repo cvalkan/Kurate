@@ -133,7 +133,7 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
                 Sign in and verify via ORCID to get a verified badge
               </p>
             </div>
-            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => window.dispatchEvent(new Event("open-auth-modal"))} data-testid="sign-in-to-claim-btn">
+            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => { sessionStorage.setItem("auth_return_to", window.location.pathname); window.dispatchEvent(new Event("open-auth-modal")); }} data-testid="sign-in-to-claim-btn">
               Sign in to claim
             </Button>
           </div>

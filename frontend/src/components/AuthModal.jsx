@@ -84,6 +84,10 @@ export function AuthModal({ open, onClose }) {
   };
 
   const handleGoogle = () => {
+    // Store current page so we can return after auth
+    if (window.location.pathname !== "/" && window.location.pathname !== "/auth/callback") {
+      sessionStorage.setItem("auth_return_to", window.location.pathname);
+    }
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     const redirectUrl = window.location.origin + "/auth/callback";
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;

@@ -252,6 +252,7 @@ async def login(req: LoginRequest, response: Response):
             "picture": user.get("picture"),
             "email_verified": user.get("email_verified", False),
             "provider": user.get("provider", "email"),
+            "orcid_id": user.get("orcid_id"),
         },
         "session_token": token,
     }
@@ -305,8 +306,11 @@ async def google_session(req: SessionRequest, response: Response):
 
     token = await _create_session(user_id, response)
 
+    # Get full user record to include orcid_id
+    full_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+
     return {
-        "user": {"user_id": user_id, "email": email, "name": name, "picture": picture, "email_verified": True, "provider": "google"},
+        "user": {"user_id": user_id, "email": email, "name": name, "picture": picture, "email_verified": True, "provider": "google", "orcid_id": full_user.get("orcid_id") if full_user else None},
         "session_token": token,
     }
 

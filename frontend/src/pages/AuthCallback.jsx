@@ -26,9 +26,12 @@ export default function AuthCallback() {
       } catch (err) {
         console.error("Google auth failed:", err);
       }
-      // Clean URL and go home
-      window.history.replaceState(null, "", "/");
-      navigate("/", { replace: true });
+      // Return to the page the user was on (e.g., paper page) or go home
+      const returnTo = sessionStorage.getItem("auth_return_to");
+      sessionStorage.removeItem("auth_return_to");
+      const dest = returnTo || "/";
+      window.history.replaceState(null, "", dest);
+      navigate(dest, { replace: true });
     })();
   }, [loginWithGoogle, navigate]);
 
