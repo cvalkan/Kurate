@@ -586,6 +586,7 @@ function AdminClaims() {
               </div>
               <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                 <span className="font-medium text-foreground">{c.claimer_name}</span>
+                {c.claimer_email && <span>{c.claimer_email}</span>}
                 <a href={`https://orcid.org/${c.claimer_orcid}`} target="_blank" rel="noopener noreferrer" className="text-[#A6CE39] hover:underline">
                   {c.claimer_orcid}
                 </a>

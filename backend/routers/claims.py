@@ -453,6 +453,18 @@ async def list_pending_claims():
     ).to_list(500)
 
     pending = []
+    # Collect user_ids to batch-fetch emails
+    user_ids = set()
+    for p in papers:
+        for c in p.get("claimed_by", []):
+            if not c.get("verified") and c.get("user_id"):
+                user_ids.add(c["user_id"])
+    # Fetch emails
+    email_map = {}
+    if user_ids:
+        users = await db.users.find({"user_id": {"$in": list(user_ids)}}, {"_id": 0, "user_id": 1, "email": 1}).to_list(500)
+        email_map = {u["user_id"]: u.get("email", "") for u in users}
+
     for p in papers:
         for c in p.get("claimed_by", []):
             if not c.get("verified"):
@@ -462,6 +474,7 @@ async def list_pending_claims():
                     "paper_authors": p.get("authors", []),
                     "arxiv_id": p.get("arxiv_id", ""),
                     "claimer_name": c.get("author_name"),
+                    "claimer_email": email_map.get(c.get("user_id"), ""),
                     "claimer_orcid": c.get("orcid_id"),
                     "claimed_at": c.get("claimed_at"),
                 })
