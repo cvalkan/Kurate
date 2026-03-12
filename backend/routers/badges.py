@@ -301,6 +301,31 @@ async def get_monthly_badge(category: str, year: int, month: int, paper_id: str)
         raise HTTPException(404, "Archive not found")
 
     lb = archive.get("leaderboard", [])
+    paper = next((p for p in lb if p.get("id") == paper_id), None)
+    if not paper:
+        raise HTTPException(404, "Paper not found in this archive")
+
+    tier = _get_tier(paper["rank"])
+    if not tier:
+        raise HTTPException(404, "Paper is not in the top 3 for this period")
+
+    return {
+        "title": paper.get("title"),
+        "authors": paper.get("authors", []),
+        "rank": paper["rank"],
+        "score": paper.get("score"),
+        "win_rate": paper.get("win_rate"),
+        "comparisons": paper.get("comparisons"),
+        "tier": tier["name"],
+        "tier_color": tier["color"],
+        "archive_label": archive.get("label", f"Month {month}, {year}"),
+        "category": category,
+        "category_name": CATEGORIES.get(category, category),
+        "paper_count": archive.get("paper_count", len(lb)),
+        "arxiv_id": paper.get("arxiv_id"),
+        "paper_id": paper_id,
+        "image_url": f"/api/badge/{category}/{year}/m{month}/{paper_id}/image.png",
+    }
 
 @router.get("/{category}/{year}/w{week}/{paper_id}/exists")
 async def badge_exists(category: str, year: int, week: int, paper_id: str):
