@@ -12,7 +12,7 @@ export function StatusBar({ leaderboard, totalPapers, totalMatches, isRanking, h
       <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
         <Swords className="h-3.5 w-3.5" />
         <span className="font-mono">{totalMatches}</span>
-        <span>comparisons</span>
+        <span>matches</span>
       </div>
       {isRanking && (
         <>
