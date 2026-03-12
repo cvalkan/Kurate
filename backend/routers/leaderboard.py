@@ -1780,15 +1780,16 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     if existing:
         return None  # Already archived
 
-    # Get the current "week" leaderboard from cache
+    # Get the appropriate leaderboard period from cache
     cat_data = _cache.get("categories", {}).get(category, {})
-    week_lb = cat_data.get("week", [])
-    if not week_lb:
+    period_key = "month" if period_type == "monthly" else "week"
+    source_lb = cat_data.get(period_key, [])
+    if not source_lb:
         return None
 
     # Freeze the leaderboard: store essential fields only
     frozen_entries = []
-    for entry in week_lb:
+    for entry in source_lb:
         frozen_entries.append({
             "rank": entry.get("rank"),
             "id": entry.get("id"),

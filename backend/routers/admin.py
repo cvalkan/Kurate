@@ -2695,6 +2695,12 @@ async def backfill_archives():
     match_dates.sort(key=lambda m: m["_dt"])
 
     created = 0
+
+    # Determine frequency per category
+    archive_config = settings.get("archive_frequency", {})
+    default_freq = archive_config.get("default", "weekly")
+
+    # --- Weekly backfill ---
     monday = first_monday
     while monday < utc_now:
         year = monday.isocalendar()[0]
@@ -2702,13 +2708,15 @@ async def backfill_archives():
         week_start = monday - timedelta(days=7)
 
         for cat in active_cats:
-            # Check if already exists
+            freq = archive_config.get(cat, default_freq)
+            if freq != "weekly":
+                continue
+
             existing = await db.leaderboard_archives.find_one(
                 {"category": cat, "year": year, "week": week, "period_type": "weekly"})
             if existing:
                 continue
 
-            # Papers published in this week's window
             cat_papers = [p for p in all_papers
                           if p.get("categories", [""])[0] == cat
                           and p["id"] in paper_dates
@@ -2762,6 +2770,70 @@ async def backfill_archives():
             created += 1
 
         monday += timedelta(weeks=1)
+        await asyncio.sleep(0)
+
+    # --- Monthly backfill ---
+    month_names = ["", "January", "February", "March", "April", "May", "June",
+                   "July", "August", "September", "October", "November", "December"]
+    # Iterate through each month from start to now
+    cur_year = start_dt.year
+    cur_month = start_dt.month
+    while (cur_year, cur_month) <= (utc_now.year, utc_now.month):
+        month_start = datetime(cur_year, cur_month, 1, tzinfo=timezone.utc)
+        if cur_month == 12:
+            month_end = datetime(cur_year + 1, 1, 1, tzinfo=timezone.utc)
+        else:
+            month_end = datetime(cur_year, cur_month + 1, 1, tzinfo=timezone.utc)
+
+        for cat in active_cats:
+            freq = archive_config.get(cat, default_freq)
+            if freq != "monthly":
+                continue
+
+            existing = await db.leaderboard_archives.find_one(
+                {"category": cat, "year": cur_year, "month": cur_month, "period_type": "monthly"})
+            if existing:
+                continue
+
+            cat_papers = [p for p in all_papers
+                          if p.get("categories", [""])[0] == cat
+                          and p["id"] in paper_dates
+                          and month_start <= paper_dates[p["id"]] < month_end]
+            if not cat_papers:
+                continue
+
+            cat_pids = {p["id"] for p in cat_papers}
+            cat_matches = [m for m in match_dates
+                           if m["_dt"] < month_end
+                           and m["paper1_id"] in cat_pids
+                           and m["paper2_id"] in cat_pids]
+
+            lb = await compute_leaderboard_async(cat_papers, cat_matches)
+            frozen = [{
+                "rank": e.get("rank"), "id": e.get("id"), "title": e.get("title", ""),
+                "authors": e.get("authors", []), "score": e.get("score"),
+                "wins": e.get("wins"), "losses": e.get("losses"),
+                "comparisons": e.get("comparisons"), "win_rate": e.get("win_rate"),
+                "ci": e.get("ci"), "wilson_margin": e.get("wilson_margin"),
+                "published": e.get("published"), "link": e.get("link"), "arxiv_id": e.get("arxiv_id"),
+            } for e in lb]
+
+            doc = {
+                "category": cat, "period_type": "monthly",
+                "year": cur_year, "week": None, "month": cur_month,
+                "label": f"{month_names[cur_month]} {cur_year}",
+                "paper_count": len(frozen),
+                "match_count": sum((e.get("comparisons") or 0) for e in frozen) // 2,
+                "leaderboard": frozen,
+                "created_at": month_end.isoformat(),
+            }
+            await db.leaderboard_archives.insert_one(doc)
+            created += 1
+
+        cur_month += 1
+        if cur_month > 12:
+            cur_month = 1
+            cur_year += 1
         await asyncio.sleep(0)
 
     # Create "Older" snapshots for papers published before the earliest archive
