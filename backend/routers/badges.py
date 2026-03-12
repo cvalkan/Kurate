@@ -319,7 +319,8 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
 async def get_paper_badges(paper_id: str):
     """Get all badges (top 3 appearances) for a specific paper across all archives."""
     archives = await db.leaderboard_archives.find(
-        {"leaderboard": {"$elemMatch": {"id": paper_id, "rank": {"$lte": 3}}}},
+        {"leaderboard": {"$elemMatch": {"id": paper_id, "rank": {"$lte": 3}}},
+         "period_type": {"$in": ["weekly", "monthly"]}},
         {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1, "label": 1,
          "paper_count": 1, "leaderboard": {"$elemMatch": {"id": paper_id}}},
     ).sort([("year", -1), ("week", -1), ("month", -1)]).to_list(50)
