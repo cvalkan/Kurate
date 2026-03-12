@@ -113,7 +113,7 @@ export default function BadgePage() {
         {/* X (Twitter) Preview */}
         <div className="mb-6" data-testid="x-preview">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-2">X / Twitter Preview</div>
-          <div className="border border-border rounded-xl overflow-hidden bg-white max-w-lg">
+          <div className="border border-border rounded-xl overflow-hidden bg-white max-w-md">
             {/* Tweet content */}
             <div className="p-3 pb-2">
               <div className="flex items-center gap-2 mb-1.5">
@@ -140,7 +140,7 @@ export default function BadgePage() {
         {/* LinkedIn Preview */}
         <div className="mb-8" data-testid="linkedin-preview">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-2">LinkedIn Preview</div>
-          <div className="border border-border rounded-lg overflow-hidden bg-white max-w-lg">
+          <div className="border border-border rounded-lg overflow-hidden bg-white max-w-md">
             {/* Post header */}
             <div className="p-3 pb-2">
               <div className="flex items-center gap-2 mb-1.5">
