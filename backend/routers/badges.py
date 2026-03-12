@@ -272,9 +272,9 @@ def _render_badge_image(data: dict) -> bytes:
         f_authors = ImageFont.truetype(FONT_REGULAR, 24)
         f_stat_val = ImageFont.truetype(FONT_BOLD, 36)
         f_stat_lbl = ImageFont.truetype(FONT_REGULAR, 18)
-        f_footer = ImageFont.truetype(FONT_REGULAR, 20)
-        f_brand = ImageFont.truetype(FONT_BOLD, 50)
-        f_brand_reg = ImageFont.truetype(FONT_REGULAR, 50)
+        f_footer = ImageFont.truetype(FONT_REGULAR, 22)
+        f_brand = ImageFont.truetype(FONT_BOLD, 72)
+        f_brand_reg = ImageFont.truetype(FONT_REGULAR, 72)
         f_brand_sm = ImageFont.truetype(FONT_REGULAR, 30)
     except Exception:
         f_header = f_header_sm = f_tier = f_title = f_rank = f_authors = ImageFont.load_default()
@@ -287,20 +287,26 @@ def _render_badge_image(data: dict) -> bytes:
 
     pad = 45
 
-    # === TOP ROW: Period + Category (left) · Kurate wordmark (right) ===
-    top_y = m + 22
+    # === ROW 1: Kurate.org wordmark (right-aligned, large) ===
+    logo_y = m + 15
+    # Measure wordmark width to right-align
+    _ku_w = draw.textbbox((0, 0), "Ku", font=f_brand)[2]
+    _rate_w = draw.textbbox((0, 0), "rate", font=f_brand)[2]
+    _org_w = draw.textbbox((0, 0), ".org", font=f_brand_reg)[2]
+    logo_total_w = _ku_w + _rate_w + _org_w
+    _draw_kurate_wordmark(draw, W - m - pad - logo_total_w, logo_y, f_brand, f_brand_reg, text_dark, accent)
+
+    # === ROW 2: Period + Category (left) ===
+    top_y = logo_y + 65
     cat_name = data["category_name"]
     header_text = f"{data['archive_label']}  ·  {cat_name} Preprints  ·  arXiv"
     draw.text((m + pad, top_y), header_text, fill=text_dark, font=f_header)
 
-    # Kurate.org wordmark (right, large)
-    _draw_kurate_wordmark(draw, W - m - pad - 380, top_y - 8, f_brand, f_brand_reg, text_dark, accent)
-
     # === MEDAL + TITLE + AUTHORS ===
-    section_y = top_y + 50
-    medal_r = 50
+    section_y = top_y + 42
+    medal_r = 48
     cx = m + pad + medal_r + 5
-    cy = section_y + medal_r + 15
+    cy = section_y + medal_r + 12
     _draw_medal(draw, cx, cy, medal_r, tier["name"], rank, f_rank)
 
     content_x = cx + medal_r + 28
@@ -362,9 +368,9 @@ def _render_badge_image(data: dict) -> bytes:
         draw.text((bx + box_w // 2 - lw // 2, stats_y + 55), label, fill=text_muted, font=f_stat_lbl)
 
     # === FOOTER ===
-    footer_y = H - m - 48
+    footer_y = H - m - 50
     draw.text((m + pad, footer_y),
-        "Ranked by novelty, rigor, significance & clarity via AI pairwise tournament",
+        "Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament",
         fill=text_muted, font=f_footer)
 
     buf = io.BytesIO()
