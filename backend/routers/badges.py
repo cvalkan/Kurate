@@ -237,7 +237,7 @@ def _draw_kurate_wordmark(draw, x, y, font_bold, font_regular, color_dark, color
     draw.text((x + kw - 1, y), "rate", fill=color_dark, font=font_bold)
     rate_bbox = draw.textbbox((0, 0), "rate", font=font_bold)
     rw = rate_bbox[2] - rate_bbox[0]
-    draw.text((x + kw + rw - 1, y), ".org", fill=color_accent, font=font_bold)
+    draw.text((x + kw + rw - 1, y), ".org", fill=color_accent, font=font_regular)
 
 
 def _render_badge_image(data: dict) -> bytes:
@@ -274,6 +274,7 @@ def _render_badge_image(data: dict) -> bytes:
         f_stat_lbl = ImageFont.truetype(FONT_REGULAR, 18)
         f_footer = ImageFont.truetype(FONT_REGULAR, 20)
         f_brand = ImageFont.truetype(FONT_BOLD, 40)
+        f_brand_reg = ImageFont.truetype(FONT_REGULAR, 40)
         f_brand_sm = ImageFont.truetype(FONT_REGULAR, 30)
     except Exception:
         f_header = f_header_sm = f_tier = f_title = f_rank = f_authors = ImageFont.load_default()
@@ -293,7 +294,7 @@ def _render_badge_image(data: dict) -> bytes:
     draw.text((m + pad, top_y), header_text, fill=text_dark, font=f_header)
 
     # Kurate.org wordmark (right, large)
-    _draw_kurate_wordmark(draw, W - m - pad - 320, top_y - 6, f_brand, f_brand_sm, text_dark, accent)
+    _draw_kurate_wordmark(draw, W - m - pad - 320, top_y - 6, f_brand, f_brand_reg, text_dark, accent)
 
     # === MEDAL + TITLE + AUTHORS ===
     section_y = top_y + 50
