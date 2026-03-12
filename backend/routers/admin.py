@@ -2713,7 +2713,7 @@ async def backfill_archives():
                           if p.get("categories", [""])[0] == cat
                           and p["id"] in paper_dates
                           and week_start <= paper_dates[p["id"]] < monday]
-            if len(cat_papers) < 3:
+            if not cat_papers:
                 continue
 
             cat_pids = {p["id"] for p in cat_papers}
@@ -2723,10 +2723,8 @@ async def backfill_archives():
                            if m["_dt"] < monday
                            and m["paper1_id"] in cat_pids
                            and m["paper2_id"] in cat_pids]
-            if len(cat_matches) < 5:
-                continue
 
-            # Compute BT leaderboard
+            # Compute BT leaderboard (works even with 0 matches — papers get default score)
             lb = await compute_leaderboard_async(cat_papers, cat_matches)
 
             frozen = []
@@ -2789,7 +2787,7 @@ async def backfill_archives():
                       if p.get("categories", [""])[0] == cat
                       and p["id"] in paper_dates
                       and paper_dates[p["id"]] < cutoff]
-        if len(cat_papers) < 3:
+        if not cat_papers:
             continue
 
         cat_pids = {p["id"] for p in cat_papers}
