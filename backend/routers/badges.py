@@ -222,7 +222,7 @@ def _render_badge_image(data: dict) -> bytes:
         svg = f.read()
 
     # Dynamic data
-    title_lines = _wordwrap(paper.get("title", ""), 32)
+    title_lines = _wordwrap(paper.get("title", ""), 40)
     title_line1 = _esc(title_lines[0]) if len(title_lines) > 0 else ""
     title_line2 = ""
     if len(title_lines) > 1:
@@ -276,11 +276,11 @@ def _render_badge_image(data: dict) -> bytes:
     # Categories
     svg = svg.replace(">cs.RO \u00b7 cs.AI \u00b7 cs.LG<", f">{cats_str}<")
 
-    # Stats
-    svg = svg.replace(f">Top {rank} of 264<", f">Top {rank} of {paper_count}<")
-    # Handle all three rank variants
+    # Stats — "Top X of Y" with split colors (rank in blue, "of Y" in dark)
     for r in [1, 2, 3]:
-        svg = svg.replace(f">Top {r} of 264<", f">Top {rank} of {paper_count}<")
+        old_stat = f'>Top {r} of 264<'
+        new_stat = f'><tspan fill="#4285F4">Top {rank} </tspan><tspan fill="#1a1a1a">of {paper_count}</tspan><'
+        svg = svg.replace(old_stat, new_stat)
     svg = svg.replace(">1472<", f">{score}<")
     svg = svg.replace(">1520<", f">{score}<")
     svg = svg.replace(">1445<", f">{score}<")

@@ -58,7 +58,7 @@
   </text>
 
   <!-- Kurate.org logo -->
-  <text x="450" y="48" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="28" letter-spacing="-0.3"><tspan font-weight="800" fill="#4285F4">Ku</tspan><tspan font-weight="800" fill="#1a1a1a">rate</tspan><tspan font-weight="400" fill="#4285F4" font-size="25">.org</tspan></text>
+  <text x="468" y="48" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="28" letter-spacing="-0.3"><tspan font-weight="800" fill="#4285F4">Ku</tspan><tspan font-weight="800" fill="#1a1a1a">rate</tspan><tspan font-weight="400" fill="#4285F4" font-size="25">.org</tspan></text>
 
   <!-- Bronze coin -->
   <g filter="url(#badgeShadow)">
