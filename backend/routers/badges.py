@@ -186,81 +186,88 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 
 
 def _render_badge_image(data: dict) -> bytes:
-    """Render a rich card badge image using Pillow."""
+    """Render the 'Obsidian Slab' badge image (1200x630) using Pillow."""
     W, H = 1200, 630
     paper = data["paper"]
     tier = data["tier"]
     rank = paper["rank"]
 
-    # Colors
-    bg_color = (15, 15, 25)  # Dark navy
-    card_color = (25, 25, 40)
-    text_white = (240, 240, 245)
-    text_muted = (140, 140, 160)
+    # --- Color palette ---
+    bg = (15, 23, 42)         # Deep midnight navy
+    text_primary = (255, 255, 255)
+    text_secondary = (148, 163, 184)  # Slate-400
+    text_tertiary = (71, 85, 105)     # Slate-600
     tier_hex = tier["color"]
     tier_rgb = tuple(int(tier_hex.lstrip("#")[i:i+2], 16) for i in (0, 2, 4))
-    accent = (100, 120, 255)
 
-    img = Image.new("RGB", (W, H), bg_color)
+    # Tier-specific dark accent for sidebar
+    tier_accents = {
+        "Gold":   (69, 26, 3),    # #451a03
+        "Silver": (30, 41, 59),   # #1e293b
+        "Bronze": (67, 20, 7),    # #431407
+    }
+    sidebar_bg = tier_accents.get(tier["name"], (30, 30, 50))
+
+    img = Image.new("RGB", (W, H), bg)
     draw = ImageDraw.Draw(img)
 
-    # Fonts
+    # --- Fonts ---
     try:
-        font_title = ImageFont.truetype(FONT_BOLD, 32)
-        font_large = ImageFont.truetype(FONT_BOLD, 72)
-        font_tier = ImageFont.truetype(FONT_BOLD, 28)
-        font_body = ImageFont.truetype(FONT_REGULAR, 22)
-        font_small = ImageFont.truetype(FONT_REGULAR, 18)
-        font_logo = ImageFont.truetype(FONT_BOLD, 26)
+        f_rank = ImageFont.truetype(FONT_BOLD, 160)
+        f_tier = ImageFont.truetype(FONT_BOLD, 32)
+        f_title = ImageFont.truetype(FONT_BOLD, 40)
+        f_authors = ImageFont.truetype(FONT_REGULAR, 26)
+        f_stat_val = ImageFont.truetype(FONT_BOLD, 38)
+        f_stat_lbl = ImageFont.truetype(FONT_REGULAR, 16)
+        f_brand = ImageFont.truetype(FONT_BOLD, 22)
+        f_label = ImageFont.truetype(FONT_REGULAR, 20)
     except Exception:
-        font_title = font_large = font_tier = font_body = font_small = font_logo = ImageFont.load_default()
+        f_rank = f_tier = f_title = f_authors = f_stat_val = f_stat_lbl = f_brand = f_label = ImageFont.load_default()
 
-    # Card background with rounded feel (draw a lighter rect)
-    card_margin = 40
-    draw.rounded_rectangle(
-        [card_margin, card_margin, W - card_margin, H - card_margin],
-        radius=20, fill=card_color,
-    )
+    # --- Sidebar (left 280px) ---
+    sidebar_w = 280
+    draw.rectangle([(0, 0), (sidebar_w, H)], fill=sidebar_bg)
+    # Bright accent line on the right edge of sidebar
+    draw.rectangle([(sidebar_w - 4, 0), (sidebar_w, H)], fill=tier_rgb)
 
-    # Left section: Medal circle
-    cx, cy = 160, H // 2
-    medal_r = 70
-    # Medal glow
-    for i in range(3):
-        r = medal_r + 8 - i * 3
-        alpha_color = tuple(min(255, c + 30) for c in tier_rgb)
-        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=None, outline=alpha_color, width=2)
-    # Medal circle
-    draw.ellipse([cx - medal_r, cy - medal_r, cx + medal_r, cy + medal_r], fill=tier_rgb)
-    # Rank number inside medal
+    # Rank number (centered in sidebar)
     rank_text = f"#{rank}"
-    rank_bbox = draw.textbbox((0, 0), rank_text, font=font_large)
+    rank_bbox = draw.textbbox((0, 0), rank_text, font=f_rank)
     rank_w = rank_bbox[2] - rank_bbox[0]
     rank_h = rank_bbox[3] - rank_bbox[1]
-    draw.text((cx - rank_w // 2, cy - rank_h // 2 - 8), rank_text, fill=(255, 255, 255), font=font_large)
+    draw.text(
+        (sidebar_w // 2 - rank_w // 2, H // 2 - rank_h // 2 - 40),
+        rank_text, fill=tier_rgb, font=f_rank,
+    )
 
-    # Right section: Content
-    content_x = 270
-    content_w = W - content_x - 60
+    # Tier label below rank
+    tier_text = tier["name"].upper()
+    tier_bbox = draw.textbbox((0, 0), tier_text, font=f_tier)
+    tier_w = tier_bbox[2] - tier_bbox[0]
+    draw.text(
+        (sidebar_w // 2 - tier_w // 2, H // 2 + rank_h // 2 - 20),
+        tier_text, fill=tier_rgb, font=f_tier,
+    )
 
-    # Tier name + category
-    tier_y = 75
-    draw.text((content_x, tier_y), tier["name"].upper(), fill=tier_rgb, font=font_tier)
-    cat_text = f"  {data['category_name']}"
-    tier_bbox = draw.textbbox((0, 0), tier["name"].upper(), font=font_tier)
-    draw.text((content_x + tier_bbox[2] - tier_bbox[0], tier_y), cat_text, fill=text_muted, font=font_tier)
+    # --- Main content area (right 75%) ---
+    cx = sidebar_w + 60  # Content X start
+    cw = W - cx - 50     # Content width
 
-    # Paper title (2 lines max)
-    title_y = tier_y + 50
+    # Category + Archive label (top)
+    label_y = 50
+    label_text = f"{data['category_name']}  ·  {data['archive_label']}"
+    draw.text((cx, label_y), label_text, fill=text_secondary, font=f_label)
+
+    # Paper title (max 2 lines, word-wrapped)
+    title_y = label_y + 45
     title = paper.get("title", "")
-    # Word wrap
     words = title.split()
     lines = []
     current_line = ""
     for word in words:
         test = f"{current_line} {word}".strip()
-        bbox = draw.textbbox((0, 0), test, font=font_title)
-        if bbox[2] - bbox[0] > content_w:
+        bbox = draw.textbbox((0, 0), test, font=f_title)
+        if bbox[2] - bbox[0] > cw:
             if current_line:
                 lines.append(current_line)
             current_line = word
@@ -268,46 +275,41 @@ def _render_badge_image(data: dict) -> bytes:
             current_line = test
     if current_line:
         lines.append(current_line)
-    # Show max 2 lines
     for i, line in enumerate(lines[:2]):
         if i == 1 and len(lines) > 2:
-            line = line[:len(line)-3] + "..."
-        draw.text((content_x, title_y + i * 40), line, fill=text_white, font=font_title)
+            line = line[:-3] + "..." if len(line) > 3 else "..."
+        draw.text((cx, title_y + i * 52), line, fill=text_primary, font=f_title)
 
-    # Authors (1 line)
-    authors_y = title_y + 40 * min(len(lines), 2) + 15
+    # Authors
+    authors_y = title_y + 52 * min(len(lines), 2) + 20
     authors = paper.get("authors", [])
-    authors_str = ", ".join(authors[:3])
-    if len(authors) > 3:
-        authors_str += f" +{len(authors) - 3}"
-    draw.text((content_x, authors_y), _truncate(authors_str, 80), fill=text_muted, font=font_body)
+    authors_str = ", ".join(authors[:4])
+    if len(authors) > 4:
+        authors_str += f"  +{len(authors) - 4}"
+    draw.text((cx, authors_y), _truncate(authors_str, 75), fill=text_secondary, font=f_authors)
 
-    # Stats row
-    stats_y = authors_y + 45
+    # --- Stats grid (bottom section) ---
+    stats_y = 430
+    # Horizontal divider
+    draw.line([(cx, stats_y - 20), (W - 50, stats_y - 20)], fill=text_tertiary, width=1)
+
     stats = [
-        (f"Score {paper.get('score', '?')}", text_white),
-        (f"Win Rate {paper.get('win_rate', '?')}%", text_white),
-        (f"{paper.get('comparisons', '?')} matches", text_muted),
-        (f"of {data['paper_count']} papers", text_muted),
+        (str(paper.get("score", "?")), "ELO SCORE"),
+        (f"{paper.get('win_rate', '?')}%", "WIN RATE"),
+        (str(paper.get("comparisons", "?")), "MATCHES"),
+        (f"of {data['paper_count']}", "PAPERS"),
     ]
-    sx = content_x
-    for text, color in stats:
-        draw.text((sx, stats_y), text, fill=color, font=font_body)
-        bbox = draw.textbbox((0, 0), text, font=font_body)
-        sx += bbox[2] - bbox[0] + 30
+    col_w = cw // 4
+    for i, (val, label) in enumerate(stats):
+        sx = cx + i * col_w
+        draw.text((sx, stats_y), val, fill=text_primary, font=f_stat_val)
+        draw.text((sx, stats_y + 48), label, fill=text_tertiary, font=f_stat_lbl)
 
-    # Divider line
-    div_y = stats_y + 45
-    draw.line([(content_x, div_y), (W - 60, div_y)], fill=(50, 50, 70), width=1)
-
-    # Footer: Archive label + Kurate branding
-    footer_y = div_y + 15
-    draw.text((content_x, footer_y), data["archive_label"], fill=text_muted, font=font_small)
-
-    # Kurate logo text (right side)
-    logo_text = "PaperSumo by Kurate.org"
-    logo_bbox = draw.textbbox((0, 0), logo_text, font=font_logo)
-    draw.text((W - 60 - (logo_bbox[2] - logo_bbox[0]), footer_y - 2), logo_text, fill=accent, font=font_logo)
+    # --- Branding (bottom right) ---
+    brand_text = "PaperSumo by Kurate.org"
+    brand_bbox = draw.textbbox((0, 0), brand_text, font=f_brand)
+    brand_w = brand_bbox[2] - brand_bbox[0]
+    draw.text((W - 50 - brand_w, H - 50), brand_text, fill=text_secondary, font=f_brand)
 
     # Export
     buf = io.BytesIO()
