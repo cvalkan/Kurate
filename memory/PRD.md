@@ -16,13 +16,14 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **Input format**: Abstract + AI impact assessment summary
 - **Summary source**: "claude" (only Claude Thinking summaries used in live tournaments)
 
-## Current State (Mar 9 2026)
+## Current State (Mar 12 2026)
 - 1218 papers, 39022 matches, 10 active categories
 - 25 validation datasets, 141963 validation matches, 3158 validation papers
 - All validation experiments publicly accessible
 - Leaderboard shows Rating and Gap columns (togglable via admin)
 - Security headers fully implemented
 - All endpoints returning 200, no broken pages
+- Archive system fully operational on production (109 snapshots backfilled Mar 12 2026)
 
 ## Deployment Readiness (Mar 9 2026)
 
