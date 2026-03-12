@@ -666,11 +666,34 @@ async def get_leaderboard(
 
 
 def _filter_archives_by_frequency(archives, category, settings):
-    """Filter archive list to show only the type configured by admin (weekly or monthly)."""
+    """Filter archive list to show only the type configured by admin (weekly or monthly).
+    Excludes the current (ongoing) period and sorts by recency."""
+    from datetime import datetime, timezone
     freq_config = settings.get("archive_frequency", {})
     freq = freq_config.get(category, freq_config.get("default", "weekly"))
     target_type = "monthly" if freq == "monthly" else "weekly"
-    return [a for a in archives if a.get("period_type") == target_type]
+
+    now = datetime.now(timezone.utc)
+    current_year = now.isocalendar()[0]
+    current_week = now.isocalendar()[1]
+    current_month = now.month
+
+    filtered = []
+    for a in archives:
+        if a.get("period_type") != target_type:
+            continue
+        # Exclude current (ongoing) period
+        if target_type == "weekly" and a.get("year") == current_year and a.get("week") == current_week:
+            continue
+        if target_type == "monthly" and a.get("year") == now.year and a.get("month") == current_month:
+            continue
+        filtered.append(a)
+
+    # Sort by recency: year desc, then week/month desc
+    def sort_key(a):
+        return (a.get("year", 0), a.get("week") or a.get("month") or 0)
+    filtered.sort(key=sort_key, reverse=True)
+    return filtered
 
 
 async def _compute_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None):

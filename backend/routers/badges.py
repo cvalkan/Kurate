@@ -246,6 +246,51 @@ async def get_monthly_badge(category: str, year: int, month: int, paper_id: str)
         raise HTTPException(404, "Archive not found")
 
     lb = archive.get("leaderboard", [])
+
+@router.get("/{category}/{year}/w{week}/{paper_id}/exists")
+async def badge_exists(category: str, year: int, week: int, paper_id: str):
+    """Quick check if a paper has a badge (top 3) in an archive."""
+    archive = await db.leaderboard_archives.find_one(
+        {"category": category, "year": year, "week": week, "period_type": "weekly"},
+        {"_id": 0, "leaderboard": {"$elemMatch": {"id": paper_id}}},
+    )
+    if not archive or not archive.get("leaderboard"):
+        return {"has_badge": False}
+    paper = archive["leaderboard"][0]
+    tier = _get_tier(paper.get("rank", 999))
+    return {"has_badge": bool(tier), "rank": paper.get("rank"), "tier": tier["name"] if tier else None}
+
+@router.get("/paper/{paper_id}/badges")
+async def get_paper_badges(paper_id: str):
+    """Get all badges (top 3 appearances) for a specific paper across all archives."""
+    archives = await db.leaderboard_archives.find(
+        {"leaderboard": {"$elemMatch": {"id": paper_id, "rank": {"$lte": 3}}}},
+        {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1, "label": 1,
+         "paper_count": 1, "leaderboard": {"$elemMatch": {"id": paper_id}}},
+    ).sort([("year", -1), ("week", -1), ("month", -1)]).to_list(50)
+
+    badges = []
+    for a in archives:
+        lb = a.get("leaderboard", [])
+        if not lb:
+            continue
+        p = lb[0]
+        tier = _get_tier(p.get("rank", 999))
+        if not tier:
+            continue
+        slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
+        badges.append({
+            "tier": tier["name"],
+            "tier_color": tier["color"],
+            "rank": p["rank"],
+            "archive_label": a.get("label"),
+            "category": a["category"],
+            "category_name": CATEGORIES.get(a["category"], a["category"]),
+            "badge_url": f"/badge/{a['category']}/{a['year']}/{slug}/{paper_id}",
+        })
+    return {"badges": badges}
+
+
     paper = next((p for p in lb if p.get("id") == paper_id), None)
     if not paper:
         raise HTTPException(404, "Paper not found in this archive")

@@ -5,10 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
-  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag,
+  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthorClaimSection } from "@/components/AuthorClaimSection";
+import { Link } from "react-router-dom";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 
@@ -184,6 +185,7 @@ export default function PaperPage() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [paperBadges, setPaperBadges] = useState([]);
 
   useEffect(() => {
     const fetchPaper = async () => {
@@ -196,7 +198,14 @@ export default function PaperPage() {
         setLoading(false);
       }
     };
+    const fetchBadges = async () => {
+      try {
+        const res = await axios.get(`${API}/api/badge/paper/${id}/badges`);
+        setPaperBadges(res.data.badges || []);
+      } catch {}
+    };
     fetchPaper();
+    fetchBadges();
   }, [id]);
 
   if (loading) {
@@ -287,6 +296,25 @@ export default function PaperPage() {
         paperAuthors={paper.authors}
         claims={paper.claimed_by || []}
       />
+
+      {/* Tournament Badges */}
+      {paperBadges.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-6" data-testid="paper-badges">
+          <Trophy className="h-4 w-4 text-muted-foreground" />
+          {paperBadges.map((b, i) => (
+            <Link key={i} to={b.badge_url}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium hover:opacity-80 transition-opacity"
+              style={{ borderColor: b.tier_color, color: b.tier_color }}
+              data-testid={`paper-badge-${i}`}
+            >
+              <span className="w-5 h-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold" style={{ backgroundColor: b.tier_color }}>
+                {b.rank}
+              </span>
+              {b.tier} · {b.category_name} · {b.archive_label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Abstract */}
       {paper.abstract && (
