@@ -2645,32 +2645,29 @@ async def get_archive_frequency():
 @router.post("/archive/backfill", dependencies=[Depends(verify_admin)])
 async def backfill_archives():
     """Create historical weekly AND monthly archive snapshots for all categories.
-    Uses production scores already on papers (no match recomputation needed)."""
+    Uses actual match data for proper BT computation."""
+    from services.ranking import compute_leaderboard_async
     from datetime import timedelta
 
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
-    # Find the earliest paper date for weekly start
-    if not paper_dates:
-        return {"status": "no_data"}
-    start_dt = min(paper_dates.values())
-    days_until_monday = (7 - start_dt.weekday()) % 7
-    if days_until_monday == 0:
-        days_until_monday = 7
-    first_monday = (start_dt + timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-
     utc_now = datetime.now(timezone.utc)
 
     # Load all papers and matches once
+    # Load ALL papers (not just with summaries) so BT can match opponent papers
     all_papers = await db.papers.find(
-        {"summaries": {"$exists": True, "$ne": {}}},
+        {},
         {"_id": 0, "id": 1, "title": 1, "authors": 1, "published": 1, "link": 1,
          "arxiv_id": 1, "categories": 1, "ai_rating": 1, "score": 1,
          "wins": 1, "losses": 1, "comparisons": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1}
-    ).to_list(5000)
+    ).to_list(10000)
 
-    # Parse dates
+    all_matches = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1, "completed": 1, "failed": 1}
+    ).to_list(200000)
+
     paper_dates = {}
     for p in all_papers:
         try:
@@ -2678,8 +2675,24 @@ async def backfill_archives():
         except:
             pass
 
-    # Find earliest paper date
-    start_dt = min(paper_dates.values()) if paper_dates else utc_now
+    match_dates = []
+    for m in all_matches:
+        try:
+            m["_dt"] = datetime.fromisoformat(m["created_at"].replace("Z", "+00:00"))
+            match_dates.append(m)
+        except:
+            pass
+    match_dates.sort(key=lambda m: m["_dt"])
+
+    start_dt = match_dates[0]["_dt"] if match_dates else (min(paper_dates.values()) if paper_dates else utc_now)
+
+    if not paper_dates:
+        return {"status": "no_data"}
+
+    days_until_monday = (7 - start_dt.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7
+    first_monday = (start_dt + timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     created = 0
 
@@ -2689,6 +2702,9 @@ async def backfill_archives():
         year = monday.isocalendar()[0]
         week = monday.isocalendar()[1]
         week_start = monday - timedelta(days=7)
+        week_end = monday  # Matches up to the END of this week (= start of next week)
+        # Use next Monday as cutoff so the archive captures the full week's tournament activity
+        match_cutoff = monday + timedelta(days=7)
 
         for cat in active_cats:
             existing = await db.leaderboard_archives.find_one(
@@ -2697,7 +2713,7 @@ async def backfill_archives():
                 continue
 
             cat_papers = [p for p in all_papers
-                          if p.get("categories", [""])[0] == cat
+                          if (p.get("categories") or [""])[0] == cat
                           and p["id"] in paper_dates
                           and week_start <= paper_dates[p["id"]] < monday]
             if not cat_papers:
@@ -2705,17 +2721,23 @@ async def backfill_archives():
 
             cat_pids = {p["id"] for p in cat_papers}
 
-            # Use production scores already on the papers (imported from API)
-            # instead of recomputing from local matches
-            lb = sorted(cat_papers, key=lambda p: -(p.get("score") or 1200))
+            # All matches up to end of this week involving ANY of this week's papers
+            cat_matches = [m for m in match_dates
+                           if m["_dt"] < match_cutoff
+                           and (m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids)]
+
+            # Include opponent papers so BT scores are meaningful
+            opponent_ids = set()
+            for m in cat_matches:
+                opponent_ids.add(m["paper1_id"])
+                opponent_ids.add(m["paper2_id"])
+            opponent_ids -= cat_pids
+            all_bt_papers = cat_papers + [p for p in all_papers if p["id"] in opponent_ids]
+
+            lb = await compute_leaderboard_async(all_bt_papers, cat_matches)
+            lb = [e for e in lb if e["id"] in cat_pids]
             for i, entry in enumerate(lb):
                 entry["rank"] = i + 1
-                entry["wins"] = entry.get("wins") or 0
-                entry["losses"] = entry.get("losses") or 0
-                entry["comparisons"] = entry.get("comparisons") or 0
-                entry["win_rate"] = entry.get("win_rate") or 0
-                entry["ci"] = entry.get("ci") or 0
-                entry["wilson_margin"] = entry.get("wilson_margin") or 0
 
             frozen = []
             for entry in lb:
@@ -2773,18 +2795,18 @@ async def backfill_archives():
                 continue
 
             cat_papers = [p for p in all_papers
-                          if p.get("categories", [""])[0] == cat
+                          if (p.get("categories") or [""])[0] == cat
                           and p["id"] in paper_dates
                           and month_start <= paper_dates[p["id"]] < month_end]
             if not cat_papers:
                 continue
 
             cat_pids = {p["id"] for p in cat_papers}
-            lb = sorted(cat_papers, key=lambda p: -(p.get("score") or 1200))
-            for i, e in enumerate(lb):
-                e["rank"] = i + 1
-                for f in ["wins", "losses", "comparisons", "win_rate", "ci", "wilson_margin"]:
-                    e[f] = e.get(f) or 0
+            cat_matches_sub = [m for m in match_dates if m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids]
+            opp_ids = {m["paper1_id"] for m in cat_matches_sub} | {m["paper2_id"] for m in cat_matches_sub} - cat_pids
+            lb = await compute_leaderboard_async(cat_papers + [p for p in all_papers if p["id"] in opp_ids], cat_matches_sub)
+            lb = [e for e in lb if e["id"] in cat_pids]
+            for i, e in enumerate(lb): e["rank"] = i + 1
             frozen = [{
                 "rank": e.get("rank"), "id": e.get("id"), "title": e.get("title", ""),
                 "authors": e.get("authors", []), "score": e.get("score"),
@@ -2835,18 +2857,18 @@ async def backfill_archives():
                 cutoff = datetime(earliest["year"], earliest["month"], 1, tzinfo=timezone.utc)
 
             cat_papers = [p for p in all_papers
-                          if p.get("categories", [""])[0] == cat
+                          if (p.get("categories") or [""])[0] == cat
                           and p["id"] in paper_dates
                           and paper_dates[p["id"]] < cutoff]
             if not cat_papers:
                 continue
 
             cat_pids = {p["id"] for p in cat_papers}
-            lb = sorted(cat_papers, key=lambda p: -(p.get("score") or 1200))
-            for i, e in enumerate(lb):
-                e["rank"] = i + 1
-                for f in ["wins", "losses", "comparisons", "win_rate", "ci", "wilson_margin"]:
-                    e[f] = e.get(f) or 0
+            cat_matches_sub = [m for m in match_dates if m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids]
+            opp_ids = {m["paper1_id"] for m in cat_matches_sub} | {m["paper2_id"] for m in cat_matches_sub} - cat_pids
+            lb = await compute_leaderboard_async(cat_papers + [p for p in all_papers if p["id"] in opp_ids], cat_matches_sub)
+            lb = [e for e in lb if e["id"] in cat_pids]
+            for i, e in enumerate(lb): e["rank"] = i + 1
             frozen = [{
                 "rank": e.get("rank"), "id": e.get("id"), "title": e.get("title", ""),
                 "authors": e.get("authors", []), "score": e.get("score"),
