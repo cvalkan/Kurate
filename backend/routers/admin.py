@@ -2723,14 +2723,26 @@ async def backfill_archives():
 
             cat_pids = {p["id"] for p in cat_papers}
 
-            # All matches up to this Monday for these papers
+            # All matches up to this Monday involving ANY of this week's papers
             cat_matches = [m for m in match_dates
                            if m["_dt"] < monday
-                           and m["paper1_id"] in cat_pids
-                           and m["paper2_id"] in cat_pids]
+                           and (m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids)]
 
-            # Compute BT leaderboard (works even with 0 matches — papers get default score)
-            lb = await compute_leaderboard_async(cat_papers, cat_matches)
+            # Include opponent papers in the BT computation so scores are meaningful
+            opponent_ids = set()
+            for m in cat_matches:
+                opponent_ids.add(m["paper1_id"])
+                opponent_ids.add(m["paper2_id"])
+            opponent_ids -= cat_pids
+            opponent_papers = [p for p in all_papers if p["id"] in opponent_ids]
+            all_bt_papers = cat_papers + opponent_papers
+
+            # Compute BT leaderboard on full set, then filter to weekly cohort only
+            lb = await compute_leaderboard_async(all_bt_papers, cat_matches)
+            lb = [e for e in lb if e["id"] in cat_pids]
+            # Re-rank within the weekly cohort
+            for i, entry in enumerate(lb):
+                entry["rank"] = i + 1
 
             frozen = []
             for entry in lb:
@@ -2797,10 +2809,12 @@ async def backfill_archives():
             cat_pids = {p["id"] for p in cat_papers}
             cat_matches = [m for m in match_dates
                            if m["_dt"] < month_end
-                           and m["paper1_id"] in cat_pids
-                           and m["paper2_id"] in cat_pids]
-
-            lb = await compute_leaderboard_async(cat_papers, cat_matches)
+                           and (m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids)]
+            opponent_ids = {m["paper1_id"] for m in cat_matches} | {m["paper2_id"] for m in cat_matches} - cat_pids
+            all_bt_papers = cat_papers + [p for p in all_papers if p["id"] in opponent_ids]
+            lb = await compute_leaderboard_async(all_bt_papers, cat_matches)
+            lb = [e for e in lb if e["id"] in cat_pids]
+            for i, e in enumerate(lb): e["rank"] = i + 1
             frozen = [{
                 "rank": e.get("rank"), "id": e.get("id"), "title": e.get("title", ""),
                 "authors": e.get("authors", []), "score": e.get("score"),
@@ -2859,9 +2873,12 @@ async def backfill_archives():
 
             cat_pids = {p["id"] for p in cat_papers}
             cat_matches = [m for m in match_dates
-                           if m["paper1_id"] in cat_pids and m["paper2_id"] in cat_pids]
-
-            lb = await compute_leaderboard_async(cat_papers, cat_matches)
+                           if m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids]
+            opponent_ids = {m["paper1_id"] for m in cat_matches} | {m["paper2_id"] for m in cat_matches} - cat_pids
+            all_bt_papers = cat_papers + [p for p in all_papers if p["id"] in opponent_ids]
+            lb = await compute_leaderboard_async(all_bt_papers, cat_matches)
+            lb = [e for e in lb if e["id"] in cat_pids]
+            for i, e in enumerate(lb): e["rank"] = i + 1
             frozen = [{
                 "rank": e.get("rank"), "id": e.get("id"), "title": e.get("title", ""),
                 "authors": e.get("authors", []), "score": e.get("score"),
