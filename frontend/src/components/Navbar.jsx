@@ -64,7 +64,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity min-w-0" data-testid="navbar-logo">
             <Trophy className="h-6 w-6 text-accent shrink-0" />
-            <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 shrink-0" />
+            <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 shrink-0 translate-y-[1px]" />
             {activeLabel && (
               <span className="hidden sm:inline text-xs text-muted-foreground font-mono border border-border rounded px-1.5 py-0.5">
                 {activeLabel.toUpperCase()}
