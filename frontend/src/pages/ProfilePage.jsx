@@ -142,7 +142,7 @@ export default function ProfilePage() {
               className="inline-flex items-center gap-1 text-xs text-[#A6CE39] hover:underline mt-1">
               {user.orcid_id} <ExternalLink className="h-3 w-3" />
             </a>
-            <p className="text-[10px] text-muted-foreground mt-1">Pending admin approval for author verification</p>
+            <p className="text-[10px] text-muted-foreground mt-1">You can now claim papers in the admin Claims section for verified author badges.</p>
           </div>
         ) : (
           <div className="p-3 bg-secondary/30 rounded-lg border border-border">

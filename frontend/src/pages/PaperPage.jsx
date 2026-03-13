@@ -291,7 +291,7 @@ export default function PaperPage() {
         )}
       </div>
 
-      {/* Badge generation — for top-3 papers in any archive */}
+      {/* Badge sharing — for top-3 papers in any archive */}
       {paperBadges.length > 0 && (
         <div className="mb-6">
           <div className="flex flex-wrap items-center gap-2" data-testid="paper-badges">
@@ -309,11 +309,6 @@ export default function PaperPage() {
                 {b.tier} · {b.category_name} · {b.archive_label}
               </Link>
             ))}
-            {!user && (
-              <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => window.dispatchEvent(new Event("open-auth-modal"))} data-testid="sign-in-badge">
-                Sign in to share badge
-              </Button>
-            )}
           </div>
         </div>
       )}
