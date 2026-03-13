@@ -177,9 +177,9 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
-<meta http-equiv="refresh" content="0;url={redirect_url}">
 </head>
 <body>
+<script>window.location.replace("{redirect_url}");</script>
 <p>Redirecting to <a href="{redirect_url}">archive page</a>...</p>
 </body>
 </html>"""
