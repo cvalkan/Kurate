@@ -48,6 +48,24 @@ SECURITY_HEADERS = {
 
 
 @app.middleware("http")
+async def head_method_middleware(request: Request, call_next):
+    """Convert HEAD to GET for badge endpoints (social media crawlers use HEAD to check images)."""
+    if request.method == "HEAD" and "/api/badge/" in request.url.path:
+        request._method = "GET"
+        request.scope["method"] = "GET"
+        response = await call_next(request)
+        # Return headers only, no body (per HTTP spec for HEAD)
+        from starlette.responses import Response as StarletteResponse
+        return StarletteResponse(
+            content=b"",
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.media_type,
+        )
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     """Add security headers to all responses."""
     response = await call_next(request)

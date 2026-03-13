@@ -183,6 +183,7 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <meta property="og:title" content="{og_title}">
 <meta property="og:description" content="{og_desc}">
 <meta property="og:image" content="{image_url}">
+<meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="{canonical_url}">
