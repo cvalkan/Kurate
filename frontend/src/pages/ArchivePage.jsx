@@ -73,12 +73,12 @@ export default function ArchivePage() {
           <div className="flex items-center gap-3 mb-1">
             <Archive className="h-5 w-5 text-accent" />
             <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight" data-testid="archive-title">
-              {CATEGORY_NAMES[category] || category} — {archive.label}
+              {CATEGORY_NAMES[category] || category} Papers — {archive.label}
             </h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            Frozen leaderboard snapshot.
-            {" "}{entries.length} papers, {archive.match_count?.toLocaleString()} matches.
+            Leaderboard snapshot.
+            {" "}{entries.length} preprints from arXiv ({category}), {archive.match_count?.toLocaleString()} matches.
             {" "}Archived {new Date(archive.created_at).toLocaleDateString()}.
           </p>
         </div>
