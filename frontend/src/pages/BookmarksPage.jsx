@@ -95,7 +95,7 @@ export default function BookmarksPage() {
       if (saveTarget === "__new__") {
         if (!newListName.trim()) { toast.error("Enter a list name"); setSaving(false); return; }
         const res = await axios.post(`${API}/api/lists/from-bookmarks`, {
-          name: newListName.trim(), description: newListDesc.trim(), paper_ids: ids,
+          name: newListName.trim(), description: "", paper_ids: ids,
         }, { withCredentials: true, headers: { ...getAuthHeaders(), "Content-Type": "application/json" } });
         setMyLists(prev => [res.data.list, ...prev]);
         setNewListName(""); setNewListDesc("");

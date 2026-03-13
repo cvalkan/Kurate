@@ -125,7 +125,7 @@ export default function ReadingListPage() {
         <div className="flex items-start justify-between gap-4 mb-1">
           <div>
             <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight" data-testid="list-title">{list.name}</h1>
-            {list.description && <p className="text-sm text-muted-foreground mt-1">{list.description}</p>}
+            {list.description && <p className="text-sm text-muted-foreground mt-1 hidden">{list.description}</p>}
           </div>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
