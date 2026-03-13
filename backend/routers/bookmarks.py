@@ -49,7 +49,7 @@ async def get_bookmarks(request: Request):
                 "score": p.get("score"), "win_rate": p.get("win_rate"), "wins": p.get("wins"),
                 "losses": p.get("losses"), "comparisons": p.get("comparisons"),
                 "wilson_margin": p.get("wilson_margin"), "ci": p.get("ci"),
-                "ai_rating": p.get("ai_rating"), "sp_score": p.get("sp_score"),
+                "ai_rating": p.get("ai_rating", {}).get("score") if isinstance(p.get("ai_rating"), dict) else p.get("ai_rating"), "sp_score": p.get("sp_score"),
                 "bookmarked_at": bookmark_dates.get(b["paper_id"]),
             }
             papers.append(paper)
