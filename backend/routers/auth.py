@@ -342,3 +342,25 @@ async def logout(request: Request, response: Response):
         await db.user_sessions.delete_one({"session_token": token})
     response.delete_cookie("session_token", path="/", samesite="none", secure=True)
     return {"status": "ok"}
+
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+async def change_password(req: ChangePasswordRequest, request: Request):
+    user = await _get_current_user(request)
+    if not user:
+        raise HTTPException(401, "Not authenticated")
+    if user.get("provider") == "google":
+        raise HTTPException(400, "Google accounts cannot change password here")
+    if not user.get("password_hash") or not bcrypt.verify(req.current_password, user["password_hash"]):
+        raise HTTPException(400, "Current password is incorrect")
+    if len(req.new_password) < 6:
+        raise HTTPException(400, "New password must be at least 6 characters")
+    new_hash = bcrypt.hash(req.new_password)
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"password_hash": new_hash}})
+    return {"status": "ok"}

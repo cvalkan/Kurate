@@ -105,6 +105,9 @@ export default function Navbar() {
                   </div>
                 )}
                 <span className="hidden lg:inline text-xs text-muted-foreground max-w-[100px] truncate">{user.name || user.email}</span>
+                <Link to="/profile" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center" data-testid="nav-profile">
+                  <User className="h-3.5 w-3.5" />
+                </Link>
                 <Button variant="ghost" size="sm" onClick={logout} className="h-7 px-2 text-xs" data-testid="nav-logout">
                   <LogOut className="h-3.5 w-3.5" />
                 </Button>

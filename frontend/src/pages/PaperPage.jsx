@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
-  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy,
+  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { AuthorClaimSection } from "@/components/AuthorClaimSection";
+import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -232,7 +232,6 @@ export default function PaperPage() {
   const { paper, matches, stats } = data;
   const winRate = stats.comparisons > 0 ? Math.round((stats.wins / stats.comparisons) * 100) : 0;
   const summaryEntries = getSummaryEntries(paper.summaries, paper.summary_dates);
-  const isVerifiedAuthor = user?.orcid_id && (paper.claimed_by || []).some(c => c.orcid_id === user.orcid_id && c.verified);
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-4xl py-6 md:py-10">
@@ -292,29 +291,30 @@ export default function PaperPage() {
         )}
       </div>
 
-      {/* Author Verification & Claiming */}
-      <AuthorClaimSection
-        paperId={paper.id}
-        paperAuthors={paper.authors}
-        claims={paper.claimed_by || []}
-      />
-
-      {/* Tournament Badges — only visible to verified authors */}
-      {isVerifiedAuthor && paperBadges.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mb-6" data-testid="paper-badges">
-          <Trophy className="h-4 w-4 text-muted-foreground" />
-          {paperBadges.map((b, i) => (
-            <Link key={i} to={b.badge_url}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium hover:opacity-80 transition-opacity"
-              style={{ borderColor: b.tier_color, color: b.tier_color }}
-              data-testid={`paper-badge-${i}`}
-            >
-              <span className="w-5 h-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold" style={{ backgroundColor: b.tier_color }}>
-                {b.rank}
-              </span>
-              {b.tier} · {b.category_name} · {b.archive_label}
-            </Link>
-          ))}
+      {/* Badge generation — for top-3 papers in any archive */}
+      {paperBadges.length > 0 && (
+        <div className="mb-6">
+          <div className="flex flex-wrap items-center gap-2" data-testid="paper-badges">
+            <Trophy className="h-4 w-4 text-muted-foreground" />
+            {paperBadges.map((b, i) => (
+              <Link key={i} to={b.badge_url}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium hover:opacity-80 transition-opacity"
+                style={{ borderColor: b.tier_color, color: b.tier_color }}
+                data-testid={`paper-badge-${i}`}
+              >
+                <Share2 className="h-3 w-3" />
+                <span className="w-5 h-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold" style={{ backgroundColor: b.tier_color }}>
+                  {b.rank}
+                </span>
+                {b.tier} · {b.category_name} · {b.archive_label}
+              </Link>
+            ))}
+            {!user && (
+              <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => window.dispatchEvent(new Event("open-auth-modal"))} data-testid="sign-in-badge">
+                Sign in to share badge
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

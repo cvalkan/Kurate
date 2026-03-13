@@ -15,6 +15,7 @@ import ValidationHubPage from "@/pages/ValidationHubPage";
 import ArchivePage from "@/pages/ArchivePage";
 import OrcidCallbackPage from "@/pages/OrcidCallbackPage";
 import BadgePage from "@/pages/BadgePage";
+import ProfilePage from "@/pages/ProfilePage";
 import Navbar from "@/components/Navbar";
 
 function AppRouter() {
@@ -41,6 +42,7 @@ function AppRouter() {
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/orcid/callback" element={<OrcidCallbackPage />} />
           <Route path="/badge/:category/:year/:slug/:paperId" element={<BadgePage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
         </Routes>
       </main>
