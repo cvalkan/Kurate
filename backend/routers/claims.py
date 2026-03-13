@@ -682,3 +682,65 @@ async def revoke_claim(paper_id: str, orcid_id: str):
 
     logger.info(f"Claim revoked by admin: paper={paper_id} orcid={orcid_id}")
     return {"status": "revoked"}
+
+
+# --- Admin ORCID verification (independent of paper claiming) ---
+
+@router.get("/admin/orcid-verifications", dependencies=[Depends(verify_admin)])
+async def list_orcid_verifications():
+    """Admin: list all users who have linked their ORCID."""
+    verifications = await db.author_verifications.find(
+        {"orcid_id": {"$exists": True, "$ne": None}},
+        {"_id": 0},
+    ).to_list(500)
+
+    # Fetch user emails
+    user_ids = [v["user_id"] for v in verifications]
+    users = await db.users.find(
+        {"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "provider": 1},
+    ).to_list(500)
+    user_map = {u["user_id"]: u for u in users}
+
+    result = []
+    for v in verifications:
+        u = user_map.get(v["user_id"], {})
+        result.append({
+            "user_id": v["user_id"],
+            "email": u.get("email", ""),
+            "name": u.get("name", ""),
+            "provider": u.get("provider", ""),
+            "orcid_id": v["orcid_id"],
+            "orcid_name": v.get("orcid_name", ""),
+            "orcid_verified_email": v.get("orcid_verified_email", False),
+            "orcid_email_domains": v.get("orcid_email_domains", []),
+            "orcid_connected_at": v.get("orcid_connected_at", ""),
+            "admin_verified": v.get("admin_verified", False),
+        })
+    return {"verifications": result}
+
+
+@router.post("/admin/orcid-verify/{user_id}", dependencies=[Depends(verify_admin)])
+async def admin_verify_orcid(user_id: str):
+    """Admin: approve an ORCID verification."""
+    result = await db.author_verifications.update_one(
+        {"user_id": user_id, "orcid_id": {"$exists": True}},
+        {"$set": {"admin_verified": True, "admin_verified_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(404, "ORCID verification not found")
+    logger.info(f"ORCID verified by admin: user={user_id}")
+    return {"status": "verified"}
+
+
+@router.post("/admin/orcid-reject/{user_id}", dependencies=[Depends(verify_admin)])
+async def admin_reject_orcid(user_id: str):
+    """Admin: reject and remove an ORCID link."""
+    await db.author_verifications.update_one(
+        {"user_id": user_id},
+        {"$unset": {"orcid_id": "", "orcid_name": "", "orcid_verified_email": "", "orcid_email_domains": "", "orcid_connected_at": ""},
+         "$set": {"admin_verified": False}},
+    )
+    await db.users.update_one({"user_id": user_id}, {"$unset": {"orcid_id": ""}})
+    logger.info(f"ORCID rejected by admin: user={user_id}")
+    return {"status": "rejected"}

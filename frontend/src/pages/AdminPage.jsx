@@ -762,6 +762,81 @@ function AdminUsers() {
           })}
         </div>
       )}
+
+      {/* ORCID Verifications */}
+      <OrcidVerifications />
+    </div>
+  );
+}
+
+function OrcidVerifications() {
+  const [verifications, setVerifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch_ = async () => {
+    try {
+      const res = await axios.get(`${API}/api/claim/admin/orcid-verifications`, { headers: getAdminHeaders() });
+      setVerifications(res.data.verifications || []);
+    } catch {} finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetch_(); }, []);
+
+  const handleAction = async (userId, action) => {
+    try {
+      await axios.post(`${API}/api/claim/admin/orcid-${action}/${userId}`, {}, { headers: getAdminHeaders() });
+      toast.success(action === "verify" ? "ORCID verified" : "ORCID link removed");
+      fetch_();
+    } catch { toast.error("Action failed"); }
+  };
+
+  if (loading || verifications.length === 0) return null;
+
+  return (
+    <div className="mt-8 space-y-4" data-testid="orcid-verifications">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-lg font-medium">ORCID Verifications</h2>
+        <span className="text-xs text-muted-foreground">{verifications.length} linked</span>
+      </div>
+      <div className="space-y-2">
+        {verifications.map((v, i) => (
+          <div key={v.user_id} className="p-3 border border-border rounded-lg bg-background" data-testid={`orcid-v-${i}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{v.orcid_name || v.name}</p>
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1 flex-wrap">
+                  <span>{v.email}</span>
+                  <a href={`https://orcid.org/${v.orcid_id}`} target="_blank" rel="noopener noreferrer" className="text-[#A6CE39] hover:underline">
+                    {v.orcid_id}
+                  </a>
+                  <span className={`px-1.5 py-0.5 rounded-full font-medium ${v.provider === "google" ? "bg-blue-50 text-blue-700" : "bg-secondary text-foreground"}`}>
+                    {v.provider}
+                  </span>
+                  {v.orcid_verified_email ? (
+                    <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
+                      verified email{v.orcid_email_domains?.length > 0 ? `: ${v.orcid_email_domains.join(", ")}` : ""}
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">unverified email</span>
+                  )}
+                  {v.admin_verified && <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">admin verified</span>}
+                  <span>{v.orcid_connected_at ? new Date(v.orcid_connected_at).toLocaleString() : ""}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {!v.admin_verified && (
+                  <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleAction(v.user_id, "verify")}>
+                    Verify
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" className="h-7 text-xs text-red-600 hover:bg-red-50" onClick={() => handleAction(v.user_id, "reject")}>
+                  Remove
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

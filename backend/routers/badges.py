@@ -16,7 +16,7 @@ import os
 _cors = os.environ.get("CORS_ORIGINS", "")
 SITE_URL = os.environ.get("SITE_URL", "")
 if not SITE_URL and _cors and _cors != "*":
-    SITE_URL = _cors.split(",")[0].strip()  # e.g. "https://kurate.org"
+    SITE_URL = _cors.split(",")[0].strip()
 
 CATEGORIES = {
     "cs.RO": "Robotics", "cs.DC": "Distributed Computing", "econ.GN": "Economics",
