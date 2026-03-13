@@ -65,7 +65,7 @@ export default function Navbar() {
           <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity min-w-0" data-testid="navbar-logo">
             <Trophy className="h-5 w-5 text-accent shrink-0" />
             <svg viewBox="0 0 200 48" className="h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" fontFamily="system-ui, -apple-system, 'Segoe UI', sans-serif" fontSize="36" letterSpacing="-0.3">
+              <text x="0" y="36" fontFamily="LiberationSans, sans-serif" fontSize="36" letterSpacing="-0.3">
                 <tspan fontWeight="800" fill="#4285F4">Ku</tspan>
                 <tspan fontWeight="800" fill="#1a1a1a">rate</tspan>
                 <tspan fontWeight="400" fill="#4285F4" fontSize="32">.org</tspan>
