@@ -19,11 +19,20 @@ export default function BookmarksPage() {
   const [sortKey, setSortKey] = useState("");
   const [sortDir, setSortDir] = useState("desc");
 
+  const [showRatingCol, setShowRatingCol] = useState(true);
+  const [showGapCol, setShowGapCol] = useState(true);
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    axios.get(`${API}/api/bookmarks`, { withCredentials: true, headers: getAuthHeaders() })
-      .then(res => setPapers(res.data.papers || []))
-      .catch(() => {})
+    // Fetch bookmarks + admin column visibility settings in parallel
+    Promise.all([
+      axios.get(`${API}/api/bookmarks`, { withCredentials: true, headers: getAuthHeaders() }),
+      axios.get(`${API}/api/leaderboard?category=cs.RO&period=week`),
+    ]).then(([bkRes, lbRes]) => {
+      setPapers(bkRes.data.papers || []);
+      if (lbRes.data.show_rating_column !== undefined) setShowRatingCol(lbRes.data.show_rating_column);
+      if (lbRes.data.show_gap_column !== undefined) setShowGapCol(lbRes.data.show_gap_column);
+    }).catch(() => {})
       .finally(() => setLoading(false));
   }, [user, getAuthHeaders]);
 
@@ -103,8 +112,8 @@ export default function BookmarksPage() {
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}
-            showRatingCol={true}
-            showGapCol={true}
+            showRatingCol={showRatingCol}
+            showGapCol={showGapCol}
             bookmarksMode={true}
             onRemoveBookmark={handleRemove}
           />
