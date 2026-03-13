@@ -141,25 +141,41 @@ async def health():
 
 @app.on_event("startup")
 async def startup():
+    # FAST PATH: Only create essential indexes, then let server accept connections.
+    # All migrations, backfills, and cache warming run in background.
     try:
         await db.papers.create_index("id", unique=True)
+        await db.matches.create_index("id", unique=True)
+        await db.settings.create_index("key", unique=True)
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("user_id", unique=True)
+        await db.user_sessions.create_index("session_token", unique=True)
+        logger.info("Essential MongoDB indexes created")
+    except Exception as e:
+        logger.warning(f"Index creation warning: {e}")
+
+    # Start accepting connections NOW — everything else runs in background
+    asyncio.create_task(_deferred_startup())
+    logger.info("PaperSumo Leaderboard started")
+
+
+async def _deferred_startup():
+    """Heavy startup work that runs in background after health endpoint is available."""
+    await asyncio.sleep(0.1)  # Yield to let server start accepting connections
+
+    # Create remaining indexes
+    try:
         await db.papers.create_index("arxiv_id", unique=True, sparse=True)
         await db.papers.create_index("chemrxiv_id", unique=True, sparse=True)
         await db.papers.create_index("published")
-        await db.matches.create_index("id", unique=True)
         await db.matches.create_index("paper1_id")
         await db.matches.create_index("paper2_id")
         await db.matches.create_index("shared_categories")
         await db.matches.create_index("primary_category")
         await db.matches.create_index("created_at")
-        # Compound index for the most common admin query pattern
         await db.matches.create_index([
             ("primary_category", 1), ("completed", 1), ("failed", 1), ("mode", 1)
         ])
-        await db.settings.create_index("key", unique=True)
-        await db.users.create_index("email", unique=True)
-        await db.users.create_index("user_id", unique=True)
-        await db.user_sessions.create_index("session_token", unique=True)
         await db.user_sessions.create_index("user_id")
         await db.suggestions.create_index("created_at")
         # Tournament indexes — drop stale ones first to avoid conflicts
@@ -369,7 +385,6 @@ async def startup():
     # can fire the startup event before all module-level functions are defined).
     # NOTE: _prewarm_consistency_cache is excluded from startup — it's too heavy
     # for production (136K+ validation matches). Experiment caches compute on first request.
-    import asyncio
     _bg_tasks = [
         "_prewarm_extraction_cache", "_prewarm_validation_cache",
         "_prewarm_analysis_cache", "_prewarm_consistency_cache",
@@ -385,7 +400,7 @@ async def startup():
         else:
             logger.warning(f"Startup task {_name} not yet defined (hot-reload race)")
 
-    logger.info("PaperSumo Leaderboard started")
+    logger.info("Deferred startup complete — all background tasks launched")
 
 
 
