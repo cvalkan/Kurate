@@ -119,6 +119,7 @@ export function LeaderboardTable({
   }, []);
 
   const cols = ["2.5rem", "1fr"]; // # + Paper
+  if (!bookmarksMode) cols.push("1.5rem"); // Bookmark icon
   if (showCatCol && !isMobile) cols.push("3.5rem"); // Cat
   cols.push(isMobile ? "3.5rem" : "4rem"); // Score
   if (!isMobile) cols.push("3.5rem"); // Win%
@@ -168,6 +169,7 @@ export function LeaderboardTable({
         <div className={`${gridBase} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`} style={gridStyle}>
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
+          {!bookmarksMode && <div />}
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
           <SortHeader label={isMobile ? "Elo" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
           {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
@@ -188,16 +190,14 @@ export function LeaderboardTable({
             data-testid={`leaderboard-row-${idx}`}
           >
             <div><RankBadge rank={paper._displayRank ?? paper.rank} /></div>
-            <div className="min-w-0 flex items-start gap-1">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
-                  {paper.authors?.slice(0, 2).join(", ")}
-                  {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
-                </p>
-              </div>
-              {!bookmarksMode && <BookmarkButton paperId={paper.id} bookmarkedIds={bookmarkedIds} onToggle={toggleBookmark} />}
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
+                {paper.authors?.slice(0, 2).join(", ")}
+                {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
+              </p>
             </div>
+            {!bookmarksMode && <BookmarkButton paperId={paper.id} bookmarkedIds={bookmarkedIds} onToggle={toggleBookmark} />}
             {showCatCol && !isMobile && (
               <div className="text-center">
                 <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono bg-secondary text-muted-foreground">{paper.primary_category || "?"}</span>
