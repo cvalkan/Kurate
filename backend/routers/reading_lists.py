@@ -119,13 +119,16 @@ async def create_from_bookmarks(body: CreateFromBookmarksRequest, request: Reque
 
 
 @router.get("/public/{list_id}")
-async def get_public_list(list_id: str):
-    """Get a public reading list with enriched paper data (no auth required)."""
-    rl = await db.reading_lists.find_one(
-        {"list_id": list_id, "public": True}, {"_id": 0}
-    )
+async def get_public_list(list_id: str, request: Request):
+    """Get a reading list with enriched paper data. Public lists visible to all; private lists visible to owner."""
+    rl = await db.reading_lists.find_one({"list_id": list_id}, {"_id": 0})
     if not rl:
         raise HTTPException(404, "Reading list not found")
+    # Private lists: only the owner can view
+    if not rl.get("public"):
+        user = await _get_current_user(request)
+        if not user or user["user_id"] != rl.get("user_id"):
+            raise HTTPException(404, "Reading list not found")
 
     # Enrich with paper data from leaderboard cache
     from routers.leaderboard import _cache as lb_cache
@@ -260,7 +263,7 @@ async def fork_list(list_id: str, request: Request):
         "name": f"{original['name']} (copy)",
         "description": original.get("description", ""),
         "paper_ids": original.get("paper_ids", []),
-        "public": False,
+        "public": True,
         "forked_from": list_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
