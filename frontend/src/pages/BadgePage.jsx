@@ -21,9 +21,7 @@ export default function BadgePage() {
   // Congrats state
   const [remaining, setRemaining] = useState(null);
   const [showEmail, setShowEmail] = useState(false);
-  const [gmailAuthorized, setGmailAuthorized] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const [sending, setSending] = useState(false);
   const [toEmails, setToEmails] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
@@ -41,9 +39,6 @@ export default function BadgePage() {
     const headers = getAuthHeaders();
     axios.get(`${API}/api/congrats/remaining`, { withCredentials: true, headers })
       .then(res => setRemaining(res.data))
-      .catch(() => {});
-    axios.get(`${API}/api/congrats/gmail/status`, { withCredentials: true, headers })
-      .then(res => setGmailAuthorized(res.data.authorized))
       .catch(() => {});
   }, [user, getAuthHeaders]);
 
@@ -67,8 +62,10 @@ export default function BadgePage() {
 
   const shareUrl = `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
   const imageUrl = `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
-  const authorTweet = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!\n\n${shareUrl}`;
-  const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!\n\n${shareUrl}`;
+  const arxivUrl = data.arxiv_id ? `https://arxiv.org/abs/${data.arxiv_id}` : "";
+  const arxivSuffix = arxivUrl ? `\n${arxivUrl}` : "";
+  const authorTweet = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!${arxivSuffix}\n\n${shareUrl}`;
+  const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!${arxivSuffix}\n\n${shareUrl}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -118,14 +115,14 @@ export default function BadgePage() {
   const startEmailFlow = async () => {
     setShowEmail(true);
     // Pre-fill template
-    const authors3 = data.authors?.slice(0, 3).join(", ") + (data.authors?.length > 3 ? ` and ${data.authors.length - 3} others` : "");
+    const arxivLine = arxivUrl ? `\narXiv: ${arxivUrl}` : "";
     setEmailSubject(`Congratulations on ranking #${data.rank} in ${data.category_name} (${data.archive_label})`);
     setEmailBody(
-      `<p>Hi,</p>` +
-      `<p>Congratulations on your paper "<strong>${data.title}</strong>" ranking <strong>#${data.rank}</strong> in ${data.category_name} Preprints for ${data.archive_label} on <a href="https://kurate.org">Kurate.org</a>!</p>` +
-      `<p>This is a remarkable achievement. The ranking is based on AI-estimated scientific impact via pairwise tournament judging.</p>` +
-      `<p>You can view and share your badge here: <a href="${shareUrl}">${shareUrl}</a></p>` +
-      `<p>Best regards</p>`
+      `Hi,\n\n` +
+      `Congratulations on your paper "${data.title}" ranking #${data.rank} in ${data.category_name} Preprints for ${data.archive_label} on Kurate.org!\n\n` +
+      `This is a remarkable achievement. The ranking is based on AI-estimated scientific impact via pairwise tournament judging.\n\n` +
+      `View and share your badge: ${shareUrl}${arxivLine}\n\n` +
+      `Best regards`
     );
     // Try to extract emails
     if (!toEmails) {
@@ -146,35 +143,14 @@ export default function BadgePage() {
     }
   };
 
-  const authorizeGmail = async () => {
-    try {
-      const returnTo = window.location.pathname;
-      const res = await axios.get(`${API}/api/congrats/gmail/auth-url`, {
-        params: { return_to: returnTo },
-        withCredentials: true, headers: getAuthHeaders(),
-      });
-      window.location.href = res.data.url;
-    } catch (err) {
-      toast.error("Failed to start Gmail authorization");
-    }
-  };
-
-  const sendEmail = async () => {
+  const openMailto = () => {
     const emails = toEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"));
     if (!emails.length) { toast.error("Enter at least one email address"); return; }
-    setSending(true);
-    try {
-      await axios.post(`${API}/api/congrats/gmail/send`, {
-        to_emails: emails, subject: emailSubject, body_html: emailBody,
-        paper_id: paperId, badge_category: category,
-        badge_year: parseInt(year), badge_slug: slug,
-      }, { withCredentials: true, headers: getAuthHeaders() });
-      toast.success("Email sent!");
-      setShowEmail(false);
-      setRemaining(r => r ? { ...r, remaining: Math.max(0, r.remaining - 1), used: r.used + 1 } : r);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to send email");
-    } finally { setSending(false); }
+    const mailto = `mailto:${emails.join(",")}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+    window.open(mailto, "_blank");
+    recordCongrats("email");
+    setShowEmail(false);
+    toast.success("Opening your email client...");
   };
 
   const truncTitle = data.title?.length > 70 ? data.title.slice(0, 67) + "..." : data.title;
@@ -276,56 +252,42 @@ export default function BadgePage() {
               {/* Email flow */}
               {showEmail && (
                 <div className="p-4 border border-border rounded-lg bg-background space-y-3" data-testid="email-flow">
-                  {!gmailAuthorized ? (
-                    <div className="text-center py-2">
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Authorize Gmail to send a congratulatory email from your account.
-                      </p>
-                      <Button size="sm" className="gap-1.5" onClick={authorizeGmail} data-testid="authorize-gmail-btn">
-                        <Mail className="h-3.5 w-3.5" /> Authorize Gmail
-                      </Button>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">To (comma-separated)</label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={toEmails} onChange={e => setToEmails(e.target.value)}
+                        placeholder={extracting ? "Extracting emails from paper..." : "author@university.edu"}
+                        disabled={extracting}
+                        className="text-sm" data-testid="email-to-input"
+                      />
+                      {extracting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mt-2" />}
                     </div>
-                  ) : (
-                    <>
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground block mb-1">To (comma-separated)</label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={toEmails} onChange={e => setToEmails(e.target.value)}
-                            placeholder={extracting ? "Extracting emails from paper..." : "author@university.edu"}
-                            disabled={extracting}
-                            className="text-sm" data-testid="email-to-input"
-                          />
-                          {extracting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mt-2" />}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground block mb-1">Subject</label>
-                        <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} className="text-sm" data-testid="email-subject-input" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <label className="text-xs font-medium text-muted-foreground">Message</label>
-                          <Edit3 className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-[10px] text-muted-foreground">edit before sending</span>
-                        </div>
-                        <Textarea
-                          value={emailBody.replace(/<[^>]*>/g, "")}
-                          onChange={e => setEmailBody(`<p>${e.target.value.replace(/\n/g, "</p><p>")}</p>`)}
-                          rows={6} className="text-sm font-mono" data-testid="email-body-input"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" className="gap-1.5" onClick={sendEmail} disabled={sending} data-testid="send-email-btn">
-                          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                          {sending ? "Sending..." : "Send email"}
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowEmail(false)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">Subject</label>
+                    <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} className="text-sm" data-testid="email-subject-input" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <label className="text-xs font-medium text-muted-foreground">Message</label>
+                      <Edit3 className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-[10px] text-muted-foreground">edit before sending</span>
+                    </div>
+                    <Textarea
+                      value={emailBody}
+                      onChange={e => setEmailBody(e.target.value)}
+                      rows={6} className="text-sm" data-testid="email-body-input"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" className="gap-1.5" onClick={openMailto} data-testid="send-email-btn">
+                      <Send className="h-3.5 w-3.5" /> Open in email client
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowEmail(false)}>
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               )}
             </>
