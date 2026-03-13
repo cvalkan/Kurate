@@ -122,8 +122,7 @@ export default function BadgePage() {
       `Hi,\n\n` +
       `Congratulations on your paper "${data.title}" ranking #${data.rank} in ${data.category_name} Preprints for ${data.archive_label} on Kurate.org!\n\n` +
       `This is a remarkable achievement. The ranking is based on AI-estimated scientific impact via pairwise tournament judging. Learn more about the methodology: https://kurate.org/methodology\n\n` +
-      `Your badge: ${shareUrl}\n` +
-      `Badge image: ${badgeImageUrl}${arxivLine}\n\n` +
+      `Your badge: ${shareUrl}\n\n` +
       `Best regards`
     );
     // Try to extract emails
