@@ -181,7 +181,14 @@ export default function BadgePage() {
       <div className="container mx-auto px-4 max-w-3xl py-8 md:py-12">
         {/* Badge preview */}
         <div className="rounded-xl border border-border overflow-hidden mb-8 bg-white" data-testid="badge-preview">
-          <img src={imageUrl} alt="Badge" className="w-full" loading="lazy" />
+          <div className="relative">
+            <img src={imageUrl} alt="Badge" className="w-full" loading="eager"
+              onLoad={e => e.target.parentElement.querySelector('[data-loader]')?.remove()}
+            />
+            <div data-loader className="absolute inset-0 flex items-center justify-center bg-secondary/30 animate-pulse">
+              <span className="text-sm text-muted-foreground">Loading badge...</span>
+            </div>
+          </div>
           <div className="px-4 py-3 bg-secondary/20 border-t border-border flex items-center justify-between">
             <div>
               <div className="text-xs font-medium">#{data.rank} {data.tier} in {data.category_name} Preprints — {data.archive_label}</div>
