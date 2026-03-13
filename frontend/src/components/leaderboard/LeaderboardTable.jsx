@@ -45,7 +45,7 @@ export function LeaderboardTable({
   leaderboard, loading, showCatCol, hasSelectedTags, globalStats,
   debouncedKeyword, keyword, displayCount, setDisplayCount,
   sortKey, sortDir, onSort, showRatingCol = true, showGapCol = true,
-  bookmarksMode = false, onRemoveBookmark,
+  bookmarksMode = false, onRemoveBookmark, selectedPapers, onToggleSelect,
 }) {
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
@@ -118,7 +118,9 @@ export function LeaderboardTable({
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  const cols = ["2.5rem", "1fr"]; // # + Paper
+  const cols = [];
+  if (bookmarksMode && selectedPapers) cols.push("1.5rem"); // Checkbox
+  cols.push("2.5rem", "1fr"); // # + Paper
   if (showCatCol && !isMobile) cols.push("3.5rem"); // Cat
   cols.push(isMobile ? "3.5rem" : "4rem"); // Score
   if (!isMobile) cols.push("3.5rem"); // Win%
@@ -167,6 +169,7 @@ export function LeaderboardTable({
       )}
       <div className="border border-border rounded-lg overflow-x-auto" data-testid="leaderboard-table">
         <div className={`${gridBase} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`} style={gridStyle}>
+          {bookmarksMode && selectedPapers && <div />}
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
@@ -189,6 +192,12 @@ export function LeaderboardTable({
             style={gridStyle}
             data-testid={`leaderboard-row-${idx}`}
           >
+            {bookmarksMode && selectedPapers && (
+              <div className="flex items-center justify-center" onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleSelect?.(paper.id); }}>
+                <input type="checkbox" checked={selectedPapers.has(paper.id)} readOnly
+                  className="h-3.5 w-3.5 rounded border-border accent-accent cursor-pointer" />
+              </div>
+            )}
             <div><RankBadge rank={paper._displayRank ?? paper.rank} /></div>
             <div className="min-w-0">
               <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>

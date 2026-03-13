@@ -32,6 +32,12 @@ export default function BookmarksPage() {
   const [newListDesc, setNewListDesc] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Selection state for "Save to Reading List"
+  const [selectedPapers, setSelectedPapers] = useState(new Set());
+  const [showSaveToList, setShowSaveToList] = useState(false);
+  const [saveTarget, setSaveTarget] = useState(""); // list_id or "__new__"
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     const headers = getAuthHeaders();
@@ -56,25 +62,44 @@ export default function BookmarksPage() {
   const handleRemove = async (paperId) => {
     await toggleBookmark(paperId);
     setPapers(prev => prev.filter(p => p.id !== paperId));
+    setSelectedPapers(prev => { const next = new Set(prev); next.delete(paperId); return next; });
   };
 
-  const createListFromBookmarks = async () => {
-    if (!newListName.trim()) { toast.error("Enter a list name"); return; }
-    setCreating(true);
+  const toggleSelect = (paperId) => {
+    setSelectedPapers(prev => {
+      const next = new Set(prev);
+      if (next.has(paperId)) next.delete(paperId); else next.add(paperId);
+      return next;
+    });
+  };
+
+  const saveToList = async () => {
+    if (!selectedPapers.size) { toast.error("Select papers first"); return; }
+    const ids = [...selectedPapers];
+    setSaving(true);
     try {
-      const ids = (filter ? papers.filter(p => (p.categories || []).includes(filter)) : papers).map(p => p.id);
-      const res = await axios.post(`${API}/api/lists/from-bookmarks`, {
-        name: newListName.trim(), description: newListDesc.trim(), paper_ids: ids,
-      }, { withCredentials: true, headers: { ...getAuthHeaders(), "Content-Type": "application/json" } });
-      setMyLists(prev => [res.data.list, ...prev]);
-      setShowCreateList(false);
-      setNewListName("");
-      setNewListDesc("");
-      toast.success("Reading list created!");
-      setTab("lists");
+      if (saveTarget === "__new__") {
+        if (!newListName.trim()) { toast.error("Enter a list name"); setSaving(false); return; }
+        const res = await axios.post(`${API}/api/lists/from-bookmarks`, {
+          name: newListName.trim(), description: newListDesc.trim(), paper_ids: ids,
+        }, { withCredentials: true, headers: { ...getAuthHeaders(), "Content-Type": "application/json" } });
+        setMyLists(prev => [res.data.list, ...prev]);
+        setNewListName(""); setNewListDesc("");
+        toast.success(`Created "${res.data.list.name}" with ${ids.length} papers`);
+      } else {
+        const res = await axios.post(`${API}/api/lists/${saveTarget}/papers`, { paper_ids: ids },
+          { withCredentials: true, headers: { ...getAuthHeaders(), "Content-Type": "application/json" } });
+        const listName = myLists.find(l => l.list_id === saveTarget)?.name || "list";
+        toast.success(`Added ${res.data.added} paper${res.data.added !== 1 ? "s" : ""} to "${listName}"`);
+        // Update local list paper count
+        setMyLists(prev => prev.map(l => l.list_id === saveTarget ? { ...l, paper_ids: [...(l.paper_ids || []), ...ids] } : l));
+      }
+      setSelectedPapers(new Set());
+      setShowSaveToList(false);
+      setSaveTarget("");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to create list");
-    } finally { setCreating(false); }
+      toast.error(err.response?.data?.detail || "Failed to save");
+    } finally { setSaving(false); }
   };
 
   const deleteList = async (listId) => {
@@ -126,29 +151,35 @@ export default function BookmarksPage() {
       {/* Bookmarks tab */}
       {tab === "bookmarks" && (
         <>
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex items-start justify-between mb-4">
             <div>
               <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-1" data-testid="bookmarks-title">Bookmarks</h1>
               <p className="text-sm text-muted-foreground">{papers.length} saved paper{papers.length !== 1 ? "s" : ""}</p>
             </div>
-            {papers.length > 0 && (
-              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setShowCreateList(!showCreateList)} data-testid="create-list-btn">
-                <Plus className="h-3.5 w-3.5" /> Create reading list
-              </Button>
-            )}
           </div>
 
-          {showCreateList && (
-            <div className="mb-6 p-4 border border-border rounded-lg bg-secondary/10 space-y-3" data-testid="create-list-form">
-              <h3 className="text-sm font-medium">Create a shareable reading list{filter ? ` from ${filter} bookmarks` : " from all bookmarks"}</h3>
-              <Input value={newListName} onChange={e => setNewListName(e.target.value)} placeholder="List name, e.g. Best Robotics Papers Q1 2026" className="text-sm" data-testid="list-name-input" />
-              <Input value={newListDesc} onChange={e => setNewListDesc(e.target.value)} placeholder="Description (optional)" className="text-sm" data-testid="list-desc-input" />
-              <div className="flex items-center gap-2">
-                <Button size="sm" className="gap-1.5" onClick={createListFromBookmarks} disabled={creating} data-testid="create-list-submit">
-                  <Plus className="h-3.5 w-3.5" /> {creating ? "Creating..." : `Create with ${filtered.length} papers`}
+          {/* Save to reading list bar */}
+          {selectedPapers.size > 0 && (
+            <div className="mb-4 p-3 border border-accent/30 rounded-lg bg-accent/5 flex flex-wrap items-center gap-3" data-testid="save-to-list-bar">
+              <span className="text-sm font-medium">{selectedPapers.size} selected</span>
+              <select value={saveTarget} onChange={e => { setSaveTarget(e.target.value); setShowSaveToList(true); }}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[180px]" data-testid="list-select">
+                <option value="">Choose a reading list...</option>
+                {myLists.map(l => <option key={l.list_id} value={l.list_id}>{l.name} ({(l.paper_ids||[]).length})</option>)}
+                <option value="__new__">+ Create new list</option>
+              </select>
+              {saveTarget === "__new__" && (
+                <Input value={newListName} onChange={e => setNewListName(e.target.value)}
+                  placeholder="New list name" className="text-xs h-8 w-52" data-testid="new-list-name" />
+              )}
+              {saveTarget && (
+                <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={saveToList} disabled={saving} data-testid="save-to-list-btn">
+                  <List className="h-3.5 w-3.5" /> {saving ? "Saving..." : "Save to list"}
                 </Button>
-                <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowCreateList(false)}>Cancel</Button>
-              </div>
+              )}
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setSelectedPapers(new Set()); setSaveTarget(""); }}>
+                Clear
+              </Button>
             </div>
           )}
 
@@ -178,6 +209,7 @@ export default function BookmarksPage() {
                 sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
                 showRatingCol={showRatingCol} showGapCol={showGapCol}
                 bookmarksMode={true} onRemoveBookmark={handleRemove}
+                selectedPapers={selectedPapers} onToggleSelect={toggleSelect}
               />
             </div>
           )}
@@ -193,7 +225,7 @@ export default function BookmarksPage() {
               <p className="text-sm text-muted-foreground">Curate and share collections of papers</p>
             </div>
             {papers.length > 0 && (
-              <Button size="sm" className="gap-1.5 text-xs" onClick={() => { setTab("bookmarks"); setShowCreateList(true); }} data-testid="new-list-btn">
+              <Button size="sm" className="gap-1.5 text-xs" onClick={() => { setTab("bookmarks"); }} data-testid="new-list-btn">
                 <Plus className="h-3.5 w-3.5" /> New list from bookmarks
               </Button>
             )}
@@ -205,8 +237,8 @@ export default function BookmarksPage() {
               <p className="text-sm font-medium">No reading lists yet</p>
               <p className="text-xs mt-1">Create one from your bookmarks to share curated paper collections.</p>
               {papers.length > 0 && (
-                <Button size="sm" variant="outline" className="gap-1.5 text-xs mt-4" onClick={() => { setTab("bookmarks"); setShowCreateList(true); }}>
-                  <Plus className="h-3.5 w-3.5" /> Create your first list
+                <Button size="sm" variant="outline" className="gap-1.5 text-xs mt-4" onClick={() => { setTab("bookmarks"); }}>
+                  <Plus className="h-3.5 w-3.5" /> Select papers from bookmarks
                 </Button>
               )}
             </div>
