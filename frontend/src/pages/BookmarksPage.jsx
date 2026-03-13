@@ -12,16 +12,18 @@ import { toast } from "sonner";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
+const _ss = key => { try { return JSON.parse(sessionStorage.getItem(`bk_${key}`)); } catch { return null; } };
+
 export default function BookmarksPage() {
   const { user, getAuthHeaders } = useAuth();
   const { toggleBookmark } = useBookmarks();
-  const [tab, setTab] = useState("bookmarks");
+  const [tab, setTab] = useState(() => _ss("tab") || "bookmarks");
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(() => _ss("filter") || "");
   const [displayCount, setDisplayCount] = useState(50);
-  const [sortKey, setSortKey] = useState("");
-  const [sortDir, setSortDir] = useState("desc");
+  const [sortKey, setSortKey] = useState(() => _ss("sortKey") || "");
+  const [sortDir, setSortDir] = useState(() => _ss("sortDir") || "desc");
   const [showRatingCol, setShowRatingCol] = useState(true);
   const [showGapCol, setShowGapCol] = useState(true);
 
@@ -33,10 +35,22 @@ export default function BookmarksPage() {
   const [creating, setCreating] = useState(false);
 
   // Selection state for "Save to Reading List"
-  const [selectedPapers, setSelectedPapers] = useState(new Set());
+  const [selectedPapers, setSelectedPapers] = useState(() => {
+    const saved = _ss("selected");
+    return saved ? new Set(saved) : new Set();
+  });
   const [showSaveToList, setShowSaveToList] = useState(false);
   const [saveTarget, setSaveTarget] = useState(""); // list_id or "__new__"
   const [saving, setSaving] = useState(false);
+
+  // Persist state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem("bk_tab", JSON.stringify(tab));
+    sessionStorage.setItem("bk_filter", JSON.stringify(filter));
+    sessionStorage.setItem("bk_sortKey", JSON.stringify(sortKey));
+    sessionStorage.setItem("bk_sortDir", JSON.stringify(sortDir));
+    sessionStorage.setItem("bk_selected", JSON.stringify([...selectedPapers]));
+  }, [tab, filter, sortKey, sortDir, selectedPapers]);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
