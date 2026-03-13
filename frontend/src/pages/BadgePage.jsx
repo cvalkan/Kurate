@@ -46,7 +46,7 @@ export default function BadgePage() {
     );
   }
 
-  const shareUrl = `${API}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
+  const shareUrl = `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
   const imageUrl = `${API}${data.image_url}`;
   const tweetText = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on @KurateAI!\n\n${shareUrl}`;
 

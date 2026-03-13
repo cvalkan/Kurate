@@ -66,6 +66,12 @@ async def _get_badge_data(category: str, year: int, week: int, paper_id: str) ->
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
 
+    # Fetch full categories from papers collection (archives don't store them)
+    categories = [category]
+    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
+    if paper_doc and paper_doc.get("categories"):
+        categories = paper_doc["categories"]
+
     return {
         "paper": paper,
         "tier": tier,
@@ -73,6 +79,7 @@ async def _get_badge_data(category: str, year: int, week: int, paper_id: str) ->
         "category": category,
         "category_name": CATEGORIES.get(category, category),
         "paper_count": archive.get("paper_count", len(lb)),
+        "categories": categories,
         "year": year,
         "week": week,
     }
@@ -137,6 +144,9 @@ async def get_monthly_badge_share_page(category: str, year: int, month: int, pap
     data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
             "category": category, "category_name": CATEGORIES.get(category, category),
             "paper_count": archive.get("paper_count", len(lb)), "year": year}
+    # Fetch full categories from papers collection
+    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
+    data["categories"] = paper_doc["categories"] if paper_doc and paper_doc.get("categories") else [category]
     base_url = SITE_URL or f"{request.headers.get('x-forwarded-proto', 'https')}://{request.headers.get('host', '')}"
     return _render_share_html(data, category, year, f"m{month}", paper_id, base_url)
 
@@ -247,8 +257,8 @@ def _render_badge_image(data: dict) -> bytes:
         except Exception:
             pub_str = "Published on arXiv.org"
 
-    categories = paper.get("categories") or [data.get("category", "")]
-    cats_str = _esc(" \u00b7 ".join(categories[:4]))
+    categories = paper.get("categories") or data.get("categories") or [data.get("category", "")]
+    cats_str = _esc("Category: " + ", ".join(categories[:4]))
 
     archive_label = _esc(data.get("archive_label", ""))
     cat_name = _esc(data.get("category_name", ""))
@@ -260,7 +270,6 @@ def _render_badge_image(data: dict) -> bytes:
     # Header
     svg = svg.replace(">Week 11, 2026<", f">{archive_label}<")
     svg = svg.replace(">Robotics Preprints<", f">{cat_name} Preprints<")
-    svg = svg.replace(">arXiv (cs.RO)<", f">arXiv ({_esc(data.get('category', ''))})<")
 
     # Tier label + rank
     tier_labels = {"Gold": "GOLD", "Silver": "SILVER", "Bronze": "BRONZE"}
@@ -429,6 +438,9 @@ async def get_monthly_badge_image(category: str, year: int, month: int, paper_id
         "category_name": CATEGORIES.get(category, category),
         "paper_count": archive.get("paper_count", len(lb)),
     }
+    # Fetch full categories from papers collection
+    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
+    data["categories"] = paper_doc["categories"] if paper_doc and paper_doc.get("categories") else [category]
     img_bytes = _render_badge_image(data)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=3600"})

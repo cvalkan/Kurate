@@ -103,3 +103,7 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
   - Socially shareable badges (Gold/Silver/Bronze) for top-3 papers in weekly/monthly archives
   - SVG templates + CairoSVG for server-side OG image generation
   - SITE_URL env var ensures kurate.org in OG tags on production
+- Badge Share URL Fix & SVG Refinements (Mar 13 2026)
+  - Fixed share URL: frontend now uses window.location.origin (kurate.org on prod) instead of REACT_APP_BACKEND_URL
+  - Removed "arXiv (cs.XX)" from badge header to prevent logo overlap
+  - Categories now show "Category: cs.DC, cs.AI" format with all categories from paper record
