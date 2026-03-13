@@ -108,7 +108,7 @@ async def _send_verification_email(email: str, name: str, token: str, origin: st
     html = f"""
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
       <h2 style="color: #1a1a2e; margin-bottom: 8px;">Verify your email</h2>
-      <p style="color: #666; font-size: 14px;">Hi {name}, click the button below to verify your email address for PaperSumo.</p>
+      <p style="color: #666; font-size: 14px;">Hi {name}, click the button below to verify your email address for Kurate.org.</p>
       <a href="{verify_url}" style="display: inline-block; background: #1a1a2e; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 14px; margin: 16px 0;">Verify Email</a>
       <p style="color: #999; font-size: 12px; margin-top: 24px;">If you didn't create this account, ignore this email.</p>
     </div>
@@ -116,7 +116,7 @@ async def _send_verification_email(email: str, name: str, token: str, origin: st
     params = {
         "from": SENDER_EMAIL,
         "to": [email],
-        "subject": "Verify your PaperSumo account",
+        "subject": "Verify your Kurate.org account",
         "html": html,
     }
     try:

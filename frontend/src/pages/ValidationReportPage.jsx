@@ -101,7 +101,7 @@ export default function ValidationReportPage() {
           <FileText className="h-5 w-5" /> Complete Validation Report
         </h2>
         <p className="text-[11px] text-muted-foreground">
-          All experiments and findings from PaperSumo's AI judge validation, condensed. Covers {ds.length} single-item datasets,
+          All experiments and findings from Kurate.org's AI judge validation, condensed. Covers {ds.length} single-item datasets,
           {" "}{ex.summarizer?.pooled_datasets || "12+"} pairwise datasets, and 11 distinct experiments.
         </p>
       </div>

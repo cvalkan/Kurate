@@ -48,7 +48,7 @@ export default function MethodologyPage() {
           Methodology
         </h1>
         <p className="text-muted-foreground text-sm max-w-2xl">
-          How PaperSumo ranks arXiv preprints across {categories.length || "multiple"} categories using AI-powered pairwise comparison.
+          How Kurate.org ranks arXiv preprints across {categories.length || "multiple"} categories using AI-powered pairwise comparison.
         </p>
       </div>
 

@@ -65,10 +65,7 @@ export default function Navbar() {
           <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity min-w-0" data-testid="navbar-logo">
             <Trophy className="h-5 w-5 text-accent shrink-0" />
             <span className="font-heading font-semibold text-lg tracking-tight shrink-0">
-              Paper<span className="text-accent">Sumo</span>
-            </span>
-            <span className="hidden sm:inline text-[10px] text-muted-foreground">
-              by Kurate.org
+              <span className="text-accent">Ku</span>rate<span className="text-accent">.org</span>
             </span>
             {activeLabel && (
               <span className="hidden sm:inline text-xs text-muted-foreground font-mono border border-border rounded px-1.5 py-0.5">

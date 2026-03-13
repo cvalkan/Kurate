@@ -27,7 +27,7 @@ from routers.bookmarks import router as bookmarks_router
 from routers.reading_lists import router as reading_lists_router
 from services.scheduler import start_scheduler
 
-app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
+app = FastAPI(title="Kurate.org - AI Paper Rankings")
 
 # --- Simple in-memory rate limiter ---
 _rate_buckets = defaultdict(list)  # ip -> [timestamps]
@@ -211,7 +211,7 @@ async def startup():
 
     # Start accepting connections NOW — everything else runs in background
     asyncio.create_task(_deferred_startup())
-    logger.info("PaperSumo Leaderboard started")
+    logger.info("Kurate.org Leaderboard started")
 
 
 async def _deferred_startup():

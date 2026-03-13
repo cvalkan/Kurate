@@ -78,7 +78,7 @@ export function SuggestionModal({ open, onClose, defaultType = "field" }) {
             <p className="text-[10px] text-muted-foreground">
               {type === "field"
                 ? "Suggest an arXiv category you'd like to see tracked. Include the category ID if you know it."
-                : "Your feedback helps us improve PaperSumo."
+                : "Your feedback helps us improve Kurate.org."
               }
             </p>
             <Button type="submit" className="w-full" disabled={submitting || !text.trim()} data-testid="suggestion-submit">

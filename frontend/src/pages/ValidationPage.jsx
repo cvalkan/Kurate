@@ -1034,7 +1034,7 @@ export default function ValidationPage() {
           <h1 className="font-heading text-2xl font-semibold" data-testid="validation-title">Human vs AI Validation</h1>
         </div>
         <p className="text-sm text-muted-foreground max-w-3xl">
-          Does PaperSumo's AI tournament agree with human peer reviewers? Each dataset imports real papers with
+          Does Kurate.org's AI tournament agree with human peer reviewers? Each dataset imports real papers with
           reviewer scores, runs an independent AI tournament, and measures rank correlation.
         </p>
       </div>
