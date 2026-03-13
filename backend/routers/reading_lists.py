@@ -424,6 +424,14 @@ async def get_list_share_page(list_id: str, request: Request):
 @router.get("/{list_id}/image.png")
 async def get_list_image(list_id: str):
     """Generate OG image (1200x630) showing the reading list's top papers."""
+    # Check image cache first
+    from routers.badges import _get_cached_image, _set_cached_image
+    cache_key = f"list:{list_id}"
+    cached = _get_cached_image(cache_key)
+    if cached:
+        return Response(content=cached, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
     rl = await db.reading_lists.find_one({"list_id": list_id, "public": True}, {"_id": 0})
     if not rl:
         raise HTTPException(404, "Reading list not found")
@@ -442,6 +450,7 @@ async def get_list_image(list_id: str):
         papers=papers,
         total=len(rl.get("paper_ids", [])),
     )
+    _set_cached_image(cache_key, img_bytes)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=3600"})
 

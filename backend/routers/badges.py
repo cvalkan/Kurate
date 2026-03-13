@@ -2,6 +2,7 @@
 
 import io
 import html as html_mod
+import time
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response, HTMLResponse
@@ -11,6 +12,27 @@ from typing import Optional
 from core.config import db, logger
 
 router = APIRouter(prefix="/api/badge")
+
+# In-memory image cache: {cache_key: (bytes, timestamp)}
+_image_cache = {}
+_IMAGE_CACHE_TTL = 3600  # 1 hour
+
+
+def _get_cached_image(key: str) -> Optional[bytes]:
+    entry = _image_cache.get(key)
+    if entry and (time.time() - entry[1]) < _IMAGE_CACHE_TTL:
+        return entry[0]
+    return None
+
+
+def _set_cached_image(key: str, data: bytes):
+    _image_cache[key] = (data, time.time())
+    # Evict old entries if cache grows too large
+    if len(_image_cache) > 500:
+        cutoff = time.time() - _IMAGE_CACHE_TTL
+        to_delete = [k for k, (_, ts) in _image_cache.items() if ts < cutoff]
+        for k in to_delete:
+            del _image_cache[k]
 
 import os
 _cors = os.environ.get("CORS_ORIGINS", "")
@@ -112,8 +134,14 @@ async def get_badge(category: str, year: int, week: int, paper_id: str):
 @router.get("/{category}/{year}/w{week}/{paper_id}/image.png")
 async def get_badge_image(category: str, year: int, week: int, paper_id: str):
     """Generate OG-sized badge image (1200x630) for social sharing."""
+    cache_key = f"badge:w:{category}/{year}/{week}/{paper_id}"
+    cached = _get_cached_image(cache_key)
+    if cached:
+        return Response(content=cached, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600"})
     data = await _get_badge_data(category, year, week, paper_id)
     img_bytes = _render_badge_image(data)
+    _set_cached_image(cache_key, img_bytes)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=3600"})
 
@@ -420,6 +448,11 @@ async def get_paper_badges(paper_id: str):
 @router.get("/{category}/{year}/m{month}/{paper_id}/image.png")
 async def get_monthly_badge_image(category: str, year: int, month: int, paper_id: str):
     """Generate OG badge image for monthly archive."""
+    cache_key = f"badge:m:{category}/{year}/{month}/{paper_id}"
+    cached = _get_cached_image(cache_key)
+    if cached:
+        return Response(content=cached, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600"})
     archive = await db.leaderboard_archives.find_one(
         {"category": category, "year": year, "month": month, "period_type": "monthly"},
         {"_id": 0},
@@ -447,6 +480,7 @@ async def get_monthly_badge_image(category: str, year: int, month: int, paper_id
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
     data["categories"] = paper_doc["categories"] if paper_doc and paper_doc.get("categories") else [category]
     img_bytes = _render_badge_image(data)
+    _set_cached_image(cache_key, img_bytes)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=3600"})
 
