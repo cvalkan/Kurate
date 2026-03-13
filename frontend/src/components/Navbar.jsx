@@ -62,7 +62,7 @@ export default function Navbar() {
       <div className="container mx-auto px-4 md:px-6 max-w-7xl">
         <div className="flex h-14 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity min-w-0" data-testid="navbar-logo">
+          <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity min-w-0" data-testid="navbar-logo">
             <Trophy className="h-6 w-6 text-accent shrink-0" />
             <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 shrink-0 translate-y-[2px]" />
             {activeLabel && (
