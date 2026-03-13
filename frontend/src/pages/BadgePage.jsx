@@ -198,7 +198,7 @@ export default function BadgePage() {
 
         {/* Navigation links */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-accent mb-8">
-          <a href={`/?cat=${category}&archive=${year}-${slug}`} className="hover:underline">{data.archive_label} leaderboard</a>
+          <a href={`/leaderboard/${category}/${year}/${slug}`} className="hover:underline">{data.archive_label} leaderboard</a>
           <span className="text-border">·</span>
           <a href={`/paper/${data.paper_id}`} className="hover:underline">Paper details</a>
           <span className="text-border">·</span>
