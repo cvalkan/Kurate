@@ -60,7 +60,7 @@ export default function BadgePage() {
     );
   }
 
-  const shareUrl = `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
+  const shareUrl = `${window.location.origin}/leaderboard/${category}/${year}/${slug}`;
   const imageUrl = `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
   const arxivUrl = data.arxiv_id ? `https://arxiv.org/abs/${data.arxiv_id}` : "";
   const arxivSuffix = arxivUrl ? `\n${arxivUrl}` : "";

@@ -16,7 +16,9 @@ import ArchivePage from "@/pages/ArchivePage";
 import OrcidCallbackPage from "@/pages/OrcidCallbackPage";
 import BadgePage from "@/pages/BadgePage";
 import ProfilePage from "@/pages/ProfilePage";
+import BookmarksPage from "@/pages/BookmarksPage";
 import Navbar from "@/components/Navbar";
+import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
 function AppRouter() {
   const location = useLocation();
@@ -43,6 +45,7 @@ function AppRouter() {
           <Route path="/auth/orcid/callback" element={<OrcidCallbackPage />} />
           <Route path="/badge/:category/:year/:slug/:paperId" element={<BadgePage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/bookmarks" element={<BookmarksPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
         </Routes>
       </main>
@@ -56,7 +59,9 @@ function App() {
     <div className="min-h-screen bg-background">
       <BrowserRouter>
         <AuthProvider>
-          <AppRouter />
+          <BookmarkProvider>
+            <AppRouter />
+          </BookmarkProvider>
         </AuthProvider>
       </BrowserRouter>
     </div>

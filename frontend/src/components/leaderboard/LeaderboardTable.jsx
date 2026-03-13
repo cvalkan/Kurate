@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Trophy, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RankBadge } from "./RankBadge";
+import { BookmarkButton } from "@/components/BookmarkButton";
+import { useBookmarks } from "@/contexts/BookmarkContext";
 
 const COLUMN_TIPS = {
   rank: "Position based on Elo score (higher = better). Click to restore default ranking.",
@@ -45,6 +47,7 @@ export function LeaderboardTable({
   sortKey, sortDir, onSort, showRatingCol = true, showGapCol = true,
 }) {
   const sentinelRef = useRef(null);
+  const { bookmarkedIds, toggleBookmark } = useBookmarks();
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -179,12 +182,15 @@ export function LeaderboardTable({
             data-testid={`leaderboard-row-${idx}`}
           >
             <div><RankBadge rank={paper._displayRank ?? paper.rank} /></div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
-                {paper.authors?.slice(0, 2).join(", ")}
-                {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
-              </p>
+            <div className="min-w-0 flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
+                  {paper.authors?.slice(0, 2).join(", ")}
+                  {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
+                </p>
+              </div>
+              <BookmarkButton paperId={paper.id} bookmarkedIds={bookmarkedIds} onToggle={toggleBookmark} />
             </div>
             {showCatCol && !isMobile && (
               <div className="text-center">

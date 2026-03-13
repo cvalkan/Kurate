@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
-  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2,
+  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2, Bookmark,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBookmarks } from "@/contexts/BookmarkContext";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import katex from "katex";
@@ -184,6 +185,7 @@ export default function PaperPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { bookmarkedIds, toggleBookmark } = useBookmarks();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [paperBadges, setPaperBadges] = useState([]);
@@ -242,9 +244,16 @@ export default function PaperPage() {
 
       {/* Paper Header */}
       <div className="mb-8" data-testid="paper-header">
-        <h1 className="font-heading text-xl md:text-2xl font-semibold tracking-tight mb-3 leading-tight">
-          {paper.title}
-        </h1>
+        <div className="flex items-start gap-2 mb-3">
+          <h1 className="font-heading text-xl md:text-2xl font-semibold tracking-tight leading-tight flex-1">
+            {paper.title}
+          </h1>
+          <button onClick={() => toggleBookmark(paper.id)}
+            className={`mt-1 p-1 rounded transition-colors ${bookmarkedIds.has(paper.id) ? "text-accent" : "text-muted-foreground/30 hover:text-muted-foreground"}`}
+            data-testid="paper-bookmark-btn">
+            <Bookmark className="h-5 w-5" fill={bookmarkedIds.has(paper.id) ? "currentColor" : "none"} />
+          </button>
+        </div>
         <p className="text-sm text-muted-foreground mb-3">
           {paper.authors?.join(", ")}
         </p>

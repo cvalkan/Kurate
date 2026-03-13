@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import { Trophy, Shield, BarChart3, BookOpen, LogIn, LogOut, User, Menu, X, FlaskConical } from "lucide-react";
+import { Trophy, Shield, BarChart3, BookOpen, LogIn, LogOut, User, Menu, X, FlaskConical, Bookmark } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthModal } from "@/components/AuthModal";
 
@@ -107,6 +107,9 @@ export default function Navbar() {
                 <span className="hidden lg:inline text-xs text-muted-foreground max-w-[100px] truncate">{user.name || user.email}</span>
                 <Link to="/profile" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center" data-testid="nav-profile">
                   <User className="h-3.5 w-3.5" />
+                </Link>
+                <Link to="/bookmarks" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center" data-testid="nav-bookmarks">
+                  <Bookmark className="h-3.5 w-3.5" />
                 </Link>
                 <Button variant="ghost" size="sm" onClick={logout} className="h-7 px-2 text-xs" data-testid="nav-logout">
                   <LogOut className="h-3.5 w-3.5" />
