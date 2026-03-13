@@ -385,7 +385,8 @@ async def get_list_share_page(list_id: str, request: Request):
     curator = _esc(rl.get("user_name", ""))
     paper_count = len(rl.get("paper_ids", []))
     image_url = f"{base_url}/api/lists/{list_id}/image.png"
-    canonical = f"{base_url}/list/{list_id}"
+    share_url = f"{base_url}/api/lists/{list_id}/share"
+    list_url = f"{base_url}/list/{list_id}"
 
     og_title = f"{name} — {paper_count} papers"
     og_desc = f"Curated by {curator} on Kurate.org" + (f" — {desc}" if desc else "")
@@ -393,7 +394,7 @@ async def get_list_share_page(list_id: str, request: Request):
     # Don't redirect bots — let them read the OG tags
     ua = (request.headers.get("user-agent") or "").lower()
     is_bot = any(b in ua for b in ("linkedinbot", "twitterbot", "facebookexternalhit", "slackbot", "telegrambot", "whatsapp", "bot", "crawler", "spider"))
-    redirect_script = "" if is_bot else f'<script>window.location.replace("{canonical}");</script>'
+    redirect_script = "" if is_bot else f'<script>window.location.replace("{list_url}");</script>'
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -406,7 +407,7 @@ async def get_list_share_page(list_id: str, request: Request):
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:url" content="{canonical}">
+<meta property="og:url" content="{share_url}">
 <meta property="og:type" content="article">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{og_title}">
@@ -415,7 +416,7 @@ async def get_list_share_page(list_id: str, request: Request):
 </head>
 <body>
 {redirect_script}
-<p>Redirecting to <a href="{canonical}">{name}</a>...</p>
+<p>Redirecting to <a href="{list_url}">{name}</a>...</p>
 </body>
 </html>"""
 
