@@ -48,7 +48,7 @@ export default function ReadingListPage() {
     else { setSortKey(key); setSortDir(key === "title" ? "asc" : "desc"); }
   };
 
-  const shareUrl = `${window.location.origin}/api/lists/${listId}/share?v=2`;
+  const shareUrl = `${window.location.origin}/api/lists/${listId}/share`;
   const listUrl = `${window.location.origin}/list/${listId}`;
 
   const copyLink = () => {

@@ -148,18 +148,18 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
 
 @router.get("/{category}/{year}/w{week}/{paper_id}/share", response_class=HTMLResponse)
 async def get_badge_share_page(category: str, year: int, week: int, paper_id: str, request: Request):
-    """Server-rendered HTML page with OG meta tags for social sharing.
-    Crawlers (Twitter, LinkedIn) get the OG tags. Browsers get redirected to the SPA."""
+    """Static HTML page with OG meta tags for social sharing. No redirect — crawler-first."""
+    from core.sharing import get_public_base_url, SHARE_HEADERS
     data = await _get_badge_data(category, year, week, paper_id)
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
-    proto = request.headers.get("x-forwarded-proto", "https")
-    base_url = f"{proto}://{host}" if host and "cluster" not in host else SITE_URL
-    return _render_share_html(data, category, year, f"w{week}", paper_id, base_url)
+    base_url = get_public_base_url(request)
+    html = _render_share_html(data, category, year, f"w{week}", paper_id, base_url)
+    return HTMLResponse(content=html, headers=SHARE_HEADERS)
 
 
 @router.get("/{category}/{year}/m{month}/{paper_id}/share", response_class=HTMLResponse)
 async def get_monthly_badge_share_page(category: str, year: int, month: int, paper_id: str, request: Request):
-    """Server-rendered share page for monthly badges."""
+    """Static HTML page with OG meta tags for monthly badge sharing."""
+    from core.sharing import get_public_base_url, SHARE_HEADERS
     archive = await db.leaderboard_archives.find_one(
         {"category": category, "year": year, "month": month, "period_type": "monthly"}, {"_id": 0})
     if not archive:
@@ -174,17 +174,15 @@ async def get_monthly_badge_share_page(category: str, year: int, month: int, pap
     data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
             "category": category, "category_name": CATEGORIES.get(category, category),
             "paper_count": archive.get("paper_count", len(lb)), "year": year}
-    # Fetch full categories from papers collection
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
     data["categories"] = paper_doc["categories"] if paper_doc and paper_doc.get("categories") else [category]
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
-    proto = request.headers.get("x-forwarded-proto", "https")
-    base_url = f"{proto}://{host}" if host and "cluster" not in host else SITE_URL
-    return _render_share_html(data, category, year, f"m{month}", paper_id, base_url)
+    base_url = get_public_base_url(request)
+    html = _render_share_html(data, category, year, f"m{month}", paper_id, base_url)
+    return HTMLResponse(content=html, headers=SHARE_HEADERS)
 
 
 def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id: str, base_url: str) -> str:
-    """Generate HTML with OG meta tags for social crawlers + browser redirect."""
+    """Generate a static HTML page with OG/Twitter meta tags. No JS redirect — crawler-first."""
     import html as html_mod
     p = data["paper"]
     tier = data["tier"]
@@ -195,14 +193,11 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
     cat_name = html_mod.escape(data["category_name"])
     archive_label = html_mod.escape(data["archive_label"])
     rank = p["rank"]
-    score = p.get("score", "?")
     tier_name = tier["name"]
 
-    # Absolute URLs for social crawlers (v=2 busts Twitter/LinkedIn cache)
-    image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png?v=3"
-    # Redirect browsers to the standalone archive leaderboard page
-    redirect_url = f"/leaderboard/{category}/{year}/{slug}"
-    canonical_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/share"
+    image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png"
+    share_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/share"
+    leaderboard_url = f"{base_url}/leaderboard/{category}/{year}/{slug}"
 
     og_title = f"#{rank} {tier_name} in {cat_name} — {archive_label}"
     og_desc = f"{title} by {authors} | Ranked by scientific impact | Kurate.org"
@@ -211,23 +206,27 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{og_title} | PaperSumo</title>
+<title>{og_title} | Kurate.org</title>
 <meta property="og:title" content="{og_title}">
 <meta property="og:description" content="{og_desc}">
 <meta property="og:image" content="{image_url}">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:url" content="{canonical_url}">
+<meta property="og:url" content="{share_url}">
 <meta property="og:type" content="article">
+<meta property="og:site_name" content="Kurate.org">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
+<meta name="twitter:site" content="@KurateAI">
 </head>
-<body>
-<script>window.location.replace("{redirect_url}");</script>
-<p>Redirecting to <a href="{redirect_url}">archive page</a>...</p>
+<body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
+<h1 style="font-size: 20px;">{og_title}</h1>
+<p style="color: #666;">{title}</p>
+<p style="color: #999; font-size: 14px;">by {authors}</p>
+<p><a href="{leaderboard_url}" style="color: #4285F4;">View the {archive_label} leaderboard on Kurate.org →</a></p>
 </body>
 </html>"""
 

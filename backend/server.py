@@ -73,10 +73,18 @@ async def head_method_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
-    """Add security headers to all responses."""
+    """Add security headers to all responses. Preserve Cache-Control on share endpoints."""
     response = await call_next(request)
+    path = request.url.path
+    is_share = "/share" in path or "/image.png" in path
     for header, value in SECURITY_HEADERS.items():
+        # Don't override Cache-Control on share/image endpoints (they set no-transform for crawlers)
+        if header.lower() == "cache-control" and is_share and "cache-control" in response.headers:
+            continue
         response.headers[header] = value
+    # Add no-transform on share endpoints to discourage Cloudflare modifications
+    if is_share:
+        response.headers["Cache-Control"] = "public, max-age=300, no-transform"
     return response
 
 

@@ -366,20 +366,15 @@ async def import_to_existing_list(list_id: str, target_list_id: str, request: Re
 
 # --- Social sharing ---
 
-def _get_base_url(request: Request) -> str:
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
-    proto = request.headers.get("x-forwarded-proto", "https")
-    return f"{proto}://{host}" if host and "cluster" not in host else SITE_URL
-
-
 @router.get("/{list_id}/share", response_class=HTMLResponse)
 async def get_list_share_page(list_id: str, request: Request):
-    """OG meta tags page for social sharing of reading lists."""
+    """Static HTML page with OG meta tags for reading list sharing. No redirect — crawler-first."""
+    from core.sharing import get_public_base_url, SHARE_HEADERS
     rl = await db.reading_lists.find_one({"list_id": list_id, "public": True}, {"_id": 0})
     if not rl:
         raise HTTPException(404, "Reading list not found")
 
-    base_url = _get_base_url(request)
+    base_url = get_public_base_url(request)
     name = _esc(rl.get("name", "Reading List"))
     desc = _esc(rl.get("description", ""))
     curator = _esc(rl.get("user_name", ""))
@@ -391,12 +386,7 @@ async def get_list_share_page(list_id: str, request: Request):
     og_title = f"{name} — {paper_count} papers"
     og_desc = f"Curated by {curator} on Kurate.org" + (f" — {desc}" if desc else "")
 
-    # Don't redirect bots — let them read the OG tags
-    ua = (request.headers.get("user-agent") or "").lower()
-    is_bot = any(b in ua for b in ("linkedinbot", "twitterbot", "facebookexternalhit", "slackbot", "telegrambot", "whatsapp", "bot", "crawler", "spider"))
-    redirect_script = "" if is_bot else f'<script>window.location.replace("{list_url}");</script>'
-
-    return f"""<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -409,16 +399,20 @@ async def get_list_share_page(list_id: str, request: Request):
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="{share_url}">
 <meta property="og:type" content="article">
+<meta property="og:site_name" content="Kurate.org">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
+<meta name="twitter:site" content="@KurateAI">
 </head>
-<body>
-{redirect_script}
-<p>Redirecting to <a href="{list_url}">{name}</a>...</p>
+<body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
+<h1 style="font-size: 20px;">{name}</h1>
+<p style="color: #666; font-size: 14px;">Curated by {curator} · {paper_count} papers</p>
+<p><a href="{list_url}" style="color: #4285F4;">View this reading list on Kurate.org →</a></p>
 </body>
 </html>"""
+    return HTMLResponse(content=html, headers=SHARE_HEADERS)
 
 
 @router.get("/{list_id}/image.png")
