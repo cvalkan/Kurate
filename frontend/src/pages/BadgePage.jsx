@@ -196,6 +196,15 @@ export default function BadgePage() {
           </div>
         </div>
 
+        {/* Navigation links */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-accent mb-8">
+          <a href={`/?cat=${category}&archive=${year}-${slug}`} className="hover:underline">{data.archive_label} leaderboard</a>
+          <span className="text-border">·</span>
+          <a href={`/paper/${data.paper_id}`} className="hover:underline">Paper details</a>
+          <span className="text-border">·</span>
+          <a href={`/?cat=${category}&period=all`} className="hover:underline">All Time leaderboard</a>
+        </div>
+
         {/* Section 1: Share your achievement (for authors) */}
         <div className="mb-10" data-testid="author-section">
           <div className="flex items-center gap-2 mb-1">
@@ -304,15 +313,6 @@ export default function BadgePage() {
               )}
             </>
           )}
-        </div>
-
-        {/* Footer links */}
-        <div className="text-center text-sm text-muted-foreground mt-10 pt-6 border-t border-border">
-          <a href={`/?cat=${category}&archive=${year}-${slug}`} className="text-accent hover:underline">View {data.archive_label} leaderboard</a>
-          <span className="mx-2">·</span>
-          <a href={`/paper/${data.paper_id}`} className="text-accent hover:underline">Paper details</a>
-          <span className="mx-2">·</span>
-          <a href="/" className="text-accent hover:underline">Explore the leaderboard</a>
         </div>
       </div>
     </>
