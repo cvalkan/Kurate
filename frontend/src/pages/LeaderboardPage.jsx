@@ -66,6 +66,9 @@ export default function LeaderboardPage() {
     }
   };
 
+  // Capture archive slug from URL on mount (before URL sync overwrites it)
+  const archiveSlugRef = useRef(new URLSearchParams(window.location.search).get("archive"));
+
   // Sync state → URL (replaceState)
   const syncRef = useRef(false);
   useEffect(() => {
@@ -80,9 +83,10 @@ export default function LeaderboardPage() {
     if (globalStats) p.set("global", "1");
     if (sortKey && sortKey !== "rank") p.set("sort", sortKey);
     if (sortKey && sortKey !== "rank" && sortDir !== "asc") p.set("dir", sortDir);
+    if (activeArchive && archiveSlugRef.current) p.set("archive", archiveSlugRef.current);
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [category, period, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir]);
+  }, [category, period, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir, activeArchive]);
 
   // Notify navbar
   useEffect(() => {
@@ -176,7 +180,7 @@ export default function LeaderboardPage() {
 
   // Load archive from URL param on mount (after archives list is populated)
   useEffect(() => {
-    const slug = new URLSearchParams(window.location.search).get("archive");
+    const slug = archiveSlugRef.current;
     if (!slug || !archives.length || activeArchive) return;
     const match = archives.find(a => {
       const s = a.period_type === "older" ? "older"
