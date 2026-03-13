@@ -193,9 +193,12 @@ export function LeaderboardTable({
             data-testid={`leaderboard-row-${idx}`}
           >
             {bookmarksMode && selectedPapers && (
-              <div className="flex items-center justify-center" onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleSelect?.(paper.id); }}>
-                <input type="checkbox" checked={selectedPapers.has(paper.id)} readOnly
-                  className="h-3.5 w-3.5 rounded border-border accent-accent cursor-pointer" />
+              <div className="flex items-center justify-center -m-2 p-2"
+                onClickCapture={e => { e.preventDefault(); e.stopPropagation(); onToggleSelect?.(paper.id); }}
+                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
+              >
+                <input type="checkbox" checked={selectedPapers.has(paper.id)} readOnly tabIndex={-1}
+                  className="h-4 w-4 rounded border-border accent-accent pointer-events-none" />
               </div>
             )}
             <div><RankBadge rank={paper._displayRank ?? paper.rank} /></div>

@@ -161,23 +161,23 @@ export default function BookmarksPage() {
           {/* Save to reading list bar */}
           {selectedPapers.size > 0 && (
             <div className="mb-4 p-3 border border-accent/30 rounded-lg bg-accent/5 flex flex-wrap items-center gap-3" data-testid="save-to-list-bar">
-              <span className="text-sm font-medium">{selectedPapers.size} selected</span>
-              <select value={saveTarget} onChange={e => { setSaveTarget(e.target.value); setShowSaveToList(true); }}
+              <span className="text-sm font-medium">Save {selectedPapers.size} selected to</span>
+              <select value={saveTarget} onChange={e => setSaveTarget(e.target.value)}
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[180px]" data-testid="list-select">
-                <option value="">Choose a reading list...</option>
+                <option value="">select a reading list...</option>
                 {myLists.map(l => <option key={l.list_id} value={l.list_id}>{l.name} ({(l.paper_ids||[]).length})</option>)}
-                <option value="__new__">+ Create new list</option>
+                <option value="__new__">+ New list</option>
               </select>
               {saveTarget === "__new__" && (
                 <Input value={newListName} onChange={e => setNewListName(e.target.value)}
-                  placeholder="New list name" className="text-xs h-8 w-52" data-testid="new-list-name" />
+                  placeholder="List name" className="text-xs h-8 w-48" data-testid="new-list-name" />
               )}
               {saveTarget && (
                 <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={saveToList} disabled={saving} data-testid="save-to-list-btn">
-                  <List className="h-3.5 w-3.5" /> {saving ? "Saving..." : "Save to list"}
+                  <List className="h-3.5 w-3.5" /> {saving ? "Saving..." : "Save"}
                 </Button>
               )}
-              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setSelectedPapers(new Set()); setSaveTarget(""); }}>
+              <Button size="sm" variant="ghost" className="h-8 text-xs text-muted-foreground" onClick={() => { setSelectedPapers(new Set()); setSaveTarget(""); }}>
                 Clear
               </Button>
             </div>
