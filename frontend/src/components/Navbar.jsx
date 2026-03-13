@@ -108,7 +108,7 @@ export default function Navbar() {
                 <Link to="/profile" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center" data-testid="nav-profile">
                   <User className="h-3.5 w-3.5" />
                 </Link>
-                <Link to="/bookmarks" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center" data-testid="nav-bookmarks">
+                <Link to="/bookmarks" onClick={() => sessionStorage.setItem("bk_tab", '"bookmarks"')} className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center" data-testid="nav-bookmarks">
                   <Bookmark className="h-3.5 w-3.5" />
                 </Link>
                 <Button variant="ghost" size="sm" onClick={logout} className="h-7 px-2 text-xs" data-testid="nav-logout">
