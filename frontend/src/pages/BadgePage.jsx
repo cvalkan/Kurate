@@ -150,7 +150,15 @@ export default function BadgePage() {
     window.open(mailto, "_blank");
     recordCongrats("email");
     setShowEmail(false);
-    toast.success("Opening your email client...");
+  };
+
+  const openGmail = () => {
+    const emails = toEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+    if (!emails.length) { toast.error("Enter at least one email address"); return; }
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(emails.join(","))}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+    window.open(gmailUrl, "_blank");
+    recordCongrats("email");
+    setShowEmail(false);
   };
 
   const truncTitle = data.title?.length > 70 ? data.title.slice(0, 67) + "..." : data.title;
@@ -281,8 +289,11 @@ export default function BadgePage() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button size="sm" className="gap-1.5" onClick={openMailto} data-testid="send-email-btn">
-                      <Send className="h-3.5 w-3.5" /> Open in email client
+                    <Button size="sm" className="gap-1.5" onClick={openGmail} data-testid="send-gmail-btn">
+                      <Send className="h-3.5 w-3.5" /> Open in Gmail
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={openMailto} data-testid="send-email-btn">
+                      <Mail className="h-3.5 w-3.5" /> Other email client
                     </Button>
                     <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowEmail(false)}>
                       Cancel
