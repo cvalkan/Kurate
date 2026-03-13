@@ -1,31 +1,35 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Bookmark, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Bookmark } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBookmarks } from "@/contexts/BookmarkContext";
+import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
 export default function BookmarksPage() {
   const { user, getAuthHeaders } = useAuth();
   const { toggleBookmark } = useBookmarks();
-  const [bookmarks, setBookmarks] = useState([]);
+  const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [displayCount, setDisplayCount] = useState(50);
+  const [sortKey, setSortKey] = useState("");
+  const [sortDir, setSortDir] = useState("desc");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     axios.get(`${API}/api/bookmarks`, { withCredentials: true, headers: getAuthHeaders() })
-      .then(res => setBookmarks(res.data.bookmarks || []))
+      .then(res => setPapers(res.data.papers || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user, getAuthHeaders]);
 
-  const handleRemove = async (paperId) => {
-    await toggleBookmark(paperId);
-    setBookmarks(prev => prev.filter(b => b.paper_id !== paperId));
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir(key === "title" ? "asc" : "desc"); }
   };
 
   if (!user) {
@@ -37,30 +41,31 @@ export default function BookmarksPage() {
     );
   }
 
-  const categories = [...new Set(bookmarks.flatMap(b => b.paper_categories || []))];
-  const filtered = filter ? bookmarks.filter(b => (b.paper_categories || []).includes(filter)) : bookmarks;
+  const categories = [...new Set(papers.flatMap(p => p.categories || []))];
+  const filtered = filter ? papers.filter(p => (p.categories || []).includes(filter)) : papers;
+
+  // Add rank for display (rank by bookmark order or score)
+  const ranked = filtered.map((p, i) => ({ ...p, rank: i + 1, _displayRank: i + 1 }));
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 max-w-3xl py-12">
-        <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-secondary/30 rounded-lg animate-pulse" />)}</div>
+      <div className="container mx-auto px-4 md:px-6 max-w-7xl py-12">
+        <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-secondary/30 rounded-lg animate-pulse" />)}</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 max-w-3xl py-8 md:py-12">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-xl font-semibold" data-testid="bookmarks-title">Bookmarks</h1>
-          <p className="text-sm text-muted-foreground">{bookmarks.length} saved paper{bookmarks.length !== 1 ? "s" : ""}</p>
-        </div>
+    <TooltipProvider delayDuration={200}>
+    <div className="container mx-auto px-4 md:px-6 max-w-7xl py-8 md:py-10">
+      <div className="mb-6">
+        <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-1" data-testid="bookmarks-title">Bookmarks</h1>
+        <p className="text-sm text-muted-foreground">{papers.length} saved paper{papers.length !== 1 ? "s" : ""}</p>
       </div>
 
       {categories.length > 1 && (
         <div className="flex flex-wrap gap-1.5 mb-6" data-testid="bookmark-filters">
-          <button
-            onClick={() => setFilter("")}
+          <button onClick={() => setFilter("")}
             className={`px-2.5 py-1 rounded-full text-xs transition-colors ${!filter ? "bg-primary text-primary-foreground" : "bg-secondary/50 text-muted-foreground hover:bg-secondary"}`}
           >All</button>
           {categories.map(cat => (
@@ -71,7 +76,7 @@ export default function BookmarksPage() {
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {ranked.length === 0 ? (
         <div className="p-12 text-center text-muted-foreground border border-border rounded-lg">
           <Bookmark className="h-8 w-8 mx-auto mb-3 opacity-30" />
           <p className="text-sm font-medium">No bookmarks yet</p>
@@ -79,29 +84,26 @@ export default function BookmarksPage() {
           <Link to="/" className="text-accent text-sm hover:underline mt-4 inline-block">Browse the leaderboard</Link>
         </div>
       ) : (
-        <div className="space-y-2" data-testid="bookmark-list">
-          {filtered.map(b => (
-            <div key={b.paper_id} className="flex items-start gap-3 p-3 border border-border rounded-lg hover:bg-secondary/20 transition-colors group" data-testid={`bookmark-${b.paper_id}`}>
-              <div className="flex-1 min-w-0">
-                <Link to={`/paper/${b.paper_id}`} className="text-sm font-medium hover:text-accent transition-colors line-clamp-2">
-                  {b.paper_title}
-                </Link>
-                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                  <span className="truncate max-w-[200px]">{(b.paper_authors || []).slice(0, 3).join(", ")}{(b.paper_authors || []).length > 3 ? ` +${b.paper_authors.length - 3}` : ""}</span>
-                  {b.paper_categories?.[0] && <span className="px-1.5 py-0.5 rounded bg-secondary/50 text-[10px]">{b.paper_categories[0]}</span>}
-                  {b.paper_arxiv_id && (
-                    <a href={`https://arxiv.org/abs/${b.paper_arxiv_id}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{b.paper_arxiv_id}</a>
-                  )}
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                onClick={() => handleRemove(b.paper_id)} data-testid={`remove-bookmark-${b.paper_id}`}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
+        <div className="border border-border rounded-lg overflow-hidden">
+          <LeaderboardTable
+            leaderboard={ranked}
+            loading={false}
+            showCatCol={!filter}
+            hasSelectedTags={false}
+            globalStats={false}
+            debouncedKeyword=""
+            keyword=""
+            displayCount={displayCount}
+            setDisplayCount={setDisplayCount}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            showRatingCol={true}
+            showGapCol={true}
+          />
         </div>
       )}
     </div>
+    </TooltipProvider>
   );
 }

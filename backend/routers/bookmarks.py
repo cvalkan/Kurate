@@ -21,14 +21,43 @@ class BookmarkRequest(BaseModel):
 
 @router.get("")
 async def get_bookmarks(request: Request):
-    """Get all bookmarks for the current user."""
+    """Get bookmarked papers with current leaderboard scores."""
     user = await _get_current_user(request)
     if not user:
         raise HTTPException(401, "Not authenticated")
     bookmarks = await db.bookmarks.find(
         {"user_id": user["user_id"]}, {"_id": 0}
     ).sort("created_at", -1).to_list(500)
-    return {"bookmarks": bookmarks}
+
+    if not bookmarks:
+        return {"bookmarks": [], "papers": []}
+
+    # Fetch current paper data with scores from cache
+    from routers.leaderboard import lb_cache
+    all_papers = lb_cache.get("_raw_papers", [])
+    paper_map = {p["id"]: p for p in all_papers}
+    bookmark_dates = {b["paper_id"]: b.get("created_at") for b in bookmarks}
+
+    papers = []
+    for b in bookmarks:
+        p = paper_map.get(b["paper_id"])
+        if p:
+            paper = {k: v for k, v in p.items() if k != "_id"}
+            paper["bookmarked_at"] = bookmark_dates.get(b["paper_id"])
+            papers.append(paper)
+        else:
+            # Paper not in cache — use denormalized bookmark data
+            papers.append({
+                "id": b["paper_id"],
+                "title": b.get("paper_title", ""),
+                "authors": b.get("paper_authors", []),
+                "categories": b.get("paper_categories", []),
+                "arxiv_id": b.get("paper_arxiv_id"),
+                "published": b.get("paper_published"),
+                "bookmarked_at": b.get("created_at"),
+            })
+
+    return {"bookmarks": bookmarks, "papers": papers}
 
 
 @router.get("/ids")
