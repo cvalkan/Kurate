@@ -308,7 +308,9 @@ export default function BadgePage() {
 
         {/* Footer links */}
         <div className="text-center text-sm text-muted-foreground mt-10 pt-6 border-t border-border">
-          <a href={`/paper/${data.paper_id}`} className="text-accent hover:underline">View full paper details</a>
+          <a href={`/?cat=${category}&archive=${year}-${slug}`} className="text-accent hover:underline">View {data.archive_label} leaderboard</a>
+          <span className="mx-2">·</span>
+          <a href={`/paper/${data.paper_id}`} className="text-accent hover:underline">Paper details</a>
           <span className="mx-2">·</span>
           <a href="/" className="text-accent hover:underline">Explore the leaderboard</a>
         </div>
