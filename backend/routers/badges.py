@@ -133,15 +133,25 @@ async def get_badge(category: str, year: int, week: int, paper_id: str):
 
 @router.get("/{category}/{year}/w{week}/{paper_id}/image.png")
 async def get_badge_image(category: str, year: int, week: int, paper_id: str):
-    """Generate OG-sized badge image (1200x630) for social sharing."""
-    cache_key = f"badge:w:{category}/{year}/{week}/{paper_id}"
-    cached = _get_cached_image(cache_key)
+    """Serve pre-rendered badge image, falling back to on-the-fly rendering."""
+    from core.image_store import get_image, store_image
+    store_key = f"badge:w:{category}/{year}/{week}/{paper_id}"
+    # 1. Check persistent store (pre-rendered)
+    stored = await get_image(store_key)
+    if stored:
+        return Response(content=stored, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+    # 2. Check in-memory cache
+    cached = _get_cached_image(store_key)
     if cached:
         return Response(content=cached, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=3600"})
+    # 3. Render on-the-fly and cache
     data = await _get_badge_data(category, year, week, paper_id)
     img_bytes = _render_badge_image(data)
-    _set_cached_image(cache_key, img_bytes)
+    _set_cached_image(store_key, img_bytes)
+    # Also persist for future cold starts
+    await store_image(store_key, img_bytes)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=3600"})
 
@@ -446,40 +456,37 @@ async def get_paper_badges(paper_id: str):
 
 @router.get("/{category}/{year}/m{month}/{paper_id}/image.png")
 async def get_monthly_badge_image(category: str, year: int, month: int, paper_id: str):
-    """Generate OG badge image for monthly archive."""
-    cache_key = f"badge:m:{category}/{year}/{month}/{paper_id}"
-    cached = _get_cached_image(cache_key)
+    """Serve pre-rendered monthly badge image, falling back to on-the-fly rendering."""
+    from core.image_store import get_image, store_image
+    store_key = f"badge:m:{category}/{year}/{month}/{paper_id}"
+    stored = await get_image(store_key)
+    if stored:
+        return Response(content=stored, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+    cached = _get_cached_image(store_key)
     if cached:
         return Response(content=cached, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=3600"})
+
     archive = await db.leaderboard_archives.find_one(
-        {"category": category, "year": year, "month": month, "period_type": "monthly"},
-        {"_id": 0},
-    )
+        {"category": category, "year": year, "month": month, "period_type": "monthly"}, {"_id": 0})
     if not archive:
         raise HTTPException(404, "Archive not found")
-
     lb = archive.get("leaderboard", [])
     paper = next((p for p in lb if p.get("id") == paper_id), None)
     if not paper:
         raise HTTPException(404, "Paper not found")
-
     tier = _get_tier(paper["rank"])
     if not tier:
         raise HTTPException(404, "Not in top 3")
-
-    data = {
-        "paper": paper, "tier": tier,
-        "archive_label": archive.get("label"),
-        "category": category,
-        "category_name": CATEGORIES.get(category, category),
-        "paper_count": archive.get("paper_count", len(lb)),
-    }
-    # Fetch full categories from papers collection
+    data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
+            "category": category, "category_name": CATEGORIES.get(category, category),
+            "paper_count": archive.get("paper_count", len(lb))}
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
     data["categories"] = paper_doc["categories"] if paper_doc and paper_doc.get("categories") else [category]
     img_bytes = _render_badge_image(data)
-    _set_cached_image(cache_key, img_bytes)
+    _set_cached_image(store_key, img_bytes)
+    await store_image(store_key, img_bytes)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=3600"})
 

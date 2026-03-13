@@ -53,6 +53,21 @@ async def _get_current_user(request: Request) -> Optional[dict]:
     return await _auth_get_user(request)
 
 
+async def _prerender_list_image(list_id: str, name: str, curator: str, paper_ids: list):
+    """Pre-render and store the OG image for a reading list."""
+    try:
+        from core.image_store import store_image
+        paper_map = _build_enriched_paper_map()
+        papers = [paper_map[pid] for pid in paper_ids[:8] if pid in paper_map]
+        img_bytes = _render_list_image(
+            name=name, description="", curator=curator,
+            papers=papers, total=len(paper_ids),
+        )
+        await store_image(f"list:{list_id}", img_bytes)
+    except Exception as e:
+        logger.warning(f"Pre-render list image failed for {list_id}: {e}")
+
+
 class CreateListRequest(BaseModel):
     name: str
     description: str = ""
@@ -114,6 +129,7 @@ async def create_list(body: CreateListRequest, request: Request):
     }
     await db.reading_lists.insert_one(doc)
     doc.pop("_id", None)
+    await _prerender_list_image(list_id, body.name.strip(), user.get("name", ""), body.paper_ids[:200])
     return {"status": "created", "list": doc}
 
 
@@ -152,6 +168,7 @@ async def create_from_bookmarks(body: CreateFromBookmarksRequest, request: Reque
     }
     await db.reading_lists.insert_one(doc)
     doc.pop("_id", None)
+    await _prerender_list_image(list_id, body.name.strip(), user.get("name", ""), paper_ids)
     return {"status": "created", "list": doc}
 
 
@@ -245,6 +262,10 @@ async def add_papers(list_id: str, body: AddPapersRequest, request: Request):
         {"$push": {"paper_ids": {"$each": new_ids}},
          "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
     )
+    # Re-render OG image with new papers
+    updated = await db.reading_lists.find_one({"list_id": list_id}, {"_id": 0, "name": 1, "user_name": 1, "paper_ids": 1})
+    if updated:
+        await _prerender_list_image(list_id, updated.get("name", ""), updated.get("user_name", ""), updated.get("paper_ids", []))
     return {"status": "added", "added": len(new_ids)}
 
 
@@ -417,15 +438,23 @@ async def get_list_share_page(list_id: str, request: Request):
 
 @router.get("/{list_id}/image.png")
 async def get_list_image(list_id: str):
-    """Generate OG image (1200x630) showing the reading list's top papers."""
-    # Check image cache first
+    """Serve pre-rendered list image, falling back to on-the-fly rendering."""
+    from core.image_store import get_image, store_image
     from routers.badges import _get_cached_image, _set_cached_image
-    cache_key = f"list:{list_id}"
-    cached = _get_cached_image(cache_key)
+    store_key = f"list:{list_id}"
+
+    # 1. Check persistent store
+    stored = await get_image(store_key)
+    if stored:
+        return Response(content=stored, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+    # 2. Check in-memory cache
+    cached = _get_cached_image(store_key)
     if cached:
         return Response(content=cached, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=3600"})
 
+    # 3. Render on-the-fly
     rl = await db.reading_lists.find_one({"list_id": list_id, "public": True}, {"_id": 0})
     if not rl:
         raise HTTPException(404, "Reading list not found")
@@ -444,7 +473,8 @@ async def get_list_image(list_id: str):
         papers=papers,
         total=len(rl.get("paper_ids", [])),
     )
-    _set_cached_image(cache_key, img_bytes)
+    _set_cached_image(store_key, img_bytes)
+    await store_image(store_key, img_bytes)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=3600"})
 

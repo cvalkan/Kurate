@@ -1875,6 +1875,30 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
 
     await db.leaderboard_archives.insert_one(doc)
     logger.info(f"Archive snapshot created: {category} {label} ({len(frozen_entries)} papers)")
+
+    # Pre-render badge images for top 3 papers
+    try:
+        from routers.badges import _get_badge_data, _render_badge_image
+        from core.image_store import store_image
+        slug = f"w{week}" if period_type == "weekly" else f"m{month}"
+        period_key_letter = "w" if period_type == "weekly" else "m"
+        period_num = week if period_type == "weekly" else month
+        for entry in frozen_entries[:3]:
+            if entry.get("rank", 99) > 3:
+                continue
+            try:
+                data = await _get_badge_data(category, year, period_num, entry["id"]) if period_type == "weekly" else None
+                if not data:
+                    continue
+                img_bytes = _render_badge_image(data)
+                store_key = f"badge:{period_key_letter}:{category}/{year}/{period_num}/{entry['id']}"
+                await store_image(store_key, img_bytes)
+            except Exception as e:
+                logger.warning(f"Pre-render badge failed for {entry['id']}: {e}")
+        logger.info(f"Pre-rendered badge images for {category} {label}")
+    except Exception as e:
+        logger.warning(f"Badge pre-render skipped: {e}")
+
     return doc
 
 
