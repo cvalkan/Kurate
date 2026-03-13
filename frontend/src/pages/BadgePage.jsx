@@ -81,7 +81,12 @@ export default function BadgePage() {
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
   };
 
-  const shareLinkedIn = () => {
+  const shareLinkedIn = (text) => {
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        toast.success("Text copied — paste it in your LinkedIn post!");
+      }).catch(() => {});
+    }
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, "_blank");
   };
 
@@ -105,7 +110,8 @@ export default function BadgePage() {
 
   const handleCongratsLinkedIn = () => {
     recordCongrats("linkedin");
-    shareLinkedIn();
+    const text = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!`;
+    shareLinkedIn(text);
   };
 
   // Email flow
@@ -221,7 +227,7 @@ export default function BadgePage() {
             <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => shareTwitter(authorTweet)} data-testid="author-share-x">
               <Share2 className="h-3.5 w-3.5" /> Share on X
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={shareLinkedIn} data-testid="author-share-linkedin">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => shareLinkedIn(authorTweet)} data-testid="author-share-linkedin">
               <Share2 className="h-3.5 w-3.5" /> Share on LinkedIn
             </Button>
           </div>
