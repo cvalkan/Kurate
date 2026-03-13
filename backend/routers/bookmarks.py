@@ -42,18 +42,23 @@ async def get_bookmarks(request: Request):
     for b in bookmarks:
         p = paper_map.get(b["paper_id"])
         if p:
-            paper = {k: v for k, v in p.items() if k != "_id"}
-            paper["bookmarked_at"] = bookmark_dates.get(b["paper_id"])
+            paper = {
+                "id": p["id"], "title": p.get("title", ""), "authors": p.get("authors", []),
+                "categories": p.get("categories", []), "primary_category": (p.get("categories") or [""])[0],
+                "arxiv_id": p.get("arxiv_id"), "published": p.get("published"), "link": p.get("link"),
+                "score": p.get("score"), "win_rate": p.get("win_rate"), "wins": p.get("wins"),
+                "losses": p.get("losses"), "comparisons": p.get("comparisons"),
+                "wilson_margin": p.get("wilson_margin"), "ci": p.get("ci"),
+                "ai_rating": p.get("ai_rating"), "sp_score": p.get("sp_score"),
+                "bookmarked_at": bookmark_dates.get(b["paper_id"]),
+            }
             papers.append(paper)
         else:
-            # Paper not in cache — use denormalized bookmark data
             papers.append({
-                "id": b["paper_id"],
-                "title": b.get("paper_title", ""),
-                "authors": b.get("paper_authors", []),
-                "categories": b.get("paper_categories", []),
-                "arxiv_id": b.get("paper_arxiv_id"),
-                "published": b.get("paper_published"),
+                "id": b["paper_id"], "title": b.get("paper_title", ""),
+                "authors": b.get("paper_authors", []), "categories": b.get("paper_categories", []),
+                "primary_category": (b.get("paper_categories") or [""])[0],
+                "arxiv_id": b.get("paper_arxiv_id"), "published": b.get("paper_published"),
                 "bookmarked_at": b.get("created_at"),
             })
 
