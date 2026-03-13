@@ -64,7 +64,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity min-w-0" data-testid="navbar-logo">
             <Trophy className="h-5 w-5 text-accent shrink-0" />
-            <span className="font-heading font-semibold text-lg tracking-tight shrink-0">
+            <span className="font-heading font-bold text-xl tracking-tight shrink-0">
               <span className="text-accent">Ku</span>rate<span className="text-accent">.org</span>
             </span>
             {activeLabel && (
