@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBookmarks } from "@/contexts/BookmarkContext";
 import { toast } from "sonner";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
@@ -13,6 +14,7 @@ const API = process.env.REACT_APP_BACKEND_URL || "";
 export default function ReadingListPage() {
   const { listId } = useParams();
   const { user, getAuthHeaders } = useAuth();
+  const { refreshBookmarks } = useBookmarks();
   const [list, setList] = useState(null);
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +75,7 @@ export default function ReadingListPage() {
       const res = await axios.post(`${API}/api/lists/${listId}/import-bookmarks`, {}, { withCredentials: true, headers: getAuthHeaders() });
       toast.success(`Imported ${res.data.added} paper${res.data.added !== 1 ? "s" : ""} as bookmarks`);
       setShowImport(false);
+      refreshBookmarks();
     } catch (err) { toast.error(err.response?.data?.detail || "Failed"); }
     finally { setImporting(false); }
   };

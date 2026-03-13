@@ -361,10 +361,14 @@ async def get_list_share_page(list_id: str, request: Request):
     paper_count = len(rl.get("paper_ids", []))
     image_url = f"{base_url}/api/lists/{list_id}/image.png"
     canonical = f"{base_url}/list/{list_id}"
-    redirect_url = f"/list/{list_id}"
 
     og_title = f"{name} — {paper_count} papers"
     og_desc = f"Curated by {curator} on Kurate.org" + (f" — {desc}" if desc else "")
+
+    # Don't redirect bots — let them read the OG tags
+    ua = (request.headers.get("user-agent") or "").lower()
+    is_bot = any(b in ua for b in ("linkedinbot", "twitterbot", "facebookexternalhit", "slackbot", "telegrambot", "whatsapp", "bot", "crawler", "spider"))
+    redirect_script = "" if is_bot else f'<script>window.location.replace("{canonical}");</script>'
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -385,8 +389,8 @@ async def get_list_share_page(list_id: str, request: Request):
 <meta name="twitter:image" content="{image_url}">
 </head>
 <body>
-<script>window.location.replace("{redirect_url}");</script>
-<p>Redirecting to <a href="{redirect_url}">{name}</a>...</p>
+{redirect_script}
+<p>Redirecting to <a href="{canonical}">{name}</a>...</p>
 </body>
 </html>"""
 

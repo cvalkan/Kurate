@@ -17,6 +17,14 @@ export function BookmarkProvider({ children }) {
       .catch(() => {});
   }, [user, getAuthHeaders]);
 
+  const refreshBookmarks = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await axios.get(`${API}/api/bookmarks/ids`, { withCredentials: true, headers: getAuthHeaders() });
+      setBookmarkedIds(new Set(res.data.paper_ids || []));
+    } catch {}
+  }, [user, getAuthHeaders]);
+
   const toggleBookmark = useCallback(async (paperId) => {
     if (!user) { toast.error("Sign in to bookmark papers"); return; }
     const headers = { ...getAuthHeaders(), "Content-Type": "application/json" };
@@ -46,7 +54,7 @@ export function BookmarkProvider({ children }) {
   }, [user, getAuthHeaders, bookmarkedIds]);
 
   return (
-    <BookmarkContext.Provider value={{ bookmarkedIds, toggleBookmark }}>
+    <BookmarkContext.Provider value={{ bookmarkedIds, toggleBookmark, refreshBookmarks }}>
       {children}
     </BookmarkContext.Provider>
   );
