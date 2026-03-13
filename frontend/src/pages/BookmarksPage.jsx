@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Bookmark } from "lucide-react";
+import { Bookmark, List, Plus, Trash2, ExternalLink, Copy, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBookmarks } from "@/contexts/BookmarkContext";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
@@ -18,20 +21,28 @@ export default function BookmarksPage() {
   const [displayCount, setDisplayCount] = useState(50);
   const [sortKey, setSortKey] = useState("");
   const [sortDir, setSortDir] = useState("desc");
-
   const [showRatingCol, setShowRatingCol] = useState(true);
   const [showGapCol, setShowGapCol] = useState(true);
 
+  // Reading lists state
+  const [myLists, setMyLists] = useState([]);
+  const [showCreateList, setShowCreateList] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [newListDesc, setNewListDesc] = useState("");
+  const [creating, setCreating] = useState(false);
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    // Fetch bookmarks + admin column visibility settings in parallel
+    const headers = getAuthHeaders();
     Promise.all([
-      axios.get(`${API}/api/bookmarks`, { withCredentials: true, headers: getAuthHeaders() }),
+      axios.get(`${API}/api/bookmarks`, { withCredentials: true, headers }),
       axios.get(`${API}/api/leaderboard?category=cs.RO&period=week`),
-    ]).then(([bkRes, lbRes]) => {
+      axios.get(`${API}/api/lists`, { withCredentials: true, headers }),
+    ]).then(([bkRes, lbRes, listsRes]) => {
       setPapers(bkRes.data.papers || []);
       if (lbRes.data.show_rating_column !== undefined) setShowRatingCol(lbRes.data.show_rating_column);
       if (lbRes.data.show_gap_column !== undefined) setShowGapCol(lbRes.data.show_gap_column);
+      setMyLists(listsRes.data.lists || []);
     }).catch(() => {})
       .finally(() => setLoading(false));
   }, [user, getAuthHeaders]);
@@ -46,6 +57,34 @@ export default function BookmarksPage() {
     setPapers(prev => prev.filter(p => p.id !== paperId));
   };
 
+  const createListFromBookmarks = async () => {
+    if (!newListName.trim()) { toast.error("Enter a list name"); return; }
+    setCreating(true);
+    try {
+      const filtered = filter ? papers.filter(p => (p.categories || []).includes(filter)) : papers;
+      const res = await axios.post(`${API}/api/lists/from-bookmarks`, {
+        name: newListName.trim(),
+        description: newListDesc.trim(),
+        paper_ids: filtered.map(p => p.id),
+      }, { withCredentials: true, headers: { ...getAuthHeaders(), "Content-Type": "application/json" } });
+      setMyLists(prev => [res.data.list, ...prev]);
+      setShowCreateList(false);
+      setNewListName("");
+      setNewListDesc("");
+      toast.success("Reading list created!");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to create list");
+    } finally { setCreating(false); }
+  };
+
+  const deleteList = async (listId) => {
+    try {
+      await axios.delete(`${API}/api/lists/${listId}`, { withCredentials: true, headers: getAuthHeaders() });
+      setMyLists(prev => prev.filter(l => l.list_id !== listId));
+      toast.success("List deleted");
+    } catch { toast.error("Failed to delete"); }
+  };
+
   if (!user) {
     return (
       <div className="container mx-auto px-4 max-w-3xl py-20 text-center text-muted-foreground">
@@ -57,8 +96,6 @@ export default function BookmarksPage() {
 
   const categories = [...new Set(papers.flatMap(p => p.categories || []))];
   const filtered = filter ? papers.filter(p => (p.categories || []).includes(filter)) : papers;
-
-  // Add rank for display (rank by bookmark order or score)
   const ranked = filtered.map((p, i) => ({ ...p, rank: i + 1, _displayRank: i + 1 }));
 
   if (loading) {
@@ -72,11 +109,58 @@ export default function BookmarksPage() {
   return (
     <TooltipProvider delayDuration={200}>
     <div className="container mx-auto px-4 md:px-6 max-w-7xl py-8 md:py-10">
-      <div className="mb-6">
-        <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-1" data-testid="bookmarks-title">Bookmarks</h1>
-        <p className="text-sm text-muted-foreground">{papers.length} saved paper{papers.length !== 1 ? "s" : ""}</p>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-1" data-testid="bookmarks-title">Bookmarks</h1>
+          <p className="text-sm text-muted-foreground">{papers.length} saved paper{papers.length !== 1 ? "s" : ""}</p>
+        </div>
+        {papers.length > 0 && (
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setShowCreateList(!showCreateList)} data-testid="create-list-btn">
+            <List className="h-3.5 w-3.5" /> Create reading list
+          </Button>
+        )}
       </div>
 
+      {/* Create reading list form */}
+      {showCreateList && (
+        <div className="mb-6 p-4 border border-border rounded-lg bg-secondary/10 space-y-3" data-testid="create-list-form">
+          <h3 className="text-sm font-medium">Create a shareable reading list{filter ? ` from ${filter} bookmarks` : " from all bookmarks"}</h3>
+          <Input value={newListName} onChange={e => setNewListName(e.target.value)} placeholder="List name, e.g. Best Robotics Papers Q1 2026" className="text-sm" data-testid="list-name-input" />
+          <Input value={newListDesc} onChange={e => setNewListDesc(e.target.value)} placeholder="Description (optional)" className="text-sm" data-testid="list-desc-input" />
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="gap-1.5" onClick={createListFromBookmarks} disabled={creating} data-testid="create-list-submit">
+              <Plus className="h-3.5 w-3.5" /> {creating ? "Creating..." : `Create with ${filtered.length} papers`}
+            </Button>
+            <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowCreateList(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* My reading lists */}
+      {myLists.length > 0 && (
+        <div className="mb-6" data-testid="my-lists">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">My Reading Lists</h3>
+          <div className="space-y-1.5">
+            {myLists.map(l => (
+              <div key={l.list_id} className="flex items-center gap-3 px-3 py-2 border border-border rounded-lg hover:bg-secondary/20 transition-colors group">
+                <List className="h-3.5 w-3.5 text-accent shrink-0" />
+                <Link to={`/list/${l.list_id}`} className="flex-1 min-w-0 text-sm font-medium hover:text-accent transition-colors truncate">
+                  {l.name}
+                </Link>
+                <span className="text-[10px] text-muted-foreground shrink-0">{(l.paper_ids || []).length} papers</span>
+                <CopyButton url={`${window.location.origin}/list/${l.list_id}`} />
+                <button onClick={() => deleteList(l.list_id)}
+                  className="text-muted-foreground/30 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                  title="Delete list" data-testid={`delete-list-${l.list_id}`}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Category filters */}
       {categories.length > 1 && (
         <div className="flex flex-wrap gap-1.5 mb-6" data-testid="bookmark-filters">
           <button onClick={() => setFilter("")}
@@ -90,6 +174,7 @@ export default function BookmarksPage() {
         </div>
       )}
 
+      {/* Bookmarks table */}
       {ranked.length === 0 ? (
         <div className="p-12 text-center text-muted-foreground border border-border rounded-lg">
           <Bookmark className="h-8 w-8 mx-auto mb-3 opacity-30" />
@@ -121,5 +206,15 @@ export default function BookmarksPage() {
       )}
     </div>
     </TooltipProvider>
+  );
+}
+
+function CopyButton({ url }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(url); setCopied(true); toast.success("Link copied!"); setTimeout(() => setCopied(false), 2000); }}
+      className="text-muted-foreground/50 hover:text-accent transition-colors shrink-0" title="Copy share link">
+      {copied ? <Check className="h-3 w-3" /> : <ExternalLink className="h-3 w-3" />}
+    </button>
   );
 }

@@ -17,6 +17,7 @@ import OrcidCallbackPage from "@/pages/OrcidCallbackPage";
 import BadgePage from "@/pages/BadgePage";
 import ProfilePage from "@/pages/ProfilePage";
 import BookmarksPage from "@/pages/BookmarksPage";
+import ReadingListPage from "@/pages/ReadingListPage";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -46,6 +47,7 @@ function AppRouter() {
           <Route path="/badge/:category/:year/:slug/:paperId" element={<BadgePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/bookmarks" element={<BookmarksPage />} />
+          <Route path="/list/:listId" element={<ReadingListPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
         </Routes>
       </main>
