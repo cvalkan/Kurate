@@ -123,7 +123,9 @@ async def get_badge_share_page(category: str, year: int, week: int, paper_id: st
     """Server-rendered HTML page with OG meta tags for social sharing.
     Crawlers (Twitter, LinkedIn) get the OG tags. Browsers get redirected to the SPA."""
     data = await _get_badge_data(category, year, week, paper_id)
-    base_url = SITE_URL or f"{request.headers.get('x-forwarded-proto', 'https')}://{request.headers.get('host', '')}"
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    proto = request.headers.get("x-forwarded-proto", "https")
+    base_url = f"{proto}://{host}" if host and "cluster" not in host else SITE_URL
     return _render_share_html(data, category, year, f"w{week}", paper_id, base_url)
 
 
@@ -147,7 +149,9 @@ async def get_monthly_badge_share_page(category: str, year: int, month: int, pap
     # Fetch full categories from papers collection
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
     data["categories"] = paper_doc["categories"] if paper_doc and paper_doc.get("categories") else [category]
-    base_url = SITE_URL or f"{request.headers.get('x-forwarded-proto', 'https')}://{request.headers.get('host', '')}"
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    proto = request.headers.get("x-forwarded-proto", "https")
+    base_url = f"{proto}://{host}" if host and "cluster" not in host else SITE_URL
     return _render_share_html(data, category, year, f"m{month}", paper_id, base_url)
 
 
