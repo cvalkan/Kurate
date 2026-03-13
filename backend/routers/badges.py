@@ -342,7 +342,7 @@ def _render_badge_image(data: dict) -> bytes:
     svg = svg.replace(">79.5%<", f">{win_rate}%<")
 
     # Render SVG to PNG at standard OG size (1200x630 = 1.91:1 ratio)
-    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=1200, output_height=630)
+    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=2400, output_height=1260)
 
 # Monthly badges
 @router.get("/{category}/{year}/m{month}/{paper_id}")

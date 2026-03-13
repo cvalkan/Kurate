@@ -524,4 +524,4 @@ def _render_list_image(name: str, description: str, curator: str, papers: list, 
   {rows_svg}
 </svg>"""
 
-    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=1200, output_height=735)
+    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=2400, output_height=1470)
