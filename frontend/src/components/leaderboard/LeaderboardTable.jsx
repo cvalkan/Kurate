@@ -119,13 +119,13 @@ export function LeaderboardTable({
   }, []);
 
   const cols = ["2.5rem", "1fr"]; // # + Paper
-  if (showCatCol && !isMobile) cols.push("4rem"); // Cat
-  cols.push(isMobile ? "3.5rem" : "4.5rem"); // Score
-  if (!isMobile) cols.push("4rem"); // Win%
-  if (!isMobile && !isTablet) cols.push("4rem"); // CI
-  if (!isMobile) cols.push("3.5rem"); // Match
-  if (showRatingCol && !isMobile && !isTablet) cols.push("3.2rem"); // Rating
-  if (showGapCol && !isMobile && !isTablet) cols.push("3.2rem"); // Gap
+  if (showCatCol && !isMobile) cols.push("3.5rem"); // Cat
+  cols.push(isMobile ? "3.5rem" : "4rem"); // Score
+  if (!isMobile) cols.push("3.5rem"); // Win%
+  if (!isMobile && !isTablet) cols.push("3.5rem"); // CI
+  if (!isMobile) cols.push("3rem"); // Match
+  if (showRatingCol && !isMobile && !isTablet) cols.push("3rem"); // Rating
+  if (showGapCol && !isMobile && !isTablet) cols.push("3rem"); // Gap
   if (!isMobile) cols.push("5.5rem"); // Published
   if (bookmarksMode && !isMobile) cols.push("5.5rem"); // Bookmarked
   if (bookmarksMode) cols.push("1.5rem"); // Remove
