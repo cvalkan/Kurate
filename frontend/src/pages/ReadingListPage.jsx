@@ -181,17 +181,6 @@ export default function ReadingListPage() {
         </div>
       </div>
 
-      {/* OG image preview */}
-      <div className="mb-6 rounded-xl border border-border overflow-hidden bg-white max-w-lg" data-testid="list-og-preview">
-        <div className="relative">
-          <img src={`${API}/api/lists/${listId}/image.png`} alt="List preview" className="w-full" loading="eager"
-            onLoad={e => e.target.parentElement.querySelector('[data-loader]')?.remove()} />
-          <div data-loader className="absolute inset-0 flex items-center justify-center bg-secondary/30 animate-pulse" style={{aspectRatio: '1200/735'}}>
-            <span className="text-sm text-muted-foreground">Loading preview...</span>
-          </div>
-        </div>
-      </div>
-
       {ranked.length === 0 ? (
         <div className="p-12 text-center text-muted-foreground border border-border rounded-lg">
           <List className="h-8 w-8 mx-auto mb-3 opacity-30" />

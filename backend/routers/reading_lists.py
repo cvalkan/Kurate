@@ -424,7 +424,7 @@ def _render_list_image(name: str, description: str, curator: str, papers: list, 
     rows_svg = ""
     y = 180
     for i, p in enumerate(show):
-        title = _esc(p.get("title", "")[:70] + ("..." if len(p.get("title", "")) > 70 else ""))
+        title = _esc(p.get("title", "")[:60] + ("..." if len(p.get("title", "")) > 60 else ""))
         authors = _esc(", ".join(p.get("authors", [])[:3]) + (" +" + str(len(p["authors"]) - 3) if len(p.get("authors", [])) > 3 else ""))
         score = p.get("score", "—")
         cat = _esc((p.get("categories") or [""])[0])
@@ -433,8 +433,8 @@ def _render_list_image(name: str, description: str, curator: str, papers: list, 
     <rect x="30" y="{y}" width="580" height="58" rx="4" fill="{bg}"/>
     <text x="50" y="{y+24}" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#1a1a2e">{title}</text>
     <text x="50" y="{y+44}" font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">{authors}</text>
-    <text x="560" y="{y+24}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#4285F4" text-anchor="end">{score}</text>
-    <text x="560" y="{y+44}" font-family="system-ui, sans-serif" font-size="10" fill="#9ca3af" text-anchor="end">{cat}</text>"""
+    <text x="590" y="{y+24}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#4285F4" text-anchor="end">{score}</text>
+    <text x="590" y="{y+44}" font-family="system-ui, sans-serif" font-size="10" fill="#9ca3af" text-anchor="end">{cat}</text>"""
         y += 62
 
     if total > len(show):
@@ -458,7 +458,7 @@ def _render_list_image(name: str, description: str, curator: str, papers: list, 
   <!-- Header row -->
   <rect x="30" y="160" width="580" height="18" fill="#f0f4f8" rx="2"/>
   <text x="50" y="173" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#6b7280">Paper</text>
-  <text x="560" y="173" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#6b7280" text-anchor="end">Score</text>
+  <text x="590" y="173" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#6b7280" text-anchor="end">Score</text>
 
   {rows_svg}
 </svg>"""
