@@ -32,10 +32,9 @@ async def get_bookmarks(request: Request):
     if not bookmarks:
         return {"bookmarks": [], "papers": []}
 
-    # Fetch current paper data with scores from cache
-    from routers.leaderboard import _cache as lb_cache
-    all_papers = lb_cache.get("_raw_papers", [])
-    paper_map = {p["id"]: p for p in all_papers}
+    # Fetch current paper data with scores from leaderboard cache
+    from routers.reading_lists import _build_enriched_paper_map
+    paper_map = _build_enriched_paper_map()
     bookmark_dates = {b["paper_id"]: b.get("created_at") for b in bookmarks}
 
     papers = []

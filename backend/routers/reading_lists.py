@@ -21,6 +21,33 @@ def _esc(t):
     return html_mod.escape(str(t))
 
 
+def _build_enriched_paper_map():
+    """Build paper map from leaderboard cache with computed scores."""
+    from routers.leaderboard import _cache as lb_cache
+    paper_map = {}
+    # First, load raw papers for metadata (authors, categories, etc.)
+    for p in lb_cache.get("_raw_papers", []):
+        paper_map[p["id"]] = dict(p)
+    # Then overlay computed scores from per-category leaderboard entries
+    for cat_data in lb_cache.get("categories", {}).values():
+        for entry in cat_data.get("leaderboard", []):
+            pid = entry.get("id")
+            if pid in paper_map:
+                paper_map[pid].update({
+                    "score": entry.get("score"),
+                    "win_rate": entry.get("win_rate"),
+                    "wins": entry.get("wins"),
+                    "losses": entry.get("losses"),
+                    "comparisons": entry.get("comparisons"),
+                    "wilson_margin": entry.get("wilson_margin"),
+                    "ci": entry.get("ci"),
+                    "sp_score": entry.get("sp_score"),
+                })
+            else:
+                paper_map[pid] = dict(entry)
+    return paper_map
+
+
 async def _get_current_user(request: Request) -> Optional[dict]:
     from routers.auth import _get_current_user as _auth_get_user
     return await _auth_get_user(request)
@@ -140,10 +167,8 @@ async def get_public_list(list_id: str, request: Request):
         if not user or user["user_id"] != rl.get("user_id"):
             raise HTTPException(404, "Reading list not found")
 
-    # Enrich with paper data from leaderboard cache
-    from routers.leaderboard import _cache as lb_cache
-    all_papers = lb_cache.get("_raw_papers", [])
-    paper_map = {p["id"]: p for p in all_papers}
+    # Enrich with paper data from leaderboard cache (with computed scores)
+    paper_map = _build_enriched_paper_map()
 
     papers = []
     for pid in rl.get("paper_ids", []):
@@ -402,9 +427,7 @@ async def get_list_image(list_id: str):
     if not rl:
         raise HTTPException(404, "Reading list not found")
 
-    from routers.leaderboard import _cache as lb_cache
-    all_papers = lb_cache.get("_raw_papers", [])
-    paper_map = {p["id"]: p for p in all_papers}
+    paper_map = _build_enriched_paper_map()
     papers = []
     for pid in rl.get("paper_ids", [])[:8]:
         p = paper_map.get(pid)
