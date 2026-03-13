@@ -116,12 +116,14 @@ export default function BadgePage() {
     setShowEmail(true);
     // Pre-fill template
     const arxivLine = arxivUrl ? `\narXiv: ${arxivUrl}` : "";
+    const badgeImageUrl = `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
     setEmailSubject(`Congratulations on ranking #${data.rank} in ${data.category_name} (${data.archive_label})`);
     setEmailBody(
       `Hi,\n\n` +
       `Congratulations on your paper "${data.title}" ranking #${data.rank} in ${data.category_name} Preprints for ${data.archive_label} on Kurate.org!\n\n` +
-      `This is a remarkable achievement. The ranking is based on AI-estimated scientific impact via pairwise tournament judging.\n\n` +
-      `View and share your badge: ${shareUrl}${arxivLine}\n\n` +
+      `This is a remarkable achievement. The ranking is based on AI-estimated scientific impact via pairwise tournament judging. Learn more about the methodology: https://kurate.org/methodology\n\n` +
+      `Your badge: ${shareUrl}\n` +
+      `Badge image: ${badgeImageUrl}${arxivLine}\n\n` +
       `Best regards`
     );
     // Try to extract emails
