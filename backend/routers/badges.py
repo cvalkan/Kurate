@@ -12,6 +12,12 @@ from core.config import db, logger
 
 router = APIRouter(prefix="/api/badge")
 
+import os
+_cors = os.environ.get("CORS_ORIGINS", "")
+SITE_URL = os.environ.get("SITE_URL", "")
+if not SITE_URL and _cors and _cors != "*":
+    SITE_URL = _cors.split(",")[0].strip()  # e.g. "https://kurate.org"
+
 CATEGORIES = {
     "cs.RO": "Robotics", "cs.DC": "Distributed Computing", "econ.GN": "Economics",
     "physics.comp-ph": "Computational Physics", "q-bio.BM": "Biomolecules",
@@ -110,9 +116,7 @@ async def get_badge_share_page(category: str, year: int, week: int, paper_id: st
     """Server-rendered HTML page with OG meta tags for social sharing.
     Crawlers (Twitter, LinkedIn) get the OG tags. Browsers get redirected to the SPA."""
     data = await _get_badge_data(category, year, week, paper_id)
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", ""))
-    scheme = request.headers.get("x-forwarded-proto", "https")
-    base_url = f"{scheme}://{host}"
+    base_url = SITE_URL or f"{request.headers.get('x-forwarded-proto', 'https')}://{request.headers.get('host', '')}"
     return _render_share_html(data, category, year, f"w{week}", paper_id, base_url)
 
 
@@ -133,7 +137,7 @@ async def get_monthly_badge_share_page(category: str, year: int, month: int, pap
     data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
             "category": category, "category_name": CATEGORIES.get(category, category),
             "paper_count": archive.get("paper_count", len(lb)), "year": year}
-    base_url = f"{request.headers.get('x-forwarded-proto', 'https')}://{request.headers.get('x-forwarded-host', request.headers.get('host', ''))}"
+    base_url = SITE_URL or f"{request.headers.get('x-forwarded-proto', 'https')}://{request.headers.get('host', '')}"
     return _render_share_html(data, category, year, f"m{month}", paper_id, base_url)
 
 
