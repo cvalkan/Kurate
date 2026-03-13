@@ -62,6 +62,7 @@ class SettingsUpdate(BaseModel):
     admin_password: Optional[str] = None
     show_rating_column: Optional[bool] = None
     show_gap_column: Optional[bool] = None
+    congrats_per_week: Optional[int] = None
 
 
 class PromptUpdate(BaseModel):

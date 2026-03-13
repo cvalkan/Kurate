@@ -1,11 +1,14 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 import os
 import time as _time
 import asyncio
+from datetime import datetime, timezone
 from collections import defaultdict
 from core.config import db, logger
+
+SITE_URL = os.environ.get("SITE_URL", "")
 from routers.leaderboard import router as leaderboard_router
 from routers.admin import router as admin_router
 from routers.auth import router as auth_router
@@ -19,6 +22,7 @@ from routers.qeios import router as qeios_router
 from routers.summary_bias import router as summary_bias_router
 from routers.claims import router as claims_router
 from routers.badges import router as badges_router
+from routers.congrats import router as congrats_router
 from services.scheduler import start_scheduler
 
 app = FastAPI(title="PaperSumo - Robotics Paper Leaderboard")
@@ -118,6 +122,7 @@ app.include_router(qeios_router)
 app.include_router(summary_bias_router)
 app.include_router(claims_router)
 app.include_router(badges_router)
+app.include_router(congrats_router)
 
 _cors_raw = os.environ.get("CORS_ORIGINS", "https://kurate.org,https://www.kurate.org,https://papersumo.kurate.org")
 _cors_allow_all = _cors_raw.strip() == "*"
@@ -137,6 +142,44 @@ app.add_middleware(
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "service": "papersumo-leaderboard"}
+
+
+@app.get("/api/gmail/callback")
+async def gmail_callback(code: str, state: str, request: Request):
+    """Handle Gmail OAuth callback — exchange code for tokens."""
+    import warnings
+    state_doc = await db.gmail_oauth_states.find_one({"state": state}, {"_id": 0})
+    if not state_doc:
+        raise HTTPException(400, "Invalid or expired OAuth state")
+    await db.gmail_oauth_states.delete_one({"state": state})
+
+    user_id = state_doc["user_id"]
+    return_to = state_doc.get("return_to", "/")
+
+    redirect_uri = SITE_URL + "/api/gmail/callback" if SITE_URL else f"{request.headers.get('origin', '')}/api/gmail/callback"
+    from routers.congrats import _build_flow
+    flow = _build_flow(redirect_uri)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        flow.fetch_token(code=code)
+
+    creds = flow.credentials
+    await db.gmail_tokens.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "user_id": user_id,
+            "access_token": creds.token,
+            "refresh_token": creds.refresh_token,
+            "token_uri": creds.token_uri,
+            "client_id": creds.client_id,
+            "client_secret": creds.client_secret,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    logger.info(f"Gmail authorized for user {user_id}")
+    # Redirect back to the badge page
+    return RedirectResponse(url=return_to or "/")
 
 
 @app.on_event("startup")
