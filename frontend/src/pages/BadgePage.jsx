@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import axios from "axios";
-import { Trophy, ExternalLink, Share2, Copy, Check, Heart, LogIn, Mail, Loader2, Send, Edit3 } from "lucide-react";
+import { Trophy, ExternalLink, Share2, Copy, Check, Heart, LogIn, Mail, Loader2, Send, Edit3, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -232,6 +232,9 @@ export default function BadgePage() {
             <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => shareLinkedIn(authorTweet)} data-testid="author-share-linkedin">
               <Share2 className="h-3.5 w-3.5" /> Share on LinkedIn
             </Button>
+            <a href={imageUrl} download={`kurate-badge-${data.tier?.toLowerCase()}.png`} className="inline-flex items-center gap-1.5 text-xs px-3 h-8 rounded-md border border-input bg-background hover:bg-secondary/50 transition-colors font-medium" data-testid="download-badge-img">
+              <Download className="h-3.5 w-3.5" /> Download image
+            </a>
           </div>
         </div>
 

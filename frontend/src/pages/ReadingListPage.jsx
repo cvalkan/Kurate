@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { List, ExternalLink, Copy, Check, User, Share2, Bookmark, Plus, ChevronDown, ChevronLeft } from "lucide-react";
+import { List, ExternalLink, Copy, Check, User, Share2, Bookmark, Plus, ChevronDown, ChevronLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -152,6 +152,9 @@ export default function ReadingListPage() {
           <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={shareLinkedIn} data-testid="share-linkedin-btn">
             <Share2 className="h-3.5 w-3.5" /> Share on LinkedIn
           </Button>
+          <a href={`${API}/api/lists/${listId}/image.png`} download={`kurate-list-${listId}.png`} className="inline-flex items-center gap-1.5 text-xs px-3 h-8 rounded-md border border-input bg-background hover:bg-secondary/50 transition-colors font-medium" data-testid="download-list-img">
+            <Download className="h-3.5 w-3.5" /> Download image
+          </a>
           {user && (
             <div className="relative">
               <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setShowImport(!showImport)} data-testid="import-btn">
