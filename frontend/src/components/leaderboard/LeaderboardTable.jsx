@@ -119,16 +119,16 @@ export function LeaderboardTable({
   }, []);
 
   const cols = ["2.5rem", "1fr"]; // # + Paper
-  if (showCatCol && !isMobile) cols.push("4.5rem"); // Cat
-  cols.push(isMobile ? "3.5rem" : "5rem"); // Score
-  if (!isMobile) cols.push("4.5rem"); // Win%
-  if (!isMobile && !isTablet) cols.push("4.5rem"); // CI
-  if (!isMobile) cols.push("4rem"); // Match
-  if (showRatingCol && !isMobile && !isTablet) cols.push("3.5rem"); // Rating
-  if (showGapCol && !isMobile && !isTablet) cols.push("3.5rem"); // Gap
-  if (!isMobile) cols.push("6rem"); // Published
+  if (showCatCol && !isMobile) cols.push("4rem"); // Cat
+  cols.push(isMobile ? "3.5rem" : "4.5rem"); // Score
+  if (!isMobile) cols.push("4rem"); // Win%
+  if (!isMobile && !isTablet) cols.push("4rem"); // CI
+  if (!isMobile) cols.push("3.5rem"); // Match
+  if (showRatingCol && !isMobile && !isTablet) cols.push("3.2rem"); // Rating
+  if (showGapCol && !isMobile && !isTablet) cols.push("3.2rem"); // Gap
+  if (!isMobile) cols.push("5.5rem"); // Published
   if (bookmarksMode && !isMobile) cols.push("5.5rem"); // Bookmarked
-  if (bookmarksMode) cols.push("2rem"); // Remove
+  if (bookmarksMode) cols.push("1.5rem"); // Remove
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
@@ -214,12 +214,12 @@ export function LeaderboardTable({
             {!isMobile && <div className="text-right text-xs text-muted-foreground">
               {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
             </div>}
-            {bookmarksMode && !isMobile && <div className="text-right text-[10px] text-muted-foreground">
-              {paper.bookmarked_at ? new Date(paper.bookmarked_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+            {bookmarksMode && !isMobile && <div className="text-right text-xs text-muted-foreground">
+              {paper.bookmarked_at ? new Date(paper.bookmarked_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—"}
             </div>}
             {bookmarksMode && (
               <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemoveBookmark?.(paper.id); }}
-                className="flex items-center justify-center text-muted-foreground/30 hover:text-red-500 transition-colors"
+                className="flex items-center justify-center text-red-400 hover:text-red-600 transition-colors"
                 title="Remove bookmark" data-testid={`remove-bm-${paper.id}`}>
                 <X className="h-3.5 w-3.5" />
               </button>
