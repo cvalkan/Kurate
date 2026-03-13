@@ -285,7 +285,7 @@ export default function BadgePage() {
                     <Textarea
                       value={emailBody}
                       onChange={e => setEmailBody(e.target.value)}
-                      rows={6} className="text-sm" data-testid="email-body-input"
+                      rows={12} className="text-sm" data-testid="email-body-input"
                     />
                   </div>
                   <div className="flex items-center gap-2">
