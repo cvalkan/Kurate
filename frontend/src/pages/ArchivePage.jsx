@@ -7,6 +7,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+const CATEGORY_NAMES = {
+  "cs.RO": "Robotics", "cs.DC": "Distributed Computing", "econ.GN": "Economics",
+  "physics.comp-ph": "Computational Physics", "q-bio.BM": "Biomolecules",
+  "cs.GT": "Game Theory", "physics.chem-ph": "Chemical Physics",
+  "chemrxiv.IC": "Inorganic Chemistry", "cs.CR": "Cryptography & Security",
+  "cs.IT": "Information Theory",
+};
+
 export default function ArchivePage() {
   const { category, year, weekOrMonth } = useParams();
   const [archive, setArchive] = useState(null);
@@ -65,11 +73,11 @@ export default function ArchivePage() {
           <div className="flex items-center gap-3 mb-1">
             <Archive className="h-5 w-5 text-accent" />
             <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight" data-testid="archive-title">
-              {archive.label}
+              {CATEGORY_NAMES[category] || category} — {archive.label}
             </h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            Frozen leaderboard snapshot for <span className="font-medium text-foreground">{category}</span>.
+            Frozen leaderboard snapshot.
             {" "}{entries.length} papers, {archive.match_count?.toLocaleString()} matches.
             {" "}Archived {new Date(archive.created_at).toLocaleDateString()}.
           </p>
