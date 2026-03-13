@@ -153,7 +153,7 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
     tier_name = tier["name"]
 
     # Absolute URLs for social crawlers (v=2 busts Twitter/LinkedIn cache)
-    image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png?v=2"
+    image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png?v=3"
     # Redirect browsers to the archive page with the paper highlighted
     redirect_url = f"/?cat={category}&archive={year}-{slug}"
     canonical_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/share"

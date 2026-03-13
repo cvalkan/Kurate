@@ -36,20 +36,20 @@
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
     <clipPath id="headerClip">
-      <rect x="12" y="12" width="616" height="52" rx="12" ry="12"/>
+      <rect x="0" y="0" width="640" height="52" rx="0" ry="0"/>
     </clipPath>
   </defs>
 
   <!-- Card background -->
-  <rect x="12" y="12" width="616" height="368" rx="14" ry="14" fill="#ffffff" filter="url(#cardShadow)"/>
+  <rect x="0" y="0" width="640" height="392" rx="0" ry="0" fill="#ffffff"/>
 
   <!-- Header bar -->
-  <rect x="12" y="12" width="616" height="52" fill="#f0f4f8" clip-path="url(#headerClip)"/>
-  <rect x="12" y="48" width="616" height="16" fill="#f0f4f8"/>
-  <line x1="12" y1="64" x2="628" y2="64" stroke="#dde3ea" stroke-width="1"/>
+  <rect x="0" y="0" width="640" height="52" fill="#f0f4f8"/>
+  <rect x="0" y="48" width="640" height="16" fill="#f0f4f8"/>
+  <line x1="0" y1="64" x2="640" y2="64" stroke="#dde3ea" stroke-width="1"/>
 
   <!-- Header text -->
-  <text x="32" y="45" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="500" fill="#6b6b6b">
+  <text x="20" y="45" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="500" fill="#6b6b6b">
     <tspan>Week 11, 2026</tspan>
     <tspan fill="#bbb"> · </tspan>
     <tspan>Robotics Preprints</tspan>
@@ -90,7 +90,7 @@
   <text x="114" y="219" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b7280">cs.RO · cs.AI · cs.LG</text>
 
   <!-- Stat boxes -->
-  <rect x="32" y="240" width="184" height="66" rx="10" ry="10" fill="#f0f4f8" stroke="#dde3ea" stroke-width="1"/>
+  <rect x="20" y="240" width="184" height="66" rx="10" ry="10" fill="#f0f4f8" stroke="#dde3ea" stroke-width="1"/>
   <text x="124" y="264" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="700" fill="#4285F4">Top 3 of 264</text>
   <text x="124" y="288" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b7280">Papers</text>
 
@@ -103,9 +103,9 @@
   <text x="516" y="288" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b7280">Win Rate</text>
 
   <!-- Separator -->
-  <line x1="32" y1="330" x2="608" y2="330" stroke="#dde3ea" stroke-width="1"/>
+  <line x1="20" y1="330" x2="620" y2="330" stroke="#dde3ea" stroke-width="1"/>
 
   <!-- Footer -->
-  <text x="32" y="358" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" fill="#6b7280">Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament</text>
+  <text x="20" y="358" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" fill="#6b7280">Ranked by scientific impact (novelty, rigor, significance, clarity) via AI pairwise tournament</text>
 
 </svg>
