@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { List, ExternalLink, Copy, Check, User, Share2, Bookmark, Plus, ChevronDown } from "lucide-react";
+import { List, ExternalLink, Copy, Check, User, Share2, Bookmark, Plus, ChevronDown, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -122,6 +122,9 @@ export default function ReadingListPage() {
     <TooltipProvider delayDuration={200}>
     <div className="container mx-auto px-4 md:px-6 max-w-7xl py-8 md:py-10">
       <div className="mb-6">
+        <button onClick={() => window.history.back()} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2 transition-colors">
+          <ChevronLeft className="h-3 w-3" /> Back
+        </button>
         <div className="flex items-start justify-between gap-4 mb-1">
           <div>
             <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight" data-testid="list-title">{list.name}</h1>
