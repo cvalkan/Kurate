@@ -102,7 +102,7 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
     data = await _get_badge_data(category, year, week, paper_id)
     img_bytes = _render_badge_image(data)
     return Response(content=img_bytes, media_type="image/png",
-                    headers={"Cache-Control": "public, max-age=86400"})
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 @router.get("/{category}/{year}/w{week}/{paper_id}/share", response_class=HTMLResponse)
@@ -152,8 +152,8 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
     score = p.get("score", "?")
     tier_name = tier["name"]
 
-    # Absolute URLs for social crawlers
-    image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png"
+    # Absolute URLs for social crawlers (v=2 busts Twitter/LinkedIn cache)
+    image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png?v=2"
     # Redirect browsers to the archive page with the paper highlighted
     redirect_url = f"/?cat={category}&archive={year}-{slug}"
     canonical_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/share"
@@ -286,8 +286,8 @@ def _render_badge_image(data: dict) -> bytes:
     svg = svg.replace(">89.2%<", f">{win_rate}%<")
     svg = svg.replace(">79.5%<", f">{win_rate}%<")
 
-    # Render SVG to PNG at OG image size (1200x630)
-    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=1280, output_height=784)
+    # Render SVG to PNG at standard OG size (1200x630 = 1.91:1 ratio)
+    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=1200, output_height=630)
 
 # Monthly badges
 @router.get("/{category}/{year}/m{month}/{paper_id}")
@@ -427,7 +427,7 @@ async def get_monthly_badge_image(category: str, year: int, month: int, paper_id
     }
     img_bytes = _render_badge_image(data)
     return Response(content=img_bytes, media_type="image/png",
-                    headers={"Cache-Control": "public, max-age=86400"})
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 @router.get("/{category}/badges")
