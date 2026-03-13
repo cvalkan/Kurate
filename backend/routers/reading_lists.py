@@ -30,7 +30,7 @@ def _build_enriched_paper_map():
         paper_map[p["id"]] = dict(p)
     # Then overlay computed scores from per-category leaderboard entries
     for cat_data in lb_cache.get("categories", {}).values():
-        for entry in cat_data.get("leaderboard", []):
+        for entry in cat_data.get("all", []):
             pid = entry.get("id")
             if pid in paper_map:
                 paper_map[pid].update({
