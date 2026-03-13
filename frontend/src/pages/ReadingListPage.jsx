@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
-import { List, ExternalLink, Copy, Check, User } from "lucide-react";
+import { List, ExternalLink, Copy, Check, User, Share2, Bookmark, Plus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -21,6 +21,11 @@ export default function ReadingListPage() {
   const [sortKey, setSortKey] = useState("");
   const [sortDir, setSortDir] = useState("desc");
 
+  // Import state
+  const [showImport, setShowImport] = useState(false);
+  const [myLists, setMyLists] = useState([]);
+  const [importing, setImporting] = useState(false);
+
   useEffect(() => {
     axios.get(`${API}/api/lists/public/${listId}`)
       .then(res => { setList(res.data.list); setPapers(res.data.papers || []); })
@@ -28,26 +33,69 @@ export default function ReadingListPage() {
       .finally(() => setLoading(false));
   }, [listId]);
 
+  // Fetch user's own lists for import target
+  useEffect(() => {
+    if (!user) return;
+    axios.get(`${API}/api/lists`, { withCredentials: true, headers: getAuthHeaders() })
+      .then(res => setMyLists(res.data.lists || []))
+      .catch(() => {});
+  }, [user, getAuthHeaders]);
+
   const handleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir(key === "title" ? "asc" : "desc"); }
   };
 
+  const shareUrl = `${window.location.origin}/api/lists/${listId}/share`;
+  const listUrl = `${window.location.origin}/list/${listId}`;
+
   const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
+    navigator.clipboard.writeText(listUrl);
     setCopied(true);
     toast.success("Link copied!");
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const forkList = async () => {
-    if (!user) { toast.error("Sign in to copy this list"); return; }
+  const shareTwitter = () => {
+    const text = `Check out "${list?.name}" — a curated reading list of ${list?.paper_count} papers on Kurate.org!\n\n${shareUrl}`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+  const shareLinkedIn = () => {
+    const text = `Check out "${list?.name}" — a curated reading list of ${list?.paper_count} papers on Kurate.org!`;
+    navigator.clipboard.writeText(text).then(() => toast.success("Text copied — paste it in your LinkedIn post!")).catch(() => {});
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, "_blank");
+  };
+
+  const importAsBookmarks = async () => {
+    setImporting(true);
     try {
-      const res = await axios.post(`${API}/api/lists/${listId}/fork`, {}, { withCredentials: true, headers: getAuthHeaders() });
-      toast.success("List copied to your account!");
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to copy list");
-    }
+      const res = await axios.post(`${API}/api/lists/${listId}/import-bookmarks`, {}, { withCredentials: true, headers: getAuthHeaders() });
+      toast.success(`Imported ${res.data.added} paper${res.data.added !== 1 ? "s" : ""} as bookmarks`);
+      setShowImport(false);
+    } catch (err) { toast.error(err.response?.data?.detail || "Failed"); }
+    finally { setImporting(false); }
+  };
+
+  const importToList = async (targetId) => {
+    setImporting(true);
+    try {
+      const res = await axios.post(`${API}/api/lists/${listId}/import-to-list?target_list_id=${targetId}`, {}, { withCredentials: true, headers: getAuthHeaders() });
+      const name = myLists.find(l => l.list_id === targetId)?.name || "list";
+      toast.success(`Added ${res.data.added} paper${res.data.added !== 1 ? "s" : ""} to "${name}"`);
+      setShowImport(false);
+    } catch (err) { toast.error(err.response?.data?.detail || "Failed"); }
+    finally { setImporting(false); }
+  };
+
+  const forkAsNewList = async () => {
+    setImporting(true);
+    try {
+      await axios.post(`${API}/api/lists/${listId}/fork`, {}, { withCredentials: true, headers: getAuthHeaders() });
+      toast.success("Saved as a new reading list!");
+      setShowImport(false);
+    } catch (err) { toast.error(err.response?.data?.detail || "Failed"); }
+    finally { setImporting(false); }
   };
 
   if (loading) {
@@ -63,7 +111,7 @@ export default function ReadingListPage() {
       <div className="container mx-auto px-4 max-w-3xl py-20 text-center text-muted-foreground">
         <List className="h-10 w-10 mx-auto mb-3 opacity-30" />
         <p className="text-sm">Reading list not found or is private.</p>
-        <Link to="/" className="text-accent text-sm hover:underline mt-4 inline-block">Browse the leaderboard</Link>
+        <Link to="/" className="text-accent text-sm hover:underline mt-4 inline-block">View Leaderboard</Link>
       </div>
     );
   }
@@ -79,20 +127,68 @@ export default function ReadingListPage() {
             <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight" data-testid="list-title">{list.name}</h1>
             {list.description && <p className="text-sm text-muted-foreground mt-1">{list.description}</p>}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={copyLink} data-testid="copy-list-link">
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied ? "Copied!" : "Share"}
-            </Button>
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={forkList} data-testid="fork-list-btn">
-              <Copy className="h-3.5 w-3.5" /> Copy to my lists
-            </Button>
-          </div>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
           <span className="flex items-center gap-1"><User className="h-3 w-3" /> {list.user_name || "Anonymous"}</span>
           <span>{list.paper_count} paper{list.paper_count !== 1 ? "s" : ""}</span>
           {list.created_at && <span>Created {new Date(list.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</span>}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center gap-2" data-testid="list-actions">
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={copyLink} data-testid="copy-list-link">
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Copied!" : "Copy link"}
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={shareTwitter} data-testid="share-x-btn">
+            <Share2 className="h-3.5 w-3.5" /> Share on X
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={shareLinkedIn} data-testid="share-linkedin-btn">
+            <Share2 className="h-3.5 w-3.5" /> Share on LinkedIn
+          </Button>
+          {user && (
+            <div className="relative">
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setShowImport(!showImport)} data-testid="import-btn">
+                <Plus className="h-3.5 w-3.5" /> Import <ChevronDown className={`h-3 w-3 transition-transform ${showImport ? "rotate-180" : ""}`} />
+              </Button>
+              {showImport && (
+                <div className="absolute top-full mt-1 left-0 z-50 bg-background border border-border rounded-lg shadow-lg min-w-[220px] py-1" data-testid="import-dropdown">
+                  <button onClick={importAsBookmarks} disabled={importing}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/30 flex items-center gap-2">
+                    <Bookmark className="h-3.5 w-3.5 text-muted-foreground" /> Import as bookmarks
+                  </button>
+                  <div className="border-t border-border my-1" />
+                  {myLists.length > 0 && (
+                    <>
+                      <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Add to existing list</div>
+                      {myLists.map(l => (
+                        <button key={l.list_id} onClick={() => importToList(l.list_id)} disabled={importing}
+                          className="w-full text-left px-3 py-1.5 text-sm hover:bg-secondary/30 flex items-center gap-2 truncate">
+                          <List className="h-3 w-3 text-muted-foreground shrink-0" /> {l.name}
+                        </button>
+                      ))}
+                      <div className="border-t border-border my-1" />
+                    </>
+                  )}
+                  <button onClick={forkAsNewList} disabled={importing}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/30 flex items-center gap-2">
+                    <Plus className="h-3.5 w-3.5 text-muted-foreground" /> Save as new list
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* OG image preview */}
+      <div className="mb-6 rounded-xl border border-border overflow-hidden bg-white max-w-lg" data-testid="list-og-preview">
+        <div className="relative">
+          <img src={`${API}/api/lists/${listId}/image.png`} alt="List preview" className="w-full" loading="eager"
+            onLoad={e => e.target.parentElement.querySelector('[data-loader]')?.remove()} />
+          <div data-loader className="absolute inset-0 flex items-center justify-center bg-secondary/30 animate-pulse" style={{aspectRatio: '1200/735'}}>
+            <span className="text-sm text-muted-foreground">Loading preview...</span>
+          </div>
         </div>
       </div>
 

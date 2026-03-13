@@ -56,7 +56,7 @@ SECURITY_HEADERS = {
 @app.middleware("http")
 async def head_method_middleware(request: Request, call_next):
     """Convert HEAD to GET for badge endpoints (social media crawlers use HEAD to check images)."""
-    if request.method == "HEAD" and "/api/badge/" in request.url.path:
+    if request.method == "HEAD" and ("/api/badge/" in request.url.path or "/api/lists/" in request.url.path):
         request._method = "GET"
         request.scope["method"] = "GET"
         response = await call_next(request)
