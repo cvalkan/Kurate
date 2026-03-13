@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Trophy, ArrowUp, ArrowDown } from "lucide-react";
+import { Trophy, ArrowUp, ArrowDown, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RankBadge } from "./RankBadge";
 import { BookmarkButton } from "@/components/BookmarkButton";
@@ -45,6 +45,7 @@ export function LeaderboardTable({
   leaderboard, loading, showCatCol, hasSelectedTags, globalStats,
   debouncedKeyword, keyword, displayCount, setDisplayCount,
   sortKey, sortDir, onSort, showRatingCol = true, showGapCol = true,
+  bookmarksMode = false, onRemoveBookmark,
 }) {
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
@@ -90,6 +91,7 @@ export function LeaderboardTable({
         case "ai_rating": return p.ai_rating || 0;
         case "sp_score": return p.sp_score || 0;
         case "published": return p.published || "";
+        case "bookmarked_at": return p.bookmarked_at || "";
         default: return 0;
       }
     };
@@ -125,6 +127,8 @@ export function LeaderboardTable({
   if (showRatingCol && !isMobile && !isTablet) cols.push("3.5rem"); // Rating
   if (showGapCol && !isMobile && !isTablet) cols.push("3.5rem"); // Gap
   if (!isMobile) cols.push("6rem"); // Published
+  if (bookmarksMode && !isMobile) cols.push("5.5rem"); // Bookmarked
+  if (bookmarksMode) cols.push("2rem"); // Remove
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
@@ -172,6 +176,8 @@ export function LeaderboardTable({
           {showRatingCol && !isMobile && !isTablet && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
           {showGapCol && !isMobile && !isTablet && <SortHeader label="Gap" sortKey="sp_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Tournament rank minus standalone rating rank. Positive = does better in competition." />}
           {!isMobile && <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.published} />}
+          {bookmarksMode && !isMobile && <SortHeader label="Saved" sortKey="bookmarked_at" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="When you bookmarked this paper." />}
+          {bookmarksMode && <div />}
         </div>
         {visibleList.map((paper, idx) => (
           <Link
@@ -190,7 +196,7 @@ export function LeaderboardTable({
                   {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
                 </p>
               </div>
-              <BookmarkButton paperId={paper.id} bookmarkedIds={bookmarkedIds} onToggle={toggleBookmark} />
+              {!bookmarksMode && <BookmarkButton paperId={paper.id} bookmarkedIds={bookmarkedIds} onToggle={toggleBookmark} />}
             </div>
             {showCatCol && !isMobile && (
               <div className="text-center">
@@ -208,6 +214,16 @@ export function LeaderboardTable({
             {!isMobile && <div className="text-right text-xs text-muted-foreground">
               {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
             </div>}
+            {bookmarksMode && !isMobile && <div className="text-right text-[10px] text-muted-foreground">
+              {paper.bookmarked_at ? new Date(paper.bookmarked_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+            </div>}
+            {bookmarksMode && (
+              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemoveBookmark?.(paper.id); }}
+                className="flex items-center justify-center text-muted-foreground/30 hover:text-red-500 transition-colors"
+                title="Remove bookmark" data-testid={`remove-bm-${paper.id}`}>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </Link>
         ))}
       </div>

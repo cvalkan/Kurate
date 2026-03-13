@@ -29,7 +29,12 @@ export default function BookmarksPage() {
 
   const handleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir(key === "title" ? "asc" : "desc"); }
+    else { setSortKey(key); setSortDir(key === "title" || key === "bookmarked_at" ? "asc" : "desc"); }
+  };
+
+  const handleRemove = async (paperId) => {
+    await toggleBookmark(paperId);
+    setPapers(prev => prev.filter(p => p.id !== paperId));
   };
 
   if (!user) {
@@ -100,6 +105,8 @@ export default function BookmarksPage() {
             onSort={handleSort}
             showRatingCol={true}
             showGapCol={true}
+            bookmarksMode={true}
+            onRemoveBookmark={handleRemove}
           />
         </div>
       )}
