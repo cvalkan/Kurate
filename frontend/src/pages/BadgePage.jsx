@@ -60,7 +60,8 @@ export default function BadgePage() {
     );
   }
 
-  const shareUrl = `${window.location.origin}/leaderboard/${category}/${year}/${slug}`;
+  const shareUrl = `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
+  const leaderboardUrl = `${window.location.origin}/leaderboard/${category}/${year}/${slug}`;
   const imageUrl = `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
   const arxivUrl = data.arxiv_id ? `https://arxiv.org/abs/${data.arxiv_id}` : "";
   const arxivSuffix = arxivUrl ? `\n${arxivUrl}` : "";
@@ -68,7 +69,7 @@ export default function BadgePage() {
   const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!${arxivSuffix}\n\n${shareUrl}`;
 
   const copyLink = () => {
-    navigator.clipboard.writeText(shareUrl);
+    navigator.clipboard.writeText(leaderboardUrl);
     setCopied(true);
     toast.success("Link copied!");
     setTimeout(() => setCopied(false), 2000);

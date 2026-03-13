@@ -457,26 +457,26 @@ async def get_list_image(list_id: str):
 
 def _render_list_image(name: str, description: str, curator: str, papers: list, total: int) -> bytes:
     """Render a reading list preview as SVG → PNG."""
-    show = papers[:6]
+    show = papers[:3]  # Show max 3 papers to avoid overflow
     rows_svg = ""
     y = 180
     for i, p in enumerate(show):
-        title = _esc(p.get("title", "")[:60] + ("..." if len(p.get("title", "")) > 60 else ""))
+        title = _esc(p.get("title", "")[:55] + ("..." if len(p.get("title", "")) > 55 else ""))
         authors = _esc(", ".join(p.get("authors", [])[:3]) + (" +" + str(len(p["authors"]) - 3) if len(p.get("authors", [])) > 3 else ""))
         score = p.get("score", "—")
         cat = _esc((p.get("categories") or [""])[0])
         bg = '#f8fafc' if i % 2 == 0 else '#ffffff'
         rows_svg += f"""
-    <rect x="30" y="{y}" width="580" height="58" rx="4" fill="{bg}"/>
-    <text x="50" y="{y+24}" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#1a1a2e">{title}</text>
-    <text x="50" y="{y+44}" font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">{authors}</text>
-    <text x="590" y="{y+24}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#4285F4" text-anchor="end">{score}</text>
-    <text x="590" y="{y+44}" font-family="system-ui, sans-serif" font-size="10" fill="#9ca3af" text-anchor="end">{cat}</text>"""
-        y += 62
+    <rect x="30" y="{y}" width="580" height="52" rx="4" fill="{bg}"/>
+    <text x="50" y="{y+22}" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#1a1a2e">{title}</text>
+    <text x="50" y="{y+40}" font-family="system-ui, sans-serif" font-size="10" fill="#6b7280">{authors}</text>
+    <text x="590" y="{y+22}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#4285F4" text-anchor="end">{score}</text>
+    <text x="590" y="{y+40}" font-family="system-ui, sans-serif" font-size="10" fill="#9ca3af" text-anchor="end">{cat}</text>"""
+        y += 56
 
     if total > len(show):
         rows_svg += f"""
-    <text x="320" y="{y+20}" font-family="system-ui, sans-serif" font-size="12" fill="#9ca3af" text-anchor="middle">+{total - len(show)} more papers</text>"""
+    <text x="320" y="{y+16}" font-family="system-ui, sans-serif" font-size="11" fill="#9ca3af" text-anchor="middle">+{total - len(show)} more paper{"s" if total - len(show) != 1 else ""}</text>"""
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 392" width="640" height="392">
   <rect width="640" height="392" fill="#ffffff"/>
