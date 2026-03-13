@@ -796,8 +796,11 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
     
     Sends the complete paper text with no truncation. On token-limit errors,
     retries with halved content until it fits.
-    Returns dict with 'summary' and 'model_used', or None on failure.
+    Returns dict with 'summary', 'model_used', and 'tokens' (actual usage), or None on failure.
     """
+    import litellm
+    from emergentintegrations.llm.utils import get_integration_proxy_url
+
     model_info = model_override or {"provider": "anthropic", "model": "claude-opus-4-6"}
     provider = model_info["provider"]
     model = model_info["model"]
@@ -820,32 +823,62 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
 
     content = _build_content(char_limit)
 
+    def _build_litellm_params(prompt_text: str) -> dict:
+        """Build litellm.completion params matching LlmChat._execute_completion logic."""
+        messages = [
+            {"role": "system", "content": IMPACT_ASSESSMENT_PROMPT["system_prompt"]},
+            {"role": "user", "content": prompt_text},
+        ]
+        params = {
+            "model": f"{provider}/{model}",
+            "messages": messages,
+            "api_key": api_key,
+        }
+        is_emergent = api_key and api_key.startswith("sk-emergent")
+        if is_emergent:
+            proxy_url = get_integration_proxy_url()
+            params["api_base"] = proxy_url + "/llm"
+            params["custom_llm_provider"] = "openai"
+            params["model"] = f"gemini/{model}" if provider == "gemini" else model
+        params.update(extra_params)
+        return params
+
     max_retries = 4
     for attempt in range(max_retries):
         prompt = IMPACT_ASSESSMENT_PROMPT["user_prompt"].format(
             title=paper.get("title", "Untitled"),
             content=content,
         )
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"impact-{uuid.uuid4()}",
-            system_message=IMPACT_ASSESSMENT_PROMPT["system_prompt"],
-        ).with_model(provider, model)
-        if extra_params:
-            chat = chat.with_params(**extra_params)
+        params = _build_litellm_params(prompt)
 
         try:
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
+            raw_response = await loop.run_in_executor(
                 _llm_executor,
-                lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
+                lambda: litellm.completion(**params),
             )
-            if response and response.strip():
-                summary_text = response.strip() if isinstance(response, str) else str(response)
-                if isinstance(response, dict):
-                    vals = [v for v in response.values() if isinstance(v, str)]
-                    summary_text = max(vals, key=len) if vals else str(response)
-                return {"summary": summary_text, "model_used": model_info, "char_count": len(summary_text), "word_count": len(summary_text.split())}
+            response_text = raw_response.choices[0].message.content if raw_response.choices else ""
+            if response_text and response_text.strip():
+                summary_text = response_text.strip()
+
+                # Extract actual token usage from response
+                usage = raw_response.usage
+                tokens = {}
+                if usage:
+                    tokens["input"] = getattr(usage, "prompt_tokens", 0) or 0
+                    tokens["output"] = getattr(usage, "completion_tokens", 0) or 0
+                    # Check for thinking/reasoning tokens in completion_tokens_details
+                    details = getattr(usage, "completion_tokens_details", None)
+                    if details:
+                        tokens["thinking"] = getattr(details, "reasoning_tokens", 0) or 0
+
+                return {
+                    "summary": summary_text,
+                    "model_used": model_info,
+                    "char_count": len(summary_text),
+                    "word_count": len(summary_text.split()),
+                    "tokens": tokens,
+                }
         except Exception as e:
             err_str = str(e).lower()
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))

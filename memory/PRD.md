@@ -107,3 +107,9 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
   - Fixed share URL: frontend now uses window.location.origin (kurate.org on prod) instead of REACT_APP_BACKEND_URL
   - Removed "arXiv (cs.XX)" from badge header to prevent logo overlap
   - Categories now show "Category: cs.DC, cs.AI" format with all categories from paper record
+- Summary Token Tracking (Mar 13 2026)
+  - generate_precomparison_impact_summary now calls litellm.completion directly to capture actual usage
+  - Stores {input, output, thinking} tokens per summary in paper.summary_tokens.{model_key}
+  - Admin stats endpoint uses tracked tokens when available, falls back to improved estimates
+  - Thinking tokens for Opus Thinking now properly accounted for in cost calculation
+  - Cost estimates corrected from $105 to ~$303 for summaries (3x underestimate fixed)

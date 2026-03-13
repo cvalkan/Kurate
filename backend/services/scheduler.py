@@ -787,6 +787,9 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                         f"summaries.{mk}": summary_val,
                         f"summary_dates.{mk}": datetime.now(timezone.utc).isoformat(),
                     }
+                    # Store actual token usage if available
+                    if result.get("tokens"):
+                        update_fields[f"summary_tokens.{mk}"] = result["tokens"]
                     # Parse ratings from Claude Thinking summaries
                     if "thinking" in mk:
                         from services.llm import parse_ratings_from_summary

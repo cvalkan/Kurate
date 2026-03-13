@@ -384,6 +384,7 @@ async def _refresh_cache():
     for p in all_papers:
         cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
         sums = p.get("summaries", {})
+        sum_tokens = p.get("summary_tokens", {})
         if not sums:
             continue
         if cat not in summary_stats_by_cat:
@@ -397,8 +398,15 @@ async def _refresh_cache():
             model_count += 1
             for bucket in (cat, "__all__"):
                 if mk not in summary_stats_by_cat[bucket]["models"]:
-                    summary_stats_by_cat[bucket]["models"][mk] = {"summaries": 0}
+                    summary_stats_by_cat[bucket]["models"][mk] = {"summaries": 0, "tracked_input": 0, "tracked_output": 0, "tracked_thinking": 0, "tracked_count": 0}
                 summary_stats_by_cat[bucket]["models"][mk]["summaries"] += 1
+                # Aggregate actual tracked tokens if available
+                tk = sum_tokens.get(mk)
+                if tk and isinstance(tk, dict):
+                    summary_stats_by_cat[bucket]["models"][mk]["tracked_input"] += tk.get("input", 0)
+                    summary_stats_by_cat[bucket]["models"][mk]["tracked_output"] += tk.get("output", 0)
+                    summary_stats_by_cat[bucket]["models"][mk]["tracked_thinking"] += tk.get("thinking", 0)
+                    summary_stats_by_cat[bucket]["models"][mk]["tracked_count"] += 1
         if model_count >= 3:
             summary_stats_by_cat[cat]["papers_with_all_3"] += 1
             summary_stats_by_cat["__all__"]["papers_with_all_3"] += 1

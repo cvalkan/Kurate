@@ -808,13 +808,31 @@ async def get_usage_stats(category: str = None):
     papers_with_all_3 = precomputed_summary.get("papers_with_all_3", 0)
     summary_total_input = 0
     summary_total_output = 0
+    summary_total_thinking = 0
     summary_total_cost = 0.0
 
     for mk, info in precomputed_summary.get("models", {}).items():
         count = info["summaries"]
-        # Estimate tokens: ~10K input chars/call (abstract+text+prompt) => ~2500 tokens, ~500 output tokens avg
-        input_tokens = count * 2500
-        output_tokens = count * 500
+        tracked_count = info.get("tracked_count", 0)
+        tracked_input = info.get("tracked_input", 0)
+        tracked_output = info.get("tracked_output", 0)
+        tracked_thinking = info.get("tracked_thinking", 0)
+
+        # Use actual tracked tokens if available, extrapolate for untracked summaries
+        if tracked_count > 0:
+            avg_input = tracked_input / tracked_count
+            avg_output = tracked_output / tracked_count
+            avg_thinking = tracked_thinking / tracked_count
+            input_tokens = int(avg_input * count)
+            output_tokens = int(avg_output * count)
+            thinking_tokens = int(avg_thinking * count)
+        else:
+            # Fallback: estimate from output text length (~1700 output tokens avg, ~400 input for abstract-only)
+            input_tokens = count * 750
+            output_tokens = count * 1700
+            # Estimate thinking tokens for Claude Thinking models
+            thinking_tokens = count * 4000 if "thinking" in mk else 0
+
         # Determine provider for pricing
         provider = mk.split(":")[0] if ":" in mk else mk
         if "openai" in provider:
@@ -829,16 +847,21 @@ async def get_usage_stats(category: str = None):
         cost = 0.0
         if pricing_key:
             pricing = MODEL_PRICING.get(pricing_key, {"input": 2.0, "output": 10.0})
-            cost = (input_tokens / 1_000_000) * pricing["input"] + (output_tokens / 1_000_000) * pricing["output"]
+            cost_in = (input_tokens / 1_000_000) * pricing["input"]
+            cost_out = ((output_tokens + thinking_tokens) / 1_000_000) * pricing["output"]
+            cost = cost_in + cost_out
 
         summary_stats[mk] = {
             "summaries": count,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "thinking_tokens": thinking_tokens,
+            "tracked_count": tracked_count,
             "cost_total": round(cost, 4),
         }
         summary_total_input += input_tokens
         summary_total_output += output_tokens
+        summary_total_thinking += thinking_tokens
         summary_total_cost += cost
 
     result = {
