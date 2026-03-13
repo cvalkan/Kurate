@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
+import { User, Lock, Loader2, CheckCircle2, ExternalLink, Clock } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 
@@ -133,16 +133,26 @@ export default function ProfilePage() {
           <OrcidIcon className="h-4 w-4" /> ORCID
         </h2>
         {user.orcid_id ? (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className={`p-3 rounded-lg border ${user.orcid_admin_verified ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
             <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <span className="font-medium">ORCID linked</span>
+              {user.orcid_admin_verified ? (
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              ) : (
+                <Clock className="h-4 w-4 text-amber-600" />
+              )}
+              <span className="font-medium">
+                {user.orcid_admin_verified ? "ORCID verified" : "ORCID linked — pending review"}
+              </span>
             </div>
             <a href={`https://orcid.org/${user.orcid_id}`} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-[#A6CE39] hover:underline mt-1">
               {user.orcid_id} <ExternalLink className="h-3 w-3" />
             </a>
-            <p className="text-[10px] text-muted-foreground mt-1">You can now claim papers in the admin Claims section for verified author badges.</p>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {user.orcid_admin_verified
+                ? "Your ORCID identity has been verified by an admin."
+                : "Your ORCID link is awaiting admin verification."}
+            </p>
           </div>
         ) : (
           <div className="p-3 bg-secondary/30 rounded-lg border border-border">

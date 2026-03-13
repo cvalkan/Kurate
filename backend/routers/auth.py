@@ -244,6 +244,13 @@ async def login(req: LoginRequest, response: Response):
 
     token = await _create_session(user["user_id"], response)
 
+    orcid_admin_verified = False
+    if user.get("orcid_id"):
+        av = await db.author_verifications.find_one(
+            {"user_id": user["user_id"]}, {"_id": 0, "admin_verified": 1}
+        )
+        orcid_admin_verified = bool(av.get("admin_verified")) if av else False
+
     return {
         "user": {
             "user_id": user["user_id"],
@@ -253,6 +260,7 @@ async def login(req: LoginRequest, response: Response):
             "email_verified": user.get("email_verified", False),
             "provider": user.get("provider", "email"),
             "orcid_id": user.get("orcid_id"),
+            "orcid_admin_verified": orcid_admin_verified,
         },
         "session_token": token,
     }
@@ -308,9 +316,15 @@ async def google_session(req: SessionRequest, response: Response):
 
     # Get full user record to include orcid_id
     full_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    orcid_admin_verified = False
+    if full_user and full_user.get("orcid_id"):
+        av = await db.author_verifications.find_one(
+            {"user_id": user_id}, {"_id": 0, "admin_verified": 1}
+        )
+        orcid_admin_verified = bool(av.get("admin_verified")) if av else False
 
     return {
-        "user": {"user_id": user_id, "email": email, "name": name, "picture": picture, "email_verified": True, "provider": "google", "orcid_id": full_user.get("orcid_id") if full_user else None},
+        "user": {"user_id": user_id, "email": email, "name": name, "picture": picture, "email_verified": True, "provider": "google", "orcid_id": full_user.get("orcid_id") if full_user else None, "orcid_admin_verified": orcid_admin_verified},
         "session_token": token,
     }
 
@@ -320,6 +334,12 @@ async def get_me(request: Request):
     user = await _get_current_user(request)
     if not user:
         raise HTTPException(401, "Not authenticated")
+    orcid_admin_verified = False
+    if user.get("orcid_id"):
+        av = await db.author_verifications.find_one(
+            {"user_id": user["user_id"]}, {"_id": 0, "admin_verified": 1}
+        )
+        orcid_admin_verified = bool(av.get("admin_verified")) if av else False
     return {
         "user_id": user["user_id"],
         "email": user["email"],
@@ -328,6 +348,7 @@ async def get_me(request: Request):
         "email_verified": user.get("email_verified", False),
         "provider": user.get("provider", "email"),
         "orcid_id": user.get("orcid_id"),
+        "orcid_admin_verified": orcid_admin_verified,
     }
 
 

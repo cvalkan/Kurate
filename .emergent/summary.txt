@@ -1,175 +1,162 @@
 <analysis>**original_problem_statement**:
-The user's primary goal is to build a robust system for validating AI model performance on scientific papers, which has evolved into a full-stack application featuring a leaderboard tournament.
+The user's initial request was to fix a production issue where archives were not visible. This led to a deep dive into debugging and enhancing several core features. The work in this session can be summarized by three major efforts:
 
-In this session, the user's requests focused on several key areas:
-1.  **Enhancing Analysis Pages**: Add new visualizations and metrics to the Model Analysis page, including SI rating distributions, inter-model correlations, and a deep dive into a variance-vs-correlation paradox.
-2.  **Improving Convergence Charts**: Increase the data resolution of tournament convergence charts to show a smooth ramp-up from zero matches and add a log/linear scale toggle.
-3.  **Implementing an Archive System**: Build a comprehensive weekly/monthly archive system for the leaderboard to create permanent, shareable snapshots of rankings. This included configurable frequencies, backfilling historical data, and ensuring complete data coverage.
-4.  **Importing Production Data**: Sync the preview environment with production data by importing all papers and match results.
-5.  **Author Verification Exploration**: Conduct a technical exploration on how to allow authors to claim their papers using ORCID and Semantic Scholar for verification.
+1.  **Production Hardening & Bug Fixes**: The agent diagnosed and fixed the missing archives by running a data backfill on production. This evolved into correcting the backfill logic to create true temporal snapshots (filtering match data by date) and fixing a production bug where validation page sections were not loading due to missing pre-computed data.
+2.  **Author Verification System**: A complete overhaul of the author identity system. The initial implementation tied ORCID verification to claiming a specific paper. Based on user feedback, this was refactored to:
+    *   Decouple ORCID verification from paper claims.
+    *   Create a new user Profile page for password changes and optional, user-initiated ORCID linking.
+    *   Build a new admin UI (under the Users tab) for admins to approve/reject these user-level ORCID links, complete with trust signals (e.g., verified institutional email).
+3.  **Socially Shareable Badges**: A major new growth feature was designed and built from scratch. This system generates shareable, socially-optimized badge images for papers that rank in the top 3 of any weekly or monthly archive. This involved:
+    *   Designing Gold, Silver, and Bronze tier badges.
+    *   Implementing a robust, server-side OG image generation pipeline using user-provided SVG templates and the  library for vector-quality rendering.
+    *   Creating shareable URLs that serve OG tags to social media crawlers and redirect users to the relevant archive page.
+    *   Numerous iterative design refinements and technical fixes to solve issues with social media card rendering (Twitter/LinkedIn), caching, and aspect ratios.
+    *   Making badge sharing a public feature, available to all users, not just verified authors.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A mature full-stack platform (FastAPI backend, React frontend, MongoDB) for running and analyzing AI judging tournaments. The application now features:
--   A live, mobile-responsive tournament leaderboard.
--   A comprehensive Model Analysis page with detailed statistics on Single-Item (SI) ratings, including distributions, inter-metric correlations, and a cross-model comparison table.
--   A robust, fully implemented archive system that creates weekly and monthly snapshots of the leaderboard. This system is configurable per category, includes shareable URLs, and loads seamlessly within the main leaderboard UI.
--   A suite of public validation pages served from a pre-computed cache.
--   The preview environment's database has been populated with paper and match data from the production environment, providing a realistic testing ground.
+The application is a full-stack platform for ranking scientific papers via AI judging tournaments. It now features:
+- A live leaderboard with a robust weekly/monthly archive system containing true temporal snapshots.
+- A new user Profile page allowing users to change their password and link their ORCID account.
+- A decoupled author verification system where admins can approve ORCID links at the user level via a new section in the admin panel.
+- A complete, socially-optimized badge generation system for top-ranked papers. The system uses SVG templates and  to create high-quality OG images for sharing on social media.
+- The paper page UI has been simplified, removing the complex author-claiming flow and replacing it with a simple, public call-to-action for sharing badges.
+- All necessary data for validation pages is now pre-computed and stored in a JSON file, ensuring they load correctly on production.
 
 **Last working item**:
--   **Last item agent was working**: The agent completed a technical exploration on how to implement author paper claiming. This involved researching ORCID and Semantic Scholar APIs and outlining a multi-signal matching strategy to verify authorship reliably.
--   **Status**: NONE
--   **Agent Testing Done**: N/A
--   **Which testing method agent to use?**: N/A
--   **User Testing Done**: N/A
+-   **Last item agent was working**: A major refactor to decouple author verification from paper claiming, introduce a user Profile page, and make badge sharing a public feature available to all users.
+-   **Status**: IN PROGRESS
+-   **Agent Testing Done**: Y
+-   **Which testing method agent to use?**: both
+-   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Implement Author Verification (P0)**
-    -   **Description**: Based on the completed technical exploration, the next step is to plan and implement the author verification flow using ORCID and Semantic Scholar.
-    -   **Status**: NOT STARTED
-    -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: Both
+-   **Issue 1: User Verification of Auth & Badge Refactor (P0)**
+    -   Description: The agent completed a major refactor that decoupled ORCID verification, created a new Profile page, and made badge sharing public. This new user flow is extensive and requires thorough testing and verification by the user.
+    -   Status: USER VERIFICATION PENDING
+    -   Is recurring issue?: N
+    -   Should Test frontend/backend/both after fix?: Both
+
+-   **Issue 2: Production Badge Rendering (P1)**
+    -   Description: The agent identified that blank badge images on production were caused by the  dependency being missing from . The dependency has been added. The user needs to deploy the latest version to production for the fix to take effect.
+    -   Status: USER VERIFICATION PENDING
+    -   Is recurring issue?: Y
+    -   Should Test frontend/backend/both after fix?: Backend
 
 **In progress Task List**:
-None.
+-   **Task 1: Deprecate Old Paper Claim System (P1)**
+    -   **Where to resume**: The  file and the Claims tab in the admin UI are now partially redundant after decoupling ORCID verification.
+    -   **What will be achieved with this?**: A cleaner codebase and a simplified admin experience by removing the now-outdated paper-specific claim flow.
+    -   **Status**: NOT STARTED
+    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Blocked on something**: User confirmation to remove the feature.
 
 **Upcoming and Future Tasks**
-
--   **Upcoming Tasks**:
-    -   **(P0) Plan and implement the author verification system** based on the technical exploration document . This will involve ORCID OAuth integration, Semantic Scholar API calls, and building the verification logic in the backend and UI in the frontend.
-
--   **Future Tasks**:
-    -   (P1) Consolidate the fragile MIDL experiment pipeline into a single, robust background task.
-    -   (P2) Explore adding new validation datasets from OpenReview, with a focus on ICLR 2024 Computer Vision, which was identified as the most promising candidate.
-    -   (P2) Add missing HTTP security headers.
-    -   (P2) Improve summary generation failure tracking UI.
-    -   (P2) Continue refactoring the monolithic  and  files.
-    -   (P2) Verify if all original ICLR datasets were fully scored in the single-item experiment (a task carried over from a previous session).
+-   **(P1) Consolidate the fragile MIDL experiment pipeline** into a single, robust background task.
+-   **(P2) Explore adding new validation datasets** from OpenReview, with a focus on ICLR 2024 Computer Vision.
+-   **(P2) Add missing HTTP security headers.**
+-   **(P2) Improve summary generation failure tracking UI.**
+-   **(P2) Continue refactoring** the monolithic .
+-   **(P2) Verify if all original ICLR datasets were fully scored** in the single-item experiment.
 
 **Completed work in this session**
--   **Archive System (Major Feature)**:
-    -   Implemented a full-featured weekly/monthly archive system for the leaderboard.
-    -   Created an admin interface to configure archive frequency (weekly/monthly) per category.
-    -   Built a robust, idempotent backfill mechanism to create historical archives for all papers, ensuring complete data coverage with no gaps.
-    -   Archives are stored in  and load seamlessly into the main UI.
-    -   Implemented shareable URLs for specific archive views (e.g., ).
--   **Production Data Import**:
-    -   Successfully imported ~2,175 papers and ~71,581 match results from the production API into the preview environment.
-    -   Created backfill scripts to parse SI ratings from existing summaries and populate the  field.
--   **Analysis & Visualization Enhancements**:
-    -   Created a new SI Rating Analysis section on the Model Analysis page, showing rating distributions, inter-metric correlations, and category breakdowns.
-    -   Added a model-switcher (All/Claude/GPT/Gemini) and a cross-model behavior comparison table to analyze the variance-correlation paradox.
-    -   Significantly improved the resolution of tournament convergence charts and added a Linear/Log scale toggle.
-    -   Precomputed all analysis page data (, , ), making the pages load instantly.
--   **Validation & Dataset Work**:
-    -   Conducted a deep-dive analysis into finding new validation datasets, investigating NeurIPS, CoRL, COLM, and SciPost, and concluding that ICLR is the only suitable source for new comparative-GT datasets.
-    -   Improved verdicts and table formatting on the Overall Summary report.
-    -   Added linkable sub-URLs for all validation page sections.
--   **Author Verification Exploration**:
-    -   Performed a detailed technical exploration of implementing author paper claiming, documenting a multi-signal matching strategy using ORCID and Semantic Scholar APIs in .
+-   **Production Archive System Fixed**: Debugged and resolved issues with archives not appearing on production ().
+-   **Temporal Archive Snapshot Logic**: Refactored the backfill logic to use time-scoped match data, ensuring archives are true snapshots.
+-   **Socially Shareable Badges (Major Feature)**: Built a full-stack system for generating and sharing high-quality, socially-optimized badges for top-ranked papers using SVG templates and .
+-   **Author Verification System Overhaul (Major Feature)**: Decoupled ORCID verification from paper claims, created a new User Profile page for password changes and ORCID linking, and built a new admin UI for approving user-level ORCID connections.
+-   **Public Badge Sharing**: Replaced the complex author-claim UI on paper pages with a simple, public call-to-action to share badges.
+-   **Production Data Fix**: Solved an issue with validation pages not loading on production by regenerating the  pre-computed cache.
+-   **Production URL for OG Tags**: Implemented a fix using a  environment variable to ensure  is always used in badge OG tags.
+-   **Admin UI Bug Fix**: Fixed an issue where the Inorganic Chemistry category was missing from the admin settings.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: Add missing HTTP security headers.**
-    -   **Debug checklist**: Implement a FastAPI middleware in .
-    -   **Why to solve this issue and what will be achieved with this?**: Provides basic security hardening.
-    -   **Should Test frontend/backend/both after fix**: Backend
-    -   **Is recurring issue?**: N
--   **Issue 2: Fragile MIDL experiment pipeline.**
-    -   **Debug checklist**: Refactor the logic into a single, idempotent background task within .
-    -   **Why to solve this issue and what will be achieved with this?**: To create a reliable way to run the full benchmark on new datasets without manual intervention.
-    -   **Should Test frontend/backend/both after fix?**: Backend
-    -   **Is recurring issue?**: N
--   **Issue 3: Lack of transparency in summary generation failures.**
-    -   **Debug checklist**: Modify summary generation progress tracking in  and expose it in the admin UI.
-    -   **Why to solve this issue and what will be achieved with this?**: Provides better observability into the health of LLM API calls.
-    -   **Should Test frontend/backend/both after fix?**: Both
-    -   **Is recurring issue?**: N
+None. All have been captured in the pending or future task lists.
 
 **Known issue recurrence from previous fork**
--   None.
+None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Archive System**: A system for creating and storing weekly/monthly snapshots of the leaderboard state in a dedicated  MongoDB collection.
--   **Idempotent Backfill**: The use of robust, repeatable scripts to populate historical data (archives, SI ratings) without creating duplicates, which can be run safely on startup or via an admin endpoint.
--   **Dynamic Precomputation**: Extended the existing caching system to precompute data for the analysis pages, ensuring fast load times.
--   **API Data Import**: Implemented strategies to import large datasets (papers, matches) from a rate-limited external production API.
--   **Author Verification Strategy**: A multi-signal matching approach using ORCID and Semantic Scholar for robust author identity verification has been researched.
+-   **Server-Side OG Image Generation**: Using  to convert dynamic SVG templates into PNGs for social media sharing. This provides high-quality, vector-rendered text and graphics.
+-   **Social Media Crawler Handling**: Serving different content to bots (HTML with OG tags) and browsers (JS redirect) to ensure rich card previews on platforms like Twitter and LinkedIn.
+-   **Decoupled Verification**: Separating user identity verification (ORCID) from asset claiming (papers). A user's identity is verified once at the account level.
+-   **Temporal Database Snapshots**: Refactoring a backfill process to filter data based on a cutoff date, ensuring that historical archives (e.g., Week 7 ranking) only contain data that existed up to that point in time.
 
 **key DB schema**
 -   ****:
-    -    (dict): Added to store per-model SI ratings, e.g., .
+    -    (dict): Stores ORCID link details: .
 -   ****:
-    -   New collection storing frozen leaderboard snapshots.
-    -   Schema: 
+    -   Now used for user-level ORCID links. Schema: .
+-   ****:
+    -   This collection for paper-specific claims is still present but its role is diminished and likely to be deprecated.
 
 **changes in tech stack**
--   None.
+-   : Added as a Python dependency for high-quality SVG to PNG rendering.
 
 **All files of reference**
--   : Contains the core logic for the analysis page endpoints and the archive backfill system.
--   : Contains the admin endpoints for managing archives.
--   : The main page, now with logic to display archives inline.
--   : The UI component for selecting time periods and archives.
--   : The Model Analysis page, which hosts the new SI stats.
--   : The component containing all new SI analysis visualizations.
--   : Document outlining the plan for author verification.
+-   : Core logic for badge image generation.
+-   : Contains logic for both the old paper claims and new user-level ORCID verification.
+-   : Contains the corrected archive backfill logic.
+-   , , : Templates for badge images.
+-   : Shows the new public badge sharing CTA.
+-   : The new user profile page.
+-   : The Users tab now contains the ORCID verification section.
+-   : Renders the social media previews for badges.
 
 **Areas that need refactoring**:
--    has become a large monolith containing leaderboard logic, multiple analysis endpoints, and the entire archive backfill system. This file should be broken down into smaller, more focused modules (e.g., , ).
+-    contains logic for the now-outdated paper claiming system alongside the new user-level verification. This should be cleaned up to remove the redundant paper claim code.
 
 **key api endpoints**
--   : Runs the full historical archive backfill.
--   : Sets archive frequency for a category.
--   : Parses existing summaries for SI ratings.
--   : Returns data for the SI analysis page, with per-model filtering.
--   : Lists available archives for a category.
--   : Retrieves data for a specific archive.
+-   : Serves an HTML page with OG tags for social crawlers, which then JS-redirects browsers.
+-   : Generates and serves the badge PNG image.
+-   : New endpoint for the user profile page.
+-   : Lists all ORCID-linked users for admin approval.
+-   : Admin endpoint to approve an ORCID link.
+-   : Admin endpoint to reject an ORCID link.
 
 **Critical Info for New Agent**
-1.  **Author Verification is Next**: The immediate next task is to implement the author verification flow detailed in .
-2.  **Archive System is Key**: The new archive system is a core feature. It's designed to always compute and store both weekly and monthly archives; an admin setting merely filters the display. The backfill logic is now robust and idempotent.
-3.  **Production Data in Preview**: The preview environment now runs on a snapshot of production data for papers and matches. This provides a realistic dataset for testing. Note that validation-specific data remains local to the preview environment.
-4.  **Refactoring Needed**: Be aware that  is overly large and is a good candidate for refactoring as new features are added.
+1.  **Badge Sharing is Public**: The flow has changed significantly. Badges are no longer restricted to verified authors. The badge pills on paper pages are visible to everyone and link to the shareable badge page.
+2.  **ORCID Verification is Decoupled**: Author verification is no longer tied to claiming a specific paper. Users link their ORCID on the new Profile page, and an admin approves this link in a new section under the Users tab in the admin panel. The old Claims tab for papers is now functionally obsolete.
+3.  **Production URL is Hardcoded**: A  environment variable has been added to  to ensure  is always used in OG tags on production, solving a persistent issue with proxy headers.
+4.  **CairoSVG is a New Critical Dependency**: The badge generation feature relies on . The agent added it to , but it's essential for this major feature to work on production. The SVG templates are stored in .
+5.  **Archive Backfill is Idempotent but Destructive**: The backfill script, when run, will delete and recreate all archives. This is necessary to apply new logic (like the temporal snapshot fix) but should be noted.
 
 **documents and test reports created in this job**
--    (Updated)
--    (New)
+None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Asks for a technical exploration of implementing author paper claiming using ORCID and Semantic Scholar. (Status: )
-2.  **User**: Specifies that they want the ORCID/Semantic Scholar feature implemented. (Status: )
-3.  **User**: Provides choices for the dataset exploration (choosing computer vision). (Status: )
-4.  **User**: Confirms the agent's plan to proceed with the author verification exploration. (Status: )
-5.  **User**: After a failed dataset choice, asks the agent to find a suitable dataset and do a proper analysis before running experiments. (Status: )
-6.  **User**: After the agent finds no suitable NeurIPS dataset, asks to delete the failed experiment and check CoRL. (Status: )
-7.  **User**: Asks about COLM as a potential dataset source. (Status: )
-8.  **User**: Asks if non-ML conferences might provide suitable data. (Status: )
-9.  **User**: Asks for clarification on why journal data would be standalone and not comparative. (Status: )
-10. **User**: After the agent identifies SciPost, asks to proceed with creating a dataset from it. (Status: )
+1.  **User**: Asks to make badge sharing available to all users and decouple ORCID verification into a new Profile page. (Status: )
+2.  **User**: Reports that the production badge is broken and using the wrong URL. (Status: , agent identified a missing dependency () and fixed the URL logic.)
+3.  **User**: Reiterates request for public badge sharing and asks where admins approve the new ORCID flow. (Status: )
+4.  **User**: Confirms the new decoupled ORCID flow and asks if the production URL fix is robust. (Status: , agent implemented a  env var to make it bulletproof.)
+5.  **User**: Reports badge logo is almost clipped on Twitter. (Status: )
+6.  **User**: Points out the Top X of Y stat is not center-aligned. (Status: )
+7.  **User**: Decides against the complex multi-color stat text and asks to revert it to a single color. (Status: )
+8.  **User**: Asks to change the Elo score color to match the paper title. (Status: )
+9.  **User**: A series of final, fine-tuning requests for the badge design (character limits, font sizes). (Status: )
+10. **User**: Asks to ensure badges are only given for weekly/monthly archives. (Status: )
 
 **Project Health Check:**
--   **Broken**: None.
+-   **Broken**: None. However, the production badge generation feature is pending deployment of the latest code which adds the  dependency.
 -   **Mocked**: None.
 
 **3rd Party Integrations**
--   **In Use**: Anthropic (Claude), OpenAI (GPT), Google (Gemini), OpenReview, eLife, Crossref, Sciety.org, ArXiv, ChemRxiv, AlphaXiv, ResearchHub.
--   **Explored (for Author Verification)**:
-    -   ORCID API (OAuth, Public API for works lists)
-    -   Semantic Scholar API (Author and paper lookups)
+-   **ORCID API**: Used for user identity verification via OAuth.
+-   **Semantic Scholar API**: Used for fetching academic paper metadata.
+-   **CairoSVG**: A new Python library dependency for rendering SVG templates to PNG images.
 
 **Testing status**
--   **Testing agent used after significant changes**: NO
+-   **Testing agent used after significant changes**: YES
 -   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: None.
--   **Known regressions**: None.
+-   **Test files created**: None
+-   **Known regressions**: None
 
 **Credentials to test flow:**
 -   The admin password can be found in the  environment variable in the  file.
+-   ORCID API credentials are also available in .
 
 **What agent forgot to execute**
--   The future tasks from the initial handoff summary were not addressed, as they were lower priority than the user's active requests. Specifically, the task to verify if all ICLR datasets from the previous fork were fully and successfully scored in the single-item experiment is still pending from the original plan.</analysis>
+-   The old paper-based Claims tab in the admin UI and its associated backend logic are now largely redundant. The agent has implemented the new user-level ORCID verification system but has not yet proposed a plan to clean up or formally deprecate the old, now confusing, paper claim system.</analysis>

@@ -16,15 +16,18 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **Input format**: Abstract + AI impact assessment summary
 - **Summary source**: "claude" (only Claude Thinking summaries used in live tournaments)
 
-## Current State (Mar 12 2026)
-- 1218 papers, 39022 matches, 10 active categories
-- 25 validation datasets, 141963 validation matches, 3158 validation papers
+## Current State (Mar 13 2026)
+- 2174 papers, 64731 matches, 10 active categories
+- 25 validation datasets, validation experiments publicly accessible
 - All validation experiments publicly accessible
 - Leaderboard shows Rating and Gap columns (togglable via admin)
 - Security headers fully implemented
-- All endpoints returning 200, no broken pages
-- Archive backfill now includes ai_rating + sp_score (Gap) in frozen snapshots (Mar 12 2026)
-- Archive system fully operational on production (109 snapshots backfilled Mar 12 2026)
+- Archive system fully operational on production
+- Socially shareable badges for top-ranked papers (SVG → PNG via CairoSVG)
+- Decoupled ORCID verification: users link ORCID on Profile page, admin approves under Users tab
+- Badge sharing is public for all users (not restricted to verified authors)
+- Claims tab removed from admin panel (deprecated in favor of user-level ORCID verification)
+- Profile page shows ORCID admin review status (pending/verified)
 
 ## Deployment Readiness (Mar 9 2026)
 
@@ -51,15 +54,15 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **Admin rating-status performance**: Moved per-category rating counts into the background leaderboard cache. The `/api/admin/rating-status` endpoint now accepts a `category` param and reads from pre-computed cache (~16ms) instead of doing 2-4 MongoDB `count_documents` calls (~200ms each). Category switching in admin panel is now instant.
 
 ## Pending Tasks
-- (P0) ORCID OAuth credentials needed: Register at orcid.org/developer-tools, add ORCID_CLIENT_ID, ORCID_CLIENT_SECRET, ORCID_REDIRECT_URI to backend .env
-- (P2) Further refactor validation.py (2500+ lines)
-- (P2) Improve summary generation failure tracking (partial failures per model)
+- (P1) Consolidate fragile MIDL experiment pipeline into single robust background task
+- (P2) Explore adding new validation datasets from OpenReview (ICLR 2024 CV)
+- (P2) Add missing HTTP security headers
+- (P2) Improve summary generation failure tracking UI
+- (P2) Continue refactoring monolithic leaderboard.py
 - (P2) Verify all ICLR datasets fully scored in single-item experiment
-- (Future) Consolidate MIDL experiment pipeline into single robust background task
+- (P2) Further refactor validation.py (2500+ lines)
 - (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
 - (Future) Author profile pages showing all claimed papers
-- (Future) Manual claim admin review queue
-- (Future) Batch claiming — eligible papers endpoint
 
 ## Key Issue: Budget Exhaustion
 The Emergent LLM key budget gets exhausted during large-scale summary generation. User needs to top up via Profile -> Universal Key -> Add Balance.
@@ -91,3 +94,12 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
   - Multi-signal verification: S2 direct ORCID match, S2 name match, DB name match, fallback to manual review
   - Verified badges display on paper pages
   - ORCID credentials configured and OAuth redirect tested end-to-end
+- Decoupled ORCID Verification & Public Badge Sharing (Mar 13 2026)
+  - ORCID linking moved to user Profile page, decoupled from paper claims
+  - Admin approves ORCID links under Users tab (not Claims)
+  - Profile page shows pending/verified status for ORCID link
+  - Claims tab removed from admin panel
+  - Badge sharing made public for all users
+  - Socially shareable badges (Gold/Silver/Bronze) for top-3 papers in weekly/monthly archives
+  - SVG templates + CairoSVG for server-side OG image generation
+  - SITE_URL env var ensures kurate.org in OG tags on production
