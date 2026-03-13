@@ -119,7 +119,6 @@ export function LeaderboardTable({
   }, []);
 
   const cols = ["2.5rem", "1fr"]; // # + Paper
-  if (!bookmarksMode) cols.push("1.5rem"); // Bookmark icon
   if (showCatCol && !isMobile) cols.push("3.5rem"); // Cat
   cols.push(isMobile ? "3.5rem" : "4rem"); // Score
   if (!isMobile) cols.push("3.5rem"); // Win%
@@ -130,6 +129,7 @@ export function LeaderboardTable({
   if (!isMobile) cols.push("5.5rem"); // Published
   if (bookmarksMode && !isMobile) cols.push("5.5rem"); // Bookmarked
   if (bookmarksMode) cols.push("1.5rem"); // Remove
+  else cols.push("1.5rem"); // Bookmark icon
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
@@ -169,7 +169,6 @@ export function LeaderboardTable({
         <div className={`${gridBase} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`} style={gridStyle}>
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
-          {!bookmarksMode && <div />}
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
           <SortHeader label={isMobile ? "Elo" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
           {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
@@ -180,6 +179,7 @@ export function LeaderboardTable({
           {!isMobile && <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.published} />}
           {bookmarksMode && !isMobile && <SortHeader label="Saved" sortKey="bookmarked_at" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="When you bookmarked this paper." />}
           {bookmarksMode && <div />}
+          {!bookmarksMode && <div />}
         </div>
         {visibleList.map((paper, idx) => (
           <Link
@@ -197,7 +197,6 @@ export function LeaderboardTable({
                 {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
               </p>
             </div>
-            {!bookmarksMode && <BookmarkButton paperId={paper.id} bookmarkedIds={bookmarkedIds} onToggle={toggleBookmark} />}
             {showCatCol && !isMobile && (
               <div className="text-center">
                 <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono bg-secondary text-muted-foreground">{paper.primary_category || "?"}</span>
@@ -224,6 +223,7 @@ export function LeaderboardTable({
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
+            {!bookmarksMode && <BookmarkButton paperId={paper.id} bookmarkedIds={bookmarkedIds} onToggle={toggleBookmark} />}
           </Link>
         ))}
       </div>
