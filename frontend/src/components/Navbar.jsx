@@ -66,7 +66,7 @@ export default function Navbar() {
             <Trophy className="h-6 w-6 text-accent shrink-0" />
             <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 shrink-0 translate-y-[2px]" />
             {activeLabel && (
-              <span className="hidden sm:inline text-xs text-muted-foreground font-mono border border-border rounded px-1.5 py-0.5">
+              <span className="hidden sm:inline text-xs text-muted-foreground font-mono border border-border rounded px-1.5 py-0.5 ml-1">
                 {activeLabel.toUpperCase()}
               </span>
             )}
