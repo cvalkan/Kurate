@@ -119,15 +119,18 @@ export default function ValidationReportPage() {
           <Section num="1" title="Can AI Match Human Reviewers?">
             <p>Pairwise concordance benchmark across {ex.benchmark?.n_datasets || "9"} comparative GT datasets ({ex.benchmark?.total_controlled_pairs?.toLocaleString()} controlled pairs, {ex.benchmark?.total_papers} papers). AI uses Opus 4.6 Thinking summaries with round-robin judges.</p>
             <DataTable
-              headers={["Metric", "AI vs. Human", "Human vs. Human", "AI vs. Majority", "Human vs. Majority (LOO)", "AI vs. Committee", "Human vs. Committee"]}
+              headers={["Metric", "AI vs. Human", "Human vs. Human", "AI vs. Majority", "H vs. Majority (LOO)", "AI vs. Committee", "H vs. Committee"]}
               rows={[
-                ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`,
+                ["Pairwise (coin flip)", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`,
                   bm.tier_accuracy?.ai_total > 0 ? `${bm.tier_accuracy.ai_rate}%` : "\u2014",
                   bm.tier_accuracy?.hh_total > 0 ? `${bm.tier_accuracy.hh_rate}%` : "\u2014"],
-                ["Ties = coin flip", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`, "\u2014", "\u2014"],
-                [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_loo_avg?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014", "\u2014", "\u2014"],
+                ["Concordance (coin flip)", bm.ai_h_cf_concordance ? `${(bm.ai_h_cf_concordance * 100).toFixed(1)}%` : "\u2014",
+                  ts.cf_concordance_rate ? `${(ts.cf_concordance_rate * 100).toFixed(1)}%` : "\u2014", "\u2014", "\u2014", "\u2014", "\u2014"],
+                [`Spearman \u03C1 (fair)`, bt.individual?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3),
+                  bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014",
+                  bt.vs_tier_rho?.toFixed(3) ?? "\u2014", bt.avg_expert_vs_tier?.spearman_rho?.toFixed(3) ?? "\u2014"],
               ]}
-              boldIdx={1}
+              boldIdx={0}
             />
             <p className="text-[9px] text-muted-foreground mt-1">
               <strong>Majority</strong> = virtual majority vote from reviewer score-derived pairwise preferences (our construction).{" "}

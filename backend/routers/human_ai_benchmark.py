@@ -82,6 +82,7 @@ def _inter_rater_pairwise(expert_ratings: dict):
         return None, 0, 0, {}
 
     concordance_rates = []
+    coinflip_concordance_rates = []
     total_reviewer_pairs = 0
     total_concordant = 0
     total_discordant = 0
@@ -118,15 +119,18 @@ def _inter_rater_pairwise(expert_ratings: dict):
             total_tied += tied
 
             nontie = concordant + discordant
+            all_pairs = nontie + tied
             if nontie >= 5:
-                rate = concordant / nontie
-                concordance_rates.append(rate)
+                concordance_rates.append(concordant / nontie)
                 total_reviewer_pairs += 1
+            if all_pairs >= 5:
+                coinflip_concordance_rates.append((concordant + 0.5 * tied) / all_pairs)
 
     if not concordance_rates:
         return None, len(experts), 0, {}
 
     avg_concordance = float(np.mean(concordance_rates))
+    avg_cf_concordance = float(np.mean(coinflip_concordance_rates)) if coinflip_concordance_rates else None
     # Convert to Thurstonian rho: rho = sin(pi * (concordance - 0.5))
     rho = math.sin(math.pi * (avg_concordance - 0.5))
 
@@ -136,6 +140,7 @@ def _inter_rater_pairwise(expert_ratings: dict):
         "tied_excluded": total_tied,
         "tie_fraction": round(total_tied / max(total_concordant + total_discordant + total_tied, 1), 4),
         "concordance_rate": round(avg_concordance, 4),
+        "cf_concordance_rate": round(avg_cf_concordance, 4) if avg_cf_concordance is not None else None,
     }
 
     return float(rho), len(experts), total_reviewer_pairs, tie_stats
@@ -394,14 +399,32 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
     # --- AI-Human concordance (per-expert average) ---
     ai_h_per_expert = defaultdict(lambda: [0, 0])  # {expert: [agree, total]}
+    ai_h_per_expert_ties = defaultdict(int)  # {expert: tie_count}
     for pair in controlled_pairs:
+        paper_a, paper_b = pair
         for exp, winner in expert_pair_prefs[pair].items():
             ai_h_per_expert[exp][1] += 1
             if ai_pair[pair] == winner:
                 ai_h_per_expert[exp][0] += 1
+        # Count experts who tie on this controlled pair (for coin-flip concordance)
+        for exp, ratings in experts_with_data.items():
+            if paper_a in ratings and paper_b in ratings:
+                if ratings[paper_a] == ratings[paper_b]:
+                    ai_h_per_expert_ties[exp] += 1
+
     ai_h_conc_rates = [a / t for a, t in ai_h_per_expert.values() if t >= 5]
     ai_h_concordance = float(np.mean(ai_h_conc_rates)) if ai_h_conc_rates else None
     ai_h_rho = math.sin(math.pi * (ai_h_concordance - 0.5)) if ai_h_concordance else None
+
+    # Coin-flip AI-H concordance: (agree + 0.5*ties) / (total + ties) per expert
+    ai_h_cf_conc_rates = []
+    for exp in ai_h_per_expert:
+        a, t = ai_h_per_expert[exp]
+        ties = ai_h_per_expert_ties.get(exp, 0)
+        total_cf = t + ties
+        if total_cf >= 5:
+            ai_h_cf_conc_rates.append((a + 0.5 * ties) / total_cf)
+    ai_h_cf_concordance = float(np.mean(ai_h_cf_conc_rates)) if ai_h_cf_conc_rates else None
 
     # --- Tie impact analysis ---
     # Count tie-affected expert comparisons that are currently excluded
@@ -855,6 +878,13 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     def _rate(a, t):
         return round(a / max(t, 1) * 100, 1)
 
+    def _cf_rate(agree, nontie_total, tie_count):
+        total = nontie_total + tie_count
+        if total == 0:
+            return None
+        return round((agree + 0.5 * tie_count) / total * 100, 1)
+
+
     def _format_difficulty(stats):
         result = {}
         for level in ["easy", "medium", "hard"]:
@@ -896,6 +926,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         "ai_mode": ai_mode_used,
         "inter_rater_rho": safe_round(rho) if rho else None,
         "ai_h_concordance": safe_round(ai_h_concordance) if ai_h_concordance else None,
+        "ai_h_cf_concordance": safe_round(ai_h_cf_concordance) if ai_h_cf_concordance else None,
         "ai_h_rho": safe_round(ai_h_rho) if ai_h_rho else None,
         "tie_stats": tie_stats,
         "tie_impact": {
@@ -923,13 +954,16 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         "ceiling": ceiling,
         "pairwise": {
             "human_human": {"agree": hh_agree, "total": hh_total, "rate": _rate(hh_agree, hh_total),
-                            "kappa": safe_round(hh_kappa), "ci": _wilson_ci(hh_agree, hh_total)},
+                            "kappa": safe_round(hh_kappa), "ci": _wilson_ci(hh_agree, hh_total),
+                            "cf_rate": _cf_rate(hh_agree, hh_total, hh_tie_one + hh_tie_both)},
             "human_committee": {"agree": hc_agree, "total": hc_total, "rate": _rate(hc_agree, hc_total),
                                 "kappa": safe_round(hc_kappa), "ci": _wilson_ci(hc_agree, hc_total)},
             "human_committee_loo": {"agree": hc_loo_agree, "total": hc_loo_total, "rate": _rate(hc_loo_agree, hc_loo_total),
-                                    "kappa": safe_round(hc_loo_kappa), "ci": _wilson_ci(hc_loo_agree, hc_loo_total)},
+                                    "kappa": safe_round(hc_loo_kappa), "ci": _wilson_ci(hc_loo_agree, hc_loo_total),
+                                    "cf_rate": _cf_rate(hc_loo_agree, hc_loo_total, hc_loo_tie)},
             "ai_human": {"agree": ah_agree, "total": ah_total, "rate": _rate(ah_agree, ah_total),
-                         "kappa": safe_round(ah_kappa), "ci": _wilson_ci(ah_agree, ah_total)},
+                         "kappa": safe_round(ah_kappa), "ci": _wilson_ci(ah_agree, ah_total),
+                         "cf_rate": _cf_rate(ah_agree, ah_total, ah_tie)},
             "ai_committee": {"agree": ac_agree, "total": ac_total, "rate": _rate(ac_agree, ac_total),
                              "kappa": safe_round(ac_kappa), "ci": _wilson_ci(ac_agree, ac_total)},
         },
@@ -1065,6 +1099,8 @@ async def _compute_benchmark(gt_type: str = "comp"):
             pooled["inter_rater_rhos"].append(result["inter_rater_rho"])
         if result.get("ai_h_concordance") is not None:
             pooled["ai_h_concordances"].append(result["ai_h_concordance"])
+        if result.get("ai_h_cf_concordance") is not None:
+            pooled.setdefault("ai_h_cf_concordances", []).append(result["ai_h_cf_concordance"])
         ts = result.get("tie_stats", {})
         if ts:
             pooled["tie_concordant"] += ts.get("concordant", 0)
@@ -1072,6 +1108,8 @@ async def _compute_benchmark(gt_type: str = "comp"):
             pooled["tie_excluded"] += ts.get("tied_excluded", 0)
             if ts.get("concordance_rate") is not None:
                 pooled["concordance_rates"].append(ts["concordance_rate"])
+            if ts.get("cf_concordance_rate") is not None:
+                pooled.setdefault("cf_concordance_rates", []).append(ts["cf_concordance_rate"])
         ti = result.get("tie_impact", {})
         pooled["ti_hh_tie_one"] += ti.get("hh_tie_one", 0)
         pooled["ti_hh_tie_both"] += ti.get("hh_tie_both", 0)
@@ -1199,10 +1237,12 @@ async def _compute_benchmark(gt_type: str = "comp"):
         "tied_excluded": pooled["tie_excluded"],
         "tie_fraction": round(pooled["tie_excluded"] / max(total_tie_all, 1), 4),
         "concordance_rate": round(float(np.mean(pooled["concordance_rates"])), 4) if pooled["concordance_rates"] else None,
+        "cf_concordance_rate": round(float(np.mean(pooled.get("cf_concordance_rates", []))), 4) if pooled.get("cf_concordance_rates") else None,
     }
 
     # Pooled AI-human concordance
     ai_h_conc_avg = float(np.mean(pooled["ai_h_concordances"])) if pooled["ai_h_concordances"] else None
+    ai_h_cf_conc_avg = float(np.mean(pooled.get("ai_h_cf_concordances", []))) if pooled.get("ai_h_cf_concordances") else None
     ai_h_rho_avg = math.sin(math.pi * (ai_h_conc_avg - 0.5)) if ai_h_conc_avg else None
 
     # Pooled tie impact analysis — compute coin-flip rates for all metrics
@@ -1279,6 +1319,7 @@ async def _compute_benchmark(gt_type: str = "comp"):
         "pooled": {
             "inter_rater_rho": safe_round(float(np.mean(pooled["inter_rater_rhos"]))) if pooled["inter_rater_rhos"] else None,
             "ai_h_concordance": safe_round(ai_h_conc_avg) if ai_h_conc_avg else None,
+            "ai_h_cf_concordance": safe_round(ai_h_cf_conc_avg) if ai_h_cf_conc_avg else None,
             "ai_h_rho": safe_round(ai_h_rho_avg) if ai_h_rho_avg else None,
             "tie_stats": pooled_tie_stats,
             "theoretical_ceiling": safe_round(float(np.mean(pooled["ceilings"])), 1) if pooled["ceilings"] else None,

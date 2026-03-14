@@ -97,18 +97,32 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
               );
             })}
             {concordance && (
-              <tr className="border-t border-border/30">
-                <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">Equal-weighted (per reviewer)<div className="text-foreground/40 text-[9px]">ties excluded, each reviewer pair weighted equally</div></td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.ai_h != null ? `${(concordance.ai_h * 100).toFixed(1)}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.hh != null ? `${(concordance.hh * 100).toFixed(1)}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
-              </tr>
+              <>
+                <tr className="border-t border-border/30 bg-accent/5">
+                  <td className="py-1.5 px-2 text-left text-xs font-semibold">Equal-weighted (coin flip)<div className="text-foreground/40 text-[9px]">per reviewer, ties randomly resolved</div></td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{concordance.ai_h_cf != null ? `${(concordance.ai_h_cf * 100).toFixed(1)}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{concordance.hh_cf != null ? `${(concordance.hh_cf * 100).toFixed(1)}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                </tr>
+                <tr className="border-b border-border/30">
+                  <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">Equal-weighted (ties excluded)<div className="text-foreground/40 text-[9px]">per reviewer, ties dropped</div></td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.ai_h != null ? `${(concordance.ai_h * 100).toFixed(1)}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.hh != null ? `${(concordance.hh * 100).toFixed(1)}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                </tr>
+              </>
             )}
           </tbody>
         </table>
@@ -304,10 +318,10 @@ function DatasetTable({ datasets }) {
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.ai_human?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.human_human?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.ai_human?.cf_rate ?? pw.ai_human?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.human_human?.cf_rate ?? pw.human_human?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.ai_committee?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.human_committee_loo?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.human_committee_loo?.cf_rate ?? pw.human_committee_loo?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{ta.ai_rate != null ? `${ta.ai_rate}%` : "\u2014"}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/60">{d.inter_rater_rho?.toFixed(2) ?? "\u2014"}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{bt_indiv.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
@@ -371,7 +385,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
       </div>
 
       {/* 1. Merged agreement + difficulty + tie impact table */}
-      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance }} />
+      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance, hh_cf: p.tie_stats?.cf_concordance_rate, ai_h_cf: p.ai_h_cf_concordance }} />
 
       {/* 2. Ranking Correlation (Bradley-Terry) */}
       {(() => {
