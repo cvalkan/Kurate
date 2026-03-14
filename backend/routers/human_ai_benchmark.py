@@ -293,6 +293,24 @@ async def _compute_dataset_benchmark(dataset_id: str):
             if winner == expert_majority[pair]:
                 hc_agree += 1
 
+    # Human-Committee LOO (leave-one-out: majority computed WITHOUT the tested expert)
+    hc_loo_agree = hc_loo_total = 0
+    for pair in controlled_pairs:
+        votes = expert_pair_prefs[pair]  # {expert: winner}
+        if len(votes) < 3:
+            continue  # need 3+ to form a majority after removing one
+        for held_out_exp, held_out_winner in votes.items():
+            others = [w for e, w in votes.items() if e != held_out_exp]
+            if len(others) < 2:
+                continue
+            c = Counter(others)
+            best, n = c.most_common(1)[0]
+            if n <= len(others) / 2:
+                continue  # no clear majority among remaining experts
+            hc_loo_total += 1
+            if held_out_winner == best:
+                hc_loo_agree += 1
+
     # AI-Human agreement (AI vs individual expert on same pairs)
     ah_agree = ah_total = 0
     for pair in controlled_pairs:
@@ -311,9 +329,9 @@ async def _compute_dataset_benchmark(dataset_id: str):
             ac_agree += 1
 
     # --- Layer 4: Stratification by difficulty ---
-    difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "ah": [0, 0], "ac": [0, 0]},
-                        "medium": {"hh": [0, 0], "hc": [0, 0], "ah": [0, 0], "ac": [0, 0]},
-                        "hard": {"hh": [0, 0], "hc": [0, 0], "ah": [0, 0], "ac": [0, 0]}}
+    difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
+                        "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
+                        "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]}}
 
     for pair in controlled_pairs:
         diff = _classify_difficulty(pair[0], pair[1], papers_by_id)
@@ -333,6 +351,20 @@ async def _compute_dataset_benchmark(dataset_id: str):
                 ds["hc"][1] += 1
                 if winner == expert_majority[pair]:
                     ds["hc"][0] += 1
+        # HC LOO
+        votes = expert_pair_prefs[pair]
+        if len(votes) >= 3:
+            for held_out_exp, held_out_winner in votes.items():
+                others = [w for e, w in votes.items() if e != held_out_exp]
+                if len(others) < 2:
+                    continue
+                c = Counter(others)
+                best, n = c.most_common(1)[0]
+                if n <= len(others) / 2:
+                    continue
+                ds["hc_loo"][1] += 1
+                if held_out_winner == best:
+                    ds["hc_loo"][0] += 1
         # AH
         for exp, winner in expert_pair_prefs[pair].items():
             ds["ah"][1] += 1
@@ -388,6 +420,7 @@ async def _compute_dataset_benchmark(dataset_id: str):
     # --- Layer 6: Cohen's kappa ---
     hh_kappa = _cohens_kappa(hh_agree, hh_total)
     hc_kappa = _cohens_kappa(hc_agree, hc_total)
+    hc_loo_kappa = _cohens_kappa(hc_loo_agree, hc_loo_total)
     ah_kappa = _cohens_kappa(ah_agree, ah_total)
     ac_kappa = _cohens_kappa(ac_agree, ac_total)
 
@@ -401,6 +434,7 @@ async def _compute_dataset_benchmark(dataset_id: str):
             result[level] = {
                 "human_human": {"rate": _rate(s["hh"][0], s["hh"][1]), "pairs": s["hh"][1]},
                 "human_committee": {"rate": _rate(s["hc"][0], s["hc"][1]), "pairs": s["hc"][1]},
+                "human_committee_loo": {"rate": _rate(s["hc_loo"][0], s["hc_loo"][1]), "pairs": s["hc_loo"][1]},
                 "ai_human": {"rate": _rate(s["ah"][0], s["ah"][1]), "pairs": s["ah"][1]},
                 "ai_committee": {"rate": _rate(s["ac"][0], s["ac"][1]), "pairs": s["ac"][1]},
             }
@@ -420,6 +454,8 @@ async def _compute_dataset_benchmark(dataset_id: str):
                             "kappa": safe_round(hh_kappa), "ci": _wilson_ci(hh_agree, hh_total)},
             "human_committee": {"agree": hc_agree, "total": hc_total, "rate": _rate(hc_agree, hc_total),
                                 "kappa": safe_round(hc_kappa), "ci": _wilson_ci(hc_agree, hc_total)},
+            "human_committee_loo": {"agree": hc_loo_agree, "total": hc_loo_total, "rate": _rate(hc_loo_agree, hc_loo_total),
+                                    "kappa": safe_round(hc_loo_kappa), "ci": _wilson_ci(hc_loo_agree, hc_loo_total)},
             "ai_human": {"agree": ah_agree, "total": ah_total, "rate": _rate(ah_agree, ah_total),
                          "kappa": safe_round(ah_kappa), "ci": _wilson_ci(ah_agree, ah_total)},
             "ai_committee": {"agree": ac_agree, "total": ac_total, "rate": _rate(ac_agree, ac_total),
@@ -456,14 +492,14 @@ async def _compute_benchmark():
 
     per_dataset = []
     pooled = {
-        "hh": [0, 0], "hc": [0, 0], "ah": [0, 0], "ac": [0, 0],
+        "hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0],
         "rhos": [], "taus": [],
         "inter_rater_rhos": [],
         "ceilings": [],
         "total_pairs": 0,
-        "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "ah": [0, 0], "ac": [0, 0]},
-                       "medium": {"hh": [0, 0], "hc": [0, 0], "ah": [0, 0], "ac": [0, 0]},
-                       "hard": {"hh": [0, 0], "hc": [0, 0], "ah": [0, 0], "ac": [0, 0]}},
+        "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
+                       "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
+                       "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]}},
     }
 
     for ds_id in all_ds_ids:
@@ -477,6 +513,7 @@ async def _compute_benchmark():
         # Accumulate pooled stats
         pw = result["pairwise"]
         for key, pool_key in [("human_human", "hh"), ("human_committee", "hc"),
+                               ("human_committee_loo", "hc_loo"),
                                ("ai_human", "ah"), ("ai_committee", "ac")]:
             pooled[pool_key][0] += pw[key]["agree"]
             pooled[pool_key][1] += pw[key]["total"]
@@ -495,8 +532,9 @@ async def _compute_benchmark():
 
         # Pool difficulty stats
         for level in ["easy", "medium", "hard"]:
-            for metric in ["hh", "hc", "ah", "ac"]:
+            for metric in ["hh", "hc", "hc_loo", "ah", "ac"]:
                 metric_full = {"hh": "human_human", "hc": "human_committee",
+                               "hc_loo": "human_committee_loo",
                                "ah": "ai_human", "ac": "ai_committee"}[metric]
                 d = result.get("by_difficulty", {}).get(level, {}).get(metric_full, {})
                 pooled["difficulty"][level][metric][0] += int(d.get("rate", 0) * d.get("pairs", 0) / 100)
@@ -518,6 +556,7 @@ async def _compute_benchmark():
             result[level] = {
                 "human_human": {"rate": _rate(s["hh"][0], s["hh"][1]), "pairs": s["hh"][1]},
                 "human_committee": {"rate": _rate(s["hc"][0], s["hc"][1]), "pairs": s["hc"][1]},
+                "human_committee_loo": {"rate": _rate(s["hc_loo"][0], s["hc_loo"][1]), "pairs": s["hc_loo"][1]},
                 "ai_human": {"rate": _rate(s["ah"][0], s["ah"][1]), "pairs": s["ah"][1]},
                 "ai_committee": {"rate": _rate(s["ac"][0], s["ac"][1]), "pairs": s["ac"][1]},
             }
@@ -539,6 +578,10 @@ async def _compute_benchmark():
                                     "kappa": _kappa(pooled["hc"][0], pooled["hc"][1]),
                                     "pairs": pooled["hc"][1],
                                     "ci": _wilson_ci(pooled["hc"][0], pooled["hc"][1])},
+                "human_committee_loo": {"rate": _rate(pooled["hc_loo"][0], pooled["hc_loo"][1]),
+                                        "kappa": _kappa(pooled["hc_loo"][0], pooled["hc_loo"][1]),
+                                        "pairs": pooled["hc_loo"][1],
+                                        "ci": _wilson_ci(pooled["hc_loo"][0], pooled["hc_loo"][1])},
                 "ai_human": {"rate": _rate(pooled["ah"][0], pooled["ah"][1]),
                              "kappa": _kappa(pooled["ah"][0], pooled["ah"][1]),
                              "pairs": pooled["ah"][1],

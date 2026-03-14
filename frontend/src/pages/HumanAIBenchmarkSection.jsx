@@ -46,6 +46,7 @@ function DifficultyTable({ data }) {
             <th className="py-1.5 px-2 text-left font-medium">Difficulty</th>
             <th className="py-1.5 px-2 text-right font-medium">H-H</th>
             <th className="py-1.5 px-2 text-right font-medium">H-Comm</th>
+            <th className="py-1.5 px-2 text-right font-medium">H-Comm (LOO)</th>
             <th className="py-1.5 px-2 text-right font-medium">AI-H</th>
             <th className="py-1.5 px-2 text-right font-medium">AI-Comm</th>
             <th className="py-1.5 px-2 text-right font-medium text-[10px]">n (H-H)</th>
@@ -63,7 +64,8 @@ function DifficultyTable({ data }) {
                   <span className="text-muted-foreground/60 ml-1 text-[9px]">{desc}</span>
                 </td>
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.human_human)}</td>
-                <td className="py-1.5 px-2 text-right font-mono">{fmt(d.human_committee)}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{fmt(d.human_committee)}</td>
+                <td className="py-1.5 px-2 text-right font-mono font-semibold">{fmt(d.human_committee_loo)}</td>
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.ai_human)}</td>
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.ai_committee)}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{nfmt(d.human_human)}</td>
@@ -190,6 +192,7 @@ export default function HumanAIBenchmarkSection() {
                 <th className="py-1.5 px-2 text-left font-medium">Scope</th>
                 <th className="py-1.5 px-2 text-right font-medium">H-H</th>
                 <th className="py-1.5 px-2 text-right font-medium">H-Comm</th>
+                <th className="py-1.5 px-2 text-right font-medium">H-Comm (LOO)</th>
                 <th className="py-1.5 px-2 text-right font-medium">AI-H</th>
                 <th className="py-1.5 px-2 text-right font-medium">AI-Comm</th>
                 <th className="py-1.5 px-2 text-right font-medium text-[10px]">kappa (AI-H)</th>
@@ -197,10 +200,27 @@ export default function HumanAIBenchmarkSection() {
               </tr>
             </thead>
             <tbody>
-              <ComparisonRow label="Pooled (all datasets)" hh={pw.human_human} hc={pw.human_committee} ah={pw.ai_human} ac={pw.ai_committee} highlight />
+              {(() => {
+                const fmt = (v) => v?.rate != null ? `${v.rate}%` : "—";
+                const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "—";
+                const nfmt = (v) => v?.pairs != null ? v.pairs.toLocaleString() : "—";
+                return (
+                  <tr className="border-b border-border/30 bg-accent/5">
+                    <td className="py-1.5 px-2 text-left text-xs font-medium">Pooled (all datasets)</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.human_human)}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{fmt(pw.human_committee)}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-xs font-semibold">{fmt(pw.human_committee_loo)}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_human)}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_committee)}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{kfmt(pw.ai_human)}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{nfmt(pw.human_human)}</td>
+                  </tr>
+                );
+              })()}
               <tr className="border-b border-border/30 bg-amber-50/50">
                 <td className="py-1.5 px-2 text-left text-xs font-medium text-amber-800">NeurIPS 2014 (reference)</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-800">~60%</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-600">—</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-600">—</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-600">—</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-600">—</td>
@@ -213,10 +233,11 @@ export default function HumanAIBenchmarkSection() {
         <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             <strong>H-H</strong> = individual expert vs individual expert.{" "}
-            <strong>H-Comm</strong> = individual expert vs expert majority committee.{" "}
+            <strong>H-Comm</strong> = individual expert vs majority (expert is part of committee — inflated).{" "}
+            <strong>H-Comm (LOO)</strong> = individual expert vs leave-one-out majority (expert excluded from committee — fair independent comparison).{" "}
             <strong>AI-H</strong> = AI (judge majority) vs individual expert.{" "}
             <strong>AI-Comm</strong> = AI majority vs expert majority committee.{" "}
-            All computed on the exact same controlled paper pairs. Cohen's kappa corrects for chance agreement (0.5 baseline for pairwise).
+            All computed on the exact same controlled paper pairs.
           </p>
         </div>
       </div>
