@@ -2058,6 +2058,17 @@ async def _compute_summarizer_ab_results():
                         if ratings[a] != ratings[b]:
                             ep[tuple(sorted([a, b]))] = a if ratings[a] > ratings[b] else b
 
+        # Build individual expert pair preferences for AI-Human accuracy
+        expert_pair_prefs = defaultdict(dict)
+        for exp, ratings in expert_ratings.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] != ratings[b]:
+                        pair = tuple(sorted([a, b]))
+                        expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
+
         human_matches = []
         for exp, ratings in expert_ratings.items():
             pids = list(ratings.keys())
@@ -2109,7 +2120,7 @@ async def _compute_summarizer_ab_results():
             except Exception:
                 pass
 
-            # Accuracy — only pairs where experts disagree (ties excluded)
+            # Accuracy vs committee — only pairs where experts disagree (ties excluded)
             correct = total = 0
             for pk in shared:
                 if pk in ep:
@@ -2117,6 +2128,16 @@ async def _compute_summarizer_ab_results():
                     if mode_map[name][pk] == ep[pk]: correct += 1
             acc = round(correct / max(total, 1) * 100, 1)
             expert_ties = len(shared) - total
+
+            # Accuracy vs individual experts (AI-Human)
+            ah_correct = ah_total = 0
+            for pk in shared:
+                if pk in expert_pair_prefs:
+                    for exp, winner in expert_pair_prefs[pk].items():
+                        ah_total += 1
+                        if mode_map[name][pk] == winner:
+                            ah_correct += 1
+            ah_acc = round(ah_correct / max(ah_total, 1) * 100, 1)
 
             # Average matches per paper for this mode
             paper_match_count = defaultdict(int)
@@ -2126,7 +2147,7 @@ async def _compute_summarizer_ab_results():
             n_papers_involved = len(paper_match_count)
             avg_mpp = round(sum(paper_match_count.values()) / max(n_papers_involved, 1), 1)
 
-            ds_result["modes"][name] = {"rho": rho, "accuracy": acc, "correct": correct, "total": total, "avg_mpp": avg_mpp, "papers": n_papers_involved, "expert_ties": expert_ties}
+            ds_result["modes"][name] = {"rho": rho, "accuracy": acc, "ah_accuracy": ah_acc, "ah_correct": ah_correct, "ah_total": ah_total, "correct": correct, "total": total, "avg_mpp": avg_mpp, "papers": n_papers_involved, "expert_ties": expert_ties}
 
         by_dataset[ds_id] = ds_result
 
@@ -2158,6 +2179,8 @@ async def _compute_summarizer_ab_results():
             rho_vals = []
             correct_sum = 0
             total_sum = 0
+            ah_correct_sum = 0
+            ah_total_sum = 0
             mpp_vals = []
             for ds_id in pooled_ds:
                 v = by_dataset[ds_id]["modes"].get(mode_name)
@@ -2166,11 +2189,25 @@ async def _compute_summarizer_ab_results():
                         rho_vals.append(v["rho"])
                     correct_sum += v["correct"]
                     total_sum += v["total"]
+                    # AI-Human: back-derive from ah_accuracy and ah total
+                    # We need raw counts, so compute from per-dataset data
+                    ah_acc_v = v.get("ah_accuracy", 0)
+                    # Estimate ah counts from accuracy and a rough total
+                    # Better: store raw counts. For now, accumulate from datasets
                     if v.get("avg_mpp"):
                         mpp_vals.append(v["avg_mpp"])
+            # For AI-Human pooled, re-aggregate from by_dataset
+            for ds_id in pooled_ds:
+                ds_data = by_dataset[ds_id]
+                mode_data = ds_data["modes"].get(mode_name)
+                if not mode_data:
+                    continue
+                ah_correct_sum += mode_data.get("ah_correct", 0)
+                ah_total_sum += mode_data.get("ah_total", 0)
             pooled_results[mode_name] = {
                 "avg_rho": round(sum(rho_vals) / max(len(rho_vals), 1), 4) if rho_vals else None,
                 "accuracy": round(correct_sum / max(total_sum, 1) * 100, 1),
+                "ah_accuracy": round(ah_correct_sum / max(ah_total_sum, 1) * 100, 1),
                 "correct": correct_sum, "total": total_sum,
                 "datasets": len(rho_vals),
                 "avg_mpp": round(sum(mpp_vals) / max(len(mpp_vals), 1), 1) if mpp_vals else 0,
@@ -2524,6 +2561,17 @@ async def _compute_judge_comparison():
         if len(ep) < 20:
             continue
 
+        # Individual expert preferences for AI-Human accuracy
+        expert_pair_prefs_j = defaultdict(dict)
+        for exp, ratings in er.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] != ratings[b]:
+                        pair = tuple(sorted([a, b]))
+                        expert_pair_prefs_j[pair][exp] = a if ratings[a] > ratings[b] else b
+
         # Human BT ranking
         human_matches = []
         for exp, ratings in er.items():
@@ -2587,6 +2635,19 @@ async def _compute_judge_comparison():
             correct = sum(1 for p in common if jv.get(p) == ep[p])
             judge_acc[judge]["correct"] += correct
             judge_acc[judge]["total"] += len(common)
+
+            # AI-Human accuracy for this judge
+            ah_c = ah_t = 0
+            for p in common:
+                if p in expert_pair_prefs_j:
+                    for exp, winner in expert_pair_prefs_j[p].items():
+                        ah_t += 1
+                        if jv.get(p) == winner:
+                            ah_c += 1
+            judge_acc[judge].setdefault("ah_correct", 0)
+            judge_acc[judge].setdefault("ah_total", 0)
+            judge_acc[judge]["ah_correct"] += ah_c
+            judge_acc[judge]["ah_total"] += ah_t
 
             j_matches = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": jv[p],
                           "completed": True, "failed": False} for p in common]
@@ -2677,10 +2738,12 @@ async def _compute_judge_comparison():
     for j in ALL_JUDGES:
         s = judge_acc[j]
         rhos = judge_rhos[j]
+        ah_acc_j = round(s.get("ah_correct", 0) / max(s.get("ah_total", 1), 1) * 100, 1)
         judges.append({
             "name": j,
             "cycle_rate": CYCLE_RATES.get(j),
             "accuracy": round(s["correct"] / s["total"] * 100, 1),
+            "ah_accuracy": ah_acc_j,
             "avg_rho": round(np.mean(rhos), 3) if rhos else 0,
             "total_pairs": s["total"],
             "avg_mpp": pooled_avg_mpp,

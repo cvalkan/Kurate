@@ -110,10 +110,10 @@ export default function ValidationReportPage() {
       <Section num="1" title="Which Summarizer Model is Best?">
         <p>Abstract + AI summary fed to pairwise judges. Pooled accuracy across {ex.summarizer?.pooled_datasets?.length || "12"} datasets ({ex.summarizer?.total_common_pairs?.toLocaleString() || "1,521"} common pairs, {ex.summarizer?.total_papers || "?"} papers, {ex.summarizer?.avg_matches_per_paper || "?"} matches/paper avg):</p>
         <DataTable
-          headers={["Summarizer", "Accuracy", "Spearman \u03C1"]}
+          headers={["Summarizer", "AI-Comm", "AI-Human", "Spearman \u03C1"]}
           rows={["Opus 4.6 Thinking", "Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"].map(name => {
             const v = summ[name] || {};
-            return [name, `${v.accuracy || "?"}%`, v.avg_rho || "?"];
+            return [name, `${v.accuracy || "?"}%`, `${v.ah_accuracy || "?"}%`, v.avg_rho || "?"];
           })}
         />
         <p className="mt-2 border-t border-border/30 pt-2">
@@ -125,13 +125,13 @@ export default function ValidationReportPage() {
       <Section num="2" title="Which Judge Model is Best?">
         <p>Same content shown to different judges. Accuracy on {jc.total_pairs?.toLocaleString() || jc.judges?.[0]?.total_pairs || "?"} shared pairs across {jc.total_papers || "?"} papers ({jc.avg_matches_per_paper || "?"} matches/paper avg):</p>
         <DataTable
-          headers={["Judge", "Accuracy", "Spearman \u03C1"]}
+          headers={["Judge", "AI-Comm", "AI-Human", "Spearman \u03C1"]}
           rows={[
             ...(jc.judges || []).sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0)).map(j => [
-              j.label || j.name || "?", `${j.accuracy}%`, j.avg_rho?.toFixed(3) || "?"
+              j.label || j.name || "?", `${j.accuracy}%`, `${j.ah_accuracy || "?"}%`, j.avg_rho?.toFixed(3) || "?"
             ]),
-            ...(jc.round_robin ? [[`Round-Robin (rotating)`, `${jc.round_robin.accuracy}%`, jc.round_robin.avg_rho?.toFixed(3) || "?"]] : []),
-            ...(jc.majority_vote ? [[`Majority Vote (3 judges)`, `${jc.majority_vote.accuracy}%`, jc.majority_vote.avg_rho?.toFixed(3) || "?"]] : []),
+            ...(jc.round_robin ? [[`Round-Robin (rotating)`, `${jc.round_robin.accuracy}%`, "", jc.round_robin.avg_rho?.toFixed(3) || "?"]] : []),
+            ...(jc.majority_vote ? [[`Majority Vote (3 judges)`, `${jc.majority_vote.accuracy}%`, "", jc.majority_vote.avg_rho?.toFixed(3) || "?"]] : []),
           ]}
         />
         <p className="mt-2 border-t border-border/30 pt-2">
