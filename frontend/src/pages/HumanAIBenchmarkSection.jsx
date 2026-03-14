@@ -31,9 +31,9 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "15%" }} />
+            <col style={{ width: "19%" }} />
             <col /><col /><col /><col /><col /><col />
-            <col style={{ width: "6%" }} /><col style={{ width: "6%" }} /><col style={{ width: "7%" }} />
+            <col style={{ width: "5%" }} /><col style={{ width: "5.5%" }} /><col style={{ width: "6%" }} />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
@@ -70,8 +70,8 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
               <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]"></td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]"></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60"></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{kfmt(pw.ai_human)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{totalPairs?.toLocaleString()}</td>
@@ -88,10 +88,10 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]"></td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]"></td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : ""}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60"></td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
