@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Scale, TrendingUp, Info, ChevronDown, ChevronRight } from "lucide-react";
+import { Scale, TrendingUp, ChevronDown, ChevronRight } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
@@ -154,13 +154,13 @@ export default function HumanAIBenchmarkSection() {
 
   const p = data.pooled;
   const pw = p.pairwise;
-  const ref = data.neurips_reference;
 
   return (
     <div className="space-y-6" data-testid="human-ai-benchmark">
       {/* Header metrics */}
-      <div className="text-[10px] text-muted-foreground mb-1">
-        AI judges use <strong>Opus 4.6 Thinking</strong> summaries where available (abstract + AI impact assessment). Majority vote across GPT-5.2, Claude Opus, Gemini 3 Pro.
+      <div className="text-[10px] text-muted-foreground mb-1 flex items-center justify-between flex-wrap gap-1">
+        <span>AI judges use <strong>Opus 4.6 Thinking</strong> summaries (abstract + AI impact assessment). Majority vote across GPT-5.2, Claude Opus, Gemini 3 Pro.</span>
+        <span className="font-mono text-muted-foreground/80"><strong>{data.total_controlled_pairs?.toLocaleString()}</strong> total pairs evaluated</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
@@ -215,16 +215,7 @@ export default function HumanAIBenchmarkSection() {
                   </tr>
                 );
               })()}
-              <tr className="border-b border-border/30 bg-amber-50/50">
-                <td className="py-1.5 px-2 text-left text-xs font-medium text-amber-800">NeurIPS 2014 (reference)</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-800">~60%</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-600">—</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-600">—</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-600">—</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-amber-600">—</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-amber-600">—</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-amber-600">binary</td>
-              </tr>
+              {/* NeurIPS reference row removed */}
             </tbody>
           </table>
         </div>
@@ -245,13 +236,12 @@ export default function HumanAIBenchmarkSection() {
         <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs font-semibold">Stratified by Difficulty</span>
-          <span className="text-[10px] text-muted-foreground ml-1">— the NeurIPS experiment tested borderline papers (hard)</span>
         </div>
         <DifficultyTable data={p.by_difficulty} />
         <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            The NeurIPS 2014 ~60% agreement is most comparable to the <strong>within-tier (hard)</strong> row, where papers are of similar quality.
-            Cross-tier pairs (oral vs reject) are trivially easy for both humans and AI.
+            Cross-tier pairs (e.g., oral vs reject) are trivially easy for both humans and AI.
+            Within-tier (hard) pairs are the most informative, as both raters must distinguish papers of similar quality.
           </p>
         </div>
       </div>
@@ -275,18 +265,6 @@ export default function HumanAIBenchmarkSection() {
             given the observed inter-rater noise (rho = {p.inter_rater_rho?.toFixed(2)}), computed from the Thurstonian model:
             P(agree) = Phi(dq / sqrt(2sigma^2))^2 + (1 - Phi(dq / sqrt(2sigma^2)))^2.
           </p>
-        </div>
-      </div>
-
-      {/* NeurIPS context note */}
-      <div className="border border-amber-200 rounded-lg p-3 bg-amber-50/50">
-        <div className="flex gap-2">
-          <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-[11px] text-amber-900 leading-relaxed space-y-1.5">
-            <p><strong>NeurIPS 2014 comparison:</strong> Two independent program committees agreed on accept/reject for only ~60% of submissions (Shah & Horvitz). This is a <em>binary threshold</em> decision, not pairwise comparison.</p>
-            <p>Our pairwise agreement rates are naturally higher because relative comparison ("which is better?") is cognitively easier and more consistent than absolute scoring. The fair comparison is the <strong>within-tier (hard) row</strong>, where our human-human agreement ({p.by_difficulty?.hard?.human_human?.rate ?? "—"}%) and AI-human agreement ({p.by_difficulty?.hard?.ai_human?.rate ?? "—"}%) should be compared against the NeurIPS 60%.</p>
-            <p>Our inter-rater rho ({p.inter_rater_rho?.toFixed(2)}) is {p.inter_rater_rho > 0.3 ? "higher" : "comparable to"} the NeurIPS estimated rho (0.2-0.3), likely because our datasets span wider quality ranges (oral to reject) than the borderline NeurIPS subset.</p>
-          </div>
         </div>
       </div>
 
