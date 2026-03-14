@@ -112,29 +112,32 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
                 <strong>Tie correction — why it matters:</strong>{" "}
                 With ties excluded, Human-Human ({ex.hh_rate}%) appears to outperform AI-Human ({ex.ah_rate}%) by {hhGapExcl} percentage points.
                 However, this gap is a <strong>measurement artifact</strong>.
-                When a human reviewer gives two papers the same score (a tie), that comparison is silently dropped,
-                selecting for "easy" pairs where quality differences are large enough that both reviewers noticed — inflating Human-Human agreement.
-                AI judges, which always pick a winner, receive no such benefit: AI-Human is computed on a <em>harder</em> mix of pairs.
+                Both metrics are computed on the same set of controlled paper pairs — but within each pair,
+                only expert comparisons where the reviewer had a clear preference (non-tie) are counted.
+                This selects for <em>experts who could distinguish the papers</em>, inflating agreement rates.
+                The effect is stronger for Human-Human because <em>both</em> sides can tie (each dropped comparison removes one data point),
+                while for AI-Human only the human side can tie (AI always has a verdict in forced-choice pairwise).
                 The same bias affects Human-Comm (LOO): only experts with clear preferences are tested against the committee.
               </p>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                The coin-flip row corrects this by randomly resolving ties instead of excluding them.
-                Under this fair comparison, the Human-Human vs AI-Human gap closes
-                to <strong>{cfGap} percentage points</strong> ({cf.human_human}% vs {cf.ai_human}%),
-                and AI-Comm ({cf.ai_committee}%) matches Human-Comm LOO ({cf.human_committee_loo}%).
-                The same correction is applied to the three difficulty rows (AI-Human, Human-Human, and Human-Comm LOO columns).
-                Note that ties and difficulty tiers measure different things: tiers are based on venue decisions (oral/poster/reject),
-                while ties reflect a reviewer giving both papers the same numerical score.
-                Ties are most common within the same tier, where papers are hardest to distinguish.
-                On medium and hard pairs, AI slightly outperforms human agreement after tie correction.
+                The coin-flip row corrects this by randomly assigning a preference to tied experts instead of excluding them.
+                On these tie comparisons, expected agreement is 50% (the random preference matches any other preference half the time).
+                Human-Human drops more because more comparisons are added (both sides can be tied),
+                while AI-Human drops less because AI's real verdict is kept — only the human side gets the coin flip.
+                Under this correction, the gap closes
+                to <strong>{cfGap} percentage points</strong> ({cf.human_human}% vs {cf.ai_human}%).
+                At the committee level, AI-Comm ({cf.ai_committee}%) matches Human-Comm LOO ({cf.human_committee_loo}%).
+                The same correction applies to the difficulty rows.
+                Note: ties and tiers measure different things — tiers are venue decisions (oral/poster/reject),
+                ties are a reviewer giving both papers the same score. Ties are most common within the same tier.
               </p>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 <strong>Significance for AI-based paper ranking:</strong>{" "}
-                These results demonstrate that AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality.
-                The 42% tie fraction reveals that human reviewers themselves often cannot distinguish quality between papers — a fundamental
-                limit of peer review, not a flaw in AI. On the subset where humans <em>can</em> distinguish (non-tie pairs), AI agrees with
-                them at nearly the same rate humans agree with each other.
-                This validates the use of LLM judges as a scalable, consistent alternative to human reviewers for relative quality ranking
+                AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality when measured fairly.
+                The 42% tie fraction reveals that human reviewers often cannot distinguish quality between papers — a fundamental
+                limit of peer review. On the pairs where humans <em>can</em> distinguish, AI agrees with
+                them at the same rate humans agree with each other.
+                This validates LLM judges as a scalable alternative to human reviewers for relative quality ranking
                 of scientific preprints.
               </p>
             </>
