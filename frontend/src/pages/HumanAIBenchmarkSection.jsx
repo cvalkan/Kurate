@@ -14,65 +14,193 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function ComparisonRow({ label, hh, hc, ah, ac, highlight }) {
-  const fmt = (v) => v?.rate != null ? `${v.rate}%` : "—";
-  const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "—";
-  const nfmt = (v) => v?.pairs != null ? v.pairs.toLocaleString() : "—";
-  return (
-    <tr className={`border-b border-border/30 ${highlight ? "bg-accent/5" : ""}`}>
-      <td className="py-1.5 px-2 text-left text-xs font-medium">{label}</td>
-      <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(hh)}</td>
-      <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(hc)}</td>
-      <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(ah)}</td>
-      <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(ac)}</td>
-      <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{kfmt(ah)}</td>
-      <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{nfmt(hh)}</td>
-    </tr>
-  );
-}
-
-function DifficultyTable({ data }) {
-  if (!data) return null;
+function AgreementTable({ pw, difficulty, totalPairs }) {
+  const fmt = (v) => v?.rate != null ? `${v.rate}%` : "\u2014";
+  const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "\u2014";
   const levels = [
     { key: "easy", label: "Cross-tier (easy)", desc: "e.g., Oral vs Reject" },
     { key: "medium", label: "Adjacent-tier (medium)", desc: "e.g., Spotlight vs Poster" },
     { key: "hard", label: "Within-tier (hard)", desc: "e.g., Poster vs Poster" },
   ];
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[11px]">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="py-1.5 px-2 text-left font-medium">Difficulty</th>
-            <th className="py-1.5 px-2 text-right font-medium">H-H</th>
-            <th className="py-1.5 px-2 text-right font-medium">H-Comm</th>
-            <th className="py-1.5 px-2 text-right font-medium">H-Comm (LOO)</th>
-            <th className="py-1.5 px-2 text-right font-medium">AI-H</th>
-            <th className="py-1.5 px-2 text-right font-medium">AI-Comm</th>
-            <th className="py-1.5 px-2 text-right font-medium text-[10px]">paper pairs</th>
-          </tr>
-        </thead>
-        <tbody>
-          {levels.map(({ key, label, desc }) => {
-            const d = data[key] || {};
-            const fmt = (v) => v?.rate != null && v.pairs > 0 ? `${v.rate}%` : "—";
-            return (
-              <tr key={key} className="border-b border-border/20">
-                <td className="py-1.5 px-2 text-left">
-                  <span className="font-medium">{label}</span>
-                  <span className="text-muted-foreground/60 ml-1 text-[9px]">{desc}</span>
-                </td>
-                <td className="py-1.5 px-2 text-right font-mono">{fmt(d.human_human)}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{fmt(d.human_committee)}</td>
-                <td className="py-1.5 px-2 text-right font-mono">{fmt(d.human_committee_loo)}</td>
-                <td className="py-1.5 px-2 text-right font-mono">{fmt(d.ai_human)}</td>
-                <td className="py-1.5 px-2 text-right font-mono">{fmt(d.ai_committee)}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{(d.n_pairs ?? 0).toLocaleString()}</td>
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
+        <Scale className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold">Pairwise Agreement — Controlled Same-Pair Comparison</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground">
+              <th className="py-1.5 px-2 text-left font-medium">Scope</th>
+              <th className="py-1.5 px-2 text-right font-medium">H-H</th>
+              <th className="py-1.5 px-2 text-right font-medium">H-Comm</th>
+              <th className="py-1.5 px-2 text-right font-medium">H-Comm (LOO)</th>
+              <th className="py-1.5 px-2 text-right font-medium">AI-H</th>
+              <th className="py-1.5 px-2 text-right font-medium">AI-Comm</th>
+              <th className="py-1.5 px-2 text-right font-medium text-[10px]">kappa (AI-H)</th>
+              <th className="py-1.5 px-2 text-right font-medium text-[10px]">paper pairs</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-border bg-accent/5">
+              <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled (all datasets)</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.human_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{fmt(pw.human_committee)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.human_committee_loo)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_committee)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{kfmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{totalPairs?.toLocaleString()}</td>
+            </tr>
+            {difficulty && levels.map(({ key, label, desc }) => {
+              const d = difficulty[key] || {};
+              return (
+                <tr key={key} className="border-b border-border/20">
+                  <td className="py-1.5 px-2 text-left">
+                    <span className="font-medium text-muted-foreground">{label}</span>
+                    <span className="text-muted-foreground/50 ml-1 text-[9px]">{desc}</span>
+                  </td>
+                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{fmt(d.human_human)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground/60">{fmt(d.human_committee)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{fmt(d.human_committee_loo)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{fmt(d.ai_human)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{fmt(d.ai_committee)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/40"></td>
+                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          <strong>H-H</strong> = individual expert vs individual expert.{" "}
+          <strong>H-Comm</strong> = individual expert vs majority (expert is part of committee — inflated).{" "}
+          <strong>H-Comm (LOO)</strong> = individual expert vs leave-one-out majority (fair independent comparison).{" "}
+          <strong>AI-H</strong> = AI (judge majority) vs individual expert.{" "}
+          <strong>AI-Comm</strong> = AI majority vs expert majority committee.{" "}
+          All computed on the exact same controlled paper pairs. Difficulty rows break down the pooled row by tier gap.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ReliabilityTables({ p }) {
+  const ts = p.tie_stats || {};
+  const hhConc = ts.concordance_rate;
+  const ahConc = p.ai_h_concordance;
+  const rows = [
+    { scope: "Human-Human", metric: "Pairwise concordance", value: hhConc != null ? `${(hhConc * 100).toFixed(1)}%` : "\u2014",
+      desc: "How often two experts agree on which paper is better (non-tie pairs)" },
+    { scope: "Human-Human", metric: "Derived rho", value: p.inter_rater_rho?.toFixed(2) ?? "\u2014",
+      desc: "Kruskal (1958): rho = sin(\u03C0 \u00D7 (concordance \u2212 0.5))" },
+    { scope: "Human-Human", metric: "Thurstonian ceiling", value: p.theoretical_ceiling != null ? `${p.theoretical_ceiling}%` : "\u2014",
+      desc: `Max achievable pairwise agreement given inter-rater noise (rho = ${p.inter_rater_rho?.toFixed(2)})` },
+    { scope: "Human-Human", metric: "Tie fraction", value: ts.tie_fraction != null ? `${(ts.tie_fraction * 100).toFixed(1)}%` : "\u2014",
+      desc: `${ts.tied_excluded?.toLocaleString() ?? "?"} reviewer paper-pairs excluded (same score)` },
+    { scope: "AI-Human", metric: "Pairwise concordance", value: ahConc != null ? `${(ahConc * 100).toFixed(1)}%` : "\u2014",
+      desc: "How often AI agrees with each individual expert (averaged per expert)" },
+    { scope: "AI-Human", metric: "Derived rho", value: p.ai_h_rho?.toFixed(2) ?? "\u2014",
+      desc: "Same Kruskal conversion applied to AI-human concordance" },
+  ];
+
+  let lastScope = "";
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+        <span className="text-xs font-semibold">Inter-Rater Reliability</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground">
+              <th className="py-1.5 px-2 text-left font-medium">Scope</th>
+              <th className="py-1.5 px-2 text-left font-medium">Metric</th>
+              <th className="py-1.5 px-2 text-right font-medium">Value</th>
+              <th className="py-1.5 px-2 text-left font-medium">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const showScope = r.scope !== lastScope;
+              lastScope = r.scope;
+              return (
+                <tr key={i} className={`border-b border-border/20 ${showScope && i > 0 ? "border-t border-border" : ""}`}>
+                  <td className={`py-1.5 px-2 font-medium ${showScope ? "" : "text-transparent select-none"}`}>{r.scope}</td>
+                  <td className="py-1.5 px-2">{r.metric}</td>
+                  <td className="py-1.5 px-2 text-right font-mono font-bold">{r.value}</td>
+                  <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{r.desc}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          <strong>Human-Human:</strong> For each pair of reviewers sharing 5+ papers, we count concordance on non-tie paper pairs.{" "}
+          <strong>AI-Human:</strong> For each expert, we count how often AI agrees with their preference (averaged per expert, not pooled).{" "}
+          Both exclude tie pairs where a reviewer gave both papers the same score.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TieImpactTable({ tieImpact }) {
+  if (!tieImpact) return null;
+  const hh = tieImpact.hh || {};
+  const ah = tieImpact.ah || {};
+  const counts = tieImpact.tie_counts || {};
+  const scenarios = [
+    { key: "excluded", label: "Excluded (current)", desc: "Tie pairs removed from analysis" },
+    { key: "coin_flip", label: "Ties = coin flip", desc: "Tied reviewer randomly picks one paper" },
+    { key: "disagree", label: "Ties = disagreement", desc: "Tied pairs always count as disagreement" },
+  ];
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
+        <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold">Tie Impact Analysis</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground">
+              <th className="py-1.5 px-2 text-left font-medium">Tie handling</th>
+              <th className="py-1.5 px-2 text-right font-medium">H-H agreement</th>
+              <th className="py-1.5 px-2 text-right font-medium">AI-H agreement</th>
+              <th className="py-1.5 px-2 text-right font-medium text-[10px]">n (H-H)</th>
+              <th className="py-1.5 px-2 text-right font-medium text-[10px]">n (AI-H)</th>
+              <th className="py-1.5 px-2 text-left font-medium">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map(({ key, label, desc }) => (
+              <tr key={key} className={`border-b border-border/20 ${key === "excluded" ? "bg-accent/5" : ""}`}>
+                <td className="py-1.5 px-2 font-medium">{label}</td>
+                <td className="py-1.5 px-2 text-right font-mono font-bold">{hh[key]?.rate ?? "\u2014"}%</td>
+                <td className="py-1.5 px-2 text-right font-mono font-bold">{ah[key]?.rate ?? "\u2014"}%</td>
+                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{(hh[key]?.n ?? 0).toLocaleString()}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{(ah[key]?.n ?? 0).toLocaleString()}</td>
+                <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{desc}</td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          H-H ties: {(counts.hh_one_tie ?? 0).toLocaleString()} pairs with one expert tied, {(counts.hh_both_tie ?? 0).toLocaleString()} with both tied
+          (out of {((counts.hh_nontie ?? 0) + (counts.hh_one_tie ?? 0) + (counts.hh_both_tie ?? 0)).toLocaleString()} total expert comparisons).{" "}
+          AI-H ties: {(counts.ah_tie ?? 0).toLocaleString()} expert-pair comparisons where the expert ties
+          (out of {((counts.ah_nontie ?? 0) + (counts.ah_tie ?? 0)).toLocaleString()} total).{" "}
+          "Coin flip" gives an expected value; actual random resolution would vary slightly.
+        </p>
+      </div>
     </div>
   );
 }
@@ -113,14 +241,14 @@ function DatasetTable({ datasets }) {
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className="py-1 px-2 text-right font-mono">{pw.ai_human?.rate ?? "—"}%</td>
-                    <td className="py-1 px-2 text-right font-mono">{pw.human_human?.rate ?? "—"}%</td>
-                    <td className="py-1 px-2 text-right font-mono">{pw.ai_committee?.rate ?? "—"}%</td>
-                    <td className="py-1 px-2 text-right font-mono">{pw.human_committee_loo?.rate ?? "—"}%</td>
-                    <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{pw.human_committee?.rate ?? "—"}%</td>
-                    <td className="py-1 px-2 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "—"}</td>
-                    <td className="py-1 px-2 text-right font-mono">{bt_c.spearman_rho?.toFixed(2) ?? "—"}</td>
-                    <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{bt_i.spearman_rho?.toFixed(2) ?? "—"}</td>
+                    <td className="py-1 px-2 text-right font-mono">{pw.ai_human?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-2 text-right font-mono">{pw.human_human?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-2 text-right font-mono">{pw.ai_committee?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-2 text-right font-mono">{pw.human_committee_loo?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{pw.human_committee?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-2 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "\u2014"}</td>
+                    <td className="py-1 px-2 text-right font-mono">{bt_c.spearman_rho?.toFixed(2) ?? "\u2014"}</td>
+                    <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{bt_i.spearman_rho?.toFixed(2) ?? "\u2014"}</td>
                     <td className="py-1 px-2 text-right font-mono">{d.controlled_pairs}</td>
                     <td className="py-1 px-2 text-right font-mono">{d.n_experts}</td>
                   </tr>
@@ -169,7 +297,7 @@ export default function HumanAIBenchmarkSection() {
           <Metric label="H-H Pairwise" value={`${pw.human_human.rate}%`} sub={`kappa = ${pw.human_human.kappa}`} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="H-Comm (LOO)" value={`${pw.human_committee_loo?.rate ?? "—"}%`} sub={`kappa = ${pw.human_committee_loo?.kappa ?? "—"}`} />
+          <Metric label="H-Comm (LOO)" value={`${pw.human_committee_loo?.rate ?? "\u2014"}%`} sub={`kappa = ${pw.human_committee_loo?.kappa ?? "\u2014"}`} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label="AI-H Pairwise" value={`${pw.ai_human.rate}%`} sub={`kappa = ${pw.ai_human.kappa}`} accent />
@@ -179,171 +307,53 @@ export default function HumanAIBenchmarkSection() {
         </div>
       </div>
 
-      {/* Main comparison table */}
+      {/* Merged agreement + difficulty table */}
+      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} />
+
+      {/* Inter-Rater Reliability (Human-Human + AI-Human) */}
+      <ReliabilityTables p={p} />
+
+      {/* AI vs Human Ranking Correlation */}
       <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
-          <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-semibold">Pairwise Agreement — Controlled Same-Pair Comparison</span>
+        <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+          <span className="text-xs font-semibold">AI vs Human — Ranking Correlation (Bradley-Terry)</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-[11px]">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
-                <th className="py-1.5 px-2 text-left font-medium">Scope</th>
-                <th className="py-1.5 px-2 text-right font-medium">H-H</th>
-                <th className="py-1.5 px-2 text-right font-medium">H-Comm</th>
-                <th className="py-1.5 px-2 text-right font-medium">H-Comm (LOO)</th>
-                <th className="py-1.5 px-2 text-right font-medium">AI-H</th>
-                <th className="py-1.5 px-2 text-right font-medium">AI-Comm</th>
-                <th className="py-1.5 px-2 text-right font-medium text-[10px]">kappa (AI-H)</th>
-                <th className="py-1.5 px-2 text-right font-medium text-[10px]">paper pairs</th>
+                <th className="py-1.5 px-2 text-left font-medium">Human baseline</th>
+                <th className="py-1.5 px-2 text-right font-medium">Spearman rho</th>
+                <th className="py-1.5 px-2 text-right font-medium">Kendall tau</th>
+                <th className="py-1.5 px-2 text-left font-medium text-[10px]">How human BT is built</th>
               </tr>
             </thead>
             <tbody>
-              {(() => {
-                const fmt = (v) => v?.rate != null ? `${v.rate}%` : "—";
-                const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "—";
-                return (
-                  <tr className="border-b border-border/30 bg-accent/5">
-                    <td className="py-1.5 px-2 text-left text-xs font-medium">Pooled (all datasets)</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.human_human)}</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{fmt(pw.human_committee)}</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.human_committee_loo)}</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_human)}</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_committee)}</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{kfmt(pw.ai_human)}</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{data.total_controlled_pairs?.toLocaleString()}</td>
-                  </tr>
-                );
-              })()}
-              {/* NeurIPS reference row removed */}
+              <tr className="border-b border-border/20">
+                <td className="py-1.5 px-2 font-medium">Committee</td>
+                <td className="py-1.5 px-2 text-right font-mono font-bold">{p.bt_correlation?.committee?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono">{p.bt_correlation?.committee?.kendall_tau?.toFixed(3) ?? "\u2014"}</td>
+                <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Expert majority vote per pair = 1 BT match</td>
+              </tr>
+              <tr className="border-b border-border/20">
+                <td className="py-1.5 px-2 font-medium">Individual</td>
+                <td className="py-1.5 px-2 text-right font-mono font-bold">{p.bt_correlation?.individual?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono">{p.bt_correlation?.individual?.kendall_tau?.toFixed(3) ?? "\u2014"}</td>
+                <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Each expert's preference = 1 separate BT match</td>
+              </tr>
             </tbody>
           </table>
         </div>
         <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            <strong>H-H</strong> = individual expert vs individual expert.{" "}
-            <strong>H-Comm</strong> = individual expert vs majority (expert is part of committee — inflated).{" "}
-            <strong>H-Comm (LOO)</strong> = individual expert vs leave-one-out majority (expert excluded from committee — fair independent comparison).{" "}
-            <strong>AI-H</strong> = AI (judge majority) vs individual expert.{" "}
-            <strong>AI-Comm</strong> = AI majority vs expert majority committee.{" "}
-            All computed on the exact same controlled paper pairs.
+            Compares AI BT rankings against human BT rankings on the same paper sets.
+            Both correlations measure how well the AI-derived ranking agrees with the human-derived ranking.
           </p>
         </div>
       </div>
 
-      {/* Difficulty stratification */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
-          <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-semibold">Stratified by Difficulty</span>
-        </div>
-        <DifficultyTable data={p.by_difficulty} />
-        <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Cross-tier pairs (e.g., oral vs reject) are trivially easy for both humans and AI.
-            Within-tier (hard) pairs are the most informative, as both raters must distinguish papers of similar quality.
-          </p>
-        </div>
-      </div>
-
-      {/* Inter-Rater Reliability */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-          <span className="text-xs font-semibold">Inter-Rater Reliability</span>
-        </div>
-        <div className="px-3 py-3">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="py-1.5 px-2 text-left font-medium">Metric</th>
-                  <th className="py-1.5 px-2 text-right font-medium">Value</th>
-                  <th className="py-1.5 px-2 text-left font-medium">Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {p.tie_stats?.concordance_rate != null && (
-                  <tr className="border-b border-border/20">
-                    <td className="py-1.5 px-2 font-medium">Pairwise concordance</td>
-                    <td className="py-1.5 px-2 text-right font-mono font-bold">{(p.tie_stats.concordance_rate * 100).toFixed(1)}%</td>
-                    <td className="py-1.5 px-2 text-muted-foreground text-[10px]">When two experts both have a preference on a paper pair, how often do they agree on which is better?</td>
-                  </tr>
-                )}
-                {p.inter_rater_rho != null && (
-                  <tr className="border-b border-border/20">
-                    <td className="py-1.5 px-2 font-medium">Derived rho</td>
-                    <td className="py-1.5 px-2 text-right font-mono font-bold">{p.inter_rater_rho.toFixed(2)}</td>
-                    <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Kruskal (1958): rho = sin(pi * (concordance - 0.5)). Used in Thurstonian ceiling.</td>
-                  </tr>
-                )}
-                {p.theoretical_ceiling != null && (
-                  <tr className="border-b border-border/20">
-                    <td className="py-1.5 px-2 font-medium">Thurstonian ceiling</td>
-                    <td className="py-1.5 px-2 text-right font-mono font-bold">{p.theoretical_ceiling}%</td>
-                    <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Maximum achievable pairwise agreement given inter-rater noise (rho = {p.inter_rater_rho?.toFixed(2)}).</td>
-                  </tr>
-                )}
-                {p.tie_stats && (
-                  <tr className="border-b border-border/20">
-                    <td className="py-1.5 px-2 font-medium">Tie fraction</td>
-                    <td className="py-1.5 px-2 text-right font-mono font-bold">{(p.tie_stats.tie_fraction * 100).toFixed(1)}%</td>
-                    <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{p.tie_stats.tied_excluded?.toLocaleString()} reviewer paper-pairs excluded (at least one reviewer gave both papers the same score).</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            For each pair of reviewers sharing 5+ common papers, we enumerate all paper pairs where both have non-tie ratings.
-            Concordance = fraction they order the same way. This is averaged across all reviewer pairs, then converted to
-            rho for the Thurstonian model. Agreement rates above are computed on the same non-tie subset.
-          </p>
-        </div>
-      </div>
-
-      {/* BT Rank Correlation */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-          <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry)</span>
-        </div>
-        <div className="px-3 py-3">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="py-1.5 px-2 text-left font-medium">Human baseline</th>
-                  <th className="py-1.5 px-2 text-right font-medium">Spearman rho</th>
-                  <th className="py-1.5 px-2 text-right font-medium">Kendall tau</th>
-                  <th className="py-1.5 px-2 text-left font-medium text-[10px]">How human BT is built</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-border/20">
-                  <td className="py-1.5 px-2 font-medium">Committee</td>
-                  <td className="py-1.5 px-2 text-right font-mono font-bold">{p.bt_correlation?.committee?.spearman_rho?.toFixed(3) ?? "—"}</td>
-                  <td className="py-1.5 px-2 text-right font-mono">{p.bt_correlation?.committee?.kendall_tau?.toFixed(3) ?? "—"}</td>
-                  <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Expert majority vote per pair = 1 BT match</td>
-                </tr>
-                <tr className="border-b border-border/20">
-                  <td className="py-1.5 px-2 font-medium">Individual</td>
-                  <td className="py-1.5 px-2 text-right font-mono font-bold">{p.bt_correlation?.individual?.spearman_rho?.toFixed(3) ?? "—"}</td>
-                  <td className="py-1.5 px-2 text-right font-mono">{p.bt_correlation?.individual?.kendall_tau?.toFixed(3) ?? "—"}</td>
-                  <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Each expert's preference = 1 separate BT match</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            BT rankings computed separately from human-derived matches and AI matches on the same paper sets.
-            Both correlations compare the full paper ranking produced by human BT vs AI BT.
-          </p>
-        </div>
-      </div>
+      {/* Tie Impact Analysis */}
+      <TieImpactTable tieImpact={p.tie_impact} />
 
       {/* Per-dataset breakdown */}
       <DatasetTable datasets={data.per_dataset} />

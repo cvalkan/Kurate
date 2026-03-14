@@ -379,6 +379,48 @@ async def _compute_dataset_benchmark(dataset_id: str):
         if ai_pair[pair] == expert_majority[pair]:
             ac_agree += 1
 
+    # --- AI-Human concordance (per-expert average) ---
+    ai_h_per_expert = defaultdict(lambda: [0, 0])  # {expert: [agree, total]}
+    for pair in controlled_pairs:
+        for exp, winner in expert_pair_prefs[pair].items():
+            ai_h_per_expert[exp][1] += 1
+            if ai_pair[pair] == winner:
+                ai_h_per_expert[exp][0] += 1
+    ai_h_conc_rates = [a / t for a, t in ai_h_per_expert.values() if t >= 5]
+    ai_h_concordance = float(np.mean(ai_h_conc_rates)) if ai_h_conc_rates else None
+    ai_h_rho = math.sin(math.pi * (ai_h_concordance - 0.5)) if ai_h_concordance else None
+
+    # --- Tie impact analysis ---
+    # Count tie-affected expert comparisons that are currently excluded
+    hh_tie_one = 0   # one expert has preference, other ties
+    hh_tie_both = 0  # both experts tie on this pair
+    ah_tie = 0       # expert ties but AI has a verdict
+
+    for pair in controlled_pairs:
+        paper_a, paper_b = pair
+        experts_for_pair = []
+        for exp, ratings in experts_with_data.items():
+            if paper_a in ratings and paper_b in ratings:
+                has_pref = ratings[paper_a] != ratings[paper_b]
+                experts_for_pair.append((exp, has_pref))
+
+        # H-H tie counts
+        for i in range(len(experts_for_pair)):
+            for j in range(i + 1, len(experts_for_pair)):
+                _, e1_pref = experts_for_pair[i]
+                _, e2_pref = experts_for_pair[j]
+                if e1_pref and e2_pref:
+                    pass  # already in hh_total
+                elif not e1_pref and not e2_pref:
+                    hh_tie_both += 1
+                else:
+                    hh_tie_one += 1
+
+        # AI-H tie counts
+        for _, has_pref in experts_for_pair:
+            if not has_pref:
+                ah_tie += 1
+
     # --- Layer 4: Stratification by difficulty ---
     difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
                         "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
@@ -512,7 +554,15 @@ async def _compute_dataset_benchmark(dataset_id: str):
         "controlled_pairs": len(controlled_pairs),
         "ai_mode": ai_mode_used,
         "inter_rater_rho": safe_round(rho) if rho else None,
+        "ai_h_concordance": safe_round(ai_h_concordance) if ai_h_concordance else None,
+        "ai_h_rho": safe_round(ai_h_rho) if ai_h_rho else None,
         "tie_stats": tie_stats,
+        "tie_impact": {
+            "hh_agree": hh_agree, "hh_total": hh_total,
+            "hh_tie_one": hh_tie_one, "hh_tie_both": hh_tie_both,
+            "ah_agree": ah_agree, "ah_total": ah_total,
+            "ah_tie": ah_tie,
+        },
         "n_rater_pairs": n_pairs,
         "ceiling": ceiling,
         "pairwise": {
@@ -574,10 +624,14 @@ async def _compute_benchmark():
         "bt_comm_rhos": [], "bt_comm_taus": [],
         "bt_indiv_rhos": [], "bt_indiv_taus": [],
         "inter_rater_rhos": [],
+        "ai_h_concordances": [],
         "concordance_rates": [],
         "ceilings": [],
         "total_pairs": 0,
         "tie_concordant": 0, "tie_discordant": 0, "tie_excluded": 0,
+        # Tie impact accumulators
+        "ti_hh_tie_one": 0, "ti_hh_tie_both": 0,
+        "ti_ah_tie": 0,
         "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
                        "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
                        "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0}},
@@ -603,6 +657,8 @@ async def _compute_benchmark():
 
         if result.get("inter_rater_rho") is not None:
             pooled["inter_rater_rhos"].append(result["inter_rater_rho"])
+        if result.get("ai_h_concordance") is not None:
+            pooled["ai_h_concordances"].append(result["ai_h_concordance"])
         ts = result.get("tie_stats", {})
         if ts:
             pooled["tie_concordant"] += ts.get("concordant", 0)
@@ -610,6 +666,10 @@ async def _compute_benchmark():
             pooled["tie_excluded"] += ts.get("tied_excluded", 0)
             if ts.get("concordance_rate") is not None:
                 pooled["concordance_rates"].append(ts["concordance_rate"])
+        ti = result.get("tie_impact", {})
+        pooled["ti_hh_tie_one"] += ti.get("hh_tie_one", 0)
+        pooled["ti_hh_tie_both"] += ti.get("hh_tie_both", 0)
+        pooled["ti_ah_tie"] += ti.get("ah_tie", 0)
         if result.get("ceiling") and result["ceiling"].get("overall"):
             pooled["ceilings"].append(result["ceiling"]["overall"])
         bt = result.get("bt_correlation", {})
@@ -668,12 +728,46 @@ async def _compute_benchmark():
         "concordance_rate": round(float(np.mean(pooled["concordance_rates"])), 4) if pooled["concordance_rates"] else None,
     }
 
+    # Pooled AI-human concordance
+    ai_h_conc_avg = float(np.mean(pooled["ai_h_concordances"])) if pooled["ai_h_concordances"] else None
+    ai_h_rho_avg = math.sin(math.pi * (ai_h_conc_avg - 0.5)) if ai_h_conc_avg else None
+
+    # Pooled tie impact analysis
+    hh_a, hh_t = pooled["hh"][0], pooled["hh"][1]
+    ah_a, ah_t = pooled["ah"][0], pooled["ah"][1]
+    hh_t1, hh_t2 = pooled["ti_hh_tie_one"], pooled["ti_hh_tie_both"]
+    ah_tie = pooled["ti_ah_tie"]
+
+    hh_total_with_ties = hh_t + hh_t1 + hh_t2
+    ah_total_with_ties = ah_t + ah_tie
+
+    tie_impact = {
+        "hh": {
+            "excluded": {"rate": _rate(hh_a, hh_t), "n": hh_t},
+            "coin_flip": {"rate": round((hh_a + 0.5 * hh_t1 + 0.5 * hh_t2) / max(hh_total_with_ties, 1) * 100, 1),
+                          "n": hh_total_with_ties},
+            "disagree": {"rate": _rate(hh_a, hh_total_with_ties), "n": hh_total_with_ties},
+        },
+        "ah": {
+            "excluded": {"rate": _rate(ah_a, ah_t), "n": ah_t},
+            "coin_flip": {"rate": round((ah_a + 0.5 * ah_tie) / max(ah_total_with_ties, 1) * 100, 1),
+                          "n": ah_total_with_ties},
+            "disagree": {"rate": _rate(ah_a, ah_total_with_ties), "n": ah_total_with_ties},
+        },
+        "tie_counts": {
+            "hh_nontie": hh_t, "hh_one_tie": hh_t1, "hh_both_tie": hh_t2,
+            "ah_nontie": ah_t, "ah_tie": ah_tie,
+        },
+    }
+
     summary = {
         "status": "ok",
         "n_datasets": len(per_dataset),
         "total_controlled_pairs": pooled["total_pairs"],
         "pooled": {
             "inter_rater_rho": safe_round(float(np.mean(pooled["inter_rater_rhos"]))) if pooled["inter_rater_rhos"] else None,
+            "ai_h_concordance": safe_round(ai_h_conc_avg) if ai_h_conc_avg else None,
+            "ai_h_rho": safe_round(ai_h_rho_avg) if ai_h_rho_avg else None,
             "tie_stats": pooled_tie_stats,
             "theoretical_ceiling": safe_round(float(np.mean(pooled["ceilings"])), 1) if pooled["ceilings"] else None,
             "pairwise": {
@@ -709,6 +803,7 @@ async def _compute_benchmark():
                 },
             },
             "by_difficulty": _format_pooled_difficulty(),
+            "tie_impact": tie_impact,
         },
         "per_dataset": per_dataset,
     }
