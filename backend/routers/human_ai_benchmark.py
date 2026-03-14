@@ -25,12 +25,13 @@ from core.config import db, logger
 from routers.validation_utils import (
     build_expert_ratings, build_expert_majority, build_content_mode_filter,
     safe_round, PAPER_LIGHT_PROJECTION, norm_tier, TIER_ORDER,
+    COMPARATIVE_GT_DATASETS, STANDALONE_GT_DATASETS,
 )
 from services.ranking import compute_leaderboard
 
 router = APIRouter(prefix="/api/validation")
 
-_benchmark_cache = {"data": None}
+_benchmark_cache = {"comp": {"data": None}, "stan": {"data": None}}
 
 
 def _phi(x):
@@ -286,14 +287,24 @@ async def _compute_dataset_benchmark(dataset_id: str):
         if n > len(votes) / 2:
             expert_majority[pair] = best
 
-    # Load AI matches — only use opus46 summaries (best config)
-    mode_filter = build_content_mode_filter("abstract_plus_summary:opus46")
-    ai_raw = await db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         **mode_filter},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
-    ai_mode_used = "abstract_plus_summary:opus46"
+    # Load AI matches — try best available content mode
+    PREFERRED_MODES = [
+        "abstract_plus_summary:opus46",
+        "abstract_plus_summary:thinking",
+        "abstract_plus_summary",
+    ]
+    ai_raw = []
+    ai_mode_used = None
+    for mode in PREFERRED_MODES:
+        mode_filter = build_content_mode_filter(mode)
+        ai_raw = await db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+             **mode_filter},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ).to_list(100000)
+        if len(ai_raw) >= 20:
+            ai_mode_used = mode
+            break
 
     if len(ai_raw) < 20:
         return None
@@ -751,27 +762,28 @@ async def _compute_dataset_benchmark(dataset_id: str):
 
 
 @router.get("/human-ai-benchmark")
-async def human_ai_benchmark():
-    """Comprehensive human vs AI agreement benchmark across all controlled datasets."""
-    if _benchmark_cache["data"]:
-        return _benchmark_cache["data"]
-    result = await _compute_benchmark()
+async def human_ai_benchmark(gt_type: str = Query("comp")):
+    """Comprehensive human vs AI agreement benchmark. gt_type: comp or stan."""
+    cache = _benchmark_cache.get(gt_type, {})
+    if cache.get("data"):
+        return cache["data"]
+    result = await _compute_benchmark(gt_type)
     if result.get("status") == "ok":
-        _benchmark_cache["data"] = result
+        _benchmark_cache[gt_type] = {"data": result}
     return result
 
 
-async def _compute_benchmark():
-    """Compute the full benchmark across all datasets with human evaluations.
-    Excludes datasets without true pairwise ground truth (e.g., MIDL uses
-    averaged standalone reviewer scores, not comparative judgments)."""
-    # Datasets to exclude: standalone-rating GT only, not true pairwise
-    EXCLUDE_DATASETS = {"midl-medical-imaging"}
+async def _compute_benchmark(gt_type: str = "comp"):
+    """Compute the full benchmark across datasets filtered by GT type.
+    gt_type='comp': comparative GT (ICLR, PeerRead, eLife Neuro)
+    gt_type='stan': standalone GT (eLife bio, MIDL, Qeios, ResearchHub)
+    """
+    allowed = COMPARATIVE_GT_DATASETS if gt_type == "comp" else STANDALONE_GT_DATASETS
 
-    # Discover datasets with evaluations
+    # Discover datasets with evaluations, filtered by GT type
     ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
     all_ds_ids = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)
-                  if r["_id"] not in EXCLUDE_DATASETS]
+                  if r["_id"] in allowed]
 
     meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
@@ -999,6 +1011,7 @@ async def _compute_benchmark():
 
     summary = {
         "status": "ok",
+        "gt_type": gt_type,
         "n_datasets": len(per_dataset),
         "total_controlled_pairs": pooled["total_pairs"],
         "total_papers": pooled["total_papers"],

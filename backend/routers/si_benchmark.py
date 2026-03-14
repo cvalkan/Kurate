@@ -13,17 +13,18 @@ import math
 import numpy as np
 from scipy import stats as scipy_stats
 from collections import defaultdict, Counter
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from core.config import db, logger
 from routers.validation_utils import (
     build_expert_ratings, safe_round, norm_tier, TIER_ORDER,
+    COMPARATIVE_GT_DATASETS, STANDALONE_GT_DATASETS,
 )
 from services.ranking import compute_leaderboard
 
 router = APIRouter(prefix="/api/validation")
 
-_si_benchmark_cache = {"data": None}
+_si_benchmark_cache = {"comp": {"data": None}, "stan": {"data": None}}
 
 TIER_SCORE = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1, "withdrawn": 0, "desk rejected": 0}
 
@@ -585,21 +586,24 @@ def _cf_rate(agree, nontie_total, tie_count):
 
 
 @router.get("/si-benchmark")
-async def si_benchmark():
-    """Human vs AI benchmark for single-item scoring datasets."""
-    if _si_benchmark_cache["data"]:
-        return _si_benchmark_cache["data"]
-    result = await _compute_si_benchmark()
+async def si_benchmark(gt_type: str = Query("stan")):
+    """Human vs AI benchmark for single-item scoring datasets. gt_type: comp or stan."""
+    cache = _si_benchmark_cache.get(gt_type, {})
+    if cache.get("data"):
+        return cache["data"]
+    result = await _compute_si_benchmark(gt_type)
     if result.get("status") == "ok":
-        _si_benchmark_cache["data"] = result
+        _si_benchmark_cache[gt_type] = {"data": result}
     return result
 
 
-async def _compute_si_benchmark():
-    """Compute full benchmark across all datasets with single-item AI scores."""
+async def _compute_si_benchmark(gt_type: str = "stan"):
+    """Compute full benchmark across datasets with single-item AI scores, filtered by GT type."""
+    allowed = COMPARATIVE_GT_DATASETS if gt_type == "comp" else STANDALONE_GT_DATASETS
     ds_with_scores = await db.validation_papers.distinct(
         "dataset_id", {"single_item_score": {"$exists": True}}
     )
+    ds_with_scores = [d for d in ds_with_scores if d in allowed]
     if not ds_with_scores:
         return {"status": "no_data"}
 
@@ -771,6 +775,7 @@ async def _compute_si_benchmark():
 
     return {
         "status": "ok",
+        "gt_type": gt_type,
         "n_datasets": len(per_dataset),
         "total_controlled_pairs": pooled["total_pairs"],
         "total_papers": pooled["total_papers"],

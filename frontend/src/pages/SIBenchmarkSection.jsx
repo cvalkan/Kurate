@@ -296,17 +296,17 @@ function DatasetTable({ datasets }) {
   );
 }
 
-export default function SIBenchmarkSection() {
+function SIBenchmarkPage({ apiUrl, headerDesc, testId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API}/api/validation/si-benchmark`, { timeout: 90000 })
+    axios.get(`${API}${apiUrl}`, { timeout: 90000 })
       .then(r => setData(r.data))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [apiUrl]);
 
   if (loading) return (
     <div className="space-y-3 animate-pulse">
@@ -321,10 +321,10 @@ export default function SIBenchmarkSection() {
   const cf = p.tie_impact?.coin_flip;
 
   return (
-    <div className="space-y-6" data-testid="si-benchmark">
+    <div className="space-y-6" data-testid={testId}>
       {/* Header metrics */}
       <div className="text-[10px] text-muted-foreground mb-1 flex items-center justify-between flex-wrap gap-1">
-        <span>AI scores each paper individually with <strong>Opus 4.6 Thinking</strong> (1-10 scale). Human scores from peer review. Pairwise preferences derived from both.</span>
+        <span>{headerDesc}</span>
         <span className="font-mono text-muted-foreground/80"><strong>{data.total_controlled_pairs?.toLocaleString()}</strong> pairs across <strong>{data.total_papers?.toLocaleString()}</strong> papers ({data.avg_matches_per_paper} matches/paper avg)</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -410,4 +410,20 @@ export default function SIBenchmarkSection() {
       <DatasetTable datasets={data.per_dataset} />
     </div>
   );
+}
+
+export default function SIBenchmarkSection() {
+  return <SIBenchmarkPage
+    apiUrl="/api/validation/si-benchmark?gt_type=stan"
+    headerDesc={<>AI scores each paper individually with <strong>Opus 4.6 Thinking</strong> (1-10 scale). Standalone GT datasets (eLife biology, MIDL, Qeios, ResearchHub) — reviewers scored papers independently.</>}
+    testId="si-benchmark-stan"
+  />;
+}
+
+export function SIBenchmarkCompSection() {
+  return <SIBenchmarkPage
+    apiUrl="/api/validation/si-benchmark?gt_type=comp"
+    headerDesc={<>AI scores each paper individually with <strong>Opus 4.6 Thinking</strong> (1-10 scale). Comparative GT datasets (ICLR, PeerRead, eLife Neuro) — reviewers compared papers against each other.</>}
+    testId="si-benchmark-comp"
+  />;
 }

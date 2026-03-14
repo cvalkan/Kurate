@@ -15,6 +15,22 @@ PAPER_LIGHT_PROJECTION = {"_id": 0, "full_text": 0, "ai_impact_summary_opus46": 
 from core.config import db
 
 
+# ─── Ground Truth Type Classification ──────────────────────────────────────────
+
+COMPARATIVE_GT_DATASETS = {
+    "iclr-codegen", "iclr-llm", "iclr-protein", "iclr-fairness", "iclr-pdes",
+    "iclr-molecules", "iclr-optimization", "iclr-ot", "peerread_acl_2017",
+    "elife-neuro-100", "neurips-cv",
+}
+
+STANDALONE_GT_DATASETS = {
+    "elife-cancer", "elife-microbiology", "elife-comp-sys-bio",
+    "midl-medical-imaging", "qeios-social", "qeios-physical",
+    "researchhub-50", "researchhub-cancer", "researchhub-genetics",
+}
+
+
+
 # ─── Tier Normalization ────────────────────────────────────────────────────────
 
 TIER_ORDER = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "withdrawn": 4, "desk rejected": 4}

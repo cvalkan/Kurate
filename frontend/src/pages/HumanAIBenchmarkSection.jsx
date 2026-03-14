@@ -308,17 +308,17 @@ function DatasetTable({ datasets }) {
   );
 }
 
-export default function HumanAIBenchmarkSection() {
+function BenchmarkPage({ apiUrl, headerDesc, testId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API}/api/validation/human-ai-benchmark`, { timeout: 90000 })
+    axios.get(`${API}${apiUrl}`, { timeout: 90000 })
       .then(r => setData(r.data))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [apiUrl]);
 
   if (loading) return (
     <div className="space-y-3 animate-pulse">
@@ -333,10 +333,10 @@ export default function HumanAIBenchmarkSection() {
   const cf = p.tie_impact?.coin_flip;
 
   return (
-    <div className="space-y-6" data-testid="human-ai-benchmark">
+    <div className="space-y-6" data-testid={testId}>
       {/* Header metrics */}
       <div className="text-[10px] text-muted-foreground mb-1 flex items-center justify-between flex-wrap gap-1">
-        <span>AI judges use <strong>Opus 4.6 Thinking</strong> summaries (abstract + AI impact assessment). Majority vote across GPT-5.2, Claude Opus, Gemini 3 Pro.</span>
+        <span>{headerDesc}</span>
         <span className="font-mono text-muted-foreground/80"><strong>{data.total_controlled_pairs?.toLocaleString()}</strong> pairs across <strong>{data.total_papers?.toLocaleString()}</strong> papers ({data.avg_matches_per_paper} matches/paper avg)</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -422,4 +422,20 @@ export default function HumanAIBenchmarkSection() {
       <DatasetTable datasets={data.per_dataset} />
     </div>
   );
+}
+
+export default function HumanAIBenchmarkSection() {
+  return <BenchmarkPage
+    apiUrl="/api/validation/human-ai-benchmark?gt_type=comp"
+    headerDesc={<>AI judges use <strong>Opus 4.6 Thinking</strong> summaries (abstract + AI impact assessment). Round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. Comparative GT datasets (ICLR, PeerRead, eLife Neuro).</>}
+    testId="human-ai-benchmark"
+  />;
+}
+
+export function HumanAIBenchmarkStanSection() {
+  return <BenchmarkPage
+    apiUrl="/api/validation/human-ai-benchmark?gt_type=stan"
+    headerDesc={<>AI judges use pairwise comparisons (best available content mode). Standalone GT datasets (eLife biology, MIDL, Qeios, ResearchHub) — reviewers scored papers independently.</>}
+    testId="human-ai-benchmark-stan"
+  />;
 }
