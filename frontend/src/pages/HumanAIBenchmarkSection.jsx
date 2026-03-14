@@ -162,7 +162,7 @@ function ReliabilityTables({ p, pw }) {
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-        <span className="text-xs font-semibold">Inter-Rater Reliability</span>
+        <span className="text-xs font-semibold">Inter-Rater Concordance — Equal-Weighted by Reviewer</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
@@ -214,7 +214,7 @@ function ReliabilityTables({ p, pw }) {
             AI-Human concordance ({(ahConc * 100).toFixed(1)}%) slightly <strong>exceeds</strong> Human-Human concordance ({(hhConc * 100).toFixed(1)}%).
             On the non-tie pairs where human experts have clear preferences, AI agrees with each individual expert more often than
             two experts agree with each other. This is not because AI is "better" than humans — it likely reflects that AI judges,
-            by aggregating across three models (GPT-5.2, Opus, Gemini), produce a smoothed signal that aligns well with any single expert's view,
+            by cycling through three models in round-robin (GPT-5.2, Opus, Gemini), produce a smoothed signal that aligns well with any single expert's view,
             much like a committee tends to agree with each member more than members agree with each other.
           </p>
         )}
@@ -252,8 +252,9 @@ function ReliabilityTables({ p, pw }) {
             In a Bradley-Terry tournament, higher SNR per match means faster convergence to the true ranking.
             Concretely: an AI tournament needs fewer matches to achieve the same ranking quality as a human tournament,
             or equivalently, with the same number of matches, AI produces a <strong>more accurate ranking</strong>.
-            This is likely because the AI majority (3 models) acts as a built-in noise-reduction mechanism,
-            analogous to averaging multiple human reviewers — but at the cost of a single automated call.
+            This is likely because the AI round-robin (3 models taking turns) acts as a built-in noise-reduction mechanism:
+            each model brings different strengths, and their combined signal across matches is more stable than any single rater —
+            analogous to averaging multiple human reviewers, but at the cost of a single automated call per match.
           </p>
         )}
       </div>
