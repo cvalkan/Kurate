@@ -384,16 +384,20 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             desc: "AI BT vs all-expert-votes BT — no circularity, same methodology as human baseline" },
           { group: "", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null, fair: false,
             desc: "AI BT vs h1_avg_rating — clean but cross-methodology (BT vs scores)" },
-          { group: "", label: "AI vs Committee", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false,
+          { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false,
             desc: "AI BT vs expert-majority BT — majority collapsing differs from individual aggregate" },
+          { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: null, fair: false,
+            desc: "AI BT vs actual program committee tier decisions — coarse (4 tiers only)" },
           { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true,
             desc: "Expert BT vs LOO all-other-experts BT — fairest human baseline (same methodology as AI)" },
           { group: "", label: "Single expert vs Avg Rating (LOO)", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null, fair: false,
             desc: "Expert BT vs LOO h1_avg_rating — clean but cross-methodology (BT vs scores)" },
-          { group: "", label: "Single expert vs Committee (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false,
+          { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false,
             desc: "Expert BT vs LOO majority BT — LOO ties skipped, majority collapsing" },
-          { group: "", label: "Single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false,
-            desc: "Circular — expert's votes are in the committee they're tested against" },
+          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: null, fair: false,
+            desc: "Expert BT vs tier decisions — circular (reviewers influenced the decisions)" },
+          { group: "", label: "Single expert vs Majority", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false,
+            desc: "Circular — expert's votes are in the majority they're tested against" },
           { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau, fair: false,
             desc: "Circular — expert's votes are in the aggregate" },
         ];
@@ -433,8 +437,11 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             </div>
             <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                All BT rankings use each method's full match data (not restricted to controlled pairs). "Single expert" builds BT from each expert's preferences
-                individually, then averages the correlation across all experts — this is the typical single-rater baseline.
+                All BT rankings use each method's full match data. "Single expert" builds BT from each expert's preferences
+                individually, then averages the correlation across all experts.
+                <strong>Majority</strong> = virtual majority vote from reviewer preferences (our construction).
+                <strong>Committee (ICLR PC)</strong> = actual program committee tier decisions (coarse: 4 tiers).
+                Human vs Committee is circular (reviewers influenced the decisions).
               </p>
             </div>
           </div>
