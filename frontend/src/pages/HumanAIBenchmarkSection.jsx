@@ -111,13 +111,13 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 <strong>Tie correction — why it matters:</strong>{" "}
                 With ties excluded, Human-Human ({ex.hh_rate}%) appears to outperform AI-Human ({ex.ah_rate}%) by {hhGapExcl} percentage points.
-                However, this gap is a <strong>measurement artifact</strong> caused by different within-pair filter strictness.
+                However, this gap is a <strong>measurement artifact</strong> caused by a <strong>selection bias</strong> from different within-pair filter strictness.
                 Both metrics use the same set of controlled paper pairs, but within each pair, a Human-Human comparison requires
                 <em>both</em> experts to have a clear preference — a <strong>double filter</strong>. An AI-Human comparison only requires
                 the <em>one</em> human expert to have a preference (AI always has a verdict) — a <strong>single filter</strong>.
                 Example: on a pair reviewed by experts A (non-tie), B (ties), C (non-tie), Human-Human keeps only A-C (1 of 3 comparisons),
-                while AI-Human keeps AI-A and AI-C (2 of 3). The double filter selects for comparisons where both reviewers
-                could tell the papers apart — an inherently more agreeable subset.
+                while AI-Human keeps AI-A and AI-C (2 of 3). This double filter creates a <strong>selection bias</strong>:
+                it retains only comparisons where both reviewers could tell the papers apart — an inherently more agreeable subset.
               </p>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 The coin-flip row corrects this by randomly assigning a preference to tied experts instead of excluding them.
