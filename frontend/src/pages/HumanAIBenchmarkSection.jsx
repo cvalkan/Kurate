@@ -14,7 +14,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function AgreementTable({ pw, difficulty, totalPairs }) {
+function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
   const fmt = (v) => v?.rate != null ? `${v.rate}%` : "\u2014";
   const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "\u2014";
   const levels = [
@@ -22,6 +22,12 @@ function AgreementTable({ pw, difficulty, totalPairs }) {
     { key: "medium", label: "Adjacent-tier (medium)", desc: "e.g., Spotlight vs Poster" },
     { key: "hard", label: "Within-tier (hard)", desc: "e.g., Poster vs Poster" },
   ];
+  const hh = tieImpact?.hh || {};
+  const ah = tieImpact?.ah || {};
+  const counts = tieImpact?.tie_counts || {};
+  const hhCf = hh.coin_flip?.rate;
+  const ahCf = ah.coin_flip?.rate;
+  const gap = hhCf != null && ahCf != null ? Math.abs(hhCf - ahCf).toFixed(1) : null;
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
@@ -78,6 +84,35 @@ function AgreementTable({ pw, difficulty, totalPairs }) {
           </tbody>
         </table>
       </div>
+      {/* Tie impact sub-section */}
+      {tieImpact && (
+        <>
+          <div className="px-3 py-1.5 bg-secondary/10 border-t border-b border-border flex items-center gap-2">
+            <TrendingUp className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[11px] font-semibold text-muted-foreground">Tie Impact</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "22%" }} />
+                <col /><col /><col /><col /><col /><col /><col />
+              </colgroup>
+              <tbody>
+                <tr className="border-b border-border/20">
+                  <td className="py-1.5 px-2 text-left font-medium text-muted-foreground">Ties = coin flip</td>
+                  <td className="py-1.5 px-2 text-right font-mono">{hh.coin_flip?.rate ?? "\u2014"}%</td>
+                  <td className="py-1.5 px-2"></td>
+                  <td className="py-1.5 px-2"></td>
+                  <td className="py-1.5 px-2 text-right font-mono">{ah.coin_flip?.rate ?? "\u2014"}%</td>
+                  <td className="py-1.5 px-2"></td>
+                  <td className="py-1.5 px-2"></td>
+                  <td className="py-1.5 px-2"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           <strong>H-H</strong> = individual expert vs individual expert.{" "}
@@ -87,6 +122,16 @@ function AgreementTable({ pw, difficulty, totalPairs }) {
           <strong>AI-Comm</strong> = AI majority vs expert majority committee.{" "}
           All computed on the exact same controlled paper pairs. Difficulty rows break down the pooled row by tier gap.
         </p>
+        {gap != null && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
+            <strong>Key finding:</strong> When ties are resolved randomly (coin flip), H-H and AI-H agreement
+            are within <strong>{gap} percentage points</strong> ({hhCf}% vs {ahCf}%).
+            The apparent advantage of H-H over AI-H ({hh.excluded?.rate}% vs {ah.excluded?.rate}%)
+            is largely an artifact of excluding tie pairs, which selects for easy comparisons.
+            AI, which never ties, is measured on a harder mix.
+            Under fair conditions, <strong>AI judges perform on par with human experts</strong>.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -148,68 +193,6 @@ function ReliabilityTables({ p }) {
           <strong>Human-Human:</strong> For each pair of reviewers sharing 5+ papers, we count concordance on non-tie paper pairs.{" "}
           <strong>AI-Human:</strong> For each expert, we count how often AI agrees with their preference (averaged per expert, not pooled).{" "}
           Both exclude tie pairs where a reviewer gave both papers the same score.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function TieImpactTable({ tieImpact }) {
-  if (!tieImpact) return null;
-  const hh = tieImpact.hh || {};
-  const ah = tieImpact.ah || {};
-  const counts = tieImpact.tie_counts || {};
-  const scenarios = [
-    { key: "excluded", label: "Excluded (current)", desc: "Tie pairs removed from analysis" },
-    { key: "coin_flip", label: "Ties = coin flip", desc: "Tied reviewer randomly picks one paper" },
-  ];
-  const hhCf = hh.coin_flip?.rate;
-  const ahCf = ah.coin_flip?.rate;
-  const gap = hhCf != null && ahCf != null ? Math.abs(hhCf - ahCf).toFixed(1) : null;
-  return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
-        <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold">Tie Impact Analysis</span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
-          <thead>
-            <tr className="border-b border-border text-muted-foreground">
-              <th className="py-1.5 px-2 text-left font-medium">Tie handling</th>
-              <th className="py-1.5 px-2 text-right font-medium">H-H agreement</th>
-              <th className="py-1.5 px-2 text-right font-medium">AI-H agreement</th>
-              <th className="py-1.5 px-2 text-right font-medium text-[10px]">n (H-H)</th>
-              <th className="py-1.5 px-2 text-right font-medium text-[10px]">n (AI-H)</th>
-              <th className="py-1.5 px-2 text-left font-medium">Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scenarios.map(({ key, label, desc }) => (
-              <tr key={key} className={`border-b border-border/20 ${key === "excluded" ? "bg-accent/5" : ""}`}>
-                <td className="py-1.5 px-2 font-medium">{label}</td>
-                <td className="py-1.5 px-2 text-right font-mono font-bold">{hh[key]?.rate ?? "\u2014"}%</td>
-                <td className="py-1.5 px-2 text-right font-mono font-bold">{ah[key]?.rate ?? "\u2014"}%</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{(hh[key]?.n ?? 0).toLocaleString()}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{(ah[key]?.n ?? 0).toLocaleString()}</td>
-                <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{desc}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
-          {gap != null && (
-            <><strong>Key finding:</strong> When ties are resolved randomly (coin flip), H-H and AI-H agreement
-            are within <strong>{gap} percentage points</strong> ({hhCf}% vs {ahCf}%).
-            The apparent advantage of H-H over AI-H in the "excluded" scenario ({hh.excluded?.rate}% vs {ah.excluded?.rate}%)
-            is largely an artifact of dropping tie pairs: humans who agree on a clear preference tend to agree on which paper is better,
-            but this selects for easy comparisons. AI, which never ties, is measured on a harder mix of pairs.
-            Under fair conditions (coin flip), <strong>AI judges perform on par with human experts</strong>.{" "}</>
-          )}
-          H-H ties: {(counts.hh_one_tie ?? 0).toLocaleString()} pairs with one expert tied, {(counts.hh_both_tie ?? 0).toLocaleString()} with both tied.{" "}
-          AI-H ties: {(counts.ah_tie ?? 0).toLocaleString()} expert comparisons where the expert ties. "Coin flip" shows the expected value.
         </p>
       </div>
     </div>
@@ -318,13 +301,10 @@ export default function HumanAIBenchmarkSection() {
         </div>
       </div>
 
-      {/* 1. Merged agreement + difficulty table */}
-      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} />
+      {/* 1. Merged agreement + difficulty + tie impact table */}
+      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} />
 
-      {/* 2. Tie Impact Analysis */}
-      <TieImpactTable tieImpact={p.tie_impact} />
-
-      {/* 3. Ranking Correlation (Bradley-Terry) */}
+      {/* 2. Ranking Correlation (Bradley-Terry) */}
       {(() => {
         const bt = p.bt_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
