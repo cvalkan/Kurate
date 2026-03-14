@@ -139,7 +139,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
   );
 }
 
-function ReliabilityTables({ p }) {
+function ReliabilityTables({ p, pw }) {
   const ts = p.tie_stats || {};
   const hhConc = ts.concordance_rate;
   const ahConc = p.ai_h_concordance;
@@ -195,6 +195,18 @@ function ReliabilityTables({ p }) {
           <strong>Human-Human:</strong> For each pair of reviewers sharing 5+ papers, we count concordance on non-tie paper pairs.{" "}
           <strong>AI-Human:</strong> For each expert, we count how often AI agrees with their preference (averaged per expert, not pooled).{" "}
           Both exclude tie pairs where a reviewer gave both papers the same score.
+        </p>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          <strong>Concordance vs agreement:</strong>{" "}
+          The pairwise agreement rates in the table above (Human-Human {pw?.human_human?.rate}%, AI-Human {pw?.ai_human?.rate}%) are <em>pooled</em> —
+          every expert-vs-expert comparison counts equally, so prolific reviewer pairs with many shared papers dominate.
+          Concordance here ({(hhConc * 100).toFixed(1)}% and {(ahConc * 100).toFixed(1)}%) is <em>averaged per unit</em>:
+          each reviewer pair (or each expert, for AI-Human) gets equal weight regardless of volume.
+          The {((pw?.human_human?.rate ?? 0) - (hhConc ?? 0) * 100).toFixed(1)}pp gap for Human-Human
+          ({pw?.human_human?.rate}% pooled vs {(hhConc * 100).toFixed(1)}% averaged) indicates that high-volume reviewer pairs tend to agree more —
+          likely because they share papers from the same conference track where quality differences are clearer.
+          For AI-Human, the gap is negligible ({pw?.ai_human?.rate}% vs {(ahConc * 100).toFixed(1)}%),
+          showing that <strong>AI agreement is consistent across experts</strong> regardless of how many papers each reviewed.
         </p>
         {hhConc != null && ahConc != null && (
           <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -386,7 +398,7 @@ export default function HumanAIBenchmarkSection() {
       })()}
 
       {/* 4. Inter-Rater Reliability (Human-Human + AI-Human) */}
-      <ReliabilityTables p={p} />
+      <ReliabilityTables p={p} pw={pw} />
 
       {/* 5. Per-dataset breakdown */}
       <DatasetTable datasets={data.per_dataset} />
