@@ -187,6 +187,10 @@ function ReliabilityTables({ p, pw }) {
       desc: "How often AI agrees with each individual expert (averaged per expert)" },
     { scope: "AI-Human", metric: "Derived rho", value: p.ai_h_rho?.toFixed(2) ?? "\u2014",
       desc: "Same Kruskal conversion applied to AI-human concordance" },
+    { scope: "vs ICLR Decision", metric: "AI accuracy", value: p.tier_accuracy?.ai_rate != null ? `${p.tier_accuracy.ai_rate}%` : "\u2014",
+      desc: `AI correctly predicts higher-tier paper (${p.tier_accuracy?.ai_total?.toLocaleString() ?? "?"} cross-tier pairs)` },
+    { scope: "", metric: "Human accuracy", value: p.tier_accuracy?.hh_rate != null ? `${p.tier_accuracy.hh_rate}%` : "\u2014",
+      desc: `Individual experts correctly predict higher-tier paper (${p.tier_accuracy?.hh_total?.toLocaleString() ?? "?"} comparisons)` },
   ];
 
   let lastScope = "";

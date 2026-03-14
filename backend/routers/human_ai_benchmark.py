@@ -494,6 +494,32 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                     if e1 == e2:
                         tv_hh_agree += 1
 
+    # --- Tier-based accuracy: AI verdict vs actual ICLR committee decisions ---
+    # For pairs where papers have different decision tiers, does AI pick the higher-tier paper?
+    tier_ai_agree = tier_ai_total = 0
+    tier_hh_agree = tier_hh_total = 0
+    for pair in controlled_pairs:
+        a, b = pair
+        pa = papers_by_id.get(a, {})
+        pb = papers_by_id.get(b, {})
+        ta = norm_tier(pa.get("decision"))
+        tb = norm_tier(pb.get("decision"))
+        if ta is None or tb is None:
+            continue
+        sa = TIER_SCORE.get(ta, -1)
+        sb = TIER_SCORE.get(tb, -1)
+        if sa == sb:
+            continue  # same tier — no GT preference
+        tier_winner = a if sa > sb else b
+        tier_ai_total += 1
+        if ai_pair[pair] == tier_winner:
+            tier_ai_agree += 1
+        # H-H: how often do individual experts agree with tier decision?
+        for exp, winner in expert_pair_prefs[pair].items():
+            tier_hh_total += 1
+            if winner == tier_winner:
+                tier_hh_agree += 1
+
     # --- Layer 4: Stratification by difficulty ---
     difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
                                  "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0},
@@ -815,6 +841,12 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
             "hh_agree": tv_hh_agree, "hh_total": tv_hh_total,
             "hh_rate": _rate(tv_hh_agree, tv_hh_total),
         },
+        "tier_accuracy": {
+            "ai_agree": tier_ai_agree, "ai_total": tier_ai_total,
+            "ai_rate": _rate(tier_ai_agree, tier_ai_total),
+            "hh_agree": tier_hh_agree, "hh_total": tier_hh_total,
+            "hh_rate": _rate(tier_hh_agree, tier_hh_total),
+        },
         "n_rater_pairs": n_pairs,
         "ceiling": ceiling,
         "pairwise": {
@@ -1002,6 +1034,15 @@ async def _compute_benchmark(gt_type: str = "comp"):
         pooled["tv_ai_total"] += tv.get("ai_total", 0)
         pooled["tv_hh_agree"] += tv.get("hh_agree", 0)
         pooled["tv_hh_total"] += tv.get("hh_total", 0)
+        ta = result.get("tier_accuracy", {})
+        pooled.setdefault("tier_ai_agree", 0)
+        pooled.setdefault("tier_ai_total", 0)
+        pooled.setdefault("tier_hh_agree", 0)
+        pooled.setdefault("tier_hh_total", 0)
+        pooled["tier_ai_agree"] += ta.get("ai_agree", 0)
+        pooled["tier_ai_total"] += ta.get("ai_total", 0)
+        pooled["tier_hh_agree"] += ta.get("hh_agree", 0)
+        pooled["tier_hh_total"] += ta.get("hh_total", 0)
 
         # Pool difficulty stats
         for level in ["easy", "medium", "hard"]:
@@ -1207,6 +1248,12 @@ async def _compute_benchmark(gt_type: str = "comp"):
                 "ai_total": pooled.get("tv_ai_total", 0),
                 "hh_rate": _rate(pooled.get("tv_hh_agree", 0), pooled.get("tv_hh_total", 0)),
                 "hh_total": pooled.get("tv_hh_total", 0),
+            },
+            "tier_accuracy": {
+                "ai_rate": _rate(pooled.get("tier_ai_agree", 0), pooled.get("tier_ai_total", 0)),
+                "ai_total": pooled.get("tier_ai_total", 0),
+                "hh_rate": _rate(pooled.get("tier_hh_agree", 0), pooled.get("tier_hh_total", 0)),
+                "hh_total": pooled.get("tier_hh_total", 0),
             },
         },
         "per_dataset": per_dataset,

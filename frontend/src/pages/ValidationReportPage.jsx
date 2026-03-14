@@ -139,6 +139,11 @@ export default function ValidationReportPage() {
               <p>
                 <strong>Ranking correlation:</strong> AI vs h1_avg_rating Spearman {"\u03C1"} = {bt.vs_avg_rating_rho?.toFixed(3)}, comparable to Single expert vs Committee ({bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3)}).
               </p>
+              {bm.tier_accuracy && bm.tier_accuracy.ai_total > 0 && (
+                <p>
+                  <strong>vs ICLR decisions:</strong> On cross-tier pairs (different accept/reject tiers), AI correctly picks the higher-tier paper <strong>{bm.tier_accuracy.ai_rate}%</strong> of the time ({bm.tier_accuracy.ai_total?.toLocaleString()} pairs). Individual experts: {bm.tier_accuracy.hh_rate}% ({bm.tier_accuracy.hh_total?.toLocaleString()} comparisons).
+                </p>
+              )}
             </div>
             <p className="mt-2 border-t border-border/30 pt-2">
               <strong>Verdict:</strong> AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality. The 42% tie fraction is a fundamental limit of peer review — not an AI flaw. LLM judges are a validated, scalable alternative to human reviewers for relative quality ranking.
