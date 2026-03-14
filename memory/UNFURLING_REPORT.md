@@ -3,10 +3,11 @@
 ## Context
 Kurate.org (PaperSumo) generates shareable badge images for top-ranked scientific papers and reading list previews. These are shared on Twitter/X and LinkedIn via OG meta tags served from FastAPI endpoints.
 
-## Architecture
-- **Share pages**: Server-rendered HTML at `/api/badge/{...}/share` and `/api/lists/{id}/share`
-- **OG images**: Dynamically generated SVG→PNG via CairoSVG at `/api/badge/{...}/image.png` and `/api/lists/{id}/image.png`
-- **Browser redirect**: JS `window.location.replace()` sends human visitors to the SPA page
+## Architecture (as of Mar 14 2026)
+- **Share pages**: Server-rendered **100% static HTML** at `/api/badge/{...}/share` and `/api/lists/{id}/share`. Zero JavaScript, zero redirects. Just OG meta tags + a clickable button for human visitors.
+- **OG images**: Pre-rendered SVG→PNG via CairoSVG, persistently cached in MongoDB (`prerendered_images` collection). Fallback to on-the-fly rendering + in-memory cache.
+- **Human navigation**: Manual click via styled "View Leaderboard on Kurate.org" button (no automatic redirect of any kind).
+- **Twitter sharing**: Uses `twitter.com/intent/tweet?text=...&url=SHARE_URL` with the dedicated `url` parameter to explicitly set which URL generates the card.
 - **Infrastructure**: FastAPI → Kubernetes → Cloudflare (production at kurate.org)
 
 ---
@@ -105,35 +106,102 @@ LinkedIn caches crawl results for up to 7 days. Once a URL returns bad data (404
 | List image | 3.0s | 0.15s |
 | Badge share page | 0.9s | 0.9s |
 
-**Fix**: Added in-memory image cache with 1-hour TTL. First request renders and caches; subsequent requests serve from memory. Cache auto-evicts entries older than TTL when size exceeds 500 entries.
+**Fix**: Added in-memory image cache with 1-hour TTL + persistent MongoDB storage (`prerendered_images` collection). Images are pre-rendered when archives/lists are created. Cached images serve well under any crawler timeout.
 
-**Status**: ✅ Resolved. Cached images serve well under any crawler timeout.
+**Status**: ✅ Resolved
 
 ---
 
-## Current Architecture (after all fixes)
+## Issue 7: Twitter unfurling works from desktop but NOT from mobile (Mar 14 2026)
+**Symptom**: Identical tweets containing the same share URL produce different cards depending on whether posted from desktop or mobile Twitter:
+- **Desktop**: Correct rich badge card with pre-rendered image, badge-specific title/description
+- **Mobile**: Generic fallback card showing root domain metadata ("PaperSumo by Kurate.org — AI Paper Rankings"), no badge image
+
+**Screenshot evidence**: Side-by-side posts by same user, same URL, ~20 seconds apart. Desktop post shows full badge card; mobile post shows generic `kurate.org` summary card with a document icon.
+
+### Investigation timeline
+
+**Attempt 1: Remove `<meta http-equiv="refresh">`**
+- **Hypothesis**: The `<meta http-equiv="refresh" content="0;url=...">` tag in the share page was causing Twitter's mobile crawler to follow the instant redirect before reading OG tags, landing on the SPA page (which has default OG metadata).
+- **Action**: Replaced meta-refresh with `<script>window.location.replace(...)</script>`.
+- **Result**: ❌ Did not fix the issue. Mobile still shows generic card.
+
+**Attempt 2: Remove ALL JavaScript and redirects**
+- **Hypothesis**: Twitter's mobile app may use a WebView (which executes JS) to preview URLs, causing the JS redirect to fire before OG tags are extracted.
+- **Action**: Removed ALL JavaScript from share pages. Pages are now 100% pure static HTML — only `<meta>` tags in `<head>` + a clickable `<a>` link in `<body>`. Zero redirects of any kind.
+- **Result**: ❌ Did not fix the issue. Mobile still shows generic card.
+
+**Attempt 3: Use Twitter `url` intent parameter**
+- **Hypothesis**: The tweet text contains multiple URLs (bare "Kurate.org" domain, arXiv link, share URL). Twitter picks which URL to use for the card, and mobile/desktop pick differently. Desktop uses the last URL (share URL → correct card), mobile picks "Kurate.org" (root domain → generic card).
+- **Action**: Changed `twitter.com/intent/tweet?text=...` to `twitter.com/intent/tweet?text=...&url=SHARE_URL`, using the dedicated `url` parameter which explicitly tells Twitter which URL generates the card. Removed the share URL from the `text` parameter.
+- **Result**: ❌ Did not fix the issue according to user testing.
+
+### Verified facts
+1. **Share page serves correct OG tags** — verified via `curl` with Twitterbot User-Agent. All `og:title`, `og:description`, `og:image`, `twitter:card`, `twitter:image` tags are present and correct.
+2. **Image endpoint responds correctly** — returns HTTP 200, `content-type: image/png`, ~191KB.
+3. **HEAD requests work** — middleware converts HEAD to GET for badge/list endpoints, returns 200.
+4. **No redirects or JavaScript** — share pages are 100% static HTML after attempt 2.
+5. **The issue persists across both preview and production domains.**
+
+### Remaining hypotheses (external to code)
+
+**H1: Cloudflare Bot Management (MOST LIKELY)**
+Cloudflare injects a challenge script into every response:
+```html
+<script>(function(){function c(){var b=a.contentDocument...window.__CF$cv$params=...}})();</script>
+```
+Twitter's mobile crawler may originate from a different IP range/ASN than the desktop crawler. Cloudflare may:
+- Serve a full JS challenge page (blocking the real content) to mobile crawler IPs
+- Allow desktop crawler IPs through without challenge
+- This would explain why the same URL returns different cards for mobile vs desktop
+
+**Action required**: Check Cloudflare dashboard → Security → Events for blocked/challenged requests with User-Agent containing "Twitterbot". Create Cloudflare WAF exception rules (Skip rules) for paths matching `/api/badge/*/share`, `/api/badge/*/image.png`, `/api/lists/*/share`, `/api/lists/*/image.png`.
+
+**H2: Twitter's mobile app uses a different card resolution mechanism**
+Desktop Twitter (web client) sends URLs to Twitter's server-side Twitterbot crawler. Mobile Twitter app may:
+- Use its own embedded WebView to generate card previews during composition
+- Cache the preview generated during composition and use it as the final card
+- Use a completely different backend service for mobile-originated cards
+
+If the mobile app's preview mechanism follows a different code path than Twitterbot, it could explain the discrepancy even with perfect HTML.
+
+**H3: Twitter card caching per-device-type**
+Twitter may maintain separate card caches for mobile and desktop clients. If the URL was first shared from mobile before our fixes, the cached (broken) card might persist for mobile while desktop got a fresh crawl.
+
+**Action required**: Test with a completely new URL that has never been shared before (use a different paper's badge, or append `?v=3` as cache buster).
+
+**H4: Twitter Card Validator**
+Use https://cards-dev.twitter.com/validator to force Twitter to re-crawl the URL. This should update the card for both mobile and desktop. If the validator shows the correct card but mobile still doesn't, it confirms a mobile-specific crawler issue.
+
+**Status**: ⚠️ **UNRESOLVED** — All code-side fixes exhausted. Issue is external (Cloudflare and/or Twitter infrastructure).
+
+---
+
+## Current Architecture (after all fixes, Mar 14 2026)
 
 ```
-User clicks "Share on Twitter/LinkedIn"
-  → Opens share URL: /api/badge/.../share or /api/lists/{id}/share
-  → Social crawler fetches URL:
-      1. HEAD request → middleware converts to GET, returns headers only (200, image/png)
-      2. GET request → server checks User-Agent:
-         - Bot: returns HTML with OG tags, NO JS redirect
-         - Browser: returns HTML with OG tags + JS redirect to SPA
-      3. Crawler reads og:image URL → fetches image
-         - Cache hit: serves from memory (~100ms)
+User clicks "Share on Twitter"
+  → Opens twitter.com/intent/tweet?text=...&url=SHARE_URL
+  → Twitter crawler fetches SHARE_URL:
+      1. HEAD request → middleware converts to GET, returns headers only (200)
+      2. GET request → server returns 100% static HTML:
+         - <head> contains all og: and twitter: meta tags
+         - <body> contains human-readable summary + clickable button
+         - ZERO JavaScript, ZERO redirects
+      3. Crawler reads og:image URL → fetches /api/badge/.../image.png
+         - Pre-rendered in MongoDB: serves instantly (~100ms)
          - Cache miss: renders SVG→PNG via CairoSVG (~2-3s), caches result
 ```
 
 ## Remaining Risks
-1. **Cloudflare challenge scripts**: Injected into every response. Impact on crawler parsing is unknown. Cannot be removed (Cloudflare infrastructure).
-2. **LinkedIn caching**: 7-day cache means bad first impressions persist. Cache buster (`?v=N`) helps but isn't automatic.
-3. **Twitter last-URL unfurling**: Twitter unfurls the last URL in tweet text. If tweet contains both arXiv link and share link, position matters. Currently share URL is last.
-4. **Production cold starts**: After deploy, first image request for each badge/list is slow (2-3s). Pre-warming the cache on startup could help but adds complexity.
+1. **Cloudflare challenge scripts** (HIGH): Injected into every response. May block Twitter's mobile crawler entirely, causing fallback to root domain metadata. Requires Cloudflare dashboard configuration to create bypass rules for share/image paths.
+2. **Twitter mobile unfurling** (HIGH): Desktop works, mobile does not. All code-side fixes exhausted. Likely Cloudflare or Twitter infrastructure issue. See Issue 7 for full investigation.
+3. **LinkedIn caching**: 7-day cache means bad first impressions persist. Cache buster (`?v=N`) helps but isn't automatic.
+4. **No automatic redirect for human visitors**: Share pages now require a manual click to reach the interactive SPA. This is a deliberate tradeoff for maximum crawler compatibility.
 
-## Recommendations for Further Investigation
-1. **Pre-render and store images**: Instead of generating on-the-fly, render badge/list images when archives are created or lists are saved. Store as static files or in MongoDB GridFS. Eliminates cold-render latency entirely.
-2. **Cloudflare Page Rules**: Configure Cloudflare to NOT inject challenge scripts on `/api/badge/*/share` and `/api/lists/*/share` paths. This may require Cloudflare dashboard configuration.
-3. **Test with Twitter Card Validator**: Use https://cards-dev.twitter.com/validator to check specific URLs.
-4. **Test with LinkedIn Post Inspector**: Use https://www.linkedin.com/post-inspector/ to force re-crawl and verify OG tags.
+## Recommended Next Steps
+1. **Cloudflare Skip Rules** (P0): Create WAF exception rules in Cloudflare dashboard to bypass bot management for `/api/badge/*/share`, `/api/badge/*/image.png`, `/api/lists/*/share`, `/api/lists/*/image.png`. This is the most likely fix for the mobile unfurling issue.
+2. **Twitter Card Validator** (P0): Test specific share URLs at https://cards-dev.twitter.com/validator to force re-crawl and verify OG tag extraction.
+3. **Cache buster test** (P0): Share a badge URL with `?v=3` appended from mobile to rule out Twitter caching.
+4. **Synthetic Unfurl Test Suite** (P1): Create automated tests that fetch share pages as different crawlers (Twitterbot, LinkedInBot, facebookexternalhit) and verify OG tags and image endpoint responses.
+5. **LinkedIn Post Inspector**: Use https://www.linkedin.com/post-inspector/ to verify LinkedIn unfurling after any changes.
