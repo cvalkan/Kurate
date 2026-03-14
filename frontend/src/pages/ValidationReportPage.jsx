@@ -144,9 +144,10 @@ export default function ValidationReportPage() {
                 The {(ts.tie_fraction * 100).toFixed(0)}% tie fraction shows human reviewers often cannot distinguish paper quality — AI provides verdicts on these pairs too, making it a <strong>strictly more complete</strong> signal source.
               </p>
               <p>
-                <strong>Ranking correlation:</strong> AI vs h1_avg_rating Spearman {"\u03C1"} = {bt.vs_avg_rating_rho?.toFixed(3)}.
-                The cleanest human baseline (Single expert vs LOO h1_avg) is {bt.avg_expert_vs_loo_avg?.spearman_rho?.toFixed(3)} — same reference, no circularity on either side.
-                AI outperforms the average individual expert by {bt.vs_avg_rating_rho && bt.avg_expert_vs_loo_avg?.spearman_rho ? (bt.vs_avg_rating_rho - bt.avg_expert_vs_loo_avg.spearman_rho).toFixed(3) : "?"} on ranking quality.
+                <strong>Ranking correlation (fairest comparison):</strong> AI vs Individual aggregate Spearman {"\u03C1"} = {bt.individual?.spearman_rho?.toFixed(3)} vs
+                Single expert vs LOO Individual aggregate = {bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3)}.
+                Same methodology (BT vs BT), no circularity on either side.
+                AI outperforms the average individual expert by {bt.individual?.spearman_rho && bt.avg_expert_vs_loo_indiv?.spearman_rho ? (bt.individual.spearman_rho - bt.avg_expert_vs_loo_indiv.spearman_rho).toFixed(3) : "?"} on ranking quality.
               </p>
             </div>
             <p className="mt-2 border-t border-border/30 pt-2">
