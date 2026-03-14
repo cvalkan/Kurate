@@ -395,7 +395,8 @@ async def _compute_dataset_benchmark(dataset_id: str):
     hh_tie_one = 0   # one expert has preference, other ties
     hh_tie_both = 0  # both experts tie on this pair
     ah_tie = 0       # expert ties but AI has a verdict
-
+    hc_tie = 0       # expert ties vs committee that has a majority
+    hc_loo_tie = 0   # expert ties vs LOO majority
     for pair in controlled_pairs:
         paper_a, paper_b = pair
         experts_for_pair = []
@@ -420,6 +421,25 @@ async def _compute_dataset_benchmark(dataset_id: str):
         for _, has_pref in experts_for_pair:
             if not has_pref:
                 ah_tie += 1
+
+        # H-Comm tie: expert ties but committee has a majority
+        if pair in expert_majority:
+            for _, has_pref in experts_for_pair:
+                if not has_pref:
+                    hc_tie += 1
+
+        # H-Comm LOO tie: expert ties but LOO majority exists
+        votes = expert_pair_prefs.get(pair, {})
+        for exp_name, has_pref in experts_for_pair:
+            if has_pref:
+                continue  # already counted
+            # This expert ties; check if remaining experts form a majority
+            others = [w for e, w in votes.items()]
+            if len(others) >= 2:
+                c = Counter(others)
+                best, n = c.most_common(1)[0]
+                if n > len(others) / 2:
+                    hc_loo_tie += 1
 
     # --- Layer 4: Stratification by difficulty ---
     difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
@@ -621,6 +641,9 @@ async def _compute_dataset_benchmark(dataset_id: str):
             "hh_tie_one": hh_tie_one, "hh_tie_both": hh_tie_both,
             "ah_agree": ah_agree, "ah_total": ah_total,
             "ah_tie": ah_tie,
+            "hc_agree": hc_agree, "hc_total": hc_total, "hc_tie": hc_tie,
+            "hc_loo_agree": hc_loo_agree, "hc_loo_total": hc_loo_total, "hc_loo_tie": hc_loo_tie,
+            "ac_agree": ac_agree, "ac_total": ac_total,
         },
         "n_rater_pairs": n_pairs,
         "ceiling": ceiling,
@@ -711,6 +734,7 @@ async def _compute_benchmark():
         # Tie impact accumulators
         "ti_hh_tie_one": 0, "ti_hh_tie_both": 0,
         "ti_ah_tie": 0,
+        "ti_hc_tie": 0, "ti_hc_loo_tie": 0,
         "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
                        "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
                        "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0}},
@@ -749,6 +773,8 @@ async def _compute_benchmark():
         pooled["ti_hh_tie_one"] += ti.get("hh_tie_one", 0)
         pooled["ti_hh_tie_both"] += ti.get("hh_tie_both", 0)
         pooled["ti_ah_tie"] += ti.get("ah_tie", 0)
+        pooled["ti_hc_tie"] += ti.get("hc_tie", 0)
+        pooled["ti_hc_loo_tie"] += ti.get("hc_loo_tie", 0)
         if result.get("ceiling") and result["ceiling"].get("overall"):
             pooled["ceilings"].append(result["ceiling"]["overall"])
         bt = result.get("bt_correlation", {})
@@ -822,31 +848,56 @@ async def _compute_benchmark():
     ai_h_conc_avg = float(np.mean(pooled["ai_h_concordances"])) if pooled["ai_h_concordances"] else None
     ai_h_rho_avg = math.sin(math.pi * (ai_h_conc_avg - 0.5)) if ai_h_conc_avg else None
 
-    # Pooled tie impact analysis
+    # Pooled tie impact analysis — compute coin-flip rates for all metrics
     hh_a, hh_t = pooled["hh"][0], pooled["hh"][1]
     ah_a, ah_t = pooled["ah"][0], pooled["ah"][1]
+    hc_a, hc_t = pooled["hc"][0], pooled["hc"][1]
+    hc_loo_a, hc_loo_t = pooled["hc_loo"][0], pooled["hc_loo"][1]
+    ac_a, ac_t = pooled["ac"][0], pooled["ac"][1]
     hh_t1, hh_t2 = pooled["ti_hh_tie_one"], pooled["ti_hh_tie_both"]
     ah_tie = pooled["ti_ah_tie"]
+    hc_tie = pooled["ti_hc_tie"]
+    hc_loo_tie = pooled["ti_hc_loo_tie"]
 
-    hh_total_with_ties = hh_t + hh_t1 + hh_t2
-    ah_total_with_ties = ah_t + ah_tie
+    hh_total_cf = hh_t + hh_t1 + hh_t2
+    ah_total_cf = ah_t + ah_tie
+
+    def _cf_rate(agree, nontie_total, tie_count):
+        """Coin-flip rate: existing agrees + 50% of tie comparisons."""
+        total = nontie_total + tie_count
+        if total == 0:
+            return None
+        return round((agree + 0.5 * tie_count) / total * 100, 1)
+
+    hh_cf_rate = _cf_rate(hh_a, hh_t, hh_t1 + hh_t2)
+    ah_cf_rate = _cf_rate(ah_a, ah_t, ah_tie)
+    hc_cf_rate = _cf_rate(hc_a, hc_t, hc_tie)
+    hc_loo_cf_rate = _cf_rate(hc_loo_a, hc_loo_t, hc_loo_tie)
+    # AI-Comm: AI never ties and committee is built from non-tie votes,
+    # so the coin-flip doesn't change AI-Comm directly. Keep as-is.
+    ac_cf_rate = _rate(ac_a, ac_t) if ac_t > 0 else None
+    # kappa for coin-flip AI-H
+    ah_cf_agree = ah_a + 0.5 * ah_tie
+    ah_cf_kappa = safe_round(_cohens_kappa(int(ah_cf_agree), ah_total_cf)) if ah_total_cf > 0 else None
 
     tie_impact = {
-        "hh": {
-            "excluded": {"rate": _rate(hh_a, hh_t), "n": hh_t},
-            "coin_flip": {"rate": round((hh_a + 0.5 * hh_t1 + 0.5 * hh_t2) / max(hh_total_with_ties, 1) * 100, 1),
-                          "n": hh_total_with_ties},
-            "disagree": {"rate": _rate(hh_a, hh_total_with_ties), "n": hh_total_with_ties},
+        "coin_flip": {
+            "human_human": hh_cf_rate,
+            "human_committee": hc_cf_rate,
+            "human_committee_loo": hc_loo_cf_rate,
+            "ai_human": ah_cf_rate,
+            "ai_committee": ac_cf_rate,
+            "ai_human_kappa": ah_cf_kappa,
+            "total_pairs": hh_total_cf,
         },
-        "ah": {
-            "excluded": {"rate": _rate(ah_a, ah_t), "n": ah_t},
-            "coin_flip": {"rate": round((ah_a + 0.5 * ah_tie) / max(ah_total_with_ties, 1) * 100, 1),
-                          "n": ah_total_with_ties},
-            "disagree": {"rate": _rate(ah_a, ah_total_with_ties), "n": ah_total_with_ties},
+        "excluded": {
+            "hh_rate": _rate(hh_a, hh_t),
+            "ah_rate": _rate(ah_a, ah_t),
         },
         "tie_counts": {
             "hh_nontie": hh_t, "hh_one_tie": hh_t1, "hh_both_tie": hh_t2,
             "ah_nontie": ah_t, "ah_tie": ah_tie,
+            "hc_tie": hc_tie, "hc_loo_tie": hc_loo_tie,
         },
     }
 

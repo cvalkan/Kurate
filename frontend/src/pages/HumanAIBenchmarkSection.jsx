@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Scale, TrendingUp, ChevronDown, ChevronRight } from "lucide-react";
+import { Scale, ChevronDown, ChevronRight } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
@@ -22,12 +22,6 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
     { key: "medium", label: "Adjacent-tier (medium)", desc: "e.g., Spotlight vs Poster" },
     { key: "hard", label: "Within-tier (hard)", desc: "e.g., Poster vs Poster" },
   ];
-  const hh = tieImpact?.hh || {};
-  const ah = tieImpact?.ah || {};
-  const counts = tieImpact?.tie_counts || {};
-  const hhCf = hh.coin_flip?.rate;
-  const ahCf = ah.coin_flip?.rate;
-  const gap = hhCf != null && ahCf != null ? Math.abs(hhCf - ahCf).toFixed(1) : null;
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
@@ -63,6 +57,18 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
               <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{kfmt(pw.ai_human)}</td>
               <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{totalPairs?.toLocaleString()}</td>
             </tr>
+            {tieImpact?.coin_flip && (
+              <tr className="border-b border-border/40">
+                <td className="py-1.5 px-2 text-left text-xs text-muted-foreground">Pooled (ties = coin flip)</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.human_human != null ? `${tieImpact.coin_flip.human_human}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground/60">{tieImpact.coin_flip.human_committee != null ? `${tieImpact.coin_flip.human_committee}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.ai_human != null ? `${tieImpact.coin_flip.ai_human}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{tieImpact.coin_flip.total_pairs?.toLocaleString()}</td>
+              </tr>
+            )}
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
               return (
@@ -84,35 +90,6 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
           </tbody>
         </table>
       </div>
-      {/* Tie impact sub-section */}
-      {tieImpact && (
-        <>
-          <div className="px-3 py-1.5 bg-secondary/10 border-t border-b border-border flex items-center gap-2">
-            <TrendingUp className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[11px] font-semibold text-muted-foreground">Tie Impact</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "22%" }} />
-                <col /><col /><col /><col /><col /><col /><col />
-              </colgroup>
-              <tbody>
-                <tr className="border-b border-border/20">
-                  <td className="py-1.5 px-2 text-left font-medium text-muted-foreground">Ties = coin flip</td>
-                  <td className="py-1.5 px-2 text-right font-mono">{hh.coin_flip?.rate ?? "\u2014"}%</td>
-                  <td className="py-1.5 px-2"></td>
-                  <td className="py-1.5 px-2"></td>
-                  <td className="py-1.5 px-2 text-right font-mono">{ah.coin_flip?.rate ?? "\u2014"}%</td>
-                  <td className="py-1.5 px-2"></td>
-                  <td className="py-1.5 px-2"></td>
-                  <td className="py-1.5 px-2"></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           <strong>H-H</strong> = individual expert vs individual expert.{" "}
@@ -122,16 +99,22 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
           <strong>AI-Comm</strong> = AI majority vs expert majority committee.{" "}
           All computed on the exact same controlled paper pairs. Difficulty rows break down the pooled row by tier gap.
         </p>
-        {gap != null && (
-          <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
-            <strong>Key finding:</strong> When ties are resolved randomly (coin flip), H-H and AI-H agreement
-            are within <strong>{gap} percentage points</strong> ({hhCf}% vs {ahCf}%).
-            The apparent advantage of H-H over AI-H ({hh.excluded?.rate}% vs {ah.excluded?.rate}%)
-            is largely an artifact of excluding tie pairs, which selects for easy comparisons.
-            AI, which never ties, is measured on a harder mix.
-            Under fair conditions, <strong>AI judges perform on par with human experts</strong>.
-          </p>
-        )}
+        {(() => {
+          const cf = tieImpact?.coin_flip;
+          const ex = tieImpact?.excluded;
+          if (!cf || !ex || cf.human_human == null || cf.ai_human == null) return null;
+          const gap = Math.abs(cf.human_human - cf.ai_human).toFixed(1);
+          return (
+            <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
+              <strong>Key finding:</strong> When ties are resolved randomly (coin flip), H-H and AI-H agreement
+              are within <strong>{gap} percentage points</strong> ({cf.human_human}% vs {cf.ai_human}%).
+              The apparent advantage of H-H over AI-H ({ex.hh_rate}% vs {ex.ah_rate}%)
+              is largely an artifact of excluding tie pairs, which selects for easy comparisons.
+              AI, which never ties, is measured on a harder mix.
+              Under fair conditions, <strong>AI judges perform on par with human experts</strong>.
+            </p>
+          );
+        })()}
       </div>
     </div>
   );
