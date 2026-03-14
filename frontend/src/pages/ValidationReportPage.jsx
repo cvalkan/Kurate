@@ -119,7 +119,7 @@ export default function ValidationReportPage() {
           <Section num="1" title="Can AI Match Human Reviewers?">
             <p>Pairwise concordance benchmark across {ex.benchmark?.n_datasets || "9"} comparative GT datasets ({ex.benchmark?.total_controlled_pairs?.toLocaleString()} controlled pairs, {ex.benchmark?.total_papers} papers). AI uses Opus 4.6 Thinking summaries with round-robin judges.</p>
             <DataTable
-              headers={["Metric", "AI-Human", "Human-Human", "AI-Majority", "H-Majority (LOO)", "AI-Committee", "H-Committee"]}
+              headers={["Metric", "AI vs. Human", "Human vs. Human", "AI vs. Majority", "Human vs. Majority (LOO)", "AI vs. Committee", "Human vs. Committee"]}
               rows={[
                 ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`,
                   bm.tier_accuracy?.ai_total > 0 ? `${bm.tier_accuracy.ai_rate}%` : "\u2014",
@@ -130,9 +130,9 @@ export default function ValidationReportPage() {
               boldIdx={1}
             />
             <p className="text-[9px] text-muted-foreground mt-1">
-              <strong>Majority</strong> = virtual majority from reviewer score-derived pairwise preferences.{" "}
-              <strong>Committee</strong> = actual ICLR program committee accept/reject tier decisions (cross-tier pairs only).{" "}
-              H-Committee is structurally inflated: the same reviewers influenced the decisions they are being tested against.
+              <strong>Majority</strong> = virtual majority vote from reviewer score-derived pairwise preferences (our construction).{" "}
+              <strong>Committee</strong> = actual ICLR program committee tier decisions.{" "}
+              Known biases: (1) tie exclusion inflates Human vs. Human (double filter); (2) LOO majority ties are skipped; (3) Human vs. Committee is circular (same reviewers influenced the decision).
             </p>
             <div className="mt-2 space-y-1.5 text-[10px] text-muted-foreground border-t border-border/30 pt-2">
               <p>

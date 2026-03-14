@@ -14,7 +14,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, tierAccuracy }) {
+function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, tierAccuracy, tieStats }) {
   const fmt = (v) => v?.rate != null ? `${v.rate}%` : "\u2014";
   const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "\u2014";
   const levels = [
@@ -31,22 +31,22 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "16%" }} />
+            <col style={{ width: "15%" }} />
             <col /><col /><col /><col /><col /><col />
-            <col style={{ width: "5%" }} /><col style={{ width: "5%" }} /><col style={{ width: "6%" }} />
+            <col style={{ width: "6%" }} /><col style={{ width: "6%" }} /><col style={{ width: "7%" }} />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="py-1.5 px-1.5 text-left font-medium">Scope</th>
-              <th className="py-1.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">AI-Human</th>
-              <th className="py-1.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">Human-Human</th>
-              <th className="py-1.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI-Majority</th>
-              <th className="py-1.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">H-Majority (LOO)</th>
-              <th className="py-1.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI-Committee</th>
-              <th className="py-1.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">H-Committee</th>
-              <th className="py-1.5 px-1 text-right font-medium">tie%</th>
-              <th className="py-1.5 px-1 text-right font-medium">kappa</th>
-              <th className="py-1.5 px-1 text-right font-medium">pairs</th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-sky-500/[0.06]"><div>AI vs.</div><div>Human</div></th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-sky-500/[0.06]"><div>Human vs.</div><div>Human</div></th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-amber-500/[0.06]"><div>AI vs.</div><div>Majority</div></th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-amber-500/[0.06]"><div>Human vs.</div><div>Majority (LOO)</div></th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-rose-500/[0.06]"><div>AI vs.</div><div>Committee</div></th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-rose-500/[0.06]"><div>Human vs.</div><div>Committee</div></th>
+              <th className="py-1.5 px-1.5 text-right font-medium">tie%</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">kappa</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">pairs</th>
             </tr>
           </thead>
           <tbody>
@@ -101,11 +101,11 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
       </div>
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-2">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>AI-Human</strong> = AI judge vs individual expert.{" "}
-          <strong>Human-Human</strong> = expert vs expert.{" "}
-          <strong>Majority</strong> = virtual majority from reviewer score-derived pairwise preferences.{" "}
-          <strong>Committee</strong> = actual ICLR program committee accept/reject tier decisions (cross-tier pairs only; H-Committee is structurally inflated: same reviewers influenced the decisions).{" "}
-          Difficulty rows use coin-flip tie correction for AI-Human, Human-Human, and H-Majority (LOO).
+          <strong>Column definitions:</strong>{" "}
+          <strong>AI vs. Human / Human vs. Human</strong> = individual-level pairwise agreement.{" "}
+          <strong>Majority</strong> = virtual majority vote from reviewer score-derived pairwise preferences (our construction).{" "}
+          <strong>Committee</strong> = actual ICLR program committee accept/reject tier decisions (cross-tier pairs only).{" "}
+          Difficulty rows use coin-flip tie correction.
         </p>
         {(() => {
           const cf = tieImpact?.coin_flip;
@@ -116,27 +116,15 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
           return (
             <>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                <strong>Tie correction — why it matters:</strong>{" "}
-                With ties excluded, Human-Human ({ex.hh_rate}%) appears to outperform AI-Human ({ex.ah_rate}%) by {hhGapExcl} percentage points.
-                However, this gap is a <strong>measurement artifact</strong> caused by a <strong>selection bias</strong> from different within-pair filter strictness.
-                Both metrics use the same set of controlled paper pairs, but within each pair, a Human-Human comparison requires
-                <em>both</em> experts to have a clear preference — a <strong>double filter</strong>. An AI-Human comparison only requires
-                the <em>one</em> human expert to have a preference (AI always has a verdict) — a <strong>single filter</strong>.
-                Example: on a pair reviewed by experts A (non-tie), B (ties), C (non-tie), Human-Human keeps only A-C (1 of 3 comparisons),
-                while AI-Human keeps AI-A and AI-C (2 of 3). This double filter creates a <strong>selection bias</strong>:
-                it retains only comparisons where both reviewers could tell the papers apart — an inherently more agreeable subset.
-              </p>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
-                The coin-flip row corrects this by randomly assigning a preference to tied experts instead of excluding them.
-                On tie comparisons, expected agreement is 50% (the random preference matches any real preference half the time).
-                Human-Human drops more because it has more excluded comparisons to restore (both sides can be tied),
-                while AI-Human drops less because only the human side gets the coin flip — AI keeps its real verdict.
-                Under this correction, the gap closes
-                to <strong>{cfGap} percentage points</strong> ({cf.human_human}% vs {cf.ai_human}%).
-                At the committee level, AI-Majority ({cf.ai_committee}%) matches H-Majority LOO ({cf.human_committee_loo}%).
-                The same correction applies to the difficulty rows.
-                Note: ties and tiers measure different things — tiers are venue decisions (oral/poster/reject),
-                ties are a reviewer giving both papers the same score. Ties are most common within the same tier.
+                <strong>Known biases in this table:</strong>{" "}
+                (1) <strong>Tie exclusion</strong> (AI vs. Human, Human vs. Human): excluding tied comparisons creates a <strong>selection bias</strong>.
+                Human vs. Human requires <em>both</em> experts to have preferences (double filter), selecting for easier comparisons.
+                AI vs. Human only requires one expert (single filter). The coin-flip row corrects this by randomly resolving ties.
+                Under correction, the {hhGapExcl}pp Human advantage closes to <strong>{cfGap}pp</strong> ({cf.human_human}% vs {cf.ai_human}%).{" "}
+                (2) <strong>LOO majority ties</strong> (Human vs. Majority LOO): when the leave-one-out majority is a tie (e.g., 2 remaining experts split 1-1),
+                the pair is skipped — another selection bias toward pairs where the remaining experts agree.{" "}
+                (3) <strong>Committee circularity</strong> (Human vs. Committee): the same reviewers who provide the scores also influenced the program committee
+                decisions they are being tested against — structurally inflating human accuracy. AI vs. Committee has no such circularity.
               </p>
               {(() => {
                 const tv = tieValidation;
@@ -144,26 +132,21 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                 return (
                   <p className="text-[10px] text-muted-foreground leading-relaxed">
                     <strong>Is the coin flip conservative?</strong>{" "}
-                    The coin flip assumes AI has no signal on tie pairs (50% expected agreement).
-                    To test this: on pairs where at least one expert ties, we check how often AI agrees with the <em>non-tying</em> experts.
-                    Result: AI agrees with non-tying experts <strong>{tv.ai_rate}%</strong> of the time ({tv.ai_total?.toLocaleString()} comparisons).
-                    {tv.hh_total > 0 && <> For reference, non-tying experts agree with <em>each other</em> at {tv.hh_rate}% on these same pairs ({tv.hh_total?.toLocaleString()} comparisons).</>}
-                    {tv.ai_rate > 50 ? (
-                      <> Since {tv.ai_rate}% {">"} 50%, the coin flip <strong>underestimates</strong> AI's true agreement — AI has real signal on the pairs humans can't resolve.</>
-                    ) : (
-                      <> At ~50%, AI's signal on tie pairs is near chance.</>
-                    )}
+                    The coin flip assumes AI has zero signal on tie pairs (50% expected agreement).
+                    Test: on pairs where at least one expert ties, AI agrees with <em>non-tying</em> experts <strong>{tv.ai_rate}%</strong> of the time
+                    ({tv.ai_total?.toLocaleString()} comparisons).
+                    {tv.hh_total > 0 && <> Non-tying experts agree with each other at {tv.hh_rate}% on these same pairs.</>}
+                    {tv.ai_rate > 50 && <> Since {tv.ai_rate}% {">"} 50%, the coin flip <strong>underestimates</strong> AI — it has real signal on pairs humans can't resolve.</>}
                   </p>
                 );
               })()}
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                <strong>Significance for AI-based paper ranking:</strong>{" "}
-                AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality when measured fairly.
-                The 42% tie fraction reveals that human reviewers often cannot distinguish quality between papers — a fundamental
-                limit of peer review. On the pairs where humans <em>can</em> distinguish, AI agrees with
-                them at the same rate humans agree with each other.
-                This validates LLM judges as a scalable alternative to human reviewers for relative quality ranking
-                of scientific preprints.
+                <strong>Conclusion:</strong>{" "}
+                AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality when measured fairly (coin-flip).
+                The {(tieStats?.tie_fraction * 100)?.toFixed(0) ?? "?"}% tie fraction reveals a fundamental limit of peer review — human reviewers
+                often cannot distinguish quality between papers. AI provides verdicts on these pairs too, making it a
+                strictly more complete signal source. Against the real ICLR committee, AI ({tierAccuracy?.ai_rate}%) approaches human experts
+                ({tierAccuracy?.hh_rate}%) despite the circularity advantage humans have on that metric.
               </p>
             </>
           );
@@ -368,15 +351,15 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
           <Metric label="Human-Human Pairwise" value={`${cf?.human_human ?? pw.human_human.rate}%`} sub="ties = coin flip" />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="AI-Majority" value={`${cf?.ai_committee ?? pw.ai_committee.rate}%`} accent />
+          <Metric label="AI vs. Majority" value={`${cf?.ai_committee ?? pw.ai_committee.rate}%`} accent />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="H-Majority (LOO)" value={`${cf?.human_committee_loo ?? pw.human_committee_loo?.rate ?? "\u2014"}%`} sub="ties = coin flip" />
+          <Metric label="Human vs. Majority (LOO)" value={`${cf?.human_committee_loo ?? pw.human_committee_loo?.rate ?? "\u2014"}%`} sub="ties = coin flip" />
         </div>
       </div>
 
       {/* 1. Merged agreement + difficulty + tie impact table */}
-      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} />
+      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} />
 
       {/* 2. Ranking Correlation (Bradley-Terry) */}
       {(() => {
