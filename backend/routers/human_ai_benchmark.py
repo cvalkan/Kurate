@@ -482,10 +482,16 @@ async def human_ai_benchmark():
 
 
 async def _compute_benchmark():
-    """Compute the full benchmark across all datasets with human evaluations."""
+    """Compute the full benchmark across all datasets with human evaluations.
+    Excludes datasets without true pairwise ground truth (e.g., MIDL uses
+    averaged standalone reviewer scores, not comparative judgments)."""
+    # Datasets to exclude: standalone-rating GT only, not true pairwise
+    EXCLUDE_DATASETS = {"midl-medical-imaging"}
+
     # Discover datasets with evaluations
     ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
-    all_ds_ids = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)]
+    all_ds_ids = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)
+                  if r["_id"] not in EXCLUDE_DATASETS]
 
     meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}

@@ -65,7 +65,7 @@ function DifficultyTable({ data }) {
                 </td>
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.human_human)}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{fmt(d.human_committee)}</td>
-                <td className="py-1.5 px-2 text-right font-mono font-semibold">{fmt(d.human_committee_loo)}</td>
+                <td className="py-1.5 px-2 text-right font-mono">{fmt(d.human_committee_loo)}</td>
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.ai_human)}</td>
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.ai_committee)}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{nfmt(d.human_human)}</td>
@@ -90,19 +90,19 @@ function DatasetTable({ datasets }) {
       </button>
       {expanded && (
         <div className="overflow-x-auto">
-          <table className="w-full text-[10px]">
+          <table className="w-full text-[10px]" style={{ tableLayout: "fixed" }}>
             <thead>
               <tr className="border-b border-border text-muted-foreground">
-                <th className="py-1 px-1.5 text-left font-medium">Dataset</th>
-                <th className="py-1 px-1.5 text-right font-medium">AI-H%</th>
-                <th className="py-1 px-1.5 text-right font-medium">H-H%</th>
-                <th className="py-1 px-1.5 text-right font-medium">AI-C%</th>
-                <th className="py-1 px-1.5 text-right font-medium">H-C% (LOO)</th>
-                <th className="py-1 px-1.5 text-right font-medium text-muted-foreground/60">H-C%</th>
-                <th className="py-1 px-1.5 text-right font-medium">rho</th>
-                <th className="py-1 px-1.5 text-right font-medium">BT rho</th>
-                <th className="py-1 px-1.5 text-right font-medium">Pairs</th>
-                <th className="py-1 px-1.5 text-right font-medium">Experts</th>
+                <th className="py-1 px-2 text-left font-medium">Dataset</th>
+                <th className="py-1 px-2 text-right font-medium">AI-H%</th>
+                <th className="py-1 px-2 text-right font-medium">H-H%</th>
+                <th className="py-1 px-2 text-right font-medium">AI-C%</th>
+                <th className="py-1 px-2 text-right font-medium">H-C% (LOO)</th>
+                <th className="py-1 px-2 text-right font-medium text-muted-foreground/60">H-C%</th>
+                <th className="py-1 px-2 text-right font-medium">rho</th>
+                <th className="py-1 px-2 text-right font-medium">BT rho</th>
+                <th className="py-1 px-2 text-right font-medium">Pairs</th>
+                <th className="py-1 px-2 text-right font-medium">Experts</th>
               </tr>
             </thead>
             <tbody>
@@ -111,16 +111,16 @@ function DatasetTable({ datasets }) {
                 const bt = d.bt_correlation || {};
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
-                    <td className="py-1 px-1.5 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{pw.ai_human?.rate ?? "—"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{pw.human_human?.rate ?? "—"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{pw.ai_committee?.rate ?? "—"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-semibold">{pw.human_committee_loo?.rate ?? "—"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono text-muted-foreground/60">{pw.human_committee?.rate ?? "—"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "—"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{bt.spearman_rho?.toFixed(2) ?? "—"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{d.controlled_pairs}</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{d.n_experts}</td>
+                    <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
+                    <td className="py-1 px-2 text-right font-mono">{pw.ai_human?.rate ?? "—"}%</td>
+                    <td className="py-1 px-2 text-right font-mono">{pw.human_human?.rate ?? "—"}%</td>
+                    <td className="py-1 px-2 text-right font-mono">{pw.ai_committee?.rate ?? "—"}%</td>
+                    <td className="py-1 px-2 text-right font-mono">{pw.human_committee_loo?.rate ?? "—"}%</td>
+                    <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{pw.human_committee?.rate ?? "—"}%</td>
+                    <td className="py-1 px-2 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "—"}</td>
+                    <td className="py-1 px-2 text-right font-mono">{bt.spearman_rho?.toFixed(2) ?? "—"}</td>
+                    <td className="py-1 px-2 text-right font-mono">{d.controlled_pairs}</td>
+                    <td className="py-1 px-2 text-right font-mono">{d.n_experts}</td>
                   </tr>
                 );
               })}
@@ -207,7 +207,7 @@ export default function HumanAIBenchmarkSection() {
                     <td className="py-1.5 px-2 text-left text-xs font-medium">Pooled (all datasets)</td>
                     <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.human_human)}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{fmt(pw.human_committee)}</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-xs font-semibold">{fmt(pw.human_committee_loo)}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.human_committee_loo)}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_human)}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_committee)}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{kfmt(pw.ai_human)}</td>
