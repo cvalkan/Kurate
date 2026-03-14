@@ -380,15 +380,16 @@ async def _compute_dataset_benchmark(dataset_id: str):
             ac_agree += 1
 
     # --- Layer 4: Stratification by difficulty ---
-    difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
-                        "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
-                        "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]}}
+    difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
+                        "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
+                        "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0}}
 
     for pair in controlled_pairs:
         diff = _classify_difficulty(pair[0], pair[1], papers_by_id)
         if diff is None:
             continue
         ds = difficulty_stats[diff]
+        ds["n_pairs"] += 1
         # HH
         voters = list(expert_pair_prefs[pair].values())
         for i in range(len(voters)):
@@ -500,6 +501,7 @@ async def _compute_dataset_benchmark(dataset_id: str):
                 "human_committee_loo": {"rate": _rate(s["hc_loo"][0], s["hc_loo"][1]), "pairs": s["hc_loo"][1]},
                 "ai_human": {"rate": _rate(s["ah"][0], s["ah"][1]), "pairs": s["ah"][1]},
                 "ai_committee": {"rate": _rate(s["ac"][0], s["ac"][1]), "pairs": s["ac"][1]},
+                "n_pairs": s["n_pairs"],
             }
         return result
 
@@ -576,9 +578,9 @@ async def _compute_benchmark():
         "ceilings": [],
         "total_pairs": 0,
         "tie_concordant": 0, "tie_discordant": 0, "tie_excluded": 0,
-        "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
-                       "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
-                       "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]}},
+        "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
+                       "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0},
+                       "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0}},
     }
 
     for ds_id in all_ds_ids:
@@ -631,6 +633,7 @@ async def _compute_benchmark():
                 d = result.get("by_difficulty", {}).get(level, {}).get(metric_full, {})
                 pooled["difficulty"][level][metric][0] += int(d.get("rate", 0) * d.get("pairs", 0) / 100)
                 pooled["difficulty"][level][metric][1] += d.get("pairs", 0)
+            pooled["difficulty"][level]["n_pairs"] += result.get("by_difficulty", {}).get(level, {}).get("n_pairs", 0)
 
     if not per_dataset:
         return {"status": "no_data"}
@@ -651,6 +654,7 @@ async def _compute_benchmark():
                 "human_committee_loo": {"rate": _rate(s["hc_loo"][0], s["hc_loo"][1]), "pairs": s["hc_loo"][1]},
                 "ai_human": {"rate": _rate(s["ah"][0], s["ah"][1]), "pairs": s["ah"][1]},
                 "ai_committee": {"rate": _rate(s["ac"][0], s["ac"][1]), "pairs": s["ac"][1]},
+                "n_pairs": s["n_pairs"],
             }
         return result
 

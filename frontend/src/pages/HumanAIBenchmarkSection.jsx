@@ -49,14 +49,13 @@ function DifficultyTable({ data }) {
             <th className="py-1.5 px-2 text-right font-medium">H-Comm (LOO)</th>
             <th className="py-1.5 px-2 text-right font-medium">AI-H</th>
             <th className="py-1.5 px-2 text-right font-medium">AI-Comm</th>
-            <th className="py-1.5 px-2 text-right font-medium text-[10px]">n (H-H)</th>
+            <th className="py-1.5 px-2 text-right font-medium text-[10px]">paper pairs</th>
           </tr>
         </thead>
         <tbody>
           {levels.map(({ key, label, desc }) => {
             const d = data[key] || {};
             const fmt = (v) => v?.rate != null && v.pairs > 0 ? `${v.rate}%` : "—";
-            const nfmt = (v) => v?.pairs > 0 ? v.pairs.toLocaleString() : "—";
             return (
               <tr key={key} className="border-b border-border/20">
                 <td className="py-1.5 px-2 text-left">
@@ -68,7 +67,7 @@ function DifficultyTable({ data }) {
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.human_committee_loo)}</td>
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.ai_human)}</td>
                 <td className="py-1.5 px-2 text-right font-mono">{fmt(d.ai_committee)}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{nfmt(d.human_human)}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{(d.n_pairs ?? 0).toLocaleString()}</td>
               </tr>
             );
           })}
@@ -197,14 +196,13 @@ export default function HumanAIBenchmarkSection() {
                 <th className="py-1.5 px-2 text-right font-medium">AI-H</th>
                 <th className="py-1.5 px-2 text-right font-medium">AI-Comm</th>
                 <th className="py-1.5 px-2 text-right font-medium text-[10px]">kappa (AI-H)</th>
-                <th className="py-1.5 px-2 text-right font-medium text-[10px]">n (H-H)</th>
+                <th className="py-1.5 px-2 text-right font-medium text-[10px]">paper pairs</th>
               </tr>
             </thead>
             <tbody>
               {(() => {
                 const fmt = (v) => v?.rate != null ? `${v.rate}%` : "—";
                 const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "—";
-                const nfmt = (v) => v?.pairs != null ? v.pairs.toLocaleString() : "—";
                 return (
                   <tr className="border-b border-border/30 bg-accent/5">
                     <td className="py-1.5 px-2 text-left text-xs font-medium">Pooled (all datasets)</td>
@@ -214,7 +212,7 @@ export default function HumanAIBenchmarkSection() {
                     <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_human)}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-xs">{fmt(pw.ai_committee)}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{kfmt(pw.ai_human)}</td>
-                    <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{nfmt(pw.human_human)}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{data.total_controlled_pairs?.toLocaleString()}</td>
                   </tr>
                 );
               })()}
@@ -249,50 +247,100 @@ export default function HumanAIBenchmarkSection() {
         </div>
       </div>
 
+      {/* Inter-Rater Reliability */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <div className="px-3 py-2 bg-secondary/10 border-b border-border">
+          <span className="text-xs font-semibold">Inter-Rater Reliability</span>
+        </div>
+        <div className="px-3 py-3">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-1.5 px-2 text-left font-medium">Metric</th>
+                  <th className="py-1.5 px-2 text-right font-medium">Value</th>
+                  <th className="py-1.5 px-2 text-left font-medium">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {p.tie_stats?.concordance_rate != null && (
+                  <tr className="border-b border-border/20">
+                    <td className="py-1.5 px-2 font-medium">Pairwise concordance</td>
+                    <td className="py-1.5 px-2 text-right font-mono font-bold">{(p.tie_stats.concordance_rate * 100).toFixed(1)}%</td>
+                    <td className="py-1.5 px-2 text-muted-foreground text-[10px]">When two experts both have a preference on a paper pair, how often do they agree on which is better?</td>
+                  </tr>
+                )}
+                {p.inter_rater_rho != null && (
+                  <tr className="border-b border-border/20">
+                    <td className="py-1.5 px-2 font-medium">Derived rho</td>
+                    <td className="py-1.5 px-2 text-right font-mono font-bold">{p.inter_rater_rho.toFixed(2)}</td>
+                    <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Kruskal (1958): rho = sin(pi * (concordance - 0.5)). Used in Thurstonian ceiling.</td>
+                  </tr>
+                )}
+                {p.theoretical_ceiling != null && (
+                  <tr className="border-b border-border/20">
+                    <td className="py-1.5 px-2 font-medium">Thurstonian ceiling</td>
+                    <td className="py-1.5 px-2 text-right font-mono font-bold">{p.theoretical_ceiling}%</td>
+                    <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Maximum achievable pairwise agreement given inter-rater noise (rho = {p.inter_rater_rho?.toFixed(2)}).</td>
+                  </tr>
+                )}
+                {p.tie_stats && (
+                  <tr className="border-b border-border/20">
+                    <td className="py-1.5 px-2 font-medium">Tie fraction</td>
+                    <td className="py-1.5 px-2 text-right font-mono font-bold">{(p.tie_stats.tie_fraction * 100).toFixed(1)}%</td>
+                    <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{p.tie_stats.tied_excluded?.toLocaleString()} reviewer paper-pairs excluded (at least one reviewer gave both papers the same score).</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            For each pair of reviewers sharing 5+ common papers, we enumerate all paper pairs where both have non-tie ratings.
+            Concordance = fraction they order the same way. This is averaged across all reviewer pairs, then converted to
+            rho for the Thurstonian model. Agreement rates above are computed on the same non-tie subset.
+          </p>
+        </div>
+      </div>
+
       {/* BT Rank Correlation */}
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="px-3 py-2 bg-secondary/10 border-b border-border">
           <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry)</span>
         </div>
         <div className="px-3 py-3">
-          <div className="flex flex-wrap items-start gap-6 mb-3">
-            <div>
-              <div className="text-[9px] text-muted-foreground/70 mb-1 uppercase tracking-wider font-medium">Committee (majority vote)</div>
-              <div className="flex items-center gap-5">
-                <Metric label="Spearman rho" value={p.bt_correlation?.committee?.spearman_rho?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
-                <Metric label="Kendall tau" value={p.bt_correlation?.committee?.kendall_tau?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
-              </div>
-            </div>
-            <div>
-              <div className="text-[9px] text-muted-foreground/70 mb-1 uppercase tracking-wider font-medium">Individual (each expert vote = 1 match)</div>
-              <div className="flex items-center gap-5">
-                <Metric label="Spearman rho" value={p.bt_correlation?.individual?.spearman_rho?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
-                <Metric label="Kendall tau" value={p.bt_correlation?.individual?.kendall_tau?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-border/30 pt-3 flex items-center gap-6">
-            {p.theoretical_ceiling && (
-              <Metric label="Thurstonian ceiling" value={`${p.theoretical_ceiling}%`} sub={`Given rho = ${p.inter_rater_rho?.toFixed(2)}`} />
-            )}
-            {p.tie_stats && (
-              <>
-                <Metric label="Concordance rate" value={`${(p.tie_stats.concordance_rate * 100).toFixed(1)}%`} sub="Non-tie pairs only" />
-                <Metric label="Tie fraction" value={`${(p.tie_stats.tie_fraction * 100).toFixed(1)}%`} sub={`${p.tie_stats.tied_excluded?.toLocaleString()} pairs excluded`} />
-              </>
-            )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-1.5 px-2 text-left font-medium">Human baseline</th>
+                  <th className="py-1.5 px-2 text-right font-medium">Spearman rho</th>
+                  <th className="py-1.5 px-2 text-right font-medium">Kendall tau</th>
+                  <th className="py-1.5 px-2 text-left font-medium text-[10px]">How human BT is built</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border/20">
+                  <td className="py-1.5 px-2 font-medium">Committee</td>
+                  <td className="py-1.5 px-2 text-right font-mono font-bold">{p.bt_correlation?.committee?.spearman_rho?.toFixed(3) ?? "—"}</td>
+                  <td className="py-1.5 px-2 text-right font-mono">{p.bt_correlation?.committee?.kendall_tau?.toFixed(3) ?? "—"}</td>
+                  <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Expert majority vote per pair = 1 BT match</td>
+                </tr>
+                <tr className="border-b border-border/20">
+                  <td className="py-1.5 px-2 font-medium">Individual</td>
+                  <td className="py-1.5 px-2 text-right font-mono font-bold">{p.bt_correlation?.individual?.spearman_rho?.toFixed(3) ?? "—"}</td>
+                  <td className="py-1.5 px-2 text-right font-mono">{p.bt_correlation?.individual?.kendall_tau?.toFixed(3) ?? "—"}</td>
+                  <td className="py-1.5 px-2 text-muted-foreground text-[10px]">Each expert's preference = 1 separate BT match</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
         <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             BT rankings computed separately from human-derived matches and AI matches on the same paper sets.
-            <strong> Committee</strong> uses expert majority vote per pair; <strong>Individual</strong> treats each expert's preference as a separate BT match.
-            The Thurstonian ceiling is the maximum achievable pairwise agreement given the observed inter-rater noise
-            (rho = {p.inter_rater_rho?.toFixed(2)}). rho is derived from pairwise concordance via Kruskal (1958):
-            for each reviewer pair, we count what fraction of their non-tie paper pairs they order the same way (concordance rate),
-            then convert to rho = sin(pi * (concordance - 0.5)).
-            Tie pairs ({p.tie_stats ? `${(p.tie_stats.tie_fraction * 100).toFixed(1)}%` : "—"} of all reviewer paper-pairs)
-            are excluded because at least one reviewer gave both papers the same score.
+            Both correlations compare the full paper ranking produced by human BT vs AI BT.
           </p>
         </div>
       </div>
