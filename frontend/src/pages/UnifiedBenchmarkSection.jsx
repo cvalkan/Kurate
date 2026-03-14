@@ -14,71 +14,59 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function ComparisonTable({ data, gtType }) {
+function ComparisonTable({ data }) {
   const p = data.pooled;
   const levels = [
     { key: "easy", label: "Cross-tier (easy)" },
     { key: "medium", label: "Adjacent-tier (medium)" },
     { key: "hard", label: "Within-tier (hard)" },
   ];
-  const hasComm = gtType === "comp";
-  // Primary accuracy: vs h1_avg_rating ordering (matches summary table)
-  const pwAcc = hasComm ? p.pw_avg_accuracy : p.pw_accuracy;
-  const siAcc = hasComm ? p.si_avg_accuracy : p.si_accuracy;
+  const pwWins = p.pw_accuracy >= p.si_accuracy;
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
         <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold">Pairwise Agreement — PW vs SI on Same Pairs</span>
+        <span className="text-xs font-semibold">PW vs SI — Each Method on Its Full Data</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "20%" }} />
-            <col /><col />{hasComm && <><col /><col /></>}{hasComm && <><col /><col /></>}<col /><col /><col />
+            <col style={{ width: "25%" }} />
+            <col /><col /><col /><col /><col /><col />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW vs Avg</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI vs Avg</th>
-              {hasComm && <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.04] text-foreground/50">PW vs Comm</th>}
-              {hasComm && <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.04] text-foreground/50">SI vs Comm</th>}
-              {hasComm && <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.04] text-foreground/50">PW vs Indiv</th>}
-              {hasComm && <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.04] text-foreground/50">SI vs Indiv</th>}
-              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium">pairs</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Accuracy</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Accuracy</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Spearman {"\u03C1"}</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Spearman {"\u03C1"}</th>
+              <th className="py-1.5 px-2 text-right font-medium text-foreground/50">PW pairs</th>
+              <th className="py-1.5 px-2 text-right font-medium text-foreground/50">SI pairs</th>
             </tr>
           </thead>
           <tbody>
             <tr className="border-b border-border bg-accent/5">
               <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled</td>
-              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwAcc >= siAcc ? "font-bold" : ""}`}>{pwAcc}%</td>
-              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${siAcc > pwAcc ? "font-bold" : ""}`}>{siAcc}%</td>
-              {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-violet-500/[0.04]">{p.pw_comm_accuracy}%</td>}
-              {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-emerald-500/[0.04]">{p.si_comm_accuracy}%</td>}
-              {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-violet-500/[0.04]">{p.pw_accuracy}%</td>}
-              {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-emerald-500/[0.04]">{p.si_accuracy}%</td>}
+              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{p.pw_accuracy}%</td>
+              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{p.si_accuracy}%</td>
               <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
               <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{data.total_controlled_pairs?.toLocaleString()}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{p.pw_pairs?.toLocaleString()}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{p.si_pairs?.toLocaleString()}</td>
             </tr>
             {levels.map(({ key, label }) => {
               const d = p.by_difficulty?.[key] || {};
-              const pwR = hasComm ? d.pw_comm_rate : d.pw_rate;
-              const siR = hasComm ? d.si_comm_rate : d.si_rate;
-              const pwBold = (pwR || 0) >= (siR || 0);
+              const pwB = (d.pw_rate || 0) >= (d.si_rate || 0);
               return (
                 <tr key={key} className="border-b border-border/20">
                   <td className="py-1.5 px-2 text-left text-xs text-foreground/60">{label}</td>
-                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06] ${pwBold ? "font-semibold" : ""}`}>{pwR != null ? `${pwR}%` : "\u2014"}</td>
-                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06] ${!pwBold ? "font-semibold" : ""}`}>{siR != null ? `${siR}%` : "\u2014"}</td>
-                  {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40 bg-violet-500/[0.06]">{d.pw_rate != null ? `${d.pw_rate}%` : ""}</td>}
-                  {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40 bg-emerald-500/[0.06]">{d.si_rate != null ? `${d.si_rate}%` : ""}</td>}
+                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06] ${pwB ? "font-semibold" : ""}`}>{d.pw_rate != null ? `${d.pw_rate}%` : "\u2014"}</td>
+                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06] ${!pwB ? "font-semibold" : ""}`}>{d.si_rate != null ? `${d.si_rate}%` : "\u2014"}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06]"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{d.pw_pairs?.toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{d.si_pairs?.toLocaleString()}</td>
                 </tr>
               );
             })}
@@ -87,25 +75,22 @@ function ComparisonTable({ data, gtType }) {
       </div>
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-2">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>PW</strong> = pairwise AI judges (round-robin GPT-5.2, Opus, Gemini).{" "}
-          <strong>SI</strong> = single-item AI scoring (Opus 4.6 Thinking, 1-10 per paper).{" "}
-          Both evaluated on the <strong>exact same {data.total_controlled_pairs?.toLocaleString()} pairs</strong> across {data.total_papers} papers.{" "}
-          {hasComm
-            ? <>
-                <strong>vs Avg</strong> = AI preference vs h1_avg_rating ordering (averaged human scores — matches summary table methodology).{" "}
-                <strong>vs Comm</strong> = AI vs expert majority vote.{" "}
-                <strong>vs Indiv</strong> = AI vs each individual expert (noisier, dilutes the gap).{" "}
-                Spearman {"\u03C1"} = AI BT ranking vs h1_avg_rating ranking.
-              </>
-            : "Accuracy = AI preference vs aggregate human score (h1_avg_rating). Spearman \u03C1 = AI BT ranking vs h1_avg_rating ranking."}
+          <strong>PW</strong> = pairwise AI judges (round-robin GPT-5.2, Opus, Gemini) — evaluated on all actual match verdicts.{" "}
+          <strong>SI</strong> = single-item AI scoring (Opus 4.6 Thinking, 1-10) — evaluated on all C(n,2) paper pairs with distinct scores.{" "}
+          Both compared against the same ground truth: <strong>h1_avg_rating</strong> (averaged human reviewer scores).{" "}
+          Pair counts differ because each method is evaluated on the data it naturally produces — PW on its match verdicts, SI on its score-derived pairs.{" "}
+          Spearman {"\u03C1"} = AI ranking vs h1_avg_rating ranking.
+        </p>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          <strong>Why different pair sets is the right comparison:</strong>{" "}
+          In practice, you choose one method and deploy it. PW requires running O(n) matches; SI requires scoring each paper once.
+          The question is not "on the same pairs, which is more accurate?" but rather "given the data each method generates,
+          which produces a better ranking?" This full-data comparison answers that practical question directly.
         </p>
         {p.pw_rho != null && p.si_rho != null && (
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             <strong>Winner: {(p.pw_rho || 0) > (p.si_rho || 0) ? "Pairwise" : "Single-Item"}</strong> on ranking correlation
             (Spearman {"\u03C1"} {p.pw_rho?.toFixed(3)} vs {p.si_rho?.toFixed(3)}).
-            {gtType === "comp"
-              ? " Pairwise judges see both papers side-by-side, enabling direct comparison — this produces more accurate rankings when the ground truth was itself generated comparatively."
-              : " Single-item scoring is more effective when human ground truth was generated from independent ratings rather than head-to-head comparisons."}
           </p>
         )}
       </div>
@@ -133,7 +118,8 @@ function DatasetTable({ datasets }) {
                 <th className="py-1 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Acc</th>
                 <th className="py-1 px-2 text-right font-medium bg-violet-500/[0.06]">PW {"\u03C1"}</th>
                 <th className="py-1 px-2 text-right font-medium bg-emerald-500/[0.06]">SI {"\u03C1"}</th>
-                <th className="py-1 px-2 text-right font-medium">Pairs</th>
+                <th className="py-1 px-2 text-right font-medium">PW pairs</th>
+                <th className="py-1 px-2 text-right font-medium">SI pairs</th>
                 <th className="py-1 px-2 text-right font-medium">Papers</th>
                 <th className="py-1 px-2 text-center font-medium">Winner</th>
               </tr>
@@ -146,11 +132,12 @@ function DatasetTable({ datasets }) {
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className={`py-1 px-2 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.ai_human?.rate}%</td>
-                    <td className={`py-1 px-2 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{d.si?.ai_human?.rate}%</td>
+                    <td className={`py-1 px-2 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.accuracy}%</td>
+                    <td className={`py-1 px-2 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{d.si?.accuracy}%</td>
                     <td className={`py-1 px-2 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
                     <td className={`py-1 px-2 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-2 text-right font-mono">{d.controlled_pairs}</td>
+                    <td className="py-1 px-2 text-right font-mono text-foreground/50">{d.pw?.pairs?.toLocaleString()}</td>
+                    <td className="py-1 px-2 text-right font-mono text-foreground/50">{d.si?.pairs?.toLocaleString()}</td>
                     <td className="py-1 px-2 text-right font-mono">{d.n_papers}</td>
                     <td className="py-1 px-2 text-center">
                       <span className={`text-[9px] font-semibold ${pwWins ? "text-violet-700" : "text-emerald-700"}`}>{pwWins ? "PW" : "SI"}</span>
@@ -166,7 +153,7 @@ function DatasetTable({ datasets }) {
   );
 }
 
-function UnifiedPage({ apiUrl, headerDesc, testId, gtType }) {
+function UnifiedPage({ apiUrl, headerDesc, testId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -193,26 +180,26 @@ function UnifiedPage({ apiUrl, headerDesc, testId, gtType }) {
       <div className="text-[10px] text-muted-foreground mb-1 flex items-center justify-between flex-wrap gap-1">
         <span>{headerDesc}</span>
         <span className="font-mono text-muted-foreground/80">
-          <strong>{data.total_controlled_pairs?.toLocaleString()}</strong> pairs across <strong>{data.total_papers}</strong> papers ({data.avg_matches_per_paper} matches/paper avg)
+          {data.n_datasets} datasets
         </span>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="PW vs Avg Rating" value={`${gtType === "comp" ? p.pw_avg_accuracy : p.pw_accuracy}%`} sub="pairwise judges" accent={(gtType === "comp" ? p.pw_avg_accuracy : p.pw_accuracy) >= (gtType === "comp" ? p.si_avg_accuracy : p.si_accuracy)} />
+          <Metric label="PW Accuracy" value={`${p.pw_accuracy}%`} sub={`${p.pw_pairs?.toLocaleString()} match verdicts`} accent={p.pw_accuracy >= p.si_accuracy} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="SI vs Avg Rating" value={`${gtType === "comp" ? p.si_avg_accuracy : p.si_accuracy}%`} sub="single-item scoring" accent={(gtType === "comp" ? p.si_avg_accuracy : p.si_accuracy) > (gtType === "comp" ? p.pw_avg_accuracy : p.pw_accuracy)} />
+          <Metric label="SI Accuracy" value={`${p.si_accuracy}%`} sub={`${p.si_pairs?.toLocaleString()} score-derived pairs`} accent={p.si_accuracy > p.pw_accuracy} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label={`PW Spearman \u03C1`} value={p.pw_rho?.toFixed(3) ?? "\u2014"} sub="AI vs h1_avg ranking" accent={(p.pw_rho || 0) >= (p.si_rho || 0)} />
+          <Metric label={`PW Spearman \u03C1`} value={p.pw_rho?.toFixed(3) ?? "\u2014"} sub="BT ranking vs h1_avg" accent={(p.pw_rho || 0) >= (p.si_rho || 0)} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label={`SI Spearman \u03C1`} value={p.si_rho?.toFixed(3) ?? "\u2014"} sub="AI vs h1_avg ranking" accent={(p.si_rho || 0) > (p.pw_rho || 0)} />
+          <Metric label={`SI Spearman \u03C1`} value={p.si_rho?.toFixed(3) ?? "\u2014"} sub="score ranking vs h1_avg" accent={(p.si_rho || 0) > (p.pw_rho || 0)} />
         </div>
       </div>
 
-      <ComparisonTable data={data} gtType={gtType} />
+      <ComparisonTable data={data} />
       <DatasetTable datasets={data.per_dataset} />
     </div>
   );
@@ -221,17 +208,15 @@ function UnifiedPage({ apiUrl, headerDesc, testId, gtType }) {
 export function UnifiedCompSection() {
   return <UnifiedPage
     apiUrl="/api/validation/unified-benchmark?gt_type=comp"
-    headerDesc={<>PW judges (round-robin GPT-5.2, Opus, Gemini) vs SI scoring (Opus 4.6 Thinking) on the exact same pairs. <strong>Comparative GT</strong> (ICLR, PeerRead).</>}
+    headerDesc={<>PW judges (round-robin) vs SI scoring (Opus 4.6 Thinking) — each on its full data. <strong>Comparative GT</strong> (ICLR, PeerRead).</>}
     testId="unified-comp"
-    gtType="comp"
   />;
 }
 
 export function UnifiedStanSection() {
   return <UnifiedPage
     apiUrl="/api/validation/unified-benchmark?gt_type=stan"
-    headerDesc={<>PW judges vs SI scoring on the exact same pairs. <strong>Standalone GT</strong> (eLife biology, MIDL, Qeios, ResearchHub) — aggregate human scores as ground truth.</>}
+    headerDesc={<>PW judges vs SI scoring — each on its full data. <strong>Standalone GT</strong> (eLife, MIDL, Qeios, ResearchHub).</>}
     testId="unified-stan"
-    gtType="stan"
   />;
 }

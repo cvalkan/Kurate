@@ -1,11 +1,13 @@
 """
-Unified Human vs AI Benchmark
+Unified Human vs AI Benchmark — Full-Data Comparison
 
-Computes PW and SI metrics on the EXACT SAME pair set per dataset,
-enabling direct apples-to-apples comparison.
+Evaluates PW and SI each on their OWN full data against the same GT (h1_avg_rating).
+This is the practically relevant comparison: "what ranking does each method produce
+with the data it naturally generates?"
 
-For each dataset, the controlled set is the 3-way intersection:
-  GT has preference + PW match exists + SI scores exist (non-tie)
+PW: evaluated on all actual pairwise matches
+SI: evaluated on all C(n,2) pairs from scored papers
+Both compared against the same h1_avg_rating ground truth.
 """
 
 import math
@@ -29,22 +31,8 @@ _unified_cache = {"comp": {"data": None}, "stan": {"data": None}}
 TIER_SCORE = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1, "withdrawn": 0, "desk rejected": 0}
 
 
-def _cohens_kappa(agree, total):
-    if total == 0:
-        return 0.0
-    p_o = agree / total
-    return (p_o - 0.5) / 0.5 if 0.5 < 1.0 else 0.0
-
-
 def _rate(a, t):
     return round(a / max(t, 1) * 100, 1)
-
-
-def _cf_rate(agree, nontie_total, tie_count):
-    total = nontie_total + tie_count
-    if total == 0:
-        return None
-    return round((agree + 0.5 * tie_count) / total * 100, 1)
 
 
 def _classify_difficulty(p1_id, p2_id, papers_by_id):
@@ -64,324 +52,152 @@ def _classify_difficulty(p1_id, p2_id, papers_by_id):
 
 
 async def _compute_unified_dataset(dataset_id, gt_type):
-    """Compute unified PW+SI benchmark on the 3-way intersection for one dataset."""
+    """Evaluate PW and SI each on their full data against h1_avg_rating GT."""
     papers = await db.validation_papers.find(
-        {"dataset_id": dataset_id},
-        PAPER_LIGHT_PROJECTION
+        {"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION
     ).to_list(5000)
     if not papers:
         return None
 
     papers_by_id = {p["id"]: p for p in papers}
 
-    # --- GT preferences ---
-    if gt_type == "comp":
-        expert_ratings = build_expert_ratings(papers)
-        experts_with_data = {e: r for e, r in expert_ratings.items() if len(r) >= 3}
-        if len(experts_with_data) < 2:
-            return None
-        # Expert pair preferences (non-tie)
-        expert_pair_prefs = defaultdict(dict)
-        for exp, ratings in experts_with_data.items():
-            rated_ids = list(ratings.keys())
-            for i in range(len(rated_ids)):
-                for j in range(i + 1, len(rated_ids)):
-                    a, b = rated_ids[i], rated_ids[j]
-                    if ratings[a] == ratings[b]:
-                        continue
-                    pair = tuple(sorted([a, b]))
-                    expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
-        # Expert majority
-        expert_majority = {}
-        for pair, votes in expert_pair_prefs.items():
-            if len(votes) < 2:
-                continue
-            c = Counter(votes.values())
-            best, n = c.most_common(1)[0]
-            if n > len(votes) / 2:
-                expert_majority[pair] = best
-        gt_pairs = {p for p in expert_pair_prefs if len(expert_pair_prefs[p]) >= 2}
-    else:
-        # Standalone GT: h1_avg_rating
-        expert_pair_prefs = None
-        expert_majority = None
-        experts_with_data = None
-        gt_pairs = set()
-        paper_ids = sorted(p["id"] for p in papers if p.get("h1_avg_rating") is not None)
-        gt_verdict = {}
-        for i in range(len(paper_ids)):
-            for j in range(i + 1, len(paper_ids)):
-                a, b = paper_ids[i], paper_ids[j]
-                ra = papers_by_id[a]["h1_avg_rating"]
-                rb = papers_by_id[b]["h1_avg_rating"]
-                if ra != rb:
-                    pair = tuple(sorted([a, b]))
-                    gt_pairs.add(pair)
-                    gt_verdict[pair] = a if ra > rb else b
+    # GT: h1_avg_rating per paper
+    gt = {}
+    for p in papers:
+        r = p.get("h1_avg_rating")
+        if r is None:
+            evals = p.get("evaluations", [])
+            vals = [e["rating_value"] for e in evals if e.get("rating_value")]
+            r = sum(vals) / len(vals) if vals else None
+        if r is not None:
+            gt[p["id"]] = r
 
-    # --- PW AI preferences ---
-    PREFERRED_MODES = ["abstract_plus_summary:opus46", "abstract_plus_summary:thinking", "abstract_plus_summary"]
-    pw_pair = {}
-    for mode in PREFERRED_MODES:
-        mode_filter = build_content_mode_filter(mode)
-        ai_raw = await db.validation_matches.find(
-            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, **mode_filter},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-        ).to_list(100000)
-        if len(ai_raw) >= 20:
-            pw_votes = defaultdict(list)
-            for m in ai_raw:
-                if m.get("winner_id"):
-                    pw_votes[tuple(sorted([m["paper1_id"], m["paper2_id"]]))].append(m["winner_id"])
-            for pair, votes in pw_votes.items():
-                c = Counter(votes)
-                pw_pair[pair] = c.most_common(1)[0][0]
-            break
+    if len(gt) < 10:
+        return None
 
-    # --- SI AI preferences ---
-    si_pair = {}
-    si_scores = {p["id"]: p["single_item_score"] for p in papers if p.get("single_item_score") is not None}
-    si_ids = sorted(si_scores.keys())
+    # --- PW: load pairwise matches using same mode selection as summary table ---
+    sample_p = papers[0] if papers else {}
+    sample_full = await db.validation_papers.find_one(
+        {"id": sample_p.get("id"), "dataset_id": dataset_id},
+        {"_id": 0, "ai_impact_summary_thinking": 1}
+    ) if sample_p else None
+    has_thinking = bool(sample_full and sample_full.get("ai_impact_summary_thinking"))
+    pw_content_mode = "abstract_plus_summary:thinking" if has_thinking else "abstract_plus_summary"
+    pw_count_check = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": pw_content_mode})
+    if pw_count_check == 0:
+        pw_content_mode = "abstract_plus_summary"
+
+    pw_matches_raw = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "content_mode": pw_content_mode},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(100000)
+
+    # PW accuracy: each match vs h1_avg_rating ordering
+    pw_correct = pw_total = 0
+    pw_diff = {lvl: [0, 0, 0] for lvl in ["easy", "medium", "hard"]}  # [correct, total, n_pairs]
+    pw_pairs_seen = set()
+    for m in pw_matches_raw:
+        p1, p2, w = m["paper1_id"], m["paper2_id"], m.get("winner_id")
+        if not w or p1 not in gt or p2 not in gt or gt[p1] == gt[p2]:
+            continue
+        pw_total += 1
+        human_winner = p1 if gt[p1] > gt[p2] else p2
+        if w == human_winner:
+            pw_correct += 1
+        pair = tuple(sorted([p1, p2]))
+        if pair not in pw_pairs_seen:
+            pw_pairs_seen.add(pair)
+            diff = _classify_difficulty(p1, p2, papers_by_id)
+            if diff:
+                pw_diff[diff][2] += 1
+        diff = _classify_difficulty(p1, p2, papers_by_id)
+        if diff:
+            pw_diff[diff][1] += 1
+            if w == human_winner:
+                pw_diff[diff][0] += 1
+
+    # PW BT ranking vs h1_avg_rating (using BT score, matching summary table)
+    pw_rho = None
+    if pw_matches_raw:
+        paper_dicts = [{"id": pid, "title": ""} for pid in gt]
+        pw_bt_matches = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                          "winner_id": m["winner_id"], "completed": True, "failed": False}
+                         for m in pw_matches_raw if m.get("winner_id")]
+        if len(pw_bt_matches) >= 10:
+            lb = compute_leaderboard(paper_dicts, pw_bt_matches)
+            bt_scores = {e["id"]: e["score"] for e in lb}
+            shared = sorted(set(bt_scores.keys()) & set(gt.keys()))
+            if len(shared) >= 5:
+                sp, _ = scipy_stats.spearmanr([bt_scores[p] for p in shared],
+                                               [gt[p] for p in shared])
+                if not np.isnan(sp):
+                    pw_rho = safe_round(float(sp))
+
+    # --- SI: all C(n,2) pairs from scored papers ---
+    si_scores = {p["id"]: p.get("single_item_score") for p in papers
+                 if p.get("single_item_score") is not None}
+
+    si_correct = si_total = 0
+    si_diff = {lvl: [0, 0, 0] for lvl in ["easy", "medium", "hard"]}
+    si_ids = sorted(set(si_scores.keys()) & set(gt.keys()))
     for i in range(len(si_ids)):
         for j in range(i + 1, len(si_ids)):
             a, b = si_ids[i], si_ids[j]
-            if si_scores[a] != si_scores[b]:
-                si_pair[tuple(sorted([a, b]))] = a if si_scores[a] > si_scores[b] else b
-
-    # --- 3-way intersection ---
-    controlled = gt_pairs & set(pw_pair.keys()) & set(si_pair.keys())
-    if len(controlled) < 10:
-        return None
-
-    ctrl_paper_ids = set()
-    for p in controlled:
-        ctrl_paper_ids.add(p[0])
-        ctrl_paper_ids.add(p[1])
-    ctrl_papers = [papers_by_id[pid] for pid in ctrl_paper_ids if pid in papers_by_id]
-
-    # --- Agreement: PW vs GT, SI vs GT ---
-    if gt_type == "comp":
-        # AI vs individual expert
-        pw_ah_agree = pw_ah_total = si_ah_agree = si_ah_total = 0
-        hh_agree = hh_total = 0
-        for pair in controlled:
-            for exp, winner in expert_pair_prefs[pair].items():
-                pw_ah_total += 1
-                si_ah_total += 1
-                if pw_pair[pair] == winner:
-                    pw_ah_agree += 1
-                if si_pair[pair] == winner:
-                    si_ah_agree += 1
-            # H-H
-            voters = list(expert_pair_prefs[pair].values())
-            for i in range(len(voters)):
-                for j in range(i + 1, len(voters)):
-                    hh_total += 1
-                    if voters[i] == voters[j]:
-                        hh_agree += 1
-
-        # AI vs committee
-        pw_ac_agree = pw_ac_total = si_ac_agree = si_ac_total = 0
-        for pair in controlled:
-            if pair in expert_majority:
-                pw_ac_total += 1
-                si_ac_total += 1
-                if pw_pair[pair] == expert_majority[pair]:
-                    pw_ac_agree += 1
-                if si_pair[pair] == expert_majority[pair]:
-                    si_ac_agree += 1
-
-        # AI vs h1_avg_rating ordering (matches summary table methodology)
-        pw_avg_agree = pw_avg_total = si_avg_agree = si_avg_total = 0
-        for pair in controlled:
-            a, b = pair
-            pa = papers_by_id.get(a, {})
-            pb = papers_by_id.get(b, {})
-            ra = pa.get("h1_avg_rating")
-            rb = pb.get("h1_avg_rating")
-            if ra is None or rb is None or ra == rb:
+            if gt[a] == gt[b]:
                 continue
-            avg_winner = a if ra > rb else b
-            pw_avg_total += 1
-            si_avg_total += 1
-            if pw_pair[pair] == avg_winner:
-                pw_avg_agree += 1
-            if si_pair[pair] == avg_winner:
-                si_avg_agree += 1
+            if si_scores[a] == si_scores[b]:
+                continue  # SI tie
+            si_total += 1
+            human_winner = a if gt[a] > gt[b] else b
+            si_winner = a if si_scores[a] > si_scores[b] else b
+            if si_winner == human_winner:
+                si_correct += 1
+            diff = _classify_difficulty(a, b, papers_by_id)
+            if diff:
+                si_diff[diff][1] += 1
+                si_diff[diff][2] += 1
+                if si_winner == human_winner:
+                    si_diff[diff][0] += 1
 
-        # Tie counts for coin-flip
-        hh_tie_one = hh_tie_both = pw_ah_tie = si_ah_tie = 0
-        for pair in controlled:
-            paper_a, paper_b = pair
-            experts_for_pair = []
-            for exp, ratings in experts_with_data.items():
-                if paper_a in ratings and paper_b in ratings:
-                    has_pref = ratings[paper_a] != ratings[paper_b]
-                    experts_for_pair.append((exp, has_pref))
-            for i in range(len(experts_for_pair)):
-                for j in range(i + 1, len(experts_for_pair)):
-                    _, e1p = experts_for_pair[i]
-                    _, e2p = experts_for_pair[j]
-                    if e1p and e2p:
-                        pass
-                    elif not e1p and not e2p:
-                        hh_tie_both += 1
-                    else:
-                        hh_tie_one += 1
-            for _, has_pref in experts_for_pair:
-                if not has_pref:
-                    pw_ah_tie += 1
-                    si_ah_tie += 1
-    else:
-        # Standalone: AI vs GT (h1_avg_rating)
-        hh_agree = hh_total = hh_tie_one = hh_tie_both = 0
-        pw_ah_agree = pw_ah_total = si_ah_agree = si_ah_total = 0
-        pw_ah_tie = si_ah_tie = 0
-        pw_ac_agree = pw_ac_total = si_ac_agree = si_ac_total = 0
-        for pair in controlled:
-            pw_ah_total += 1
-            si_ah_total += 1
-            if pw_pair[pair] == gt_verdict[pair]:
-                pw_ah_agree += 1
-            if si_pair[pair] == gt_verdict[pair]:
-                si_ah_agree += 1
-        pw_ac_agree, pw_ac_total = pw_ah_agree, pw_ah_total
-        si_ac_agree, si_ac_total = si_ah_agree, si_ah_total
-        # For standalone, avg = same as ah (both use h1_avg_rating)
-        pw_avg_agree, pw_avg_total = pw_ah_agree, pw_ah_total
-        si_avg_agree, si_avg_total = si_ah_agree, si_ah_total
-        # GT tie count (pairs in pw_pair & si_pair but NOT in gt_pairs)
-        gt_tie_on_ctrl = 0
-        all_ai_pairs = set(pw_pair.keys()) & set(si_pair.keys())
-        for pair in all_ai_pairs:
-            if pair not in gt_pairs:
-                a, b = pair
-                if a in papers_by_id and b in papers_by_id:
-                    ra = papers_by_id[a].get("h1_avg_rating")
-                    rb = papers_by_id[b].get("h1_avg_rating")
-                    if ra is not None and rb is not None and ra == rb:
-                        gt_tie_on_ctrl += 1
+    # SI BT ranking vs h1_avg_rating (direct Spearman of scores)
+    si_rho = None
+    si_shared = sorted(set(si_scores.keys()) & set(gt.keys()))
+    if len(si_shared) >= 5:
+        sp, _ = scipy_stats.spearmanr([si_scores[p] for p in si_shared],
+                                       [gt[p] for p in si_shared])
+        if not np.isnan(sp):
+            si_rho = safe_round(float(sp))
 
-    # --- Difficulty ---
-    diff_stats = {level: {"pw_agree": 0, "si_agree": 0, "total": 0, "n_pairs": 0,
-                          "pw_comm_agree": 0, "si_comm_agree": 0, "comm_total": 0,
-                          "hh_agree": 0, "hh_total": 0}
-                  for level in ["easy", "medium", "hard"]}
-    for pair in controlled:
-        diff = _classify_difficulty(pair[0], pair[1], papers_by_id)
-        if diff is None:
-            continue
-        ds = diff_stats[diff]
-        ds["n_pairs"] += 1
-        if gt_type == "comp":
-            # AI vs individual expert
-            for exp, winner in expert_pair_prefs[pair].items():
-                ds["total"] += 1
-                if pw_pair[pair] == winner:
-                    ds["pw_agree"] += 1
-                if si_pair[pair] == winner:
-                    ds["si_agree"] += 1
-            # AI vs committee
-            if pair in expert_majority:
-                ds["comm_total"] += 1
-                if pw_pair[pair] == expert_majority[pair]:
-                    ds["pw_comm_agree"] += 1
-                if si_pair[pair] == expert_majority[pair]:
-                    ds["si_comm_agree"] += 1
-            # H-H
-            voters = list(expert_pair_prefs[pair].values())
-            for i in range(len(voters)):
-                for j in range(i + 1, len(voters)):
-                    ds["hh_total"] += 1
-                    if voters[i] == voters[j]:
-                        ds["hh_agree"] += 1
-        else:
-            ds["total"] += 1
-            if pw_pair[pair] == gt_verdict[pair]:
-                ds["pw_agree"] += 1
-            if si_pair[pair] == gt_verdict[pair]:
-                ds["si_agree"] += 1
-
-    # --- BT ranking correlations ---
-    pw_matches = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": pw_pair[p],
-                   "completed": True, "failed": False} for p in controlled]
-    si_matches = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": si_pair[p],
-                   "completed": True, "failed": False} for p in controlled]
-
-    def _bt_rho(matches):
-        if len(matches) < 10:
-            return None
-        lb = compute_leaderboard(ctrl_papers, matches)
-        ai_rank = {e["id"]: e["rank"] for e in lb}
-        # vs h1_avg_rating
-        avg_map = {pid: papers_by_id[pid].get("h1_avg_rating") for pid in ctrl_paper_ids
-                   if papers_by_id.get(pid, {}).get("h1_avg_rating") is not None}
-        if not avg_map:
-            # Compute from evaluations
-            for pid in ctrl_paper_ids:
-                p = papers_by_id.get(pid)
-                if p:
-                    evals = p.get("evaluations", [])
-                    vals = [e["rating_value"] for e in evals if e.get("rating_value")]
-                    if vals:
-                        avg_map[pid] = sum(vals) / len(vals)
-        shared = sorted(set(ai_rank.keys()) & set(avg_map.keys()))
-        if len(shared) < 5:
-            return None
-        sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared],
-                                       [-avg_map[p] for p in shared])
-        return safe_round(float(sp)) if not np.isnan(sp) else None
-
-    pw_rho = _bt_rho(pw_matches)
-    si_rho = _bt_rho(si_matches)
-
-    # Coin-flip rates
-    hh_cf = _cf_rate(hh_agree, hh_total, hh_tie_one + hh_tie_both) if gt_type == "comp" else None
-    pw_cf = _cf_rate(pw_ah_agree, pw_ah_total, pw_ah_tie)
-    si_cf = _cf_rate(si_ah_agree, si_ah_total, si_ah_tie)
-    hh_tie_rate = round((hh_tie_one + hh_tie_both) / max(hh_total + hh_tie_one + hh_tie_both, 1) * 100, 1) if gt_type == "comp" else None
+    if pw_total < 10 and si_total < 10:
+        return None
 
     return {
         "dataset_id": dataset_id,
-        "n_papers": len(ctrl_paper_ids),
-        "controlled_pairs": len(controlled),
+        "n_papers": len(gt),
         "pw": {
-            "ai_human": {"rate": _rate(pw_ah_agree, pw_ah_total), "agree": pw_ah_agree, "total": pw_ah_total},
-            "ai_committee": {"rate": _rate(pw_ac_agree, pw_ac_total), "agree": pw_ac_agree, "total": pw_ac_total},
-            "ai_avg_rating": {"rate": _rate(pw_avg_agree, pw_avg_total), "agree": pw_avg_agree, "total": pw_avg_total},
-            "coin_flip": pw_cf,
+            "accuracy": _rate(pw_correct, pw_total),
+            "correct": pw_correct, "total": pw_total,
+            "pairs": len(pw_pairs_seen),
             "bt_rho": pw_rho,
+            "mode": pw_content_mode,
+            "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in pw_diff.items()},
         },
         "si": {
-            "ai_human": {"rate": _rate(si_ah_agree, si_ah_total), "agree": si_ah_agree, "total": si_ah_total},
-            "ai_committee": {"rate": _rate(si_ac_agree, si_ac_total), "agree": si_ac_agree, "total": si_ac_total},
-            "ai_avg_rating": {"rate": _rate(si_avg_agree, si_avg_total), "agree": si_avg_agree, "total": si_avg_total},
-            "coin_flip": si_cf,
+            "accuracy": _rate(si_correct, si_total),
+            "correct": si_correct, "total": si_total,
+            "pairs": si_total,
+            "n_scored": len(si_scores),
             "bt_rho": si_rho,
-        },
-        "hh": {
-            "rate": _rate(hh_agree, hh_total) if hh_total > 0 else None,
-            "coin_flip": hh_cf,
-            "tie_rate": hh_tie_rate,
-        } if gt_type == "comp" else {"rate": None, "coin_flip": None, "tie_rate": None},
-        "gt_tie_rate": round(gt_tie_on_ctrl / max(len(controlled) + gt_tie_on_ctrl, 1) * 100, 1) if gt_type == "stan" else None,
-        "by_difficulty": {
-            level: {
-                "pw_rate": _rate(s["pw_agree"], s["total"]),
-                "si_rate": _rate(s["si_agree"], s["total"]),
-                "pw_comm_rate": _rate(s["pw_comm_agree"], s["comm_total"]) if s["comm_total"] > 0 else None,
-                "si_comm_rate": _rate(s["si_comm_agree"], s["comm_total"]) if s["comm_total"] > 0 else None,
-                "hh_rate": _rate(s["hh_agree"], s["hh_total"]) if s["hh_total"] > 0 else None,
-                "n_pairs": s["n_pairs"],
-            }
-            for level, s in diff_stats.items()
+            "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in si_diff.items()},
         },
     }
 
 
 @router.get("/unified-benchmark")
 async def unified_benchmark(gt_type: str = Query("comp")):
-    """Unified PW vs SI benchmark on the exact same pairs."""
+    """Unified PW vs SI benchmark — each method on its full data."""
     cache = _unified_cache.get(gt_type, {})
     if cache.get("data"):
         return cache["data"]
@@ -394,26 +210,19 @@ async def unified_benchmark(gt_type: str = Query("comp")):
 async def _compute_unified_benchmark(gt_type):
     allowed = COMPARATIVE_GT_DATASETS if gt_type == "comp" else STANDALONE_GT_DATASETS
 
-    if gt_type == "comp":
-        ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
-        ds_ids = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)
-                  if r["_id"] in allowed]
-    else:
-        ds_ids = [d for d in await db.validation_papers.distinct("dataset_id") if d in allowed]
+    ds_ids = [d for d in await db.validation_papers.distinct("dataset_id") if d in allowed]
 
     meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
 
     per_dataset = []
-    pooled = {"pw_ah": [0, 0], "si_ah": [0, 0], "pw_ac": [0, 0], "si_ac": [0, 0],
-              "pw_avg": [0, 0], "si_avg": [0, 0],
-              "hh": [0, 0], "pw_rhos": [], "si_rhos": [],
-              "pairs": 0, "papers": 0,
-              "hh_tie_one": 0, "hh_tie_both": 0, "pw_ah_tie": 0, "si_ah_tie": 0,
-              "gt_tie": 0,
-              "diff": {level: {"pw": 0, "si": 0, "pw_c": 0, "si_c": 0, "c_total": 0,
-                               "hh": 0, "hh_t": 0, "total": 0, "n_pairs": 0}
-                       for level in ["easy", "medium", "hard"]}}
+    pooled = {
+        "pw_correct": 0, "pw_total": 0, "si_correct": 0, "si_total": 0,
+        "pw_rhos": [], "si_rhos": [],
+        "pw_papers": 0, "si_papers": 0,
+        "pw_diff": {lvl: [0, 0, 0] for lvl in ["easy", "medium", "hard"]},
+        "si_diff": {lvl: [0, 0, 0] for lvl in ["easy", "medium", "hard"]},
+    }
 
     for ds_id in ds_ids:
         result = await _compute_unified_dataset(ds_id, gt_type)
@@ -422,69 +231,50 @@ async def _compute_unified_benchmark(gt_type):
         result["name"] = ds_names.get(ds_id, ds_id)
         per_dataset.append(result)
 
-        pooled["pw_ah"][0] += result["pw"]["ai_human"]["agree"]
-        pooled["pw_ah"][1] += result["pw"]["ai_human"]["total"]
-        pooled["si_ah"][0] += result["si"]["ai_human"]["agree"]
-        pooled["si_ah"][1] += result["si"]["ai_human"]["total"]
-        pooled["pw_ac"][0] += result["pw"]["ai_committee"]["agree"]
-        pooled["pw_ac"][1] += result["pw"]["ai_committee"]["total"]
-        pooled["si_ac"][0] += result["si"]["ai_committee"]["agree"]
-        pooled["si_ac"][1] += result["si"]["ai_committee"]["total"]
-        pooled["pw_avg"][0] += result["pw"]["ai_avg_rating"]["agree"]
-        pooled["pw_avg"][1] += result["pw"]["ai_avg_rating"]["total"]
-        pooled["si_avg"][0] += result["si"]["ai_avg_rating"]["agree"]
-        pooled["si_avg"][1] += result["si"]["ai_avg_rating"]["total"]
-        pooled["pairs"] += result["controlled_pairs"]
-        pooled["papers"] += result["n_papers"]
+        pooled["pw_correct"] += result["pw"]["correct"]
+        pooled["pw_total"] += result["pw"]["total"]
+        pooled["si_correct"] += result["si"]["correct"]
+        pooled["si_total"] += result["si"]["total"]
+        pooled["pw_papers"] += result["n_papers"]
+        pooled["si_papers"] += result["si"].get("n_scored", 0)
 
         if result["pw"]["bt_rho"] is not None:
             pooled["pw_rhos"].append(result["pw"]["bt_rho"])
         if result["si"]["bt_rho"] is not None:
             pooled["si_rhos"].append(result["si"]["bt_rho"])
 
-        for level in ["easy", "medium", "hard"]:
-            dl = result.get("by_difficulty", {}).get(level, {})
-            pd = pooled["diff"][level]
-            pd["pw"] += int(dl.get("pw_rate", 0) * dl.get("n_pairs", 0) / 100)
-            pd["si"] += int(dl.get("si_rate", 0) * dl.get("n_pairs", 0) / 100)
-            if dl.get("pw_comm_rate") is not None:
-                pd["pw_c"] += int(dl["pw_comm_rate"] * dl.get("n_pairs", 0) / 100)
-                pd["si_c"] += int(dl.get("si_comm_rate", 0) * dl.get("n_pairs", 0) / 100)
-                pd["c_total"] += dl.get("n_pairs", 0)
-            pd["n_pairs"] += dl.get("n_pairs", 0)
-            pd["total"] += dl.get("n_pairs", 0)
+        for lvl in ["easy", "medium", "hard"]:
+            for method, key in [("pw", "pw_diff"), ("si", "si_diff")]:
+                dl = result[method].get("by_difficulty", {}).get(lvl, {})
+                pooled[key][lvl][0] += int(dl.get("rate", 0) * dl.get("n_pairs", 0) / 100)
+                pooled[key][lvl][1] += dl.get("n_pairs", 0)
+                pooled[key][lvl][2] += dl.get("n_pairs", 0)
 
     if not per_dataset:
         return {"status": "no_data"}
 
-    pw_pooled_rho = safe_round(float(np.mean(pooled["pw_rhos"]))) if pooled["pw_rhos"] else None
-    si_pooled_rho = safe_round(float(np.mean(pooled["si_rhos"]))) if pooled["si_rhos"] else None
+    pw_rho_avg = safe_round(float(np.mean(pooled["pw_rhos"]))) if pooled["pw_rhos"] else None
+    si_rho_avg = safe_round(float(np.mean(pooled["si_rhos"]))) if pooled["si_rhos"] else None
 
     return {
         "status": "ok",
         "gt_type": gt_type,
         "n_datasets": len(per_dataset),
-        "total_controlled_pairs": pooled["pairs"],
-        "total_papers": pooled["papers"],
-        "avg_matches_per_paper": round(2 * pooled["pairs"] / max(pooled["papers"], 1), 1),
         "pooled": {
-            "pw_accuracy": _rate(pooled["pw_ah"][0], pooled["pw_ah"][1]),
-            "si_accuracy": _rate(pooled["si_ah"][0], pooled["si_ah"][1]),
-            "pw_comm_accuracy": _rate(pooled["pw_ac"][0], pooled["pw_ac"][1]),
-            "si_comm_accuracy": _rate(pooled["si_ac"][0], pooled["si_ac"][1]),
-            "pw_avg_accuracy": _rate(pooled["pw_avg"][0], pooled["pw_avg"][1]),
-            "si_avg_accuracy": _rate(pooled["si_avg"][0], pooled["si_avg"][1]),
-            "pw_rho": pw_pooled_rho,
-            "si_rho": si_pooled_rho,
+            "pw_accuracy": _rate(pooled["pw_correct"], pooled["pw_total"]),
+            "si_accuracy": _rate(pooled["si_correct"], pooled["si_total"]),
+            "pw_pairs": pooled["pw_total"],
+            "si_pairs": pooled["si_total"],
+            "pw_rho": pw_rho_avg,
+            "si_rho": si_rho_avg,
             "by_difficulty": {
-                level: {
-                    "pw_rate": _rate(s["pw"], s["total"]),
-                    "si_rate": _rate(s["si"], s["total"]),
-                    "pw_comm_rate": _rate(s["pw_c"], s["c_total"]) if s["c_total"] > 0 else None,
-                    "si_comm_rate": _rate(s["si_c"], s["c_total"]) if s["c_total"] > 0 else None,
-                    "n_pairs": s["n_pairs"],
+                lvl: {
+                    "pw_rate": _rate(pooled["pw_diff"][lvl][0], pooled["pw_diff"][lvl][1]),
+                    "si_rate": _rate(pooled["si_diff"][lvl][0], pooled["si_diff"][lvl][1]),
+                    "pw_pairs": pooled["pw_diff"][lvl][2],
+                    "si_pairs": pooled["si_diff"][lvl][2],
                 }
-                for level, s in pooled["diff"].items()
+                for lvl in ["easy", "medium", "hard"]
             },
         },
         "per_dataset": per_dataset,
