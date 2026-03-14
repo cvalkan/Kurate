@@ -63,7 +63,17 @@ def _wilson_ci(agree, total, z=1.96):
 
 
 def _inter_rater_rho(expert_ratings: dict):
-    """Compute average inter-rater Pearson correlation from raw ratings.
+    """Compute average inter-rater Spearman rank correlation from paper rankings.
+
+    Uses Spearman (rank-based) rather than Pearson so the rho reflects
+    agreement on the *ordering* of papers — consistent with the pairwise
+    comparison framework used throughout the benchmark.
+
+    For each reviewer pair, we rank their common papers by score and measure
+    how consistently they order those papers (Spearman rho). This is directly
+    related to pairwise agreement: two reviewers with Spearman rho = 1 would
+    agree on every paper pair; rho = 0 is chance ordering.
+
     Only uses reviewer pairs that rated >= 5 common papers."""
     experts = list(expert_ratings.keys())
     if len(experts) < 2:
@@ -79,7 +89,7 @@ def _inter_rater_rho(expert_ratings: dict):
             pids = sorted(common)
             r1 = [expert_ratings[e1][pid] for pid in pids]
             r2 = [expert_ratings[e2][pid] for pid in pids]
-            rho, _ = scipy_stats.pearsonr(r1, r2)
+            rho, _ = scipy_stats.spearmanr(r1, r2)
             if not np.isnan(rho):
                 rhos.append(rho)
                 total_pairs += 1

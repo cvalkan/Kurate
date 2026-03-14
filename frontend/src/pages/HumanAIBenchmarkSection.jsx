@@ -264,6 +264,7 @@ export default function HumanAIBenchmarkSection() {
             Spearman rho measures rank-order agreement. The Thurstonian ceiling is the maximum achievable pairwise agreement
             given the observed inter-rater noise (rho = {p.inter_rater_rho?.toFixed(2)}), computed from the Thurstonian model:
             P(agree) = Phi(dq / sqrt(2sigma^2))^2 + (1 - Phi(dq / sqrt(2sigma^2)))^2.
+            rho here is the average Spearman rank correlation between reviewer pairs (ordering-based, not score-magnitude-based).
           </p>
         </div>
       </div>
