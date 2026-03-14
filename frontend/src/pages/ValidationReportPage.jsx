@@ -119,11 +119,11 @@ export default function ValidationReportPage() {
           <Section num="1" title="Can AI Match Human Reviewers?">
             <p>Pairwise concordance benchmark across {ex.benchmark?.n_datasets || "9"} comparative GT datasets ({ex.benchmark?.total_controlled_pairs?.toLocaleString()} controlled pairs, {ex.benchmark?.total_papers} papers). AI uses Opus 4.6 Thinking summaries with round-robin judges.</p>
             <DataTable
-              headers={["Metric", "AI-Human", "Human-Human", "AI-Comm", "Human-Comm (LOO)"]}
+              headers={["Metric", "AI-Human", "Human-Human", "AI-Comm", "Human-Comm (LOO)", "Human-Comm"]}
               rows={[
-                ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`],
-                ["Ties = coin flip", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`],
-                [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014"],
+                ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`, `${pw.human_committee?.rate}%`],
+                ["Ties = coin flip", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`, `${cf.human_committee}%`],
+                [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014", bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3)],
               ]}
               boldIdx={1}
             />
