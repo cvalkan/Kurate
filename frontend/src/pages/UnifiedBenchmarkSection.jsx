@@ -207,7 +207,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
 export function UnifiedCompSection() {
   return <UnifiedPage
     apiUrl="/api/validation/unified-benchmark?gt_type=comp"
-    headerDesc={<>PW judges (round-robin) vs SI scoring (Opus 4.6 Thinking) — each on its full data. <strong>Comparative GT</strong> (ICLR, PeerRead).</>}
+    headerDesc={<>PW judges (round-robin) vs SI scoring (Opus 4.6 Thinking) — accuracy on same pairs, ranking on full data. <strong>Comparative GT</strong> (ICLR, PeerRead, eLife Neuro).</>}
     testId="unified-comp"
   />;
 }
@@ -215,7 +215,7 @@ export function UnifiedCompSection() {
 export function UnifiedStanSection() {
   return <UnifiedPage
     apiUrl="/api/validation/unified-benchmark?gt_type=stan"
-    headerDesc={<>PW judges vs SI scoring — each on its full data. <strong>Standalone GT</strong> (eLife, MIDL, Qeios, ResearchHub).</>}
+    headerDesc={<>PW judges vs SI scoring — accuracy on same pairs, ranking on full data. <strong>Standalone GT</strong> (eLife, MIDL, Qeios, ResearchHub).</>}
     testId="unified-stan"
   />;
 }

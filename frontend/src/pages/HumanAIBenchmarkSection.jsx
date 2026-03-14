@@ -409,7 +409,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             </div>
             <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                All BT rankings computed on the same controlled paper sets. "Avg single expert" builds BT from each expert's preferences
+                All BT rankings use each method's full match data (not restricted to controlled pairs). "Single expert" builds BT from each expert's preferences
                 individually, then averages the correlation across all experts — this is the typical single-rater baseline.
               </p>
             </div>
