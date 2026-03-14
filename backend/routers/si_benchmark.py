@@ -591,7 +591,11 @@ async def si_benchmark(gt_type: str = Query("stan")):
     cache = _si_benchmark_cache.get(gt_type, {})
     if cache.get("data"):
         return cache["data"]
-    result = await _compute_si_benchmark(gt_type)
+    if gt_type == "stan":
+        from routers.standalone_benchmark import compute_standalone_benchmark
+        result = await compute_standalone_benchmark(ai_source="single_item")
+    else:
+        result = await _compute_si_benchmark(gt_type)
     if result.get("status") == "ok":
         _si_benchmark_cache[gt_type] = {"data": result}
     return result

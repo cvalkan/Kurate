@@ -28,8 +28,9 @@ import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import SingleItemScoringSection from "./SingleItemScoringSection";
 import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
-import HumanAIBenchmarkSection, { HumanAIBenchmarkStanSection } from "./HumanAIBenchmarkSection";
+import HumanAIBenchmarkSection from "./HumanAIBenchmarkSection";
 import SIBenchmarkSection, { SIBenchmarkCompSection } from "./SIBenchmarkSection";
+import { StandalonePWSection, StandaloneSISection } from "./StandaloneBenchmarkSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -403,9 +404,9 @@ export default function ValidationHubPage() {
           {selected === "exp-assessor-evaluator" && <AssessorEvaluatorSection />}
           {selected === "exp-judge-comparison" && <JudgeComparisonSection />}
           {selected === "exp-human-ai-benchmark" && <HumanAIBenchmarkSection />}
-          {selected === "exp-pw-stan-benchmark" && <HumanAIBenchmarkStanSection />}
+          {selected === "exp-pw-stan-benchmark" && <StandalonePWSection />}
           {selected === "exp-si-comp-benchmark" && <SIBenchmarkCompSection />}
-          {selected === "exp-si-benchmark" && <SIBenchmarkSection />}
+          {selected === "exp-si-benchmark" && <StandaloneSISection />}
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}

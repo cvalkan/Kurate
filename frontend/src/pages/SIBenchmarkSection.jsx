@@ -414,16 +414,12 @@ function SIBenchmarkPage({ apiUrl, headerDesc, testId }) {
 
 export default function SIBenchmarkSection() {
   return <SIBenchmarkPage
-    apiUrl="/api/validation/si-benchmark?gt_type=stan"
-    headerDesc={<>AI scores each paper individually with <strong>Opus 4.6 Thinking</strong> (1-10 scale). Standalone GT datasets (eLife biology, MIDL, Qeios, ResearchHub) — reviewers scored papers independently.</>}
-    testId="si-benchmark-stan"
+    apiUrl="/api/validation/si-benchmark?gt_type=comp"
+    headerDesc={<>AI scores each paper individually with <strong>Opus 4.6 Thinking</strong> (1-10 scale). <strong>Comparative GT</strong> (ICLR, PeerRead, eLife Neuro) — reviewers compared papers against each other.</>}
+    testId="si-benchmark-comp"
   />;
 }
 
 export function SIBenchmarkCompSection() {
-  return <SIBenchmarkPage
-    apiUrl="/api/validation/si-benchmark?gt_type=comp"
-    headerDesc={<>AI scores each paper individually with <strong>Opus 4.6 Thinking</strong> (1-10 scale). Comparative GT datasets (ICLR, PeerRead, eLife Neuro) — reviewers compared papers against each other.</>}
-    testId="si-benchmark-comp"
-  />;
+  return <SIBenchmarkSection />;
 }

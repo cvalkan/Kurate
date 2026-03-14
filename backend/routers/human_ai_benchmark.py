@@ -767,7 +767,11 @@ async def human_ai_benchmark(gt_type: str = Query("comp")):
     cache = _benchmark_cache.get(gt_type, {})
     if cache.get("data"):
         return cache["data"]
-    result = await _compute_benchmark(gt_type)
+    if gt_type == "stan":
+        from routers.standalone_benchmark import compute_standalone_benchmark
+        result = await compute_standalone_benchmark(ai_source="pairwise")
+    else:
+        result = await _compute_benchmark(gt_type)
     if result.get("status") == "ok":
         _benchmark_cache[gt_type] = {"data": result}
     return result

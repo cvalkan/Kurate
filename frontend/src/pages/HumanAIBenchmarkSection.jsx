@@ -427,15 +427,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
 export default function HumanAIBenchmarkSection() {
   return <BenchmarkPage
     apiUrl="/api/validation/human-ai-benchmark?gt_type=comp"
-    headerDesc={<>AI judges use <strong>Opus 4.6 Thinking</strong> summaries (abstract + AI impact assessment). Round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. Comparative GT datasets (ICLR, PeerRead, eLife Neuro).</>}
+    headerDesc={<>AI judges use <strong>Opus 4.6 Thinking</strong> summaries (abstract + AI impact assessment). Round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. <strong>Comparative GT</strong> (ICLR, PeerRead, eLife Neuro).</>}
     testId="human-ai-benchmark"
-  />;
-}
-
-export function HumanAIBenchmarkStanSection() {
-  return <BenchmarkPage
-    apiUrl="/api/validation/human-ai-benchmark?gt_type=stan"
-    headerDesc={<>AI judges use pairwise comparisons (best available content mode). Standalone GT datasets (eLife biology, MIDL, Qeios, ResearchHub) — reviewers scored papers independently.</>}
-    testId="human-ai-benchmark-stan"
   />;
 }
