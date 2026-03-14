@@ -4,7 +4,7 @@ import requests
 import time
 import sys
 
-API = "https://orcid-verify.preview.emergentagent.com"
+API = "https://kurate-bookmarks.preview.emergentagent.com"
 ADMIN_TOKEN = "adm_PwgAikZRN0yUbPwU72rgzilv_OTqJYv5pMFHYptbW98"
 HEADERS = {"Content-Type": "application/json", "X-Admin-Token": ADMIN_TOKEN}
 

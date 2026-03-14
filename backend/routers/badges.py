@@ -158,7 +158,7 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
 
 @router.get("/{category}/{year}/w{week}/{paper_id}/share", response_class=HTMLResponse)
 async def get_badge_share_page(category: str, year: int, week: int, paper_id: str, request: Request):
-    """Static HTML page with OG meta tags for social sharing. No redirect — crawler-first."""
+    """Static HTML page with OG meta tags for social sharing. JS redirect for humans, crawlers see tags."""
     from core.sharing import get_public_base_url, SHARE_HEADERS
     data = await _get_badge_data(category, year, week, paper_id)
     base_url = get_public_base_url(request)
@@ -192,7 +192,7 @@ async def get_monthly_badge_share_page(category: str, year: int, month: int, pap
 
 
 def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id: str, base_url: str) -> str:
-    """Generate a static HTML page with OG/Twitter meta tags. No JS redirect — crawler-first."""
+    """Generate a static HTML page with OG/Twitter meta tags. JS redirect for humans; crawlers see tags."""
     import html as html_mod
     p = data["paper"]
     tier = data["tier"]
@@ -231,13 +231,13 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
 <meta name="twitter:site" content="@KurateAI">
-<meta http-equiv="refresh" content="0;url={leaderboard_url}">
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{og_title}</h1>
 <p style="color: #666;">{title}</p>
 <p style="color: #999; font-size: 14px;">by {authors}</p>
-<p><a href="{leaderboard_url}" style="color: #4285F4;">View the {archive_label} leaderboard on Kurate.org →</a></p>
+<p><a href="{leaderboard_url}" style="color: #4285F4;">View the {archive_label} leaderboard on Kurate.org &rarr;</a></p>
+<script>window.location.replace("{leaderboard_url}");</script>
 </body>
 </html>"""
 
