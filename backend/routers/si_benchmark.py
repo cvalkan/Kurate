@@ -161,7 +161,7 @@ def _classify_difficulty(p1_id, p2_id, papers_by_id):
         return "hard"
 
 
-async def _compute_si_dataset_benchmark(dataset_id: str):
+async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = False):
     """Compute benchmark for a single dataset using single-item AI scores."""
     papers = await db.validation_papers.find(
         {"dataset_id": dataset_id, "single_item_score": {"$exists": True}},
@@ -171,6 +171,25 @@ async def _compute_si_dataset_benchmark(dataset_id: str):
 
     # Need papers with both human evaluations and AI scores
     papers = [p for p in papers if p.get("evaluations") and p.get("single_item_score") is not None]
+
+    # For fair comparison with PW benchmark, restrict to papers that appear in PW matches
+    if require_pw and papers:
+        from routers.validation_utils import build_content_mode_filter
+        PREFERRED_MODES = ["abstract_plus_summary:opus46", "abstract_plus_summary:thinking", "abstract_plus_summary"]
+        pw_paper_ids = set()
+        for mode in PREFERRED_MODES:
+            mode_filter = build_content_mode_filter(mode)
+            pw_raw = await db.validation_matches.find(
+                {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, **mode_filter},
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1}
+            ).to_list(100000)
+            if len(pw_raw) >= 20:
+                for m in pw_raw:
+                    pw_paper_ids.add(m["paper1_id"])
+                    pw_paper_ids.add(m["paper2_id"])
+                break
+        if pw_paper_ids:
+            papers = [p for p in papers if p["id"] in pw_paper_ids]
     if len(papers) < 10:
         return None
 
@@ -629,8 +648,11 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
                        for level in ["easy", "medium", "hard"]},
     }
 
+    # For comp GT, restrict to papers with PW matches too, for fair PW vs SI comparison
+    require_pw = (gt_type == "comp")
+
     for ds_id in ds_with_scores:
-        result = await _compute_si_dataset_benchmark(ds_id)
+        result = await _compute_si_dataset_benchmark(ds_id, require_pw=require_pw)
         if result is None:
             continue
 

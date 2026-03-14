@@ -367,6 +367,7 @@ export default function ValidationReportPage() {
               <tr className="border-b border-border">
                 <th className="text-left py-1 pr-2">Dataset</th>
                 <th className="text-center py-1 px-1">GT</th>
+                <th className="text-right py-1 px-1">Pairs</th>
                 <th className="text-right py-1 px-1">SI Acc</th>
                 <th className="text-right py-1 px-1">PW Acc</th>
                 <th className="text-right py-1 px-1">SI Spearman {"\u03C1"}</th>
@@ -390,6 +391,7 @@ export default function ValidationReportPage() {
                     <td className="text-center py-0.5 px-1">
                       <span className={`text-[8px] px-1 rounded ${gt === "comparative" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>{gt.slice(0, 4)}</span>
                     </td>
+                    <td className="text-right py-0.5 px-1 font-mono text-muted-foreground">{d.single_item_pairs?.toLocaleString() ?? "\u2014"}</td>
                     <td className={`text-right py-0.5 px-1 font-mono ${!pwWins ? "font-bold" : ""}`}>{si.accuracy}%</td>
                     <td className={`text-right py-0.5 px-1 font-mono ${pwWins ? "font-bold" : ""}`}>{pw.accuracy}%</td>
                     <td className={`text-right py-0.5 px-1 font-mono ${(si.spearman_rho || 0) > (pw.spearman_rho || 0) ? "font-bold" : ""}`}>{si.spearman_rho?.toFixed(3) || "\u2014"}</td>

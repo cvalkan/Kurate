@@ -234,11 +234,12 @@ def _classify_difficulty(p1_id, p2_id, papers_by_id):
         return "hard"      # within-tier (e.g., poster vs poster)
 
 
-async def _compute_dataset_benchmark(dataset_id: str):
+async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     """Compute all benchmark metrics for a single dataset."""
-    papers = await db.validation_papers.find(
-        {"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION
-    ).to_list(5000)
+    query = {"dataset_id": dataset_id}
+    if require_si:
+        query["single_item_score"] = {"$exists": True}
+    papers = await db.validation_papers.find(query, PAPER_LIGHT_PROJECTION).to_list(5000)
     if not papers:
         return None
 
@@ -820,8 +821,11 @@ async def _compute_benchmark(gt_type: str = "comp"):
                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0}},
     }
 
+    # For comp GT, restrict to papers with SI scores too, for fair PW vs SI comparison
+    require_si = (gt_type == "comp")
+
     for ds_id in all_ds_ids:
-        result = await _compute_dataset_benchmark(ds_id)
+        result = await _compute_dataset_benchmark(ds_id, require_si=require_si)
         if result is None:
             continue
 
