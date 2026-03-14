@@ -184,7 +184,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
   );
 }
 
-function ReliabilityTables({ p, pw }) {
+function ReliabilityTables({ p, pw, concordance }) {
   const ts = p.tie_stats || {};
   const hhConc = ts.concordance_rate;
   const ahConc = p.ai_h_concordance;
@@ -256,6 +256,17 @@ function ReliabilityTables({ p, pw }) {
             Meanwhile, the {(ts.tie_fraction * 100).toFixed(0)}% tie fraction shows that human reviewers often cannot distinguish quality between papers —
             a fundamental limit of peer review. AI, which always produces a verdict, provides signal on the pairs humans
             cannot resolve, making it a <strong>strictly more complete</strong> source for ranking.
+          </p>
+        )}
+        {concordance?.hh_cf != null && concordance?.hh != null && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            <strong>Note on coin-flip concordance:</strong>{" "}
+            H-H drops from {(concordance.hh * 100).toFixed(1)}% to {(concordance.hh_cf * 100).toFixed(1)}% under coin-flip — a large drop because
+            each reviewer pair gets equal weight, and pairs where one reviewer uses a coarse scoring scale (many ties) are penalized heavily.
+            A reviewer who ties 60% of pairs contributes many 50%-agreement coin-flips, dragging that pair's concordance down.
+            This doesn't necessarily mean the reviewer is unskilled — coarse scales and cautious scoring both produce ties.
+            The coin-flip value ({(concordance.hh_cf * 100).toFixed(1)}%) is the most conservative H-H estimate;
+            the ties-excluded value ({(concordance.hh * 100).toFixed(1)}%) is the most optimistic. The truth lies between them.
           </p>
         )}
         {p.theoretical_ceiling != null && p.inter_rater_rho != null && (
@@ -461,7 +472,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
       })()}
 
       {/* 4. Inter-Rater Reliability (Human-Human + AI-Human) */}
-      <ReliabilityTables p={p} pw={pw} />
+      <ReliabilityTables p={p} pw={pw} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance, hh_cf: p.tie_stats?.cf_concordance_rate, ai_h_cf: p.ai_h_cf_concordance }} />
 
       {/* 5. Per-dataset breakdown */}
       <DatasetTable datasets={data.per_dataset} />
