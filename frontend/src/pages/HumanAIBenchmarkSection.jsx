@@ -52,7 +52,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
           <tbody>
             {tieImpact?.coin_flip && (
               <tr className="border-b border-border bg-accent/5">
-                <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled (ties = coin flip)<sup>7</sup></td>
+                <td className="py-1.5 px-2 text-left text-xs font-semibold">All pairs (ties = coin flip)<sup>7</sup></td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{tieImpact.coin_flip.ai_human != null ? `${tieImpact.coin_flip.ai_human}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{tieImpact.coin_flip.human_human != null ? `${tieImpact.coin_flip.human_human}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
@@ -65,7 +65,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
               </tr>
             )}
             <tr className="border-b border-border/40">
-              <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">Pooled (ties excluded)<sup>8</sup></td>
+              <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">All pairs (ties excluded)<sup>8</sup></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
