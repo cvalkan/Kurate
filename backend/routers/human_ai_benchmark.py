@@ -235,24 +235,16 @@ async def _compute_dataset_benchmark(dataset_id: str):
         if n > len(votes) / 2:
             expert_majority[pair] = best
 
-    # Load AI matches — try preferred mode first, fall back
-    # Priority: abstract_plus_summary:opus46 > abstract_plus_summary > extract
-    PREFERRED_MODES = ["abstract_plus_summary:opus46", "abstract_plus_summary", "extract"]
-    ai_raw = []
-    ai_mode_used = None
-    for mode in PREFERRED_MODES:
-        mode_filter = build_content_mode_filter(mode)
-        candidates = await db.validation_matches.find(
-            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-             **mode_filter},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-        ).to_list(100000)
-        if len(candidates) >= 20:
-            ai_raw = candidates
-            ai_mode_used = mode
-            break
+    # Load AI matches — only use opus46 summaries (best config)
+    mode_filter = build_content_mode_filter("abstract_plus_summary:opus46")
+    ai_raw = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         **mode_filter},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(100000)
+    ai_mode_used = "abstract_plus_summary:opus46"
 
-    if not ai_raw:
+    if len(ai_raw) < 20:
         return None
 
     ai_pair_votes = defaultdict(list)
