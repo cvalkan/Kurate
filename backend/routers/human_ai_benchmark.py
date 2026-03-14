@@ -454,6 +454,46 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 if n > len(others) / 2:
                     hc_loo_tie += 1
 
+    # --- Tie validation: does AI have real signal on pairs where experts tie? ---
+    # For each pair where at least one expert ties AND at least one doesn't:
+    # Check if AI agrees with the non-tying experts.
+    # If > 50%, AI has signal beyond random on "hard for humans" pairs.
+    tv_ai_agree = tv_ai_total = 0
+    tv_hh_agree = tv_hh_total = 0
+    for pair in controlled_pairs:
+        paper_a, paper_b = pair
+        tying_experts = []
+        nontying_experts = []
+        for exp, ratings in experts_with_data.items():
+            if paper_a in ratings and paper_b in ratings:
+                if ratings[paper_a] == ratings[paper_b]:
+                    tying_experts.append(exp)
+                else:
+                    nontying_experts.append(exp)
+
+        # Need at least 1 tying AND 1 non-tying
+        if not tying_experts or not nontying_experts:
+            continue
+
+        # AI vs each non-tying expert (on pairs where at least one other expert ties)
+        for exp in nontying_experts:
+            winner = expert_pair_prefs[pair].get(exp)
+            if winner:
+                tv_ai_total += 1
+                if ai_pair[pair] == winner:
+                    tv_ai_agree += 1
+
+        # H-H: tying expert (coin-flip) vs non-tying expert
+        # Under coin-flip: 50%. But do non-tying experts agree with EACH OTHER on these pairs?
+        for i in range(len(nontying_experts)):
+            for j in range(i + 1, len(nontying_experts)):
+                e1 = expert_pair_prefs[pair].get(nontying_experts[i])
+                e2 = expert_pair_prefs[pair].get(nontying_experts[j])
+                if e1 and e2:
+                    tv_hh_total += 1
+                    if e1 == e2:
+                        tv_hh_agree += 1
+
     # --- Layer 4: Stratification by difficulty ---
     difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
                                  "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0},
@@ -745,6 +785,12 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
             "hc_loo_agree": hc_loo_agree, "hc_loo_total": hc_loo_total, "hc_loo_tie": hc_loo_tie,
             "ac_agree": ac_agree, "ac_total": ac_total,
         },
+        "tie_validation": {
+            "ai_agree": tv_ai_agree, "ai_total": tv_ai_total,
+            "ai_rate": _rate(tv_ai_agree, tv_ai_total),
+            "hh_agree": tv_hh_agree, "hh_total": tv_hh_total,
+            "hh_rate": _rate(tv_hh_agree, tv_hh_total),
+        },
         "n_rater_pairs": n_pairs,
         "ceiling": ceiling,
         "pairwise": {
@@ -917,6 +963,15 @@ async def _compute_benchmark(gt_type: str = "comp"):
                 pooled[dst_t].append(sub["kendall_tau"])
         if bt.get("vs_avg_rating_rho") is not None:
             pooled["bt_avg_rating_rhos"].append(bt["vs_avg_rating_rho"])
+        tv = result.get("tie_validation", {})
+        pooled.setdefault("tv_ai_agree", 0)
+        pooled.setdefault("tv_ai_total", 0)
+        pooled.setdefault("tv_hh_agree", 0)
+        pooled.setdefault("tv_hh_total", 0)
+        pooled["tv_ai_agree"] += tv.get("ai_agree", 0)
+        pooled["tv_ai_total"] += tv.get("ai_total", 0)
+        pooled["tv_hh_agree"] += tv.get("hh_agree", 0)
+        pooled["tv_hh_total"] += tv.get("hh_total", 0)
 
         # Pool difficulty stats
         for level in ["easy", "medium", "hard"]:
@@ -1114,6 +1169,12 @@ async def _compute_benchmark(gt_type: str = "comp"):
             },
             "by_difficulty": _format_pooled_difficulty(),
             "tie_impact": tie_impact,
+            "tie_validation": {
+                "ai_rate": _rate(pooled.get("tv_ai_agree", 0), pooled.get("tv_ai_total", 0)),
+                "ai_total": pooled.get("tv_ai_total", 0),
+                "hh_rate": _rate(pooled.get("tv_hh_agree", 0), pooled.get("tv_hh_total", 0)),
+                "hh_total": pooled.get("tv_hh_total", 0),
+            },
         },
         "per_dataset": per_dataset,
     }

@@ -14,7 +14,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
+function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation }) {
   const fmt = (v) => v?.rate != null ? `${v.rate}%` : "\u2014";
   const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "\u2014";
   const levels = [
@@ -135,6 +135,24 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
                 Note: ties and tiers measure different things — tiers are venue decisions (oral/poster/reject),
                 ties are a reviewer giving both papers the same score. Ties are most common within the same tier.
               </p>
+              {(() => {
+                const tv = tieValidation;
+                if (!tv || tv.ai_total < 50) return null;
+                return (
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    <strong>Is the coin flip conservative?</strong>{" "}
+                    The coin flip assumes AI has no signal on tie pairs (50% expected agreement).
+                    To test this: on pairs where at least one expert ties, we check how often AI agrees with the <em>non-tying</em> experts.
+                    Result: AI agrees with non-tying experts <strong>{tv.ai_rate}%</strong> of the time ({tv.ai_total?.toLocaleString()} comparisons).
+                    {tv.hh_total > 0 && <> For reference, non-tying experts agree with <em>each other</em> at {tv.hh_rate}% on these same pairs ({tv.hh_total?.toLocaleString()} comparisons).</>}
+                    {tv.ai_rate > 50 ? (
+                      <> Since {tv.ai_rate}% {">"} 50%, the coin flip <strong>underestimates</strong> AI's true agreement — AI has real signal on the pairs humans can't resolve.</>
+                    ) : (
+                      <> At ~50%, AI's signal on tie pairs is near chance.</>
+                    )}
+                  </p>
+                );
+              })()}
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 <strong>Significance for AI-based paper ranking:</strong>{" "}
                 AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality when measured fairly.
@@ -355,7 +373,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
       </div>
 
       {/* 1. Merged agreement + difficulty + tie impact table */}
-      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} />
+      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} />
 
       {/* 2. Ranking Correlation (Bradley-Terry) */}
       {(() => {
