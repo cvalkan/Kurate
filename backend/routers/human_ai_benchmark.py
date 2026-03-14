@@ -288,24 +288,26 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         if n > len(votes) / 2:
             expert_majority[pair] = best
 
-    # Load AI matches — try best available content mode
-    PREFERRED_MODES = [
-        "abstract_plus_summary:opus46",
-        "abstract_plus_summary:thinking",
-        "abstract_plus_summary",
-    ]
-    ai_raw = []
-    ai_mode_used = None
-    for mode in PREFERRED_MODES:
-        mode_filter = build_content_mode_filter(mode)
-        ai_raw = await db.validation_matches.find(
-            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-             **mode_filter},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-        ).to_list(100000)
-        if len(ai_raw) >= 20:
-            ai_mode_used = mode
-            break
+    # Load AI matches — use same mode selection as summary table
+    # Check if dataset has thinking summaries → prefer thinking matches
+    sample_paper = papers[0] if papers else {}
+    sample_full = await db.validation_papers.find_one(
+        {"id": sample_paper.get("id"), "dataset_id": dataset_id},
+        {"_id": 0, "ai_impact_summary_thinking": 1}
+    ) if sample_paper.get("id") else None
+    has_thinking = bool(sample_full and sample_full.get("ai_impact_summary_thinking"))
+    pw_content_mode = "abstract_plus_summary:thinking" if has_thinking else "abstract_plus_summary"
+    pw_count = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": pw_content_mode})
+    if pw_count == 0:
+        pw_content_mode = "abstract_plus_summary"
+
+    ai_raw = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "content_mode": pw_content_mode},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(100000)
+    ai_mode_used = pw_content_mode
 
     if len(ai_raw) < 20:
         return None
@@ -845,8 +847,9 @@ async def _compute_benchmark(gt_type: str = "comp"):
                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0}},
     }
 
-    # For comp GT, restrict to papers with SI scores too, for fair PW vs SI comparison
-    require_si = (gt_type == "comp")
+    # For comp GT, no longer restrict to SI-scored papers
+    # (that was for the old PW vs SI comparison pages)
+    require_si = False
 
     for ds_id in all_ds_ids:
         result = await _compute_dataset_benchmark(ds_id, require_si=require_si)
