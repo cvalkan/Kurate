@@ -172,6 +172,9 @@ async def _compute_unified_dataset(dataset_id, gt_type):
 
     if pw_total < 10 and si_total < 10:
         return None
+    # Skip datasets with no SI data (e.g., ICLR OT has PW but no SI scores)
+    if si_total == 0:
+        return None
 
     return {
         "dataset_id": dataset_id,
