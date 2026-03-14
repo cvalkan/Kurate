@@ -323,16 +323,16 @@ export default function HumanAIBenchmarkSection() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="AI-Human Pairwise" value={`${cf?.ai_human ?? pw.ai_human.rate}%`} sub="ties = coin flip" accent />
+          <Metric label="AI-Human Pairwise" value={`${cf?.ai_human ?? pw.ai_human.rate}%`} sub="human ties = coin flip" />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="Human-Human Pairwise" value={`${cf?.human_human ?? pw.human_human.rate}%`} sub="ties = coin flip" />
+          <Metric label="Human-Human Pairwise" value={`${cf?.human_human ?? pw.human_human.rate}%`} sub="ties = coin flip" accent />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="AI-Committee" value={`${cf?.ai_committee ?? pw.ai_committee.rate}%`} sub="ties = coin flip" accent />
+          <Metric label="AI-Committee" value={`${cf?.ai_committee ?? pw.ai_committee.rate}%`} sub="human ties = coin flip" />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="Human-Comm (LOO)" value={`${cf?.human_committee_loo ?? pw.human_committee_loo?.rate ?? "\u2014"}%`} sub="ties = coin flip" />
+          <Metric label="Human-Comm (LOO)" value={`${cf?.human_committee_loo ?? pw.human_committee_loo?.rate ?? "\u2014"}%`} sub="ties = coin flip" accent />
         </div>
       </div>
 
