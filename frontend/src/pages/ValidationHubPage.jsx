@@ -29,8 +29,7 @@ import SingleItemScoringSection from "./SingleItemScoringSection";
 import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
 import HumanAIBenchmarkSection from "./HumanAIBenchmarkSection";
-import SIBenchmarkSection, { SIBenchmarkCompSection } from "./SIBenchmarkSection";
-import { StandalonePWSection, StandaloneSISection } from "./StandaloneBenchmarkSection";
+import { UnifiedCompSection, UnifiedStanSection } from "./UnifiedBenchmarkSection";
 import { DatasetView } from "./ValidationPage";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -200,10 +199,9 @@ export default function ValidationHubPage() {
       "exp-thinking-overview": { title: "Extended Thinking", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
       "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
       "exp-multi-aspect": { title: "Multi-Aspect Judging", desc: "Does breaking the judgment into 5 separate dimensions (novelty, applications, rigor, breadth, timeliness) improve accuracy over a single holistic verdict?" },
-      "exp-human-ai-benchmark": { title: "Pairwise AI + Comparative GT", desc: "AI pairwise judges (round-robin GPT-5.2, Opus, Gemini) vs human expert ground truth from structured comparative review (ICLR, PeerRead, eLife Neuro)." },
-      "exp-pw-stan-benchmark": { title: "Pairwise AI + Standalone GT", desc: "AI pairwise judges vs human expert ground truth from independent paper ratings (eLife biology, MIDL, Qeios, ResearchHub)." },
-      "exp-si-comp-benchmark": { title: "Single-Item AI + Comparative GT", desc: "AI single-item scores (Opus 4.6 Thinking, 1-10) vs human expert ground truth from structured comparative review." },
-      "exp-si-benchmark": { title: "Single-Item AI + Standalone GT", desc: "AI single-item scores (Opus 4.6 Thinking, 1-10) vs human expert ground truth from independent paper ratings." },
+      "exp-human-ai-benchmark": { title: "Human vs AI Benchmark", desc: "Pairwise concordance-based benchmark for comparative GT datasets (ICLR, PeerRead, eLife Neuro). Full H-H, AI-H, tie correction, BT ranking." },
+      "exp-unified-comp": { title: "PW vs SI — Comparative GT", desc: "Head-to-head comparison of pairwise judges vs single-item scoring on the exact same pairs. Comparative GT (ICLR, PeerRead)." },
+      "exp-unified-stan": { title: "PW vs SI — Standalone GT", desc: "Head-to-head comparison of pairwise judges vs single-item scoring on the exact same pairs. Standalone GT (eLife, MIDL, Qeios, ResearchHub)." },
       "exp-judge-comparison": { title: "Accuracy by Judge", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs (4 judges x 9 datasets x 200 pairs)." },
       "exp-summarizer-cross": { title: "Accuracy by Summarizer", desc: "How does the choice of summarizer model (GPT-5.2, Gemini 3 Pro, Opus 4.5/4.6) affect tournament accuracy? Same-pair comparison across 12 ICLR and eLife datasets." },
       "exp-assessor-evaluator": { title: "Summarizer × Judge Matrix", desc: "Full interaction matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
@@ -311,11 +309,10 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-summarizer-ab", label: "Opus 4.5 vs 4.6", sub: "A/B test" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-thinking-overview", label: "Extended Thinking", sub: "Thinking budget effect" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
-              <CollapsibleGroup label="Judge Quality" defaultOpen={selected?.startsWith("exp-") && (selected.includes("benchmark") || selected === "exp-judge-comparison" || selected === "exp-assessor-evaluator")}>
-                <NavItem item={{ id: "exp-human-ai-benchmark", label: "PW AI + Comparative GT", sub: "ICLR, PeerRead, eLife Neuro" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-pw-stan-benchmark", label: "PW AI + Standalone GT", sub: "eLife bio, MIDL, Qeios, RH" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-si-comp-benchmark", label: "SI AI + Comparative GT", sub: "ICLR, PeerRead, eLife Neuro" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-si-benchmark", label: "SI AI + Standalone GT", sub: "eLife bio, MIDL, Qeios, RH" }} selected={selected} onSelect={setSelected} />
+              <CollapsibleGroup label="Judge Quality" defaultOpen={selected?.startsWith("exp-") && (selected.includes("benchmark") || selected.includes("unified") || selected === "exp-judge-comparison" || selected === "exp-assessor-evaluator")}>
+                <NavItem item={{ id: "exp-human-ai-benchmark", label: "Human vs AI Benchmark", sub: "Pairwise concordance + ties" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-unified-comp", label: "PW vs SI — Comparative GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-unified-stan", label: "PW vs SI — Standalone GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-judge-comparison", label: "Accuracy by Judge", sub: "Single judge vs round-robin" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-assessor-evaluator", label: "Summarizer × Judge Matrix", sub: "Full interaction" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
@@ -404,9 +401,8 @@ export default function ValidationHubPage() {
           {selected === "exp-assessor-evaluator" && <AssessorEvaluatorSection />}
           {selected === "exp-judge-comparison" && <JudgeComparisonSection />}
           {selected === "exp-human-ai-benchmark" && <HumanAIBenchmarkSection />}
-          {selected === "exp-pw-stan-benchmark" && <StandalonePWSection />}
-          {selected === "exp-si-comp-benchmark" && <SIBenchmarkCompSection />}
-          {selected === "exp-si-benchmark" && <StandaloneSISection />}
+          {selected === "exp-unified-comp" && <UnifiedCompSection />}
+          {selected === "exp-unified-stan" && <UnifiedStanSection />}
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}
