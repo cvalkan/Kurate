@@ -228,6 +228,22 @@ function ReliabilityTables({ p, pw }) {
             the 42% of pairs humans cannot resolve — makes AI a <strong>strictly more complete</strong> signal source for paper ranking.
           </p>
         )}
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          <strong>Derived rho</strong> converts the raw concordance rate into a correlation coefficient
+          using the Kruskal (1958) identity for bivariate normals: rho = sin(pi x (concordance - 0.5)).
+          A concordance of 50% (chance) maps to rho = 0; perfect concordance maps to rho = 1.
+          This rho is interpretable as the signal-to-noise ratio of reviewer scores: it captures what fraction of the
+          variance in a reviewer's scores reflects true paper quality versus idiosyncratic noise.
+        </p>
+        {p.theoretical_ceiling != null && p.inter_rater_rho != null && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            <strong>Thurstonian ceiling</strong> ({p.theoretical_ceiling}%) translates rho into a practical upper bound on pairwise agreement.
+            Given rho = {p.inter_rater_rho.toFixed(2)}, the Thurstonian model estimates that even two perfectly calibrated reviewers
+            drawing from the same noise distribution would agree on at most {p.theoretical_ceiling}% of paper pairs — because on close-quality
+            pairs, reviewer noise dominates and their orderings diverge by chance. This ceiling contextualizes the observed agreement rates:
+            any system (human or AI) approaching {p.theoretical_ceiling}% is extracting nearly all the recoverable signal from the data.
+          </p>
+        )}
       </div>
     </div>
   );
