@@ -164,7 +164,6 @@ export default function BadgePage() {
   };
 
   const truncTitle = data.title?.length > 70 ? data.title.slice(0, 67) + "..." : data.title;
-  const canCongrats = remaining && remaining.remaining > 0;
 
   return (
     <>
@@ -252,34 +251,36 @@ export default function BadgePage() {
             {remaining && <span className="ml-1 text-muted-foreground/70">({remaining.remaining}/{remaining.limit} remaining this week)</span>}
           </p>
 
-          {!user ? (
-            <div className="p-4 bg-secondary/30 rounded-lg border border-border text-center" data-testid="sign-in-cta">
-              <LogIn className="h-5 w-5 mx-auto mb-2 text-muted-foreground opacity-50" />
-              <p className="text-sm text-muted-foreground mb-3">Sign in to congratulate authors</p>
-              <Button size="sm" className="gap-1.5" onClick={() => window.dispatchEvent(new CustomEvent("open-auth-modal"))} data-testid="congrats-sign-in-btn">
-                <LogIn className="h-3.5 w-3.5" /> Sign in
+          {/* Social sharing — open to everyone */}
+          <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="congrats-buttons">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCongratsTwitter} data-testid="congrats-x-btn">
+              <Share2 className="h-3.5 w-3.5" /> Congrats on X
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCongratsLinkedIn} data-testid="congrats-linkedin-btn">
+              <Share2 className="h-3.5 w-3.5" /> Congrats on LinkedIn
+            </Button>
+            {/* Email button — sign-in required */}
+            {user ? (
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={startEmailFlow} data-testid="congrats-email-btn"
+                disabled={remaining && remaining.remaining <= 0}>
+                <Mail className="h-3.5 w-3.5" /> Send email
               </Button>
-            </div>
-          ) : !canCongrats && remaining ? (
-            <div className="p-4 bg-secondary/30 rounded-lg border border-border text-center text-sm text-muted-foreground">
-              You've used all {remaining.limit} congratulations this week. Check back later!
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="congrats-buttons">
-                <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCongratsTwitter} data-testid="congrats-x-btn">
-                  <Share2 className="h-3.5 w-3.5" /> Congrats on X
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCongratsLinkedIn} data-testid="congrats-linkedin-btn">
-                  <Share2 className="h-3.5 w-3.5" /> Congrats on LinkedIn
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={startEmailFlow} data-testid="congrats-email-btn">
-                  <Mail className="h-3.5 w-3.5" /> Send email
-                </Button>
-              </div>
+            ) : (
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => window.dispatchEvent(new CustomEvent("open-auth-modal"))} data-testid="congrats-email-signin-btn">
+                <LogIn className="h-3.5 w-3.5" /> Sign in to email
+              </Button>
+            )}
+          </div>
 
-              {/* Email flow */}
-              {showEmail && (
+          {/* Rate limit message for logged-in users */}
+          {user && remaining && remaining.remaining <= 0 && (
+            <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center text-xs text-muted-foreground mb-4">
+              You've used all {remaining.limit} email congratulations this week. Social sharing is unlimited!
+            </div>
+          )}
+
+          {/* Email flow (only shown when user is signed in and clicks Send email) */}
+          {showEmail && user && (
                 <div className="p-4 border border-border rounded-lg bg-background space-y-3" data-testid="email-flow">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground block mb-1">To (comma-separated)</label>
@@ -322,8 +323,6 @@ export default function BadgePage() {
                   </div>
                 </div>
               )}
-            </>
-          )}
         </div>
       </div>
     </>

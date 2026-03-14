@@ -16,7 +16,7 @@ Build a robust system for ranking and validating AI model performance on scienti
 - **Input format**: Abstract + AI impact assessment summary
 - **Summary source**: "claude" (only Claude Thinking summaries used in live tournaments)
 
-## Current State (Mar 13 2026)
+## Current State (Mar 14 2026)
 - 2174 papers, 64731 matches, 10 active categories
 - 25 validation datasets, validation experiments publicly accessible
 - All validation experiments publicly accessible
@@ -28,6 +28,9 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Badge sharing is public for all users (not restricted to verified authors)
 - Claims tab removed from admin panel (deprecated in favor of user-level ORCID verification)
 - Profile page shows ORCID admin review status (pending/verified)
+- Bookmarks & Reading Lists fully operational
+- Share pages are 100% pure static HTML (no JS/redirects) for maximum crawler compatibility
+- Congrats (social sharing) open to all visitors; email congrats requires sign-in
 
 ## Deployment Readiness (Mar 9 2026)
 
