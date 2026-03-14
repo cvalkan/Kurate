@@ -545,11 +545,14 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
     # --- Layer 4: Stratification by difficulty ---
     difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0},
+                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0,
+                                 "tier_ai": [0, 0], "tier_hh": [0, 0]},
                         "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                   "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0},
+                                   "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0,
+                                   "tier_ai": [0, 0], "tier_hh": [0, 0]},
                         "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0}}
+                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0,
+                                 "tier_ai": [0, 0], "tier_hh": [0, 0]}}
 
     for pair in controlled_pairs:
         diff = _classify_difficulty(pair[0], pair[1], papers_by_id)
@@ -632,6 +635,20 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
             ds["ac"][1] += 1
             if ai_pair[pair] == expert_majority[pair]:
                 ds["ac"][0] += 1
+        # Tier accuracy per difficulty
+        pa_d, pb_d = papers_by_id.get(pair[0], {}), papers_by_id.get(pair[1], {})
+        ta_d, tb_d = norm_tier(pa_d.get("decision")), norm_tier(pb_d.get("decision"))
+        if ta_d is not None and tb_d is not None:
+            sa_d, sb_d = TIER_SCORE.get(ta_d, -1), TIER_SCORE.get(tb_d, -1)
+            if sa_d != sb_d:
+                tier_w = pair[0] if sa_d > sb_d else pair[1]
+                ds["tier_ai"][1] += 1
+                if ai_pair[pair] == tier_w:
+                    ds["tier_ai"][0] += 1
+                for exp, winner in expert_pair_prefs[pair].items():
+                    ds["tier_hh"][1] += 1
+                    if winner == tier_w:
+                        ds["tier_hh"][0] += 1
 
     # --- Layer 5: BT rank correlation ---
     # Build human BT from committee (majority) matches
@@ -914,6 +931,9 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 "hh_cf_n": hh_cf_total,
                 "ah_cf_n": ah_cf_total,
                 "hc_loo_cf_n": hc_loo_cf_total,
+                "tier_ai": {"rate": _rate(s["tier_ai"][0], s["tier_ai"][1]), "pairs": s["tier_ai"][1]},
+                "tier_hh": {"rate": _rate(s["tier_hh"][0], s["tier_hh"][1]), "pairs": s["tier_hh"][1]},
+                "ah_cf_kappa": safe_round(_cohens_kappa(int(ah_a + 0.5 * ah_ti), ah_cf_total)) if ah_cf_total > 0 else None,
                 "hh_tie_one": hh_t1,
                 "hh_tie_both": hh_t2,
                 "ah_tie": ah_ti,
@@ -1068,11 +1088,14 @@ async def _compute_benchmark(gt_type: str = "comp"):
         "ti_ah_tie": 0,
         "ti_hc_tie": 0, "ti_hc_loo_tie": 0,
         "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                               "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0},
+                               "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0,
+                               "tier_ai": [0, 0], "tier_hh": [0, 0]},
                        "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                  "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0},
+                                  "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0,
+                                  "tier_ai": [0, 0], "tier_hh": [0, 0]},
                        "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0}},
+                                "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0,
+                                "tier_ai": [0, 0], "tier_hh": [0, 0]}},
     }
 
     # For comp GT, no longer restrict to SI-scored papers
@@ -1193,6 +1216,11 @@ async def _compute_benchmark(gt_type: str = "comp"):
             pooled["difficulty"][level]["hh_tie_both"] += dl.get("hh_tie_both", 0)
             pooled["difficulty"][level]["ah_tie"] += dl.get("ah_tie", 0)
             pooled["difficulty"][level]["hc_loo_tie"] += dl.get("hc_loo_tie", 0)
+            # Tier accuracy per difficulty
+            for tm in ["tier_ai", "tier_hh"]:
+                td = dl.get(tm, {})
+                pooled["difficulty"][level][tm][0] += int(td.get("rate", 0) * td.get("pairs", 0) / 100)
+                pooled["difficulty"][level][tm][1] += td.get("pairs", 0)
 
     if not per_dataset:
         return {"status": "no_data"}
@@ -1231,6 +1259,9 @@ async def _compute_benchmark(gt_type: str = "comp"):
                 "hh_cf_n": hh_cf_total,
                 "ah_cf_n": ah_cf_total,
                 "hc_loo_cf_n": hc_loo_cf_total,
+                "tier_ai": {"rate": _rate(s["tier_ai"][0], s["tier_ai"][1]), "pairs": s["tier_ai"][1]},
+                "tier_hh": {"rate": _rate(s["tier_hh"][0], s["tier_hh"][1]), "pairs": s["tier_hh"][1]},
+                "ah_cf_kappa": safe_round(_cohens_kappa(int(ah_a + 0.5 * ah_ti), ah_cf_total)) if ah_cf_total > 0 else None,
                 "hh_tie_rate": round((hh_t1 + hh_t2) / max(hh_t + hh_t1 + hh_t2, 1) * 100, 1),
             }
         return result
