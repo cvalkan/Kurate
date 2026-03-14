@@ -596,6 +596,28 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     bt_comm_rho, bt_comm_tau = _bt_correlate(human_committee_matches, ai_matches_ctrl)
     bt_indiv_rho, bt_indiv_tau = _bt_correlate(human_individual_matches, ai_matches_ctrl)
 
+    # Direct ranking correlation: AI BT vs h1_avg_rating ranking
+    bt_vs_avg_rho = None
+    if len(ai_matches_ctrl) >= 10:
+        ai_bt_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, ai_matches_ctrl)}
+        avg_rating_map = {}
+        for pid in ctrl_paper_ids:
+            p = papers_by_id.get(pid)
+            if p:
+                r = p.get("h1_avg_rating")
+                if r is None:
+                    evals = p.get("evaluations", [])
+                    vals = [e["rating_value"] for e in evals if e.get("rating_value")]
+                    r = sum(vals) / len(vals) if vals else None
+                if r is not None:
+                    avg_rating_map[pid] = r
+        shared = sorted(set(ai_bt_rank.keys()) & set(avg_rating_map.keys()))
+        if len(shared) >= 5:
+            sp, _ = scipy_stats.spearmanr([ai_bt_rank[p] for p in shared],
+                                           [-avg_rating_map[p] for p in shared])
+            if not np.isnan(sp):
+                bt_vs_avg_rho = float(sp)
+
     # Internal human baselines: individual vs committee, per-expert correlations
     bt_indiv_vs_comm_rho, bt_indiv_vs_comm_tau = _bt_correlate(human_individual_matches, human_committee_matches)
 
@@ -758,6 +780,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 "kendall_tau": safe_round(avg_expert_vs_indiv_tau) if avg_expert_vs_indiv_tau else None,
             },
             "n_papers": len(ctrl_paper_ids),
+            "vs_avg_rating_rho": safe_round(bt_vs_avg_rho) if bt_vs_avg_rho else None,
         },
     }
 
@@ -802,6 +825,7 @@ async def _compute_benchmark(gt_type: str = "comp"):
         "bt_evc_rhos": [], "bt_evc_taus": [],
         "bt_eva_rhos": [], "bt_eva_taus": [],
         "bt_evi_rhos": [], "bt_evi_taus": [],
+        "bt_avg_rating_rhos": [],
         "inter_rater_rhos": [],
         "ai_h_concordances": [],
         "concordance_rates": [],
@@ -884,6 +908,8 @@ async def _compute_benchmark(gt_type: str = "comp"):
                 pooled[dst_r].append(sub["spearman_rho"])
             if sub.get("kendall_tau") is not None:
                 pooled[dst_t].append(sub["kendall_tau"])
+        if bt.get("vs_avg_rating_rho") is not None:
+            pooled["bt_avg_rating_rhos"].append(bt["vs_avg_rating_rho"])
 
         # Pool difficulty stats
         for level in ["easy", "medium", "hard"]:
@@ -1077,6 +1103,7 @@ async def _compute_benchmark(gt_type: str = "comp"):
                     "spearman_rho": safe_round(float(np.mean(pooled["bt_evi_rhos"]))) if pooled["bt_evi_rhos"] else None,
                     "kendall_tau": safe_round(float(np.mean(pooled["bt_evi_taus"]))) if pooled["bt_evi_taus"] else None,
                 },
+                "vs_avg_rating_rho": safe_round(float(np.mean(pooled["bt_avg_rating_rhos"]))) if pooled["bt_avg_rating_rhos"] else None,
             },
             "by_difficulty": _format_pooled_difficulty(),
             "tie_impact": tie_impact,

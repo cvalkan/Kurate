@@ -492,6 +492,20 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
     bt_indiv_rho, bt_indiv_tau = _bt_correlate(human_individual_matches, ai_matches_ctrl)
     bt_ivc_rho, bt_ivc_tau = _bt_correlate(human_individual_matches, human_committee_matches)
 
+    # Direct ranking: AI BT vs h1_avg_rating
+    bt_vs_avg_rho = None
+    ai_lb_rank = {}
+    if len(ai_matches_ctrl) >= 10:
+        ai_lb_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, ai_matches_ctrl)}
+    avg_rating_map = {p["id"]: p["h1_avg_rating"] for p in papers
+                      if p.get("h1_avg_rating") is not None and p["id"] in ctrl_paper_ids}
+    shared_avg = sorted(set(ai_lb_rank.keys()) & set(avg_rating_map.keys()))
+    if len(shared_avg) >= 5:
+        sp, _ = scipy_stats.spearmanr([ai_lb_rank[p] for p in shared_avg],
+                                       [-avg_rating_map[p] for p in shared_avg])
+        if not np.isnan(sp):
+            bt_vs_avg_rho = float(sp)
+
     # Per-expert BT correlations
     comm_rank = {}
     if len(human_committee_matches) >= 10:
@@ -593,6 +607,7 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
             "avg_expert_vs_comm": {"spearman_rho": safe_round(avg_evc_rho) if avg_evc_rho else None},
             "avg_expert_vs_indiv": {"spearman_rho": safe_round(avg_evi_rho) if avg_evi_rho else None},
             "n_papers": len(ctrl_paper_ids),
+            "vs_avg_rating_rho": safe_round(bt_vs_avg_rho) if bt_vs_avg_rho else None,
         },
     }
 
@@ -638,6 +653,7 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
         "hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0],
         "inter_rater_rhos": [], "ai_h_concordances": [], "concordance_rates": [], "ceilings": [],
         "bt_comm_rhos": [], "bt_indiv_rhos": [], "bt_evc_rhos": [], "bt_evi_rhos": [],
+        "bt_avg_rating_rhos": [],
         "total_pairs": 0,
         "total_papers": 0,
         "tie_concordant": 0, "tie_discordant": 0, "tie_excluded": 0,
@@ -696,6 +712,8 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
             v = bt.get(src, {}).get("spearman_rho")
             if v is not None:
                 pooled[dst].append(v)
+        if bt.get("vs_avg_rating_rho") is not None:
+            pooled["bt_avg_rating_rhos"].append(bt["vs_avg_rating_rho"])
 
         for level in ["easy", "medium", "hard"]:
             dl = result.get("by_difficulty", {}).get(level, {})
@@ -832,6 +850,7 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
                 "individual": {"spearman_rho": _avg(pooled["bt_indiv_rhos"])},
                 "avg_expert_vs_comm": {"spearman_rho": _avg(pooled["bt_evc_rhos"])},
                 "avg_expert_vs_indiv": {"spearman_rho": _avg(pooled["bt_evi_rhos"])},
+                "vs_avg_rating_rho": _avg(pooled["bt_avg_rating_rhos"]),
             },
             "by_difficulty": _format_pooled_difficulty(),
             "tie_impact": tie_impact,

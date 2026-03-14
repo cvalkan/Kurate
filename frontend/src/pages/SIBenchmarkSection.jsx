@@ -350,7 +350,9 @@ function SIBenchmarkPage({ apiUrl, headerDesc, testId }) {
         const bt = p.bt_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
-          { group: "AI vs Human", label: "AI vs Committee", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau,
+          { group: "AI vs Human", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null,
+            desc: "AI BT ranking vs h1_avg_rating ranking (same metric as summary table)" },
+          { group: "", label: "AI vs Committee", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau,
             desc: "AI BT vs expert-majority BT" },
           { group: "", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau,
             desc: "AI BT vs all-expert-votes BT" },
