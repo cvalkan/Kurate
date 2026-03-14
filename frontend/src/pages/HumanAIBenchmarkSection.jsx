@@ -136,7 +136,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
           <p><sup>5</sup> <strong>Circular</strong>: the same reviewers who provide scores also influenced the committee decisions — structurally inflating human accuracy. AI vs. Committee has no such circularity.</p>
           <p><sup>6</sup> Fraction of expert comparisons that are ties (at least one reviewer gave both papers the same score).</p>
           <p><sup>7</sup> <strong>Coin flip</strong>: tied experts get a random preference (50% expected agreement) instead of being excluded. Corrects the double-filter selection bias in Human vs. Human.</p>
-          <p><sup>8</sup> <strong>Ties excluded</strong>: only comparisons where expert(s) had clear preferences. Human vs. Human inflated by double filter (both must have preferences). Difficulty rows use coin-flip.</p>
+          <p><sup>8</sup> <strong>Ties excluded</strong>: only comparisons where expert(s) had clear preferences. This creates a <strong>selection bias</strong> because Human vs. Human requires <em>both</em> experts to have preferences on the same pair (double filter), while AI vs. Human only requires one (single filter). Example: if experts A, B, C review a pair and B ties, Human vs. Human keeps only A-C (1 of 3 comparisons), while AI vs. Human keeps AI-A and AI-C (2 of 3). The double filter retains only comparisons where both reviewers could distinguish the papers — an inherently more agreeable subset. Difficulty rows use coin-flip to correct for this.</p>
           <p><sup>9</sup> <strong>Equal-weighted</strong>: averaged per reviewer pair (each pair weighted equally regardless of volume), unlike pooled rows which weight by number of comparisons.</p>
         </div>
         {(() => {
