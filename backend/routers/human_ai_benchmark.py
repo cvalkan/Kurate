@@ -913,6 +913,7 @@ async def _compute_benchmark():
                 "hh_cf": hh_cf,
                 "ah_cf": ah_cf,
                 "hc_loo_cf": hc_loo_cf,
+                "hh_tie_rate": round((hh_t1 + hh_t2) / max(hh_t + hh_t1 + hh_t2, 1) * 100, 1),
             }
         return result
 
@@ -962,6 +963,12 @@ async def _compute_benchmark():
     ah_cf_agree = ah_a + 0.5 * ah_tie
     ah_cf_kappa = safe_round(_cohens_kappa(int(ah_cf_agree), ah_total_cf)) if ah_total_cf > 0 else None
 
+    def _tie_pct(tie_count, nontie_total):
+        total = nontie_total + tie_count
+        if total == 0:
+            return None
+        return round(tie_count / total * 100, 1)
+
     tie_impact = {
         "coin_flip": {
             "human_human": hh_cf_rate,
@@ -975,6 +982,11 @@ async def _compute_benchmark():
         "excluded": {
             "hh_rate": _rate(hh_a, hh_t),
             "ah_rate": _rate(ah_a, ah_t),
+        },
+        "tie_rates": {
+            "hh": _tie_pct(hh_t1 + hh_t2, hh_t),
+            "ah": _tie_pct(ah_tie, ah_t),
+            "hc_loo": _tie_pct(hc_loo_tie, hc_loo_t),
         },
         "tie_counts": {
             "hh_nontie": hh_t, "hh_one_tie": hh_t1, "hh_both_tie": hh_t2,

@@ -532,6 +532,7 @@ async def _compute_si_dataset_benchmark(dataset_id: str):
                 "ai_committee": {"rate": _rate(s["ac"][0], s["ac"][1]), "pairs": s["ac"][1]},
                 "n_pairs": s["n_pairs"],
                 "hh_cf": hh_cf, "ah_cf": ah_cf, "hc_loo_cf": hc_loo_cf,
+                "hh_tie_one": hh_t1, "hh_tie_both": hh_t2, "ah_tie": ah_ti, "hc_loo_tie": hc_loo_ti,
             }
         return result
 
@@ -702,26 +703,42 @@ async def _compute_si_benchmark():
     hc_loo_a, hc_loo_t = pooled["hc_loo"][0], pooled["hc_loo"][1]
     ac_a, ac_t = pooled["ac"][0], pooled["ac"][1]
 
+    hh_t1_p = pooled["ti_hh_tie_one"]
+    hh_t2_p = pooled["ti_hh_tie_both"]
+    ah_tie_p = pooled["ti_ah_tie"]
+    hc_loo_tie_p = pooled["ti_hc_loo_tie"]
+
+    def _tie_pct(tie_count, nontie_total):
+        total = nontie_total + tie_count
+        if total == 0:
+            return None
+        return round(tie_count / total * 100, 1)
+
     tie_impact = {
         "coin_flip": {
-            "human_human": _cf_rate(hh_a, hh_t, pooled["ti_hh_tie_one"] + pooled["ti_hh_tie_both"]),
-            "human_committee_loo": _cf_rate(hc_loo_a, hc_loo_t, pooled["ti_hc_loo_tie"]),
-            "ai_human": _cf_rate(ah_a, ah_t, pooled["ti_ah_tie"]),
+            "human_human": _cf_rate(hh_a, hh_t, hh_t1_p + hh_t2_p),
+            "human_committee_loo": _cf_rate(hc_loo_a, hc_loo_t, hc_loo_tie_p),
+            "ai_human": _cf_rate(ah_a, ah_t, ah_tie_p),
             "ai_committee": _rate(ac_a, ac_t) if ac_t > 0 else None,
-            "human_committee": None,  # Not meaningful for coin-flip
+            "human_committee": None,
             "ai_human_kappa": safe_round(_cohens_kappa(
-                int(ah_a + 0.5 * pooled["ti_ah_tie"]),
-                ah_t + pooled["ti_ah_tie"]
-            )) if (ah_t + pooled["ti_ah_tie"]) > 0 else None,
-            "total_pairs": hh_t + pooled["ti_hh_tie_one"] + pooled["ti_hh_tie_both"],
+                int(ah_a + 0.5 * ah_tie_p),
+                ah_t + ah_tie_p
+            )) if (ah_t + ah_tie_p) > 0 else None,
+            "total_pairs": hh_t + hh_t1_p + hh_t2_p,
         },
         "excluded": {
             "hh_rate": _rate(hh_a, hh_t),
             "ah_rate": _rate(ah_a, ah_t),
         },
+        "tie_rates": {
+            "hh": _tie_pct(hh_t1_p + hh_t2_p, hh_t),
+            "ah": _tie_pct(ah_tie_p, ah_t),
+            "hc_loo": _tie_pct(hc_loo_tie_p, hc_loo_t),
+        },
         "tie_counts": {
-            "hh_nontie": hh_t, "hh_one_tie": pooled["ti_hh_tie_one"], "hh_both_tie": pooled["ti_hh_tie_both"],
-            "ah_nontie": ah_t, "ah_tie": pooled["ti_ah_tie"],
+            "hh_nontie": hh_t, "hh_one_tie": hh_t1_p, "hh_both_tie": hh_t2_p,
+            "ah_nontie": ah_t, "ah_tie": ah_tie_p,
         },
     }
 
@@ -743,6 +760,7 @@ async def _compute_si_benchmark():
                 "hh_cf": _cf_rate(hh_a_l, hh_t_l, s["hh_tie_one"] + s["hh_tie_both"]),
                 "ah_cf": _cf_rate(ah_a_l, ah_t_l, s["ah_tie"]),
                 "hc_loo_cf": _cf_rate(hc_loo_a_l, hc_loo_t_l, s["hc_loo_tie"]),
+                "hh_tie_rate": round((s["hh_tie_one"] + s["hh_tie_both"]) / max(hh_t_l + s["hh_tie_one"] + s["hh_tie_both"], 1) * 100, 1),
             }
         return result
 
