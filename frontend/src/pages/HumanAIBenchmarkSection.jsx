@@ -100,7 +100,8 @@ function DatasetTable({ datasets }) {
                 <th className="py-1 px-2 text-right font-medium">H-C% (LOO)</th>
                 <th className="py-1 px-2 text-right font-medium text-muted-foreground/60">H-C%</th>
                 <th className="py-1 px-2 text-right font-medium">rho</th>
-                <th className="py-1 px-2 text-right font-medium">BT rho</th>
+                <th className="py-1 px-2 text-right font-medium">BT(C)</th>
+                <th className="py-1 px-2 text-right font-medium text-muted-foreground/60">BT(I)</th>
                 <th className="py-1 px-2 text-right font-medium">Pairs</th>
                 <th className="py-1 px-2 text-right font-medium">Experts</th>
               </tr>
@@ -108,7 +109,8 @@ function DatasetTable({ datasets }) {
             <tbody>
               {datasets.map(d => {
                 const pw = d.pairwise || {};
-                const bt = d.bt_correlation || {};
+                const bt_c = d.bt_correlation?.committee || {};
+                const bt_i = d.bt_correlation?.individual || {};
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
@@ -118,7 +120,8 @@ function DatasetTable({ datasets }) {
                     <td className="py-1 px-2 text-right font-mono">{pw.human_committee_loo?.rate ?? "—"}%</td>
                     <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{pw.human_committee?.rate ?? "—"}%</td>
                     <td className="py-1 px-2 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "—"}</td>
-                    <td className="py-1 px-2 text-right font-mono">{bt.spearman_rho?.toFixed(2) ?? "—"}</td>
+                    <td className="py-1 px-2 text-right font-mono">{bt_c.spearman_rho?.toFixed(2) ?? "—"}</td>
+                    <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{bt_i.spearman_rho?.toFixed(2) ?? "—"}</td>
                     <td className="py-1 px-2 text-right font-mono">{d.controlled_pairs}</td>
                     <td className="py-1 px-2 text-right font-mono">{d.n_experts}</td>
                   </tr>
@@ -251,20 +254,45 @@ export default function HumanAIBenchmarkSection() {
         <div className="px-3 py-2 bg-secondary/10 border-b border-border">
           <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry)</span>
         </div>
-        <div className="px-3 py-3 flex items-center gap-6">
-          <Metric label="Spearman rho" value={p.bt_correlation.spearman_rho?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
-          <Metric label="Kendall tau" value={p.bt_correlation.kendall_tau?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
-          {p.theoretical_ceiling && (
-            <Metric label="Thurstonian ceiling" value={`${p.theoretical_ceiling}%`} sub={`Given rho = ${p.inter_rater_rho?.toFixed(2)}`} />
-          )}
+        <div className="px-3 py-3">
+          <div className="flex flex-wrap items-start gap-6 mb-3">
+            <div>
+              <div className="text-[9px] text-muted-foreground/70 mb-1 uppercase tracking-wider font-medium">Committee (majority vote)</div>
+              <div className="flex items-center gap-5">
+                <Metric label="Spearman rho" value={p.bt_correlation?.committee?.spearman_rho?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
+                <Metric label="Kendall tau" value={p.bt_correlation?.committee?.kendall_tau?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] text-muted-foreground/70 mb-1 uppercase tracking-wider font-medium">Individual (each expert vote = 1 match)</div>
+              <div className="flex items-center gap-5">
+                <Metric label="Spearman rho" value={p.bt_correlation?.individual?.spearman_rho?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
+                <Metric label="Kendall tau" value={p.bt_correlation?.individual?.kendall_tau?.toFixed(3) ?? "—"} sub="Human BT vs AI BT" />
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-border/30 pt-3 flex items-center gap-6">
+            {p.theoretical_ceiling && (
+              <Metric label="Thurstonian ceiling" value={`${p.theoretical_ceiling}%`} sub={`Given rho = ${p.inter_rater_rho?.toFixed(2)}`} />
+            )}
+            {p.tie_stats && (
+              <>
+                <Metric label="Concordance rate" value={`${(p.tie_stats.concordance_rate * 100).toFixed(1)}%`} sub="Non-tie pairs only" />
+                <Metric label="Tie fraction" value={`${(p.tie_stats.tie_fraction * 100).toFixed(1)}%`} sub={`${p.tie_stats.tied_excluded?.toLocaleString()} pairs excluded`} />
+              </>
+            )}
+          </div>
         </div>
         <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             BT rankings computed separately from human-derived matches and AI matches on the same paper sets.
-            Spearman rho measures rank-order agreement. The Thurstonian ceiling is the maximum achievable pairwise agreement
-            given the observed inter-rater noise (rho = {p.inter_rater_rho?.toFixed(2)}), computed from the Thurstonian model:
-            P(agree) = Phi(dq / sqrt(2sigma^2))^2 + (1 - Phi(dq / sqrt(2sigma^2)))^2.
-            rho here is the average Spearman rank correlation between reviewer pairs (ordering-based, not score-magnitude-based).
+            <strong> Committee</strong> uses expert majority vote per pair; <strong>Individual</strong> treats each expert's preference as a separate BT match.
+            The Thurstonian ceiling is the maximum achievable pairwise agreement given the observed inter-rater noise
+            (rho = {p.inter_rater_rho?.toFixed(2)}). rho is derived from pairwise concordance via Kruskal (1958):
+            for each reviewer pair, we count what fraction of their non-tie paper pairs they order the same way (concordance rate),
+            then convert to rho = sin(pi * (concordance - 0.5)).
+            Tie pairs ({p.tie_stats ? `${(p.tie_stats.tie_fraction * 100).toFixed(1)}%` : "—"} of all reviewer paper-pairs)
+            are excluded because at least one reviewer gave both papers the same score.
           </p>
         </div>
       </div>

@@ -2,15 +2,14 @@
 Human vs AI Agreement Benchmark
 
 Computes a comprehensive comparison of inter-human and AI-human agreement rates
-across all controlled same-pair datasets. Inspired by the NeurIPS 2014
-reproducibility experiment (Shah & Horvitz).
+across all controlled same-pair datasets.
 
 Layers:
-1. Inter-rater correlation rho from raw ratings
-2. Theoretical Thurstonian ceiling
+1. Inter-rater pairwise concordance (directly from paper pairs, ties excluded)
+2. Theoretical Thurstonian ceiling (rho derived from concordance via Kruskal 1958)
 3. Controlled same-pair pairwise agreement (H-H, H-Committee, AI-H, AI-Committee)
 4. Stratification by difficulty (cross-tier, adjacent-tier, within-tier)
-5. BT rank correlation (Spearman)
+5. BT rank correlation (Spearman) — both committee and individual human baselines
 6. Cohen's kappa (chance-corrected agreement)
 """
 
@@ -62,41 +61,83 @@ def _wilson_ci(agree, total, z=1.96):
     return [round((center - spread) * 100, 1), round((center + spread) * 100, 1)]
 
 
-def _inter_rater_rho(expert_ratings: dict):
-    """Compute average inter-rater Spearman rank correlation from paper rankings.
+def _inter_rater_pairwise(expert_ratings: dict):
+    """Compute inter-rater reliability directly from pairwise concordance.
 
-    Uses Spearman (rank-based) rather than Pearson so the rho reflects
-    agreement on the *ordering* of papers — consistent with the pairwise
-    comparison framework used throughout the benchmark.
+    For each pair of experts sharing >= 5 common papers:
+    1. Enumerate all paper pairs where BOTH experts give different scores (non-tie)
+    2. Count concordant pairs (both experts order the same way) vs discordant
+    3. Concordance rate = concordant / (concordant + discordant)
 
-    For each reviewer pair, we rank their common papers by score and measure
-    how consistently they order those papers (Spearman rho). This is directly
-    related to pairwise agreement: two reviewers with Spearman rho = 1 would
-    agree on every paper pair; rho = 0 is chance ordering.
+    Convert to Thurstonian rho via: rho = sin(pi * (concordance - 0.5))
+    (Kruskal 1958: for bivariate normal, P(concordant) = 0.5 + arcsin(rho)/pi)
 
-    Only uses reviewer pairs that rated >= 5 common papers."""
+    Also reports tie statistics: what fraction of paper pairs are excluded
+    because at least one expert gave both papers the same score.
+
+    Only uses reviewer pairs that share >= 5 common papers."""
     experts = list(expert_ratings.keys())
     if len(experts) < 2:
-        return None, 0, 0
+        return None, 0, 0, {}
 
-    rhos = []
-    total_pairs = 0
+    concordance_rates = []
+    total_reviewer_pairs = 0
+    total_concordant = 0
+    total_discordant = 0
+    total_tied = 0
+
     for i, e1 in enumerate(experts):
         for e2 in experts[i + 1:]:
             common = set(expert_ratings[e1].keys()) & set(expert_ratings[e2].keys())
             if len(common) < 5:
                 continue
-            pids = sorted(common)
-            r1 = [expert_ratings[e1][pid] for pid in pids]
-            r2 = [expert_ratings[e2][pid] for pid in pids]
-            rho, _ = scipy_stats.spearmanr(r1, r2)
-            if not np.isnan(rho):
-                rhos.append(rho)
-                total_pairs += 1
 
-    if not rhos:
-        return None, len(experts), 0
-    return float(np.mean(rhos)), len(experts), total_pairs
+            pids = sorted(common)
+            concordant = 0
+            discordant = 0
+            tied = 0
+
+            for a_idx in range(len(pids)):
+                for b_idx in range(a_idx + 1, len(pids)):
+                    pa, pb = pids[a_idx], pids[b_idx]
+                    diff1 = expert_ratings[e1][pa] - expert_ratings[e1][pb]
+                    diff2 = expert_ratings[e2][pa] - expert_ratings[e2][pb]
+
+                    if diff1 == 0 or diff2 == 0:
+                        tied += 1
+                        continue
+
+                    if (diff1 > 0 and diff2 > 0) or (diff1 < 0 and diff2 < 0):
+                        concordant += 1
+                    else:
+                        discordant += 1
+
+            total_concordant += concordant
+            total_discordant += discordant
+            total_tied += tied
+
+            nontie = concordant + discordant
+            if nontie >= 5:
+                rate = concordant / nontie
+                concordance_rates.append(rate)
+                total_reviewer_pairs += 1
+
+    if not concordance_rates:
+        return None, len(experts), 0, {}
+
+    avg_concordance = float(np.mean(concordance_rates))
+    # Convert to Thurstonian rho: rho = sin(pi * (concordance - 0.5))
+    rho = math.sin(math.pi * (avg_concordance - 0.5))
+
+    tie_stats = {
+        "concordant": total_concordant,
+        "discordant": total_discordant,
+        "tied_excluded": total_tied,
+        "tie_fraction": round(total_tied / max(total_concordant + total_discordant + total_tied, 1), 4),
+        "concordance_rate": round(avg_concordance, 4),
+    }
+
+    return float(rho), len(experts), total_reviewer_pairs, tie_stats
 
 
 def _thurstonian_ceiling(rho, score_gaps):
@@ -208,8 +249,8 @@ async def _compute_dataset_benchmark(dataset_id: str):
     if len(experts_with_data) < 2:
         return None
 
-    # --- Layer 1: Inter-rater correlation rho ---
-    rho, n_experts, n_pairs = _inter_rater_rho(experts_with_data)
+    # --- Layer 1: Inter-rater correlation rho (pairwise concordance) ---
+    rho, n_experts, n_pairs, tie_stats = _inter_rater_pairwise(experts_with_data)
 
     # Collect all score gaps for Thurstonian model
     all_ratings = defaultdict(list)
@@ -387,14 +428,22 @@ async def _compute_dataset_benchmark(dataset_id: str):
                 ds["ac"][0] += 1
 
     # --- Layer 5: BT rank correlation ---
-    # Build human BT from all expert-derived matches
-    human_matches = []
+    # Build human BT from committee (majority) matches
+    human_committee_matches = []
     for pair in controlled_pairs:
-        # Use majority as the match outcome for human BT
         if pair in expert_majority:
-            human_matches.append({
+            human_committee_matches.append({
                 "paper1_id": pair[0], "paper2_id": pair[1],
                 "winner_id": expert_majority[pair],
+                "completed": True, "failed": False,
+            })
+    # Build human BT from individual expert votes (each expert vote = one match)
+    human_individual_matches = []
+    for pair in controlled_pairs:
+        for exp, winner in expert_pair_prefs[pair].items():
+            human_individual_matches.append({
+                "paper1_id": pair[0], "paper2_id": pair[1],
+                "winner_id": winner,
                 "completed": True, "failed": False,
             })
     ai_matches_ctrl = [
@@ -409,23 +458,27 @@ async def _compute_dataset_benchmark(dataset_id: str):
         ctrl_paper_ids.add(p[1])
     ctrl_papers = [papers_by_id[pid] for pid in ctrl_paper_ids if pid in papers_by_id]
 
-    bt_rho = None
-    bt_tau = None
-    if len(human_matches) >= 10 and len(ai_matches_ctrl) >= 10:
-        h_lb = compute_leaderboard(ctrl_papers, human_matches)
-        a_lb = compute_leaderboard(ctrl_papers, ai_matches_ctrl)
+    def _bt_correlate(h_matches, a_matches):
+        """Compute Spearman rho and Kendall tau between human and AI BT rankings."""
+        if len(h_matches) < 10 or len(a_matches) < 10:
+            return None, None
+        h_lb = compute_leaderboard(ctrl_papers, h_matches)
+        a_lb = compute_leaderboard(ctrl_papers, a_matches)
         h_rank = {e["id"]: e["rank"] for e in h_lb}
         a_rank = {e["id"]: e["rank"] for e in a_lb}
         shared = sorted(set(h_rank.keys()) & set(a_rank.keys()))
-        if len(shared) >= 5:
-            sp, _ = scipy_stats.spearmanr([h_rank[pid] for pid in shared],
-                                           [a_rank[pid] for pid in shared])
-            kt, _ = scipy_stats.kendalltau([h_rank[pid] for pid in shared],
-                                            [a_rank[pid] for pid in shared])
-            if not np.isnan(sp):
-                bt_rho = float(sp)
-            if not np.isnan(kt):
-                bt_tau = float(kt)
+        if len(shared) < 5:
+            return None, None
+        sp, _ = scipy_stats.spearmanr([h_rank[pid] for pid in shared],
+                                       [a_rank[pid] for pid in shared])
+        kt, _ = scipy_stats.kendalltau([h_rank[pid] for pid in shared],
+                                        [a_rank[pid] for pid in shared])
+        rho = float(sp) if not np.isnan(sp) else None
+        tau = float(kt) if not np.isnan(kt) else None
+        return rho, tau
+
+    bt_comm_rho, bt_comm_tau = _bt_correlate(human_committee_matches, ai_matches_ctrl)
+    bt_indiv_rho, bt_indiv_tau = _bt_correlate(human_individual_matches, ai_matches_ctrl)
 
     # --- Layer 6: Cohen's kappa ---
     hh_kappa = _cohens_kappa(hh_agree, hh_total)
@@ -457,6 +510,7 @@ async def _compute_dataset_benchmark(dataset_id: str):
         "controlled_pairs": len(controlled_pairs),
         "ai_mode": ai_mode_used,
         "inter_rater_rho": safe_round(rho) if rho else None,
+        "tie_stats": tie_stats,
         "n_rater_pairs": n_pairs,
         "ceiling": ceiling,
         "pairwise": {
@@ -473,8 +527,14 @@ async def _compute_dataset_benchmark(dataset_id: str):
         },
         "by_difficulty": _format_difficulty(difficulty_stats),
         "bt_correlation": {
-            "spearman_rho": safe_round(bt_rho) if bt_rho else None,
-            "kendall_tau": safe_round(bt_tau) if bt_tau else None,
+            "committee": {
+                "spearman_rho": safe_round(bt_comm_rho) if bt_comm_rho else None,
+                "kendall_tau": safe_round(bt_comm_tau) if bt_comm_tau else None,
+            },
+            "individual": {
+                "spearman_rho": safe_round(bt_indiv_rho) if bt_indiv_rho else None,
+                "kendall_tau": safe_round(bt_indiv_tau) if bt_indiv_tau else None,
+            },
             "n_papers": len(ctrl_paper_ids),
         },
     }
@@ -509,10 +569,13 @@ async def _compute_benchmark():
     per_dataset = []
     pooled = {
         "hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0],
-        "rhos": [], "taus": [],
+        "bt_comm_rhos": [], "bt_comm_taus": [],
+        "bt_indiv_rhos": [], "bt_indiv_taus": [],
         "inter_rater_rhos": [],
+        "concordance_rates": [],
         "ceilings": [],
         "total_pairs": 0,
+        "tie_concordant": 0, "tie_discordant": 0, "tie_excluded": 0,
         "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
                        "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]},
                        "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0]}},
@@ -538,13 +601,26 @@ async def _compute_benchmark():
 
         if result.get("inter_rater_rho") is not None:
             pooled["inter_rater_rhos"].append(result["inter_rater_rho"])
+        ts = result.get("tie_stats", {})
+        if ts:
+            pooled["tie_concordant"] += ts.get("concordant", 0)
+            pooled["tie_discordant"] += ts.get("discordant", 0)
+            pooled["tie_excluded"] += ts.get("tied_excluded", 0)
+            if ts.get("concordance_rate") is not None:
+                pooled["concordance_rates"].append(ts["concordance_rate"])
         if result.get("ceiling") and result["ceiling"].get("overall"):
             pooled["ceilings"].append(result["ceiling"]["overall"])
         bt = result.get("bt_correlation", {})
-        if bt.get("spearman_rho") is not None:
-            pooled["rhos"].append(bt["spearman_rho"])
-        if bt.get("kendall_tau") is not None:
-            pooled["taus"].append(bt["kendall_tau"])
+        bt_c = bt.get("committee", {})
+        bt_i = bt.get("individual", {})
+        if bt_c.get("spearman_rho") is not None:
+            pooled["bt_comm_rhos"].append(bt_c["spearman_rho"])
+        if bt_c.get("kendall_tau") is not None:
+            pooled["bt_comm_taus"].append(bt_c["kendall_tau"])
+        if bt_i.get("spearman_rho") is not None:
+            pooled["bt_indiv_rhos"].append(bt_i["spearman_rho"])
+        if bt_i.get("kendall_tau") is not None:
+            pooled["bt_indiv_taus"].append(bt_i["kendall_tau"])
 
         # Pool difficulty stats
         for level in ["easy", "medium", "hard"]:
@@ -578,12 +654,23 @@ async def _compute_benchmark():
             }
         return result
 
+    # Pooled tie stats
+    total_tie_all = pooled["tie_concordant"] + pooled["tie_discordant"] + pooled["tie_excluded"]
+    pooled_tie_stats = {
+        "concordant": pooled["tie_concordant"],
+        "discordant": pooled["tie_discordant"],
+        "tied_excluded": pooled["tie_excluded"],
+        "tie_fraction": round(pooled["tie_excluded"] / max(total_tie_all, 1), 4),
+        "concordance_rate": round(float(np.mean(pooled["concordance_rates"])), 4) if pooled["concordance_rates"] else None,
+    }
+
     summary = {
         "status": "ok",
         "n_datasets": len(per_dataset),
         "total_controlled_pairs": pooled["total_pairs"],
         "pooled": {
             "inter_rater_rho": safe_round(float(np.mean(pooled["inter_rater_rhos"]))) if pooled["inter_rater_rhos"] else None,
+            "tie_stats": pooled_tie_stats,
             "theoretical_ceiling": safe_round(float(np.mean(pooled["ceilings"])), 1) if pooled["ceilings"] else None,
             "pairwise": {
                 "human_human": {"rate": _rate(pooled["hh"][0], pooled["hh"][1]),
@@ -608,18 +695,16 @@ async def _compute_benchmark():
                                  "ci": _wilson_ci(pooled["ac"][0], pooled["ac"][1])},
             },
             "bt_correlation": {
-                "spearman_rho": safe_round(float(np.mean(pooled["rhos"]))) if pooled["rhos"] else None,
-                "kendall_tau": safe_round(float(np.mean(pooled["taus"]))) if pooled["taus"] else None,
+                "committee": {
+                    "spearman_rho": safe_round(float(np.mean(pooled["bt_comm_rhos"]))) if pooled["bt_comm_rhos"] else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["bt_comm_taus"]))) if pooled["bt_comm_taus"] else None,
+                },
+                "individual": {
+                    "spearman_rho": safe_round(float(np.mean(pooled["bt_indiv_rhos"]))) if pooled["bt_indiv_rhos"] else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["bt_indiv_taus"]))) if pooled["bt_indiv_taus"] else None,
+                },
             },
             "by_difficulty": _format_pooled_difficulty(),
-        },
-        "neurips_reference": {
-            "accept_reject_agreement": 60,
-            "inter_rater_rho": "0.2-0.3 (estimated)",
-            "note": "NeurIPS 2014: two independent committees agreed on accept/reject ~60% of the time. "
-                    "This is a BINARY THRESHOLD decision, not pairwise comparison. "
-                    "Pairwise agreement is expected to be higher than binary threshold agreement "
-                    "because it's a relative judgment (easier) rather than absolute scoring.",
         },
         "per_dataset": per_dataset,
     }

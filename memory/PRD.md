@@ -31,7 +31,7 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Bookmarks & Reading Lists fully operational
 - Share pages are 100% pure static HTML (no JS/redirects) for maximum crawler compatibility
 - Congrats (social sharing) open to all visitors; email congrats requires sign-in
-- Human vs AI Benchmark: new Validation Hub section comparing inter-human and AI-human agreement rates across 7 controlled datasets (5,260 same-pair comparisons), with Thurstonian ceiling analysis, Cohen's kappa, difficulty stratification, and NeurIPS 2014 reference
+- Human vs AI Benchmark: pairwise concordance-based inter-rater reliability, Thurstonian ceiling, BT correlation (committee + individual), tie transparency, Cohen's kappa, difficulty stratification across 9 controlled datasets
 
 ## Deployment Readiness (Mar 9 2026)
 
@@ -54,11 +54,16 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Analysis cache refresh: every 5 minutes
 - Connection pool: 50 max, 10 min
 
-## Recent Fix (Mar 9 2026)
-- **Admin rating-status performance**: Moved per-category rating counts into the background leaderboard cache. The `/api/admin/rating-status` endpoint now accepts a `category` param and reads from pre-computed cache (~16ms) instead of doing 2-4 MongoDB `count_documents` calls (~200ms each). Category switching in admin panel is now instant.
+## IMPORTANT: Frontend Build Process
+Frontend is served as a pre-built static site. Any changes to .jsx files require:
+1. `cd /app/frontend && yarn build`
+2. `sudo supervisorctl restart frontend`
+Hot-reloading is NOT sufficient.
 
 ## Pending Tasks
-- (P1) Consolidate fragile MIDL experiment pipeline into single robust background task
+- (P0) Phase 3: Notification System via Resend integration
+- (P1) Synthetic Unfurl Test Suite for social media card rendering
+- (P2) Consolidate fragile MIDL experiment pipeline into single robust background task
 - (P2) Explore adding new validation datasets from OpenReview (ICLR 2024 CV)
 - (P2) Add missing HTTP security headers
 - (P2) Improve summary generation failure tracking UI
@@ -68,10 +73,24 @@ Build a robust system for ranking and validating AI model performance on scienti
 - (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
 - (Future) Author profile pages showing all claimed papers
 
+## Known Issues
+- Mobile Twitter/X unfurling fails — blocked on user's Cloudflare configuration (see /app/memory/UNFURLING_REPORT.md)
+
 ## Key Issue: Budget Exhaustion
 The Emergent LLM key budget gets exhausted during large-scale summary generation. User needs to top up via Profile -> Universal Key -> Add Balance.
 
 ## Completed Work
+- Pairwise concordance-derived rho for Human-AI Benchmark (Mar 14 2026)
+  - Replaced Spearman-on-scores with direct pairwise concordance
+  - rho now derived via Kruskal (1958): rho = sin(π × (concordance − 0.5))
+  - Concordance rate 72.0%, tie fraction 42.3% (previously invisible)
+  - Thurstonian ceiling now 68.4% (was 58.9% with old method)
+  - Added both committee and individual BT correlations
+  - Cleaned all NeurIPS references from UI
+- Methodological Correction of Inter-Rater Reliability (Mar 14 2026)
+  - Changed from Pearson → Spearman → Pairwise concordance (iterative refinement)
+- Removed NeurIPS experiment references from UI (Mar 14 2026)
+- Added total controlled pairs display (Mar 14 2026)
 - Linkable validation sub-URLs via ?v= search params (Mar 11 2026)
 - Higher resolution leaderboard convergence matching validation charts (Mar 11 2026)
 - Auto per-model SI rating extraction from summaries in scheduler (Mar 11 2026)
@@ -79,41 +98,17 @@ The Emergent LLM key budget gets exhausted during large-scale summary generation
 - Log/linear scale toggle on convergence charts (Mar 11 2026)
 - Single-Item Rating Analysis section with model toggle on Model Analysis page (Mar 11 2026)
 - Pre-computation system for production deployment
-- Single-Item Scoring experiment - run on eLife (Cancer + Neuro), ICLR (7 datasets), MIDL, PeerRead, RH-50, Qeios Social
-- "Surprisingly Popular" analysis: BT_rank - SI_rank as independent quality predictor
-- Controlled PW Thinking Judge experiment on Qeios + RH-50
-- Institutional Bias Analysis with controlled same-pair analysis
-- AlphaXiv Integration for community popularity data
+- Single-Item Scoring experiment
+- "Surprisingly Popular" analysis
+- Controlled PW Thinking Judge experiment
+- Institutional Bias Analysis
+- AlphaXiv Integration
 - HTTP Security Headers middleware
-- Convergence chart fix
 - Live Leaderboard Metric Integration (Rating + Gap columns)
 - Admin controls for leaderboard column visibility
 - Non-blocking rating generation for existing papers
 - Comprehensive Validation Summary Report page
-- Frontend rebuild for llm-ranker fork (Mar 9 2026)
-- Deployment readiness verification (Mar 9 2026)
 - Author Verification MVP: ORCID OAuth + Semantic Scholar claiming (Mar 12 2026)
-  - Backend: /api/claim/* endpoints (connect ORCID, claim papers, verify via S2)
-  - Frontend: AuthorClaimSection on paper pages, OrcidCallbackPage
-  - Multi-signal verification: S2 direct ORCID match, S2 name match, DB name match, fallback to manual review
-  - Verified badges display on paper pages
-  - ORCID credentials configured and OAuth redirect tested end-to-end
 - Decoupled ORCID Verification & Public Badge Sharing (Mar 13 2026)
-  - ORCID linking moved to user Profile page, decoupled from paper claims
-  - Admin approves ORCID links under Users tab (not Claims)
-  - Profile page shows pending/verified status for ORCID link
-  - Claims tab removed from admin panel
-  - Badge sharing made public for all users
-  - Socially shareable badges (Gold/Silver/Bronze) for top-3 papers in weekly/monthly archives
-  - SVG templates + CairoSVG for server-side OG image generation
-  - SITE_URL env var ensures kurate.org in OG tags on production
 - Badge Share URL Fix & SVG Refinements (Mar 13 2026)
-  - Fixed share URL: frontend now uses window.location.origin (kurate.org on prod) instead of REACT_APP_BACKEND_URL
-  - Removed "arXiv (cs.XX)" from badge header to prevent logo overlap
-  - Categories now show "Category: cs.DC, cs.AI" format with all categories from paper record
 - Summary Token Tracking (Mar 13 2026)
-  - generate_precomparison_impact_summary now calls litellm.completion directly to capture actual usage
-  - Stores {input, output, thinking} tokens per summary in paper.summary_tokens.{model_key}
-  - Admin stats endpoint uses tracked tokens when available, falls back to improved estimates
-  - Thinking tokens for Opus Thinking now properly accounted for in cost calculation
-  - Cost estimates corrected from $105 to ~$303 for summaries (3x underestimate fixed)
