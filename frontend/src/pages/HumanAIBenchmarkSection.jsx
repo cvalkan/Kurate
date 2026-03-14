@@ -296,9 +296,9 @@ export default function HumanAIBenchmarkSection() {
             desc: "AI BT vs expert-majority BT" },
           { group: "", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau,
             desc: "AI BT vs all-expert-votes BT" },
-          { group: "Human internal", label: "Avg single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau,
+          { group: "Human internal", label: "Single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau,
             desc: "Each expert's BT vs committee BT (averaged)" },
-          { group: "", label: "Avg single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau,
+          { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau,
             desc: "Each expert's BT vs all-votes BT (averaged)" },
         ];
         let lastGroup = "";
