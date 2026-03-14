@@ -119,7 +119,7 @@ export default function ValidationReportPage() {
           <Section num="1" title="Can AI Match Human Reviewers?">
             <p>Pairwise concordance benchmark across {ex.benchmark?.n_datasets || "9"} comparative GT datasets ({ex.benchmark?.total_controlled_pairs?.toLocaleString()} controlled pairs, {ex.benchmark?.total_papers} papers). AI uses Opus 4.6 Thinking summaries with round-robin judges.</p>
             <DataTable
-              headers={["Metric", "AI-Human", "Human-Human", "AI vs Exp. Maj.", "H vs Exp. Maj. (LOO)", "AI vs ICLR PC", "H vs ICLR PC"]}
+              headers={["Metric", "AI-Human", "Human-Human", "AI-Majority", "H-Majority (LOO)", "AI-Committee", "H-Committee"]}
               rows={[
                 ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`,
                   bm.tier_accuracy?.ai_total > 0 ? `${bm.tier_accuracy.ai_rate}%` : "\u2014",
@@ -130,9 +130,9 @@ export default function ValidationReportPage() {
               boldIdx={1}
             />
             <p className="text-[9px] text-muted-foreground mt-1">
-              <strong>Exp. Maj.</strong> = virtual committee from reviewer score-derived pairwise preferences (majority vote).{" "}
-              <strong>ICLR PC</strong> = actual program committee accept/reject tier decisions.{" "}
-              H vs ICLR PC ({bm.tier_accuracy?.hh_rate}%) is structurally inflated: the same reviewers influenced the decisions they are being tested against.
+              <strong>Majority</strong> = virtual majority from reviewer score-derived pairwise preferences.{" "}
+              <strong>Committee</strong> = actual ICLR program committee accept/reject tier decisions (cross-tier pairs only).{" "}
+              H-Committee is structurally inflated: the same reviewers influenced the decisions they are being tested against.
             </p>
             <div className="mt-2 space-y-1.5 text-[10px] text-muted-foreground border-t border-border/30 pt-2">
               <p>
