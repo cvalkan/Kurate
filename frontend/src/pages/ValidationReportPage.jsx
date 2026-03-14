@@ -121,12 +121,12 @@ export default function ValidationReportPage() {
             <DataTable
               headers={["Metric", "AI-Human", "Human-Human", "AI-Comm", "Human-Comm (LOO)"]}
               rows={[
-                ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`],
-                ["Ties = coin flip", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`],
+                ["Agreement (fair)", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`],
                 [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), "\u2014"],
               ]}
-              boldIdx={1}
+              boldIdx={0}
             />
+            <p className="text-[9px] text-muted-foreground mt-1">Agreement uses coin-flip tie correction (tied experts get random preferences). Without correction, selection bias inflates Human-Human to {pw.human_human?.rate}% and AI-Human to {pw.ai_human?.rate}% — see benchmark page for details.</p>
             <div className="mt-2 space-y-1.5 text-[10px] text-muted-foreground border-t border-border/30 pt-2">
               <p>
                 <strong>Key finding:</strong> Under fair comparison (coin flip), AI-Human ({cf.ai_human}%) and Human-Human ({cf.human_human}%) are within <strong>{Math.abs(cf.ai_human - cf.human_human).toFixed(1)} percentage points</strong>.
