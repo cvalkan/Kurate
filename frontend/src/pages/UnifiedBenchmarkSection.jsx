@@ -113,14 +113,13 @@ function DatasetTable({ datasets }) {
             <thead>
               <tr className="border-b border-border text-muted-foreground">
                 <th className="py-1 px-2 text-left font-medium">Dataset</th>
-                <th className="py-1 px-2 text-right font-medium bg-violet-500/[0.06]">PW Acc</th>
-                <th className="py-1 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Acc</th>
-                <th className="py-1 px-2 text-right font-medium bg-violet-500/[0.06]">PW {"\u03C1"}</th>
-                <th className="py-1 px-2 text-right font-medium bg-emerald-500/[0.06]">SI {"\u03C1"}</th>
-                <th className="py-1 px-2 text-right font-medium">PW pairs</th>
-                <th className="py-1 px-2 text-right font-medium">SI pairs</th>
-                <th className="py-1 px-2 text-right font-medium">Papers</th>
-                <th className="py-1 px-2 text-center font-medium">Winner</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-violet-500/[0.06]">PW Acc</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-emerald-500/[0.06]">SI Acc</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-violet-500/[0.06]">PW {"\u03C1"}</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-emerald-500/[0.06]">SI {"\u03C1"}</th>
+                <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Pairs</th>
+                <th className="py-1 px-1.5 text-right font-medium">Papers</th>
+                <th className="py-1 px-1.5 text-center font-medium">Winner</th>
               </tr>
             </thead>
             <tbody>
@@ -128,17 +127,17 @@ function DatasetTable({ datasets }) {
                 const pwRho = d.pw?.bt_rho || 0;
                 const siRho = d.si?.bt_rho || 0;
                 const pwWins = pwRho > siRho;
+                const intr = d.intersection || {};
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className={`py-1 px-2 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.accuracy}%</td>
-                    <td className={`py-1 px-2 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{d.si?.accuracy}%</td>
-                    <td className={`py-1 px-2 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className={`py-1 px-2 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-2 text-right font-mono text-foreground/50">{d.pw?.pairs?.toLocaleString()}</td>
-                    <td className="py-1 px-2 text-right font-mono text-foreground/50">{d.si?.pairs?.toLocaleString()}</td>
-                    <td className="py-1 px-2 text-right font-mono">{d.n_papers}</td>
-                    <td className="py-1 px-2 text-center">
+                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{intr.pw_accuracy ?? d.pw?.accuracy}%</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{intr.si_accuracy ?? d.si?.accuracy}%</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{intr.pairs?.toLocaleString() ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono">{d.n_papers}</td>
+                    <td className="py-1 px-1.5 text-center">
                       <span className={`text-[9px] font-semibold ${pwWins ? "text-violet-700" : "text-emerald-700"}`}>{pwWins ? "PW" : "SI"}</span>
                     </td>
                   </tr>

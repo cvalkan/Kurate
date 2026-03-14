@@ -281,19 +281,19 @@ function DatasetTable({ datasets }) {
       </button>
       {expanded && (
         <div className="overflow-x-auto">
-          <table className="w-full text-[10px]" style={{ tableLayout: "fixed" }}>
+          <table className="w-full text-[10px]">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
                 <th className="py-1 px-2 text-left font-medium">Dataset</th>
-                <th className="py-1 px-2 text-right font-medium">AI-H%</th>
-                <th className="py-1 px-2 text-right font-medium">H-H%</th>
-                <th className="py-1 px-2 text-right font-medium">AI-Maj%</th>
-                <th className="py-1 px-2 text-right font-medium">H-Maj%(LOO)</th>
-                <th className="py-1 px-2 text-right font-medium">AI-PC%</th>
-                <th className="py-1 px-2 text-right font-medium">rho</th>
-                <th className="py-1 px-2 text-right font-medium">BT(fair)</th>
-                <th className="py-1 px-2 text-right font-medium">Pairs</th>
-                <th className="py-1 px-2 text-right font-medium">Experts</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-sky-500/[0.06]">AI-H%</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-sky-500/[0.06]">H-H%</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI-Maj%</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-amber-500/[0.06]">H-Maj%(LOO)</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI-PC%</th>
+                <th className="py-1 px-1.5 text-right font-medium">rho</th>
+                <th className="py-1 px-1.5 text-right font-medium">BT(fair)</th>
+                <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Pairs</th>
+                <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Experts</th>
               </tr>
             </thead>
             <tbody>
@@ -304,15 +304,15 @@ function DatasetTable({ datasets }) {
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className="py-1 px-2 text-right font-mono">{pw.ai_human?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-2 text-right font-mono">{pw.human_human?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-2 text-right font-mono">{pw.ai_committee?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-2 text-right font-mono">{pw.human_committee_loo?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-2 text-right font-mono">{ta.ai_rate != null ? `${ta.ai_rate}%` : "\u2014"}</td>
-                    <td className="py-1 px-2 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "\u2014"}</td>
-                    <td className="py-1 px-2 text-right font-mono">{bt_indiv.spearman_rho?.toFixed(2) ?? "\u2014"}</td>
-                    <td className="py-1 px-2 text-right font-mono">{d.controlled_pairs}</td>
-                    <td className="py-1 px-2 text-right font-mono">{d.n_experts}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.ai_human?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.human_human?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.ai_committee?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.human_committee_loo?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{ta.ai_rate != null ? `${ta.ai_rate}%` : "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono text-foreground/60">{d.inter_rater_rho?.toFixed(2) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono">{bt_indiv.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.controlled_pairs}</td>
+                    <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.n_experts}</td>
                   </tr>
                 );
               })}
