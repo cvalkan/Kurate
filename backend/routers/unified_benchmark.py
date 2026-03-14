@@ -191,6 +191,24 @@ async def _compute_unified_dataset(dataset_id, gt_type):
                 if si_pair[pair] == expert_majority[pair]:
                     si_ac_agree += 1
 
+        # AI vs h1_avg_rating ordering (matches summary table methodology)
+        pw_avg_agree = pw_avg_total = si_avg_agree = si_avg_total = 0
+        for pair in controlled:
+            a, b = pair
+            pa = papers_by_id.get(a, {})
+            pb = papers_by_id.get(b, {})
+            ra = pa.get("h1_avg_rating")
+            rb = pb.get("h1_avg_rating")
+            if ra is None or rb is None or ra == rb:
+                continue
+            avg_winner = a if ra > rb else b
+            pw_avg_total += 1
+            si_avg_total += 1
+            if pw_pair[pair] == avg_winner:
+                pw_avg_agree += 1
+            if si_pair[pair] == avg_winner:
+                si_avg_agree += 1
+
         # Tie counts for coin-flip
         hh_tie_one = hh_tie_both = pw_ah_tie = si_ah_tie = 0
         for pair in controlled:
@@ -229,6 +247,9 @@ async def _compute_unified_dataset(dataset_id, gt_type):
                 si_ah_agree += 1
         pw_ac_agree, pw_ac_total = pw_ah_agree, pw_ah_total
         si_ac_agree, si_ac_total = si_ah_agree, si_ah_total
+        # For standalone, avg = same as ah (both use h1_avg_rating)
+        pw_avg_agree, pw_avg_total = pw_ah_agree, pw_ah_total
+        si_avg_agree, si_avg_total = si_ah_agree, si_ah_total
         # GT tie count (pairs in pw_pair & si_pair but NOT in gt_pairs)
         gt_tie_on_ctrl = 0
         all_ai_pairs = set(pw_pair.keys()) & set(si_pair.keys())
@@ -243,6 +264,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
 
     # --- Difficulty ---
     diff_stats = {level: {"pw_agree": 0, "si_agree": 0, "total": 0, "n_pairs": 0,
+                          "pw_comm_agree": 0, "si_comm_agree": 0, "comm_total": 0,
                           "hh_agree": 0, "hh_total": 0}
                   for level in ["easy", "medium", "hard"]}
     for pair in controlled:
@@ -252,12 +274,21 @@ async def _compute_unified_dataset(dataset_id, gt_type):
         ds = diff_stats[diff]
         ds["n_pairs"] += 1
         if gt_type == "comp":
+            # AI vs individual expert
             for exp, winner in expert_pair_prefs[pair].items():
                 ds["total"] += 1
                 if pw_pair[pair] == winner:
                     ds["pw_agree"] += 1
                 if si_pair[pair] == winner:
                     ds["si_agree"] += 1
+            # AI vs committee
+            if pair in expert_majority:
+                ds["comm_total"] += 1
+                if pw_pair[pair] == expert_majority[pair]:
+                    ds["pw_comm_agree"] += 1
+                if si_pair[pair] == expert_majority[pair]:
+                    ds["si_comm_agree"] += 1
+            # H-H
             voters = list(expert_pair_prefs[pair].values())
             for i in range(len(voters)):
                 for j in range(i + 1, len(voters)):
@@ -317,12 +348,14 @@ async def _compute_unified_dataset(dataset_id, gt_type):
         "pw": {
             "ai_human": {"rate": _rate(pw_ah_agree, pw_ah_total), "agree": pw_ah_agree, "total": pw_ah_total},
             "ai_committee": {"rate": _rate(pw_ac_agree, pw_ac_total), "agree": pw_ac_agree, "total": pw_ac_total},
+            "ai_avg_rating": {"rate": _rate(pw_avg_agree, pw_avg_total), "agree": pw_avg_agree, "total": pw_avg_total},
             "coin_flip": pw_cf,
             "bt_rho": pw_rho,
         },
         "si": {
             "ai_human": {"rate": _rate(si_ah_agree, si_ah_total), "agree": si_ah_agree, "total": si_ah_total},
             "ai_committee": {"rate": _rate(si_ac_agree, si_ac_total), "agree": si_ac_agree, "total": si_ac_total},
+            "ai_avg_rating": {"rate": _rate(si_avg_agree, si_avg_total), "agree": si_avg_agree, "total": si_avg_total},
             "coin_flip": si_cf,
             "bt_rho": si_rho,
         },
@@ -336,6 +369,8 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             level: {
                 "pw_rate": _rate(s["pw_agree"], s["total"]),
                 "si_rate": _rate(s["si_agree"], s["total"]),
+                "pw_comm_rate": _rate(s["pw_comm_agree"], s["comm_total"]) if s["comm_total"] > 0 else None,
+                "si_comm_rate": _rate(s["si_comm_agree"], s["comm_total"]) if s["comm_total"] > 0 else None,
                 "hh_rate": _rate(s["hh_agree"], s["hh_total"]) if s["hh_total"] > 0 else None,
                 "n_pairs": s["n_pairs"],
             }
@@ -371,11 +406,13 @@ async def _compute_unified_benchmark(gt_type):
 
     per_dataset = []
     pooled = {"pw_ah": [0, 0], "si_ah": [0, 0], "pw_ac": [0, 0], "si_ac": [0, 0],
+              "pw_avg": [0, 0], "si_avg": [0, 0],
               "hh": [0, 0], "pw_rhos": [], "si_rhos": [],
               "pairs": 0, "papers": 0,
               "hh_tie_one": 0, "hh_tie_both": 0, "pw_ah_tie": 0, "si_ah_tie": 0,
               "gt_tie": 0,
-              "diff": {level: {"pw": 0, "si": 0, "hh": 0, "hh_t": 0, "total": 0, "n_pairs": 0}
+              "diff": {level: {"pw": 0, "si": 0, "pw_c": 0, "si_c": 0, "c_total": 0,
+                               "hh": 0, "hh_t": 0, "total": 0, "n_pairs": 0}
                        for level in ["easy", "medium", "hard"]}}
 
     for ds_id in ds_ids:
@@ -393,6 +430,10 @@ async def _compute_unified_benchmark(gt_type):
         pooled["pw_ac"][1] += result["pw"]["ai_committee"]["total"]
         pooled["si_ac"][0] += result["si"]["ai_committee"]["agree"]
         pooled["si_ac"][1] += result["si"]["ai_committee"]["total"]
+        pooled["pw_avg"][0] += result["pw"]["ai_avg_rating"]["agree"]
+        pooled["pw_avg"][1] += result["pw"]["ai_avg_rating"]["total"]
+        pooled["si_avg"][0] += result["si"]["ai_avg_rating"]["agree"]
+        pooled["si_avg"][1] += result["si"]["ai_avg_rating"]["total"]
         pooled["pairs"] += result["controlled_pairs"]
         pooled["papers"] += result["n_papers"]
 
@@ -406,6 +447,10 @@ async def _compute_unified_benchmark(gt_type):
             pd = pooled["diff"][level]
             pd["pw"] += int(dl.get("pw_rate", 0) * dl.get("n_pairs", 0) / 100)
             pd["si"] += int(dl.get("si_rate", 0) * dl.get("n_pairs", 0) / 100)
+            if dl.get("pw_comm_rate") is not None:
+                pd["pw_c"] += int(dl["pw_comm_rate"] * dl.get("n_pairs", 0) / 100)
+                pd["si_c"] += int(dl.get("si_comm_rate", 0) * dl.get("n_pairs", 0) / 100)
+                pd["c_total"] += dl.get("n_pairs", 0)
             pd["n_pairs"] += dl.get("n_pairs", 0)
             pd["total"] += dl.get("n_pairs", 0)
 
@@ -427,12 +472,16 @@ async def _compute_unified_benchmark(gt_type):
             "si_accuracy": _rate(pooled["si_ah"][0], pooled["si_ah"][1]),
             "pw_comm_accuracy": _rate(pooled["pw_ac"][0], pooled["pw_ac"][1]),
             "si_comm_accuracy": _rate(pooled["si_ac"][0], pooled["si_ac"][1]),
+            "pw_avg_accuracy": _rate(pooled["pw_avg"][0], pooled["pw_avg"][1]),
+            "si_avg_accuracy": _rate(pooled["si_avg"][0], pooled["si_avg"][1]),
             "pw_rho": pw_pooled_rho,
             "si_rho": si_pooled_rho,
             "by_difficulty": {
                 level: {
                     "pw_rate": _rate(s["pw"], s["total"]),
                     "si_rate": _rate(s["si"], s["total"]),
+                    "pw_comm_rate": _rate(s["pw_c"], s["c_total"]) if s["c_total"] > 0 else None,
+                    "si_comm_rate": _rate(s["si_c"], s["c_total"]) if s["c_total"] > 0 else None,
                     "n_pairs": s["n_pairs"],
                 }
                 for level, s in pooled["diff"].items()

@@ -21,6 +21,10 @@ function ComparisonTable({ data, gtType }) {
     { key: "medium", label: "Adjacent-tier (medium)" },
     { key: "hard", label: "Within-tier (hard)" },
   ];
+  const hasComm = gtType === "comp";
+  // Primary accuracy: vs h1_avg_rating ordering (matches summary table)
+  const pwAcc = hasComm ? p.pw_avg_accuracy : p.pw_accuracy;
+  const siAcc = hasComm ? p.si_avg_accuracy : p.si_accuracy;
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
@@ -30,39 +34,48 @@ function ComparisonTable({ data, gtType }) {
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "25%" }} />
-            <col /><col /><col /><col /><col />
+            <col style={{ width: "20%" }} />
+            <col /><col />{hasComm && <><col /><col /></>}{hasComm && <><col /><col /></>}<col /><col /><col />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Accuracy</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Accuracy</th>
-              {gtType === "comp" && <th className="py-1.5 px-2 text-right font-medium">Human-Human</th>}
-              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Spearman {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Spearman {"\u03C1"}</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW vs Avg</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI vs Avg</th>
+              {hasComm && <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.04] text-foreground/50">PW vs Comm</th>}
+              {hasComm && <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.04] text-foreground/50">SI vs Comm</th>}
+              {hasComm && <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.04] text-foreground/50">PW vs Indiv</th>}
+              {hasComm && <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.04] text-foreground/50">SI vs Indiv</th>}
+              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW {"\u03C1"}</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI {"\u03C1"}</th>
               <th className="py-1.5 px-2 text-right font-medium">pairs</th>
             </tr>
           </thead>
           <tbody>
             <tr className="border-b border-border bg-accent/5">
               <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled</td>
-              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${p.pw_accuracy >= p.si_accuracy ? "font-bold" : ""}`}>{p.pw_accuracy}%</td>
-              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${p.si_accuracy > p.pw_accuracy ? "font-bold" : ""}`}>{p.si_accuracy}%</td>
-              {gtType === "comp" && <td className="py-1.5 px-2 text-right font-mono text-xs">{data.per_dataset?.[0]?.hh?.rate != null ? `${p.pw_accuracy}%` : "\u2014"}</td>}
+              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwAcc >= siAcc ? "font-bold" : ""}`}>{pwAcc}%</td>
+              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${siAcc > pwAcc ? "font-bold" : ""}`}>{siAcc}%</td>
+              {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-violet-500/[0.04]">{p.pw_comm_accuracy}%</td>}
+              {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-emerald-500/[0.04]">{p.si_comm_accuracy}%</td>}
+              {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-violet-500/[0.04]">{p.pw_accuracy}%</td>}
+              {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-emerald-500/[0.04]">{p.si_accuracy}%</td>}
               <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
               <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{data.total_controlled_pairs?.toLocaleString()}</td>
             </tr>
             {levels.map(({ key, label }) => {
               const d = p.by_difficulty?.[key] || {};
-              const pwBold = (d.pw_rate || 0) >= (d.si_rate || 0);
+              const pwR = hasComm ? d.pw_comm_rate : d.pw_rate;
+              const siR = hasComm ? d.si_comm_rate : d.si_rate;
+              const pwBold = (pwR || 0) >= (siR || 0);
               return (
                 <tr key={key} className="border-b border-border/20">
                   <td className="py-1.5 px-2 text-left text-xs text-foreground/60">{label}</td>
-                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06] ${pwBold ? "font-semibold" : ""}`}>{d.pw_rate != null ? `${d.pw_rate}%` : "\u2014"}</td>
-                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06] ${!pwBold ? "font-semibold" : ""}`}>{d.si_rate != null ? `${d.si_rate}%` : "\u2014"}</td>
-                  {gtType === "comp" && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{d.hh_rate != null ? `${d.hh_rate}%` : ""}</td>}
+                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06] ${pwBold ? "font-semibold" : ""}`}>{pwR != null ? `${pwR}%` : "\u2014"}</td>
+                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06] ${!pwBold ? "font-semibold" : ""}`}>{siR != null ? `${siR}%` : "\u2014"}</td>
+                  {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40 bg-violet-500/[0.06]">{d.pw_rate != null ? `${d.pw_rate}%` : ""}</td>}
+                  {hasComm && <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40 bg-emerald-500/[0.06]">{d.si_rate != null ? `${d.si_rate}%` : ""}</td>}
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
@@ -77,8 +90,13 @@ function ComparisonTable({ data, gtType }) {
           <strong>PW</strong> = pairwise AI judges (round-robin GPT-5.2, Opus, Gemini).{" "}
           <strong>SI</strong> = single-item AI scoring (Opus 4.6 Thinking, 1-10 per paper).{" "}
           Both evaluated on the <strong>exact same {data.total_controlled_pairs?.toLocaleString()} pairs</strong> across {data.total_papers} papers.{" "}
-          {gtType === "comp"
-            ? "Accuracy = AI preference vs individual expert preference (ties excluded). Spearman \u03C1 = AI BT ranking vs h1_avg_rating ranking."
+          {hasComm
+            ? <>
+                <strong>vs Avg</strong> = AI preference vs h1_avg_rating ordering (averaged human scores — matches summary table methodology).{" "}
+                <strong>vs Comm</strong> = AI vs expert majority vote.{" "}
+                <strong>vs Indiv</strong> = AI vs each individual expert (noisier, dilutes the gap).{" "}
+                Spearman {"\u03C1"} = AI BT ranking vs h1_avg_rating ranking.
+              </>
             : "Accuracy = AI preference vs aggregate human score (h1_avg_rating). Spearman \u03C1 = AI BT ranking vs h1_avg_rating ranking."}
         </p>
         {p.pw_rho != null && p.si_rho != null && (
@@ -181,10 +199,10 @@ function UnifiedPage({ apiUrl, headerDesc, testId, gtType }) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="PW Accuracy" value={`${p.pw_accuracy}%`} sub="pairwise judges" accent={p.pw_accuracy >= p.si_accuracy} />
+          <Metric label="PW vs Avg Rating" value={`${gtType === "comp" ? p.pw_avg_accuracy : p.pw_accuracy}%`} sub="pairwise judges" accent={(gtType === "comp" ? p.pw_avg_accuracy : p.pw_accuracy) >= (gtType === "comp" ? p.si_avg_accuracy : p.si_accuracy)} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="SI Accuracy" value={`${p.si_accuracy}%`} sub="single-item scoring" accent={p.si_accuracy > p.pw_accuracy} />
+          <Metric label="SI vs Avg Rating" value={`${gtType === "comp" ? p.si_avg_accuracy : p.si_accuracy}%`} sub="single-item scoring" accent={(gtType === "comp" ? p.si_avg_accuracy : p.si_accuracy) > (gtType === "comp" ? p.pw_avg_accuracy : p.pw_accuracy)} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label={`PW Spearman \u03C1`} value={p.pw_rho?.toFixed(3) ?? "\u2014"} sub="AI vs h1_avg ranking" accent={(p.pw_rho || 0) >= (p.si_rho || 0)} />
