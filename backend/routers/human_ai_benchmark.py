@@ -563,24 +563,29 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 "winner_id": winner,
                 "completed": True, "failed": False,
             })
-    ai_matches_ctrl = [
-        {"paper1_id": p[0], "paper2_id": p[1], "winner_id": ai_pair[p],
-         "completed": True, "failed": False}
-        for p in controlled_pairs
+    # AI BT from ALL matches (not just controlled pairs) — avoids easy-subset inflation
+    all_ai_bt_matches = [
+        {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+         "winner_id": m["winner_id"], "completed": True, "failed": False}
+        for m in ai_raw if m.get("winner_id")
     ]
+    all_ai_paper_ids = set()
+    for m in ai_raw:
+        all_ai_paper_ids.add(m["paper1_id"])
+        all_ai_paper_ids.add(m["paper2_id"])
+    all_ai_papers = [papers_by_id[pid] for pid in all_ai_paper_ids if pid in papers_by_id]
 
     ctrl_paper_ids = set()
     for p in controlled_pairs:
         ctrl_paper_ids.add(p[0])
         ctrl_paper_ids.add(p[1])
-    ctrl_papers = [papers_by_id[pid] for pid in ctrl_paper_ids if pid in papers_by_id]
 
     def _bt_correlate(h_matches, a_matches):
         """Compute Spearman rho and Kendall tau between human and AI BT rankings."""
         if len(h_matches) < 10 or len(a_matches) < 10:
             return None, None
-        h_lb = compute_leaderboard(ctrl_papers, h_matches)
-        a_lb = compute_leaderboard(ctrl_papers, a_matches)
+        h_lb = compute_leaderboard(all_ai_papers, h_matches)
+        a_lb = compute_leaderboard(all_ai_papers, a_matches)
         h_rank = {e["id"]: e["rank"] for e in h_lb}
         a_rank = {e["id"]: e["rank"] for e in a_lb}
         shared = sorted(set(h_rank.keys()) & set(a_rank.keys()))
@@ -594,15 +599,15 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         tau = float(kt) if not np.isnan(kt) else None
         return rho, tau
 
-    bt_comm_rho, bt_comm_tau = _bt_correlate(human_committee_matches, ai_matches_ctrl)
-    bt_indiv_rho, bt_indiv_tau = _bt_correlate(human_individual_matches, ai_matches_ctrl)
+    bt_comm_rho, bt_comm_tau = _bt_correlate(human_committee_matches, all_ai_bt_matches)
+    bt_indiv_rho, bt_indiv_tau = _bt_correlate(human_individual_matches, all_ai_bt_matches)
 
-    # Direct ranking correlation: AI BT vs h1_avg_rating ranking
+    # Direct ranking: AI BT (all matches) vs h1_avg_rating
     bt_vs_avg_rho = None
-    if len(ai_matches_ctrl) >= 10:
-        ai_bt_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, ai_matches_ctrl)}
+    if len(all_ai_bt_matches) >= 10:
+        ai_bt_rank = {e["id"]: e["rank"] for e in compute_leaderboard(all_ai_papers, all_ai_bt_matches)}
         avg_rating_map = {}
-        for pid in ctrl_paper_ids:
+        for pid in all_ai_paper_ids:
             p = papers_by_id.get(pid)
             if p:
                 r = p.get("h1_avg_rating")
@@ -633,13 +638,13 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     # Pre-compute reference leaderboards once
     comm_rank = {}
     if len(human_committee_matches) >= 10:
-        comm_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, human_committee_matches)}
+        comm_rank = {e["id"]: e["rank"] for e in compute_leaderboard(all_ai_papers, human_committee_matches)}
     ai_rank = {}
-    if len(ai_matches_ctrl) >= 10:
-        ai_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, ai_matches_ctrl)}
+    if len(all_ai_bt_matches) >= 10:
+        ai_rank = {e["id"]: e["rank"] for e in compute_leaderboard(all_ai_papers, all_ai_bt_matches)}
     indiv_rank = {}
     if len(human_individual_matches) >= 10:
-        indiv_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, human_individual_matches)}
+        indiv_rank = {e["id"]: e["rank"] for e in compute_leaderboard(all_ai_papers, human_individual_matches)}
 
     for exp in experts_with_data:
         exp_matches = []
@@ -652,7 +657,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 })
         if len(exp_matches) < 10:
             continue
-        exp_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, exp_matches)}
+        exp_rank = {e["id"]: e["rank"] for e in compute_leaderboard(all_ai_papers, exp_matches)}
 
         for ref_rank, rho_list, tau_list in [
             (comm_rank, expert_vs_comm_rhos, expert_vs_comm_taus),
