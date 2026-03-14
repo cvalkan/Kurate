@@ -108,7 +108,7 @@ export default function ValidationReportPage() {
 
       {/* 1. Best Summarizer */}
       <Section num="1" title="Which Summarizer Model is Best?">
-        <p>Abstract + AI summary fed to pairwise judges. Pooled accuracy across 12 datasets (1,521 common pairs):</p>
+        <p>Abstract + AI summary fed to pairwise judges. Pooled accuracy across {ex.summarizer?.pooled_datasets?.length || "12"} datasets ({ex.summarizer?.total_common_pairs?.toLocaleString() || "1,521"} common pairs, {ex.summarizer?.total_papers || "?"} papers, {ex.summarizer?.avg_matches_per_paper || "?"} matches/paper avg):</p>
         <DataTable
           headers={["Summarizer", "Accuracy", "\u03C1"]}
           rows={["Opus 4.6 Thinking", "Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"].map(name => {
@@ -123,7 +123,7 @@ export default function ValidationReportPage() {
 
       {/* 2. Best Judge */}
       <Section num="2" title="Which Judge Model is Best?">
-        <p>Same content shown to different judges. Accuracy on {jc.judges?.[0]?.total_pairs || "?"} shared pairs:</p>
+        <p>Same content shown to different judges. Accuracy on {jc.total_pairs?.toLocaleString() || jc.judges?.[0]?.total_pairs || "?"} shared pairs across {jc.total_papers || "?"} papers ({jc.avg_matches_per_paper || "?"} matches/paper avg):</p>
         <DataTable
           headers={["Judge", "Accuracy", "\u03C1"]}
           rows={[

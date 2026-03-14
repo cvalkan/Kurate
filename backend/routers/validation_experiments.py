@@ -2176,8 +2176,31 @@ async def _compute_summarizer_ab_results():
                 "avg_mpp": round(sum(mpp_vals) / max(len(mpp_vals), 1), 1) if mpp_vals else 0,
             }
 
+    # Compute total papers across pooled datasets
+    pooled_paper_ids = set()
+    pooled_common_pairs = 0
+    if pooled_ds:
+        for ds_id in pooled_ds:
+            ds_data = by_dataset[ds_id]
+            pooled_common_pairs += ds_data.get("shared_pairs", 0)
+            for mode_name, mode_data in ds_data["modes"].items():
+                break  # Just need paper count from any mode
+            # Count unique papers from shared pairs
+            # The shared pairs are in by_dataset[ds_id] but we need to re-derive paper IDs
+            # Use the avg_mpp and papers from any mode
+            for mode_name, mode_data in ds_data["modes"].items():
+                if mode_data.get("papers"):
+                    pooled_paper_ids.update(range(len(pooled_paper_ids), len(pooled_paper_ids) + mode_data["papers"]))
+                break
+
+    pooled_total_papers = sum(by_dataset[ds_id]["modes"][list(by_dataset[ds_id]["modes"].keys())[0]]["papers"]
+                              for ds_id in pooled_ds if by_dataset[ds_id]["modes"]) if pooled_ds else 0
+    pooled_avg_mpp = round(2 * pooled_common_pairs / max(pooled_total_papers, 1), 1) if pooled_total_papers else 0
+
     return {"status": "ok", "by_dataset": by_dataset, "pooled": pooled_results,
-            "pooled_datasets": sorted(pooled_ds), "pooled_modes": poolable_modes}
+            "pooled_datasets": sorted(pooled_ds), "pooled_modes": poolable_modes,
+            "total_papers": pooled_total_papers, "total_common_pairs": pooled_common_pairs,
+            "avg_matches_per_paper": pooled_avg_mpp}
 
 
 @router.post("/summarizer-ab/run", dependencies=[Depends(verify_admin)])
@@ -2644,8 +2667,10 @@ async def _compute_judge_comparison():
     if total_pairs < 50:
         return {"status": "no_data"}
 
-    # Pooled avg matches per paper
+    # Pooled avg matches per paper and total papers
     pooled_avg_mpp = round(np.mean([ds["avg_mpp"] for ds in per_dataset if ds.get("avg_mpp")]), 1) if per_dataset else 0
+    total_papers_est = sum(round(2 * ds.get("pairs", 0) / max(ds.get("avg_mpp", 1), 1)) for ds in per_dataset) if per_dataset else 0
+    overall_avg_mpp = round(2 * total_pairs / max(total_papers_est, 1), 1) if total_papers_est else pooled_avg_mpp
 
     # Build judge results
     judges = []
@@ -2672,6 +2697,8 @@ async def _compute_judge_comparison():
     return {
         "status": "ok",
         "total_pairs": total_pairs,
+        "total_papers": total_papers_est,
+        "avg_matches_per_paper": overall_avg_mpp,
         "n_datasets": len(per_dataset),
         "judges": judges,
         "round_robin": {
