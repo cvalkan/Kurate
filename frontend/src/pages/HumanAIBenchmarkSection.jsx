@@ -57,11 +57,11 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{tieImpact.coin_flip.human_human != null ? `${tieImpact.coin_flip.human_human}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs bg-rose-500/[0.06]">{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-muted-foreground">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-muted-foreground">{totalPairs?.toLocaleString()}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-rose-500/[0.06]">{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{totalPairs?.toLocaleString()}</td>
               </tr>
             )}
             <tr className="border-b border-border/40">
