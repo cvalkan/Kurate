@@ -37,38 +37,38 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">AI-H</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">H-H</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">AI-Human</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">Human-Human</th>
               <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">AI-Comm</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">H-Comm (LOO)</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">H-Comm</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">Human-Comm (LOO)</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">Human-Comm</th>
               <th className="py-1.5 px-2 text-right font-medium text-[10px]">kappa (AI-H)</th>
               <th className="py-1.5 px-2 text-right font-medium text-[10px]">paper pairs</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-border bg-accent/5">
-              <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled (all datasets)</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-amber-500/[0.06]">{fmt(pw.human_committee)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{kfmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{totalPairs?.toLocaleString()}</td>
-            </tr>
             {tieImpact?.coin_flip && (
-              <tr className="border-b border-border/40">
-                <td className="py-1.5 px-2 text-left text-xs text-muted-foreground">Pooled (ties = coin flip)</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-sky-500/[0.06]">{tieImpact.coin_flip.ai_human != null ? `${tieImpact.coin_flip.ai_human}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-sky-500/[0.06]">{tieImpact.coin_flip.human_human != null ? `${tieImpact.coin_flip.human_human}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground/60 bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee != null ? `${tieImpact.coin_flip.human_committee}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{tieImpact.coin_flip.total_pairs?.toLocaleString()}</td>
+              <tr className="border-b border-border bg-accent/5">
+                <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled (ties = coin flip)</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{tieImpact.coin_flip.ai_human != null ? `${tieImpact.coin_flip.ai_human}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{tieImpact.coin_flip.human_human != null ? `${tieImpact.coin_flip.human_human}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs font-bold text-muted-foreground bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee != null ? `${tieImpact.coin_flip.human_committee}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{tieImpact.coin_flip.total_pairs?.toLocaleString()}</td>
               </tr>
             )}
+            <tr className="border-b border-border/40">
+              <td className="py-1.5 px-2 text-left text-xs text-muted-foreground">Pooled (ties excluded)</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{kfmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{totalPairs?.toLocaleString()}</td>
+            </tr>
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
               return (
@@ -92,11 +92,11 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
       </div>
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-2">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>AI-H</strong> = AI (judge majority) vs individual expert.{" "}
-          <strong>H-H</strong> = individual expert vs individual expert.{" "}
+          <strong>AI-Human</strong> = AI (judge majority) vs individual expert.{" "}
+          <strong>Human-Human</strong> = individual expert vs individual expert.{" "}
           <strong>AI-Comm</strong> = AI majority vs expert majority committee.{" "}
-          <strong>H-Comm (LOO)</strong> = individual expert vs leave-one-out majority (fair independent comparison).{" "}
-          <strong>H-Comm</strong> = individual expert vs majority (expert is part of committee — inflated).{" "}
+          <strong>Human-Comm (LOO)</strong> = individual expert vs leave-one-out majority (fair independent comparison).{" "}
+          <strong>Human-Comm</strong> = individual expert vs majority (expert is part of committee — inflated).{" "}
           All computed on the exact same controlled paper pairs. Difficulty rows break down the pooled row by tier gap.
         </p>
         {(() => {
