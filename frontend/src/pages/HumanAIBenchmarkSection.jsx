@@ -58,7 +58,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
                 <td className="py-1.5 px-2 text-right font-mono text-xs font-bold text-muted-foreground bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee != null ? `${tieImpact.coin_flip.human_committee}%` : "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.total_pairs?.toLocaleString()}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{totalPairs?.toLocaleString()}</td>
               </tr>
             )}
             <tr className="border-b border-border/40">
