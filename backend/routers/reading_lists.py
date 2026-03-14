@@ -430,8 +430,7 @@ async def get_list_share_page(list_id: str, request: Request):
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{name}</h1>
 <p style="color: #666; font-size: 14px;">Curated by {curator} &middot; {paper_count} papers</p>
-<p><a href="{list_url}" style="color: #4285F4;">View this reading list on Kurate.org &rarr;</a></p>
-<script>window.location.replace("{list_url}");</script>
+<p style="margin-top: 24px;"><a href="{list_url}" style="display: inline-block; padding: 10px 20px; background: #4285F4; color: #fff; text-decoration: none; border-radius: 6px; font-size: 14px;">View Reading List on Kurate.org</a></p>
 </body>
 </html>"""
     return HTMLResponse(content=html, headers=SHARE_HEADERS)

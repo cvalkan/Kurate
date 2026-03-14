@@ -192,7 +192,7 @@ async def get_monthly_badge_share_page(category: str, year: int, month: int, pap
 
 
 def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id: str, base_url: str) -> str:
-    """Generate a static HTML page with OG/Twitter meta tags. JS redirect for humans; crawlers see tags."""
+    """Generate a pure static HTML page with OG/Twitter meta tags. Zero JS, zero redirects — crawler-proof."""
     import html as html_mod
     p = data["paper"]
     tier = data["tier"]
@@ -236,8 +236,7 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <h1 style="font-size: 20px;">{og_title}</h1>
 <p style="color: #666;">{title}</p>
 <p style="color: #999; font-size: 14px;">by {authors}</p>
-<p><a href="{leaderboard_url}" style="color: #4285F4;">View the {archive_label} leaderboard on Kurate.org &rarr;</a></p>
-<script>window.location.replace("{leaderboard_url}");</script>
+<p style="margin-top: 24px;"><a href="{leaderboard_url}" style="display: inline-block; padding: 10px 20px; background: #4285F4; color: #fff; text-decoration: none; border-radius: 6px; font-size: 14px;">View Leaderboard on Kurate.org</a></p>
 </body>
 </html>"""
 
