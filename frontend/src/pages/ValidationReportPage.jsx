@@ -110,7 +110,7 @@ export default function ValidationReportPage() {
       <Section num="1" title="Which Summarizer Model is Best?">
         <p>Abstract + AI summary fed to pairwise judges. Pooled accuracy across {ex.summarizer?.pooled_datasets?.length || "12"} datasets ({ex.summarizer?.total_common_pairs?.toLocaleString() || "1,521"} common pairs, {ex.summarizer?.total_papers || "?"} papers, {ex.summarizer?.avg_matches_per_paper || "?"} matches/paper avg):</p>
         <DataTable
-          headers={["Summarizer", "Accuracy", "\u03C1"]}
+          headers={["Summarizer", "Accuracy", "Spearman \u03C1"]}
           rows={["Opus 4.6 Thinking", "Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"].map(name => {
             const v = summ[name] || {};
             return [name, `${v.accuracy || "?"}%`, v.avg_rho || "?"];
@@ -125,7 +125,7 @@ export default function ValidationReportPage() {
       <Section num="2" title="Which Judge Model is Best?">
         <p>Same content shown to different judges. Accuracy on {jc.total_pairs?.toLocaleString() || jc.judges?.[0]?.total_pairs || "?"} shared pairs across {jc.total_papers || "?"} papers ({jc.avg_matches_per_paper || "?"} matches/paper avg):</p>
         <DataTable
-          headers={["Judge", "Accuracy", "\u03C1"]}
+          headers={["Judge", "Accuracy", "Spearman \u03C1"]}
           rows={[
             ...(jc.judges || []).sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0)).map(j => [
               j.label || j.name || "?", `${j.accuracy}%`, j.avg_rho?.toFixed(3) || "?"
@@ -369,8 +369,8 @@ export default function ValidationReportPage() {
                 <th className="text-center py-1 px-1">GT</th>
                 <th className="text-right py-1 px-1">SI Acc</th>
                 <th className="text-right py-1 px-1">PW Acc</th>
-                <th className="text-right py-1 px-1">SI {"\u03C1"}</th>
-                <th className="text-right py-1 px-1">PW {"\u03C1"}</th>
+                <th className="text-right py-1 px-1">SI Spearman {"\u03C1"}</th>
+                <th className="text-right py-1 px-1">PW Spearman {"\u03C1"}</th>
                 <th className="text-center py-1 px-1">Winner</th>
               </tr>
             </thead>
