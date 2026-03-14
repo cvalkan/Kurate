@@ -78,7 +78,10 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
             </tr>
             {concordance && (
               <tr className="border-b border-border/40">
-                <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">Concordance (per reviewer)</td>
+                <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">
+                  <div>Equal-weighted (per reviewer)</div>
+                  <div className="text-foreground/40 text-[9px]">ties excluded, each reviewer pair weighted equally</div>
+                </td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.ai_h != null ? `${(concordance.ai_h * 100).toFixed(1)}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.hh != null ? `${(concordance.hh * 100).toFixed(1)}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
