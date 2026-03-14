@@ -122,7 +122,11 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
                 Under this fair comparison, the Human-Human vs AI-Human gap closes
                 to <strong>{cfGap} percentage points</strong> ({cf.human_human}% vs {cf.ai_human}%),
                 and AI-Comm ({cf.ai_committee}%) matches Human-Comm LOO ({cf.human_committee_loo}%).
-                The pattern holds across all difficulty tiers: on medium and hard pairs, AI slightly outperforms human agreement.
+                The same correction is applied to the three difficulty rows (AI-Human, Human-Human, and Human-Comm LOO columns).
+                Note that ties and difficulty tiers measure different things: tiers are based on venue decisions (oral/poster/reject),
+                while ties reflect a reviewer giving both papers the same numerical score.
+                Ties are most common within the same tier, where papers are hardest to distinguish.
+                On medium and hard pairs, AI slightly outperforms human agreement after tie correction.
               </p>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 <strong>Significance for AI-based paper ranking:</strong>{" "}
