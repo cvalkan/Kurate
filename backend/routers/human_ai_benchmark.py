@@ -443,11 +443,11 @@ async def _compute_dataset_benchmark(dataset_id: str):
 
     # --- Layer 4: Stratification by difficulty ---
     difficulty_stats = {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0},
+                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0},
                         "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                   "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0},
+                                   "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0},
                         "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0}}
+                                 "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_tie": 0, "hc_loo_tie": 0}}
 
     for pair in controlled_pairs:
         diff = _classify_difficulty(pair[0], pair[1], papers_by_id)
@@ -476,6 +476,23 @@ async def _compute_dataset_benchmark(dataset_id: str):
         for _, has_pref in experts_for_pair_d:
             if not has_pref:
                 ds["ah_tie"] += 1
+
+        # HC/HC-LOO tie counts per difficulty
+        if pair in expert_majority:
+            for _, has_pref in experts_for_pair_d:
+                if not has_pref:
+                    ds["hc_tie"] += 1
+        votes = expert_pair_prefs.get(pair, {})
+        for exp_name, has_pref in experts_for_pair_d:
+            if has_pref:
+                continue
+            others = [w for e, w in votes.items()]
+            if len(others) >= 2:
+                c = Counter(others)
+                best, n = c.most_common(1)[0]
+                if n > len(others) / 2:
+                    ds["hc_loo_tie"] += 1
+
         # HH
         voters = list(expert_pair_prefs[pair].values())
         for i in range(len(voters)):
@@ -640,26 +657,32 @@ async def _compute_dataset_benchmark(dataset_id: str):
         result = {}
         for level in ["easy", "medium", "hard"]:
             s = stats[level]
-            # Coin-flip rates for H-H and AI-H
             hh_a, hh_t = s["hh"][0], s["hh"][1]
             ah_a, ah_t = s["ah"][0], s["ah"][1]
             hh_t1, hh_t2, ah_ti = s["hh_tie_one"], s["hh_tie_both"], s["ah_tie"]
+            hc_loo_a, hc_loo_t = s["hc_loo"][0], s["hc_loo"][1]
+            hc_loo_ti = s["hc_loo_tie"]
+            # Coin-flip rates
             hh_cf_total = hh_t + hh_t1 + hh_t2
             ah_cf_total = ah_t + ah_ti
             hh_cf = round((hh_a + 0.5 * (hh_t1 + hh_t2)) / max(hh_cf_total, 1) * 100, 1) if hh_cf_total > 0 else None
             ah_cf = round((ah_a + 0.5 * ah_ti) / max(ah_cf_total, 1) * 100, 1) if ah_cf_total > 0 else None
+            hc_loo_cf_total = hc_loo_t + hc_loo_ti
+            hc_loo_cf = round((hc_loo_a + 0.5 * hc_loo_ti) / max(hc_loo_cf_total, 1) * 100, 1) if hc_loo_cf_total > 0 else None
             result[level] = {
                 "human_human": {"rate": _rate(hh_a, hh_t), "pairs": hh_t},
                 "human_committee": {"rate": _rate(s["hc"][0], s["hc"][1]), "pairs": s["hc"][1]},
-                "human_committee_loo": {"rate": _rate(s["hc_loo"][0], s["hc_loo"][1]), "pairs": s["hc_loo"][1]},
+                "human_committee_loo": {"rate": _rate(hc_loo_a, hc_loo_t), "pairs": hc_loo_t},
                 "ai_human": {"rate": _rate(ah_a, ah_t), "pairs": ah_t},
                 "ai_committee": {"rate": _rate(s["ac"][0], s["ac"][1]), "pairs": s["ac"][1]},
                 "n_pairs": s["n_pairs"],
                 "hh_cf": hh_cf,
                 "ah_cf": ah_cf,
+                "hc_loo_cf": hc_loo_cf,
                 "hh_tie_one": hh_t1,
                 "hh_tie_both": hh_t2,
                 "ah_tie": ah_ti,
+                "hc_loo_tie": hc_loo_ti,
             }
         return result
 
@@ -773,11 +796,11 @@ async def _compute_benchmark():
         "ti_ah_tie": 0,
         "ti_hc_tie": 0, "ti_hc_loo_tie": 0,
         "difficulty": {"easy": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                               "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0},
+                               "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0},
                        "medium": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                  "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0},
+                                  "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0},
                        "hard": {"hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0], "n_pairs": 0,
-                                "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0}},
+                                "hh_tie_one": 0, "hh_tie_both": 0, "ah_tie": 0, "hc_loo_tie": 0}},
     }
 
     for ds_id in all_ds_ids:
@@ -854,6 +877,7 @@ async def _compute_benchmark():
             pooled["difficulty"][level]["hh_tie_one"] += dl.get("hh_tie_one", 0)
             pooled["difficulty"][level]["hh_tie_both"] += dl.get("hh_tie_both", 0)
             pooled["difficulty"][level]["ah_tie"] += dl.get("ah_tie", 0)
+            pooled["difficulty"][level]["hc_loo_tie"] += dl.get("hc_loo_tie", 0)
 
     if not per_dataset:
         return {"status": "no_data"}
@@ -871,19 +895,24 @@ async def _compute_benchmark():
             hh_a, hh_t = s["hh"][0], s["hh"][1]
             ah_a, ah_t = s["ah"][0], s["ah"][1]
             hh_t1, hh_t2, ah_ti = s["hh_tie_one"], s["hh_tie_both"], s["ah_tie"]
+            hc_loo_a, hc_loo_t = s["hc_loo"][0], s["hc_loo"][1]
+            hc_loo_ti = s["hc_loo_tie"]
             hh_cf_total = hh_t + hh_t1 + hh_t2
             ah_cf_total = ah_t + ah_ti
             hh_cf = round((hh_a + 0.5 * (hh_t1 + hh_t2)) / max(hh_cf_total, 1) * 100, 1) if hh_cf_total > 0 else None
             ah_cf = round((ah_a + 0.5 * ah_ti) / max(ah_cf_total, 1) * 100, 1) if ah_cf_total > 0 else None
+            hc_loo_cf_total = hc_loo_t + hc_loo_ti
+            hc_loo_cf = round((hc_loo_a + 0.5 * hc_loo_ti) / max(hc_loo_cf_total, 1) * 100, 1) if hc_loo_cf_total > 0 else None
             result[level] = {
                 "human_human": {"rate": _rate(hh_a, hh_t), "pairs": hh_t},
                 "human_committee": {"rate": _rate(s["hc"][0], s["hc"][1]), "pairs": s["hc"][1]},
-                "human_committee_loo": {"rate": _rate(s["hc_loo"][0], s["hc_loo"][1]), "pairs": s["hc_loo"][1]},
+                "human_committee_loo": {"rate": _rate(hc_loo_a, hc_loo_t), "pairs": hc_loo_t},
                 "ai_human": {"rate": _rate(ah_a, ah_t), "pairs": ah_t},
                 "ai_committee": {"rate": _rate(s["ac"][0], s["ac"][1]), "pairs": s["ac"][1]},
                 "n_pairs": s["n_pairs"],
                 "hh_cf": hh_cf,
                 "ah_cf": ah_cf,
+                "hc_loo_cf": hc_loo_cf,
             }
         return result
 

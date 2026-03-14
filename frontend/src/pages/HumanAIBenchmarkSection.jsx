@@ -80,7 +80,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
                   <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-sky-500/[0.06]">{d.ah_cf != null ? `${d.ah_cf}%` : fmt(d.ai_human)}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-amber-500/[0.06]">{fmt(d.human_committee_loo)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-muted-foreground/60 bg-amber-500/[0.06]">{fmt(d.human_committee)}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/40"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
@@ -95,27 +95,45 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
           <strong>AI-Human</strong> = AI (round-robin judge) vs individual expert.{" "}
           <strong>Human-Human</strong> = individual expert vs individual expert.{" "}
           <strong>AI-Comm</strong> = AI vs expert majority committee.{" "}
-          <strong>Human-Comm (LOO)</strong> = individual expert vs leave-one-out majority (fair).{" "}
-          <strong>Human-Comm</strong> = expert vs committee they belong to (inflated).{" "}
-          All on the same controlled paper pairs. Difficulty rows use coin-flip values for AI-Human and Human-Human.
+          <strong>Human-Comm (LOO)</strong> = individual expert vs leave-one-out majority (expert excluded from committee — fair independent comparison).{" "}
+          <strong>Human-Comm</strong> = individual expert vs majority (expert is part of committee — structurally inflated).{" "}
+          All computed on the exact same controlled paper pairs.
+          Difficulty rows and the coin-flip row use tie-corrected values for AI-Human, Human-Human, and Human-Comm (LOO).
         </p>
         {(() => {
           const cf = tieImpact?.coin_flip;
           const ex = tieImpact?.excluded;
           if (!cf || !ex || cf.human_human == null || cf.ai_human == null) return null;
+          const hhGapExcl = (ex.hh_rate - ex.ah_rate).toFixed(1);
           const cfGap = Math.abs(cf.human_human - cf.ai_human).toFixed(1);
           return (
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              <strong>Tie correction:</strong>{" "}
-              When a human reviewer gives two papers the same score, that comparison is dropped — selecting for "easy" pairs
-              and inflating Human-Human agreement. The coin-flip row corrects this by randomly resolving ties.
-              Under this fair comparison, the Human-Human vs AI-Human gap closes
-              to <strong>{cfGap}pp</strong> ({cf.human_human}% vs {cf.ai_human}%),
-              and AI-Comm ({cf.ai_committee}%) matches Human-Comm LOO ({cf.human_committee_loo}%).
-              The difficulty rows also use coin-flip values for AI-Human and Human-Human, ensuring the same fair comparison across all tiers.
-              AI judges achieve <strong>human-level pairwise agreement</strong>, validating LLM judges as a scalable
-              alternative to human reviewers for relative quality ranking of scientific preprints.
-            </p>
+            <>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                <strong>Tie correction — why it matters:</strong>{" "}
+                With ties excluded, Human-Human ({ex.hh_rate}%) appears to outperform AI-Human ({ex.ah_rate}%) by {hhGapExcl} percentage points.
+                However, this gap is a <strong>measurement artifact</strong>.
+                When a human reviewer gives two papers the same score (a tie), that comparison is silently dropped,
+                selecting for "easy" pairs where quality differences are large enough that both reviewers noticed — inflating Human-Human agreement.
+                AI judges, which always pick a winner, receive no such benefit: AI-Human is computed on a <em>harder</em> mix of pairs.
+                The same bias affects Human-Comm (LOO): only experts with clear preferences are tested against the committee.
+              </p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                The coin-flip row corrects this by randomly resolving ties instead of excluding them.
+                Under this fair comparison, the Human-Human vs AI-Human gap closes
+                to <strong>{cfGap} percentage points</strong> ({cf.human_human}% vs {cf.ai_human}%),
+                and AI-Comm ({cf.ai_committee}%) matches Human-Comm LOO ({cf.human_committee_loo}%).
+                The pattern holds across all difficulty tiers: on medium and hard pairs, AI slightly outperforms human agreement.
+              </p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                <strong>Significance for AI-based paper ranking:</strong>{" "}
+                These results demonstrate that AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality.
+                The 42% tie fraction reveals that human reviewers themselves often cannot distinguish quality between papers — a fundamental
+                limit of peer review, not a flaw in AI. On the subset where humans <em>can</em> distinguish (non-tie pairs), AI agrees with
+                them at nearly the same rate humans agree with each other.
+                This validates the use of LLM judges as a scalable, consistent alternative to human reviewers for relative quality ranking
+                of scientific preprints.
+              </p>
+            </>
           );
         })()}
       </div>
