@@ -81,8 +81,8 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
               return (
                 <tr key={key} className="border-b border-border/20">
                   <td className="py-1.5 px-2 text-left text-xs">
-                    <span className="text-foreground/60">{label}</span>
-                    <span className="text-foreground/40 ml-1 text-[9px]">{desc}</span>
+                    <div className="text-foreground/60">{label}</div>
+                    <div className="text-foreground/40 text-[9px] whitespace-nowrap">{desc}</div>
                   </td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{d.ah_cf != null ? `${d.ah_cf}%` : fmt(d.ai_human)}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
