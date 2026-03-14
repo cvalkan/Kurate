@@ -31,6 +31,7 @@ Build a robust system for ranking and validating AI model performance on scienti
 - Bookmarks & Reading Lists fully operational
 - Share pages are 100% pure static HTML (no JS/redirects) for maximum crawler compatibility
 - Congrats (social sharing) open to all visitors; email congrats requires sign-in
+- Human vs AI Benchmark: new Validation Hub section comparing inter-human and AI-human agreement rates across 7 controlled datasets (5,260 same-pair comparisons), with Thurstonian ceiling analysis, Cohen's kappa, difficulty stratification, and NeurIPS 2014 reference
 
 ## Deployment Readiness (Mar 9 2026)
 
