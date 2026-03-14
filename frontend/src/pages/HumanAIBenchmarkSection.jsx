@@ -244,6 +244,18 @@ function ReliabilityTables({ p, pw }) {
             any system (human or AI) approaching {p.theoretical_ceiling}% is extracting nearly all the recoverable signal from the data.
           </p>
         )}
+        {p.inter_rater_rho != null && p.ai_h_rho != null && p.ai_h_rho > p.inter_rater_rho && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            <strong>AI-Human rho ({p.ai_h_rho.toFixed(2)}) exceeds Human-Human rho ({p.inter_rater_rho.toFixed(2)}):</strong>{" "}
+            Since concordance is already equal-weighted per reviewer pair, this gap is not a volume artifact — it means
+            each AI pairwise comparison carries a <em>higher signal-to-noise ratio</em> than a typical human-human comparison.
+            In a Bradley-Terry tournament, higher SNR per match means faster convergence to the true ranking.
+            Concretely: an AI tournament needs fewer matches to achieve the same ranking quality as a human tournament,
+            or equivalently, with the same number of matches, AI produces a <strong>more accurate ranking</strong>.
+            This is likely because the AI majority (3 models) acts as a built-in noise-reduction mechanism,
+            analogous to averaging multiple human reviewers — but at the cost of a single automated call.
+          </p>
+        )}
       </div>
     </div>
   );
