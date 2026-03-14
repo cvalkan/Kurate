@@ -124,38 +124,43 @@ export default function ValidationReportPage() {
                 ["Pairwise (coin flip)", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`,
                   bm.tier_accuracy?.ai_total > 0 ? `${bm.tier_accuracy.ai_rate}%` : "\u2014",
                   bm.tier_accuracy?.hh_total > 0 ? `${bm.tier_accuracy.hh_rate}%` : "\u2014"],
-                ["Concordance (coin flip)", bm.ai_h_cf_concordance ? `${(bm.ai_h_cf_concordance * 100).toFixed(1)}%` : "\u2014",
-                  ts.cf_concordance_rate ? `${(ts.cf_concordance_rate * 100).toFixed(1)}%` : "\u2014", "\u2014", "\u2014", "\u2014", "\u2014"],
                 [`Spearman \u03C1 (fair)`, bt.individual?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3),
                   bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014",
                   bt.vs_tier_rho?.toFixed(3) ?? "\u2014", bt.avg_expert_vs_tier?.spearman_rho?.toFixed(3) ?? "\u2014"],
               ]}
               boldIdx={0}
             />
-            <p className="text-[9px] text-muted-foreground mt-1">
-              <strong>Majority</strong> = virtual majority vote from reviewer score-derived pairwise preferences (our construction).{" "}
-              <strong>Committee</strong> = actual ICLR program committee tier decisions.{" "}
-              Known biases: (1) tie exclusion inflates Human vs. Human (double filter); (2) LOO majority ties are skipped; (3) Human vs. Committee is circular (same reviewers influenced the decision).
-            </p>
             <div className="mt-2 space-y-1.5 text-[10px] text-muted-foreground border-t border-border/30 pt-2">
               <p>
-                <strong>Key finding:</strong> Under fair comparison (coin flip), AI-Human ({cf.ai_human}%) and Human-Human ({cf.human_human}%) are within <strong>{Math.abs(cf.ai_human - cf.human_human).toFixed(1)} percentage points</strong>.
-                The apparent {(pw.human_human?.rate - pw.ai_human?.rate).toFixed(1)}pp Human advantage under tie exclusion is a <strong>selection bias</strong>: Human-Human requires <em>both</em> experts to have clear preferences (double filter), selecting for easier comparisons.
+                <strong>Majority</strong> = virtual majority vote from reviewer preferences (our construction).{" "}
+                <strong>Committee</strong> = actual ICLR program committee tier decisions.{" "}
+                Known biases: (1) tie exclusion inflates Human vs. Human (double filter);
+                (2) majority ties skip pairs where voters split evenly — more common in LOO (fewer voters);
+                (3) Human vs. Committee is circular (same reviewers influenced the decisions).
               </p>
               <p>
-                <strong>Inter-rater concordance:</strong> AI-Human ({(bm.ai_h_concordance * 100).toFixed(1)}%) slightly <strong>exceeds</strong> Human-Human ({(ts.concordance_rate * 100).toFixed(1)}%), meaning AI agrees with each individual expert more often than experts agree with each other.
-                The {(ts.tie_fraction * 100).toFixed(0)}% tie fraction shows human reviewers often cannot distinguish paper quality — AI provides verdicts on these pairs too, making it a <strong>strictly more complete</strong> signal source.
+                <strong>Key finding:</strong> Under fair comparison (coin flip), AI-Human ({cf.ai_human}%) and Human-Human ({cf.human_human}%) are within{" "}
+                <strong>{Math.abs(cf.ai_human - cf.human_human).toFixed(1)} percentage points</strong>.
+                The apparent {(pw.human_human?.rate - pw.ai_human?.rate).toFixed(1)}pp Human advantage under tie exclusion is a{" "}
+                <strong>selection bias</strong>: Human-Human requires <em>both</em> experts to have clear preferences (double filter), selecting for easier comparisons.
+                The {(ts.tie_fraction * 100).toFixed(0)}% tie fraction shows human reviewers often cannot distinguish paper quality — AI provides verdicts on these pairs too,
+                making it a <strong>strictly more complete</strong> signal source.
               </p>
               <p>
-                <strong>Ranking correlation (fairest comparison):</strong> AI vs Individual aggregate Spearman {"\u03C1"} = {bt.individual?.spearman_rho?.toFixed(3)} vs
+                <strong>Ranking correlation (fairest comparison):</strong>{" "}
+                AI vs Individual aggregate {"\u03C1"} = {bt.individual?.spearman_rho?.toFixed(3)} vs
                 Single expert vs Individual aggregate (LOO) = {bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3)}.
                 Same methodology (BT vs BT), no circularity on either side.
-                AI outperforms the average individual expert by {bt.individual?.spearman_rho && bt.avg_expert_vs_loo_indiv?.spearman_rho ? (bt.individual.spearman_rho - bt.avg_expert_vs_loo_indiv.spearman_rho).toFixed(3) : "?"} on ranking quality.
+                AI outperforms the average individual expert by{" "}
+                {bt.individual?.spearman_rho && bt.avg_expert_vs_loo_indiv?.spearman_rho
+                  ? (bt.individual.spearman_rho - bt.avg_expert_vs_loo_indiv.spearman_rho).toFixed(3) : "?"} on ranking quality.
+              </p>
+              <p>
+                <strong>Verdict:</strong> AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality.
+                The 42% tie fraction is a fundamental limit of peer review — not an AI flaw.
+                LLM judges are a validated, scalable alternative to human reviewers for relative quality ranking.
               </p>
             </div>
-            <p className="mt-2 border-t border-border/30 pt-2">
-              <strong>Verdict:</strong> AI judges achieve <strong>human-level pairwise agreement</strong> on scientific paper quality. The 42% tie fraction is a fundamental limit of peer review — not an AI flaw. LLM judges are a validated, scalable alternative to human reviewers for relative quality ranking.
-            </p>
           </Section>
         );
       })()}

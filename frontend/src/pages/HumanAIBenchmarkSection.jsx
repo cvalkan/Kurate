@@ -149,8 +149,8 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                 Human vs. Human requires <em>both</em> experts to have preferences (double filter), selecting for easier comparisons.
                 AI vs. Human only requires one expert (single filter). The coin-flip row corrects this by randomly resolving ties.
                 Under correction, the {hhGapExcl}pp Human advantage closes to <strong>{cfGap}pp</strong> ({cf.human_human}% vs {cf.ai_human}%).{" "}
-                (2) <strong>LOO majority ties</strong> (Human vs. Majority LOO): when the leave-one-out majority is a tie (e.g., 2 remaining experts split 1-1),
-                the pair is skipped — another selection bias toward pairs where the remaining experts agree.{" "}
+                (2) <strong>Majority ties</strong> (Human vs. Majority, esp. LOO): when voters split evenly, the pair is skipped.
+                This affects both LOO and non-LOO, but is more common in LOO (fewer voters → more even splits).{" "}
                 (3) <strong>Committee circularity</strong> (Human vs. Committee): the same reviewers who provide the scores also influenced the program committee
                 decisions they are being tested against — structurally inflating human accuracy. AI vs. Committee has no such circularity.
               </p>
