@@ -14,7 +14,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation }) {
+function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, tierAccuracy }) {
   const fmt = (v) => v?.rate != null ? `${v.rate}%` : "\u2014";
   const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "\u2014";
   const levels = [
@@ -72,6 +72,19 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation }
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{kfmt(pw.ai_human)}</td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{totalPairs?.toLocaleString()}</td>
             </tr>
+            {tierAccuracy && tierAccuracy.ai_total > 0 && (
+              <tr className="border-b border-border/40">
+                <td className="py-1.5 px-2 text-left text-xs text-foreground/60">vs ICLR Decision</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{tierAccuracy.ai_rate}%</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{tierAccuracy.hh_rate}%</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]"></td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]"></td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]"></td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60"></td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60"></td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{tierAccuracy.ai_total?.toLocaleString()}</td>
+              </tr>
+            )}
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
               return (
@@ -187,10 +200,6 @@ function ReliabilityTables({ p, pw }) {
       desc: "How often AI agrees with each individual expert (averaged per expert)" },
     { scope: "AI-Human", metric: "Derived rho", value: p.ai_h_rho?.toFixed(2) ?? "\u2014",
       desc: "Same Kruskal conversion applied to AI-human concordance" },
-    { scope: "vs ICLR Decision", metric: "AI accuracy", value: p.tier_accuracy?.ai_rate != null ? `${p.tier_accuracy.ai_rate}%` : "\u2014",
-      desc: `AI correctly predicts higher-tier paper (${p.tier_accuracy?.ai_total?.toLocaleString() ?? "?"} cross-tier pairs)` },
-    { scope: "", metric: "Human accuracy", value: p.tier_accuracy?.hh_rate != null ? `${p.tier_accuracy.hh_rate}%` : "\u2014",
-      desc: `Individual experts correctly predict higher-tier paper (${p.tier_accuracy?.hh_total?.toLocaleString() ?? "?"} comparisons)` },
   ];
 
   let lastScope = "";
@@ -377,7 +386,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
       </div>
 
       {/* 1. Merged agreement + difficulty + tie impact table */}
-      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} />
+      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} />
 
       {/* 2. Ranking Correlation (Bradley-Terry) */}
       {(() => {
