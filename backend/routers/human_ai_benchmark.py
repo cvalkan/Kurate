@@ -526,11 +526,25 @@ async def _compute_dataset_benchmark(dataset_id: str):
     # Internal human baselines: individual vs committee, per-expert correlations
     bt_indiv_vs_comm_rho, bt_indiv_vs_comm_tau = _bt_correlate(human_individual_matches, human_committee_matches)
 
-    # Per-expert BT: build BT from each expert's preferences, correlate with committee & AI
+    # Per-expert BT: build BT from each expert's preferences, correlate with committee, AI, individual aggregate
     expert_vs_comm_rhos = []
     expert_vs_comm_taus = []
     expert_vs_ai_rhos = []
     expert_vs_ai_taus = []
+    expert_vs_indiv_rhos = []
+    expert_vs_indiv_taus = []
+
+    # Pre-compute reference leaderboards once
+    comm_rank = {}
+    if len(human_committee_matches) >= 10:
+        comm_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, human_committee_matches)}
+    ai_rank = {}
+    if len(ai_matches_ctrl) >= 10:
+        ai_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, ai_matches_ctrl)}
+    indiv_rank = {}
+    if len(human_individual_matches) >= 10:
+        indiv_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, human_individual_matches)}
+
     for exp in experts_with_data:
         exp_matches = []
         for pair in controlled_pairs:
@@ -542,39 +556,31 @@ async def _compute_dataset_benchmark(dataset_id: str):
                 })
         if len(exp_matches) < 10:
             continue
-        exp_lb = compute_leaderboard(ctrl_papers, exp_matches)
-        exp_rank = {e["id"]: e["rank"] for e in exp_lb}
+        exp_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, exp_matches)}
 
-        # vs committee
-        if len(human_committee_matches) >= 10:
-            comm_lb = compute_leaderboard(ctrl_papers, human_committee_matches)
-            comm_rank = {e["id"]: e["rank"] for e in comm_lb}
-            shared = sorted(set(exp_rank.keys()) & set(comm_rank.keys()))
-            if len(shared) >= 5:
-                sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [comm_rank[p] for p in shared])
-                kt, _ = scipy_stats.kendalltau([exp_rank[p] for p in shared], [comm_rank[p] for p in shared])
-                if not np.isnan(sp):
-                    expert_vs_comm_rhos.append(float(sp))
-                if not np.isnan(kt):
-                    expert_vs_comm_taus.append(float(kt))
-
-        # vs AI
-        if len(ai_matches_ctrl) >= 10:
-            ai_lb = compute_leaderboard(ctrl_papers, ai_matches_ctrl)
-            ai_rank = {e["id"]: e["rank"] for e in ai_lb}
-            shared = sorted(set(exp_rank.keys()) & set(ai_rank.keys()))
-            if len(shared) >= 5:
-                sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [ai_rank[p] for p in shared])
-                kt, _ = scipy_stats.kendalltau([exp_rank[p] for p in shared], [ai_rank[p] for p in shared])
-                if not np.isnan(sp):
-                    expert_vs_ai_rhos.append(float(sp))
-                if not np.isnan(kt):
-                    expert_vs_ai_taus.append(float(kt))
+        for ref_rank, rho_list, tau_list in [
+            (comm_rank, expert_vs_comm_rhos, expert_vs_comm_taus),
+            (ai_rank, expert_vs_ai_rhos, expert_vs_ai_taus),
+            (indiv_rank, expert_vs_indiv_rhos, expert_vs_indiv_taus),
+        ]:
+            if not ref_rank:
+                continue
+            shared = sorted(set(exp_rank.keys()) & set(ref_rank.keys()))
+            if len(shared) < 5:
+                continue
+            sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [ref_rank[p] for p in shared])
+            kt, _ = scipy_stats.kendalltau([exp_rank[p] for p in shared], [ref_rank[p] for p in shared])
+            if not np.isnan(sp):
+                rho_list.append(float(sp))
+            if not np.isnan(kt):
+                tau_list.append(float(kt))
 
     avg_expert_vs_comm_rho = float(np.mean(expert_vs_comm_rhos)) if expert_vs_comm_rhos else None
     avg_expert_vs_comm_tau = float(np.mean(expert_vs_comm_taus)) if expert_vs_comm_taus else None
     avg_expert_vs_ai_rho = float(np.mean(expert_vs_ai_rhos)) if expert_vs_ai_rhos else None
     avg_expert_vs_ai_tau = float(np.mean(expert_vs_ai_taus)) if expert_vs_ai_taus else None
+    avg_expert_vs_indiv_rho = float(np.mean(expert_vs_indiv_rhos)) if expert_vs_indiv_rhos else None
+    avg_expert_vs_indiv_tau = float(np.mean(expert_vs_indiv_taus)) if expert_vs_indiv_taus else None
 
     # --- Layer 6: Cohen's kappa ---
     hh_kappa = _cohens_kappa(hh_agree, hh_total)
@@ -652,6 +658,10 @@ async def _compute_dataset_benchmark(dataset_id: str):
                 "spearman_rho": safe_round(avg_expert_vs_ai_rho) if avg_expert_vs_ai_rho else None,
                 "kendall_tau": safe_round(avg_expert_vs_ai_tau) if avg_expert_vs_ai_tau else None,
             },
+            "avg_expert_vs_indiv": {
+                "spearman_rho": safe_round(avg_expert_vs_indiv_rho) if avg_expert_vs_indiv_rho else None,
+                "kendall_tau": safe_round(avg_expert_vs_indiv_tau) if avg_expert_vs_indiv_tau else None,
+            },
             "n_papers": len(ctrl_paper_ids),
         },
     }
@@ -691,6 +701,7 @@ async def _compute_benchmark():
         "bt_ivc_rhos": [], "bt_ivc_taus": [],
         "bt_evc_rhos": [], "bt_evc_taus": [],
         "bt_eva_rhos": [], "bt_eva_taus": [],
+        "bt_evi_rhos": [], "bt_evi_taus": [],
         "inter_rater_rhos": [],
         "ai_h_concordances": [],
         "concordance_rates": [],
@@ -755,6 +766,7 @@ async def _compute_benchmark():
             ("indiv_vs_comm", "bt_ivc_rhos", "bt_ivc_taus"),
             ("avg_expert_vs_comm", "bt_evc_rhos", "bt_evc_taus"),
             ("avg_expert_vs_ai", "bt_eva_rhos", "bt_eva_taus"),
+            ("avg_expert_vs_indiv", "bt_evi_rhos", "bt_evi_taus"),
         ]:
             sub = bt.get(src, {})
             if sub.get("spearman_rho") is not None:
@@ -890,6 +902,10 @@ async def _compute_benchmark():
                 "avg_expert_vs_ai": {
                     "spearman_rho": safe_round(float(np.mean(pooled["bt_eva_rhos"]))) if pooled["bt_eva_rhos"] else None,
                     "kendall_tau": safe_round(float(np.mean(pooled["bt_eva_taus"]))) if pooled["bt_eva_taus"] else None,
+                },
+                "avg_expert_vs_indiv": {
+                    "spearman_rho": safe_round(float(np.mean(pooled["bt_evi_rhos"]))) if pooled["bt_evi_rhos"] else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["bt_evi_taus"]))) if pooled["bt_evi_taus"] else None,
                 },
             },
             "by_difficulty": _format_pooled_difficulty(),

@@ -29,7 +29,11 @@ function AgreementTable({ pw, difficulty, totalPairs }) {
         <span className="text-xs font-semibold">Pairwise Agreement — Controlled Same-Pair Comparison</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
+        <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "22%" }} />
+            <col /><col /><col /><col /><col /><col /><col />
+          </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
@@ -314,13 +318,13 @@ export default function HumanAIBenchmarkSection() {
         </div>
       </div>
 
-      {/* Merged agreement + difficulty table */}
+      {/* 1. Merged agreement + difficulty table */}
       <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} />
 
-      {/* Inter-Rater Reliability (Human-Human + AI-Human) */}
-      <ReliabilityTables p={p} />
+      {/* 2. Tie Impact Analysis */}
+      <TieImpactTable tieImpact={p.tie_impact} />
 
-      {/* Ranking Correlation (Bradley-Terry) */}
+      {/* 3. Ranking Correlation (Bradley-Terry) */}
       {(() => {
         const bt = p.bt_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
@@ -329,12 +333,10 @@ export default function HumanAIBenchmarkSection() {
             desc: "AI BT vs expert-majority BT" },
           { group: "", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau,
             desc: "AI BT vs all-expert-votes BT" },
-          { group: "", label: "AI vs Avg single expert", rho: bt.avg_expert_vs_ai?.spearman_rho, tau: bt.avg_expert_vs_ai?.kendall_tau,
-            desc: "AI BT vs each expert's BT (averaged)" },
-          { group: "Human internal", label: "Individual aggregate vs Committee", rho: bt.indiv_vs_comm?.spearman_rho, tau: bt.indiv_vs_comm?.kendall_tau,
-            desc: "All-votes BT vs majority-vote BT" },
-          { group: "", label: "Avg single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau,
+          { group: "Human internal", label: "Avg single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau,
             desc: "Each expert's BT vs committee BT (averaged)" },
+          { group: "", label: "Avg single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau,
+            desc: "Each expert's BT vs all-votes BT (averaged)" },
         ];
         let lastGroup = "";
         return (
@@ -380,10 +382,10 @@ export default function HumanAIBenchmarkSection() {
         );
       })()}
 
-      {/* Tie Impact Analysis */}
-      <TieImpactTable tieImpact={p.tie_impact} />
+      {/* 4. Inter-Rater Reliability (Human-Human + AI-Human) */}
+      <ReliabilityTables p={p} />
 
-      {/* Per-dataset breakdown */}
+      {/* 5. Per-dataset breakdown */}
       <DatasetTable datasets={data.per_dataset} />
     </div>
   );
