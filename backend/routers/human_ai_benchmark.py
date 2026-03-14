@@ -288,26 +288,25 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         if n > len(votes) / 2:
             expert_majority[pair] = best
 
-    # Load AI matches — use same mode selection as summary table
-    # Check if dataset has thinking summaries → prefer thinking matches
+    # --- Load AI matches (thinking mode if available, else plain) ---
     sample_paper = papers[0] if papers else {}
     sample_full = await db.validation_papers.find_one(
         {"id": sample_paper.get("id"), "dataset_id": dataset_id},
         {"_id": 0, "ai_impact_summary_thinking": 1}
     ) if sample_paper.get("id") else None
     has_thinking = bool(sample_full and sample_full.get("ai_impact_summary_thinking"))
-    pw_content_mode = "abstract_plus_summary:thinking" if has_thinking else "abstract_plus_summary"
-    pw_count = await db.validation_matches.count_documents(
-        {"dataset_id": dataset_id, "completed": True, "content_mode": pw_content_mode})
-    if pw_count == 0:
-        pw_content_mode = "abstract_plus_summary"
+    ai_content_mode = "abstract_plus_summary:thinking" if has_thinking else "abstract_plus_summary"
+    mode_count = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": ai_content_mode})
+    if mode_count == 0:
+        ai_content_mode = "abstract_plus_summary"
 
     ai_raw = await db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": pw_content_mode},
+         "content_mode": ai_content_mode},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ).to_list(100000)
-    ai_mode_used = pw_content_mode
+    ai_mode_used = ai_content_mode
 
     if len(ai_raw) < 20:
         return None
