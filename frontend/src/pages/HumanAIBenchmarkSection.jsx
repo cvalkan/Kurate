@@ -58,7 +58,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-rose-500/[0.06]">{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{totalPairs?.toLocaleString()}</td>
@@ -66,15 +66,15 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
             )}
             <tr className="border-b border-border/40">
               <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">Pooled (ties excluded)</td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-rose-500/[0.06]">{"\u2014"}</td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-rose-500/[0.06]">{"\u2014"}</td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40"></td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40">{kfmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40">{totalPairs?.toLocaleString()}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60"></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{kfmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{totalPairs?.toLocaleString()}</td>
             </tr>
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
@@ -84,15 +84,15 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                     <div className="text-foreground/60">{label}</div>
                     <div className="text-foreground/40 text-[9px] whitespace-nowrap">{desc}</div>
                   </td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-sky-500/[0.06]">{d.ah_cf != null ? `${d.ah_cf}%` : fmt(d.ai_human)}</td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-rose-500/[0.06]">{"\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40 bg-rose-500/[0.06]">{"\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : "\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40">{"\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right text-xs font-normal text-foreground/40">{(d.n_pairs ?? 0).toLocaleString()}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{d.ah_cf != null ? `${d.ah_cf}%` : fmt(d.ai_human)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
             })}
@@ -366,22 +366,22 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
         const bt = p.bt_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
-          { group: "AI vs Human", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null,
-            desc: "AI BT ranking vs h1_avg_rating ranking (same metric as summary table)" },
-          { group: "", label: "AI vs Committee", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau,
-            desc: "AI BT vs expert-majority BT" },
-          { group: "", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau,
+          { group: "AI vs Human", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null, fair: true,
+            desc: "AI BT ranking vs h1_avg_rating — no circularity (cleanest AI metric)" },
+          { group: "", label: "AI vs Committee", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false,
+            desc: "AI BT vs expert-majority BT — methodological alignment (BT vs BT) inflates" },
+          { group: "", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, fair: false,
             desc: "AI BT vs all-expert-votes BT" },
-          { group: "Human internal", label: "Single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau,
-            desc: "Each expert's BT vs committee BT (averaged)" },
-          { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau,
-            desc: "Each expert's BT vs all-votes BT (averaged)" },
-          { group: "", label: "Single expert vs LOO Committee", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null,
-            desc: "Each expert's BT vs their leave-one-out committee BT (averaged)" },
-          { group: "", label: "Single expert vs LOO Individual Aggregate", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null,
-            desc: "Each expert's BT vs LOO all-other-experts BT (each preference = 1 match)" },
-          { group: "", label: "Single expert vs LOO Avg Rating", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null,
-            desc: "Each expert's BT vs LOO h1_avg_rating (cleanest human baseline)" },
+          { group: "Human internal", label: "Single expert vs LOO Avg Rating", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null, fair: true,
+            desc: "Expert BT vs LOO h1_avg_rating — cleanest human baseline (same reference type as AI)" },
+          { group: "", label: "Single expert vs LOO Individual Agg.", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true,
+            desc: "Expert BT vs LOO all-other-experts BT — no circularity, BT vs BT" },
+          { group: "", label: "Single expert vs LOO Committee", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: true,
+            desc: "Expert BT vs LOO majority BT — no circularity, but LOO ties are skipped" },
+          { group: "", label: "Single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false,
+            desc: "Circular — expert's votes are in the committee they're tested against" },
+          { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau, fair: false,
+            desc: "Circular — expert's votes are in the aggregate" },
         ];
         let lastGroup = "";
         return (
@@ -405,11 +405,11 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
                     const showGroup = r.group && r.group !== lastGroup;
                     if (r.group) lastGroup = r.group;
                     return (
-                      <tr key={i} className={`border-b border-border/20 ${showGroup && i > 0 ? "border-t border-border" : ""}`}>
+                      <tr key={i} className={`border-b border-border/20 ${showGroup && i > 0 ? "border-t border-border" : ""} ${r.fair ? "bg-accent/5" : ""}`}>
                         <td className={`py-1.5 px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 ${showGroup ? "" : "text-transparent select-none"}`}>{r.group || lastGroup}</td>
-                        <td className="py-1.5 px-2 font-medium">{r.label}</td>
-                        <td className="py-1.5 px-2 text-right font-mono font-bold">{f(r.rho)}</td>
-                        <td className="py-1.5 px-2 text-right font-mono">{f(r.tau)}</td>
+                        <td className={`py-1.5 px-2 ${r.fair ? "font-semibold" : "text-foreground/50"}`}>{r.label}</td>
+                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "font-bold" : "font-normal text-foreground/50"}`}>{f(r.rho)}</td>
+                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "" : "font-normal text-foreground/50"}`}>{f(r.tau)}</td>
                         <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{r.desc}</td>
                       </tr>
                     );
