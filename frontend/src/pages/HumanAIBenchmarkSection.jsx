@@ -94,15 +94,15 @@ function DatasetTable({ datasets }) {
             <thead>
               <tr className="border-b border-border text-muted-foreground">
                 <th className="py-1 px-1.5 text-left font-medium">Dataset</th>
-                <th className="py-1 px-1.5 text-right font-medium">rho</th>
-                <th className="py-1 px-1.5 text-right font-medium">H-H%</th>
-                <th className="py-1 px-1.5 text-right font-medium">H-C%</th>
                 <th className="py-1 px-1.5 text-right font-medium">AI-H%</th>
+                <th className="py-1 px-1.5 text-right font-medium">H-H%</th>
                 <th className="py-1 px-1.5 text-right font-medium">AI-C%</th>
+                <th className="py-1 px-1.5 text-right font-medium">H-C% (LOO)</th>
+                <th className="py-1 px-1.5 text-right font-medium text-muted-foreground/60">H-C%</th>
+                <th className="py-1 px-1.5 text-right font-medium">rho</th>
                 <th className="py-1 px-1.5 text-right font-medium">BT rho</th>
                 <th className="py-1 px-1.5 text-right font-medium">Pairs</th>
                 <th className="py-1 px-1.5 text-right font-medium">Experts</th>
-                <th className="py-1 px-1.5 text-right font-medium">AI Mode</th>
               </tr>
             </thead>
             <tbody>
@@ -112,17 +112,15 @@ function DatasetTable({ datasets }) {
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-1.5 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "—"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{pw.human_human?.rate ?? "—"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{pw.human_committee?.rate ?? "—"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono">{pw.ai_human?.rate ?? "—"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono">{pw.human_human?.rate ?? "—"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono">{pw.ai_committee?.rate ?? "—"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono font-semibold">{pw.human_committee_loo?.rate ?? "—"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono text-muted-foreground/60">{pw.human_committee?.rate ?? "—"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "—"}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{bt.spearman_rho?.toFixed(2) ?? "—"}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{d.controlled_pairs}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{d.n_experts}</td>
-                    <td className="py-1 px-1.5 text-right font-mono text-muted-foreground">{
-                      (d.ai_mode || "extract").replace("abstract_plus_summary:", "a+s:").replace("abstract_plus_summary", "a+s (4.5)")
-                    }</td>
                   </tr>
                 );
               })}
@@ -166,16 +164,16 @@ export default function HumanAIBenchmarkSection() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="Datasets" value={data.n_datasets} sub={`${data.total_controlled_pairs.toLocaleString()} pairs`} />
-        </div>
-        <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="Inter-rater rho" value={p.inter_rater_rho?.toFixed(2) ?? "—"} sub={`NeurIPS ref: ${ref.inter_rater_rho}`} />
-        </div>
-        <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label="H-H Pairwise" value={`${pw.human_human.rate}%`} sub={`kappa = ${pw.human_human.kappa}`} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
+          <Metric label="H-Comm (LOO)" value={`${pw.human_committee_loo?.rate ?? "—"}%`} sub={`kappa = ${pw.human_committee_loo?.kappa ?? "—"}`} />
+        </div>
+        <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label="AI-H Pairwise" value={`${pw.ai_human.rate}%`} sub={`kappa = ${pw.ai_human.kappa}`} accent />
+        </div>
+        <div className="border border-border rounded-lg p-3 bg-background">
+          <Metric label="AI-Committee" value={`${pw.ai_committee.rate}%`} sub={`kappa = ${pw.ai_committee.kappa}`} accent />
         </div>
       </div>
 
