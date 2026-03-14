@@ -194,69 +194,45 @@ function ReliabilityTables({ p, pw }) {
       </div>
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-2">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>Human-Human:</strong> For each pair of reviewers sharing 5+ papers, we count concordance on non-tie paper pairs.{" "}
-          <strong>AI-Human:</strong> For each expert, we count how often AI agrees with their preference (averaged per expert, not pooled).{" "}
-          Both exclude tie pairs where a reviewer gave both papers the same score.
-        </p>
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
           <strong>Concordance vs agreement:</strong>{" "}
-          The pairwise agreement rates in the table above (Human-Human {pw?.human_human?.rate}%, AI-Human {pw?.ai_human?.rate}%) are <em>pooled</em> —
-          every expert-vs-expert comparison counts equally, so prolific reviewer pairs with many shared papers dominate.
-          Concordance here ({(hhConc * 100).toFixed(1)}% and {(ahConc * 100).toFixed(1)}%) is <em>averaged per unit</em>:
-          each reviewer pair (or each expert, for AI-Human) gets equal weight regardless of volume.
-          The {((pw?.human_human?.rate ?? 0) - (hhConc ?? 0) * 100).toFixed(1)}pp gap for Human-Human
-          ({pw?.human_human?.rate}% pooled vs {(hhConc * 100).toFixed(1)}% averaged) indicates that high-volume reviewer pairs tend to agree more —
-          likely because they share papers from the same conference track where quality differences are clearer.
-          For AI-Human, the gap is negligible ({pw?.ai_human?.rate}% vs {(ahConc * 100).toFixed(1)}%),
-          showing that <strong>AI agreement is consistent across experts</strong> regardless of how many papers each reviewed.
+          Unlike the pooled pairwise agreement rates above ({pw?.human_human?.rate}% Human-Human, {pw?.ai_human?.rate}% AI-Human),
+          where prolific reviewer pairs dominate, concordance here ({(hhConc * 100).toFixed(1)}% and {(ahConc * 100).toFixed(1)}%)
+          is averaged per unit — each reviewer pair or expert gets equal weight regardless of volume.
+          The {((pw?.human_human?.rate ?? 0) - (hhConc ?? 0) * 100).toFixed(1)}pp Human-Human gap
+          ({pw?.human_human?.rate}% pooled vs {(hhConc * 100).toFixed(1)}% averaged) suggests high-volume reviewer pairs agree more,
+          likely from shared conference tracks with clearer quality differences.
+          For AI-Human the gap is negligible ({pw?.ai_human?.rate}% vs {(ahConc * 100).toFixed(1)}%):
+          <strong>AI agreement is consistent across experts</strong> regardless of volume.
         </p>
-        {hhConc != null && ahConc != null && (
+        {hhConc != null && ahConc != null && ts.tie_fraction != null && (
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             <strong>Interpretation:</strong>{" "}
-            AI-Human concordance ({(ahConc * 100).toFixed(1)}%) slightly <strong>exceeds</strong> Human-Human concordance ({(hhConc * 100).toFixed(1)}%).
-            On the non-tie pairs where human experts have clear preferences, AI agrees with each individual expert more often than
-            two experts agree with each other. This is not because AI is "better" than humans — it likely reflects that AI judges,
-            by cycling through three models in round-robin (GPT-5.2, Opus, Gemini), produce a smoothed signal that aligns well with any single expert's view,
-            much like a committee tends to agree with each member more than members agree with each other.
+            AI-Human concordance ({(ahConc * 100).toFixed(1)}%) slightly <strong>exceeds</strong> Human-Human ({(hhConc * 100).toFixed(1)}%).
+            This likely reflects the AI round-robin (GPT-5.2, Opus, Gemini) producing a smoothed signal that aligns well with any single expert,
+            much like a committee agrees with each member more than members agree with each other.
+            Meanwhile, the {(ts.tie_fraction * 100).toFixed(0)}% tie fraction shows that human reviewers often cannot distinguish quality between papers —
+            a fundamental limit of peer review. AI, which always produces a verdict, provides signal on the pairs humans
+            cannot resolve, making it a <strong>strictly more complete</strong> source for ranking.
           </p>
         )}
-        {ts.tie_fraction != null && (
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            The {(ts.tie_fraction * 100).toFixed(0)}% tie fraction means that in nearly half of all reviewer paper-pair comparisons,
-            the human expert cannot distinguish quality between the two papers. These are not failures of judgment — they reflect a genuine
-            limit of how much information a reviewer can extract from a single reading.
-            AI judges, which are forced to always produce a verdict, effectively operate in this "indistinguishable" zone where humans abstain.
-            The fact that AI still agrees with humans at {(ahConc * 100).toFixed(1)}% on the decisive subset — while also providing verdicts on
-            the 42% of pairs humans cannot resolve — makes AI a <strong>strictly more complete</strong> signal source for paper ranking.
-          </p>
-        )}
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>Derived rho</strong> converts the raw concordance rate into a correlation coefficient
-          using the Kruskal (1958) identity for bivariate normals: rho = sin(pi x (concordance - 0.5)).
-          A concordance of 50% (chance) maps to rho = 0; perfect concordance maps to rho = 1.
-          This rho is interpretable as the signal-to-noise ratio of reviewer scores: it captures what fraction of the
-          variance in a reviewer's scores reflects true paper quality versus idiosyncratic noise.
-        </p>
         {p.theoretical_ceiling != null && p.inter_rater_rho != null && (
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            <strong>Thurstonian ceiling</strong> ({p.theoretical_ceiling}%) translates rho into a practical upper bound on pairwise agreement.
-            Given rho = {p.inter_rater_rho.toFixed(2)}, the Thurstonian model estimates that even two perfectly calibrated reviewers
-            drawing from the same noise distribution would agree on at most {p.theoretical_ceiling}% of paper pairs — because on close-quality
-            pairs, reviewer noise dominates and their orderings diverge by chance. This ceiling contextualizes the observed agreement rates:
-            any system (human or AI) approaching {p.theoretical_ceiling}% is extracting nearly all the recoverable signal from the data.
+            <strong>Derived rho and Thurstonian ceiling:</strong>{" "}
+            Concordance is converted to a correlation via the Kruskal (1958) identity: rho = sin(pi x (concordance - 0.5)),
+            interpretable as the signal-to-noise ratio of reviewer scores.
+            The Thurstonian model then translates rho into a ceiling — the maximum pairwise agreement achievable given inter-rater noise.
+            At rho = {p.inter_rater_rho.toFixed(2)}, even perfectly calibrated reviewers would agree on at most {p.theoretical_ceiling}% of pairs;
+            any system approaching this is extracting nearly all recoverable signal.
           </p>
         )}
         {p.inter_rater_rho != null && p.ai_h_rho != null && p.ai_h_rho > p.inter_rater_rho && (
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             <strong>AI-Human rho ({p.ai_h_rho.toFixed(2)}) exceeds Human-Human rho ({p.inter_rater_rho.toFixed(2)}):</strong>{" "}
-            Since concordance is already equal-weighted per reviewer pair, this gap is not a volume artifact — it means
-            each AI pairwise comparison carries a <em>higher signal-to-noise ratio</em> than a typical human-human comparison.
-            In a Bradley-Terry tournament, higher SNR per match means faster convergence to the true ranking.
-            Concretely: an AI tournament needs fewer matches to achieve the same ranking quality as a human tournament,
-            or equivalently, with the same number of matches, AI produces a <strong>more accurate ranking</strong>.
-            This is likely because the AI round-robin (3 models taking turns) acts as a built-in noise-reduction mechanism:
-            each model brings different strengths, and their combined signal across matches is more stable than any single rater —
-            analogous to averaging multiple human reviewers, but at the cost of a single automated call per match.
+            Each AI comparison carries higher SNR than a typical human-human comparison.
+            In a Bradley-Terry tournament this means faster convergence: an AI tournament needs fewer matches to reach the same ranking quality,
+            or produces a <strong>more accurate ranking</strong> with the same number of matches.
+            The AI round-robin acts as built-in noise reduction — each model brings different strengths, making the combined signal
+            more stable than any single rater.
           </p>
         )}
       </div>
