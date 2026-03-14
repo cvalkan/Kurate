@@ -62,32 +62,32 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact }) {
               </tr>
             )}
             <tr className="border-b border-border/40">
-              <td className="py-1.5 px-2 text-left text-xs text-muted-foreground">Pooled (ties excluded)</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60"></td>
-              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{kfmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{totalPairs?.toLocaleString()}</td>
+              <td className="py-1.5 px-2 text-left text-xs text-foreground/60">Pooled (ties excluded)</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60"></td>
+              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60">{kfmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60">{totalPairs?.toLocaleString()}</td>
             </tr>
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
               return (
                 <tr key={key} className="border-b border-border/20">
-                  <td className="py-1.5 px-2 text-left">
-                    <span className="font-medium text-muted-foreground">{label}</span>
-                    <span className="text-muted-foreground/50 ml-1 text-[9px]">{desc}</span>
+                  <td className="py-1.5 px-2 text-left text-xs">
+                    <span className="text-foreground/60">{label}</span>
+                    <span className="text-foreground/40 ml-1 text-[9px]">{desc}</span>
                   </td>
-                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-sky-500/[0.06]">{d.ah_cf != null ? `${d.ah_cf}%` : fmt(d.ai_human)}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-muted-foreground/60 bg-amber-500/[0.06]">{fmt(d.human_committee)}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/40">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : ""}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/40"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{d.ah_cf != null ? `${d.ah_cf}%` : fmt(d.ai_human)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(d.human_committee)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : ""}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60"></td>
+                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
             })}
@@ -337,7 +337,7 @@ export default function HumanAIBenchmarkSection() {
       {/* Header metrics */}
       <div className="text-[10px] text-muted-foreground mb-1 flex items-center justify-between flex-wrap gap-1">
         <span>AI judges use <strong>Opus 4.6 Thinking</strong> summaries (abstract + AI impact assessment). Majority vote across GPT-5.2, Claude Opus, Gemini 3 Pro.</span>
-        <span className="font-mono text-muted-foreground/80"><strong>{data.total_controlled_pairs?.toLocaleString()}</strong> total pairs evaluated</span>
+        <span className="font-mono text-muted-foreground/80"><strong>{data.total_controlled_pairs?.toLocaleString()}</strong> pairs across <strong>{data.total_papers?.toLocaleString()}</strong> papers ({data.avg_matches_per_paper} matches/paper avg)</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">

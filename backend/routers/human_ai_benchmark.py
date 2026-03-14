@@ -790,6 +790,7 @@ async def _compute_benchmark():
         "concordance_rates": [],
         "ceilings": [],
         "total_pairs": 0,
+        "total_papers": 0,
         "tie_concordant": 0, "tie_discordant": 0, "tie_excluded": 0,
         # Tie impact accumulators
         "ti_hh_tie_one": 0, "ti_hh_tie_both": 0,
@@ -820,6 +821,7 @@ async def _compute_benchmark():
             pooled[pool_key][1] += pw[key]["total"]
 
         pooled["total_pairs"] += result["controlled_pairs"]
+        pooled["total_papers"] += result["n_papers"]
 
         if result.get("inter_rater_rho") is not None:
             pooled["inter_rater_rhos"].append(result["inter_rater_rho"])
@@ -999,6 +1001,8 @@ async def _compute_benchmark():
         "status": "ok",
         "n_datasets": len(per_dataset),
         "total_controlled_pairs": pooled["total_pairs"],
+        "total_papers": pooled["total_papers"],
+        "avg_matches_per_paper": round(2 * pooled["total_pairs"] / max(pooled["total_papers"], 1), 1),
         "pooled": {
             "inter_rater_rho": safe_round(float(np.mean(pooled["inter_rater_rhos"]))) if pooled["inter_rater_rhos"] else None,
             "ai_h_concordance": safe_round(ai_h_conc_avg) if ai_h_conc_avg else None,

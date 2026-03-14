@@ -612,6 +612,7 @@ async def _compute_si_benchmark():
         "inter_rater_rhos": [], "ai_h_concordances": [], "concordance_rates": [], "ceilings": [],
         "bt_comm_rhos": [], "bt_indiv_rhos": [], "bt_evc_rhos": [], "bt_evi_rhos": [],
         "total_pairs": 0,
+        "total_papers": 0,
         "tie_concordant": 0, "tie_discordant": 0, "tie_excluded": 0,
         "ti_hh_tie_one": 0, "ti_hh_tie_both": 0, "ti_ah_tie": 0, "ti_hc_loo_tie": 0,
         "ai_tie_total": 0, "ai_pair_total": 0,
@@ -636,6 +637,7 @@ async def _compute_si_benchmark():
             pooled[pool_key][1] += pw[key]["total"]
 
         pooled["total_pairs"] += result["controlled_pairs"]
+        pooled["total_papers"] += result["n_papers"]
         if result.get("inter_rater_rho") is not None:
             pooled["inter_rater_rhos"].append(result["inter_rater_rho"])
         if result.get("ai_h_concordance") is not None:
@@ -771,6 +773,8 @@ async def _compute_si_benchmark():
         "status": "ok",
         "n_datasets": len(per_dataset),
         "total_controlled_pairs": pooled["total_pairs"],
+        "total_papers": pooled["total_papers"],
+        "avg_matches_per_paper": round(2 * pooled["total_pairs"] / max(pooled["total_papers"], 1), 1),
         "pooled": {
             "inter_rater_rho": _avg(pooled["inter_rater_rhos"]),
             "ai_h_concordance": safe_round(ai_h_conc_avg) if ai_h_conc_avg else None,
