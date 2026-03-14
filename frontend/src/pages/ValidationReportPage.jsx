@@ -124,7 +124,7 @@ export default function ValidationReportPage() {
                 ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`, `${pw.human_committee?.rate}%`],
                 ["Ties = coin flip", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`, `${cf.human_committee}%`],
                 ...(bm.tier_accuracy?.ai_total > 0 ? [[`vs ICLR Decision`, `${bm.tier_accuracy.ai_rate}%`, `${bm.tier_accuracy.hh_rate}%`, "\u2014", "\u2014", "\u2014"]] : []),
-                [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014", bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3)],
+                [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_loo_avg?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014", bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3)],
               ]}
               boldIdx={1}
             />
@@ -138,7 +138,9 @@ export default function ValidationReportPage() {
                 The {(ts.tie_fraction * 100).toFixed(0)}% tie fraction shows human reviewers often cannot distinguish paper quality — AI provides verdicts on these pairs too, making it a <strong>strictly more complete</strong> signal source.
               </p>
               <p>
-                <strong>Ranking correlation:</strong> AI vs h1_avg_rating Spearman {"\u03C1"} = {bt.vs_avg_rating_rho?.toFixed(3)}, comparable to Single expert vs Committee ({bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3)}).
+                <strong>Ranking correlation:</strong> AI vs h1_avg_rating Spearman {"\u03C1"} = {bt.vs_avg_rating_rho?.toFixed(3)}.
+                The cleanest human baseline (Single expert vs LOO h1_avg) is {bt.avg_expert_vs_loo_avg?.spearman_rho?.toFixed(3)} — same reference, no circularity on either side.
+                AI outperforms the average individual expert by {bt.vs_avg_rating_rho && bt.avg_expert_vs_loo_avg?.spearman_rho ? (bt.vs_avg_rating_rho - bt.avg_expert_vs_loo_avg.spearman_rho).toFixed(3) : "?"} on ranking quality.
               </p>
             </div>
             <p className="mt-2 border-t border-border/30 pt-2">

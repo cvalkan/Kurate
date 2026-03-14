@@ -405,6 +405,8 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             desc: "Each expert's BT vs all-votes BT (averaged)" },
           { group: "", label: "Single expert vs LOO Committee", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null,
             desc: "Each expert's BT vs their leave-one-out committee BT (averaged)" },
+          { group: "", label: "Single expert vs LOO Avg Rating", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null,
+            desc: "Each expert's BT vs LOO h1_avg_rating (cleanest human baseline)" },
         ];
         let lastGroup = "";
         return (
