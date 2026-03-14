@@ -390,6 +390,8 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             desc: "Each expert's BT vs committee BT (averaged)" },
           { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau,
             desc: "Each expert's BT vs all-votes BT (averaged)" },
+          { group: "", label: "Single expert vs LOO Committee", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null,
+            desc: "Each expert's BT vs their leave-one-out committee BT (averaged)" },
         ];
         let lastGroup = "";
         return (

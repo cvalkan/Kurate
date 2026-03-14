@@ -674,6 +674,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     expert_vs_ai_taus = []
     expert_vs_indiv_rhos = []
     expert_vs_indiv_taus = []
+    expert_vs_loo_rhos = []
 
     # Pre-compute reference leaderboards once
     comm_rank = {}
@@ -716,12 +717,35 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
             if not np.isnan(kt):
                 tau_list.append(float(kt))
 
+        # LOO committee for this expert: build BT from all OTHER experts' preferences
+        loo_matches = []
+        for pair in controlled_pairs:
+            prefs = expert_pair_prefs.get(pair, {})
+            others = {e: w for e, w in prefs.items() if e != exp}
+            if len(others) < 2:
+                continue
+            c = Counter(others.values())
+            best, n = c.most_common(1)[0]
+            if n > len(others) / 2:
+                loo_matches.append({
+                    "paper1_id": pair[0], "paper2_id": pair[1],
+                    "winner_id": best, "completed": True, "failed": False,
+                })
+        if len(loo_matches) >= 10:
+            loo_rank = {e["id"]: e["rank"] for e in compute_leaderboard(all_ai_papers, loo_matches)}
+            shared = sorted(set(exp_rank.keys()) & set(loo_rank.keys()))
+            if len(shared) >= 5:
+                sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [loo_rank[p] for p in shared])
+                if not np.isnan(sp):
+                    expert_vs_loo_rhos.append(float(sp))
+
     avg_expert_vs_comm_rho = float(np.mean(expert_vs_comm_rhos)) if expert_vs_comm_rhos else None
     avg_expert_vs_comm_tau = float(np.mean(expert_vs_comm_taus)) if expert_vs_comm_taus else None
     avg_expert_vs_ai_rho = float(np.mean(expert_vs_ai_rhos)) if expert_vs_ai_rhos else None
     avg_expert_vs_ai_tau = float(np.mean(expert_vs_ai_taus)) if expert_vs_ai_taus else None
     avg_expert_vs_indiv_rho = float(np.mean(expert_vs_indiv_rhos)) if expert_vs_indiv_rhos else None
     avg_expert_vs_indiv_tau = float(np.mean(expert_vs_indiv_taus)) if expert_vs_indiv_taus else None
+    avg_expert_vs_loo_rho = float(np.mean(expert_vs_loo_rhos)) if expert_vs_loo_rhos else None
 
     # --- Layer 6: Cohen's kappa ---
     hh_kappa = _cohens_kappa(hh_agree, hh_total)
@@ -830,6 +854,9 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
             "avg_expert_vs_indiv": {
                 "spearman_rho": safe_round(avg_expert_vs_indiv_rho) if avg_expert_vs_indiv_rho else None,
                 "kendall_tau": safe_round(avg_expert_vs_indiv_tau) if avg_expert_vs_indiv_tau else None,
+            },
+            "avg_expert_vs_loo": {
+                "spearman_rho": safe_round(avg_expert_vs_loo_rho) if avg_expert_vs_loo_rho else None,
             },
             "n_papers": len(ctrl_paper_ids),
             "vs_avg_rating_rho": safe_round(bt_vs_avg_rho) if bt_vs_avg_rho else None,
@@ -963,6 +990,9 @@ async def _compute_benchmark(gt_type: str = "comp"):
                 pooled[dst_t].append(sub["kendall_tau"])
         if bt.get("vs_avg_rating_rho") is not None:
             pooled["bt_avg_rating_rhos"].append(bt["vs_avg_rating_rho"])
+        loo_sub = bt.get("avg_expert_vs_loo", {})
+        if loo_sub.get("spearman_rho") is not None:
+            pooled.setdefault("bt_loo_rhos", []).append(loo_sub["spearman_rho"])
         tv = result.get("tie_validation", {})
         pooled.setdefault("tv_ai_agree", 0)
         pooled.setdefault("tv_ai_total", 0)
@@ -1164,6 +1194,9 @@ async def _compute_benchmark(gt_type: str = "comp"):
                 "avg_expert_vs_indiv": {
                     "spearman_rho": safe_round(float(np.mean(pooled["bt_evi_rhos"]))) if pooled["bt_evi_rhos"] else None,
                     "kendall_tau": safe_round(float(np.mean(pooled["bt_evi_taus"]))) if pooled["bt_evi_taus"] else None,
+                },
+                "avg_expert_vs_loo": {
+                    "spearman_rho": safe_round(float(np.mean(pooled["bt_loo_rhos"]))) if pooled.get("bt_loo_rhos") else None,
                 },
                 "vs_avg_rating_rho": safe_round(float(np.mean(pooled["bt_avg_rating_rhos"]))) if pooled["bt_avg_rating_rhos"] else None,
             },
