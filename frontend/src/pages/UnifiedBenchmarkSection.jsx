@@ -21,18 +21,18 @@ function ComparisonTable({ data }) {
     { key: "medium", label: "Adjacent-tier (medium)" },
     { key: "hard", label: "Within-tier (hard)" },
   ];
-  const pwWins = p.pw_accuracy >= p.si_accuracy;
+  const pwWins = (p.intersection?.pw_accuracy || 0) >= (p.intersection?.si_accuracy || 0);
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
         <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold">PW vs SI — Each Method on Its Full Data</span>
+        <span className="text-xs font-semibold">PW vs SI — Accuracy on Same Pairs, Ranking on Full Data</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: "25%" }} />
-            <col /><col /><col /><col /><col /><col />
+            <col /><col /><col /><col /><col />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
@@ -41,34 +41,20 @@ function ComparisonTable({ data }) {
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Accuracy</th>
               <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Spearman {"\u03C1"}</th>
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Spearman {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium text-foreground/50">PW pairs</th>
-              <th className="py-1.5 px-2 text-right font-medium text-foreground/50">SI pairs</th>
+              <th className="py-1.5 px-2 text-right font-medium text-foreground/50">pairs</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-border bg-accent/5">
-              <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled</td>
-              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{p.pw_accuracy}%</td>
-              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{p.si_accuracy}%</td>
-              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
-              <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{p.pw_pairs?.toLocaleString()}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{p.si_pairs?.toLocaleString()}</td>
-            </tr>
-            {p.intersection && p.intersection.pairs > 0 && (() => {
-              const intr = p.intersection;
-              const iPwB = (intr.pw_accuracy || 0) >= (intr.si_accuracy || 0);
-              return (
-                <tr className="border-b border-border/40">
-                  <td className="py-1.5 px-2 text-left text-xs text-foreground/50 italic">Same pairs only</td>
-                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-violet-500/[0.06] ${iPwB ? "font-semibold" : ""}`}>{intr.pw_accuracy}%</td>
-                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-emerald-500/[0.06] ${!iPwB ? "font-semibold" : ""}`}>{intr.si_accuracy}%</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-violet-500/[0.06]"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-emerald-500/[0.06]"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40" colSpan={2}>{intr.pairs?.toLocaleString()} shared</td>
-                </tr>
-              );
-            })()}
+            {p.intersection && (
+              <tr className="border-b border-border bg-accent/5">
+                <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled (same pairs)</td>
+                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{p.intersection.pw_accuracy}%</td>
+                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{p.intersection.si_accuracy}%</td>
+                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
+                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{p.intersection.pairs?.toLocaleString()}</td>
+              </tr>
+            )}
             {levels.map(({ key, label }) => {
               const d = p.by_difficulty?.[key] || {};
               const pwB = (d.pw_rate || 0) >= (d.si_rate || 0);
@@ -79,8 +65,7 @@ function ComparisonTable({ data }) {
                   <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06] ${!pwB ? "font-semibold" : ""}`}>{d.si_rate != null ? `${d.si_rate}%` : "\u2014"}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06]"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{d.pw_pairs?.toLocaleString()}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{d.si_pairs?.toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{(d.pw_pairs ?? d.si_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
             })}
@@ -89,19 +74,17 @@ function ComparisonTable({ data }) {
       </div>
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-2">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>PW</strong> = pairwise AI judges (round-robin GPT-5.2, Opus, Gemini) — evaluated on all actual match verdicts.{" "}
-          <strong>SI</strong> = single-item AI scoring (Opus 4.6 Thinking, 1-10) — evaluated on all C(n,2) paper pairs with distinct scores.{" "}
-          Both compared against the same ground truth: <strong>h1_avg_rating</strong> (averaged human reviewer scores).{" "}
-          Pair counts differ because each method is evaluated on the data it naturally produces — PW on its match verdicts, SI on its score-derived pairs.{" "}
-          Spearman {"\u03C1"} = AI ranking vs h1_avg_rating ranking.
+          <strong>PW</strong> = pairwise AI judges (round-robin GPT-5.2, Opus, Gemini).{" "}
+          <strong>SI</strong> = single-item AI scoring (Opus 4.6 Thinking, 1-10).{" "}
+          <strong>Accuracy</strong> is on the <strong>same {p.intersection?.pairs?.toLocaleString()} pairs</strong> where both methods have verdicts — ensuring a fair per-pair comparison.{" "}
+          <strong>Spearman {"\u03C1"}</strong> uses each method's full data (PW: {p.pw_pairs?.toLocaleString()} matches, SI: {p.si_pairs?.toLocaleString()} pairs)
+          because ranking quality depends on each method's total output.{" "}
+          Both compared against <strong>h1_avg_rating</strong> (averaged human reviewer scores).
         </p>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>Why different pair sets is the right comparison:</strong>{" "}
-          In practice, you choose one method and deploy it. PW requires running O(n) matches; SI requires scoring each paper once.
-          The question is not "on the same pairs, which is more accurate?" but rather "given the data each method generates,
-          which produces a better ranking?" This full-data comparison answers that practical question directly.
-          The <em>Same pairs only</em> row shows accuracy on the intersection (pairs where both methods have verdicts) —
-          the gap is smaller there because SI's full pair set includes more close-quality pairs that are harder to judge.
+          <strong>Why split the metrics:</strong>{" "}
+          Accuracy on different pair sets is confounded by difficulty — SI's C(n,2) pairs include more close-quality papers that are harder to judge.
+          On the same pairs, the comparison is controlled. Ranking {"\u03C1"} is holistic — in practice, you deploy one method and use all its data to rank papers.
         </p>
         {p.pw_rho != null && p.si_rho != null && (
           <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -202,10 +185,10 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="PW Accuracy" value={`${p.pw_accuracy}%`} sub={`${p.pw_pairs?.toLocaleString()} match verdicts`} accent={p.pw_accuracy >= p.si_accuracy} />
+          <Metric label="PW Accuracy" value={`${p.intersection?.pw_accuracy ?? p.pw_accuracy}%`} sub={`${p.intersection?.pairs?.toLocaleString()} same pairs`} accent={(p.intersection?.pw_accuracy || p.pw_accuracy) >= (p.intersection?.si_accuracy || p.si_accuracy)} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="SI Accuracy" value={`${p.si_accuracy}%`} sub={`${p.si_pairs?.toLocaleString()} score-derived pairs`} accent={p.si_accuracy > p.pw_accuracy} />
+          <Metric label="SI Accuracy" value={`${p.intersection?.si_accuracy ?? p.si_accuracy}%`} sub={`${p.intersection?.pairs?.toLocaleString()} same pairs`} accent={(p.intersection?.si_accuracy || p.si_accuracy) > (p.intersection?.pw_accuracy || p.pw_accuracy)} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label={`PW Spearman \u03C1`} value={p.pw_rho?.toFixed(3) ?? "\u2014"} sub="BT ranking vs h1_avg" accent={(p.pw_rho || 0) >= (p.si_rho || 0)} />
