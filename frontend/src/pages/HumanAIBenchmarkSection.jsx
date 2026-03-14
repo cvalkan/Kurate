@@ -128,7 +128,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
         </table>
       </div>
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1">
-        <div className="text-[9px] text-muted-foreground leading-relaxed space-y-0.5">
+        <div className="text-[10px] text-muted-foreground leading-relaxed space-y-0.5">
           <p><sup>1</sup> Individual-level pairwise agreement: AI judge (or expert) vs. individual expert preference.</p>
           <p><sup>2</sup> <strong>Majority</strong> = virtual majority vote from reviewer score-derived pairwise preferences (our construction). Human vs. Majority uses LOO: expert excluded from the majority they are tested against.</p>
           <p><sup>3</sup> When LOO voters split evenly, the pair is skipped — a selection bias toward pairs where remaining experts agree. More common than in non-LOO (fewer voters).</p>
