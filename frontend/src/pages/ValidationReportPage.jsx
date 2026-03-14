@@ -145,7 +145,7 @@ export default function ValidationReportPage() {
               </p>
               <p>
                 <strong>Ranking correlation (fairest comparison):</strong> AI vs Individual aggregate Spearman {"\u03C1"} = {bt.individual?.spearman_rho?.toFixed(3)} vs
-                Single expert vs LOO Individual aggregate = {bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3)}.
+                Single expert vs Individual aggregate (LOO) = {bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3)}.
                 Same methodology (BT vs BT), no circularity on either side.
                 AI outperforms the average individual expert by {bt.individual?.spearman_rho && bt.avg_expert_vs_loo_indiv?.spearman_rho ? (bt.individual.spearman_rho - bt.avg_expert_vs_loo_indiv.spearman_rho).toFixed(3) : "?"} on ranking quality.
               </p>

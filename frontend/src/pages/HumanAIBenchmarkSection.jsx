@@ -14,7 +14,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, tierAccuracy, tieStats }) {
+function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, tierAccuracy, tieStats, concordance }) {
   const fmt = (v) => v?.rate != null ? `${v.rate}%` : "\u2014";
   const kfmt = (v) => v?.kappa != null ? v.kappa.toFixed(2) : "\u2014";
   const levels = [
@@ -76,6 +76,20 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{kfmt(pw.ai_human)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{totalPairs?.toLocaleString()}</td>
             </tr>
+            {concordance && (
+              <tr className="border-b border-border/40">
+                <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">Concordance (per reviewer)</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.ai_h != null ? `${(concordance.ai_h * 100).toFixed(1)}%` : "\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.hh != null ? `${(concordance.hh * 100).toFixed(1)}%` : "\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+              </tr>
+            )}
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
               return (
@@ -359,7 +373,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
       </div>
 
       {/* 1. Merged agreement + difficulty + tie impact table */}
-      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} />
+      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance }} />
 
       {/* 2. Ranking Correlation (Bradley-Terry) */}
       {(() => {
@@ -372,11 +386,11 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             desc: "AI BT vs h1_avg_rating — clean but cross-methodology (BT vs scores)" },
           { group: "", label: "AI vs Committee", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false,
             desc: "AI BT vs expert-majority BT — majority collapsing differs from individual aggregate" },
-          { group: "Human internal", label: "Single expert vs LOO Individual Agg.", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true,
+          { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true,
             desc: "Expert BT vs LOO all-other-experts BT — fairest human baseline (same methodology as AI)" },
-          { group: "", label: "Single expert vs LOO Avg Rating", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null, fair: false,
+          { group: "", label: "Single expert vs Avg Rating (LOO)", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null, fair: false,
             desc: "Expert BT vs LOO h1_avg_rating — clean but cross-methodology (BT vs scores)" },
-          { group: "", label: "Single expert vs LOO Committee", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false,
+          { group: "", label: "Single expert vs Committee (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false,
             desc: "Expert BT vs LOO majority BT — LOO ties skipped, majority collapsing" },
           { group: "", label: "Single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false,
             desc: "Circular — expert's votes are in the committee they're tested against" },
