@@ -56,9 +56,9 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, pooled }) {
                 <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs font-bold text-muted-foreground bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee != null ? `${tieImpact.coin_flip.human_committee}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-[10px] text-muted-foreground">{tieImpact.coin_flip.total_pairs?.toLocaleString()}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.total_pairs?.toLocaleString()}</td>
               </tr>
             )}
             <tr className="border-b border-border/40">
@@ -68,9 +68,9 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, pooled }) {
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60"></td>
-              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60">{kfmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60">{totalPairs?.toLocaleString()}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60"></td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{kfmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{totalPairs?.toLocaleString()}</td>
             </tr>
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
@@ -85,9 +85,9 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, pooled }) {
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(d.human_committee)}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : ""}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-[10px] text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : ""}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60"></td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
             })}
