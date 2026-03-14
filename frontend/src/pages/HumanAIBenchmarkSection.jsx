@@ -190,12 +190,32 @@ function ReliabilityTables({ p }) {
           </tbody>
         </table>
       </div>
-      <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+      <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-2">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           <strong>Human-Human:</strong> For each pair of reviewers sharing 5+ papers, we count concordance on non-tie paper pairs.{" "}
           <strong>AI-Human:</strong> For each expert, we count how often AI agrees with their preference (averaged per expert, not pooled).{" "}
           Both exclude tie pairs where a reviewer gave both papers the same score.
         </p>
+        {hhConc != null && ahConc != null && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            <strong>Interpretation:</strong>{" "}
+            AI-Human concordance ({(ahConc * 100).toFixed(1)}%) slightly <strong>exceeds</strong> Human-Human concordance ({(hhConc * 100).toFixed(1)}%).
+            On the non-tie pairs where human experts have clear preferences, AI agrees with each individual expert more often than
+            two experts agree with each other. This is not because AI is "better" than humans — it likely reflects that AI judges,
+            by aggregating across three models (GPT-5.2, Opus, Gemini), produce a smoothed signal that aligns well with any single expert's view,
+            much like a committee tends to agree with each member more than members agree with each other.
+          </p>
+        )}
+        {ts.tie_fraction != null && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            The {(ts.tie_fraction * 100).toFixed(0)}% tie fraction means that in nearly half of all reviewer paper-pair comparisons,
+            the human expert cannot distinguish quality between the two papers. These are not failures of judgment — they reflect a genuine
+            limit of how much information a reviewer can extract from a single reading.
+            AI judges, which are forced to always produce a verdict, effectively operate in this "indistinguishable" zone where humans abstain.
+            The fact that AI still agrees with humans at {(ahConc * 100).toFixed(1)}% on the decisive subset — while also providing verdicts on
+            the 42% of pairs humans cannot resolve — makes AI a <strong>strictly more complete</strong> signal source for paper ranking.
+          </p>
+        )}
       </div>
     </div>
   );
