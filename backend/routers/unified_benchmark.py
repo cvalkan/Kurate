@@ -172,9 +172,40 @@ async def _compute_unified_dataset(dataset_id, gt_type):
 
     if pw_total < 10 and si_total < 10:
         return None
-    # Skip datasets with no SI data (e.g., ICLR OT has PW but no SI scores)
     if si_total == 0:
         return None
+
+    # --- Intersection: same-pair comparison (PW majority verdict vs SI on common pairs) ---
+    pw_verdict = {}
+    pw_pair_votes = defaultdict(list)
+    for m in pw_matches_raw:
+        if m.get("winner_id"):
+            pw_pair_votes[tuple(sorted([m["paper1_id"], m["paper2_id"]]))].append(m["winner_id"])
+    for pair, votes in pw_pair_votes.items():
+        c = Counter(votes)
+        pw_verdict[pair] = c.most_common(1)[0][0]
+
+    si_verdict = {}
+    for i in range(len(si_ids)):
+        for j in range(i + 1, len(si_ids)):
+            a, b = si_ids[i], si_ids[j]
+            if si_scores[a] != si_scores[b]:
+                si_verdict[tuple(sorted([a, b]))] = a if si_scores[a] > si_scores[b] else b
+
+    common_pairs = set(pw_verdict.keys()) & set(si_verdict.keys())
+    int_pw_correct = int_si_correct = int_total = 0
+    int_gaps = []
+    for pair in common_pairs:
+        a, b = pair
+        if a not in gt or b not in gt or gt[a] == gt[b]:
+            continue
+        int_total += 1
+        human_winner = a if gt[a] > gt[b] else b
+        int_gaps.append(abs(gt[a] - gt[b]))
+        if pw_verdict[pair] == human_winner:
+            int_pw_correct += 1
+        if si_verdict[pair] == human_winner:
+            int_si_correct += 1
 
     return {
         "dataset_id": dataset_id,
@@ -194,6 +225,12 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             "n_scored": len(si_scores),
             "bt_rho": si_rho,
             "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in si_diff.items()},
+        },
+        "intersection": {
+            "pw_accuracy": _rate(int_pw_correct, int_total),
+            "si_accuracy": _rate(int_si_correct, int_total),
+            "pairs": int_total,
+            "avg_h1_gap": round(float(np.mean(int_gaps)), 2) if int_gaps else 0,
         },
     }
 
@@ -225,6 +262,7 @@ async def _compute_unified_benchmark(gt_type):
         "pw_papers": 0, "si_papers": 0,
         "pw_diff": {lvl: [0, 0, 0] for lvl in ["easy", "medium", "hard"]},
         "si_diff": {lvl: [0, 0, 0] for lvl in ["easy", "medium", "hard"]},
+        "int_pw_correct": 0, "int_si_correct": 0, "int_total": 0,
     }
 
     for ds_id in ds_ids:
@@ -240,6 +278,11 @@ async def _compute_unified_benchmark(gt_type):
         pooled["si_total"] += result["si"]["total"]
         pooled["pw_papers"] += result["n_papers"]
         pooled["si_papers"] += result["si"].get("n_scored", 0)
+
+        intr = result.get("intersection", {})
+        pooled["int_pw_correct"] += int(intr.get("pw_accuracy", 0) * intr.get("pairs", 0) / 100)
+        pooled["int_si_correct"] += int(intr.get("si_accuracy", 0) * intr.get("pairs", 0) / 100)
+        pooled["int_total"] += intr.get("pairs", 0)
 
         if result["pw"]["bt_rho"] is not None:
             pooled["pw_rhos"].append(result["pw"]["bt_rho"])
@@ -278,6 +321,11 @@ async def _compute_unified_benchmark(gt_type):
                     "si_pairs": pooled["si_diff"][lvl][2],
                 }
                 for lvl in ["easy", "medium", "hard"]
+            },
+            "intersection": {
+                "pw_accuracy": _rate(pooled["int_pw_correct"], pooled["int_total"]),
+                "si_accuracy": _rate(pooled["int_si_correct"], pooled["int_total"]),
+                "pairs": pooled["int_total"],
             },
         },
         "per_dataset": per_dataset,

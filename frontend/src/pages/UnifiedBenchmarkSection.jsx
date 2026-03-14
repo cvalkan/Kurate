@@ -55,6 +55,20 @@ function ComparisonTable({ data }) {
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{p.pw_pairs?.toLocaleString()}</td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{p.si_pairs?.toLocaleString()}</td>
             </tr>
+            {p.intersection && p.intersection.pairs > 0 && (() => {
+              const intr = p.intersection;
+              const iPwB = (intr.pw_accuracy || 0) >= (intr.si_accuracy || 0);
+              return (
+                <tr className="border-b border-border/40">
+                  <td className="py-1.5 px-2 text-left text-xs text-foreground/50 italic">Same pairs only</td>
+                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-violet-500/[0.06] ${iPwB ? "font-semibold" : ""}`}>{intr.pw_accuracy}%</td>
+                  <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-emerald-500/[0.06] ${!iPwB ? "font-semibold" : ""}`}>{intr.si_accuracy}%</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-violet-500/[0.06]"></td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50 bg-emerald-500/[0.06]"></td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40" colSpan={2}>{intr.pairs?.toLocaleString()} shared</td>
+                </tr>
+              );
+            })()}
             {levels.map(({ key, label }) => {
               const d = p.by_difficulty?.[key] || {};
               const pwB = (d.pw_rate || 0) >= (d.si_rate || 0);
@@ -86,6 +100,8 @@ function ComparisonTable({ data }) {
           In practice, you choose one method and deploy it. PW requires running O(n) matches; SI requires scoring each paper once.
           The question is not "on the same pairs, which is more accurate?" but rather "given the data each method generates,
           which produces a better ranking?" This full-data comparison answers that practical question directly.
+          The <em>Same pairs only</em> row shows accuracy on the intersection (pairs where both methods have verdicts) —
+          the gap is smaller there because SI's full pair set includes more close-quality pairs that are harder to judge.
         </p>
         {p.pw_rho != null && p.si_rho != null && (
           <p className="text-[10px] text-muted-foreground leading-relaxed">
