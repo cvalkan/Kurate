@@ -4,7 +4,7 @@ import requests
 import time
 import sys
 
-API = "https://ai-rater-compare.preview.emergentagent.com"
+API = "https://llm-judge-validation.preview.emergentagent.com"
 ADMIN_TOKEN = "adm_PwgAikZRN0yUbPwU72rgzilv_OTqJYv5pMFHYptbW98"
 HEADERS = {"Content-Type": "application/json", "X-Admin-Token": ADMIN_TOKEN}
 

@@ -911,6 +911,9 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 "hh_cf": hh_cf,
                 "ah_cf": ah_cf,
                 "hc_loo_cf": hc_loo_cf,
+                "hh_cf_n": hh_cf_total,
+                "ah_cf_n": ah_cf_total,
+                "hc_loo_cf_n": hc_loo_cf_total,
                 "hh_tie_one": hh_t1,
                 "hh_tie_both": hh_t2,
                 "ah_tie": ah_ti,
@@ -1225,6 +1228,9 @@ async def _compute_benchmark(gt_type: str = "comp"):
                 "hh_cf": hh_cf,
                 "ah_cf": ah_cf,
                 "hc_loo_cf": hc_loo_cf,
+                "hh_cf_n": hh_cf_total,
+                "ah_cf_n": ah_cf_total,
+                "hc_loo_cf_n": hc_loo_cf_total,
                 "hh_tie_rate": round((hh_t1 + hh_t2) / max(hh_t + hh_t1 + hh_t2, 1) * 100, 1),
             }
         return result
