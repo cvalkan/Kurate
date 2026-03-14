@@ -280,6 +280,7 @@ export default function HumanAIBenchmarkSection() {
 
   const p = data.pooled;
   const pw = p.pairwise;
+  const cf = p.tie_impact?.coin_flip;
 
   return (
     <div className="space-y-6" data-testid="human-ai-benchmark">
@@ -290,16 +291,16 @@ export default function HumanAIBenchmarkSection() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="H-H Pairwise" value={`${pw.human_human.rate}%`} sub={`kappa = ${pw.human_human.kappa}`} />
+          <Metric label="AI-Human Pairwise" value={`${cf?.ai_human ?? pw.ai_human.rate}%`} sub="ties = coin flip" accent />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="H-Comm (LOO)" value={`${pw.human_committee_loo?.rate ?? "\u2014"}%`} sub={`kappa = ${pw.human_committee_loo?.kappa ?? "\u2014"}`} />
+          <Metric label="Human-Human Pairwise" value={`${cf?.human_human ?? pw.human_human.rate}%`} sub="ties = coin flip" />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="AI-H Pairwise" value={`${pw.ai_human.rate}%`} sub={`kappa = ${pw.ai_human.kappa}`} accent />
+          <Metric label="AI-Committee" value={`${cf?.ai_committee ?? pw.ai_committee.rate}%`} sub="ties = coin flip" accent />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="AI-Committee" value={`${pw.ai_committee.rate}%`} sub={`kappa = ${pw.ai_committee.kappa}`} accent />
+          <Metric label="Human-Comm (LOO)" value={`${cf?.human_committee_loo ?? pw.human_committee_loo?.rate ?? "\u2014"}%`} sub="ties = coin flip" />
         </div>
       </div>
 
