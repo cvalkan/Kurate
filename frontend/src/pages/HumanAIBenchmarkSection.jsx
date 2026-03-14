@@ -58,23 +58,23 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
                 <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-rose-500/[0.06]">{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{totalPairs?.toLocaleString()}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
+                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{totalPairs?.toLocaleString()}</td>
               </tr>
             )}
             <tr className="border-b border-border/40">
-              <td className="py-1.5 px-2 text-left text-xs text-foreground/60">Pooled (ties excluded)</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60"></td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{kfmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{totalPairs?.toLocaleString()}</td>
+              <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">Pooled (ties excluded)</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-rose-500/[0.06]">{"\u2014"}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-rose-500/[0.06]">{"\u2014"}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50"></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50">{kfmt(pw.ai_human)}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50">{totalPairs?.toLocaleString()}</td>
             </tr>
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
@@ -84,15 +84,15 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                     <div className="text-foreground/60">{label}</div>
                     <div className="text-foreground/40 text-[9px] whitespace-nowrap">{desc}</div>
                   </td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{d.ah_cf != null ? `${d.ah_cf}%` : fmt(d.ai_human)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : "\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{"\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-sky-500/[0.06]">{d.ah_cf != null ? `${d.ah_cf}%` : fmt(d.ai_human)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50 bg-rose-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/50">{(d.n_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
             })}
