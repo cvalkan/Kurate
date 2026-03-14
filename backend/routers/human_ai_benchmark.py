@@ -235,13 +235,25 @@ async def _compute_dataset_benchmark(dataset_id: str):
         if n > len(votes) / 2:
             expert_majority[pair] = best
 
-    # Load AI matches (extract mode, majority across judges)
-    extract_filter = build_content_mode_filter("extract")
-    ai_raw = await db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         **extract_filter},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+    # Load AI matches — try preferred mode first, fall back
+    # Priority: abstract_plus_summary:opus46 > abstract_plus_summary > extract
+    PREFERRED_MODES = ["abstract_plus_summary:opus46", "abstract_plus_summary", "extract"]
+    ai_raw = []
+    ai_mode_used = None
+    for mode in PREFERRED_MODES:
+        mode_filter = build_content_mode_filter(mode)
+        candidates = await db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+             **mode_filter},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ).to_list(100000)
+        if len(candidates) >= 20:
+            ai_raw = candidates
+            ai_mode_used = mode
+            break
+
+    if not ai_raw:
+        return None
 
     ai_pair_votes = defaultdict(list)
     for m in ai_raw:
@@ -407,6 +419,7 @@ async def _compute_dataset_benchmark(dataset_id: str):
         "n_papers": len(papers),
         "n_experts": len(experts_with_data),
         "controlled_pairs": len(controlled_pairs),
+        "ai_mode": ai_mode_used,
         "inter_rater_rho": safe_round(rho) if rho else None,
         "n_rater_pairs": n_pairs,
         "ceiling": ceiling,

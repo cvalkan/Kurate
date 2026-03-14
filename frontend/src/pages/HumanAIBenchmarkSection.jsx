@@ -100,6 +100,7 @@ function DatasetTable({ datasets }) {
                 <th className="py-1 px-1.5 text-right font-medium">BT rho</th>
                 <th className="py-1 px-1.5 text-right font-medium">Pairs</th>
                 <th className="py-1 px-1.5 text-right font-medium">Experts</th>
+                <th className="py-1 px-1.5 text-right font-medium">AI Mode</th>
               </tr>
             </thead>
             <tbody>
@@ -117,6 +118,9 @@ function DatasetTable({ datasets }) {
                     <td className="py-1 px-1.5 text-right font-mono">{bt.spearman_rho?.toFixed(2) ?? "—"}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{d.controlled_pairs}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{d.n_experts}</td>
+                    <td className="py-1 px-1.5 text-right font-mono text-muted-foreground">{
+                      (d.ai_mode || "extract").replace("abstract_plus_summary:", "a+s:").replace("abstract_plus_summary", "a+s (4.5)")
+                    }</td>
                   </tr>
                 );
               })}
@@ -155,6 +159,9 @@ export default function HumanAIBenchmarkSection() {
   return (
     <div className="space-y-6" data-testid="human-ai-benchmark">
       {/* Header metrics */}
+      <div className="text-[10px] text-muted-foreground mb-1">
+        AI judges use <strong>Opus 4.6 Thinking</strong> summaries where available (abstract + AI impact assessment). Majority vote across GPT-5.2, Claude Opus, Gemini 3 Pro.
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label="Datasets" value={data.n_datasets} sub={`${data.total_controlled_pairs.toLocaleString()} pairs`} />
