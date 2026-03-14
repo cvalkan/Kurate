@@ -123,6 +123,7 @@ export default function ValidationReportPage() {
               rows={[
                 ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`],
                 ["Ties = coin flip", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`],
+                [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), "\u2014"],
               ]}
               boldIdx={1}
             />
