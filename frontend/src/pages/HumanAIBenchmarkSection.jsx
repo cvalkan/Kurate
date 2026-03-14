@@ -31,17 +31,18 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "20%" }} />
-            <col /><col /><col /><col /><col /><col /><col /><col />
+            <col style={{ width: "18%" }} />
+            <col /><col /><col /><col /><col /><col /><col /><col /><col />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
               <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">AI-Human</th>
               <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">Human-Human</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">AI-Comm</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">Human-Comm (LOO)</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">Human-Comm</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">AI vs Exp. Maj.</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">H vs Exp. Maj. (LOO)</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">AI vs ICLR PC</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">H vs ICLR PC</th>
               <th className="py-1.5 px-2 text-right font-medium text-[10px]">tie rate</th>
               <th className="py-1.5 px-2 text-right font-medium text-[10px]">kappa (AI-H)</th>
               <th className="py-1.5 px-2 text-right font-medium text-[10px]">paper pairs</th>
@@ -55,7 +56,8 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                 <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{tieImpact.coin_flip.human_human != null ? `${tieImpact.coin_flip.human_human}%` : "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs font-bold text-muted-foreground bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee != null ? `${tieImpact.coin_flip.human_committee}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs bg-rose-500/[0.06]">{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-muted-foreground">{totalPairs?.toLocaleString()}</td>
@@ -67,24 +69,12 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
-              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee)}</td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]"></td>
+              <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]"></td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60"></td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{kfmt(pw.ai_human)}</td>
               <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{totalPairs?.toLocaleString()}</td>
             </tr>
-            {tierAccuracy && tierAccuracy.ai_total > 0 && (
-              <tr className="border-b border-border/40">
-                <td className="py-1.5 px-2 text-left text-xs text-foreground/60">vs ICLR Decision</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{tierAccuracy.ai_rate}%</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{tierAccuracy.hh_rate}%</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]"></td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]"></td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]"></td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60"></td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60"></td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{tierAccuracy.ai_total?.toLocaleString()}</td>
-              </tr>
-            )}
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
               return (
@@ -97,7 +87,8 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-sky-500/[0.06]">{d.hh_cf != null ? `${d.hh_cf}%` : fmt(d.human_human)}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(d.ai_committee)}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? `${d.hc_loo_cf}%` : fmt(d.human_committee_loo)}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-amber-500/[0.06]">{fmt(d.human_committee)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]"></td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-rose-500/[0.06]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : ""}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
@@ -111,11 +102,10 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           <strong>AI-Human</strong> = AI (round-robin judge) vs individual expert.{" "}
           <strong>Human-Human</strong> = individual expert vs individual expert.{" "}
-          <strong>AI-Comm</strong> = AI vs expert majority committee.{" "}
-          <strong>Human-Comm (LOO)</strong> = individual expert vs leave-one-out majority (expert excluded from committee — fair independent comparison).{" "}
-          <strong>Human-Comm</strong> = individual expert vs majority (expert is part of committee — structurally inflated).{" "}
-          All computed on the exact same controlled paper pairs.
-          Difficulty rows and the coin-flip row use tie-corrected values for AI-Human, Human-Human, and Human-Comm (LOO).
+          <strong>Exp. Maj.</strong> = virtual committee from reviewer score-derived pairwise preferences (majority vote).{" "}
+          <strong>ICLR PC</strong> = actual program committee accept/reject tier decisions (cross-tier pairs only).{" "}
+          H vs ICLR PC is structurally inflated: the same reviewers influenced the decisions they are being tested against.{" "}
+          Difficulty rows and the coin-flip row use tie-corrected values for AI-Human, Human-Human, and H vs Exp. Maj. (LOO).
         </p>
         {(() => {
           const cf = tieImpact?.coin_flip;
@@ -143,7 +133,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                 while AI-Human drops less because only the human side gets the coin flip — AI keeps its real verdict.
                 Under this correction, the gap closes
                 to <strong>{cfGap} percentage points</strong> ({cf.human_human}% vs {cf.ai_human}%).
-                At the committee level, AI-Comm ({cf.ai_committee}%) matches Human-Comm LOO ({cf.human_committee_loo}%).
+                At the committee level, AI vs Exp. Maj. ({cf.ai_committee}%) matches H vs Exp. Maj. LOO ({cf.human_committee_loo}%).
                 The same correction applies to the difficulty rows.
                 Note: ties and tiers measure different things — tiers are venue decisions (oral/poster/reject),
                 ties are a reviewer giving both papers the same score. Ties are most common within the same tier.
@@ -378,10 +368,10 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
           <Metric label="Human-Human Pairwise" value={`${cf?.human_human ?? pw.human_human.rate}%`} sub="ties = coin flip" />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="AI-Committee" value={`${cf?.ai_committee ?? pw.ai_committee.rate}%`} accent />
+          <Metric label="AI vs Exp. Maj." value={`${cf?.ai_committee ?? pw.ai_committee.rate}%`} accent />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="Human-Comm (LOO)" value={`${cf?.human_committee_loo ?? pw.human_committee_loo?.rate ?? "\u2014"}%`} sub="ties = coin flip" />
+          <Metric label="H vs Exp. Maj. (LOO)" value={`${cf?.human_committee_loo ?? pw.human_committee_loo?.rate ?? "\u2014"}%`} sub="ties = coin flip" />
         </div>
       </div>
 

@@ -119,15 +119,21 @@ export default function ValidationReportPage() {
           <Section num="1" title="Can AI Match Human Reviewers?">
             <p>Pairwise concordance benchmark across {ex.benchmark?.n_datasets || "9"} comparative GT datasets ({ex.benchmark?.total_controlled_pairs?.toLocaleString()} controlled pairs, {ex.benchmark?.total_papers} papers). AI uses Opus 4.6 Thinking summaries with round-robin judges.</p>
             <DataTable
-              headers={["Metric", "AI-Human", "Human-Human", "AI-Comm", "Human-Comm (LOO)", "Human-Comm"]}
+              headers={["Metric", "AI-Human", "Human-Human", "AI vs Exp. Maj.", "H vs Exp. Maj. (LOO)", "AI vs ICLR PC", "H vs ICLR PC"]}
               rows={[
-                ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`, `${pw.human_committee?.rate}%`],
-                ["Ties = coin flip", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`, `${cf.human_committee}%`],
-                ...(bm.tier_accuracy?.ai_total > 0 ? [[`vs ICLR Decision`, `${bm.tier_accuracy.ai_rate}%`, `${bm.tier_accuracy.hh_rate}%`, "\u2014", "\u2014", "\u2014"]] : []),
-                [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_loo_avg?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014", bt.avg_expert_vs_comm?.spearman_rho?.toFixed(3)],
+                ["Ties excluded", `${pw.ai_human?.rate}%`, `${pw.human_human?.rate}%`, `${pw.ai_committee?.rate}%`, `${pw.human_committee_loo?.rate}%`,
+                  bm.tier_accuracy?.ai_total > 0 ? `${bm.tier_accuracy.ai_rate}%` : "\u2014",
+                  bm.tier_accuracy?.hh_total > 0 ? `${bm.tier_accuracy.hh_rate}%` : "\u2014"],
+                ["Ties = coin flip", `${cf.ai_human}%`, `${cf.human_human}%`, `${cf.ai_committee}%`, `${cf.human_committee_loo}%`, "\u2014", "\u2014"],
+                [`Spearman \u03C1`, bt.vs_avg_rating_rho?.toFixed(3), bt.avg_expert_vs_loo_avg?.spearman_rho?.toFixed(3), bt.committee?.spearman_rho?.toFixed(3), bt.avg_expert_vs_loo?.spearman_rho?.toFixed(3) ?? "\u2014", "\u2014", "\u2014"],
               ]}
               boldIdx={1}
             />
+            <p className="text-[9px] text-muted-foreground mt-1">
+              <strong>Exp. Maj.</strong> = virtual committee from reviewer score-derived pairwise preferences (majority vote).{" "}
+              <strong>ICLR PC</strong> = actual program committee accept/reject tier decisions.{" "}
+              H vs ICLR PC ({bm.tier_accuracy?.hh_rate}%) is structurally inflated: the same reviewers influenced the decisions they are being tested against.
+            </p>
             <div className="mt-2 space-y-1.5 text-[10px] text-muted-foreground border-t border-border/30 pt-2">
               <p>
                 <strong>Key finding:</strong> Under fair comparison (coin flip), AI-Human ({cf.ai_human}%) and Human-Human ({cf.human_human}%) are within <strong>{Math.abs(cf.ai_human - cf.human_human).toFixed(1)} percentage points</strong>.
