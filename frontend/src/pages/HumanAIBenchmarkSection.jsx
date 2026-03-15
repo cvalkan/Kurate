@@ -134,7 +134,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
       </div>
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1">
         <div className="text-[10px] text-muted-foreground leading-relaxed space-y-0.5">
-          <p><sup>1</sup> Individual-level pairwise agreement: AI judge (or expert) vs. individual expert preference. Reviewer identities are positional (Reviewer 1, 2, …) — "Reviewer 1" on different papers is a different person. Concordance between positional reviewers approximates random-pair agreement but cannot capture individual reviewer effects (e.g., consistently lenient or harsh graders).</p>
+          <p><sup>1</sup> Individual-level pairwise agreement: AI judge (or expert) vs. individual expert preference. Reviewer identities are positional (Reviewer 1, 2, …) not real — "Reviewer 1" on different papers is a different person. Positional pairing approximates random-pair agreement but cannot capture individual reviewer effects.</p>
           <p><sup>2</sup> <strong>Majority</strong> = virtual majority vote from reviewer score-derived pairwise preferences (our construction). Human vs. Majority uses LOO: expert excluded from the majority they are tested against.</p>
           <p><sup>3</sup> When LOO voters split evenly, the pair is skipped — a selection bias toward pairs where remaining experts agree. More common than in non-LOO (fewer voters).</p>
           <p><sup>4</sup> <strong>Committee</strong> = actual ICLR program committee accept/reject tier decisions (cross-tier pairs only).</p>
@@ -142,7 +142,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
           <p><sup>6</sup> Fraction of expert comparisons that are ties (at least one reviewer gave both papers the same score). ICLR uses only 6 distinct ratings (1, 3, 5, 6, 8, 10) on a 1–10 scale, heavily concentrated around 5–6, making ties structurally common.</p>
           <p><sup>7</sup> <strong>Coin flip</strong>: tied experts get a random preference (50% expected agreement) instead of being excluded. Corrects the double-filter selection bias in Human vs. Human.</p>
           <p><sup>8</sup> <strong>Ties excluded</strong>: only comparisons where expert(s) had clear preferences. This creates a <strong>selection bias</strong> because Human vs. Human requires <em>both</em> experts to have preferences on the same pair (double filter), while AI vs. Human only requires one (single filter). Example: if experts A, B, C review a pair and B ties, Human vs. Human keeps only A-C (1 of 3 comparisons), while AI vs. Human keeps AI-A and AI-C (2 of 3). The double filter retains only comparisons where both reviewers could distinguish the papers — an inherently more agreeable subset. Difficulty rows use coin-flip to correct for this.</p>
-          <p><sup>9</sup> <strong>Equal-weighted</strong>: averaged per reviewer pair (each pair weighted equally regardless of volume), unlike pooled rows which weight by number of comparisons.</p>
+          <p><sup>9</sup> <strong>Equal-weighted</strong>: concordance averaged per dataset (each dataset weighted equally regardless of how many comparisons it contributes). Because reviewer identities are positional, "per reviewer pair" is effectively per dataset. Pooled rows weight by comparison volume, so large high-agreement datasets dominate.</p>
           <p><sup>&dagger;</sup> <strong>Small sample</strong> (n &lt; 30): treat with caution — estimate is unreliable at this sample size.</p>
         </div>
         {(() => {
