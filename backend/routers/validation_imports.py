@@ -483,7 +483,15 @@ async def _run_midl_full_import(dataset_id: str, name: str, description: str, ye
             paper["avg_score"] = sum(scores) / len(scores)
             paper["meta_recommendation"] = meta_recommendation
             venue = paper["venue"]
-            paper["decision"] = "Oral" if "Oral" in venue else ("Poster" if "Poster" in venue else ("Short Paper" if "Short" in venue else venue))
+            if "Oral" in venue:
+                paper["decision"] = "Oral"
+            elif "Poster" in venue:
+                paper["decision"] = "Poster"
+            elif "Short" in venue:
+                paper["decision"] = "Short Paper"
+            else:
+                meta = (paper.get("meta_recommendation") or "").lower()
+                paper["decision"] = "Reject" if "reject" in meta else venue
             papers_with_reviews.append(paper)
         except Exception as e:
             logger.warning(f"MIDL review fetch failed for {paper['forum_id']}: {e}")
@@ -502,11 +510,29 @@ async def _run_midl_full_import(dataset_id: str, name: str, description: str, ye
 
     logger.info(f"MIDL import [{dataset_id}]: {len(papers_with_reviews)} papers with reviews")
 
-    # Phase 3: Stratified sample
+    # Phase 3: Stratified sample — ensure tier diversity
     if len(papers_with_reviews) > max_papers:
-        papers_with_reviews.sort(key=lambda p: p["avg_score"])
-        step = len(papers_with_reviews) / max_papers
-        selected = [papers_with_reviews[int(i * step)] for i in range(max_papers)]
+        by_tier = {}
+        for p in papers_with_reviews:
+            by_tier.setdefault(p["decision"], []).append(p)
+        # Sort each tier by avg_score for even spread
+        for tier in by_tier:
+            by_tier[tier].sort(key=lambda p: p["avg_score"])
+        # Allocate slots proportionally, min 10 per tier if available
+        tiers = list(by_tier.keys())
+        total = len(papers_with_reviews)
+        selected = []
+        for tier in tiers:
+            pool = by_tier[tier]
+            alloc = max(10, round(len(pool) / total * max_papers))
+            alloc = min(alloc, len(pool))
+            step = len(pool) / alloc if alloc > 0 else 1
+            selected.extend([pool[int(i * step)] for i in range(alloc)])
+        # Trim to max_papers if over-allocated
+        if len(selected) > max_papers:
+            selected.sort(key=lambda p: p["avg_score"])
+            step = len(selected) / max_papers
+            selected = [selected[int(i * step)] for i in range(max_papers)]
     else:
         selected = papers_with_reviews
 
