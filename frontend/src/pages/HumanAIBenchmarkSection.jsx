@@ -134,7 +134,7 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
       </div>
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1">
         <div className="text-[10px] text-muted-foreground leading-relaxed space-y-0.5">
-          <p><sup>1</sup> Individual-level pairwise agreement: AI judge (or expert) vs. individual expert preference.</p>
+          <p><sup>1</sup> Individual-level pairwise agreement: AI judge (or expert) vs. individual expert preference. Reviewer identities are positional (Reviewer 1, 2, …) — "Reviewer 1" on different papers is a different person. Concordance between positional reviewers approximates random-pair agreement but cannot capture individual reviewer effects (e.g., consistently lenient or harsh graders).</p>
           <p><sup>2</sup> <strong>Majority</strong> = virtual majority vote from reviewer score-derived pairwise preferences (our construction). Human vs. Majority uses LOO: expert excluded from the majority they are tested against.</p>
           <p><sup>3</sup> When LOO voters split evenly, the pair is skipped — a selection bias toward pairs where remaining experts agree. More common than in non-LOO (fewer voters).</p>
           <p><sup>4</sup> <strong>Committee</strong> = actual ICLR program committee accept/reject tier decisions (cross-tier pairs only).</p>
