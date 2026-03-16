@@ -399,25 +399,25 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
           { group: "AI vs Human", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, fair: true,
-            desc: "AI BT vs all-expert-votes BT — no circularity, same methodology as human baseline" },
+            desc: "One AI judge vs all human reviewers — both sides use BT from pairwise votes, apples-to-apples with LOO baseline below" },
           { group: "", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null, fair: false,
-            desc: "AI BT vs h1_avg_rating — clean but cross-methodology (BT vs scores)" },
+            desc: "AI BT ranking vs simple average of reviewer scores — different methodologies (BT vs mean)" },
           { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false,
-            desc: "AI BT vs expert-majority BT — majority collapsing differs from individual aggregate" },
+            desc: "AI BT vs BT from majority-vote matches — one match per pair, loses margin information" },
           { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: null, fair: false,
             desc: "AI BT vs actual program committee tier decisions — coarse (4 tiers only)" },
           { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true,
-            desc: "Expert BT vs LOO all-other-experts BT — fairest human baseline (same methodology as AI)" },
+            desc: "One human reviewer vs all other reviewers (self excluded) — mirrors the AI row: single judge vs crowd. Apples-to-apples human ceiling" },
           { group: "", label: "Single expert vs Avg Rating (LOO)", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null, fair: false,
-            desc: "Expert BT vs LOO h1_avg_rating — clean but cross-methodology (BT vs scores)" },
+            desc: "One reviewer's BT vs LOO average scores — different methodologies (BT vs mean)" },
           { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false,
-            desc: "Expert BT vs LOO majority BT — LOO ties skipped, majority collapsing" },
+            desc: "One reviewer's BT vs LOO majority BT — loses margin information, LOO ties skipped" },
           { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: null, fair: false,
             desc: "Expert BT vs tier decisions — circular (reviewers influenced the decisions)" },
           { group: "", label: "Single expert vs Majority", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false,
-            desc: "Circular — expert's votes are in the majority they're tested against" },
+            desc: "Circular — expert's own votes are included in the majority" },
           { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau, fair: false,
-            desc: "Circular — expert's votes are in the aggregate" },
+            desc: "Circular — expert's own votes are included in the aggregate" },
         ];
         let lastGroup = "";
         return (
