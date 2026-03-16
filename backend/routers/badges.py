@@ -3,6 +3,8 @@
 import io
 import html as html_mod
 import time
+import shutil
+from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response, HTMLResponse
@@ -12,6 +14,20 @@ from typing import Optional
 from core.config import db, logger
 
 router = APIRouter(prefix="/api/badge")
+
+# Ensure bundled Inter fonts are installed in system font directory
+_FONT_DIR = Path(__file__).parent.parent / "fonts"
+_SYSTEM_FONT_DIR = Path("/usr/share/fonts/truetype/inter")
+if _FONT_DIR.exists() and not _SYSTEM_FONT_DIR.exists():
+    try:
+        _SYSTEM_FONT_DIR.mkdir(parents=True, exist_ok=True)
+        for f in _FONT_DIR.glob("*.ttf"):
+            shutil.copy2(f, _SYSTEM_FONT_DIR / f.name)
+        import subprocess
+        subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=10)
+        logger.info(f"Installed {len(list(_FONT_DIR.glob('*.ttf')))} bundled Inter fonts")
+    except Exception as e:
+        logger.warning(f"Failed to install bundled fonts: {e}")
 
 # In-memory image cache: {cache_key: (bytes, timestamp)}
 _image_cache = {}
