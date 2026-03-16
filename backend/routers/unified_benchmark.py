@@ -172,8 +172,6 @@ async def _compute_unified_dataset(dataset_id, gt_type):
 
     if pw_total < 10 and si_total < 10:
         return None
-    if si_total == 0:
-        return None
 
     # --- Intersection: same-pair comparison (PW majority verdict vs SI on common pairs) ---
     pw_verdict = {}
