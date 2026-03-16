@@ -452,6 +452,7 @@ async def _deferred_startup():
         "_startup_dedup", "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab", "_startup_check_interrupted_tasks",
         "_startup_seed_targeted_matches",
+        "_prewarm_benchmark_cache",
     ]
     _g = globals()
     for _name in _bg_tasks:
@@ -462,6 +463,17 @@ async def _deferred_startup():
             logger.warning(f"Startup task {_name} not yet defined (hot-reload race)")
 
     logger.info("Deferred startup complete — all background tasks launched")
+
+
+
+async def _prewarm_benchmark_cache():
+    """Pre-warm human-AI benchmark cache from MongoDB or compute fresh."""
+    await asyncio.sleep(2)
+    try:
+        from routers.human_ai_benchmark import prewarm_benchmark_cache
+        await prewarm_benchmark_cache()
+    except Exception as e:
+        logger.warning(f"Benchmark pre-warm failed: {e}")
 
 
 

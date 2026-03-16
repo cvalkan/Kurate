@@ -14,6 +14,7 @@ Layers:
 """
 
 import math
+import asyncio
 import numpy as np
 from scipy import stats as scipy_stats
 from collections import defaultdict, Counter
@@ -32,6 +33,37 @@ from services.ranking import compute_leaderboard
 router = APIRouter(prefix="/api/validation")
 
 _benchmark_cache = {"comp": {"data": None}, "stan": {"data": None}}
+
+
+async def _load_cached_benchmark(gt_type: str):
+    """Try to load benchmark from MongoDB cache."""
+    doc = await db.benchmark_cache.find_one({"gt_type": gt_type}, {"_id": 0, "data": 1})
+    if doc and doc.get("data"):
+        _benchmark_cache[gt_type] = {"data": doc["data"]}
+        return doc["data"]
+    return None
+
+
+async def prewarm_benchmark_cache():
+    """Pre-warm benchmark cache on startup. Called from server.py."""
+    for gt_type in ["comp"]:
+        cached = await _load_cached_benchmark(gt_type)
+        if cached:
+            logger.info(f"Benchmark cache loaded from DB for gt_type={gt_type}")
+        else:
+            logger.info(f"No cached benchmark for gt_type={gt_type}, computing...")
+            try:
+                result = await _compute_benchmark(gt_type)
+                if result.get("status") == "ok":
+                    _benchmark_cache[gt_type] = {"data": result}
+                    await db.benchmark_cache.update_one(
+                        {"gt_type": gt_type},
+                        {"$set": {"gt_type": gt_type, "data": result}},
+                        upsert=True,
+                    )
+                    logger.info(f"Benchmark cache computed and stored for gt_type={gt_type}")
+            except Exception as e:
+                logger.warning(f"Benchmark pre-warm failed for {gt_type}: {e}")
 
 
 def _phi(x):
@@ -1073,6 +1105,10 @@ async def human_ai_benchmark(gt_type: str = Query("comp")):
     cache = _benchmark_cache.get(gt_type, {})
     if cache.get("data"):
         return cache["data"]
+    # Try MongoDB persistent cache
+    db_cached = await _load_cached_benchmark(gt_type)
+    if db_cached:
+        return db_cached
     if gt_type == "stan":
         from routers.standalone_benchmark import compute_standalone_benchmark
         result = await compute_standalone_benchmark(ai_source="pairwise")
@@ -1080,6 +1116,11 @@ async def human_ai_benchmark(gt_type: str = Query("comp")):
         result = await _compute_benchmark(gt_type)
     if result.get("status") == "ok":
         _benchmark_cache[gt_type] = {"data": result}
+        await db.benchmark_cache.update_one(
+            {"gt_type": gt_type},
+            {"$set": {"gt_type": gt_type, "data": result}},
+            upsert=True,
+        )
     return result
 
 
@@ -1134,8 +1175,11 @@ async def _compute_benchmark(gt_type: str = "comp"):
     # (that was for the old PW vs SI comparison pages)
     require_si = False
 
-    for ds_id in all_ds_ids:
-        result = await _compute_dataset_benchmark(ds_id, require_si=require_si)
+    # Compute all datasets in parallel
+    tasks = [_compute_dataset_benchmark(ds_id, require_si=require_si) for ds_id in all_ds_ids]
+    results_list = await asyncio.gather(*tasks)
+
+    for ds_id, result in zip(all_ds_ids, results_list):
         if result is None:
             continue
 
