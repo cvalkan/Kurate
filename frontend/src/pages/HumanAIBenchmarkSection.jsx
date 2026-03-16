@@ -324,27 +324,39 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
         const bt = p.bt_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
-          { group: "AI vs Human", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, fair: true, color: "sky",
+          { group: "AI vs Human", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, fair: true, color: "sky", pair: "indiv",
             desc: "Each expert's vote on each pair is a separate BT match (preserving individual disagreements). AI BT is compared against this combined human BT" },
           { group: "", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null, fair: false,
             desc: "AI BT ranking vs simple average of reviewer scores — different methodologies (BT vs mean)" },
-          { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false, color: "amber",
+          { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false, color: "amber", pair: "maj",
             desc: "AI BT vs BT from majority-vote matches — one match per pair, loses margin information" },
-          { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: null, fair: false, highlight: true, color: "rose",
+          { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: bt.vs_tier_tau, fair: false, highlight: true, color: "rose", pair: "tier",
             desc: "AI BT vs actual program committee tier decisions — coarse (4 tiers only)" },
-          { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true, color: "sky",
+          { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: bt.avg_expert_vs_loo_indiv?.kendall_tau, fair: true, color: "sky", pair: "indiv",
             desc: "One human reviewer vs all other reviewers (self excluded) — mirrors the AI row: single judge vs crowd. Apples-to-apples human ceiling" },
-          { group: "", label: "Single expert vs Avg Rating (LOO)", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null, fair: false,
+          { group: "", label: "Single expert vs Avg Rating (LOO)", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: bt.avg_expert_vs_loo_avg?.kendall_tau, fair: false,
             desc: "One reviewer's BT vs LOO average scores — different methodologies (BT vs mean)" },
-          { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false, color: "amber",
+          { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: bt.avg_expert_vs_loo?.kendall_tau, fair: false, color: "amber", pair: "maj",
             desc: "One reviewer's BT vs LOO majority BT — loses margin information, LOO ties skipped" },
-          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: null, fair: false, highlight: true, color: "rose",
+          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: bt.avg_expert_vs_tier?.kendall_tau, fair: false, highlight: true, color: "rose", pair: "tier",
             desc: "Expert BT vs tier decisions — circular (reviewers influenced the decisions)" },
           { group: "", label: "Single expert vs Majority", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false, color: "amber",
             desc: "Circular — expert's own votes are included in the majority" },
           { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau, fair: false, color: "sky",
             desc: "Circular — expert's own votes are included in the aggregate" },
         ];
+        // Determine winners per pair
+        const pairAI = {}, pairH = {};
+        rows.forEach(r => {
+          if (!r.pair || r.rho == null) return;
+          if (r.group === "AI vs Human" || (r.group === "" && !pairH[r.pair])) {
+            if (!pairAI[r.pair]) pairAI[r.pair] = r.rho;
+            else pairH[r.pair] = r.rho;
+          }
+        });
+        // Simpler: AI rows are first in each pair
+        const aiRhos = { indiv: bt.individual?.spearman_rho, maj: bt.committee?.spearman_rho, tier: bt.vs_tier_rho };
+        const hRhos = { indiv: bt.avg_expert_vs_loo_indiv?.spearman_rho, maj: bt.avg_expert_vs_loo?.spearman_rho, tier: bt.avg_expert_vs_tier?.spearman_rho };
         let lastGroup = "";
         return (
           <div className="border border-border rounded-lg overflow-hidden">
@@ -367,12 +379,16 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
                     const showGroup = r.group && r.group !== lastGroup;
                     if (r.group) lastGroup = r.group;
                     const bg = r.color === "rose" ? "bg-rose-500/[0.06]" : r.color === "amber" ? "bg-amber-500/[0.06]" : r.color === "sky" ? "bg-sky-500/[0.06]" : "";
+                    const isAI = r.group === "AI vs Human" || (r.group === "" && i < 4);
+                    const isWinner = r.pair && r.rho != null && (isAI ? (r.rho >= (hRhos[r.pair] ?? 0)) : (r.rho >= (aiRhos[r.pair] ?? 0)));
+                    const bold = (r.fair || isWinner) ? "font-semibold" : "";
+                    const dim = !r.fair && !r.color && !bold ? "text-foreground/50" : "";
                     return (
                       <tr key={i} className={`border-b border-border/20 ${showGroup && i > 0 ? "border-t border-border" : ""} ${r.fair ? "bg-accent/5" : bg}`}>
                         <td className={`py-1.5 px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 ${showGroup ? "" : "text-transparent select-none"}`}>{r.group || lastGroup}</td>
-                        <td className={`py-1.5 px-2 ${r.fair ? "font-semibold" : ""} ${r.highlight ? "font-medium" : !r.fair && !r.color ? "text-foreground/50" : ""}`}>{r.label}</td>
-                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "font-bold" : ""} ${r.highlight ? "font-semibold" : !r.fair && !r.color ? "font-normal text-foreground/50" : ""}`}>{f(r.rho)}</td>
-                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "" : ""} ${r.highlight ? "" : !r.fair && !r.color ? "font-normal text-foreground/50" : ""}`}>{f(r.tau)}</td>
+                        <td className={`py-1.5 px-2 ${bold} ${dim}`}>{r.label}</td>
+                        <td className={`py-1.5 px-2 text-right font-mono ${bold} ${dim}`}>{f(r.rho)}</td>
+                        <td className={`py-1.5 px-2 text-right font-mono ${dim}`}>{f(r.tau)}</td>
                         <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{r.desc}</td>
                       </tr>
                     );
