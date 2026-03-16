@@ -467,13 +467,39 @@ async def _deferred_startup():
 
 
 async def _prewarm_benchmark_cache():
-    """Pre-warm human-AI benchmark cache from MongoDB or compute fresh."""
+    """Pre-warm all expensive validation caches by calling the actual endpoints."""
     await asyncio.sleep(2)
     try:
         from routers.human_ai_benchmark import prewarm_benchmark_cache
         await prewarm_benchmark_cache()
     except Exception as e:
         logger.warning(f"Benchmark pre-warm failed: {e}")
+
+    # Pre-warm other slow endpoints by calling them (populates both MongoDB + memory cache)
+    await asyncio.sleep(1)
+    endpoints = [
+        ("consistency_analysis", "routers.validation", "get_consistency_analysis"),
+        ("cycle_analysis_all", "routers.validation", "get_cycle_analysis_all"),
+        ("summarizer_ab", "routers.validation_experiments", "summarizer_ab_results"),
+        ("judge_comparison", "routers.validation_experiments", "judge_comparison_results"),
+        ("single_item_scoring", "routers.validation_experiments", "single_item_scoring_results"),
+        ("unified_comp", "routers.unified_benchmark", "unified_benchmark"),
+    ]
+    for name, module_path, func_name in endpoints:
+        try:
+            import importlib
+            mod = importlib.import_module(module_path)
+            fn = getattr(mod, func_name)
+            if func_name == "unified_benchmark":
+                # This one takes a parameter
+                from fastapi import Query as _Q
+                await fn(gt_type="comp")
+                await fn(gt_type="stan")
+            else:
+                await fn()
+            logger.info(f"Pre-warmed: {name}")
+        except Exception as e:
+            logger.warning(f"Pre-warm {name} failed: {e}")
 
 
 
