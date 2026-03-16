@@ -48,6 +48,7 @@ function groupDatasets(datasets) {
     else if (name.startsWith("ResearchHub")) source = "ResearchHub";
     else if (name.startsWith("AlphaXiv")) source = "AlphaXiv";
     else if (name.startsWith("NeurIPS")) source = "NeurIPS";
+    else if (name.startsWith("UAI")) source = "UAI";
     else source = "Other";
     if (!groups[source]) groups[source] = [];
     groups[source].push(ds);
@@ -150,7 +151,7 @@ export default function ValidationHubPage() {
   const pairwiseGroups = useMemo(() => groupDatasets(datasets), [datasets]);
 
   // Public users only see ICLR, eLife, MIDL tournaments
-  const PUBLIC_SOURCES = useMemo(() => new Set(["ICLR", "eLife", "MIDL", "AlphaXiv", "NeurIPS"]), []);
+  const PUBLIC_SOURCES = useMemo(() => new Set(["ICLR", "eLife", "MIDL", "AlphaXiv", "NeurIPS", "UAI"]), []);
   const tournamentGroups = useMemo(() =>
     isAdmin
       ? allTournamentGroups
