@@ -7,13 +7,13 @@ const API = process.env.REACT_APP_BACKEND_URL;
 const GT_TYPE = {
   "iclr-codegen": "comparative", "iclr-llm": "comparative", "iclr-protein": "comparative",
   "iclr-fairness": "comparative", "iclr-pdes": "comparative", "iclr-molecules": "comparative",
-  "iclr-optimization": "comparative", "peerread_acl_2017": "comparative",
+  "iclr-optimization": "comparative", "iclr-ot": "comparative", "peerread_acl_2017": "comparative",
   "elife-neuro-100": "comparative",
   "elife-cancer": "standalone", "elife-microbiology": "standalone",
   "elife-comp-sys-bio": "standalone",
   "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
   "researchhub-50": "standalone", "researchhub-cancer": "standalone", "researchhub-genetics": "standalone",
-  "neurips-cv": "comparative",
+  "uai-2024": "comparative",
 };
 
 function Section({ num, title, children }) {
@@ -465,7 +465,7 @@ export default function ValidationReportPage() {
           </table>
         </div>
         <p className="mt-2 border-t border-border/30 pt-2">
-          <strong>Verdict:</strong> The ground truth generation process determines which method wins. Pairwise dominates when human reviewers compared papers against each other (ICLR, PeerRead, eLife Neuro). Single-item wins when papers were rated independently (Qeios, ResearchHub, most eLife). The exception: narrow-domain datasets (ResearchHub Cancer, MIDL) where within-topic distinctions require head-to-head comparison even with standalone GT.
+          <strong>Verdict:</strong> The ground truth generation process determines which method wins. Pairwise dominates when human reviewers compared papers against each other (ICLR, PeerRead). Single-item wins when papers were rated independently (Qeios, ResearchHub, most eLife). The exception: narrow-domain datasets (ResearchHub Cancer, MIDL) where within-topic distinctions require head-to-head comparison even with standalone GT.
         </p>
       </Section>
 

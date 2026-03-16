@@ -423,7 +423,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
 export default function HumanAIBenchmarkSection() {
   return <BenchmarkPage
     apiUrl="/api/validation/human-ai-benchmark?gt_type=comp"
-    headerDesc={<>AI judges use <strong>Opus 4.6 Thinking</strong> summaries (abstract + AI impact assessment). Round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. <strong>Comparative GT</strong> (ICLR, PeerRead, eLife Neuro).</>}
+    headerDesc={<>AI judges use <strong>Opus 4.6 Thinking</strong> summaries (abstract + AI impact assessment). Round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. <strong>Comparative GT</strong> (8 ICLR topics, PeerRead ACL 2017).</>}
     testId="human-ai-benchmark"
   />;
 }
