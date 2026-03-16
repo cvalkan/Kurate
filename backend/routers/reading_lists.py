@@ -514,7 +514,7 @@ def _render_list_image(name: str, description: str, curator: str, papers: list, 
   <!-- Title & metadata -->
   <text x="30" y="100" font-family="Inter, 'Liberation Sans', sans-serif" font-size="22" font-weight="700" fill="#1a1a2e">{_esc(name[:50])}</text>
   <text x="30" y="125" font-family="Inter, 'Liberation Sans', sans-serif" font-size="12" fill="#6b7280">Curated by {_esc(curator)} · {total} papers</text>
-  {f'<text x="30" y="145" font-family="Inter, 'Liberation Sans', sans-serif" font-size="11" fill="#9ca3af">{_esc(description[:80])}</text>' if description else ''}
+  {f'<text x="30" y="145" font-family="Inter, Liberation Sans, sans-serif" font-size="11" fill="#9ca3af">{_esc(description[:80])}</text>' if description else ''}
 
   <!-- Header row -->
   <rect x="30" y="160" width="580" height="18" fill="#f0f4f8" rx="2"/>
