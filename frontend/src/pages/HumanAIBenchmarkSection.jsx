@@ -310,10 +310,10 @@ function DatasetTable({ datasets }) {
                 <th className="py-1 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI-Maj%</th>
                 <th className="py-1 px-1.5 text-right font-medium bg-amber-500/[0.06]">H-Maj%(LOO)</th>
                 <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI-PC%</th>
-                <th className="py-1 px-1.5 text-right font-medium" title="AI BT vs all-expert-votes BT">AI vs H (BT)</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.04]" title="AI BT vs committee tier decisions">AI vs PC (BT)</th>
-                <th className="py-1 px-1.5 text-right font-medium" title="Single expert BT vs LOO all-other-experts BT">H vs H (BT)</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.04]" title="Single expert BT vs committee tier decisions">H vs PC (BT)</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-sky-500/[0.06]" title="AI BT vs all-expert-votes BT">AI vs H (BT)</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.06]" title="AI BT vs committee tier decisions">AI vs PC (BT)</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-sky-500/[0.06]" title="Single expert BT vs LOO all-other-experts BT">H vs H (BT)</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.06]" title="Single expert BT vs committee tier decisions">H vs PC (BT)</th>
                 <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Pairs</th>
                 <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Experts</th>
               </tr>
@@ -331,10 +331,10 @@ function DatasetTable({ datasets }) {
                     <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.ai_committee?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.human_committee_loo?.cf_rate ?? pw.human_committee_loo?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{ta.ai_rate != null ? `${ta.ai_rate}%` : "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-semibold">{bt.individual?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-rose-500/[0.04]">{bt.vs_tier_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.04]">{bt.avg_expert_vs_tier?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-sky-500/[0.06]">{bt.individual?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-rose-500/[0.06]">{bt.vs_tier_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{bt.avg_expert_vs_tier?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.controlled_pairs}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.n_experts}</td>
                   </tr>
@@ -342,6 +342,14 @@ function DatasetTable({ datasets }) {
               })}
             </tbody>
           </table>
+          <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              <strong>Note on PeerRead ACL 2017:</strong> This dataset behaves differently from ICLR — AI-H BT correlation (0.434) is far below
+              the ICLR range (0.69–0.90). Contributing factors: only 2–3 reviewers per paper (vs 4–5), a coarser 1–5 scale with 51% tie rate,
+              no decision tiers (all null), and 2017-era NLP reviewing norms that may not align with modern LLM assessments.
+              The high H-H agreement (86.7%) is likely inflated by the 2-reviewer double-filter bias (footnote 8 above).
+            </p>
+          </div>
         </div>
       )}
     </div>
