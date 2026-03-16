@@ -399,7 +399,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
           { group: "AI vs Human", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, fair: true,
-            desc: "One AI judge vs all human reviewers — both sides use BT from pairwise votes, apples-to-apples with LOO baseline below" },
+            desc: "Each expert's vote on each pair is a separate BT match (preserving individual disagreements). AI BT is compared against this combined human BT" },
           { group: "", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null, fair: false,
             desc: "AI BT ranking vs simple average of reviewer scores — different methodologies (BT vs mean)" },
           { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false,
