@@ -151,7 +151,7 @@ export default function ValidationHubPage() {
   const pairwiseGroups = useMemo(() => groupDatasets(datasets), [datasets]);
 
   // Public users only see ICLR, eLife, MIDL tournaments
-  const PUBLIC_SOURCES = useMemo(() => new Set(["ICLR", "eLife", "MIDL", "AlphaXiv", "NeurIPS", "UAI"]), []);
+  const PUBLIC_SOURCES = useMemo(() => new Set(["ICLR", "eLife", "MIDL", "AlphaXiv", "NeurIPS", "UAI", "PeerRead"]), []);
   const tournamentGroups = useMemo(() =>
     isAdmin
       ? allTournamentGroups
