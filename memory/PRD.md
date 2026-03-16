@@ -1,48 +1,67 @@
-# PaperSumo by Kurate.org — Scientific Preprint Ranking System
+# Kurate.org Validation Hub — PRD
 
-## Problem Statement
-Build a robust system for ranking and validating AI model performance on scientific preprints. Features a leaderboard tournament where different LLMs act as judges to rank papers, with validation against human peer-review ground truth.
+## Original Problem Statement
+Build a benchmark comparing LLM judges to human experts for scientific paper evaluation. The system validates AI pairwise comparison, single-item scoring, and tournament ranking methods against multiple peer review datasets.
 
 ## Architecture
-- **Frontend**: React + Shadcn UI (production build served via `npx serve`)
 - **Backend**: FastAPI + MongoDB
-- **LLMs**: GPT-5.2, Claude Opus 4.6, Gemini 3 Pro (via Emergent LLM key)
-- **Domain**: kurate.org
-- **Preview**: llm-ranker.preview.emergentagent.com
+- **Frontend**: React (CRA) + Shadcn/UI
+- **Key routers**: `human_ai_benchmark.py`, `unified_benchmark.py`, `validation.py`, `validation_imports.py`
+- **Key pages**: `HumanAIBenchmarkSection.jsx`, `UnifiedBenchmarkSection.jsx`, `ValidationHubPage.jsx`
 
-## IMPORTANT: Frontend Build Process
-Frontend is served as a pre-built static site. Any changes to .jsx files require:
-1. `cd /app/frontend && yarn build`
-2. `sudo supervisorctl restart frontend`
-Hot-reloading is NOT sufficient.
+## What's Been Implemented
 
-## Current State (Mar 14 2026)
-- 2174 papers, 64731 matches, 10 active categories
-- 25 validation datasets, validation experiments publicly accessible
-- Human vs AI Benchmark: pairwise concordance-based inter-rater reliability with:
-  - Human-Human concordance (72.0%) and AI-Human concordance (73.6%)
-  - Thurstonian ceiling (68.4%) from Kruskal-derived rho (0.62)
-  - Tie Impact Analysis: 3 scenarios (excluded/coin-flip/disagreement)
-  - Committee and individual BT ranking correlations
-  - Difficulty stratification (cross-tier/adjacent/within-tier)
-  - 9 controlled datasets, 5,766 paper pairs, 42.3% tie fraction
+### Core Benchmark Suite
+- Human vs. AI Benchmark with coin-flip correction, LOO baselines, difficulty stratification
+- PW vs SI comparison pages (Comparative GT + Standalone GT)
+- Validation Summary Report with Human vs. AI section
+- Comprehensive footnote system explaining all methodological nuances
 
-## Pending Tasks
-- (P0) Phase 3: Notification System via Resend integration
-- (P1) Synthetic Unfurl Test Suite for social media card rendering
-- (P2) Consolidate fragile MIDL experiment pipeline
-- (P2) Explore adding new validation datasets from OpenReview (ICLR 2024 CV)
-- (P2) Continue refactoring monolithic leaderboard.py
-- (Future) Chain-of-thought variant: multi-aspect reasoning then holistic verdict
+### Datasets
+- **ICLR** (8 topic subsets, 469 papers): Primary comparative GT
+- **PeerRead ACL 2017** (80 papers): Secondary comparative GT
+- **UAI 2024** (100 papers): Newly added, 3 tiers but weak score separation (53.9% AI-H)
+- **eLife** (multiple subsets): Standalone GT
+- **MIDL** (100 papers, reimported): Standalone GT (Oral/Poster only, no rejects)
+- **Others**: Qeios, ResearchHub, AlphaXiv, F1000
+
+### Methodological Refinements (This Session)
+- Small-sample † warnings (n < 30) on difficulty metrics
+- Filled table blanks: tier accuracy per difficulty, kappa per difficulty
+- Discovered and documented positional reviewer identity limitation across all datasets
+- Corrected "equal-weighted" footnote: it's per-dataset reweighting, not per-reviewer
+- Added ICLR rating scale info (6 values: 1,3,5,6,8,10) to footnotes
+- Generated comprehensive ICLR dataset quality report
+
+### Data Pipeline
+- UAI import endpoint (`/api/validation/import-uai`)
+- UAI pipeline script (`scripts/run_uai_pipeline.py`)
+- Improved MIDL import with stratified tier sampling and proper reject detection
+
+## Prioritized Backlog
+
+### P0
+- Phase 3: Notification System (Resend email integration)
+
+### P1
+- Score ICLR-OT with single-item AI (0/52 papers)
+- Update Summarizer Report Section 2 (use "full data" methodology)
+
+### P2
+- Expand ICLR topic coverage (CV, RL, NLP — currently 8/45 topics)
+- Evaluate UAI benchmark value (near-random results may not be worth keeping)
+- Consolidate MIDL experiment pipeline
+- Add HTTP security headers
+- Refactor monolithic `leaderboard.py`
+- Explore NeurIPS as additional comparative GT source
+
+## Key Technical Decisions
+- Coin-flip correction is the "fair" standard for pairwise agreement
+- LOO baselines control for circularity in committee comparisons
+- All reviewer identities are positional (documented in footnotes)
+- UAI composite scores derived from mean of 5 aspect ratings (1-4 scale)
 
 ## Known Issues
-- Mobile Twitter/X unfurling fails — blocked on user's Cloudflare configuration
-
-## Completed Work
-- Pairwise concordance-derived rho + tie impact analysis (Mar 14 2026)
-  - Replaced score-based Spearman with direct pairwise concordance
-  - Added AI-Human concordance (73.6%) alongside Human-Human (72.0%)
-  - Added Tie Impact Analysis section (3 scenarios × H-H and AI-H)
-  - Merged agreement + difficulty tables, clarified BT title
-  - Key finding: under coin-flip tie handling, H-H/AI-H gap nearly vanishes (68.5% vs 69.3%)
-- All prior work (see CHANGELOG.md for full history)
+- Mobile Twitter/X unfurling fails (blocked on Cloudflare config)
+- Decision label casing inconsistency in ICLR data (e.g., "Accept (Poster)" vs "Accept (poster)")
+- UAI's near-random benchmark results (53.9%) raise questions about dataset utility
