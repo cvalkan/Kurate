@@ -179,116 +179,6 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
   );
 }
 
-function ReliabilityTables({ p, pw, concordance }) {
-  const ts = p.tie_stats || {};
-  const hhConc = ts.concordance_rate;
-  const ahConc = p.ai_h_concordance;
-  const rows = [
-    { scope: "Human-Human", metric: "Pairwise concordance", value: hhConc != null ? `${(hhConc * 100).toFixed(1)}%` : "\u2014",
-      desc: "How often two experts agree on which paper is better (non-tie pairs)" },
-    { scope: "Human-Human", metric: "Derived rho", value: p.inter_rater_rho?.toFixed(2) ?? "\u2014",
-      desc: "Kruskal (1958): rho = sin(\u03C0 \u00D7 (concordance \u2212 0.5))" },
-    { scope: "Human-Human", metric: "Thurstonian ceiling", value: p.theoretical_ceiling != null ? `${p.theoretical_ceiling}%` : "\u2014",
-      desc: `Max achievable pairwise agreement given inter-rater noise (rho = ${p.inter_rater_rho?.toFixed(2)})` },
-    { scope: "Human-Human", metric: "Tie fraction", value: ts.tie_fraction != null ? `${(ts.tie_fraction * 100).toFixed(1)}%` : "\u2014",
-      desc: `${ts.tied_excluded?.toLocaleString() ?? "?"} reviewer paper-pairs excluded (same score)` },
-    { scope: "AI-Human", metric: "Pairwise concordance", value: ahConc != null ? `${(ahConc * 100).toFixed(1)}%` : "\u2014",
-      desc: "How often AI agrees with each individual expert (averaged per expert)" },
-    { scope: "AI-Human", metric: "Derived rho", value: p.ai_h_rho?.toFixed(2) ?? "\u2014",
-      desc: "Same Kruskal conversion applied to AI-human concordance" },
-  ];
-
-  let lastScope = "";
-  return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-        <span className="text-xs font-semibold">Inter-Rater Concordance — Equal-Weighted by Reviewer</span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
-          <thead>
-            <tr className="border-b border-border text-muted-foreground">
-              <th className="py-1.5 px-2 text-left font-medium">Scope</th>
-              <th className="py-1.5 px-2 text-left font-medium">Metric</th>
-              <th className="py-1.5 px-2 text-right font-medium">Value</th>
-              <th className="py-1.5 px-2 text-left font-medium">Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const showScope = r.scope !== lastScope;
-              lastScope = r.scope;
-              return (
-                <tr key={i} className={`border-b border-border/20 ${showScope && i > 0 ? "border-t border-border" : ""}`}>
-                  <td className={`py-1.5 px-2 font-medium ${showScope ? "" : "text-transparent select-none"}`}>{r.scope}</td>
-                  <td className="py-1.5 px-2">{r.metric}</td>
-                  <td className="py-1.5 px-2 text-right font-mono font-bold">{r.value}</td>
-                  <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{r.desc}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-2">
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>Concordance vs agreement:</strong>{" "}
-          Unlike the pooled pairwise agreement rates above ({pw?.human_human?.rate}% Human-Human, {pw?.ai_human?.rate}% AI-Human),
-          where prolific reviewer pairs dominate, concordance here ({(hhConc * 100).toFixed(1)}% and {(ahConc * 100).toFixed(1)}%)
-          is averaged per unit — each reviewer pair or expert gets equal weight regardless of volume.
-          The {((pw?.human_human?.rate ?? 0) - (hhConc ?? 0) * 100).toFixed(1)}pp Human-Human gap
-          ({pw?.human_human?.rate}% pooled vs {(hhConc * 100).toFixed(1)}% averaged) suggests high-volume reviewer pairs agree more,
-          likely from shared conference tracks with clearer quality differences.
-          For AI-Human the gap is negligible ({pw?.ai_human?.rate}% vs {(ahConc * 100).toFixed(1)}%):
-          <strong>AI agreement is consistent across experts</strong> regardless of volume.
-        </p>
-        {hhConc != null && ahConc != null && ts.tie_fraction != null && (
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            <strong>Interpretation:</strong>{" "}
-            AI-Human concordance ({(ahConc * 100).toFixed(1)}%) slightly <strong>exceeds</strong> Human-Human ({(hhConc * 100).toFixed(1)}%).
-            This likely reflects the AI round-robin (GPT-5.2, Opus, Gemini) producing a smoothed signal that aligns well with any single expert,
-            much like a committee agrees with each member more than members agree with each other.
-            Meanwhile, the {(ts.tie_fraction * 100).toFixed(0)}% tie fraction shows that human reviewers often cannot distinguish quality between papers —
-            a fundamental limit of peer review. AI, which always produces a verdict, provides signal on the pairs humans
-            cannot resolve, making it a <strong>strictly more complete</strong> source for ranking.
-          </p>
-        )}
-        {concordance?.hh_cf != null && concordance?.hh != null && (
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            <strong>Note on coin-flip concordance:</strong>{" "}
-            H-H drops from {(concordance.hh * 100).toFixed(1)}% to {(concordance.hh_cf * 100).toFixed(1)}% under coin-flip — a large drop because
-            each reviewer pair gets equal weight, and pairs where one reviewer uses a coarse scoring scale (many ties) are penalized heavily.
-            A reviewer who ties 60% of pairs contributes many 50%-agreement coin-flips, dragging that pair's concordance down.
-            This doesn't necessarily mean the reviewer is unskilled — coarse scales and cautious scoring both produce ties.
-            The coin-flip value ({(concordance.hh_cf * 100).toFixed(1)}%) is the most conservative H-H estimate;
-            the ties-excluded value ({(concordance.hh * 100).toFixed(1)}%) is the most optimistic. The truth lies between them.
-          </p>
-        )}
-        {p.theoretical_ceiling != null && p.inter_rater_rho != null && (
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            <strong>Derived rho and Thurstonian ceiling:</strong>{" "}
-            Concordance is converted to a correlation via the Kruskal (1958) identity: rho = sin(pi x (concordance - 0.5)),
-            interpretable as the signal-to-noise ratio of reviewer scores.
-            The Thurstonian model then translates rho into a ceiling — the maximum pairwise agreement achievable given inter-rater noise.
-            At rho = {p.inter_rater_rho.toFixed(2)}, even perfectly calibrated reviewers would agree on at most {p.theoretical_ceiling}% of pairs;
-            any system approaching this is extracting nearly all recoverable signal.
-          </p>
-        )}
-        {p.inter_rater_rho != null && p.ai_h_rho != null && p.ai_h_rho > p.inter_rater_rho && (
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            <strong>AI-Human rho ({p.ai_h_rho.toFixed(2)}) exceeds Human-Human rho ({p.inter_rater_rho.toFixed(2)}):</strong>{" "}
-            Each AI comparison carries higher SNR than a typical human-human comparison.
-            In a Bradley-Terry tournament this means faster convergence: an AI tournament needs fewer matches to reach the same ranking quality,
-            or produces a <strong>more accurate ranking</strong> with the same number of matches.
-            The AI round-robin acts as built-in noise reduction — each model brings different strengths, making the combined signal
-            more stable than any single rater.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function DatasetTable({ datasets }) {
   const [expanded, setExpanded] = useState(false);
   if (!datasets?.length) return null;
@@ -304,18 +194,25 @@ function DatasetTable({ datasets }) {
           <table className="w-full text-[10px]">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
-                <th className="py-1 px-2 text-left font-medium">Dataset</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-sky-500/[0.06]">AI-H%</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-sky-500/[0.06]">H-H%</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI-Maj%</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-amber-500/[0.06]">H-Maj%(LOO)</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI-PC%</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-sky-500/[0.06]" title="AI BT vs all-expert-votes BT">AI vs H (BT)</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.06]" title="AI BT vs committee tier decisions">AI vs PC (BT)</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-sky-500/[0.06]" title="Single expert BT vs LOO all-other-experts BT">H vs H (BT)</th>
-                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.06]" title="Single expert BT vs committee tier decisions">H vs PC (BT)</th>
-                <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Pairs</th>
-                <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Experts</th>
+                <th className="py-1 px-2 text-left font-medium" rowSpan={2}>Dataset</th>
+                <th className="py-1 px-1.5 text-center font-medium bg-sky-500/[0.06]" colSpan={4}>Individual</th>
+                <th className="py-1 px-1.5 text-center font-medium bg-amber-500/[0.06]" colSpan={4}>Majority (LOO)</th>
+                <th className="py-1 px-1.5 text-center font-medium bg-rose-500/[0.06]" colSpan={4}>Committee</th>
+                <th className="py-1 px-1.5 text-right font-medium text-foreground/50" rowSpan={2}>Pairs</th>
+              </tr>
+              <tr className="border-b border-border text-muted-foreground text-[9px]">
+                <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">AI-H%</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">H-H%</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">AI BT</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">H BT</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI%</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">H%(LOO)</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI BT</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">H BT</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI%</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">H%</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI BT</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">H BT</th>
               </tr>
             </thead>
             <tbody>
@@ -323,20 +220,23 @@ function DatasetTable({ datasets }) {
                 const pw = d.pairwise || {};
                 const bt = d.bt_correlation || {};
                 const ta = d.tier_accuracy || {};
+                const f3 = v => v?.toFixed(3) ?? "\u2014";
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.ai_human?.cf_rate ?? pw.ai_human?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.human_human?.cf_rate ?? pw.human_human?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-sky-500/[0.06]">{f3(bt.individual?.spearman_rho)}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{f3(bt.avg_expert_vs_loo_indiv?.spearman_rho)}</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.ai_committee?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.human_committee_loo?.cf_rate ?? pw.human_committee_loo?.rate ?? "\u2014"}%</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{f3(bt.committee?.spearman_rho)}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{f3(bt.avg_expert_vs_loo?.spearman_rho)}</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{ta.ai_rate != null ? `${ta.ai_rate}%` : "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-sky-500/[0.06]">{bt.individual?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-rose-500/[0.06]">{bt.vs_tier_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{bt.avg_expert_vs_tier?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{ta.hh_rate != null ? `${ta.hh_rate}%` : "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-rose-500/[0.06]">{f3(bt.vs_tier_rho)}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{f3(bt.avg_expert_vs_tier?.spearman_rho)}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.controlled_pairs}</td>
-                    <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.n_experts}</td>
                   </tr>
                 );
               })}
@@ -487,7 +387,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
       })()}
 
       {/* 4. Inter-Rater Reliability (Human-Human + AI-Human) */}
-      <ReliabilityTables p={p} pw={pw} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance, hh_cf: p.tie_stats?.cf_concordance_rate, ai_h_cf: p.ai_h_cf_concordance }} />
+      {/* Per-dataset breakdown */}
 
       {/* 5. Per-dataset breakdown */}
       <DatasetTable datasets={data.per_dataset} />
