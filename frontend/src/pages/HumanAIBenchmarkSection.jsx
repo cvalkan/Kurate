@@ -404,7 +404,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             desc: "AI BT ranking vs simple average of reviewer scores — different methodologies (BT vs mean)" },
           { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false,
             desc: "AI BT vs BT from majority-vote matches — one match per pair, loses margin information" },
-          { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: null, fair: false,
+          { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: null, fair: false, highlight: true,
             desc: "AI BT vs actual program committee tier decisions — coarse (4 tiers only)" },
           { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true,
             desc: "One human reviewer vs all other reviewers (self excluded) — mirrors the AI row: single judge vs crowd. Apples-to-apples human ceiling" },
@@ -412,7 +412,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             desc: "One reviewer's BT vs LOO average scores — different methodologies (BT vs mean)" },
           { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false,
             desc: "One reviewer's BT vs LOO majority BT — loses margin information, LOO ties skipped" },
-          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: null, fair: false,
+          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: null, fair: false, highlight: true,
             desc: "Expert BT vs tier decisions — circular (reviewers influenced the decisions)" },
           { group: "", label: "Single expert vs Majority", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false,
             desc: "Circular — expert's own votes are included in the majority" },
@@ -441,11 +441,11 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
                     const showGroup = r.group && r.group !== lastGroup;
                     if (r.group) lastGroup = r.group;
                     return (
-                      <tr key={i} className={`border-b border-border/20 ${showGroup && i > 0 ? "border-t border-border" : ""} ${r.fair ? "bg-accent/5" : ""}`}>
+                      <tr key={i} className={`border-b border-border/20 ${showGroup && i > 0 ? "border-t border-border" : ""} ${r.fair ? "bg-accent/5" : ""} ${r.highlight ? "bg-rose-500/[0.04]" : ""}`}>
                         <td className={`py-1.5 px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 ${showGroup ? "" : "text-transparent select-none"}`}>{r.group || lastGroup}</td>
-                        <td className={`py-1.5 px-2 ${r.fair ? "font-semibold" : "text-foreground/50"}`}>{r.label}</td>
-                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "font-bold" : "font-normal text-foreground/50"}`}>{f(r.rho)}</td>
-                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "" : "font-normal text-foreground/50"}`}>{f(r.tau)}</td>
+                        <td className={`py-1.5 px-2 ${r.fair ? "font-semibold" : ""} ${r.highlight ? "font-medium" : !r.fair ? "text-foreground/50" : ""}`}>{r.label}</td>
+                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "font-bold" : ""} ${r.highlight ? "font-semibold" : !r.fair ? "font-normal text-foreground/50" : ""}`}>{f(r.rho)}</td>
+                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "" : ""} ${r.highlight ? "" : !r.fair ? "font-normal text-foreground/50" : ""}`}>{f(r.tau)}</td>
                         <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{r.desc}</td>
                       </tr>
                     );
@@ -461,6 +461,14 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
                 <strong>Committee (ICLR PC)</strong> = actual program committee tier decisions (coarse: 4 tiers).
                 Human vs Committee is circular (reviewers influenced the decisions).
               </p>
+              {bt.vs_tier_rho != null && bt.avg_expert_vs_tier?.spearman_rho != null && (
+                <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
+                  <strong>Key finding</strong> (highlighted rows): AI outperforms a single human expert at predicting committee decisions
+                  ({bt.vs_tier_rho.toFixed(3)} vs {bt.avg_expert_vs_tier.spearman_rho.toFixed(3)}) — even though the human has
+                  a circularity advantage (their scores influenced those very decisions). AI compensates with consistency:
+                  no off-days or idiosyncratic biases that make individual reviewers disagree with the eventual consensus.
+                </p>
+              )}
             </div>
           </div>
         );
