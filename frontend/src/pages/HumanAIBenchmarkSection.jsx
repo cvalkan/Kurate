@@ -310,8 +310,10 @@ function DatasetTable({ datasets }) {
                 <th className="py-1 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI-Maj%</th>
                 <th className="py-1 px-1.5 text-right font-medium bg-amber-500/[0.06]">H-Maj%(LOO)</th>
                 <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI-PC%</th>
-                <th className="py-1 px-1.5 text-right font-medium">rho</th>
-                <th className="py-1 px-1.5 text-right font-medium">BT(fair)</th>
+                <th className="py-1 px-1.5 text-right font-medium" title="AI BT vs all-expert-votes BT">AI vs H (BT)</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.04]" title="AI BT vs committee tier decisions">AI vs PC (BT)</th>
+                <th className="py-1 px-1.5 text-right font-medium" title="Single expert BT vs LOO all-other-experts BT">H vs H (BT)</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-rose-500/[0.04]" title="Single expert BT vs committee tier decisions">H vs PC (BT)</th>
                 <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Pairs</th>
                 <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Experts</th>
               </tr>
@@ -319,7 +321,7 @@ function DatasetTable({ datasets }) {
             <tbody>
               {datasets.map(d => {
                 const pw = d.pairwise || {};
-                const bt_indiv = d.bt_correlation?.individual || {};
+                const bt = d.bt_correlation || {};
                 const ta = d.tier_accuracy || {};
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
@@ -329,8 +331,10 @@ function DatasetTable({ datasets }) {
                     <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.ai_committee?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.human_committee_loo?.cf_rate ?? pw.human_committee_loo?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{ta.ai_rate != null ? `${ta.ai_rate}%` : "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono text-foreground/60">{d.inter_rater_rho?.toFixed(2) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono">{bt_indiv.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono font-semibold">{bt.individual?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-rose-500/[0.04]">{bt.vs_tier_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono">{bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.04]">{bt.avg_expert_vs_tier?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.controlled_pairs}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.n_experts}</td>
                   </tr>
