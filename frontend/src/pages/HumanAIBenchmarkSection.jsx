@@ -221,21 +221,35 @@ function DatasetTable({ datasets }) {
                 const bt = d.bt_correlation || {};
                 const ta = d.tier_accuracy || {};
                 const f3 = v => v?.toFixed(3) ?? "\u2014";
+                const ah = pw.ai_human?.cf_rate ?? pw.ai_human?.rate;
+                const hh = pw.human_human?.cf_rate ?? pw.human_human?.rate;
+                const amaj = pw.ai_committee?.rate;
+                const hmaj = pw.human_committee_loo?.cf_rate ?? pw.human_committee_loo?.rate;
+                const apc = ta.ai_rate;
+                const hpc = ta.hh_rate;
+                const abt1 = bt.individual?.spearman_rho;
+                const hbt1 = bt.avg_expert_vs_loo_indiv?.spearman_rho;
+                const abt2 = bt.committee?.spearman_rho;
+                const hbt2 = bt.avg_expert_vs_loo?.spearman_rho;
+                const abt3 = bt.vs_tier_rho;
+                const hbt3 = bt.avg_expert_vs_tier?.spearman_rho;
+                const b = (a, h) => a != null && h != null && a > h ? "font-semibold" : "";
+                const bh = (a, h) => h != null && a != null && h > a ? "font-semibold" : "";
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.ai_human?.cf_rate ?? pw.ai_human?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{pw.human_human?.cf_rate ?? pw.human_human?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-sky-500/[0.06]">{f3(bt.individual?.spearman_rho)}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{f3(bt.avg_expert_vs_loo_indiv?.spearman_rho)}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.ai_committee?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{pw.human_committee_loo?.cf_rate ?? pw.human_committee_loo?.rate ?? "\u2014"}%</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{f3(bt.committee?.spearman_rho)}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{f3(bt.avg_expert_vs_loo?.spearman_rho)}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{ta.ai_rate != null ? `${ta.ai_rate}%` : "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{ta.hh_rate != null ? `${ta.hh_rate}%` : "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-semibold bg-rose-500/[0.06]">{f3(bt.vs_tier_rho)}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-rose-500/[0.06]">{f3(bt.avg_expert_vs_tier?.spearman_rho)}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-sky-500/[0.06] ${b(ah, hh)}`}>{ah ?? "\u2014"}%</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-sky-500/[0.06] ${bh(ah, hh)}`}>{hh ?? "\u2014"}%</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-sky-500/[0.06] ${b(abt1, hbt1)}`}>{f3(abt1)}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-sky-500/[0.06] ${bh(abt1, hbt1)}`}>{f3(hbt1)}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-amber-500/[0.06] ${b(amaj, hmaj)}`}>{amaj ?? "\u2014"}%</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-amber-500/[0.06] ${bh(amaj, hmaj)}`}>{hmaj ?? "\u2014"}%</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-amber-500/[0.06] ${b(abt2, hbt2)}`}>{f3(abt2)}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-amber-500/[0.06] ${bh(abt2, hbt2)}`}>{f3(hbt2)}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${b(apc, hpc)}`}>{apc != null ? `${apc}%` : "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${bh(apc, hpc)}`}>{hpc != null ? `${hpc}%` : "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${b(abt3, hbt3)}`}>{f3(abt3)}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${bh(abt3, hbt3)}`}>{f3(hbt3)}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.controlled_pairs}</td>
                   </tr>
                 );
@@ -310,25 +324,25 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
         const bt = p.bt_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
-          { group: "AI vs Human", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, fair: true,
+          { group: "AI vs Human", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, fair: true, color: "sky",
             desc: "Each expert's vote on each pair is a separate BT match (preserving individual disagreements). AI BT is compared against this combined human BT" },
           { group: "", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null, fair: false,
             desc: "AI BT ranking vs simple average of reviewer scores — different methodologies (BT vs mean)" },
-          { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false,
+          { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, fair: false, color: "amber",
             desc: "AI BT vs BT from majority-vote matches — one match per pair, loses margin information" },
-          { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: null, fair: false, highlight: true,
+          { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: null, fair: false, highlight: true, color: "rose",
             desc: "AI BT vs actual program committee tier decisions — coarse (4 tiers only)" },
-          { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true,
+          { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: null, fair: true, color: "sky",
             desc: "One human reviewer vs all other reviewers (self excluded) — mirrors the AI row: single judge vs crowd. Apples-to-apples human ceiling" },
           { group: "", label: "Single expert vs Avg Rating (LOO)", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: null, fair: false,
             desc: "One reviewer's BT vs LOO average scores — different methodologies (BT vs mean)" },
-          { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false,
+          { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: null, fair: false, color: "amber",
             desc: "One reviewer's BT vs LOO majority BT — loses margin information, LOO ties skipped" },
-          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: null, fair: false, highlight: true,
+          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: null, fair: false, highlight: true, color: "rose",
             desc: "Expert BT vs tier decisions — circular (reviewers influenced the decisions)" },
-          { group: "", label: "Single expert vs Majority", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false,
+          { group: "", label: "Single expert vs Majority", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, fair: false, color: "amber",
             desc: "Circular — expert's own votes are included in the majority" },
-          { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau, fair: false,
+          { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau, fair: false, color: "sky",
             desc: "Circular — expert's own votes are included in the aggregate" },
         ];
         let lastGroup = "";
@@ -352,12 +366,13 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
                   {rows.map((r, i) => {
                     const showGroup = r.group && r.group !== lastGroup;
                     if (r.group) lastGroup = r.group;
+                    const bg = r.color === "rose" ? "bg-rose-500/[0.06]" : r.color === "amber" ? "bg-amber-500/[0.06]" : r.color === "sky" ? "bg-sky-500/[0.06]" : "";
                     return (
-                      <tr key={i} className={`border-b border-border/20 ${showGroup && i > 0 ? "border-t border-border" : ""} ${r.fair ? "bg-accent/5" : ""} ${r.highlight ? "bg-rose-500/[0.04]" : ""}`}>
+                      <tr key={i} className={`border-b border-border/20 ${showGroup && i > 0 ? "border-t border-border" : ""} ${r.fair ? "bg-accent/5" : bg}`}>
                         <td className={`py-1.5 px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 ${showGroup ? "" : "text-transparent select-none"}`}>{r.group || lastGroup}</td>
-                        <td className={`py-1.5 px-2 ${r.fair ? "font-semibold" : ""} ${r.highlight ? "font-medium" : !r.fair ? "text-foreground/50" : ""}`}>{r.label}</td>
-                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "font-bold" : ""} ${r.highlight ? "font-semibold" : !r.fair ? "font-normal text-foreground/50" : ""}`}>{f(r.rho)}</td>
-                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "" : ""} ${r.highlight ? "" : !r.fair ? "font-normal text-foreground/50" : ""}`}>{f(r.tau)}</td>
+                        <td className={`py-1.5 px-2 ${r.fair ? "font-semibold" : ""} ${r.highlight ? "font-medium" : !r.fair && !r.color ? "text-foreground/50" : ""}`}>{r.label}</td>
+                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "font-bold" : ""} ${r.highlight ? "font-semibold" : !r.fair && !r.color ? "font-normal text-foreground/50" : ""}`}>{f(r.rho)}</td>
+                        <td className={`py-1.5 px-2 text-right font-mono ${r.fair ? "" : ""} ${r.highlight ? "" : !r.fair && !r.color ? "font-normal text-foreground/50" : ""}`}>{f(r.tau)}</td>
                         <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{r.desc}</td>
                       </tr>
                     );
