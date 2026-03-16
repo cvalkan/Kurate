@@ -492,15 +492,15 @@ def _render_list_image(name: str, description: str, curator: str, papers: list, 
         bg = '#f8fafc' if i % 2 == 0 else '#ffffff'
         rows_svg += f"""
     <rect x="30" y="{y}" width="580" height="52" rx="4" fill="{bg}"/>
-    <text x="50" y="{y+22}" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#1a1a2e">{title}</text>
-    <text x="50" y="{y+40}" font-family="system-ui, sans-serif" font-size="10" fill="#6b7280">{authors}</text>
-    <text x="590" y="{y+22}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#4285F4" text-anchor="end">{score}</text>
-    <text x="590" y="{y+40}" font-family="system-ui, sans-serif" font-size="10" fill="#9ca3af" text-anchor="end">{cat}</text>"""
+    <text x="50" y="{y+22}" font-family="Inter, 'Liberation Sans', sans-serif" font-size="13" font-weight="600" fill="#1a1a2e">{title}</text>
+    <text x="50" y="{y+40}" font-family="Inter, 'Liberation Sans', sans-serif" font-size="10" fill="#6b7280">{authors}</text>
+    <text x="590" y="{y+22}" font-family="Inter, 'Liberation Sans', sans-serif" font-size="13" font-weight="700" fill="#4285F4" text-anchor="end">{score}</text>
+    <text x="590" y="{y+40}" font-family="Inter, 'Liberation Sans', sans-serif" font-size="10" fill="#9ca3af" text-anchor="end">{cat}</text>"""
         y += 56
 
     if total > len(show):
         rows_svg += f"""
-    <text x="320" y="{y+16}" font-family="system-ui, sans-serif" font-size="11" fill="#9ca3af" text-anchor="middle">+{total - len(show)} more paper{"s" if total - len(show) != 1 else ""}</text>"""
+    <text x="320" y="{y+16}" font-family="Inter, 'Liberation Sans', sans-serif" font-size="11" fill="#9ca3af" text-anchor="middle">+{total - len(show)} more paper{"s" if total - len(show) != 1 else ""}</text>"""
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 392" width="640" height="392">
   <rect width="640" height="392" fill="#ffffff"/>
@@ -508,18 +508,18 @@ def _render_list_image(name: str, description: str, curator: str, papers: list, 
   <line x1="0" y1="64" x2="640" y2="64" stroke="#dde3ea" stroke-width="1"/>
 
   <!-- Kurate.org logo -->
-  <text x="30" y="42" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#6b7280">Reading List</text>
-  <text x="480" y="45" font-family="system-ui, sans-serif" font-size="24" letter-spacing="-0.3"><tspan font-weight="800" fill="#4285F4">Ku</tspan><tspan font-weight="800" fill="#1a1a1a">rate</tspan><tspan font-weight="400" fill="#4285F4" font-size="21">.org</tspan></text>
+  <text x="30" y="42" font-family="Inter, 'Liberation Sans', sans-serif" font-size="16" font-weight="600" fill="#6b7280">Reading List</text>
+  <text x="480" y="45" font-family="Inter, 'Liberation Sans', sans-serif" font-size="24" letter-spacing="-0.3"><tspan font-weight="800" fill="#4285F4">Ku</tspan><tspan font-weight="800" fill="#1a1a1a">rate</tspan><tspan font-weight="400" fill="#4285F4" font-size="21">.org</tspan></text>
 
   <!-- Title & metadata -->
-  <text x="30" y="100" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#1a1a2e">{_esc(name[:50])}</text>
-  <text x="30" y="125" font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">Curated by {_esc(curator)} · {total} papers</text>
-  {f'<text x="30" y="145" font-family="system-ui, sans-serif" font-size="11" fill="#9ca3af">{_esc(description[:80])}</text>' if description else ''}
+  <text x="30" y="100" font-family="Inter, 'Liberation Sans', sans-serif" font-size="22" font-weight="700" fill="#1a1a2e">{_esc(name[:50])}</text>
+  <text x="30" y="125" font-family="Inter, 'Liberation Sans', sans-serif" font-size="12" fill="#6b7280">Curated by {_esc(curator)} · {total} papers</text>
+  {f'<text x="30" y="145" font-family="Inter, 'Liberation Sans', sans-serif" font-size="11" fill="#9ca3af">{_esc(description[:80])}</text>' if description else ''}
 
   <!-- Header row -->
   <rect x="30" y="160" width="580" height="18" fill="#f0f4f8" rx="2"/>
-  <text x="50" y="173" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#6b7280">Paper</text>
-  <text x="590" y="173" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#6b7280" text-anchor="end">Score</text>
+  <text x="50" y="173" font-family="Inter, 'Liberation Sans', sans-serif" font-size="10" font-weight="600" fill="#6b7280">Paper</text>
+  <text x="590" y="173" font-family="Inter, 'Liberation Sans', sans-serif" font-size="10" font-weight="600" fill="#6b7280" text-anchor="end">Score</text>
 
   {rows_svg}
 </svg>"""
