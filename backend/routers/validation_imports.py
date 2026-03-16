@@ -613,6 +613,250 @@ async def _run_midl_full_import(dataset_id: str, name: str, description: str, ye
 
 
 
+class ImportUAIRequest(BaseModel):
+    dataset_id: str
+    name: str
+    description: str = ""
+    year: int = 2024
+    max_papers: int = 100
+
+
+@router.post("/import-uai", dependencies=[Depends(verify_admin)])
+async def import_uai_dataset(body: ImportUAIRequest):
+    """Import papers from UAI via OpenReview API. Derives composite score from 5 aspect ratings."""
+    await db.validation_datasets.update_one(
+        {"dataset_id": body.dataset_id},
+        {"$set": {
+            "dataset_id": body.dataset_id,
+            "name": body.name,
+            "description": body.description,
+            "source": f"UAI {body.year} / OpenReview",
+            "import_status": "fetching_papers",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    asyncio.create_task(_run_uai_import(body.dataset_id, body.name, body.description, body.year, body.max_papers))
+    return {"status": "started", "dataset_id": body.dataset_id}
+
+
+def _parse_uai_aspect_score(value_str):
+    """Parse 'N: Label: ...' format into numeric score."""
+    try:
+        return int(str(value_str).split(":")[0].strip())
+    except (ValueError, TypeError, IndexError):
+        return None
+
+
+UAI_ASPECTS = [
+    "Q2-1_Originality-Novelty",
+    "Q2-2_Correctness-Technical_quality",
+    "Q2-3_Extent_to_which_claims_are_supported_by_evidence",
+    "Q2-4_Reproducibility",
+    "Q2-5_Clarity_of_writing",
+]
+
+
+async def _run_uai_import(dataset_id: str, name: str, description: str, year: int, max_papers: int):
+    """Background task: fetch UAI papers from OpenReview, parse aspect scores, download PDFs."""
+    OR_API = "https://api2.openreview.net"
+    headers = {"User-Agent": "PaperSumo/1.0"}
+
+    # Phase 1: Fetch all submissions
+    all_papers = []
+    offset = 0
+    while True:
+        try:
+            r = requests.get(f"{OR_API}/notes", params={
+                "invitation": f"auai.org/UAI/{year}/Conference/-/Submission",
+                "limit": 50, "offset": offset,
+            }, headers=headers, timeout=20)
+            if r.status_code != 200:
+                break
+            notes = r.json().get("notes", [])
+            for n in notes:
+                content = n.get("content", {})
+                all_papers.append({
+                    "forum_id": n["forum"],
+                    "title": content.get("title", {}).get("value", ""),
+                    "abstract": content.get("abstract", {}).get("value", ""),
+                    "authors": content.get("authors", {}).get("value", []),
+                    "venue": content.get("venue", {}).get("value", ""),
+                    "keywords": content.get("keywords", {}).get("value", []),
+                    "year": year,
+                })
+            if len(notes) < 50:
+                break
+            offset += 50
+        except Exception:
+            break
+        await asyncio.sleep(0.3)
+
+    logger.info(f"UAI import [{dataset_id}]: found {len(all_papers)} papers, fetching reviews...")
+    await db.validation_datasets.update_one(
+        {"dataset_id": dataset_id},
+        {"$set": {"import_status": "fetching_reviews", "papers_found": len(all_papers)}},
+    )
+
+    # Phase 2: Fetch reviews and parse aspect scores
+    papers_with_reviews = []
+    for i, paper in enumerate(all_papers):
+        await asyncio.sleep(0.3)
+        try:
+            r = requests.get(f"{OR_API}/notes", params={
+                "forum": paper["forum_id"], "limit": 30,
+            }, headers=headers, timeout=15)
+            if r.status_code != 200:
+                continue
+            forum_notes = r.json().get("notes", [])
+            reviews = []
+            meta_recommendation = None
+            for fn in forum_notes:
+                inv_id = fn.get("invitations", [""])[0] if isinstance(fn.get("invitations"), list) else ""
+                content = fn.get("content", {})
+                if "Official_Review" in inv_id and "Q2-1_Originality-Novelty" in content:
+                    aspect_scores = {}
+                    for aspect in UAI_ASPECTS:
+                        val = content.get(aspect, {}).get("value", "")
+                        parsed = _parse_uai_aspect_score(val)
+                        if parsed is not None:
+                            aspect_scores[aspect] = parsed
+                    if len(aspect_scores) >= 3:
+                        composite = sum(aspect_scores.values()) / len(aspect_scores)
+                        reviews.append({
+                            "score": round(composite, 2),
+                            "aspects": aspect_scores,
+                        })
+                elif "Meta_Review" in inv_id:
+                    meta_recommendation = content.get("metareview", {}).get("value", "")[:200]
+            if len(reviews) < 2:
+                continue
+            scores = [rv["score"] for rv in reviews]
+            paper["reviews"] = reviews
+            paper["scores"] = scores
+            paper["avg_score"] = sum(scores) / len(scores)
+            venue = paper["venue"]
+            if "oral" in venue.lower():
+                paper["decision"] = "Oral"
+            elif "spotlight" in venue.lower():
+                paper["decision"] = "Spotlight"
+            elif "poster" in venue.lower():
+                paper["decision"] = "Poster"
+            else:
+                paper["decision"] = venue
+            papers_with_reviews.append(paper)
+        except Exception as e:
+            logger.warning(f"UAI review fetch failed for {paper['forum_id']}: {e}")
+        if (i + 1) % 20 == 0:
+            await db.validation_datasets.update_one(
+                {"dataset_id": dataset_id},
+                {"$set": {"import_progress_reviews": i + 1}},
+            )
+
+    if not papers_with_reviews:
+        await db.validation_datasets.update_one(
+            {"dataset_id": dataset_id},
+            {"$set": {"import_status": "error", "error": "No papers with 2+ reviews found"}},
+        )
+        return
+
+    logger.info(f"UAI import [{dataset_id}]: {len(papers_with_reviews)} papers with reviews")
+
+    # Phase 3: Stratified sample — ensure tier diversity
+    if len(papers_with_reviews) > max_papers:
+        by_tier = {}
+        for p in papers_with_reviews:
+            by_tier.setdefault(p["decision"], []).append(p)
+        for tier in by_tier:
+            by_tier[tier].sort(key=lambda p: p["avg_score"])
+        selected = []
+        total = len(papers_with_reviews)
+        for tier in by_tier:
+            pool = by_tier[tier]
+            alloc = max(10, round(len(pool) / total * max_papers))
+            alloc = min(alloc, len(pool))
+            step = len(pool) / alloc if alloc > 0 else 1
+            selected.extend([pool[int(i * step)] for i in range(alloc)])
+        if len(selected) > max_papers:
+            selected.sort(key=lambda p: p["avg_score"])
+            step = len(selected) / max_papers
+            selected = [selected[int(i * step)] for i in range(max_papers)]
+    else:
+        selected = papers_with_reviews
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": dataset_id},
+        {"$set": {"import_status": "downloading_pdfs", "paper_count": len(selected)}},
+    )
+
+    # Phase 4: Download PDFs and import
+    import httpx as _httpx
+    imported = 0
+    pdfs = 0
+    for paper in selected:
+        full_text = None
+        try:
+            async with _httpx.AsyncClient() as client:
+                pdf_url = f"https://openreview.net/pdf?id={paper['forum_id']}"
+                r = await client.get(pdf_url, timeout=30, follow_redirects=True)
+                if r.status_code == 200 and r.content[:5] == b'%PDF-':
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(io.BytesIO(r.content))
+                    parts = [page.extract_text() or "" for page in reader.pages]
+                    text = " ".join(" ".join(parts).split()).encode("utf-8", errors="replace").decode("utf-8")
+                    if len(text) > 500:
+                        full_text = text
+                        pdfs += 1
+        except Exception as e:
+            logger.warning(f"UAI PDF download failed for {paper['forum_id']}: {e}")
+
+        evaluations = []
+        for j, rev in enumerate(paper["reviews"]):
+            evaluations.append({
+                "rating_value": rev["score"],
+                "aspects": rev.get("aspects", {}),
+                "evaluator": f"Reviewer_{j+1}",
+                "source": "UAI/OpenReview",
+            })
+
+        doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": dataset_id,
+            "title": paper["title"],
+            "abstract": paper["abstract"],
+            "authors": [{"name": a} for a in paper["authors"]] if isinstance(paper["authors"], list) else [],
+            "openreview_id": paper["forum_id"],
+            "year": paper["year"],
+            "decision": paper["decision"],
+            "h1_avg_rating": paper["avg_score"],
+            "h1_rating_count": len(paper["scores"]),
+            "evaluations": evaluations,
+            "scores": paper["scores"],
+            "keywords": paper.get("keywords", []),
+            "venue": paper["venue"],
+            "source": "uai_openreview",
+            "full_text": full_text,
+        }
+        await db.validation_papers.update_one(
+            {"dataset_id": dataset_id, "openreview_id": paper["forum_id"]},
+            {"$set": doc}, upsert=True,
+        )
+        imported += 1
+        if imported % 10 == 0:
+            await db.validation_datasets.update_one(
+                {"dataset_id": dataset_id},
+                {"$set": {"import_progress": imported, "import_pdfs": pdfs}},
+            )
+        await asyncio.sleep(0.3)
+
+    await db.validation_datasets.update_one(
+        {"dataset_id": dataset_id},
+        {"$set": {"import_status": "complete", "paper_count": imported, "import_progress": imported, "import_pdfs": pdfs}},
+    )
+    logger.info(f"UAI import complete: {dataset_id} — {imported} papers, {pdfs} PDFs")
+
+
+
 class ImportPeerReadRequest(BaseModel):
     dataset_id: str
     name: str
