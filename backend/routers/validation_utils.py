@@ -20,7 +20,7 @@ from core.config import db
 COMPARATIVE_GT_DATASETS = {
     "iclr-codegen", "iclr-llm", "iclr-protein", "iclr-fairness", "iclr-pdes",
     "iclr-molecules", "iclr-optimization", "iclr-ot", "peerread_acl_2017",
-    "elife-neuro-100", "neurips-cv", "uai-2024",
+    "elife-neuro-100", "neurips-cv",
 }
 
 STANDALONE_GT_DATASETS = {
