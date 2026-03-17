@@ -147,10 +147,17 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             if si_cache.get("status") == "ok":
                 for ds_data in si_cache.get("datasets", []):
                     if ds_data.get("dataset_id") == dataset_id:
+                        # Match by title since paper IDs may differ between environments
+                        title_to_score = {}
                         for p_data in ds_data.get("papers", []):
-                            pid = p_data.get("id")
+                            title = p_data.get("title", "").strip()
                             score = p_data.get("ai_score") or p_data.get("single_item_score")
-                            if pid and score is not None and pid in gt:
+                            if title and score is not None:
+                                title_to_score[title] = score
+                        title_to_id = {p.get("title", "").strip(): p["id"] for p in papers if p.get("title")}
+                        for title, score in title_to_score.items():
+                            pid = title_to_id.get(title)
+                            if pid and pid in gt:
                                 si_scores[pid] = score
                         break
         except Exception:
