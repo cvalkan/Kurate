@@ -37,8 +37,13 @@ _benchmark_cache = {"comp": {"data": None}, "stan": {"data": None}}
 
 async def _load_cached_benchmark(gt_type: str):
     """Try to load benchmark from MongoDB cache."""
-    doc = await db.benchmark_cache.find_one({"gt_type": gt_type}, {"_id": 0, "data": 1})
+    from core.cache import CACHE_VERSION
+    doc = await db.benchmark_cache.find_one({"gt_type": gt_type}, {"_id": 0, "data": 1, "version": 1})
     if doc and doc.get("data"):
+        if doc.get("version", 0) != CACHE_VERSION:
+            await db.benchmark_cache.delete_one({"gt_type": gt_type})
+            logger.info(f"Benchmark cache invalidated (version mismatch): {gt_type}")
+            return None
         _benchmark_cache[gt_type] = {"data": doc["data"]}
         return doc["data"]
     return None
@@ -1115,10 +1120,11 @@ async def human_ai_benchmark(gt_type: str = Query("comp")):
     else:
         result = await _compute_benchmark(gt_type)
     if result.get("status") == "ok":
+        from core.cache import CACHE_VERSION
         _benchmark_cache[gt_type] = {"data": result}
         await db.benchmark_cache.update_one(
             {"gt_type": gt_type},
-            {"$set": {"gt_type": gt_type, "data": result}},
+            {"$set": {"gt_type": gt_type, "data": result, "version": CACHE_VERSION}},
             upsert=True,
         )
     return result

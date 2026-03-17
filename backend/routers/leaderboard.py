@@ -1005,8 +1005,10 @@ async def get_system_status():
 
 @router.get("/prompts")
 async def get_public_prompts():
-    """Public read-only view of the evaluation and summary prompts."""
+    """Public read-only view of the evaluation and summary prompts.
+    Always returns the code-defined prompts as the source of truth."""
     from core.config import DEFAULT_EVALUATION_PROMPT
+    from services.llm import IMPACT_ASSESSMENT_PROMPT
 
     eval_doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
     eval_prompt = {
@@ -1014,19 +1016,11 @@ async def get_public_prompts():
         "user_prompt": eval_doc.get("user_prompt", "") if eval_doc else DEFAULT_EVALUATION_PROMPT["user_prompt"],
     }
 
-    summary_doc = await db.settings.find_one({"key": "summary_prompt"}, {"_id": 0})
-    if summary_doc and summary_doc.get("system_prompt"):
-        summary_prompt = {
-            "system_prompt": summary_doc.get("system_prompt", ""),
-            "user_prompt": summary_doc.get("user_prompt", ""),
-        }
-    else:
-        # Use the pre-comparison impact assessment prompt
-        from services.llm import IMPACT_ASSESSMENT_PROMPT
-        summary_prompt = {
-            "system_prompt": IMPACT_ASSESSMENT_PROMPT["system_prompt"],
-            "user_prompt": IMPACT_ASSESSMENT_PROMPT["user_prompt"],
-        }
+    # Always use the code-defined impact assessment prompt (includes ratings)
+    summary_prompt = {
+        "system_prompt": IMPACT_ASSESSMENT_PROMPT["system_prompt"],
+        "user_prompt": IMPACT_ASSESSMENT_PROMPT["user_prompt"],
+    }
 
     return {
         "evaluation": eval_prompt,
