@@ -1232,32 +1232,46 @@ MODEL_PRICING = {
 }
 
 
+_timeseries_refresh_lock = False
+_timeseries_last_refresh = 0
+
+
 @router.get("/timeseries", dependencies=[Depends(verify_admin)])
 async def get_timeseries(category: Optional[str] = None):
     """Return daily time-series data for papers, matches, tokens, costs."""
+    global _timeseries_refresh_lock, _timeseries_last_refresh
     cache_key = category or "__all__"
     cached = _get_admin_cached("timeseries", cache_key)
     if cached:
         return cached
 
-    # Cold start: load from MongoDB to respond fast, then recompute in background
+    # Cold start: load from MongoDB to respond fast
     from core.cache import get_cached, set_cached
     mongo_key = f"admin_timeseries_{cache_key}"
     db_cached = await get_cached(mongo_key)
     if db_cached:
         _set_admin_cached("timeseries", cache_key, db_cached)
-        # Recompute in background so next request gets fresh data
-        async def _bg_refresh():
-            result = await _compute_timeseries(category)
-            _set_admin_cached("timeseries", cache_key, result)
-            await set_cached(mongo_key, result)
-        asyncio.create_task(_bg_refresh())
+        # Background refresh at most once per hour, and only if not already running
+        if not _timeseries_refresh_lock and _time.time() - _timeseries_last_refresh > 3600:
+            _timeseries_refresh_lock = True
+            async def _bg_refresh():
+                global _timeseries_refresh_lock, _timeseries_last_refresh
+                try:
+                    await asyncio.sleep(2)  # Brief delay to not compete with the response
+                    result = await _compute_timeseries(category)
+                    _set_admin_cached("timeseries", cache_key, result)
+                    await set_cached(mongo_key, result)
+                    _timeseries_last_refresh = _time.time()
+                finally:
+                    _timeseries_refresh_lock = False
+            asyncio.create_task(_bg_refresh())
         return db_cached
 
-    # No cache at all: compute synchronously
+    # No cache at all: compute synchronously (only happens on very first deploy)
     result = await _compute_timeseries(category)
     _set_admin_cached("timeseries", cache_key, result)
     await set_cached(mongo_key, result)
+    _timeseries_last_refresh = _time.time()
     return result
 
 
