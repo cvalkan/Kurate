@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/admin")
 
 # Per-category cache for admin endpoints (avoids hammering DB on rapid category switching)
 _admin_cache = {}  # {(endpoint, category): {"data": ..., "ts": float}}
-_ADMIN_CACHE_TTL = 30  # 30s TTL — background leaderboard refresh handles freshness
+_ADMIN_CACHE_TTL = 300  # 5 min — timeseries is expensive (70s+ cold), data changes slowly
 
 
 def _get_admin_cached(key: str, category: str):
@@ -1234,14 +1234,23 @@ MODEL_PRICING = {
 
 @router.get("/timeseries", dependencies=[Depends(verify_admin)])
 async def get_timeseries(category: Optional[str] = None):
-    """Return daily time-series data for papers, matches, tokens, costs. Cached for 5 min."""
+    """Return daily time-series data for papers, matches, tokens, costs. Cached with MongoDB persistence."""
     cache_key = category or "__all__"
     cached = _get_admin_cached("timeseries", cache_key)
     if cached:
         return cached
 
+    # Try MongoDB persistent cache
+    from core.cache import get_cached, set_cached
+    mongo_key = f"admin_timeseries_{cache_key}"
+    db_cached = await get_cached(mongo_key)
+    if db_cached:
+        _set_admin_cached("timeseries", cache_key, db_cached)
+        return db_cached
+
     result = await _compute_timeseries(category)
     _set_admin_cached("timeseries", cache_key, result)
+    await set_cached(mongo_key, result)
     return result
 
 

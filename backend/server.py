@@ -585,6 +585,19 @@ async def _prewarm_all_experiment_caches():
                     logger.warning(f"  unified-benchmark-{gt}: failed — {e}")
 
         logger.info("All experiment caches ready")
+
+        # Also warm admin timeseries (very expensive: 70s+ cold)
+        try:
+            mongo_key = "admin_timeseries___all__"
+            ts_cached = await get_cached(mongo_key)
+            if ts_cached:
+                from routers.admin import _set_admin_cached
+                _set_admin_cached("timeseries", "__all__", ts_cached)
+                logger.info("Admin timeseries loaded from MongoDB cache")
+            else:
+                logger.info("Admin timeseries not cached — will compute on first admin visit")
+        except Exception as e:
+            logger.warning(f"Admin timeseries prewarm failed: {e}")
     except Exception as e:
         logger.warning(f"Layer 3 (compute missing) failed: {e}")
     """Pre-warm model-correlation and convergence caches for all active categories."""
