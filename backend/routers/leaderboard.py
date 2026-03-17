@@ -53,15 +53,27 @@ def _apply_period_filter(full_leaderboard, period):
 async def _refresh_cache():
     """Heavy computation — runs in background, never on the request path."""
     _t0 = time.time()
-    all_papers = await db.papers.find(
-        {"summaries": {"$exists": True, "$ne": {}}},
-        {"_id": 0, "full_text": 0, "abstract": 0}
-    ).to_list(5000)
 
-    all_matches_raw = await db.matches.find(
-        {"completed": True, "failed": {"$ne": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1, "shared_categories": 1, "primary_category": 1, "model_used": 1, "tokens": 1, "created_at": 1, "id": 1},
-    ).to_list(200000)
+    # Run heavy MongoDB loads in a thread to avoid blocking the event loop
+    loop = asyncio.get_event_loop()
+
+    async def _load_data():
+        papers = await db.papers.find(
+            {"summaries": {"$exists": True, "$ne": {}}},
+            {"_id": 0, "full_text": 0, "abstract": 0}
+        ).to_list(5000)
+        matches = await db.matches.find(
+            {"completed": True, "failed": {"$ne": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1, "shared_categories": 1, "primary_category": 1, "model_used": 1, "tokens": 1, "created_at": 1, "id": 1},
+        ).to_list(200000)
+        likes = {}
+        async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
+            if doc.get("likes") is not None:
+                likes[doc["id"]] = doc["likes"]
+        return papers, matches, likes
+
+    all_papers, all_matches_raw, alphaxiv_likes = await _load_data()
+    await asyncio.sleep(0)  # Yield to event loop after heavy DB reads
 
     # Exclude experiment matches from public leaderboard
     all_matches = [m for m in all_matches_raw if not m.get("mode")]
@@ -89,12 +101,6 @@ async def _refresh_cache():
 
     # Use dynamic active categories from settings
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
-
-    # --- Load AlphaXiv community likes (if available) ---
-    alphaxiv_likes = {}
-    async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
-        if doc.get("likes") is not None:
-            alphaxiv_likes[doc["id"]] = doc["likes"]
 
     # --- Load AI ratings (single-item scores from summary generation) ---
     ai_ratings = {}
