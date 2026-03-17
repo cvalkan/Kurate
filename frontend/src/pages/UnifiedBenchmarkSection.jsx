@@ -21,7 +21,11 @@ function ComparisonTable({ data }) {
     { key: "medium", label: "Adjacent-tier (medium)" },
     { key: "hard", label: "Within-tier (hard)" },
   ];
-  const pwWins = (p.intersection?.pw_accuracy || 0) >= (p.intersection?.si_accuracy || 0);
+  const hasSI = (p.si_total || 0) > 0 || (p.intersection?.pairs || 0) > 0;
+  const hasIntersection = (p.intersection?.pairs || 0) > 0;
+  const pwAcc = hasIntersection ? p.intersection.pw_accuracy : p.pw_accuracy;
+  const siAcc = hasIntersection ? p.intersection.si_accuracy : (hasSI ? p.si_accuracy : null);
+  const pwWins = (pwAcc || 0) >= (siAcc || 0);
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
@@ -47,12 +51,12 @@ function ComparisonTable({ data }) {
           <tbody>
             {p.intersection && (
               <tr className="border-b border-border bg-accent/5">
-                <td className="py-1.5 px-2 text-left text-xs font-semibold">Pooled (same pairs)</td>
-                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{p.intersection.pw_accuracy}%</td>
-                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{p.intersection.si_accuracy}%</td>
+                <td className="py-1.5 px-2 text-left text-xs font-semibold">{hasIntersection ? "Pooled (same pairs)" : "Pooled (full data)"}</td>
+                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{pwAcc != null ? `${pwAcc}%` : "\u2014"}</td>
+                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins && siAcc != null ? "font-bold" : ""}`}>{siAcc != null ? `${siAcc}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{p.intersection.pairs?.toLocaleString()}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{hasIntersection ? p.intersection.pairs?.toLocaleString() : (p.pw_total || 0).toLocaleString()}</td>
               </tr>
             )}
             {levels.map(({ key, label }) => {
@@ -128,14 +132,18 @@ function DatasetTable({ datasets }) {
                 const siRho = d.si?.bt_rho || 0;
                 const pwWins = pwRho > siRho;
                 const intr = d.intersection || {};
+                const dHasSI = (d.si?.total || 0) > 0;
+                const dHasIntr = (intr.pairs || 0) > 0;
+                const dPwAcc = dHasIntr ? intr.pw_accuracy : d.pw?.accuracy;
+                const dSiAcc = dHasIntr ? intr.si_accuracy : (dHasSI ? d.si?.accuracy : null);
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{intr.pw_accuracy ?? d.pw?.accuracy}%</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{intr.si_accuracy ?? d.si?.accuracy}%</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{dPwAcc != null ? `${dPwAcc}%` : "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins && dSiAcc != null ? "font-bold" : ""}`}>{dSiAcc != null ? `${dSiAcc}%` : "\u2014"}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{intr.pairs?.toLocaleString() ?? "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins && d.si?.bt_rho ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{dHasIntr ? intr.pairs?.toLocaleString() : (d.pw?.total || 0).toLocaleString()}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{d.n_papers}</td>
                     <td className="py-1 px-1.5 text-center">
                       <span className={`text-[9px] font-semibold ${pwWins ? "text-violet-700" : "text-emerald-700"}`}>{pwWins ? "PW" : "SI"}</span>
@@ -183,12 +191,21 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="PW Accuracy" value={`${p.intersection?.pw_accuracy ?? p.pw_accuracy}%`} sub={`${p.intersection?.pairs?.toLocaleString()} same pairs`} accent={(p.intersection?.pw_accuracy || p.pw_accuracy) >= (p.intersection?.si_accuracy || p.si_accuracy)} />
-        </div>
-        <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="SI Accuracy" value={`${p.intersection?.si_accuracy ?? p.si_accuracy}%`} sub={`${p.intersection?.pairs?.toLocaleString()} same pairs`} accent={(p.intersection?.si_accuracy || p.si_accuracy) > (p.intersection?.pw_accuracy || p.pw_accuracy)} />
-        </div>
+        {(() => {
+          const hHasIntr = (p.intersection?.pairs || 0) > 0;
+          const hHasSI = (p.si_total || 0) > 0;
+          const hPwAcc = hHasIntr ? p.intersection.pw_accuracy : p.pw_accuracy;
+          const hSiAcc = hHasIntr ? p.intersection.si_accuracy : (hHasSI ? p.si_accuracy : null);
+          const hPairs = hHasIntr ? p.intersection.pairs : p.pw_total;
+          return (<>
+            <div className="border border-border rounded-lg p-3 bg-background">
+              <Metric label="PW Accuracy" value={hPwAcc != null ? `${hPwAcc}%` : "\u2014"} sub={`${hPairs?.toLocaleString()} ${hHasIntr ? "same" : "PW"} pairs`} accent={hPwAcc >= (hSiAcc || 0)} />
+            </div>
+            <div className="border border-border rounded-lg p-3 bg-background">
+              <Metric label="SI Accuracy" value={hSiAcc != null ? `${hSiAcc}%` : "\u2014"} sub={hHasSI ? `${hPairs?.toLocaleString()} ${hHasIntr ? "same" : "SI"} pairs` : "no SI data"} accent={hSiAcc != null && hSiAcc > (hPwAcc || 0)} />
+            </div>
+          </>);
+        })()}
         <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label={`PW Spearman \u03C1`} value={p.pw_rho?.toFixed(3) ?? "\u2014"} sub="BT ranking vs h1_avg" accent={(p.pw_rho || 0) >= (p.si_rho || 0)} />
         </div>
@@ -206,7 +223,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
 export function UnifiedCompSection() {
   return <UnifiedPage
     apiUrl="/api/validation/unified-benchmark?gt_type=comp"
-    headerDesc={<>PW judges (round-robin) vs SI scoring (Opus 4.6 Thinking) — accuracy on same pairs, ranking on full data. <strong>Comparative GT</strong> (ICLR, PeerRead, eLife Neuro).</>}
+    headerDesc={<>PW judges (round-robin) vs SI scoring (Opus 4.6 Thinking) — accuracy on same pairs, ranking on full data. <strong>Comparative GT</strong> (8 ICLR topics, PeerRead ACL 2017).</>}
     testId="unified-comp"
   />;
 }
