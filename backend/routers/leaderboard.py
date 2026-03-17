@@ -21,12 +21,24 @@ _TAG_CACHE_TTL = 20  # Same as main cache TTL
 _TAG_CACHE_MAX = 100  # Max cached tag combos
 
 
-def _apply_period_filter(full_leaderboard, period):
+def _apply_period_filter(full_leaderboard, period, added_at_lookup=None):
     """Apply period filter to a pre-ranked leaderboard. Returns (filtered_list, total_in_period)."""
     if period == "all":
         return full_leaderboard, len(full_leaderboard)
 
     utc_now = datetime.now(timezone.utc)
+
+    if period == "recent" and added_at_lookup:
+        # "Most Recent" = papers added to system in last 48h, sorted by published date
+        cutoff = utc_now - timedelta(hours=48)
+        filtered = [{**e} for e in full_leaderboard
+                    if added_at_lookup.get(e["id"], datetime.min.replace(tzinfo=timezone.utc)) >= cutoff]
+        if filtered:
+            for i, e in enumerate(filtered):
+                e["rank"] = i + 1
+            return filtered, len(filtered)
+        # Fallback if no recent papers: use latest published day
+
     paper_dates = {}
     for entry in full_leaderboard:
         try:
@@ -74,6 +86,16 @@ async def _refresh_cache():
 
     all_papers, all_matches_raw, alphaxiv_likes = await _load_data()
     await asyncio.sleep(0)  # Yield to event loop after heavy DB reads
+
+    # Build added_at lookup for "Most Recent" filter (uses added_at, not published)
+    _added_at_lookup = {}
+    for p in all_papers:
+        added = p.get("added_at")
+        if added and len(added) >= 10:
+            try:
+                _added_at_lookup[p["id"]] = datetime.fromisoformat(added.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                pass
 
     # Exclude experiment matches from public leaderboard
     all_matches = [m for m in all_matches_raw if not m.get("mode")]
@@ -172,9 +194,15 @@ async def _refresh_cache():
                 e["rank"] = i + 1
             return filtered
 
+        # "Recent" = papers added to the system in last 48h, sorted by published date
+        added_cutoff = utc_now - timedelta(hours=48)
+        recent_by_added = [{**e} for e in full if _added_at_lookup.get(e["id"], datetime.min.replace(tzinfo=timezone.utc)) >= added_cutoff]
+        for i, e in enumerate(recent_by_added):
+            e["rank"] = i + 1
+
         categories_data[cat_id] = {
             "all": full,
-            "recent": filter_and_rerank(recent_cutoff),
+            "recent": recent_by_added if recent_by_added else filter_and_rerank(recent_cutoff),
             "week": filter_and_rerank(utc_now - timedelta(weeks=1)),
             "month": filter_and_rerank(utc_now - timedelta(days=30)),
             "_matches": len(cat_matches),
@@ -207,7 +235,7 @@ async def _refresh_cache():
 
     all_periods = {"all": all_full}
     for period_key in ("recent", "week", "month"):
-        filtered, _ = _apply_period_filter(all_full, period_key)
+        filtered, _ = _apply_period_filter(all_full, period_key, added_at_lookup=_added_at_lookup)
         all_periods[period_key] = filtered
 
     _cache.update({
@@ -215,9 +243,10 @@ async def _refresh_cache():
         "categories": categories_data,
         "total_papers": len(all_papers),
         "total_matches": len(all_matches),
-        "warming_up": False,  # Cache is now ready
+        "warming_up": False,
         "_raw_papers": all_papers,
         "_raw_matches": all_matches,
+        "_added_at_lookup": _added_at_lookup,
         "_raw_matches_all": all_matches_raw,
         "_match_index": match_index,
         "_paper_cat_lookup": paper_cat_lookup,
@@ -830,7 +859,7 @@ async def _compute_tag_leaderboard(
                 entry["global_win_rate"] = 0
 
     # Period filtering
-    data, total_in_period = _apply_period_filter(full, period)
+    data, total_in_period = _apply_period_filter(full, period, added_at_lookup=cache.get("_added_at_lookup"))
 
     # Count matches only between matching papers (for the "local" match count)
     tag_match_idxs = set()

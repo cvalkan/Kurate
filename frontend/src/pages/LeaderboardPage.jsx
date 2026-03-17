@@ -244,7 +244,7 @@ export default function LeaderboardPage() {
 
       <PeriodFilter
         period={activeArchive ? null : period} setPeriod={setPeriod} keyword={keyword} setKeyword={setKeyword}
-        isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={archives}
+        isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={isTagMode ? [] : archives}
         onArchiveSelect={(data) => { setActiveArchive(data); if (data) setLoading(false); }}
         activeArchiveLabel={activeArchive?.label}
       />
