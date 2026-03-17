@@ -139,6 +139,23 @@ async def _compute_unified_dataset(dataset_id, gt_type):
     si_scores = {p["id"]: p.get("single_item_score") for p in papers
                  if p.get("single_item_score") is not None}
 
+    # Fallback: if DB has no SI scores, try loading from precomputed cache
+    if not si_scores:
+        try:
+            from routers.validation_experiments import _SINGLE_ITEM_CACHE
+            si_cache = _SINGLE_ITEM_CACHE.get("data", {})
+            if si_cache.get("status") == "ok":
+                for ds_data in si_cache.get("datasets", []):
+                    if ds_data.get("dataset_id") == dataset_id:
+                        for p_data in ds_data.get("papers", []):
+                            pid = p_data.get("id")
+                            score = p_data.get("ai_score") or p_data.get("single_item_score")
+                            if pid and score is not None and pid in gt:
+                                si_scores[pid] = score
+                        break
+        except Exception:
+            pass
+
     si_correct = si_total = 0
     si_diff = {lvl: [0, 0, 0] for lvl in ["easy", "medium", "hard"]}
     si_ids = sorted(set(si_scores.keys()) & set(gt.keys()))
