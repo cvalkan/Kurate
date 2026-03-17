@@ -1234,20 +1234,27 @@ MODEL_PRICING = {
 
 @router.get("/timeseries", dependencies=[Depends(verify_admin)])
 async def get_timeseries(category: Optional[str] = None):
-    """Return daily time-series data for papers, matches, tokens, costs. Cached with MongoDB persistence."""
+    """Return daily time-series data for papers, matches, tokens, costs."""
     cache_key = category or "__all__"
     cached = _get_admin_cached("timeseries", cache_key)
     if cached:
         return cached
 
-    # Try MongoDB persistent cache
+    # Cold start: load from MongoDB to respond fast, then recompute in background
     from core.cache import get_cached, set_cached
     mongo_key = f"admin_timeseries_{cache_key}"
     db_cached = await get_cached(mongo_key)
     if db_cached:
         _set_admin_cached("timeseries", cache_key, db_cached)
+        # Recompute in background so next request gets fresh data
+        async def _bg_refresh():
+            result = await _compute_timeseries(category)
+            _set_admin_cached("timeseries", cache_key, result)
+            await set_cached(mongo_key, result)
+        asyncio.create_task(_bg_refresh())
         return db_cached
 
+    # No cache at all: compute synchronously
     result = await _compute_timeseries(category)
     _set_admin_cached("timeseries", cache_key, result)
     await set_cached(mongo_key, result)
