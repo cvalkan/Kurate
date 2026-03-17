@@ -18,16 +18,38 @@ router = APIRouter(prefix="/api/badge")
 # Ensure bundled Inter fonts are installed in system font directory
 _FONT_DIR = Path(__file__).parent.parent / "fonts"
 _SYSTEM_FONT_DIR = Path("/usr/share/fonts/truetype/inter")
-if _FONT_DIR.exists() and not _SYSTEM_FONT_DIR.exists():
-    try:
+try:
+    if _FONT_DIR.exists():
         _SYSTEM_FONT_DIR.mkdir(parents=True, exist_ok=True)
+        installed = 0
         for f in _FONT_DIR.glob("*.ttf"):
-            shutil.copy2(f, _SYSTEM_FONT_DIR / f.name)
-        import subprocess
-        subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=10)
-        logger.info(f"Installed {len(list(_FONT_DIR.glob('*.ttf')))} bundled Inter fonts")
-    except Exception as e:
-        logger.warning(f"Failed to install bundled fonts: {e}")
+            dest = _SYSTEM_FONT_DIR / f.name
+            if not dest.exists() or dest.stat().st_size != f.stat().st_size:
+                shutil.copy2(f, dest)
+                installed += 1
+        if installed > 0:
+            import subprocess
+            subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=10)
+            logger.info(f"Installed {installed} bundled Inter fonts")
+except Exception as e:
+    logger.warning(f"Failed to install bundled fonts: {e}")
+
+# Fallback: set FONTCONFIG_FILE to ensure fonts are discoverable
+import os as _os
+_fc_conf = _FONT_DIR / "fonts.conf"
+if not _fc_conf.exists() and _FONT_DIR.exists():
+    try:
+        _fc_conf.write_text(f"""<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>{_FONT_DIR}</dir>
+  <dir>{_SYSTEM_FONT_DIR}</dir>
+</fontconfig>
+""")
+    except Exception:
+        pass
+if _fc_conf.exists() and not _os.environ.get("FONTCONFIG_FILE"):
+    _os.environ["FONTCONFIG_FILE"] = str(_fc_conf)
 
 # In-memory image cache: {cache_key: (bytes, timestamp)}
 _image_cache = {}
