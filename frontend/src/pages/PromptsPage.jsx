@@ -63,28 +63,20 @@ export default function PromptsPage() {
         <div className="text-sm text-muted-foreground">Failed to load prompts.</div>
       ) : (
         <div className="space-y-10">
+          {prompts.summary && (
+            <PromptBlock
+              label="AI Impact Assessment Prompt"
+              icon={Sparkles}
+              systemPrompt={prompts.summary?.system_prompt}
+              userPrompt={prompts.summary?.user_prompt}
+            />
+          )}
           <PromptBlock
             label="Comparison Prompt"
             icon={Bot}
             systemPrompt={prompts.evaluation?.system_prompt}
             userPrompt={prompts.evaluation?.user_prompt}
           />
-          {prompts.summary && (
-            <PromptBlock
-              label="AI Impact Summary Prompt"
-              icon={Sparkles}
-              systemPrompt={prompts.summary?.system_prompt}
-              userPrompt={prompts.summary?.user_prompt}
-            />
-          )}
-          {prompts.rating && (
-            <PromptBlock
-              label="Rating Prompt"
-              icon={Bot}
-              systemPrompt={prompts.rating?.system_prompt}
-              userPrompt={prompts.rating?.user_prompt}
-            />
-          )}
         </div>
       )}
 

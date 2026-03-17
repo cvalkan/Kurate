@@ -370,7 +370,7 @@ export default function AdminPage() {
           </div>
 
           <div className="space-y-4 border-t border-border pt-6">
-            <h3 className="text-sm font-medium">Impact Summary Prompt</h3>
+            <h3 className="text-sm font-medium">Impact Assessment Prompt</h3>
             <p className="text-xs text-muted-foreground">Used to generate the AI Impact Assessment on paper detail pages.</p>
             <div>
               <Label className="text-xs">System Prompt</Label>
@@ -418,12 +418,6 @@ export default function AdminPage() {
               Save Prediction Prompt
             </Button>
           </div>
-
-          <div className="space-y-4 border-t border-border pt-6">
-            <h3 className="text-sm font-medium">Rating Prompt</h3>
-            <p className="text-xs text-muted-foreground">Unified prompt for single-item rating — used by "Generate Ratings" button and validation experiments.</p>
-            <RatingPromptViewer />
-          </div>
         </div>
       )}
 
@@ -432,20 +426,6 @@ export default function AdminPage() {
       {activeTab === "suggestions" && <AdminSuggestions />}
 
       {activeTab === "users" && <AdminUsers />}
-    </div>
-  );
-}
-
-function RatingPromptViewer() {
-  const [prompt, setPrompt] = useState(null);
-  useEffect(() => {
-    axios.get(`${API}/api/prompts`).then(r => setPrompt(r.data?.rating)).catch(() => {});
-  }, []);
-  if (!prompt) return <div className="text-xs text-muted-foreground">Loading...</div>;
-  return (
-    <div className="space-y-2">
-      <div><Label className="text-xs">System Prompt</Label><pre className="text-[10px] font-mono bg-secondary/30 rounded p-2 whitespace-pre-wrap max-h-40 overflow-y-auto">{prompt.system_prompt}</pre></div>
-      <div><Label className="text-xs">User Prompt Template</Label><pre className="text-[10px] font-mono bg-secondary/30 rounded p-2 whitespace-pre-wrap">{prompt.user_prompt}</pre></div>
     </div>
   );
 }

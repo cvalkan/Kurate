@@ -1028,17 +1028,9 @@ async def get_public_prompts():
             "user_prompt": IMPACT_ASSESSMENT_PROMPT["user_prompt"],
         }
 
-    # Rating prompt (unified — used for both live rating generation and validation)
-    from services.llm import RATING_EXTRACTION_PROMPT
-    rating_prompt = {
-        "system_prompt": RATING_EXTRACTION_PROMPT["system_prompt"],
-        "user_prompt": RATING_EXTRACTION_PROMPT["user_prompt"],
-    }
-
     return {
         "evaluation": eval_prompt,
         "summary": summary_prompt,
-        "rating": rating_prompt,
     }
 
 
