@@ -112,3 +112,79 @@ All metrics are computed both with ties excluded and with coin-flip correction (
 5. **No reject-tier ground truth on some datasets:** PeerRead ACL 2017 has no decision tiers. MIDL has no rejects. This limits the difficulty stratification analysis.
 
 6. **Conservative coin-flip correction:** Treating ties as 50/50 underestimates AI agreement because AI has real signal on tie pairs (73.5% agreement with non-tying experts on the same pairs).
+
+
+## Matchmaking & Pair Selection
+
+The tournament uses goal-directed adaptive matchmaking rather than random or round-robin pairing. The system selects which papers to compare next based on convergence targets.
+
+### Convergence Targets (Two-Tier)
+
+| Tier | Target | Meaning |
+|---|---|---|
+| **General papers** | Wilson 95% CI margin ≤ 15% | Every paper's win rate should be known within ±15% |
+| **Top-K papers** (default K=10) | Wilson 95% CI margin ≤ 10% | The best papers need tighter confidence |
+| **Top-K cross-matching** | All C(K,2) pairs compared | Every top paper must have been directly compared against every other top paper |
+
+The tournament runs until all three goals are met, then idles.
+
+### Pair Selection Algorithm
+
+Each round selects pairs using a priority system:
+
+**Rule 1 — Match neediest papers first:**
+- Compute "urgency" for each paper: `margin - target` (how far from convergence)
+- Papers with 0 matches have urgency 999 (highest priority)
+- Sort all papers by urgency, descending
+- For each needy paper, pick an opponent:
+
+**Opponent selection (calibration split):**
+- `calibration_ratio`% of matches (default 50%) pair needy papers against **established** papers (those already converged). The established opponent is chosen by **Elo proximity** — matching papers of similar strength produces more informative comparisons than matching extremes.
+- The remaining matches pair **needy vs. needy** — both papers benefit from the same match.
+- New papers (0 matches) target the **median Elo** when selecting an established opponent, providing a calibration anchor.
+
+**Rule 2 — Top-K cross-matches:**
+After Rule 1 pairs are selected, any remaining slots are filled with missing top-K pairwise comparisons (ensuring all top papers have been directly compared).
+
+**Rule 3 — Repeat matches for validation:**
+Only after ALL convergence goals are met: re-compare Elo-adjacent papers to validate close ranking boundaries with additional data points from potentially different judge models.
+
+### Implications for the Benchmark
+
+The adaptive matchmaking means:
+- Papers with uncertain rankings get more matches → faster convergence
+- Top papers are exhaustively cross-compared → reliable top-K ordering
+- Elo-proximity opponent selection means most matches are **close calls** — the tournament preferentially tests the hardest comparisons, not the obvious ones
+- This biases raw pairwise agreement statistics downward (harder comparisons = lower agreement), which is why the benchmark reports this as a caveat
+
+## Ceiling Analysis
+
+### What Limits the Maximum Achievable ρ?
+
+The Spearman rank correlation between any ranking and the ICLR committee decisions is bounded by the **coarseness of the committee's 4-tier system** (Oral/Spotlight/Poster/Reject).
+
+**The ceiling:** A perfect predictor that assigns every paper to the correct tier but randomly orders papers within each tier achieves ρ ≈ 0.878. This is the theoretical maximum — no method can exceed it using committee decisions as ground truth, because the committee provides no within-tier ordering information.
+
+**Derivation:** With the actual tier distribution (20 Oral, 31 Spotlight, 126 Poster, 252 Reject = 429 papers with tiers), Spearman ρ between a perfect tier-sorted ranking and the committee's tied-rank ranking converges to exactly 0.878 regardless of within-tier ordering. This was verified empirically across 1,000 random within-tier permutations — the value is deterministic because Spearman handles ties by averaging ranks.
+
+### Results in Context
+
+| Method | ρ vs Committee | % of ceiling | What it means |
+|---|---|---|---|
+| Perfect tier predictor | 0.878 | 100% | Knows every paper's exact tier |
+| **AI (actual)** | **0.761** | **87%** | Captures most of the tier signal + meaningful within-tier ordering |
+| Random at 83% accuracy | 0.584 | 66% | Same cross-tier accuracy as AI but random within-tier |
+| Single human expert | 0.666 | 76% | Limited by coarse 6-value scale producing noisy within-tier ordering |
+
+### Key Finding: AI Has Within-Tier Signal
+
+AI's ρ (0.761) significantly exceeds what its 82.9% cross-tier accuracy alone would predict (ρ ≈ 0.584 for random within-tier ordering at that accuracy). The gap (0.761 - 0.584 = 0.177) demonstrates that AI produces **meaningful within-tier ranking** — not just correct tier classification.
+
+This is a **conservative win for AI** over single human experts (0.761 vs 0.666):
+- The human's higher pairwise accuracy (87.9% vs 82.9%) comes from **circularity** (their scores influenced the committee decisions)
+- AI's ranking advantage is earned **without circularity** — it never saw the committee decisions or reviewer scores
+- The human's within-tier ordering is near-random (constrained by the 6-value rating scale), while AI reads full papers and can make finer distinctions
+
+### Selection Bias in Committee Comparison
+
+A subtle bias inflates the Human vs Committee accuracy: when a reviewer ties on a paper pair (gives both the same score), those papers are more likely to be in the same tier — and same-tier pairs are excluded from the Committee comparison. This disproportionately drops "easy-to-agree-on" pairs (where both reviewer and committee would agree the papers are similar), enriching the remaining pairs with cases where the reviewer saw a difference. AI faces no such selection because it always produces a verdict. The effect is small relative to the circularity advantage but works in the same direction (favoring the human metric).
