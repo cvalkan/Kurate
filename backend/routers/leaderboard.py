@@ -11,9 +11,15 @@ router = APIRouter(prefix="/api")
 
 # Pre-computed cache — refreshed in the background, never blocks requests
 _cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "warming_up": True}
-_CACHE_TTL = 60  # Increased from 20s to reduce recomputation frequency
+_CACHE_MAX_AGE = 300  # Max staleness: 5 min even if no changes detected
 _cache_lock = asyncio.Lock()
 _bg_task_started = False
+_cache_dirty = asyncio.Event()  # Set by compare/fetch loops when data changes
+
+
+def notify_data_changed():
+    """Call this when matches or papers are added/changed. Triggers a cache refresh."""
+    _cache_dirty.set()
 
 # Tag query cache — keyed on (frozenset(tags), period, tag_mode, global_stats, show_all)
 _tag_cache = {}  # key -> {"ts": float, "result": dict}
@@ -511,7 +517,7 @@ async def _refresh_cache():
 
 
 async def _bg_cache_loop():
-    """Background loop that keeps the cache fresh."""
+    """Background loop that refreshes cache when data changes or max age exceeded."""
     global _bg_task_started
     _bg_task_started = True
     # Initial warm
@@ -522,7 +528,17 @@ async def _bg_cache_loop():
         logger.warning(f"Initial cache warm failed: {e}")
 
     while True:
-        await asyncio.sleep(_CACHE_TTL)
+        # Wait for either: data change signal OR max age timeout
+        try:
+            await asyncio.wait_for(_cache_dirty.wait(), timeout=_CACHE_MAX_AGE)
+            # Data changed — brief debounce to batch rapid changes
+            _cache_dirty.clear()
+            await asyncio.sleep(5)
+            # Clear again in case more changes came during debounce
+            _cache_dirty.clear()
+        except asyncio.TimeoutError:
+            pass  # Max age reached, refresh anyway
+
         try:
             await _refresh_cache()
         except Exception as e:

@@ -568,6 +568,9 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
         cat_status["current_activity"] = "Idle"
+        if new_count > 0:
+            from routers.leaderboard import notify_data_changed
+            notify_data_changed()
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
 
     except Exception as e:
@@ -1056,6 +1059,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             # Store ranking snapshot for convergence tracking
             if completed > 0:
                 await _store_ranking_snapshot(category)
+                # Signal leaderboard cache to refresh
+                from routers.leaderboard import notify_data_changed
+                notify_data_changed()
 
             return {"status": "ok", "completed": completed, "failed": failed}
 
