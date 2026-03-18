@@ -1654,9 +1654,17 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
     cached = await cache_get("pairwise", dataset_id, cache_mode)
     if cached:
         return cached
+    # Try MongoDB persistent cache
+    from core.cache import get_cached, set_cached
+    mongo_key = f"pairwise_{dataset_id}_{cache_mode}"
+    db_cached = await get_cached(mongo_key)
+    if db_cached:
+        await cache_set("pairwise", dataset_id, cache_mode, db_cached)
+        return db_cached
     result = await _compute_pairwise_results(dataset_id, abstract_only, content_mode)
     if result.get("status") == "ok":
         await cache_set("pairwise", dataset_id, cache_mode, result)
+        await set_cached(mongo_key, result)
     return result
 
 async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[bool], content_mode: Optional[str]):
@@ -2285,6 +2293,14 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     if entry:
         return entry["data"]
 
+    # Try MongoDB persistent cache
+    from core.cache import get_cached, set_cached
+    mongo_key = f"convergence_all_{dataset_id}"
+    db_cached = await get_cached(mongo_key)
+    if db_cached:
+        convergence_all_cache[dataset_id] = {"data": db_cached, "ts": _time.time()}
+        return db_cached
+
     # Discover modes
     mode_pipeline = [
         {"$match": {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}},
@@ -2432,6 +2448,8 @@ async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(2
     result = {"status": "ok", "dataset_id": dataset_id, "modes": by_mode}
     if by_mode:
         convergence_all_cache[dataset_id] = {"data": result, "ts": _time.time()}
+        from core.cache import set_cached
+        await set_cached(f"convergence_all_{dataset_id}", result)
     return result
 
 

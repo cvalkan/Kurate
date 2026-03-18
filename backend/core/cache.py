@@ -7,7 +7,7 @@ that makes old cached results incorrect.
 from core.config import db, logger
 
 # Bump this whenever cached computation logic changes materially
-CACHE_VERSION = 2  # v2: unified benchmark title-matching for SI scores
+CACHE_VERSION = 3  # v3: per-dataset convergence/pairwise now MongoDB-cached
 
 _memory_cache = {}
 
