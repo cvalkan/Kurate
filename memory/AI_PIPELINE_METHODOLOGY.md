@@ -113,12 +113,16 @@ All metrics are computed both with ties excluded and with coin-flip correction (
 
 6. **Conservative coin-flip correction:** Treating ties as 50/50 underestimates AI agreement because AI has real signal on tie pairs (73.5% agreement with non-tying experts on the same pairs).
 
+7. **Decision label inconsistency (cosmetic only):** The berenslab ICLR data uses mixed casing for decision labels: `Accept (Poster)` vs `Accept (poster)`, `Accept (Oral)` vs `Accept (oral)`. The `norm_tier()` function lowercases and substring-matches all decision strings, so `Accept (Poster)`, `Accept (poster)`, and `Poster` all normalize to `"poster"`. The metrics were correct all along. The raw data has been cleaned to use canonical forms (`Poster`, `Oral`, `Spotlight`, `Reject`) for consistency.
+
 
 ## Matchmaking & Pair Selection
 
-The tournament uses goal-directed adaptive matchmaking rather than random or round-robin pairing. The system selects which papers to compare next based on convergence targets.
+### Live Tournament (Leaderboard)
 
-### Convergence Targets (Two-Tier)
+The live leaderboard tournament uses goal-directed adaptive matchmaking. The system selects which papers to compare next based on convergence targets.
+
+**Convergence Targets (Two-Tier):**
 
 | Tier | Target | Meaning |
 |---|---|---|
@@ -128,34 +132,51 @@ The tournament uses goal-directed adaptive matchmaking rather than random or rou
 
 The tournament runs until all three goals are met, then idles.
 
-### Pair Selection Algorithm
+**Pair Selection Algorithm:**
 
 Each round selects pairs using a priority system:
 
-**Rule 1 — Match neediest papers first:**
+*Rule 1 — Match neediest papers first:*
 - Compute "urgency" for each paper: `margin - target` (how far from convergence)
 - Papers with 0 matches have urgency 999 (highest priority)
 - Sort all papers by urgency, descending
-- For each needy paper, pick an opponent:
+- For each needy paper, pick an opponent via calibration split:
+  - `calibration_ratio`% of matches (default 50%) pair needy papers against **established** papers (already converged), chosen by **Elo proximity** — matching similar-strength papers produces more informative comparisons.
+  - The remaining matches pair **needy vs. needy** — both papers benefit from the same match.
+  - New papers (0 matches) target the **median Elo** when selecting an established opponent.
 
-**Opponent selection (calibration split):**
-- `calibration_ratio`% of matches (default 50%) pair needy papers against **established** papers (those already converged). The established opponent is chosen by **Elo proximity** — matching papers of similar strength produces more informative comparisons than matching extremes.
-- The remaining matches pair **needy vs. needy** — both papers benefit from the same match.
-- New papers (0 matches) target the **median Elo** when selecting an established opponent, providing a calibration anchor.
+*Rule 2 — Top-K cross-matches:*
+After Rule 1, remaining slots are filled with missing top-K pairwise comparisons.
 
-**Rule 2 — Top-K cross-matches:**
-After Rule 1 pairs are selected, any remaining slots are filled with missing top-K pairwise comparisons (ensuring all top papers have been directly compared).
+*Rule 3 — Repeat matches for validation:*
+Only after ALL convergence goals are met: re-compare Elo-adjacent papers to validate close ranking boundaries.
 
-**Rule 3 — Repeat matches for validation:**
-Only after ALL convergence goals are met: re-compare Elo-adjacent papers to validate close ranking boundaries with additional data points from potentially different judge models.
+### Validation Benchmark (AI vs. Human)
 
-### Implications for the Benchmark
+The validation benchmark uses a **different, simpler** matchmaking strategy:
 
-The adaptive matchmaking means:
-- Papers with uncertain rankings get more matches → faster convergence
-- Top papers are exhaustively cross-compared → reliable top-K ordering
-- Elo-proximity opponent selection means most matches are **close calls** — the tournament preferentially tests the hardest comparisons, not the obvious ones
-- This biases raw pairwise agreement statistics downward (harder comparisons = lower agreement), which is why the benchmark reports this as a caveat
+1. Generate **all possible cross-tier pairs** — papers with different human ground truth scores (h1_avg_rating)
+2. **Randomly shuffle** the pair list
+3. Select the first N pairs (target: ~15–20 matches per paper)
+
+No Elo-proximity, no CI targets, no calibration split. This ensures the validation matches are an unbiased sample of the comparison space, unlike the live tournament which preferentially tests hard cases.
+
+**Match counts per dataset (thinking mode — used by the benchmark):**
+
+| Dataset | Papers | Thinking matches | Avg matches/paper |
+|---|---|---|---|
+| ICLR Code Generation | 62 | 625 | 20.2 |
+| ICLR Fairness | 68 | 264 | 7.8 |
+| ICLR LLMs | 73 | 837 | 22.9 |
+| ICLR Molecules | 46 | 158 | 6.9 |
+| ICLR Optimization | 42 | 162 | 7.7 |
+| ICLR Optimal Transport | 52 | 503 | 19.3 |
+| ICLR PDEs & Dynamical Systems | 80 | 641 | 16.0 |
+| ICLR Protein Science | 46 | 259 | 11.3 |
+| PeerRead ACL 2017 | 80 | 1,118 | 27.9 |
+| **Total** | **549** | **4,567** | **16.6 avg** |
+
+Note: Each dataset also has thousands of additional matches from other content modes (abstract-only, full PDF, non-thinking summaries). These are used for the per-mode convergence analysis but NOT for the main human-AI benchmark, which uses only `abstract_plus_summary:thinking` mode.
 
 ## Ceiling Analysis
 
