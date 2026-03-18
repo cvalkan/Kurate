@@ -1897,6 +1897,48 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
                 "rank_delta": a_rank[pid]["rank"] - tier_rank_map[pid],
             } for pid in tier_ranked_papers]
 
+    # ─── AI Pairwise BT vs Single-Item Score Correlation ─────────────
+    si_correlation = None
+    si_scores = {p["id"]: p.get("single_item_score") for p in papers if p.get("single_item_score") is not None}
+    # Fallback to precomputed cache if DB has no SI scores
+    if not si_scores:
+        try:
+            from routers.validation_experiments import _SINGLE_ITEM_CACHE
+            si_cache = _SINGLE_ITEM_CACHE.get("data", {})
+            if si_cache.get("status") == "ok":
+                for ds_data in si_cache.get("datasets", []):
+                    if ds_data.get("dataset_id") == dataset_id:
+                        title_to_score = {p_data.get("title", "").strip(): p_data.get("ai_score") for p_data in ds_data.get("papers", []) if p_data.get("ai_score")}
+                        title_to_id = {p.get("title", "").strip(): p["id"] for p in papers if p.get("title")}
+                        for title, score in title_to_score.items():
+                            pid = title_to_id.get(title)
+                            if pid and pid in a_rank:
+                                si_scores[pid] = score
+                        if len(si_scores) < len(title_to_score) // 2:
+                            for db_title, pid in title_to_id.items():
+                                if pid in si_scores or pid not in a_rank:
+                                    continue
+                                for cache_title, score in title_to_score.items():
+                                    if db_title.startswith(cache_title) or cache_title.startswith(db_title):
+                                        si_scores[pid] = score
+                                        break
+                        break
+        except Exception:
+            pass
+    si_shared = sorted(set(si_scores.keys()) & set(a_rank.keys()))
+    if len(si_shared) >= 10:
+        ai_r = [a_rank[pid]["score"] for pid in si_shared]
+        si_r = [-si_scores[pid] for pid in si_shared]  # negate so higher score = lower rank
+        si_sp, si_sp_p = scipy_stats.spearmanr(ai_r, si_r)
+        si_kt, si_kt_p = scipy_stats.kendalltau(ai_r, si_r)
+        si_pr, si_pr_p = scipy_stats.pearsonr(ai_r, si_r)
+        si_correlation = {
+            "spearman_rho": safe_round(si_sp), "spearman_p_value": safe_round(si_sp_p, 6),
+            "kendall_tau": safe_round(si_kt), "kendall_p_value": safe_round(si_kt_p, 6),
+            "pearson_r": safe_round(si_pr), "pearson_p_value": safe_round(si_pr_p, 6),
+            "papers": len(si_shared),
+        }
+
     return {
         "status": "ok", "method": "pairwise_bt",
         "papers_analyzed": len(cp), "human_matches_derived": len(ch),
@@ -1909,6 +1951,7 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
             "is_aggregate": has_dual,
         },
         "dim_correlations": dim_correlations if dim_correlations else None,
+        "si_correlation": si_correlation,
         "interpretation": interp(safe_round(sp), safe_round(sp_p, 6), len(cp), "pairwise BT"),
         "comparison": comparison,
         "tier_metrics": tier_metrics,

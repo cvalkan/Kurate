@@ -1355,10 +1355,11 @@ async def get_si_rating_stats(
     """Single-item rating distributions and inter-metric correlations from live leaderboard data."""
     cache_key = f"{model or 'all'}"
     cached = _get_analysis_cached("si-rating-stats", category, cache_key)
-    if cached:
+    if cached and cached.get("bt_vs_si") is not None:
         return cached
     result = await _compute_si_rating_stats(category, model)
-    _set_analysis_cached("si-rating-stats", category, cache_key, result)
+    if result.get("bt_vs_si") is not None:
+        _set_analysis_cached("si-rating-stats", category, cache_key, result)
     return result
 
 
@@ -1577,6 +1578,64 @@ async def _compute_si_rating_stats(category, model):
             "avg_inter_metric_rho": round(float(np.mean(pair_rhos)), 3) if pair_rhos else None,
         }
 
+    # BT Pairwise Ranking vs SI Score Correlation
+    bt_vs_si = None
+    try:
+        # Load BT scores directly from leaderboard cache categories
+        bt_ranks = {}
+        cache = _cache
+        if cache.get("categories"):
+            if category and cache["categories"].get(category):
+                for entry in cache["categories"][category].get("all", []):
+                    bt_ranks[entry["id"]] = entry.get("score", 0)
+            else:
+                for cat_data in cache["categories"].values():
+                    for entry in cat_data.get("all", []):
+                        if entry["id"] not in bt_ranks:
+                            bt_ranks[entry["id"]] = entry.get("score", 0)
+
+        # If cache isn't ready yet, compute from DB directly
+        if not bt_ranks:
+            from services.ranking import compute_leaderboard
+            match_query = {"completed": True, "failed": {"$ne": True}}
+            if category:
+                match_query["$or"] = [{"shared_categories": category}, {"primary_category": category}]
+            raw_matches = await db.matches.find(
+                match_query,
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
+            ).to_list(200000)
+            paper_query = {"summaries": {"$exists": True, "$ne": {}}}
+            if category:
+                paper_query["categories.0"] = category
+            bt_papers = await db.papers.find(paper_query, {"_id": 0, "id": 1}).to_list(5000)
+            if bt_papers and raw_matches:
+                lb = compute_leaderboard(bt_papers, raw_matches)
+                bt_ranks = {e["id"]: e.get("score", 0) for e in lb}
+
+        si_map = {}
+        for p in filtered:
+            score = p["rating"].get("score")
+            if score and p["id"] in bt_ranks:
+                si_map[p["id"]] = score
+
+        if len(si_map) >= 10:
+            shared = sorted(si_map.keys())
+            bt_vals = [bt_ranks[pid] for pid in shared]
+            si_vals = [si_map[pid] for pid in shared]
+            rho, p_val = scipy_stats.spearmanr(bt_vals, si_vals)
+            kt, kt_p = scipy_stats.kendalltau(bt_vals, si_vals)
+            pr, pr_p = scipy_stats.pearsonr(bt_vals, si_vals)
+            if not np.isnan(rho):
+                bt_vs_si = {
+                    "spearman_rho": round(float(rho), 4),
+                    "kendall_tau": round(float(kt), 4),
+                    "pearson_r": round(float(pr), 4),
+                    "n": len(shared),
+                    "model": model,
+                }
+    except Exception as e:
+        logger.warning(f"BT vs SI correlation failed: {e}")
+
     return {
         "status": "ok",
         "total_papers": len(filtered),
@@ -1587,6 +1646,7 @@ async def _compute_si_rating_stats(category, model):
         "by_category": by_category,
         "inter_model_si": inter_model_si,
         "model_comparison": model_comparison,
+        "bt_vs_si": bt_vs_si,
     }
 
 

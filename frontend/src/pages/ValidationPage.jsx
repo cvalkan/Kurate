@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   FlaskConical, TrendingUp, TrendingDown, Minus, AlertCircle,
   Users, ChevronDown, ChevronRight, BarChart3, GitCompare,
-  RotateCcw, Play, Layers, Trophy,
+  RotateCcw, Play, Layers, Trophy, Sparkles,
 } from "lucide-react";
 import { ValidationConvergence } from "@/components/ConvergenceSection";
 
@@ -568,6 +568,30 @@ function StandardStats({ datasetId, isAdmin }) {
                 </div>
               </div>
             ))}
+            {activePairwise?.si_correlation && (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="px-3 py-2 bg-emerald-500/10 border-b border-border">
+                  <h3 className="text-xs font-medium flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3" /> AI Pairwise BT vs Single-Item Score
+                    <span className="text-muted-foreground font-normal">(Opus 4.6 Thinking)</span>
+                  </h3>
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <CorrelationBadge value={activePairwise.si_correlation.spearman_rho} label="Spearman &rho;" />
+                    <CorrelationBadge value={activePairwise.si_correlation.kendall_tau} label="Kendall &tau;" />
+                    <CorrelationBadge value={activePairwise.si_correlation.pearson_r} label="Pearson r" />
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {activePairwise.si_correlation.papers} papers with both pairwise matches and single-item scores
+                  </div>
+                  <div className="text-[10px] text-muted-foreground bg-secondary/10 rounded px-2 py-1.5">
+                    Correlation between the BT ranking from pairwise tournament matches (round-robin judges reading Opus 4.6 Thinking summaries)
+                    and the ranking from Opus 4.6 Thinking single-item scores (direct paper scoring without comparison).
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}

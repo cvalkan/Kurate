@@ -424,6 +424,34 @@ export function SiRatingSection({ category }) {
               })()}
             </div>
           )}
+
+          {/* BT Pairwise vs SI Score Correlation */}
+          {data.bt_vs_si && (
+            <div className="mt-4 p-3 border border-emerald-200 bg-emerald-500/5 rounded-lg" data-testid="bt-vs-si-section">
+              <h3 className="text-sm font-medium mb-1">Pairwise Tournament vs Single-Item Ranking</h3>
+              <p className="text-[10px] text-muted-foreground mb-3">
+                Correlation between the BT ranking from pairwise tournament matches (round-robin judges reading Opus 4.6 Thinking summaries)
+                and the ranking from single-item scores ({selectedModel ? MODEL_TABS.find(t => t.id === selectedModel)?.label : "all models"}).
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-mono font-bold text-emerald-700">{data.bt_vs_si.spearman_rho}</div>
+                  <div className="text-[9px] text-muted-foreground">Spearman {"\u03C1"}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-mono font-bold text-emerald-600">{data.bt_vs_si.kendall_tau}</div>
+                  <div className="text-[9px] text-muted-foreground">Kendall {"\u03C4"}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-mono font-bold text-emerald-600">{data.bt_vs_si.pearson_r}</div>
+                  <div className="text-[9px] text-muted-foreground">Pearson r</div>
+                </div>
+                <div className="text-[10px] text-muted-foreground ml-2">
+                  n = {data.bt_vs_si.n} papers
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
