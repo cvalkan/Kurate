@@ -215,6 +215,16 @@ async def startup():
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
 
+    # Load precomputed JSON BEFORE accepting connections — prevents race condition
+    # where a request arrives before experiment caches are populated
+    try:
+        from services.precompute import load_precomputed
+        loaded = load_precomputed()
+        if loaded > 0:
+            logger.info(f"Precomputed caches loaded at startup: {loaded}")
+    except Exception as e:
+        logger.warning(f"Precomputed cache load failed: {e}")
+
     # Start accepting connections NOW — everything else runs in background
     asyncio.create_task(_deferred_startup())
     logger.info("Kurate.org Leaderboard started")
@@ -473,14 +483,7 @@ async def _prewarm_all_experiment_caches():
     """
     await asyncio.sleep(3)
     
-    # --- Layer 1: Precomputed JSON files ---
-    try:
-        from services.precompute import load_precomputed
-        loaded = load_precomputed()
-        if loaded > 0:
-            logger.info(f"Layer 1: Loaded {loaded} caches from precomputed JSON files")
-    except Exception as e:
-        logger.warning(f"Layer 1 (JSON files) failed: {e}")
+    # --- Layer 1: Precomputed JSON files (already loaded in startup(), skip) ---
 
     # --- Layer 2: MongoDB persistent cache for benchmark endpoints ---
     try:

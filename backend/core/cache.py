@@ -7,7 +7,7 @@ that makes old cached results incorrect.
 from core.config import db, logger
 
 # Bump this whenever cached computation logic changes materially
-CACHE_VERSION = 3  # v3: per-dataset convergence/pairwise now MongoDB-cached
+CACHE_VERSION = 4  # v4: fix race condition — JSON loaded before accepting connections
 
 _memory_cache = {}
 
