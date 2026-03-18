@@ -161,9 +161,9 @@ The validation benchmark uses a **different, simpler** matchmaking strategy:
 
 No Elo-proximity, no CI targets, no calibration split. This ensures the validation matches are an unbiased sample of the comparison space, unlike the live tournament which preferentially tests hard cases.
 
-**Match counts per dataset (thinking mode — used by the benchmark):**
+**Match counts per dataset (using Opus 4.6 Thinking summaries as input):**
 
-| Dataset | Papers | Thinking matches | Avg matches/paper |
+| Dataset | Papers | Matches | Avg matches/paper |
 |---|---|---|---|
 | ICLR Code Generation | 62 | 625 | 20.2 |
 | ICLR Fairness | 68 | 264 | 7.8 |
@@ -176,7 +176,7 @@ No Elo-proximity, no CI targets, no calibration split. This ensures the validati
 | PeerRead ACL 2017 | 80 | 1,118 | 27.9 |
 | **Total** | **549** | **4,567** | **16.6 avg** |
 
-Note: Each dataset also has thousands of additional matches from other content modes (abstract-only, full PDF, non-thinking summaries). These are used for the per-mode convergence analysis but NOT for the main human-AI benchmark, which uses only `abstract_plus_summary:thinking` mode.
+These are matches where the judges read the **Opus 4.6 Thinking assessment** (content_mode `abstract_plus_summary:thinking`). The judges themselves (GPT-5.2, Opus 4.6, Gemini 3 Pro) run in standard mode — the `:thinking` tag refers to which summarizer produced the input, not the judge's reasoning mode.
 
 ## Ceiling Analysis
 
