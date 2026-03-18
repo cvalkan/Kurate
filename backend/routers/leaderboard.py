@@ -1578,10 +1578,10 @@ async def _compute_si_rating_stats(category, model):
             "avg_inter_metric_rho": round(float(np.mean(pair_rhos)), 3) if pair_rhos else None,
         }
 
-    # BT Pairwise Ranking vs SI Score Correlation
+    # BT Pairwise Ranking vs Claude Opus 4.6 Thinking Single-Item Score Correlation
     bt_vs_si = None
     try:
-        # Load BT scores directly from leaderboard cache categories
+        # Collect BT scores from leaderboard cache or compute from DB
         bt_ranks = {}
         cache = _cache
         if cache.get("categories"):
@@ -1594,7 +1594,6 @@ async def _compute_si_rating_stats(category, model):
                         if entry["id"] not in bt_ranks:
                             bt_ranks[entry["id"]] = entry.get("score", 0)
 
-        # If cache isn't ready yet, compute from DB directly
         if not bt_ranks:
             from services.ranking import compute_leaderboard
             match_query = {"completed": True, "failed": {"$ne": True}}
@@ -1612,11 +1611,19 @@ async def _compute_si_rating_stats(category, model):
                 lb = compute_leaderboard(bt_papers, raw_matches)
                 bt_ranks = {e["id"]: e.get("score", 0) for e in lb}
 
+        # Use ONLY Claude SI scores (from ai_rating or ai_ratings_by_model.claude)
         si_map = {}
-        for p in filtered:
-            score = p["rating"].get("score")
-            if score and p["id"] in bt_ranks:
-                si_map[p["id"]] = score
+        for p in papers:
+            claude_score = None
+            by_model = p.get("ai_ratings_by_model", {})
+            if isinstance(by_model, dict) and isinstance(by_model.get("claude"), dict):
+                claude_score = by_model["claude"].get("score")
+            if not claude_score:
+                ai_r = p.get("ai_rating")
+                if isinstance(ai_r, dict):
+                    claude_score = ai_r.get("score")
+            if claude_score and p["id"] in bt_ranks:
+                si_map[p["id"]] = claude_score
 
         if len(si_map) >= 10:
             shared = sorted(si_map.keys())
@@ -1631,7 +1638,6 @@ async def _compute_si_rating_stats(category, model):
                     "kendall_tau": round(float(kt), 4),
                     "pearson_r": round(float(pr), 4),
                     "n": len(shared),
-                    "model": model,
                 }
     except Exception as e:
         logger.warning(f"BT vs SI correlation failed: {e}")

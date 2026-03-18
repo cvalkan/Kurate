@@ -431,7 +431,7 @@ export function SiRatingSection({ category }) {
               <h3 className="text-sm font-medium mb-1">Pairwise Tournament vs Single-Item Ranking</h3>
               <p className="text-[10px] text-muted-foreground mb-3">
                 Correlation between the BT ranking from pairwise tournament matches (round-robin judges reading Opus 4.6 Thinking summaries)
-                and the ranking from single-item scores ({selectedModel ? MODEL_TABS.find(t => t.id === selectedModel)?.label : "all models"}).
+                and the ranking from Claude Opus 4.6 Thinking single-item scores (direct paper scoring without comparison).
               </p>
               <div className="flex items-center gap-4">
                 <div className="text-center">
