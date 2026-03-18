@@ -148,17 +148,30 @@ async def _compute_unified_dataset(dataset_id, gt_type):
                 for ds_data in si_cache.get("datasets", []):
                     if ds_data.get("dataset_id") == dataset_id:
                         # Match by title since paper IDs may differ between environments
+                        cache_papers = ds_data.get("papers", [])
                         title_to_score = {}
-                        for p_data in ds_data.get("papers", []):
+                        for p_data in cache_papers:
                             title = p_data.get("title", "").strip()
                             score = p_data.get("ai_score") or p_data.get("single_item_score")
                             if title and score is not None:
                                 title_to_score[title] = score
                         title_to_id = {p.get("title", "").strip(): p["id"] for p in papers if p.get("title")}
+                        # Exact match first
                         for title, score in title_to_score.items():
                             pid = title_to_id.get(title)
                             if pid and pid in gt:
                                 si_scores[pid] = score
+                        # Prefix match for truncated titles in precomputed data
+                        if len(si_scores) < len(cache_papers) // 2:
+                            matched_pids = set(si_scores.keys())
+                            for db_title, pid in title_to_id.items():
+                                if pid in matched_pids or pid not in gt:
+                                    continue
+                                for cache_title, score in title_to_score.items():
+                                    if db_title.startswith(cache_title) or cache_title.startswith(db_title):
+                                        si_scores[pid] = score
+                                        matched_pids.add(pid)
+                                        break
                         break
         except Exception:
             pass

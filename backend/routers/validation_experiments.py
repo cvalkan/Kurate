@@ -366,7 +366,7 @@ async def _compute_single_item_results():
 
         # Per-paper details
         paper_details = sorted([{
-            "id": p["id"], "title": p.get("title", "")[:60],
+            "id": p["id"], "title": p.get("title", ""),
             "ai_score": p["single_item_score"],
             "human_score": p["h1_avg_rating"],
             "details": p.get("single_item_details", {}),
