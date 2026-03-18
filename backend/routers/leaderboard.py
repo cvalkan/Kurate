@@ -63,12 +63,12 @@ def _apply_period_filter(full_leaderboard, period, added_at_lookup=None):
 
 
 async def _refresh_cache():
-    """Heavy computation — runs in background, never on the request path."""
+    """Heavy computation — builds a new cache dict, then swaps atomically.
+    The old cache continues serving requests during the entire computation."""
+    global _cache
     _t0 = time.time()
 
-    # Run heavy MongoDB loads in a thread to avoid blocking the event loop
-    loop = asyncio.get_event_loop()
-
+    # Run heavy MongoDB loads
     async def _load_data():
         papers = await db.papers.find(
             {"summaries": {"$exists": True, "$ne": {}}},
@@ -87,7 +87,7 @@ async def _refresh_cache():
     all_papers, all_matches_raw, alphaxiv_likes = await _load_data()
     await asyncio.sleep(0)  # Yield to event loop after heavy DB reads
 
-    # Build added_at lookup for "Most Recent" filter (uses added_at, not published)
+    # Build added_at lookup for "Most Recent" filter
     _added_at_lookup = {}
     for p in all_papers:
         added = p.get("added_at")
@@ -238,7 +238,8 @@ async def _refresh_cache():
         filtered, _ = _apply_period_filter(all_full, period_key, added_at_lookup=_added_at_lookup)
         all_periods[period_key] = filtered
 
-    _cache.update({
+    # Build new cache dict (old cache continues serving during this entire function)
+    new_cache = {
         "ts": time.time(),
         "categories": categories_data,
         "total_papers": len(all_papers),
@@ -251,7 +252,13 @@ async def _refresh_cache():
         "_match_index": match_index,
         "_paper_cat_lookup": paper_cat_lookup,
         "_all_papers_leaderboard": all_periods,
-    })
+    }
+    # Preserve keys that other code sets on the cache (archives, failed counts, etc.)
+    for k in _cache:
+        if k not in new_cache:
+            new_cache[k] = _cache[k]
+    # Atomic swap — requests see either the old cache or the new one, never a mix
+    _cache = new_cache
     _t1 = time.time()
     logger.info(f"Cache refresh took {_t1 - _t0:.1f}s ({len(all_papers)} papers, {len(all_matches)} matches, {len(categories_data)} categories)")
 
