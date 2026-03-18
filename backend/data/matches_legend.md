@@ -1,0 +1,13 @@
+# matches.csv — Field Legend
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Unique match identifier (UUID) |
+| `dataset_id` | string | ICLR topic subset (same values as papers.csv `dataset_id`) |
+| `paper1_id` | string | UUID of the first paper presented to the judge. References papers.csv `id`. |
+| `paper2_id` | string | UUID of the second paper presented to the judge. References papers.csv `id`. |
+| `winner_id` | string | UUID of the paper the judge selected as higher-impact. Always equals `paper1_id` or `paper2_id` (no ties allowed). Note: presentation order was randomly flipped with 50% probability before judging, so paper1/paper2 ordering does not indicate presentation order. |
+| `judge_provider` | string | LLM provider: `openai`, `anthropic`, or `gemini` |
+| `judge_model` | string | Specific model: `gpt-5.2`, `claude-opus-4-6`, or `gemini-3-pro-preview`. Assigned via round-robin rotation. Judges run in standard mode (no extended thinking). |
+| `reasoning` | string | Judge's brief explanation of the decision (max ~150 words). The judge saw each paper's abstract (≤1500 chars) + Opus 4.6 Thinking impact assessment, NOT the full text or author names. |
+| `created_at` | string | ISO 8601 timestamp of when the match was judged |
