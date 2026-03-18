@@ -555,9 +555,18 @@ def start_cache_bg():
 
 
 async def _bg_analysis_cache_loop():
-    """Background loop that keeps model-correlation and convergence caches warm."""
+    """Background loop that refreshes model-correlation and convergence when data changes."""
     await asyncio.sleep(15)  # Wait for leaderboard cache to be ready first
     while True:
+        # Wait for data change or max age (30 min — analysis data changes slowly)
+        try:
+            await asyncio.wait_for(_cache_dirty.wait(), timeout=1800)
+            _cache_dirty.clear()
+            await asyncio.sleep(10)  # Debounce — let matches batch up
+            _cache_dirty.clear()
+        except asyncio.TimeoutError:
+            pass
+
         try:
             from core.auth import get_settings
             settings = await get_settings()
@@ -577,7 +586,6 @@ async def _bg_analysis_cache_loop():
             logger.info(f"Analysis cache refreshed: {len(cats)} categories")
         except Exception as e:
             logger.warning(f"Analysis cache refresh failed: {e}")
-        await asyncio.sleep(300)  # Refresh every 5 minutes
 
 
 
