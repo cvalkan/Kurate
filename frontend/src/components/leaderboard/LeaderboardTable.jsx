@@ -215,11 +215,11 @@ export function LeaderboardTable({
               </div>
             )}
             <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper) || "—"}</div>
-            {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) ? `${getWinRate(paper)}%` : "—"}</div>}
+            {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) != null ? `${getWinRate(paper)}%` : "—"}</div>}
             {!isMobile && !isTablet && <div className="text-right font-mono text-xs text-muted-foreground">
               {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}%` : "—"; })()}
             </div>}
-            {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) || "—"}</div>}
+            {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
             {showRatingCol && !isMobile && !isTablet && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{(typeof paper.ai_rating === "object" && paper.ai_rating ? paper.ai_rating.score : paper.ai_rating) || "—"}</div>}
             {showGapCol && !isMobile && !isTablet && <div className={`text-right font-mono text-[10px] sm:text-xs ${paper.sp_score > 0 ? "text-emerald-600" : paper.sp_score < 0 ? "text-red-400" : "text-muted-foreground"}`}>{paper.sp_score != null ? (paper.sp_score > 0 ? "+" : "") + paper.sp_score : "—"}</div>}
             {!isMobile && <div className="text-right text-xs text-muted-foreground">

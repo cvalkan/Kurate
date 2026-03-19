@@ -39,7 +39,7 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
     try {
       const res = await axios.get(apiUrl);
       if (res.data.leaderboard) {
-        onArchiveSelect(res.data);
+        onArchiveSelect(res.data, archive);
         // Update URL for shareability (without triggering React re-render)
         const shareSlug = archive.period_type === "older" ? "older"
           : archive.period_type === "weekly" ? `${archive.year}-w${archive.week}`

@@ -245,7 +245,18 @@ export default function LeaderboardPage() {
       <PeriodFilter
         period={activeArchive ? null : period} setPeriod={setPeriod} keyword={keyword} setKeyword={setKeyword}
         isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={isTagMode ? [] : archives}
-        onArchiveSelect={(data) => { setActiveArchive(data); if (data) setLoading(false); }}
+        onArchiveSelect={(data, archive) => {
+          setActiveArchive(data);
+          if (data && archive) {
+            const slug = archive.period_type === "older" ? "older"
+              : archive.period_type === "weekly" ? `${archive.year}-w${archive.week}`
+              : `${archive.year}-m${archive.month}`;
+            archiveSlugRef.current = slug;
+          } else {
+            archiveSlugRef.current = null;
+          }
+          if (data) setLoading(false);
+        }}
         activeArchiveLabel={activeArchive?.label}
       />
 
