@@ -364,9 +364,6 @@ export function AdminOverview({
         </div>
       </div>
 
-      {/* Section: Generate AI Ratings */}
-      <RatingGenSection adminCat={adminCat} />
-
       {/* Section 2: Tournament Progress */}
       {progress && (
         <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="tournament-section">

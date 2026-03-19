@@ -837,6 +837,9 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
     if total_papers:
         logger.info(f"[{category}] Summary generation complete: {generated} new, {failed} failed, {skipped} skipped across {scanned} papers")
+        if generated > 0:
+            from routers.leaderboard import notify_data_changed
+            notify_data_changed()
 
     # Finalize progress tracker
     prog = _summary_gen_progress.get(prog_key)

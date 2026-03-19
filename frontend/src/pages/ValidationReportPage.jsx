@@ -8,12 +8,11 @@ const GT_TYPE = {
   "iclr-codegen": "comparative", "iclr-llm": "comparative", "iclr-protein": "comparative",
   "iclr-fairness": "comparative", "iclr-pdes": "comparative", "iclr-molecules": "comparative",
   "iclr-optimization": "comparative", "iclr-ot": "comparative", "peerread_acl_2017": "comparative",
-  "elife-neuro-100": "comparative",
+  "elife-neuro-100": "standalone",
   "elife-cancer": "standalone", "elife-microbiology": "standalone",
   "elife-comp-sys-bio": "standalone",
   "midl-medical-imaging": "standalone", "qeios-social": "standalone", "qeios-physical": "standalone",
   "researchhub-50": "standalone", "researchhub-cancer": "standalone", "researchhub-genetics": "standalone",
-  "uai-2024": "comparative",
 };
 
 function Section({ num, title, children }) {
@@ -418,7 +417,7 @@ export default function ValidationReportPage() {
             <p><span className="inline-block text-[8px] px-1 rounded bg-violet-100 text-violet-700 mr-1">comp</span><strong>Comparative GT</strong> (ICLR, PeerRead): Reviewers scored papers on a numeric scale and acceptance decisions were made by committees comparing papers against each other.</p>
             <p><span className="inline-block text-[8px] px-1 rounded bg-blue-100 text-blue-700 mr-1">stan</span><strong>Standalone GT</strong> (Qeios, ResearchHub, eLife): Each paper was rated independently by individual reviewers on numeric scales or tiered assessments.</p>
           </div>
-          <p className="text-[10px] text-blue-800/80 mt-1.5"><strong>The eLife exception:</strong> eLife Neuroscience empirically behaves as <em>comparative</em> GT. The diagnostic is the Gap signal (pairwise rank minus standalone rank): on Cancer and Comp &amp; Sys Bio, the Gap signal is near zero ({"\u03C1"}{"\u2248"}0.01, ns). On Neuroscience, Gap {"\u03C1"}=0.52 (p&lt;0.001) — as strong as ICLR. The likely cause: Neuro's ratings cluster heavily at a single tier (51% at tier 3), so real quality differentiation only emerges through pairwise comparison.</p>
+          <p className="text-[10px] text-blue-800/80 mt-1.5"><strong>Note on eLife Neuroscience:</strong> eLife Neuro is classified as standalone GT (no committee tiers, only 1-2 reviewers per paper). However, its ratings cluster heavily at a single tier (51% at tier 3), which means quality differences between papers may be better captured through pairwise comparison than standalone scoring. Empirically, the Gap signal (pairwise rank minus standalone rank) for Neuro shows {"\u03C1"}=0.52 (p&lt;0.001), much stronger than other eLife subsets ({"\u03C1"}{"\u2248"}0.01).</p>
         </div>
         <div className="overflow-x-auto mt-1">
           <table className="w-full text-[10px]">

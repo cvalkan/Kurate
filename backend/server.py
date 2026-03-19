@@ -462,7 +462,7 @@ async def _deferred_startup():
     # can fire the startup event before all module-level functions are defined).
     _bg_tasks = [
         "_prewarm_extraction_cache", "_prewarm_validation_cache",
-        "_prewarm_analysis_cache", "_prewarm_all_experiment_caches",
+        "_prewarm_all_experiment_caches",
         "_startup_dedup", "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab", "_startup_check_interrupted_tasks",
         "_startup_seed_targeted_matches",
@@ -925,11 +925,7 @@ async def _prewarm_validation_cache():
 
 
 async def _prewarm_result_cache():
-    """One-time: warm validation result caches for top datasets on startup.
-    
-    Limited to top 10 datasets by match count to keep startup under 2 minutes.
-    Remaining datasets compute lazily on first request.
-    """
+    """One-time: warm validation result caches for ALL datasets with matches."""
     await asyncio.sleep(5)
     try:
         from routers.validation import get_pairwise_results, _compute_convergence_and_cache

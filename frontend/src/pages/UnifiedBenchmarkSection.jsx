@@ -313,7 +313,7 @@ export function UnifiedCompSection() {
 export function UnifiedStanSection() {
   return <UnifiedPage
     apiUrl="/api/validation/unified-benchmark?gt_type=stan"
-    headerDesc={<>PW judges vs SI scoring — accuracy on same pairs, ranking on full data. <strong>Standalone GT</strong> (eLife, MIDL, Qeios, ResearchHub).</>}
+    headerDesc={<>PW judges vs SI scoring — accuracy on same pairs, ranking on full data. <strong>Standalone GT</strong> (eLife incl. Neuro, MIDL, Qeios, ResearchHub).</>}
     testId="unified-stan"
   />;
 }
