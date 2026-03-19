@@ -584,8 +584,8 @@ def _build_full_pdf_content(paper: dict, char_limit: int = None) -> str:
     full_text = paper.get("full_text", "")
     if full_text:
         text = full_text[:char_limit] if char_limit else full_text
-        return f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{text}"
-    return f"Abstract: {abstract[:1500]}"
+        return f"Abstract: {abstract}\n\nFull Paper Text:\n{text}"
+    return f"Abstract: {abstract}"
 
 
 async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None, model_override: dict = None, content_mode: str = None, allow_tie: bool = False, multi_aspect: bool = False) -> Dict:
@@ -608,24 +608,24 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
         content_mode = "abstract" if abstract_only else "extract"
 
     if content_mode == "abstract":
-        p1_content = f"Abstract: {paper1.get('abstract', '')[:1500]}"
-        p2_content = f"Abstract: {paper2.get('abstract', '')[:1500]}"
+        p1_content = f"Abstract: {paper1.get('abstract', '')}"
+        p2_content = f"Abstract: {paper2.get('abstract', '')}"
     elif content_mode == "full_pdf":
         p1_content = _build_full_pdf_content(paper1)
         p2_content = _build_full_pdf_content(paper2)
     elif content_mode == "ai_summary":
-        p1_content = f"AI Impact Assessment:\n{paper1.get('ai_impact_summary', paper1.get('abstract', '')[:1500])}"
-        p2_content = f"AI Impact Assessment:\n{paper2.get('ai_impact_summary', paper2.get('abstract', '')[:1500])}"
+        p1_content = f"AI Impact Assessment:\n{paper1.get('ai_impact_summary', paper1.get('abstract', ''))}"
+        p2_content = f"AI Impact Assessment:\n{paper2.get('ai_impact_summary', paper2.get('abstract', ''))}"
     elif content_mode == "abstract_plus_summary":
-        p1_abs = paper1.get('abstract', '')[:1500]
+        p1_abs = paper1.get('abstract', '')
         p1_sum = paper1.get('ai_impact_summary_thinking', '') or paper1.get('ai_impact_summary_opus46', '') or paper1.get('ai_impact_summary', '')
         p1_content = f"Abstract: {p1_abs}\n\nAI Impact Assessment:\n{p1_sum}" if p1_sum else f"Abstract: {p1_abs}"
-        p2_abs = paper2.get('abstract', '')[:1500]
+        p2_abs = paper2.get('abstract', '')
         p2_sum = paper2.get('ai_impact_summary_thinking', '') or paper2.get('ai_impact_summary_opus46', '') or paper2.get('ai_impact_summary', '')
         p2_content = f"Abstract: {p2_abs}\n\nAI Impact Assessment:\n{p2_sum}" if p2_sum else f"Abstract: {p2_abs}"
     elif content_mode == "abstract_plus_3summaries":
         def _build_multi_summary(paper):
-            parts = [f"Abstract: {paper.get('abstract', '')[:1500]}"]
+            parts = [f"Abstract: {paper.get('abstract', '')}"]
             for key, label in [("ai_impact_summary_claude", "Assessment A (Claude)"), ("ai_impact_summary_gpt", "Assessment B (GPT)"), ("ai_impact_summary_gemini", "Assessment C (Gemini)")]:
                 s = paper.get(key, '')
                 if s:
@@ -639,17 +639,17 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
         def _pick_random_summary(paper):
             available = [paper.get(k, '') for k in _sum_keys if paper.get(k)]
             return _rnd.choice(available) if available else ''
-        p1_abs = paper1.get('abstract', '')[:1500]
+        p1_abs = paper1.get('abstract', '')
         p1_sum = _pick_random_summary(paper1)
         p1_content = f"Abstract: {p1_abs}\n\nAI Impact Assessment:\n{p1_sum}" if p1_sum else f"Abstract: {p1_abs}"
-        p2_abs = paper2.get('abstract', '')[:1500]
+        p2_abs = paper2.get('abstract', '')
         p2_sum = _pick_random_summary(paper2)
         p2_content = f"Abstract: {p2_abs}\n\nAI Impact Assessment:\n{p2_sum}" if p2_sum else f"Abstract: {p2_abs}"
     elif content_mode == "abstract_plus_impact":
-        p1_abs = paper1.get('abstract', '')[:1500]
+        p1_abs = paper1.get('abstract', '')
         p1_imp = paper1.get('impact_statement', '')
         p1_content = f"Abstract: {p1_abs}\n\nEditorial Impact Statement: {p1_imp}" if p1_imp else f"Abstract: {p1_abs}"
-        p2_abs = paper2.get('abstract', '')[:1500]
+        p2_abs = paper2.get('abstract', '')
         p2_imp = paper2.get('impact_statement', '')
         p2_content = f"Abstract: {p2_abs}\n\nEditorial Impact Statement: {p2_imp}" if p2_imp else f"Abstract: {p2_abs}"
     else:
@@ -818,7 +818,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
 
     def _build_content(limit: int) -> str:
         if full_text:
-            return f"Abstract: {abstract[:1500]}\n\nFull Paper Text:\n{full_text[:limit]}"
+            return f"Abstract: {abstract}\n\nFull Paper Text:\n{full_text[:limit]}"
         return f"Abstract: {abstract[:3000]}"
 
     content = _build_content(char_limit)
