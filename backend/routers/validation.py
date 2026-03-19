@@ -1918,7 +1918,7 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
     si_shared = sorted(set(si_scores.keys()) & set(a_rank.keys()))
     if len(si_shared) >= 10:
         ai_r = [a_rank[pid]["score"] for pid in si_shared]
-        si_r = [-si_scores[pid] for pid in si_shared]  # negate so higher score = lower rank
+        si_r = [si_scores[pid] for pid in si_shared]
         si_sp, si_sp_p = scipy_stats.spearmanr(ai_r, si_r)
         si_kt, si_kt_p = scipy_stats.kendalltau(ai_r, si_r)
         si_pr, si_pr_p = scipy_stats.pearsonr(ai_r, si_r)
