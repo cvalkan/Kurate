@@ -79,7 +79,7 @@ def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
 
     if len(human_individual_matches) >= 10:
         h_lb = compute_leaderboard(papers, human_individual_matches)
-        h_rank = {e["id"]: e["rank"] for e in h_lb}
+        h_rank = {e["id"]: e["score"] for e in h_lb}
         shared = sorted(set(ai_rank) & set(h_rank))
         if len(shared) >= 5:
             sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
@@ -89,7 +89,7 @@ def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
     # vs Avg Rating
     shared_avg = sorted(set(ai_rank) & set(gt))
     if len(shared_avg) >= 5:
-        sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared_avg], [-gt[p] for p in shared_avg])
+        sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared_avg], [gt[p] for p in shared_avg])
         corrs["vs_avg_rating"] = {"rho": safe_round(sp), "tau": None, "desc": f"{label} BT vs average reviewer scores"}
 
     # vs Majority
@@ -111,7 +111,7 @@ def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
 
     if len(human_majority_matches) >= 10:
         h_lb = compute_leaderboard(papers, human_majority_matches)
-        h_rank = {e["id"]: e["rank"] for e in h_lb}
+        h_rank = {e["id"]: e["score"] for e in h_lb}
         shared = sorted(set(ai_rank) & set(h_rank))
         if len(shared) >= 5:
             sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
@@ -127,8 +127,8 @@ def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
     if len(tier_score_map) >= 5:
         shared_t = sorted(set(ai_rank) & set(tier_score_map))
         if len(shared_t) >= 5:
-            sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared_t], [-tier_score_map[p] for p in shared_t])
-            kt, _ = scipy_stats.kendalltau([ai_rank[p] for p in shared_t], [-tier_score_map[p] for p in shared_t])
+            sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared_t], [tier_score_map[p] for p in shared_t])
+            kt, _ = scipy_stats.kendalltau([ai_rank[p] for p in shared_t], [tier_score_map[p] for p in shared_t])
             corrs["vs_committee"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": f"{label} BT vs committee tier decisions"}
 
     return corrs if corrs else None
@@ -351,7 +351,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             pw_match_dicts = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "winner_id": m["winner_id"], "completed": True, "failed": False} for m in pw_matches_raw if m.get("winner_id")]
             if len(pw_match_dicts) >= 10:
                 pw_lb = compute_leaderboard(papers, pw_match_dicts)
-                pw_rank = {e["id"]: e["rank"] for e in pw_lb}
+                pw_rank = {e["id"]: e["score"] for e in pw_lb}
                 pw_bt_corrs = _compute_bt_corrs_for_rank(pw_rank, papers, gt, "AI")
 
         # SI correlations: compute from SI score-derived matches
@@ -366,7 +366,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
 
         if len(si_matches_for_bt) >= 10:
             si_lb = compute_leaderboard(papers, si_matches_for_bt)
-            si_rank = {e["id"]: e["rank"] for e in si_lb}
+            si_rank = {e["id"]: e["score"] for e in si_lb}
             si_bt_corrs = _compute_bt_corrs_for_rank(si_rank, papers, gt, "SI")
     except Exception as e:
         logger.warning(f"BT correlations failed for {dataset_id}: {e}")
