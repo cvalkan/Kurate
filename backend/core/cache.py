@@ -7,7 +7,7 @@ that makes old cached results incorrect.
 from core.config import db, logger
 
 # Bump this whenever cached computation logic changes materially
-CACHE_VERSION = 4  # v4: fix race condition — JSON loaded before accepting connections
+CACHE_VERSION = 5  # v5: eLife Neuro moved to STANDALONE_GT
 
 _memory_cache = {}
 
