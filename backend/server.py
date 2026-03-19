@@ -161,6 +161,11 @@ app.add_middleware(
 async def health():
     return {"status": "ok", "service": "papersumo-leaderboard"}
 
+@app.get("/api/prewarm-status")
+async def prewarm_status():
+    s = getattr(app.state, "prewarm_status", {"done": True, "step": ""})
+    return s
+
 
 @app.get("/api/gmail/callback")
 async def gmail_callback(code: str, state: str, request: Request):
@@ -202,6 +207,7 @@ async def gmail_callback(code: str, state: str, request: Request):
 
 @app.on_event("startup")
 async def startup():
+    app.state.prewarm_status = {"done": False, "step": "starting"}
     # FAST PATH: Only create essential indexes, then let server accept connections.
     # All migrations, backfills, and cache warming run in background.
     try:
@@ -482,6 +488,7 @@ async def _prewarm_all_experiment_caches():
       3. Compute anything still missing from DB (slow, only needed on first deploy or after data changes)
     """
     await asyncio.sleep(3)
+    app.state.prewarm_status = {"done": False, "step": "Loading benchmark caches"}
     
     # --- Layer 1: Precomputed JSON files (already loaded in startup(), skip) ---
 
@@ -588,6 +595,7 @@ async def _prewarm_all_experiment_caches():
                     logger.warning(f"  unified-benchmark-{gt}: failed — {e}")
 
         logger.info("All experiment caches ready")
+        app.state.prewarm_status = {"done": False, "step": "Loading per-dataset caches"}
 
         # Also warm admin timeseries (very expensive: 70s+ cold)
         try:
@@ -947,6 +955,7 @@ async def _prewarm_result_cache():
                 pass
             await asyncio.sleep(0)
         logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence (of {len(all_datasets)} datasets)")
+        app.state.prewarm_status = {"done": True, "step": ""}
     except Exception as e:
         logger.warning(f"Result cache prewarm failed: {e}")
 

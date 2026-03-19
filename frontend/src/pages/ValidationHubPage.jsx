@@ -107,6 +107,21 @@ export default function ValidationHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelectedInternal] = useState(searchParams.get("v") || null);
   const [datasets, setDatasets] = useState([]);
+  const [prewarmStatus, setPrewarmStatus] = useState(null);
+
+  // Poll prewarm status
+  useEffect(() => {
+    let interval;
+    const check = () => {
+      axios.get(`${API}/api/prewarm-status`).then(r => {
+        setPrewarmStatus(r.data);
+        if (r.data?.done) clearInterval(interval);
+      }).catch(() => {});
+    };
+    check();
+    interval = setInterval(check, 5000);
+    return () => clearInterval(interval);
+  }, []);
   const isAdmin = !!sessionStorage.getItem("admin_token");
 
   // Sync URL with selection
@@ -238,6 +253,12 @@ export default function ValidationHubPage() {
           <FlaskConical className="h-3 w-3" />
           Work in progress — results are preliminary and actively being refined
         </div>
+        {prewarmStatus && !prewarmStatus.done && (
+          <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-50 border border-sky-200 text-sky-800 text-xs font-medium animate-pulse">
+            <FlaskRound className="h-3 w-3" />
+            Prewarming caches{prewarmStatus.step ? `: ${prewarmStatus.step}` : "..."}
+          </div>
+        )}
       </div>
 
       <div className="flex gap-5">
