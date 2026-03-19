@@ -126,6 +126,9 @@ async def _get_badge_data(category: str, year: int, week: int, paper_id: str) ->
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
 
+    if not paper.get("comparisons"):
+        raise HTTPException(404, "Paper has no tournament matches yet — badge unavailable")
+
     # Fetch full categories from papers collection (archives don't store them)
     categories = [category]
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
@@ -402,6 +405,9 @@ async def get_monthly_badge(category: str, year: int, month: int, paper_id: str)
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
 
+    if not paper.get("comparisons"):
+        raise HTTPException(404, "Paper has no tournament matches yet — badge unavailable")
+
     return {
         "title": paper.get("title"),
         "authors": paper.get("authors", []),
@@ -472,6 +478,9 @@ async def get_paper_badges(paper_id: str):
     tier = _get_tier(paper["rank"])
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
+
+    if not paper.get("comparisons"):
+        raise HTTPException(404, "Paper has no tournament matches yet — badge unavailable")
 
     return {
         "title": paper.get("title"),
