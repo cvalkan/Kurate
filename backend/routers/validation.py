@@ -88,13 +88,32 @@ async def list_datasets():
     meta_docs = await db.validation_datasets.find({}, {"_id": 0}).to_list(100)
     meta = {d["dataset_id"]: d for d in meta_docs}
 
+    # Include precomputed modes from validation_results.json (avoids per-dataset DB queries)
+    from services.precompute import VALIDATION_FILE
+    precomputed_modes = {}
+    try:
+        if VALIDATION_FILE.exists():
+            import json as _json
+            with open(VALIDATION_FILE) as f:
+                val_data = _json.load(f)
+            for ds_id, ds_data in val_data.items():
+                if isinstance(ds_data, dict):
+                    modes = set()
+                    for key in ds_data.keys():
+                        if key.startswith("pairwise:"):
+                            modes.add(key.split(":", 1)[1])
+                    if modes:
+                        precomputed_modes[ds_id] = sorted(modes)
+    except Exception:
+        pass
+
     datasets = []
     for ds_id, ps in paper_stats.items():
         m = meta.get(ds_id, {})
         state = _get_state(ds_id)
         n_papers = ps["count"]
         n_matches = match_stats.get(ds_id, 0)
-        datasets.append({
+        ds_entry = {
             "dataset_id": ds_id,
             "name": m.get("name", ds_id),
             "description": m.get("description", ""),
@@ -104,7 +123,10 @@ async def list_datasets():
             "matches": n_matches,
             "total_pairs": n_papers * (n_papers - 1) // 2 if n_papers > 1 else 0,
             "tournament_running": state["running"],
-        })
+        }
+        if ds_id in precomputed_modes:
+            ds_entry["modes"] = precomputed_modes[ds_id]
+        datasets.append(ds_entry)
 
     result = {"datasets": datasets}
     _datasets_cache["data"] = result

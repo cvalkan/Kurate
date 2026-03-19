@@ -55,13 +55,28 @@ export default function SummarizerABSection() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [modesRes, resultsRes, aeRes] = await Promise.all([
-        Promise.all(DATASETS.map(ds => axios.get(`${API}/api/validation/available-modes`, { params: { dataset_id: ds.id } }).catch(() => ({ data: { modes: [] } })))),
+      const [datasetsRes, resultsRes, aeRes] = await Promise.all([
+        axios.get(`${API}/api/validation/datasets`).catch(() => ({ data: { datasets: [] } })),
         axios.get(`${API}/api/validation/summarizer-ab/results`, { timeout: 30000 }).catch(() => ({ data: {} })),
         axios.get(`${API}/api/validation/assessor-evaluator/results`, { timeout: 30000 }).catch(() => ({ data: {} })),
       ]);
+      // Use precomputed modes from datasets endpoint instead of 12 separate calls
       const modes_by_ds = {};
-      DATASETS.forEach((ds, i) => { modes_by_ds[ds.id] = modesRes[i].data.modes || []; });
+      const allDs = datasetsRes.data.datasets || [];
+      DATASETS.forEach(ds => {
+        const found = allDs.find(d => d.dataset_id === ds.id);
+        if (found?.modes) {
+          modes_by_ds[ds.id] = found.modes.map(m => ({ id: m, label: m, matches: 0 }));
+        }
+      });
+      // Fallback: fetch individually only for datasets missing modes
+      const missing = DATASETS.filter(ds => !modes_by_ds[ds.id]);
+      if (missing.length > 0) {
+        const fallback = await Promise.all(missing.map(ds => 
+          axios.get(`${API}/api/validation/available-modes`, { params: { dataset_id: ds.id } }).catch(() => ({ data: { modes: [] } }))
+        ));
+        missing.forEach((ds, i) => { modes_by_ds[ds.id] = fallback[i].data.modes || []; });
+      }
       setCompData(modes_by_ds);
       if (resultsRes.data.status === "ok") setResults(resultsRes.data);
       if (aeRes.data?.experimental) setExpData(aeRes.data.experimental);
