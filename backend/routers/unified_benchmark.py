@@ -17,6 +17,7 @@ from collections import defaultdict, Counter
 from fastapi import APIRouter, Query
 
 from core.config import db, logger
+from services.ranking import compute_leaderboard
 from routers.validation_utils import (
     build_expert_ratings, build_content_mode_filter, safe_round,
     PAPER_LIGHT_PROJECTION, norm_tier,
@@ -242,6 +243,114 @@ async def _compute_unified_dataset(dataset_id, gt_type):
         if si_verdict[pair] == human_winner:
             int_si_correct += 1
 
+    # --- BT Ranking Correlations (PW and SI vs multiple human GTs) ---
+    from routers.validation_utils import norm_tier
+
+    TIER_SCORE_MAP = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1}
+
+    # Build human data structures
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name and ev.get("rating_value") is not None:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+
+    # Human individual matches (each expert vote = one match)
+    human_individual_matches = []
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                if ratings[a] != ratings[b]:
+                    winner = a if ratings[a] > ratings[b] else b
+                    human_individual_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": winner, "completed": True, "failed": False})
+
+    # Human majority matches (one vote per pair)
+    from collections import Counter as _Counter
+    pair_votes = defaultdict(list)
+    for exp, ratings in expert_ratings.items():
+        pids = list(ratings.keys())
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = sorted([pids[i], pids[j]])
+                if ratings[pids[i]] != ratings[pids[j]]:
+                    winner = pids[i] if ratings[pids[i]] > ratings[pids[j]] else pids[j]
+                    pair_votes[(a, b)].append(winner)
+    human_majority_matches = []
+    for (a, b), votes in pair_votes.items():
+        c = _Counter(votes)
+        if len(c) == 1 or c.most_common(1)[0][1] > len(votes) / 2:
+            human_majority_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": c.most_common(1)[0][0], "completed": True, "failed": False})
+
+    # Tier score map
+    tier_score_map = {}
+    for p in papers:
+        t = norm_tier(p.get("decision"))
+        if t and t in TIER_SCORE_MAP:
+            tier_score_map[p["id"]] = TIER_SCORE_MAP[t]
+
+    def _compute_bt_correlations(ai_matches_list, label):
+        """Compute BT correlation table for a set of AI matches."""
+        if len(ai_matches_list) < 10:
+            return None
+        ai_lb = compute_leaderboard(papers, ai_matches_list)
+        ai_rank = {e["id"]: e["rank"] for e in ai_lb}
+
+        corrs = {}
+        # vs Individual aggregate
+        if len(human_individual_matches) >= 10:
+            h_lb = compute_leaderboard(papers, human_individual_matches)
+            h_rank = {e["id"]: e["rank"] for e in h_lb}
+            shared = sorted(set(ai_rank) & set(h_rank))
+            if len(shared) >= 5:
+                sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
+                kt, _ = scipy_stats.kendalltau([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
+                corrs["vs_individual"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": "AI BT vs all-expert-votes BT"}
+
+        # vs Avg Rating
+        shared_avg = sorted(set(ai_rank) & set(gt))
+        if len(shared_avg) >= 5:
+            sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared_avg], [-gt[p] for p in shared_avg])
+            corrs["vs_avg_rating"] = {"rho": safe_round(sp), "tau": None, "desc": "AI BT vs simple average of reviewer scores"}
+
+        # vs Majority
+        if len(human_majority_matches) >= 10:
+            h_lb = compute_leaderboard(papers, human_majority_matches)
+            h_rank = {e["id"]: e["rank"] for e in h_lb}
+            shared = sorted(set(ai_rank) & set(h_rank))
+            if len(shared) >= 5:
+                sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
+                kt, _ = scipy_stats.kendalltau([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
+                corrs["vs_majority"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": "AI BT vs majority-vote BT"}
+
+        # vs Committee (Tier)
+        if len(tier_score_map) >= 5:
+            shared_t = sorted(set(ai_rank) & set(tier_score_map))
+            if len(shared_t) >= 5:
+                sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared_t], [-tier_score_map[p] for p in shared_t])
+                kt, _ = scipy_stats.kendalltau([ai_rank[p] for p in shared_t], [-tier_score_map[p] for p in shared_t])
+                corrs["vs_committee"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": "AI BT vs committee tier decisions"}
+
+        return corrs if corrs else None
+
+    # PW correlations (from pairwise matches)
+    pw_bt_corrs = _compute_bt_correlations(
+        [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "winner_id": m["winner_id"], "completed": True, "failed": False} for m in pw_matches_raw if m.get("winner_id")],
+        "PW"
+    )
+
+    # SI correlations (from SI score-derived matches)
+    si_matches = []
+    for i in range(len(si_ids)):
+        for j in range(i + 1, len(si_ids)):
+            a, b = si_ids[i], si_ids[j]
+            if si_scores[a] != si_scores[b]:
+                winner = a if si_scores[a] > si_scores[b] else b
+                si_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": winner, "completed": True, "failed": False})
+    si_bt_corrs = _compute_bt_correlations(si_matches, "SI")
+
     return {
         "dataset_id": dataset_id,
         "n_papers": len(gt),
@@ -250,6 +359,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             "correct": pw_correct, "total": pw_total,
             "pairs": len(pw_pairs_seen),
             "bt_rho": pw_rho,
+            "bt_correlations": pw_bt_corrs,
             "mode": pw_content_mode,
             "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in pw_diff.items()},
         },
@@ -259,6 +369,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             "pairs": si_total,
             "n_scored": len(si_scores),
             "bt_rho": si_rho,
+            "bt_correlations": si_bt_corrs,
             "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in si_diff.items()},
         },
         "intersection": {

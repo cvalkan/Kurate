@@ -14,6 +14,62 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
+function BTCorrelationTable({ pwCorrs, siCorrs }) {
+  if (!pwCorrs && !siCorrs) return null;
+  const rows = [
+    { key: "vs_individual", label: "vs Individual aggregate", desc: "BT vs all-expert-votes BT" },
+    { key: "vs_avg_rating", label: "vs Avg Rating", desc: "BT vs average reviewer scores" },
+    { key: "vs_majority", label: "vs Majority", desc: "BT vs majority-vote BT" },
+    { key: "vs_committee", label: "vs Committee (ICLR PC)", desc: "BT vs committee tier decisions" },
+  ];
+  const f = v => v != null ? v.toFixed(3) : "\u2014";
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
+        <Scale className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry) — PW vs SI</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground">
+              <th className="py-1.5 px-2 text-left font-medium">Comparison</th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-violet-500/[0.06]" colSpan={2}>Pairwise (PW)</th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.06]" colSpan={2}>Single-Item (SI)</th>
+              <th className="py-1.5 px-2 text-left font-medium">Description</th>
+            </tr>
+            <tr className="border-b border-border text-muted-foreground text-[9px]">
+              <th></th>
+              <th className="py-0.5 px-1.5 text-right bg-violet-500/[0.06]">{"\u03C1"}</th>
+              <th className="py-0.5 px-1.5 text-right bg-violet-500/[0.06]">{"\u03C4"}</th>
+              <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.06]">{"\u03C1"}</th>
+              <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.06]">{"\u03C4"}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => {
+              const pw = pwCorrs?.[r.key];
+              const si = siCorrs?.[r.key];
+              const pwWins = (pw?.rho || 0) >= (si?.rho || 0);
+              return (
+                <tr key={r.key} className="border-b border-border/20">
+                  <td className="py-1.5 px-2 font-medium">{r.label}</td>
+                  <td className={`py-1.5 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-semibold" : ""}`}>{f(pw?.rho)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono bg-violet-500/[0.06] text-foreground/60">{f(pw?.tau)}</td>
+                  <td className={`py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-semibold" : ""}`}>{f(si?.rho)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.06] text-foreground/60">{f(si?.tau)}</td>
+                  <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{pw?.desc || si?.desc || r.desc}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ComparisonTable({ data }) {
   const p = data.pooled;
   const levels = [
@@ -215,6 +271,32 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
       </div>
 
       <ComparisonTable data={data} />
+      {(() => {
+        // Aggregate BT correlations from per-dataset data
+        const ds = data.per_dataset || [];
+        const pwKeys = new Set();
+        const siKeys = new Set();
+        ds.forEach(d => {
+          Object.keys(d.pw?.bt_correlations || {}).forEach(k => pwKeys.add(k));
+          Object.keys(d.si?.bt_correlations || {}).forEach(k => siKeys.add(k));
+        });
+        // Pool: average rho/tau across datasets (weighted by presence)
+        const pool = (method, key) => {
+          const vals = ds.map(d => d[method]?.bt_correlations?.[key]).filter(Boolean);
+          if (!vals.length) return null;
+          return {
+            rho: vals.reduce((s, v) => s + (v.rho || 0), 0) / vals.length,
+            tau: vals.reduce((s, v) => s + (v.tau || 0), 0) / vals.filter(v => v.tau != null).length || null,
+            desc: vals[0]?.desc,
+          };
+        };
+        const allKeys = [...new Set([...pwKeys, ...siKeys])];
+        const pwPooled = {};
+        const siPooled = {};
+        allKeys.forEach(k => { pwPooled[k] = pool("pw", k); siPooled[k] = pool("si", k); });
+        const hasData = Object.values(pwPooled).some(v => v) || Object.values(siPooled).some(v => v);
+        return hasData ? <BTCorrelationTable pwCorrs={pwPooled} siCorrs={siPooled} /> : null;
+      })()}
       <DatasetTable datasets={data.per_dataset} />
     </div>
   );
