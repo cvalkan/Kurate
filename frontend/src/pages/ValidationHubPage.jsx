@@ -145,19 +145,18 @@ export default function ValidationHubPage() {
       const r = await axios.get(`${API}/api/validation/datasets`);
       const ds = r.data.datasets || [];
       setDatasets(ds);
-      // Auto-select first available item only if nothing selected from URL
-      const urlV = searchParams.get("v");
-      if (!selected && !urlV && ds.length) {
-        if (isAdmin) {
-          setSelected("pw-qeios");
-        } else {
-          const iclr = ds.find(d => d.name?.startsWith("ICLR "));
-          if (iclr) setSelected(`t-${iclr.dataset_id}`);
-          else setSelected(`t-${ds[0].dataset_id}`);
-        }
-      }
+      // Auto-select ONLY on very first load with no URL param and no prior selection
+      setSelectedInternal(prev => {
+        if (prev) return prev;  // Never override an existing selection
+        const urlV = searchParams.get("v");
+        if (urlV) return urlV;
+        if (!ds.length) return prev;
+        if (isAdmin) return "pw-qeios";
+        const iclr = ds.find(d => d.name?.startsWith("ICLR "));
+        return iclr ? `t-${iclr.dataset_id}` : `t-${ds[0].dataset_id}`;
+      });
     } catch (e) { console.error(e); }
-  }, [isAdmin, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
 

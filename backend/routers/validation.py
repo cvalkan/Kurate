@@ -1411,7 +1411,11 @@ async def _compute_cycle_analysis_all():
 
 @router.get("/available-modes")
 async def get_available_modes(dataset_id: str = Query(...)):
-    """List content modes that have match data for a dataset, including prompt-tagged variants."""
+    """List content modes that have match data for a dataset. Cached."""
+    cached = await cache_get("modes", dataset_id, "")
+    if cached:
+        return cached
+
     SUMMARY_TAG_LABELS = {
         "gpt_summary": "Abstract + Summary (GPT-5.2)",
         "gemini_summary": "Abstract + Summary (Gemini 3 Pro)",
@@ -1482,7 +1486,9 @@ async def get_available_modes(dataset_id: str = Query(...)):
     if len(ensemble["unanimity"]) >= 20:
         modes.append({"id": "ensemble:unanimity", "label": "Unanimous (3/3 agree)", "prompt_tag": None, "matches": len(ensemble["unanimity"])})
 
-    return {"modes": sorted(modes, key=lambda m: -m["matches"])}
+    result = {"modes": sorted(modes, key=lambda m: -m["matches"])}
+    await cache_set("modes", dataset_id, "", result)
+    return result
 
 
 # ─── Status ────────────────────────────────────────────────────────────────────
