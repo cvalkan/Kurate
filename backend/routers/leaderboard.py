@@ -1876,7 +1876,7 @@ async def sitemap():
 
 @router.get("/archive/list")
 async def list_archives(category: str = Query(None)):
-    """List available archived leaderboard snapshots for a category."""
+    """List available archived leaderboard snapshots for a category, filtered by configured frequency."""
     query = {}
     if category:
         query["category"] = category
@@ -1884,6 +1884,10 @@ async def list_archives(category: str = Query(None)):
         query, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1,
                 "period_type": 1, "paper_count": 1, "match_count": 1, "created_at": 1, "label": 1}
     ).sort([("year", -1), ("week", -1), ("month", -1)]).to_list(200)
+    if category:
+        from core.auth import get_settings
+        settings = await get_settings()
+        archives = _filter_archives_by_frequency(archives, category, settings)
     return {"archives": archives}
 
 
