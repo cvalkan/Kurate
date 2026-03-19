@@ -403,20 +403,11 @@ async def _compute_unified_dataset(dataset_id, gt_type):
 
 @router.get("/unified-benchmark")
 async def unified_benchmark(gt_type: str = Query("comp")):
-    """Unified PW vs SI benchmark — each method on its full data."""
-    from core.cache import get_cached, set_cached
+    """Unified PW vs SI benchmark — served from precomputed cache only."""
     cache = _unified_cache.get(gt_type, {})
     if cache.get("data"):
         return cache["data"]
-    cached = await get_cached(f"unified_benchmark_{gt_type}")
-    if cached:
-        _unified_cache[gt_type] = {"data": cached}
-        return cached
-    result = await _compute_unified_benchmark(gt_type)
-    if result.get("status") == "ok":
-        _unified_cache[gt_type] = {"data": result}
-        await set_cached(f"unified_benchmark_{gt_type}", result)
-    return result
+    return {"status": "no_data", "message": "Unified benchmark not precomputed. Run admin precompute-experiments."}
 
 
 async def _compute_unified_benchmark(gt_type):

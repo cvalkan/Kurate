@@ -1106,28 +1106,11 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
 @router.get("/human-ai-benchmark")
 async def human_ai_benchmark(gt_type: str = Query("comp")):
-    """Comprehensive human vs AI agreement benchmark. gt_type: comp or stan."""
+    """Comprehensive human vs AI agreement benchmark — served from precomputed cache only."""
     cache = _benchmark_cache.get(gt_type, {})
     if cache.get("data"):
         return cache["data"]
-    # Try MongoDB persistent cache
-    db_cached = await _load_cached_benchmark(gt_type)
-    if db_cached:
-        return db_cached
-    if gt_type == "stan":
-        from routers.standalone_benchmark import compute_standalone_benchmark
-        result = await compute_standalone_benchmark(ai_source="pairwise")
-    else:
-        result = await _compute_benchmark(gt_type)
-    if result.get("status") == "ok":
-        from core.cache import CACHE_VERSION
-        _benchmark_cache[gt_type] = {"data": result}
-        await db.benchmark_cache.update_one(
-            {"gt_type": gt_type},
-            {"$set": {"gt_type": gt_type, "data": result, "version": CACHE_VERSION}},
-            upsert=True,
-        )
-    return result
+    return {"status": "no_data", "message": "Human-AI benchmark not precomputed. Run admin precompute-experiments."}
 
 
 async def _compute_benchmark(gt_type: str = "comp"):

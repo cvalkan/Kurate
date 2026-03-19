@@ -480,136 +480,18 @@ async def _deferred_startup():
 
 
 async def _prewarm_all_experiment_caches():
-    """Single consolidated cache warmer for all validation experiment endpoints.
+    """Load ALL validation data from precomputed JSON files. No computation.
     
-    Strategy (3 layers, each one is a safety net for the next):
-      1. Load from precomputed JSON files on disk (instant, covers ~11 experiments + datasets)
-      2. Load remaining from MongoDB persistent cache (fast, covers benchmarks + recently computed)
-      3. Compute anything still missing from DB (slow, only needed on first deploy or after data changes)
+    If data isn't in the JSON files, endpoints return 'no_data'.
+    To update: run admin precompute-experiments on preview, deploy the new JSON files.
     """
     await asyncio.sleep(3)
-    
-    # --- Layer 1: Precomputed JSON files (already loaded in startup(), skip) ---
+    # JSON files already loaded in startup(). Nothing else to do.
+    # The unified-benchmark and human-ai-benchmark caches are populated
+    # by load_precomputed() which was called synchronously in startup().
+    logger.info("All experiment caches loaded from precomputed JSON (no computation)")
+    app.state.prewarm_status = {"done": True, "step": ""}
 
-    # --- Layer 2: MongoDB persistent cache for benchmark endpoints ---
-    try:
-        from routers.human_ai_benchmark import prewarm_benchmark_cache
-        await prewarm_benchmark_cache()
-    except Exception as e:
-        logger.warning(f"Layer 2 (benchmark MongoDB cache) failed: {e}")
-
-    # Also load other MongoDB-cached endpoints
-    try:
-        from core.cache import get_cached
-        from routers.validation_utils import consistency_cache, cycle_all_cache, sumab_results_cache
-        from routers.validation_experiments import _judge_comparison_cache, _SINGLE_ITEM_CACHE
-        from routers.unified_benchmark import _unified_cache
-
-        mongo_mappings = [
-            ("consistency_analysis", consistency_cache),
-            ("cycle_analysis_all", cycle_all_cache),
-            ("summarizer_ab_results", sumab_results_cache),
-            ("judge_comparison_results", _judge_comparison_cache),
-            ("single_item_scoring_results", _SINGLE_ITEM_CACHE),
-            ("unified_benchmark_comp", None),
-            ("unified_benchmark_stan", None),
-        ]
-        for key, cache in mongo_mappings:
-            if cache and cache.get("data"):
-                continue  # Already loaded from JSON
-            cached = await get_cached(key)
-            if cached:
-                if cache:
-                    cache["data"] = cached
-                elif "comp" in key:
-                    _unified_cache["comp"] = {"data": cached}
-                elif "stan" in key:
-                    _unified_cache["stan"] = {"data": cached}
-                logger.info(f"Layer 2: Loaded {key} from MongoDB")
-    except Exception as e:
-        logger.warning(f"Layer 2 (MongoDB cache) failed: {e}")
-
-    # --- Layer 3: Compute anything still missing ---
-    try:
-        from routers.validation import _compute_consistency_analysis, _compute_cycle_analysis_all
-        from routers.validation_experiments import (
-            _compute_summarizer_ab_results, _compute_assessor_evaluator,
-            _compute_extended_thinking_results, _compute_multi_aspect_results,
-            _compute_judge_comparison, _compute_model_correlation_analysis,
-            _compute_single_item_results, _SINGLE_ITEM_CACHE,
-        )
-        from routers.validation_utils import (
-            consistency_cache, cycle_all_cache, sumab_results_cache,
-            ae_cache, extended_thinking_cache, multi_aspect_cache,
-        )
-        from routers.validation_experiments import _judge_comparison_cache, _model_correlation_cache
-        from core.cache import set_cached
-        import time as _t
-
-        all_caches = [
-            ("consistency", _compute_consistency_analysis, consistency_cache, "consistency_analysis"),
-            ("cycle-all", _compute_cycle_analysis_all, cycle_all_cache, "cycle_analysis_all"),
-            ("summarizer-ab", _compute_summarizer_ab_results, sumab_results_cache, "summarizer_ab_results"),
-            ("extended-thinking", _compute_extended_thinking_results, extended_thinking_cache, None),
-            ("multi-aspect", _compute_multi_aspect_results, multi_aspect_cache, None),
-            ("judge-comparison", _compute_judge_comparison, _judge_comparison_cache, "judge_comparison_results"),
-            ("assessor-evaluator", _compute_assessor_evaluator, ae_cache, None),
-            ("model-correlation", _compute_model_correlation_analysis, _model_correlation_cache, None),
-            ("single-item-scoring", _compute_single_item_results, _SINGLE_ITEM_CACHE, "single_item_scoring_results"),
-        ]
-
-        missing = [(n, fn, c, mk) for n, fn, c, mk in all_caches if not c.get("data")]
-        if not missing:
-            logger.info("Layer 3: All experiment caches loaded — nothing to compute")
-        else:
-            logger.info(f"Layer 3: Computing {len(missing)} missing caches: {[n for n,_,_,_ in missing]}")
-            for name, fn, cache, mongo_key in missing:
-                try:
-                    result = await asyncio.wait_for(fn(), timeout=120)
-                    if result.get("status") == "ok":
-                        cache["data"] = result
-                        cache["ts"] = _t.time()
-                        if mongo_key:
-                            await set_cached(mongo_key, result)
-                        logger.info(f"  {name}: computed + cached")
-                    else:
-                        logger.info(f"  {name}: status={result.get('status')}")
-                    await asyncio.sleep(0.5)
-                except asyncio.TimeoutError:
-                    logger.warning(f"  {name}: timed out (120s)")
-                except Exception as e:
-                    logger.warning(f"  {name}: failed — {e}")
-
-        # Also warm unified benchmark if not cached
-        from routers.unified_benchmark import _unified_cache, _compute_unified_benchmark
-        for gt in ["comp", "stan"]:
-            if not _unified_cache.get(gt, {}).get("data"):
-                try:
-                    result = await asyncio.wait_for(_compute_unified_benchmark(gt), timeout=60)
-                    if result.get("status") == "ok":
-                        _unified_cache[gt] = {"data": result}
-                        await set_cached(f"unified_benchmark_{gt}", result)
-                        logger.info(f"  unified-benchmark-{gt}: computed + cached")
-                except Exception as e:
-                    logger.warning(f"  unified-benchmark-{gt}: failed — {e}")
-
-        logger.info("All experiment caches ready")
-
-        # Also warm admin timeseries (very expensive: 70s+ cold)
-        try:
-            mongo_key = "admin_timeseries___all__"
-            ts_cached = await get_cached(mongo_key)
-            if ts_cached:
-                from routers.admin import _set_admin_cached
-                _set_admin_cached("timeseries", "__all__", ts_cached)
-                logger.info("Admin timeseries loaded from MongoDB cache")
-            else:
-                logger.info("Admin timeseries not cached — will compute on first admin visit")
-        except Exception as e:
-            logger.warning(f"Admin timeseries prewarm failed: {e}")
-    except Exception as e:
-        logger.warning(f"Layer 3 (compute missing) failed: {e}")
-    """Pre-warm model-correlation and convergence caches for all active categories."""
     await asyncio.sleep(8)  # Wait for leaderboard cache to be ready
     try:
         from routers.leaderboard import _compute_model_correlation, _compute_convergence, _set_analysis_cached
@@ -915,43 +797,10 @@ async def _prewarm_validation_cache():
         async for _ in db.validation_matches.aggregate(pipeline2):
             pass
         logger.info("Validation cache pre-warmed")
-
-        # Pre-warm result cache for common datasets (background, non-blocking)
-        asyncio.create_task(_prewarm_result_cache())
     except Exception as e:
         logger.warning(f"Validation cache prewarm failed: {e}")
 
 
-async def _prewarm_result_cache():
-    """One-time: warm validation result caches for ALL datasets with matches."""
-    await asyncio.sleep(5)
-    try:
-        from routers.validation import get_pairwise_results, _compute_convergence_and_cache
-        # Get ALL datasets with matches
-        pipeline = [
-            {"$match": {"completed": True, "failed": {"$ne": True}}},
-            {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-        ]
-        all_datasets = [doc["_id"] async for doc in db.validation_matches.aggregate(pipeline)]
-
-        warmed = conv_warmed = 0
-        for ds_id in all_datasets:
-            try:
-                await get_pairwise_results(dataset_id=ds_id, content_mode="abstract")
-                warmed += 1
-            except Exception:
-                pass
-            try:
-                await _compute_convergence_and_cache(ds_id, steps=20)
-                conv_warmed += 1
-            except Exception:
-                pass
-            await asyncio.sleep(0)
-        logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence (of {len(all_datasets)} datasets)")
-        app.state.prewarm_status = {"done": True, "step": ""}
-    except Exception as e:
-        logger.warning(f"Result cache prewarm failed: {e}")
 
 
 @app.on_event("shutdown")

@@ -32,6 +32,10 @@ EXPERIMENT_REGISTRY = [
     "institution-bias",
     "institution-bias-samepair",
     "single-item-scoring",
+    "human-ai-benchmark-comp",
+    "human-ai-benchmark-stan",
+    "unified-benchmark-comp",
+    "unified-benchmark-stan",
 ]
 
 
@@ -56,6 +60,21 @@ def _get_cache_and_fn(name):
         "institution-bias-samepair": (_INST_BIAS_SAMEPAIR_CACHE, "routers.validation_experiments", "_compute_institution_bias_samepair"),
         "single-item-scoring": (_SINGLE_ITEM_CACHE, "routers.validation_experiments", "_compute_single_item_results"),
     }
+
+    # Handle benchmark endpoints separately (they use different cache structures)
+    if name == "human-ai-benchmark-comp":
+        from routers.human_ai_benchmark import _benchmark_cache, _compute_benchmark
+        return _benchmark_cache.setdefault("comp", {}), lambda: _compute_benchmark("comp")
+    if name == "human-ai-benchmark-stan":
+        from routers.human_ai_benchmark import _benchmark_cache
+        from routers.standalone_benchmark import compute_standalone_benchmark
+        return _benchmark_cache.setdefault("stan", {}), lambda: compute_standalone_benchmark(ai_source="pairwise")
+    if name == "unified-benchmark-comp":
+        from routers.unified_benchmark import _unified_cache, _compute_unified_benchmark
+        return _unified_cache.setdefault("comp", {}), lambda: _compute_unified_benchmark("comp")
+    if name == "unified-benchmark-stan":
+        from routers.unified_benchmark import _unified_cache, _compute_unified_benchmark
+        return _unified_cache.setdefault("stan", {}), lambda: _compute_unified_benchmark("stan")
     cache, module_path, fn_name = mapping[name]
     import importlib
     mod = importlib.import_module(module_path)

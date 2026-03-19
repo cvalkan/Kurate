@@ -881,19 +881,10 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
 
 @router.get("/consistency-analysis")
 async def get_consistency_analysis():
-    """Comprehensive consistency analysis — cached with MongoDB persistence."""
-    from core.cache import get_cached, set_cached
+    """Comprehensive consistency analysis — served from precomputed cache only."""
     if consistency_cache["data"]:
         return consistency_cache["data"]
-    cached = await get_cached("consistency_analysis")
-    if cached:
-        consistency_cache["data"] = cached
-        return cached
-    result = await _compute_consistency_analysis()
-    if result.get("status") == "ok":
-        consistency_cache["data"] = result
-        await set_cached("consistency_analysis", result)
-    return result
+    return {"status": "no_data", "message": "Consistency analysis not precomputed. Run admin precompute-experiments."}
 
 
 async def _compute_consistency_analysis():
@@ -1335,19 +1326,10 @@ async def _compute_consistency_analysis():
 
 @router.get("/cycle-analysis-all")
 async def get_cycle_analysis_all():
-    """Aggregate cycle analysis — cached with MongoDB persistence."""
-    from core.cache import get_cached, set_cached
+    """Aggregate cycle analysis — served from precomputed cache only."""
     if cycle_all_cache["data"]:
         return cycle_all_cache["data"]
-    cached = await get_cached("cycle_analysis_all")
-    if cached:
-        cycle_all_cache["data"] = cached
-        return cached
-    result = await _compute_cycle_analysis_all()
-    if result.get("status") == "ok":
-        cycle_all_cache["data"] = result
-        await set_cached("cycle_analysis_all", result)
-    return result
+    return {"status": "no_data", "message": "Cycle analysis not precomputed. Run admin precompute-experiments."}
 
 
 async def _compute_cycle_analysis_all():

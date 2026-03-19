@@ -102,30 +102,15 @@ async def single_item_scoring_status():
 
 @router.get("/single-item-scoring/results")
 async def single_item_scoring_results(dataset_id: str = Query(None)):
-    """Return single-item scoring results. Uses cache when available."""
-    from core.cache import get_cached, set_cached
-    # Return cached data if available (populated by precompute or previous computation)
+    """Return single-item scoring results — served from precomputed cache only."""
     if _SINGLE_ITEM_CACHE.get("data") and _SINGLE_ITEM_CACHE["data"].get("status") == "ok":
         cached = _SINGLE_ITEM_CACHE["data"]
-        # If a specific dataset is requested and we have global results, filter
         if dataset_id and "datasets" in cached:
             ds_results = [d for d in cached["datasets"] if d.get("dataset_id") == dataset_id]
             if ds_results:
                 return {"status": "ok", "datasets": ds_results, "summary": cached.get("summary", {})}
         return cached
-    db_cached = await get_cached("single_item_scoring_results")
-    if db_cached and db_cached.get("status") == "ok":
-        _SINGLE_ITEM_CACHE["data"] = db_cached
-        if dataset_id and "datasets" in db_cached:
-            ds_results = [d for d in db_cached["datasets"] if d.get("dataset_id") == dataset_id]
-            if ds_results:
-                return {"status": "ok", "datasets": ds_results, "summary": db_cached.get("summary", {})}
-        return db_cached
-    result = await _compute_single_item_results()
-    if result.get("status") == "ok":
-        _SINGLE_ITEM_CACHE["data"] = result
-        await set_cached("single_item_scoring_results", result)
-    return result
+    return {"status": "no_data", "message": "Single-item scoring not precomputed. Run admin precompute-experiments."}
 
 
 async def _run_single_item_scoring(dataset_id: str):
@@ -2005,19 +1990,10 @@ async def _compute_assessor_evaluator():
 
 @router.get("/summarizer-ab/results")
 async def summarizer_ab_results():
-    """Same-pair comparison — cached with MongoDB persistence."""
-    from core.cache import get_cached, set_cached
+    """Same-pair comparison — served from precomputed cache only."""
     if sumab_results_cache["data"]:
         return sumab_results_cache["data"]
-    cached = await get_cached("summarizer_ab_results")
-    if cached:
-        sumab_results_cache["data"] = cached
-        return cached
-    result = await _compute_summarizer_ab_results()
-    if result.get("status") == "ok":
-        sumab_results_cache["data"] = result
-        await set_cached("summarizer_ab_results", result)
-    return result
+    return {"status": "no_data", "message": "Summarizer AB results not precomputed. Run admin precompute-experiments."}
 
 
 async def _compute_summarizer_ab_results():
@@ -2513,18 +2489,9 @@ _judge_comparison_cache = {"data": None}
 
 @router.get("/judge-comparison/results")
 async def judge_comparison_results():
-    from core.cache import get_cached, set_cached
     if _judge_comparison_cache["data"]:
         return _judge_comparison_cache["data"]
-    cached = await get_cached("judge_comparison_results")
-    if cached:
-        _judge_comparison_cache["data"] = cached
-        return cached
-    result = await _compute_judge_comparison()
-    if result.get("status") == "ok":
-        _judge_comparison_cache["data"] = result
-        await set_cached("judge_comparison_results", result)
-    return result
+    return {"status": "no_data", "message": "Judge comparison results not precomputed. Run admin precompute-experiments."}
 
 
 async def _compute_judge_comparison():
