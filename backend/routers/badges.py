@@ -455,6 +455,8 @@ async def get_paper_badges(paper_id: str):
         if not lb:
             continue
         p = lb[0]
+        if not p.get("comparisons"):
+            continue  # Skip papers with 0 tournament matches
         tier = _get_tier(p.get("rank", 999))
         if not tier:
             continue

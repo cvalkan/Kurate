@@ -2331,18 +2331,26 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 
 @router.get("/convergence-all")
 async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(20)):
-    """Return convergence data for ALL available modes in a single response."""
+    """Return convergence data for ALL available modes. Serves from cache only — never computes on-demand."""
     entry = convergence_all_cache.get(dataset_id)
     if entry:
         return entry["data"]
 
     # Try MongoDB persistent cache
-    from core.cache import get_cached, set_cached
+    from core.cache import get_cached
     mongo_key = f"convergence_all_{dataset_id}"
     db_cached = await get_cached(mongo_key)
     if db_cached:
         convergence_all_cache[dataset_id] = {"data": db_cached, "ts": _time.time()}
         return db_cached
+
+    # Not cached — return empty rather than computing (which blocks the event loop for 10-60s)
+    return {"status": "no_data", "dataset_id": dataset_id, "modes": {}, "message": "Convergence data not yet precomputed for this dataset"}
+
+
+async def _compute_convergence_and_cache(dataset_id: str, steps: int = 20):
+    """Compute convergence data and store in both in-memory and MongoDB cache. Called by prewarm only."""
+    from core.cache import set_cached
 
     # Discover modes
     mode_pipeline = [
