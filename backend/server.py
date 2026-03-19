@@ -925,16 +925,16 @@ async def _prewarm_result_cache():
     await asyncio.sleep(5)
     try:
         from routers.validation import get_pairwise_results, _compute_convergence_and_cache
+        # Get ALL datasets with matches
         pipeline = [
             {"$match": {"completed": True, "failed": {"$ne": True}}},
             {"$group": {"_id": "$dataset_id", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
-            {"$limit": 10},
         ]
-        top_datasets = [doc["_id"] async for doc in db.validation_matches.aggregate(pipeline)]
+        all_datasets = [doc["_id"] async for doc in db.validation_matches.aggregate(pipeline)]
 
         warmed = conv_warmed = 0
-        for ds_id in top_datasets:
+        for ds_id in all_datasets:
             try:
                 await get_pairwise_results(dataset_id=ds_id, content_mode="abstract")
                 warmed += 1
@@ -946,7 +946,7 @@ async def _prewarm_result_cache():
             except Exception:
                 pass
             await asyncio.sleep(0)
-        logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence")
+        logger.info(f"Result cache pre-warmed: {warmed} pairwise, {conv_warmed} convergence (of {len(all_datasets)} datasets)")
     except Exception as e:
         logger.warning(f"Result cache prewarm failed: {e}")
 
