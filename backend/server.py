@@ -207,7 +207,7 @@ async def gmail_callback(code: str, state: str, request: Request):
 
 @app.on_event("startup")
 async def startup():
-    app.state.prewarm_status = {"done": False, "step": "starting"}
+    app.state.prewarm_status = {"done": False, "step": "Loading caches"}
     # FAST PATH: Only create essential indexes, then let server accept connections.
     # All migrations, backfills, and cache warming run in background.
     try:
@@ -488,7 +488,6 @@ async def _prewarm_all_experiment_caches():
       3. Compute anything still missing from DB (slow, only needed on first deploy or after data changes)
     """
     await asyncio.sleep(3)
-    app.state.prewarm_status = {"done": False, "step": "Loading benchmark caches"}
     
     # --- Layer 1: Precomputed JSON files (already loaded in startup(), skip) ---
 
@@ -595,7 +594,6 @@ async def _prewarm_all_experiment_caches():
                     logger.warning(f"  unified-benchmark-{gt}: failed — {e}")
 
         logger.info("All experiment caches ready")
-        app.state.prewarm_status = {"done": False, "step": "Loading per-dataset caches"}
 
         # Also warm admin timeseries (very expensive: 70s+ cold)
         try:

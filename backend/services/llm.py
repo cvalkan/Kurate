@@ -928,30 +928,6 @@ def parse_ratings_from_summary(summary_text: str) -> Optional[dict]:
     return None
 
 
-RATING_EXTRACTION_PROMPT = {
-    "system_prompt": """You are a scientific reviewer. Rate this paper on each dimension from 1.0 to 10.0 (one decimal place):
-
-- **score**: Overall quality and impact
-- **significance**: How important is the problem and findings?
-- **rigor**: How strong is the methodology and evidence?
-- **novelty**: How original is the contribution compared to existing work?
-- **clarity**: How well is the work presented?
-
-Think carefully about each dimension before providing your overall score.
-
-Respond with ONLY a JSON object:
-{"score": 7.5, "significance": 8.0, "rigor": 7.0, "novelty": 7.5, "clarity": 8.0}""",
-
-    "user_prompt": """Rate this paper:
-
-**Title:** {title}
-
-**Abstract:** {abstract}
-
-**AI Impact Assessment:** {summary}""",
-}
-
-
 async def generate_impact_summary(paper: dict, match_logs: list, prompt_config: dict = None, char_limit: int = None) -> Optional[Dict]:
     """Generate a scientific impact summary for a paper using its content and match logs.
     
