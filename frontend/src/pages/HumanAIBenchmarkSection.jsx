@@ -397,6 +397,8 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
                 <strong>Majority</strong> = virtual majority vote from reviewer preferences (our construction).
                 <strong>Committee (ICLR PC)</strong> = actual program committee tier decisions (coarse: 4 tiers).
                 Human vs Committee is circular (reviewers influenced the decisions).
+                All pooled {"\u03C1"} values are <strong>equal-weighted across datasets</strong> (each dataset contributes one {"\u03C1"} regardless of size).
+                Size-weighted pooling would lower all correlations because PeerRead ACL 2017 (the largest dataset by match count) has the weakest {"\u03C1"}.
               </p>
               {bt.vs_tier_rho != null && bt.avg_expert_vs_tier?.spearman_rho != null && (
                 <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
