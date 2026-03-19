@@ -61,8 +61,11 @@ export function ValidationConvergence({ datasets }) {
   const [showTopK, setShowTopK] = useState(false);
   const [logScale, setLogScale] = useState(false);
 
+  const dsKey = datasets?.map(d => d.dataset_id).join(",") || "";
   useEffect(() => {
     if (!datasets?.length) return;
+    let cancelled = false;
+    setLoading(true);
     // Single batch call per dataset — returns all modes at once
     Promise.all(
       datasets.map(ds =>
@@ -71,6 +74,7 @@ export function ValidationConvergence({ datasets }) {
           .catch(() => null)
       )
     ).then(results => {
+      if (cancelled) return;
       const c = {};
       for (const r of results) {
         if (!r || r.data?.status !== "ok" || !r.data.modes) continue;
@@ -84,10 +88,12 @@ export function ValidationConvergence({ datasets }) {
       setCurves(c);
       setLoading(false);
     }).catch(err => {
+      if (cancelled) return;
       console.error("Convergence fetch error:", err);
       setLoading(false);
     });
-  }, [datasets]);
+    return () => { cancelled = true; };
+  }, [dsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <div className="h-64 bg-secondary/20 rounded-lg animate-pulse" />;
   if (!Object.keys(curves).length) return (
