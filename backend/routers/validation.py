@@ -493,12 +493,22 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, co
 
 @router.get("/multimodel-results")
 async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None)):
-    """Inter-model agreement + majority-vote vs expert analysis. Cache-only."""
+    """Inter-model agreement + majority-vote vs expert analysis."""
     cache_mode = content_mode or "all"
     cached = await cache_get("multimodel", dataset_id, cache_mode)
     if cached:
         return cached
-    return {"status": "no_data", "message": "Multi-model results not yet precomputed for this dataset/mode"}
+
+    from core.config import TOURNAMENT_MODELS
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    match_filter.update(build_content_mode_filter(content_mode))
+    matches = await db.validation_matches.find(
+        match_filter,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+    ).to_list(100000)
+    if not papers or not matches:
+        return {"status": "no_data"}
 
     # Group matches by pair and model
     pair_verdicts = defaultdict(dict)  # pair -> model_key -> winner_id
@@ -708,12 +718,21 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
 
 @router.get("/cycle-analysis")
 async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optional[str] = Query(None)):
-    """Analyze intransitive cycles (A>B>C>A) in tournament data. Cache-only."""
+    """Analyze intransitive cycles (A>B>C>A) in tournament data."""
     cache_mode = content_mode or "all"
     cached = await cache_get("cycle", dataset_id, cache_mode)
     if cached:
         return cached
-    return {"status": "no_data", "message": "Cycle analysis not yet precomputed for this dataset"}
+
+    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
+    match_filter.update(build_content_mode_filter(content_mode))
+    all_matches = await db.validation_matches.find(
+        match_filter,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+    ).to_list(200000)
+    if not papers or len(all_matches) < 10:
+        return {"status": "no_data"}
 
     # Short display names for models
     def _short_model(mu):
@@ -1638,13 +1657,17 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
     cached = await cache_get("pairwise", dataset_id, cache_mode)
     if cached:
         return cached
-    from core.cache import get_cached
+    from core.cache import get_cached, set_cached
     mongo_key = f"pairwise_{dataset_id}_{cache_mode}"
     db_cached = await get_cached(mongo_key)
     if db_cached:
         await cache_set("pairwise", dataset_id, cache_mode, db_cached)
         return db_cached
-    return {"status": "no_data", "message": "Pairwise results not yet precomputed for this dataset/mode"}
+    result = await _compute_pairwise_results(dataset_id, abstract_only, content_mode)
+    if result.get("status") == "ok":
+        await cache_set("pairwise", dataset_id, cache_mode, result)
+        await set_cached(mongo_key, result)
+    return result
 
 async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[bool], content_mode: Optional[str]):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
@@ -2492,7 +2515,10 @@ async def get_irt_results(dataset_id: str = Query(...), abstract_only: Optional[
     cached = await cache_get("irt", dataset_id, cache_mode)
     if cached:
         return cached
-    return {"status": "no_data", "message": "IRT results not yet precomputed for this dataset/mode"}
+    result = await _compute_irt_results(dataset_id, abstract_only, content_mode)
+    if result.get("status") == "ok":
+        await cache_set("irt", dataset_id, cache_mode, result)
+    return result
 
 async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
@@ -2646,7 +2672,10 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
     cached = await cache_get("agreement", dataset_id, cache_mode)
     if cached:
         return cached
-    return {"status": "no_data", "message": "Agreement analysis not yet precomputed for this dataset/mode"}
+    result = await _compute_agreement(dataset_id, abstract_only, content_mode)
+    if result.get("status") == "ok":
+        await cache_set("agreement", dataset_id, cache_mode, result)
+    return result
 
 async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
@@ -2812,7 +2841,10 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     cached = await cache_get("cross-mode", dataset_id, "")
     if cached:
         return cached
-    return {"status": "no_data", "message": "Cross-mode agreement not yet precomputed for this dataset"}
+    result = await _compute_cross_mode_agreement(dataset_id)
+    if result.get("status") == "ok":
+        await cache_set("cross-mode", dataset_id, "", result)
+    return result
 
 async def _compute_cross_mode_agreement(dataset_id: str):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
@@ -3310,7 +3342,10 @@ async def get_dual_dimension_results(dataset_id: str = Query(...), content_mode:
     cached = await cache_get("dual-dim", dataset_id, content_mode or "")
     if cached:
         return cached
-    return {"status": "no_data", "message": "Dual dimension results not yet precomputed for this dataset/mode"}
+    result = await _compute_dual_dimension_results(dataset_id, content_mode)
+    if result.get("status") == "ok":
+        await cache_set("dual-dim", dataset_id, content_mode or "", result)
+    return result
 
 async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optional[str]):
     papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)

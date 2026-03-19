@@ -20,19 +20,12 @@ asyncio event loop, and causes the entire production site to become unresponsive
 - Use the admin `precompute-experiments` endpoint to regenerate the JSON files
 - Deploy — the new JSON files will be loaded at startup
 
-## Endpoints covered by this rule
-- `/api/validation/pairwise-results`
-- `/api/validation/convergence-all`
-- `/api/validation/irt-results`
-- `/api/validation/agreement-analysis`
-- `/api/validation/dual-dimension-results`
-- `/api/validation/multimodel-results`
-- `/api/validation/cycle-analysis`
-- `/api/validation/cross-mode-agreement`
-- `/api/validation/consistency-analysis`
-- `/api/validation/cycle-analysis-all`
-- `/api/validation/summarizer-ab/results`
-- `/api/validation/judge-comparison/results`
+## Endpoints covered by this rule (CACHE-ONLY, never compute on-demand)
+- `/api/validation/convergence-all` (10-60s per dataset — the main offender)
+- `/api/validation/consistency-analysis` (52s cold)
+- `/api/validation/cycle-analysis-all` (9s cold)
+- `/api/validation/summarizer-ab/results` (36s cold)
+- `/api/validation/judge-comparison/results` (10s cold)
 - `/api/validation/single-item-scoring/results`
 - `/api/validation/human-ai-benchmark`
 - `/api/validation/unified-benchmark`
@@ -42,5 +35,15 @@ asyncio event loop, and causes the entire production site to become unresponsive
 - `/api/validation/institution-bias/results`
 - `/api/validation/institution-bias-samepair/results`
 - `/api/validation/assessor-evaluator/results`
+
+## Endpoints that MAY compute on-demand (lightweight, per-dataset)
+These are fast enough (<2s) to compute on first request, then cached:
+- `/api/validation/pairwise-results` (per dataset + content_mode)
+- `/api/validation/irt-results` (per dataset + content_mode)
+- `/api/validation/agreement-analysis` (per dataset + content_mode)
+- `/api/validation/dual-dimension-results` (per dataset + content_mode)
+- `/api/validation/multimodel-results` (per dataset)
+- `/api/validation/cycle-analysis` (per dataset)
+- `/api/validation/cross-mode-agreement` (per dataset)
 
 ## DO NOT revert this without explicit approval.
