@@ -20,11 +20,11 @@ from core.config import db
 COMPARATIVE_GT_DATASETS = {
     "iclr-codegen", "iclr-llm", "iclr-protein", "iclr-fairness", "iclr-pdes",
     "iclr-molecules", "iclr-optimization", "iclr-ot", "peerread_acl_2017",
-    "elife-neuro-100", "neurips-cv",
+    "neurips-cv",
 }
 
 STANDALONE_GT_DATASETS = {
-    "elife-cancer", "elife-microbiology", "elife-comp-sys-bio",
+    "elife-cancer", "elife-microbiology", "elife-comp-sys-bio", "elife-neuro-100",
     "midl-medical-imaging", "qeios-social", "qeios-physical",
     "researchhub-50", "researchhub-cancer", "researchhub-genetics",
 }
