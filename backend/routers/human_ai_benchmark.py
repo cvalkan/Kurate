@@ -688,35 +688,48 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                         ds["tier_hh"][0] += 1
 
     # --- Layer 5: BT rank correlation ---
-    # Build human BT from committee (majority) matches
+    # Use FULL expert data for BT baselines (not restricted to controlled pairs).
+    # This ensures AI and human rankings are independently derived:
+    # - AI BT from its random thinking-mode matches
+    # - Human BT from ALL expert pairs with ≥2 non-tying opinions
+    # The pairwise agreement metrics (Layer 3/4) still use controlled pairs.
+
+    # All expert pairs with ≥2 non-tying opinions (superset of controlled pairs)
+    all_expert_pairs_ge2 = {p for p, v in expert_pair_prefs.items() if len(v) >= 2}
+
+    # Human BT from majority vote — ALL expert pairs
     human_committee_matches = []
-    for pair in controlled_pairs:
+    for pair in all_expert_pairs_ge2:
         if pair in expert_majority:
             human_committee_matches.append({
                 "paper1_id": pair[0], "paper2_id": pair[1],
                 "winner_id": expert_majority[pair],
                 "completed": True, "failed": False,
             })
-    # Build human BT from individual expert votes (each expert vote = one match)
+    # Human BT from individual expert votes — ALL expert pairs
     human_individual_matches = []
-    for pair in controlled_pairs:
+    for pair in all_expert_pairs_ge2:
         for exp, winner in expert_pair_prefs[pair].items():
             human_individual_matches.append({
                 "paper1_id": pair[0], "paper2_id": pair[1],
                 "winner_id": winner,
                 "completed": True, "failed": False,
             })
-    # AI BT from ALL matches (not just controlled pairs) — avoids easy-subset inflation
+    # AI BT from ALL thinking-mode matches
     all_ai_bt_matches = [
         {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
          "winner_id": m["winner_id"], "completed": True, "failed": False}
         for m in ai_raw if m.get("winner_id")
     ]
-    all_ai_paper_ids = set()
+    # Paper universe: union of all papers seen by AI or experts
+    all_bt_paper_ids = set()
     for m in ai_raw:
-        all_ai_paper_ids.add(m["paper1_id"])
-        all_ai_paper_ids.add(m["paper2_id"])
-    all_ai_papers = [papers_by_id[pid] for pid in all_ai_paper_ids if pid in papers_by_id]
+        all_bt_paper_ids.add(m["paper1_id"])
+        all_bt_paper_ids.add(m["paper2_id"])
+    for pair in all_expert_pairs_ge2:
+        all_bt_paper_ids.add(pair[0])
+        all_bt_paper_ids.add(pair[1])
+    all_bt_papers = [papers_by_id[pid] for pid in all_bt_paper_ids if pid in papers_by_id]
 
     ctrl_paper_ids = set()
     for p in controlled_pairs:
@@ -727,8 +740,8 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         """Compute Spearman rho and Kendall tau between human and AI BT rankings."""
         if len(h_matches) < 10 or len(a_matches) < 10:
             return None, None
-        h_lb = compute_leaderboard(all_ai_papers, h_matches)
-        a_lb = compute_leaderboard(all_ai_papers, a_matches)
+        h_lb = compute_leaderboard(all_bt_papers, h_matches)
+        a_lb = compute_leaderboard(all_bt_papers, a_matches)
         h_rank = {e["id"]: e["score"] for e in h_lb}
         a_rank = {e["id"]: e["score"] for e in a_lb}
         shared = sorted(set(h_rank.keys()) & set(a_rank.keys()))
@@ -748,9 +761,9 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     # Direct ranking: AI BT (all matches) vs h1_avg_rating
     bt_vs_avg_rho = None
     if len(all_ai_bt_matches) >= 10:
-        ai_bt_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_ai_papers, all_ai_bt_matches)}
+        ai_bt_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
         avg_rating_map = {}
-        for pid in all_ai_paper_ids:
+        for pid in all_bt_paper_ids:
             p = papers_by_id.get(pid)
             if p:
                 r = p.get("h1_avg_rating")
@@ -769,7 +782,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
     # Build tier score map for all papers (used by both AI and per-expert tier correlation)
     tier_score_map = {}
-    for pid in all_ai_paper_ids:
+    for pid in all_bt_paper_ids:
         p = papers_by_id.get(pid)
         if p:
             t = norm_tier(p.get("decision"))
@@ -781,7 +794,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     bt_vs_tier_tau = None
     if len(all_ai_bt_matches) >= 10:
         if not ai_bt_rank:
-            ai_bt_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_ai_papers, all_ai_bt_matches)}
+            ai_bt_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
         shared = sorted(set(ai_bt_rank.keys()) & set(tier_score_map.keys()))
         if len(shared) >= 5:
             sp, _ = scipy_stats.spearmanr([ai_bt_rank[p] for p in shared],
@@ -815,17 +828,18 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     # Pre-compute reference leaderboards once
     comm_rank = {}
     if len(human_committee_matches) >= 10:
-        comm_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_ai_papers, human_committee_matches)}
+        comm_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, human_committee_matches)}
     ai_rank = {}
     if len(all_ai_bt_matches) >= 10:
-        ai_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_ai_papers, all_ai_bt_matches)}
+        ai_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
     indiv_rank = {}
     if len(human_individual_matches) >= 10:
-        indiv_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_ai_papers, human_individual_matches)}
+        indiv_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, human_individual_matches)}
 
     for exp in experts_with_data:
+        # Expert's own BT: from ALL pairs where they had a non-tie preference
         exp_matches = []
-        for pair in controlled_pairs:
+        for pair in all_expert_pairs_ge2:
             if exp in expert_pair_prefs.get(pair, {}):
                 exp_matches.append({
                     "paper1_id": pair[0], "paper2_id": pair[1],
@@ -834,7 +848,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 })
         if len(exp_matches) < 10:
             continue
-        exp_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_ai_papers, exp_matches)}
+        exp_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, exp_matches)}
 
         for ref_rank, rho_list, tau_list in [
             (comm_rank, expert_vs_comm_rhos, expert_vs_comm_taus),
@@ -855,7 +869,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
         # LOO committee for this expert: build BT from all OTHER experts' preferences (majority vote)
         loo_matches = []
-        for pair in controlled_pairs:
+        for pair in all_expert_pairs_ge2:
             prefs = expert_pair_prefs.get(pair, {})
             others = {e: w for e, w in prefs.items() if e != exp}
             if len(others) < 2:
@@ -868,7 +882,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                     "winner_id": best, "completed": True, "failed": False,
                 })
         if len(loo_matches) >= 10:
-            loo_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_ai_papers, loo_matches)}
+            loo_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, loo_matches)}
             shared = sorted(set(exp_rank.keys()) & set(loo_rank.keys()))
             if len(shared) >= 5:
                 sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [loo_rank[p] for p in shared])
@@ -880,7 +894,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
         # LOO Individual Aggregate BT: each other expert's preference = 1 separate BT match
         loo_indiv_matches = []
-        for pair in controlled_pairs:
+        for pair in all_expert_pairs_ge2:
             prefs = expert_pair_prefs.get(pair, {})
             for other_exp, winner in prefs.items():
                 if other_exp != exp:
@@ -889,7 +903,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                         "winner_id": winner, "completed": True, "failed": False,
                     })
         if len(loo_indiv_matches) >= 10:
-            loo_indiv_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_ai_papers, loo_indiv_matches)}
+            loo_indiv_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, loo_indiv_matches)}
             shared = sorted(set(exp_rank.keys()) & set(loo_indiv_rank.keys()))
             if len(shared) >= 5:
                 sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [loo_indiv_rank[p] for p in shared])
@@ -901,7 +915,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
         # LOO h1_avg: average of all OTHER experts' scores per paper
         loo_avg = {}
-        for pid in ctrl_paper_ids:
+        for pid in all_bt_paper_ids:
             other_scores = []
             for other_exp, ratings in experts_with_data.items():
                 if other_exp == exp:
