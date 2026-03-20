@@ -122,6 +122,7 @@ async def _refresh_cache():
             if pid not in match_index:
                 match_index[pid] = []
             match_index[pid].append(idx)
+    await asyncio.sleep(0)  # Yield after index build
 
     # Load settings once
     from core.auth import get_settings
@@ -1619,7 +1620,7 @@ async def _compute_si_rating_stats(category, model):
                 paper_query["categories.0"] = category
             bt_papers = await db.papers.find(paper_query, {"_id": 0, "id": 1}).to_list(5000)
             if bt_papers and raw_matches:
-                lb = compute_leaderboard(bt_papers, raw_matches)
+                lb = await compute_leaderboard_async(bt_papers, raw_matches)
                 bt_ranks = {e["id"]: e.get("score", 0) for e in lb}
 
         # Use ONLY Claude SI scores (from ai_rating or ai_ratings_by_model.claude)
