@@ -158,10 +158,12 @@ function AgreementTable({ pw, difficulty, totalPairs, tieImpact, tieValidation, 
                 return (
                   <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
                     <strong>Is the coin flip conservative?</strong>{" "}
-                    On pairs where at least one expert ties, AI agrees with <em>non-tying</em> experts <strong>{tv.ai_rate}%</strong> ({tv.ai_total?.toLocaleString()} comparisons) —
-                    well above the 50% coin-flip assumption.
-                    {tv.hh_total > 0 && <> Non-tying experts agree at {tv.hh_rate}% on these same pairs.</>}
-                    {tv.ai_rate > 50 && <> The coin flip <strong>underestimates</strong> AI — it has real signal on pairs humans can't resolve.</>}
+                    The first table row assigns 50% agreement on tied comparisons. But on pairs where at least one expert ties,
+                    AI actually agrees with the <em>non-tying</em> expert(s) <strong>{tv.ai_rate}%</strong> of the time ({tv.ai_total?.toLocaleString()} comparisons) —
+                    well above that 50% assumption.
+                    {tv.hh_total > 0 && <> Among those same pairs, non-tying experts agree with each other at {tv.hh_rate}% ({tv.hh_total?.toLocaleString()} comparisons).</>}
+                    {tv.ai_rate > 50 && <> The coin flip therefore <strong>underestimates</strong> AI — it has real signal on pairs where humans can't resolve a preference,
+                    and the {cf.ai_human}% AI-Human figure in the table is conservative.</>}
                   </p>
                 );
               })()}
