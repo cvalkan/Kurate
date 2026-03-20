@@ -189,27 +189,34 @@ function DatasetTable({ datasets }) {
             </thead>
             <tbody>
               {datasets.map(d => {
-                const pwRho = d.pw?.bt_rho || 0;
-                const siRho = d.si?.bt_rho || 0;
-                const pwWins = pwRho > siRho;
                 const intr = d.intersection || {};
                 const dHasSI = (d.si?.total || 0) > 0;
                 const dHasIntr = (intr.pairs || 0) > 0;
                 const dPwAcc = dHasIntr ? intr.pw_accuracy : d.pw?.accuracy;
                 const dSiAcc = dHasIntr ? intr.si_accuracy : (dHasSI ? d.si?.accuracy : null);
+                const dSubAcc = d.si_sub?.accuracy > 0 ? d.si_sub.accuracy : null;
+                const pwRho = d.pw?.bt_rho || 0;
+                const siRho = d.si?.bt_rho || 0;
+                const subRho = d.si_sub?.bt_rho || 0;
+                // Best of 3 for accuracy and rho
+                const accBest = Math.max(dPwAcc || 0, dSiAcc || 0, dSubAcc || 0);
+                const rhoBest = Math.max(pwRho, siRho, subRho);
+                // Winner based on rho (primary metric)
+                const winner = pwRho >= siRho && pwRho >= subRho ? "PW" : siRho >= subRho ? "SI" : "SI Avg";
+                const winColor = winner === "PW" ? "text-violet-700" : "text-emerald-700";
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{dPwAcc != null ? `${dPwAcc}%` : "\u2014"}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins && dSiAcc != null ? "font-bold" : ""}`}>{dSiAcc != null ? `${dSiAcc}%` : "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{d.si_sub?.accuracy != null && d.si_sub.accuracy > 0 ? `${d.si_sub.accuracy}%` : "\u2014"}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins && d.si?.bt_rho ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{d.si_sub?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${(dPwAcc || 0) === accBest ? "font-bold" : ""}`}>{dPwAcc != null ? `${dPwAcc}%` : "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${(dSiAcc || 0) === accBest ? "font-bold" : ""}`}>{dSiAcc != null ? `${dSiAcc}%` : "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03] ${(dSubAcc || 0) === accBest ? "font-bold" : ""}`}>{dSubAcc != null ? `${dSubAcc}%` : "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwRho === rhoBest ? "font-bold" : ""}`}>{d.pw?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${siRho === rhoBest ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03] ${subRho === rhoBest ? "font-bold" : ""}`}>{d.si_sub?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{dHasIntr ? intr.pairs?.toLocaleString() : (d.pw?.total || 0).toLocaleString()}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{d.n_papers}</td>
                     <td className="py-1 px-1.5 text-center">
-                      <span className={`text-[9px] font-semibold ${pwWins ? "text-violet-700" : "text-emerald-700"}`}>{pwWins ? "PW" : "SI"}</span>
+                      <span className={`text-[9px] font-semibold ${winColor}`}>{winner}</span>
                     </td>
                   </tr>
                 );
