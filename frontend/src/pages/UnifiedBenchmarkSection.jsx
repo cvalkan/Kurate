@@ -118,7 +118,7 @@ function ComparisonTable({ data }) {
                 <td className="py-1.5 px-2 text-left text-xs font-semibold">{hasIntersection ? "Pooled (same pairs)" : "Pooled (full data)"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{pwAcc != null ? `${pwAcc}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins && siAcc != null ? "font-bold" : ""}`}>{siAcc != null ? `${siAcc}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{(hHasIntr ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy) != null ? `${hHasIntr ? p.intersection.si_sub_accuracy : p.si_sub_accuracy}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{(hasIntersection ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy) != null ? `${hasIntersection ? p.intersection.si_sub_accuracy : p.si_sub_accuracy}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{p.si_sub_rho?.toFixed(3) ?? "\u2014"}</td>
