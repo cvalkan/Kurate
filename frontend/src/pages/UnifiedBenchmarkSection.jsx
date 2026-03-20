@@ -27,7 +27,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubCorrs }) {
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
         <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry) — PW vs SI vs SI Average</span>
+        <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry) — PW vs SI vs SI Avg</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
@@ -105,10 +105,10 @@ function ComparisonTable({ data }) {
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
               <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Accuracy</th>
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Accuracy</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Average</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Avg</th>
               <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Spearman {"\u03C1"}</th>
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Spearman {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Average {"\u03C1"}</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Avg {"\u03C1"}</th>
               <th className="py-1.5 px-2 text-right font-medium text-foreground/50">pairs</th>
             </tr>
           </thead>
@@ -118,7 +118,7 @@ function ComparisonTable({ data }) {
                 <td className="py-1.5 px-2 text-left text-xs font-semibold">{hasIntersection ? "Pooled (same pairs)" : "Pooled (full data)"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{pwAcc != null ? `${pwAcc}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins && siAcc != null ? "font-bold" : ""}`}>{siAcc != null ? `${siAcc}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{(hasIntersection ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy) != null ? `${hasIntersection ? p.intersection.si_sub_accuracy : p.si_sub_accuracy}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{(hHasIntr ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy) != null ? `${hHasIntr ? p.intersection.si_sub_accuracy : p.si_sub_accuracy}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{p.si_sub_rho?.toFixed(3) ?? "\u2014"}</td>
@@ -153,6 +153,7 @@ function ComparisonTable({ data }) {
           <strong>Spearman {"\u03C1"}</strong> uses each method's full data (PW: {p.pw_pairs?.toLocaleString()} matches, SI: {p.si_pairs?.toLocaleString()} pairs)
           because ranking quality depends on each method's total output.{" "}
           Both compared against <strong>h1_avg_rating</strong> (averaged human reviewer scores).
+          Pooled row uses <strong>intersection pairs</strong> (PW and SI both scored); difficulty rows use each method's full pair set.
         </p>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           <strong>Why split the metrics:</strong>{" "}
@@ -276,7 +277,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
               <Metric label="SI Accuracy" value={hSiAcc != null ? `${hSiAcc}%` : "\u2014"} sub={hHasSI ? `${hPairs?.toLocaleString()} ${hHasIntr ? "same" : "SI"} pairs` : "no SI data"} accent={hSiAcc != null && hSiAcc > (hPwAcc || 0)} />
             </div>
             <div className="border border-border rounded-lg p-3 bg-background">
-              <Metric label="SI Average Accuracy" value={(() => { const v = hHasIntr ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy; return v != null && v > 0 ? `${v}%` : "\u2014"; })()} sub="mean of (sig, rig, nov, cla)" accent={false} />
+              <Metric label="SI Avg Accuracy" value={(() => { const v = hHasIntr ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy; return v != null && v > 0 ? `${v}%` : "\u2014"; })()} sub="mean of (sig, rig, nov, cla)" accent={false} />
             </div>
           </>);
         })()}
@@ -287,7 +288,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
           <Metric label={`SI Spearman \u03C1`} value={p.si_rho?.toFixed(3) ?? "\u2014"} sub="score ranking vs h1_avg" accent={(p.si_rho || 0) > (p.pw_rho || 0)} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label={`SI Average \u03C1`} value={p.si_sub_rho?.toFixed(3) ?? "\u2014"} sub="subscore avg vs h1_avg" accent={false} />
+          <Metric label={`SI Avg \u03C1`} value={p.si_sub_rho?.toFixed(3) ?? "\u2014"} sub="subscore avg vs h1_avg" accent={false} />
         </div>
       </div>
 
