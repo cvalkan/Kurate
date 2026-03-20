@@ -14,7 +14,7 @@ import os
 from datetime import datetime, timezone
 
 # Use the backend URL from frontend .env
-BACKEND_URL = "https://llm-judge-validation.preview.emergentagent.com"
+BACKEND_URL = "https://corpus-verify.preview.emergentagent.com"
 API_BASE = f"{BACKEND_URL}/api"
 
 def log_test(message):

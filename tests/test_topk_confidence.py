@@ -11,7 +11,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://llm-judge-validation.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://corpus-verify.preview.emergentagent.com')
 
 
 class TestTopKAndConfidenceBackendAPI:

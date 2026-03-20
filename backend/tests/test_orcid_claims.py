@@ -9,7 +9,7 @@ import os
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://llm-judge-validation.preview.emergentagent.com"
+    BASE_URL = "https://corpus-verify.preview.emergentagent.com"
 
 # Test user credentials (email already verified, ORCID simulated as connected)
 TEST_USER_EMAIL = "test-orcid@example.com"
