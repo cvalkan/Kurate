@@ -38,7 +38,7 @@ export default function AIRankingQualitySection() {
       {/* Pooled summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "vs Individual Aggregate", rho: pb.indiv?.spearman_rho, n: pb.indiv?.n_datasets },
+          { label: "vs Aggregate", rho: pb.indiv?.spearman_rho, n: pb.indiv?.n_datasets },
           { label: "vs Majority Vote", rho: pb.maj?.spearman_rho, n: pb.maj?.n_datasets },
           { label: "vs Committee (Tier)", rho: pb.tier?.spearman_rho, n: pb.tier?.n_datasets },
           { label: "vs Avg Rating", rho: pb.avg_rating?.spearman_rho, n: pb.avg_rating?.n_datasets },
@@ -64,7 +64,7 @@ export default function AIRankingQualitySection() {
             <thead>
               <tr className="border-b border-border text-muted-foreground">
                 <th className="py-1.5 px-2 text-left font-medium">Dataset</th>
-                <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">vs Individual</th>
+                <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">vs Aggregate</th>
                 <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">vs Majority</th>
                 <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">vs Committee</th>
                 <th className="py-1.5 px-2 text-right font-medium">vs Avg Rating</th>
@@ -95,7 +95,7 @@ export default function AIRankingQualitySection() {
         </div>
         <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1.5">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            <strong>vs Individual</strong>: AI BT ranking correlated with human BT where each expert vote is a separate match.{" "}
+            <strong>vs Aggregate</strong>: AI BT ranking correlated with human BT where each expert vote is a separate match.{" "}
             <strong>vs Majority</strong>: AI BT vs human majority-vote BT (one consensus per pair).{" "}
             <strong>vs Committee</strong>: AI BT vs actual program committee tier decisions (ICLR only).{" "}
             <strong>vs Avg Rating</strong>: AI BT vs simple average of expert scores.

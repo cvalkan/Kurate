@@ -326,10 +326,10 @@ export default function ValidationHubPage() {
 
           {/* Validation — benchmark pages */}
           <CollapsibleGroup label="Validation" icon={Scale} defaultOpen={selected?.includes("benchmark") || selected?.includes("unified") || selected === "exp-ai-ranking-quality"}>
+            <NavItem item={{ id: "exp-ai-ranking-quality", label: "AI Ranking Quality", sub: "Full data, no pair filtering" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-human-ai-benchmark", label: "Human vs AI Benchmark", sub: "Controlled same-pair comparison" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-unified-comp", label: "PW vs SI — Comparative GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-unified-stan", label: "PW vs SI — Standalone GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
-            <NavItem item={{ id: "exp-ai-ranking-quality", label: "AI Ranking Quality", sub: "Full data, no pair filtering" }} selected={selected} onSelect={setSelected} />
           </CollapsibleGroup>
 
           {/* Experiments */}
