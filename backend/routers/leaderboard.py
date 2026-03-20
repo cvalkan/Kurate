@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api")
 
 # Pre-computed cache — refreshed in the background, never blocks requests
 _cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "warming_up": True}
-_CACHE_MAX_AGE = 300  # Max staleness: 5 min even if no changes detected
+_CACHE_MAX_AGE = 3600  # Max staleness: 1 hour — only refreshes sooner if notify_data_changed() is called
 _cache_lock = asyncio.Lock()
 _bg_task_started = False
 _cache_dirty = asyncio.Event()  # Set by compare/fetch loops when data changes
@@ -584,7 +584,7 @@ async def _bg_analysis_cache_loop():
 
     while True:
         try:
-            await asyncio.wait_for(_cache_dirty.wait(), timeout=1800)
+            await asyncio.wait_for(_cache_dirty.wait(), timeout=7200)  # 2 hours max — only refreshes sooner on data change
             _cache_dirty.clear()
             await asyncio.sleep(10)
             _cache_dirty.clear()
