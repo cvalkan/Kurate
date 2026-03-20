@@ -61,7 +61,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
                   <td className="py-1.5 px-1.5 text-right font-mono bg-violet-500/[0.06] text-foreground/60">{f(pw?.tau)}</td>
                   <td className={`py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-semibold" : ""}`}>{f(si?.rho)}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.06] text-foreground/60">{f(si?.tau)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{r.key === "vs_avg_rating" ? f(siSubRho) : "\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{f(siSubRho)}</td>
                   <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{pw?.desc || si?.desc || r.desc}</td>
                 </tr>
               );
