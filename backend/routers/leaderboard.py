@@ -5,6 +5,7 @@ from collections import Counter
 import asyncio
 import time
 from core.config import db, logger, CATEGORIES
+from routers.validation_utils import collect_all
 from services.ranking import compute_leaderboard, compute_leaderboard_async, calculate_confidence_interval, wilson_margin_pct
 
 router = APIRouter(prefix="/api")
@@ -79,10 +80,10 @@ async def _refresh_cache():
             {"_id": 0, "full_text": 0, "abstract": 0}
         ).to_list(5000)
         await asyncio.sleep(0)  # Yield after papers load
-        matches = await db.matches.find(
+        matches = await collect_all(db.matches.find(
             {"completed": True, "failed": {"$ne": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1, "shared_categories": 1, "primary_category": 1, "model_used": 1, "tokens": 1, "created_at": 1, "id": 1},
-        ).to_list(200000)  # Must exceed total matches (currently ~67K, grows with tournaments)
+        ))
         await asyncio.sleep(0)  # Yield after matches load
         likes = {}
         async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):

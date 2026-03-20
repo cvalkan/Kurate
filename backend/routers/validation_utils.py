@@ -4,9 +4,27 @@ Eliminates duplication of tier normalization, expert rating extraction,
 content mode filtering, and safe math helpers.
 """
 import math
+import asyncio
 import time as _time
 from collections import defaultdict, Counter
 from typing import Optional
+
+
+# ─── Cursor Utilities ──────────────────────────────────────────────────────────
+
+async def collect_all(cursor, batch_size: int = 2000):
+    """Collect all documents from a Motor cursor without any cap.
+    Yields to the event loop between batches so HTTP requests aren't blocked."""
+    docs = []
+    while True:
+        batch = await cursor.to_list(length=batch_size)
+        if not batch:
+            break
+        docs.extend(batch)
+        if len(batch) < batch_size:
+            break
+        await asyncio.sleep(0)
+    return docs
 
 
 # Projection for paper queries in analysis endpoints — excludes large text fields

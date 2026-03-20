@@ -1161,10 +1161,11 @@ async def get_experiment_comparison(category: str = "cs.RO"):
     cat_paper_ids = {p["id"] for p in all_papers}
 
     # Load standard matches (no mode field or mode=standard)
-    all_matches_raw = await db.matches.find(
+    from routers.validation_utils import collect_all
+    all_matches_raw = await collect_all(db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "mode": 1, "completed": 1, "failed": 1},
-    ).to_list(100000)
+    ))
 
     standard_matches = [m for m in all_matches_raw
                         if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids
@@ -2429,10 +2430,10 @@ async def backfill_archives():
         if rating and isinstance(rating, dict) and rating.get("score"):
             ai_ratings[p["id"]] = round(rating["score"], 1)
 
-    all_matches = await db.matches.find(
+    all_matches = await collect_all(db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1}
-    ).to_list(100000)
+    ))
 
     # Parse match dates for time-scoped snapshots
     for m in all_matches:
