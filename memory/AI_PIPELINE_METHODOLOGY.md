@@ -30,7 +30,7 @@ After the narrative assessment, the model provides numerical ratings (1.0–10.0
 - Claude Opus 4.6 (Anthropic)
 - Gemini 3 Pro Preview (Google)
 
-Each comparison is assigned to one model via round-robin, ensuring equal contribution from all three.
+Each comparison is assigned to one model via round-robin (1 judge per pair), ensuring equal contribution from all three.
 
 **Input per paper:** Abstract (truncated to 1,500 chars) + the Opus 4.6 Thinking impact assessment from Stage 1. The content mode is `abstract_plus_summary:thinking`.
 
@@ -94,26 +94,78 @@ All metrics are computed both with ties excluded and with coin-flip correction (
 | Metric | AI | Human | Notes |
 |---|---|---|---|
 | Pairwise agreement (coin-flip) | 74.4% | 73.4% | AI matches human-level |
-| BT ranking ρ (vs. individual aggregate) | **0.735** | 0.645 (LOO) | AI outperforms single expert |
-| BT ranking ρ (vs. committee) | **0.761** | 0.666 | AI outperforms despite human circularity advantage |
-| Ceiling utilization (vs. 0.878 max) | **87%** | 76% | AI captures more ranking signal |
-| Within-tier ranking | Meaningful signal | Near-random | AI discriminates within tiers; humans can't on a 6-value scale |
+| BT ranking ρ (vs. individual aggregate) | **0.739** | 0.660 (LOO) | AI outperforms single expert (controlled pairs) |
+| BT ranking ρ (vs. committee) | **0.762** | 0.681 | AI outperforms despite human circularity advantage |
+| Ceiling utilization (vs. 0.878 max) | **87%** | 78% | AI captures more ranking signal |
 
-## Known Limitations
+## Known Limitations and Methodological Issues
 
-1. **Author visibility in Stage 1:** The summarizer reads author names from the PDF. Prestige bias could leak into the assessment, which then influences the judge.
+### 1. Cross-Tier Pair Selection Bias (Fixed Mar 2026)
 
-2. **Positional reviewer labels:** All reviewer identities are positional (Reviewer 1, 2, ...) — "Reviewer 1" on different papers is a different person. Concordance between positional reviewers approximates random-pair agreement but cannot capture individual reviewer effects.
+**Issue discovered:** The validation matchmaking algorithm was filtering pair selection to **cross-tier pairs only** — papers with different human ground truth scores (h1_avg_rating). This meant AI was never tested on within-tier comparisons (e.g., Poster vs. Poster), which account for ~26% of all expert pairs.
 
-3. **Coarse human rating scale:** ICLR uses only 6 distinct values (1, 3, 5, 6, 8, 10) on a 1–10 scale, with 67% of ratings being 5 or 6. This produces a ~39% tie rate, limiting the human signal available for comparison.
+**Impact on existing data:**
 
-4. **Self-referential architecture:** The same LLM family (Opus 4.6) both summarizes (Stage 1) and judges (Stage 2, as one of three round-robin models). This could create systematic biases that inflate agreement metrics.
+| | AI's pairs (pre-fix) | All expert pairs |
+|---|---|---|
+| Mean score gap | **2.16** | 1.84 |
+| Easy (cross-tier) | **46%** | 30% |
+| Medium (adjacent) | **54%** | 44% |
+| Hard (within-tier) | **0%** | **26%** |
 
-5. **No reject-tier ground truth on some datasets:** PeerRead ACL 2017 has no decision tiers. MIDL has no rejects. This limits the difficulty stratification analysis.
+The controlled benchmark values (ρ = 0.739) are measured on a systematically easier pair set. The head-to-head AI-vs-human comparison remains internally fair (same bias for both sides), but the absolute ρ values overstate ranking quality on the general population of pairs.
 
-6. **Conservative coin-flip correction:** Treating ties as 50/50 underestimates AI agreement because AI has real signal on tie pairs (73.5% agreement with non-tying experts on the same pairs).
+**Fix applied:** The cross-tier filter has been removed from the matchmaking algorithm. Future validation runs will sample from ALL possible pairs regardless of tier. Existing data cannot be retroactively fixed — the 3,956 controlled pairs in the current benchmark reflect the biased selection.
 
-7. **Decision label inconsistency (cosmetic only):** The berenslab ICLR data uses mixed casing for decision labels: `Accept (Poster)` vs `Accept (poster)`, `Accept (Oral)` vs `Accept (oral)`. The `norm_tier()` function lowercases and substring-matches all decision strings, so `Accept (Poster)`, `Accept (poster)`, and `Poster` all normalize to `"poster"`. The metrics were correct all along. The raw data has been cleaned to use canonical forms (`Poster`, `Oral`, `Spotlight`, `Reject`) for consistency.
+**How to detect:** On the "AI Ranking Quality" page, the "Overlap" column shows what fraction of expert pairs were also evaluated by AI. For most ICLR datasets, overlap is 12–39% (AI only sampled a subset), and AI's subset contains zero within-tier pairs.
+
+### 2. Controlled Pairs vs. Full Data
+
+The benchmark uses two distinct methodologies for different purposes:
+
+**Controlled comparison (Human vs AI Benchmark page):**
+Both AI and human rankings are built from the **same pair set** (the intersection of AI matches and expert pairs with ≥2 non-tying opinions). This ensures a fair head-to-head comparison: same evidence, same conditions. The ρ values are comparable between AI and the human ceiling.
+
+**Standalone quality (AI Ranking Quality page):**
+AI ranking from ALL its thinking-mode matches; human ground truth from ALL expert pairs. Each method uses its full available data independently. This measures absolute ranking quality without coupling the two datasets.
+
+The difference matters because for ICLR datasets, experts cover ~99% of all possible pairs, while AI only evaluates ~25–35%. On the controlled page, the human BT is artificially restricted to AI's sparse pair set (losing 65–75% of available expert data). The standalone page uses the full human data as ground truth.
+
+| Dataset | ρ (controlled) | ρ (standalone) | Δ |
+|---|---|---|---|
+| Code Gen | 0.826 | 0.731 | −0.095 |
+| LLMs | 0.807 | 0.787 | −0.020 |
+| Protein | 0.897 | 0.857 | −0.040 |
+| Optimization | 0.827 | 0.697 | −0.130 |
+| PeerRead | 0.453 | 0.470 | +0.017 |
+
+The controlled ρ is consistently higher (except PeerRead) because the shared pair set is systematically easier (see §1 above: no within-tier pairs).
+
+### 3. Structural BT Score Coupling
+
+When both AI and human majority are computed from the **same pair set** with **1 vote per pair each**, papers where both methods agree unanimously produce identical win/loss records → identical Elo scores. For Protein Science, 19/46 papers (41%) have exactly matching AI and human-majority BT scores, concentrated at the bottom of the ranking (all 0-win papers).
+
+This is a mathematical guarantee, not a meaningful finding. The Human Individual BT (using per-expert-vote granularity: multiple matches per pair) breaks this coupling completely (0% exact matches).
+
+### 4. Author Visibility in Stage 1
+
+The summarizer reads author names from the PDF. Prestige bias could leak into the assessment, which then influences the judge.
+
+### 5. Positional Reviewer Labels
+
+All reviewer identities are positional (Reviewer 1, 2, ...) — "Reviewer 1" on different papers is a different person. Concordance between positional reviewers approximates random-pair agreement but cannot capture individual reviewer effects.
+
+### 6. Coarse Human Rating Scale
+
+ICLR uses only 6 distinct values (1, 3, 5, 6, 8, 10) on a 1–10 scale, with 67% of ratings being 5 or 6. This produces a ~39% tie rate, limiting the human signal available for comparison.
+
+### 7. Self-Referential Architecture
+
+The same LLM family (Opus 4.6) both summarizes (Stage 1) and judges (Stage 2, as one of three round-robin models). This could create systematic biases that inflate agreement metrics.
+
+### 8. Conservative Coin-Flip Correction
+
+Treating ties as 50/50 underestimates AI agreement because AI has real signal on tie pairs (73.5% agreement with non-tying experts on the same pairs, vs the 50% coin-flip assumption).
 
 
 ## Matchmaking & Pair Selection
@@ -155,26 +207,28 @@ Only after ALL convergence goals are met: re-compare Elo-adjacent papers to vali
 
 The validation benchmark uses a **different, simpler** matchmaking strategy:
 
-1. Generate **all possible cross-tier pairs** — papers with different human ground truth scores (h1_avg_rating)
-2. **Randomly shuffle** the pair list
-3. Select the first N pairs (target: ~15–20 matches per paper)
+1. Generate all possible paper pairs
+2. Select pairs using a round-robin strategy that ensures minimum coverage per paper (~15–20 matches each)
+3. Remaining slots are filled with weighted-random selection (biased toward under-matched papers)
 
-No Elo-proximity, no CI targets, no calibration split. This ensures the validation matches are an unbiased sample of the comparison space, unlike the live tournament which preferentially tests hard cases.
+No Elo-proximity, no CI targets, no calibration split.
+
+**Historical note (pre–Mar 2026):** The original matchmaking code filtered pairs to only cross-tier comparisons (papers with different h1_avg_rating), excluding all within-tier pairs. This was an erroneous optimization introduced by a previous agent — not a deliberate design choice. It has been removed. All existing thinking-mode matches were generated under the old filter and therefore contain no within-tier comparisons. New validation runs will sample from all pairs.
 
 **Match counts per dataset (using Opus 4.6 Thinking summaries as input):**
 
-| Dataset | Papers | Matches | Avg matches/paper |
-|---|---|---|---|
-| ICLR Code Generation | 62 | 625 | 20.2 |
-| ICLR Fairness | 68 | 264 | 7.8 |
-| ICLR LLMs | 73 | 837 | 22.9 |
-| ICLR Molecules | 46 | 158 | 6.9 |
-| ICLR Optimization | 42 | 162 | 7.7 |
-| ICLR Optimal Transport | 52 | 503 | 19.3 |
-| ICLR PDEs & Dynamical Systems | 80 | 641 | 16.0 |
-| ICLR Protein Science | 46 | 259 | 11.3 |
-| PeerRead ACL 2017 | 80 | 1,118 | 27.9 |
-| **Total** | **549** | **4,567** | **16.6 avg** |
+| Dataset | Papers | Matches | Avg matches/paper | Within-tier matches |
+|---|---|---|---|---|
+| ICLR Code Generation | 62 | 625 | 20.2 | 0 (pre-fix) |
+| ICLR Fairness | 68 | 264 | 7.8 | 0 (pre-fix) |
+| ICLR LLMs | 73 | 837 | 22.9 | 0 (pre-fix) |
+| ICLR Molecules | 46 | 158 | 6.9 | 0 (pre-fix) |
+| ICLR Optimization | 42 | 162 | 7.7 | 0 (pre-fix) |
+| ICLR Optimal Transport | 52 | 503 | 19.3 | 0 (pre-fix) |
+| ICLR PDEs & Dynamical Systems | 80 | 641 | 16.0 | 0 (pre-fix) |
+| ICLR Protein Science | 46 | 259 | 11.3 | 0 (pre-fix) |
+| PeerRead ACL 2017 | 80 | 1,118 | 27.9 | 0 (pre-fix) |
+| **Total** | **549** | **4,567** | **16.6 avg** | **0** |
 
 These are matches where the judges read the **Opus 4.6 Thinking assessment** (content_mode `abstract_plus_summary:thinking`). The judges themselves (GPT-5.2, Opus 4.6, Gemini 3 Pro) run in standard mode — the `:thinking` tag refers to which summarizer produced the input, not the judge's reasoning mode.
 
@@ -193,15 +247,17 @@ The Spearman rank correlation between any ranking and the ICLR committee decisio
 | Method | ρ vs Committee | % of ceiling | What it means |
 |---|---|---|---|
 | Perfect tier predictor | 0.878 | 100% | Knows every paper's exact tier |
-| **AI (actual)** | **0.761** | **87%** | Captures most of the tier signal + meaningful within-tier ordering |
+| **AI (actual)** | **0.762** | **87%** | Captures most of the tier signal + meaningful within-tier ordering |
 | Random at 83% accuracy | 0.584 | 66% | Same cross-tier accuracy as AI but random within-tier |
-| Single human expert | 0.666 | 76% | Limited by coarse 6-value scale producing noisy within-tier ordering |
+| Single human expert | 0.681 | 78% | Limited by coarse 6-value scale producing noisy within-tier ordering |
 
 ### Key Finding: AI Has Within-Tier Signal
 
-AI's ρ (0.761) significantly exceeds what its 82.9% cross-tier accuracy alone would predict (ρ ≈ 0.584 for random within-tier ordering at that accuracy). The gap (0.761 - 0.584 = 0.177) demonstrates that AI produces **meaningful within-tier ranking** — not just correct tier classification.
+AI's ρ (0.762) significantly exceeds what its 82.9% cross-tier accuracy alone would predict (ρ ≈ 0.584 for random within-tier ordering at that accuracy). The gap (0.762 − 0.584 = 0.178) demonstrates that AI produces **meaningful within-tier ranking** — not just correct tier classification.
 
-This is a **conservative win for AI** over single human experts (0.761 vs 0.666):
+**Important caveat:** This within-tier signal was inferred entirely from cross-tier matches (see §Known Limitations, item 1). AI was never directly tested on within-tier pairs. The BT model extrapolates within-tier ordering from how papers perform against cross-tier opponents. Future validation runs with the corrected matchmaking will include direct within-tier comparisons.
+
+This is a **conservative win for AI** over single human experts (0.762 vs 0.681):
 - The human's higher pairwise accuracy (87.9% vs 82.9%) comes from **circularity** (their scores influenced the committee decisions)
 - AI's ranking advantage is earned **without circularity** — it never saw the committee decisions or reviewer scores
 - The human's within-tier ordering is near-random (constrained by the 6-value rating scale), while AI reads full papers and can make finer distinctions
