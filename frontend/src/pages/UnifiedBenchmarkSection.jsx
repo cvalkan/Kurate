@@ -27,7 +27,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
         <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry) — PW vs SI vs SI Sub-Avg</span>
+        <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry) — PW vs SI vs SI Average</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
@@ -36,7 +36,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
               <th className="py-1.5 px-2 text-left font-medium">Comparison</th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-violet-500/[0.06]" colSpan={2}>Pairwise (PW)</th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.06]" colSpan={2}>Single-Item (SI)</th>
-              <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.03]">{"\u03C1"} Sub-Avg</th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.03]">Single-Item (SI avg)</th>
               <th className="py-1.5 px-2 text-left font-medium">Description</th>
             </tr>
             <tr className="border-b border-border text-muted-foreground text-[9px]">
@@ -102,10 +102,10 @@ function ComparisonTable({ data }) {
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
               <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Accuracy</th>
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Accuracy</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Sub-Avg Acc</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Average</th>
               <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Spearman {"\u03C1"}</th>
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Spearman {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Sub-Avg {"\u03C1"}</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Average {"\u03C1"}</th>
               <th className="py-1.5 px-2 text-right font-medium text-foreground/50">pairs</th>
             </tr>
           </thead>
@@ -273,7 +273,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
               <Metric label="SI Accuracy" value={hSiAcc != null ? `${hSiAcc}%` : "\u2014"} sub={hHasSI ? `${hPairs?.toLocaleString()} ${hHasIntr ? "same" : "SI"} pairs` : "no SI data"} accent={hSiAcc != null && hSiAcc > (hPwAcc || 0)} />
             </div>
             <div className="border border-border rounded-lg p-3 bg-background">
-              <Metric label="SI Sub-Avg Accuracy" value={p.si_sub_accuracy != null && p.si_sub_accuracy > 0 ? `${p.si_sub_accuracy}%` : "\u2014"} sub="mean of (sig, rig, nov, cla)" accent={false} />
+              <Metric label="SI Averageuracy" value={p.si_sub_accuracy != null && p.si_sub_accuracy > 0 ? `${p.si_sub_accuracy}%` : "\u2014"} sub="mean of (sig, rig, nov, cla)" accent={false} />
             </div>
           </>);
         })()}
@@ -284,7 +284,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
           <Metric label={`SI Spearman \u03C1`} value={p.si_rho?.toFixed(3) ?? "\u2014"} sub="score ranking vs h1_avg" accent={(p.si_rho || 0) > (p.pw_rho || 0)} />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label={`SI Sub-Avg \u03C1`} value={p.si_sub_rho?.toFixed(3) ?? "\u2014"} sub="subscore avg vs h1_avg" accent={false} />
+          <Metric label={`SI Average \u03C1`} value={p.si_sub_rho?.toFixed(3) ?? "\u2014"} sub="subscore avg vs h1_avg" accent={false} />
         </div>
       </div>
 
