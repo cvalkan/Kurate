@@ -35,6 +35,13 @@ export default function AIRankingQualitySection() {
         Each method uses its full available data independently.
       </div>
 
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
+        <strong>Methodological note:</strong> The existing AI matches were generated under a pair-selection filter that
+        excluded <strong>within-tier comparisons</strong> (e.g. Poster vs. Poster), so AI{"'"}s pair sample is biased toward
+        easier comparisons. The human ground truth uses all expert pairs including within-tier. The filter has been
+        removed for future validation runs; the {"\u03C1"} values below will improve as within-tier AI matches are added.
+      </div>
+
       {/* Pooled summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
