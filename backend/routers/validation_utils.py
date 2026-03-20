@@ -142,7 +142,7 @@ async def build_ensemble_matches(dataset_id: str, min_models: int = 3) -> dict:
          **_extract_filter},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
          "model_used": 1, "created_at": 1},
-    ).to_list(200000)
+    ).to_list(100000)
 
     # Group by pair → model → winner (within the same mode)
     pair_verdicts = defaultdict(dict)

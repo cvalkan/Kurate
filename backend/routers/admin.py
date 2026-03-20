@@ -21,6 +21,7 @@ router = APIRouter(prefix="/api/admin")
 # Per-category cache for admin endpoints (avoids hammering DB on rapid category switching)
 _admin_cache = {}  # {(endpoint, category): {"data": ..., "ts": float}}
 _ADMIN_CACHE_TTL = 300  # 5 min — timeseries is expensive (70s+ cold), data changes slowly
+_ADMIN_CACHE_MAX = 50  # Max cached entries
 
 
 def _get_admin_cached(key: str, category: str):
@@ -31,6 +32,9 @@ def _get_admin_cached(key: str, category: str):
 
 
 def _set_admin_cached(key: str, category: str, data):
+    if len(_admin_cache) >= _ADMIN_CACHE_MAX:
+        oldest_key = min(_admin_cache, key=lambda k: _admin_cache[k]["ts"])
+        del _admin_cache[oldest_key]
     _admin_cache[(key, category)] = {"data": data, "ts": _time.time()}
 
 
@@ -1160,7 +1164,7 @@ async def get_experiment_comparison(category: str = "cs.RO"):
     all_matches_raw = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "mode": 1, "completed": 1, "failed": 1},
-    ).to_list(200000)
+    ).to_list(100000)
 
     standard_matches = [m for m in all_matches_raw
                         if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids
@@ -2428,7 +2432,7 @@ async def backfill_archives():
     all_matches = await db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1}
-    ).to_list(500000)
+    ).to_list(100000)
 
     # Parse match dates for time-scoped snapshots
     for m in all_matches:

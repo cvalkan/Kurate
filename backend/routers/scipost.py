@@ -835,7 +835,7 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list, parallel_agen
             existing_docs = await db.scipost_pairwise_extract.find(
                 {"dimension": dim},
                 {"_id": 0, "pair_key": 1, "paper1.submission_id": 1, "paper2.submission_id": 1},
-            ).to_list(200000)
+            ).to_list(100000)
             for doc in existing_docs:
                 key = doc.get("pair_key")
                 if not key:

@@ -731,7 +731,7 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
     all_matches = await db.validation_matches.find(
         match_filter,
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
-    ).to_list(200000)
+    ).to_list(100000)
     if not papers or len(all_matches) < 10:
         return {"status": "no_data"}
 
@@ -926,7 +926,7 @@ async def _compute_consistency_analysis():
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "dataset_id": 1, "paper1_id": 1, "paper2_id": 1,
          "winner_id": 1, "model_used": 1, "content_mode": 1, "abstract_only": 1},
-    ).to_list(500000)
+    ).to_list(100000)
 
     # ── Section 1: Verdict Stability ──
     # Group: (dataset, pair) → (model, format) → winner

@@ -20,7 +20,7 @@ from routers.validation_utils import (
     build_expert_ratings, safe_round, norm_tier, TIER_ORDER,
     COMPARATIVE_GT_DATASETS, STANDALONE_GT_DATASETS,
 )
-from services.ranking import compute_leaderboard
+from services.ranking import compute_leaderboard_async as compute_leaderboard
 
 router = APIRouter(prefix="/api/validation")
 
@@ -470,11 +470,11 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
         ctrl_paper_ids.add(p[1])
     ctrl_papers = [papers_by_id[pid] for pid in ctrl_paper_ids if pid in papers_by_id]
 
-    def _bt_correlate(h_matches, a_matches):
+    async def _bt_correlate(h_matches, a_matches):
         if len(h_matches) < 10 or len(a_matches) < 10:
             return None, None
-        h_lb = compute_leaderboard(ctrl_papers, h_matches)
-        a_lb = compute_leaderboard(ctrl_papers, a_matches)
+        h_lb = await compute_leaderboard(ctrl_papers, h_matches)
+        a_lb = await compute_leaderboard(ctrl_papers, a_matches)
         h_rank = {e["id"]: e["rank"] for e in h_lb}
         a_rank = {e["id"]: e["rank"] for e in a_lb}
         shared = sorted(set(h_rank.keys()) & set(a_rank.keys()))
@@ -488,15 +488,15 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
         tau_v = float(kt) if not np.isnan(kt) else None
         return rho_v, tau_v
 
-    bt_comm_rho, bt_comm_tau = _bt_correlate(human_committee_matches, ai_matches_ctrl)
-    bt_indiv_rho, bt_indiv_tau = _bt_correlate(human_individual_matches, ai_matches_ctrl)
-    bt_ivc_rho, bt_ivc_tau = _bt_correlate(human_individual_matches, human_committee_matches)
+    bt_comm_rho, bt_comm_tau = await _bt_correlate(human_committee_matches, ai_matches_ctrl)
+    bt_indiv_rho, bt_indiv_tau = await _bt_correlate(human_individual_matches, ai_matches_ctrl)
+    bt_ivc_rho, bt_ivc_tau = await _bt_correlate(human_individual_matches, human_committee_matches)
 
     # Direct ranking: AI BT vs h1_avg_rating
     bt_vs_avg_rho = None
     ai_lb_rank = {}
     if len(ai_matches_ctrl) >= 10:
-        ai_lb_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, ai_matches_ctrl)}
+        ai_lb_rank = {e["id"]: e["rank"] for e in await compute_leaderboard(ctrl_papers, ai_matches_ctrl)}
     avg_rating_map = {p["id"]: p["h1_avg_rating"] for p in papers
                       if p.get("h1_avg_rating") is not None and p["id"] in ctrl_paper_ids}
     shared_avg = sorted(set(ai_lb_rank.keys()) & set(avg_rating_map.keys()))
@@ -509,10 +509,10 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
     # Per-expert BT correlations
     comm_rank = {}
     if len(human_committee_matches) >= 10:
-        comm_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, human_committee_matches)}
+        comm_rank = {e["id"]: e["rank"] for e in await compute_leaderboard(ctrl_papers, human_committee_matches)}
     indiv_rank_map = {}
     if len(human_individual_matches) >= 10:
-        indiv_rank_map = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, human_individual_matches)}
+        indiv_rank_map = {e["id"]: e["rank"] for e in await compute_leaderboard(ctrl_papers, human_individual_matches)}
 
     evc_rhos, evi_rhos = [], []
     for exp in experts_with_data:
@@ -522,7 +522,7 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
                        for pair in controlled_pairs if exp in expert_pair_prefs.get(pair, {})]
         if len(exp_matches) < 10:
             continue
-        exp_rank = {e["id"]: e["rank"] for e in compute_leaderboard(ctrl_papers, exp_matches)}
+        exp_rank = {e["id"]: e["rank"] for e in await compute_leaderboard(ctrl_papers, exp_matches)}
         for ref_rank, rho_list in [(comm_rank, evc_rhos), (indiv_rank_map, evi_rhos)]:
             if not ref_rank:
                 continue

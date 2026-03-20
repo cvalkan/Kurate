@@ -28,7 +28,7 @@ from routers.validation_utils import (
     safe_round, PAPER_LIGHT_PROJECTION, norm_tier, TIER_ORDER,
     COMPARATIVE_GT_DATASETS, STANDALONE_GT_DATASETS,
 )
-from services.ranking import compute_leaderboard
+from services.ranking import compute_leaderboard_async as compute_leaderboard
 
 router = APIRouter(prefix="/api/validation")
 
@@ -724,12 +724,12 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         ctrl_paper_ids.add(p[0])
         ctrl_paper_ids.add(p[1])
 
-    def _bt_correlate(h_matches, a_matches):
+    async def _bt_correlate(h_matches, a_matches):
         """Compute Spearman rho and Kendall tau between human and AI BT rankings."""
         if len(h_matches) < 10 or len(a_matches) < 10:
             return None, None
-        h_lb = compute_leaderboard(all_bt_papers, h_matches)
-        a_lb = compute_leaderboard(all_bt_papers, a_matches)
+        h_lb = await compute_leaderboard(all_bt_papers, h_matches)
+        a_lb = await compute_leaderboard(all_bt_papers, a_matches)
         h_rank = {e["id"]: e["score"] for e in h_lb}
         a_rank = {e["id"]: e["score"] for e in a_lb}
         shared = sorted(set(h_rank.keys()) & set(a_rank.keys()))
@@ -743,13 +743,13 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         tau = float(kt) if not np.isnan(kt) else None
         return rho, tau
 
-    bt_comm_rho, bt_comm_tau = _bt_correlate(human_committee_matches, all_ai_bt_matches)
-    bt_indiv_rho, bt_indiv_tau = _bt_correlate(human_individual_matches, all_ai_bt_matches)
+    bt_comm_rho, bt_comm_tau = await _bt_correlate(human_committee_matches, all_ai_bt_matches)
+    bt_indiv_rho, bt_indiv_tau = await _bt_correlate(human_individual_matches, all_ai_bt_matches)
 
     # Direct ranking: AI BT (all matches) vs h1_avg_rating
     bt_vs_avg_rho = None
     if len(all_ai_bt_matches) >= 10:
-        ai_bt_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
+        ai_bt_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
         avg_rating_map = {}
         for pid in all_bt_paper_ids:
             p = papers_by_id.get(pid)
@@ -782,7 +782,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     bt_vs_tier_tau = None
     if len(all_ai_bt_matches) >= 10:
         if not ai_bt_rank:
-            ai_bt_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
+            ai_bt_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
         shared = sorted(set(ai_bt_rank.keys()) & set(tier_score_map.keys()))
         if len(shared) >= 5:
             sp, _ = scipy_stats.spearmanr([ai_bt_rank[p] for p in shared],
@@ -795,7 +795,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 bt_vs_tier_tau = float(kt)
 
     # Internal human baselines: individual vs committee, per-expert correlations
-    bt_indiv_vs_comm_rho, bt_indiv_vs_comm_tau = _bt_correlate(human_individual_matches, human_committee_matches)
+    bt_indiv_vs_comm_rho, bt_indiv_vs_comm_tau = await _bt_correlate(human_individual_matches, human_committee_matches)
 
     # Per-expert BT: build BT from each expert's preferences, correlate with committee, AI, individual aggregate
     expert_vs_comm_rhos = []
@@ -816,13 +816,13 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     # Pre-compute reference leaderboards once
     comm_rank = {}
     if len(human_committee_matches) >= 10:
-        comm_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, human_committee_matches)}
+        comm_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_bt_papers, human_committee_matches)}
     ai_rank = {}
     if len(all_ai_bt_matches) >= 10:
-        ai_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
+        ai_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_bt_papers, all_ai_bt_matches)}
     indiv_rank = {}
     if len(human_individual_matches) >= 10:
-        indiv_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, human_individual_matches)}
+        indiv_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_bt_papers, human_individual_matches)}
 
     for exp in experts_with_data:
         # Expert's own BT: from controlled pairs where they had a preference
@@ -836,7 +836,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                 })
         if len(exp_matches) < 10:
             continue
-        exp_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, exp_matches)}
+        exp_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_bt_papers, exp_matches)}
 
         for ref_rank, rho_list, tau_list in [
             (comm_rank, expert_vs_comm_rhos, expert_vs_comm_taus),
@@ -870,7 +870,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                     "winner_id": best, "completed": True, "failed": False,
                 })
         if len(loo_matches) >= 10:
-            loo_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, loo_matches)}
+            loo_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_bt_papers, loo_matches)}
             shared = sorted(set(exp_rank.keys()) & set(loo_rank.keys()))
             if len(shared) >= 5:
                 sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [loo_rank[p] for p in shared])
@@ -891,7 +891,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                         "winner_id": winner, "completed": True, "failed": False,
                     })
         if len(loo_indiv_matches) >= 10:
-            loo_indiv_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, loo_indiv_matches)}
+            loo_indiv_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_bt_papers, loo_indiv_matches)}
             shared = sorted(set(exp_rank.keys()) & set(loo_indiv_rank.keys()))
             if len(shared) >= 5:
                 sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [loo_indiv_rank[p] for p in shared])
@@ -1873,9 +1873,9 @@ async def _compute_standalone_ranking(dataset_id: str):
     all_papers = papers
 
     # Compute leaderboards
-    ai_lb = compute_leaderboard(all_papers, ai_bt_matches)
-    h_indiv_lb = compute_leaderboard(all_papers, human_indiv_matches)
-    h_maj_lb = compute_leaderboard(all_papers, human_maj_matches) if human_maj_matches else []
+    ai_lb = await compute_leaderboard(all_papers, ai_bt_matches)
+    h_indiv_lb = await compute_leaderboard(all_papers, human_indiv_matches)
+    h_maj_lb = await compute_leaderboard(all_papers, human_maj_matches) if human_maj_matches else []
 
     ai_rank = {e["id"]: e["score"] for e in ai_lb}
     h_indiv_rank = {e["id"]: e["score"] for e in h_indiv_lb}

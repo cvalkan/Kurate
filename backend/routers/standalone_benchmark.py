@@ -16,7 +16,7 @@ from routers.validation_utils import (
     build_content_mode_filter, safe_round, PAPER_LIGHT_PROJECTION,
     norm_tier, STANDALONE_GT_DATASETS,
 )
-from services.ranking import compute_leaderboard
+from services.ranking import compute_leaderboard_async as compute_leaderboard
 
 
 TIER_SCORE = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1, "withdrawn": 0, "desk rejected": 0}
@@ -229,8 +229,8 @@ async def compute_standalone_dataset(dataset_id, ai_source="pairwise"):
 
     bt_rho = bt_tau = None
     if len(gt_matches) >= 10 and len(ai_matches_ctrl) >= 10:
-        gt_lb = compute_leaderboard(ctrl_papers, gt_matches)
-        ai_lb = compute_leaderboard(ctrl_papers, ai_matches_ctrl)
+        gt_lb = await compute_leaderboard(ctrl_papers, gt_matches)
+        ai_lb = await compute_leaderboard(ctrl_papers, ai_matches_ctrl)
         gt_rank = {e["id"]: e["rank"] for e in gt_lb}
         ai_rank = {e["id"]: e["rank"] for e in ai_lb}
         shared = sorted(set(gt_rank.keys()) & set(ai_rank.keys()))

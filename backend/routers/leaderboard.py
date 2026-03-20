@@ -82,7 +82,7 @@ async def _refresh_cache():
         matches = await db.matches.find(
             {"completed": True, "failed": {"$ne": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1, "shared_categories": 1, "primary_category": 1, "model_used": 1, "tokens": 1, "created_at": 1, "id": 1},
-        ).to_list(200000)
+        ).to_list(100000)
         await asyncio.sleep(0)  # Yield after matches load
         likes = {}
         async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
@@ -1607,14 +1607,14 @@ async def _compute_si_rating_stats(category, model):
                             bt_ranks[entry["id"]] = entry.get("score", 0)
 
         if not bt_ranks:
-            from services.ranking import compute_leaderboard
+            from services.ranking import compute_leaderboard_async
             match_query = {"completed": True, "failed": {"$ne": True}}
             if category:
                 match_query["$or"] = [{"shared_categories": category}, {"primary_category": category}]
             raw_matches = await db.matches.find(
                 match_query,
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
-            ).to_list(200000)
+            ).to_list(100000)
             paper_query = {"summaries": {"$exists": True, "$ne": {}}}
             if category:
                 paper_query["categories.0"] = category
@@ -1716,7 +1716,7 @@ async def _compute_convergence(category, steps):
         all_matches = await db.matches.find(
             match_query,
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
-        ).to_list(200000)
+        ).to_list(100000)
         all_matches = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
 
     if len(all_matches) < 20:

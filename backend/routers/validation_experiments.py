@@ -2572,7 +2572,7 @@ async def _compute_judge_comparison():
                             "completed": True, "failed": False})
         h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
         h_papers = [p for p in papers if p["id"] in h_ids]
-        gt_lb = compute_leaderboard(h_papers, human_matches)
+        gt_lb = await compute_leaderboard_async(h_papers, human_matches)
         gt_rank = {e["id"]: e["rank"] for e in gt_lb}
 
         # Matches per judge
@@ -2638,7 +2638,7 @@ async def _compute_judge_comparison():
 
             j_matches = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": jv[p],
                           "completed": True, "failed": False} for p in common]
-            ai_lb = compute_leaderboard(common_papers, j_matches)
+            ai_lb = await compute_leaderboard_async(common_papers, j_matches)
             ai_rank = {e["id"]: e["rank"] for e in ai_lb}
             shared_ids = sorted(set(ai_rank) & set(gt_rank))
             if len(shared_ids) >= 5:
@@ -2664,7 +2664,7 @@ async def _compute_judge_comparison():
                 if winner == ep[pair]:
                     rr_correct_trial += 1
             trial_accs.append(rr_correct_trial / len(common) * 100)
-            rr_lb = compute_leaderboard(common_papers, rr_matches_trial)
+            rr_lb = await compute_leaderboard_async(common_papers, rr_matches_trial)
             rr_rank = {e["id"]: e["rank"] for e in rr_lb}
             shared_ids = sorted(set(rr_rank) & set(gt_rank))
             if len(shared_ids) >= 5:
@@ -2694,7 +2694,7 @@ async def _compute_judge_comparison():
                 mv_correct_ds += 1
         mv_acc["correct"] += mv_correct_ds
         mv_acc["total"] += len(common)
-        mv_lb = compute_leaderboard(common_papers, mv_matches_ds)
+        mv_lb = await compute_leaderboard_async(common_papers, mv_matches_ds)
         mv_rank = {e["id"]: e["rank"] for e in mv_lb}
         shared_ids = sorted(set(mv_rank) & set(gt_rank))
         if len(shared_ids) >= 5:

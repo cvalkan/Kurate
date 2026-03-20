@@ -17,13 +17,13 @@ from collections import defaultdict, Counter
 from fastapi import APIRouter, Query
 
 from core.config import db, logger
-from services.ranking import compute_leaderboard
+from services.ranking import compute_leaderboard_async as compute_leaderboard
 from routers.validation_utils import (
     build_expert_ratings, build_content_mode_filter, safe_round,
     PAPER_LIGHT_PROJECTION, norm_tier,
     COMPARATIVE_GT_DATASETS, STANDALONE_GT_DATASETS,
 )
-from services.ranking import compute_leaderboard
+from services.ranking import compute_leaderboard_async as compute_leaderboard
 
 router = APIRouter(prefix="/api/validation")
 
@@ -52,7 +52,7 @@ def _classify_difficulty(p1_id, p2_id, papers_by_id):
     return "easy" if gap >= 2 else ("medium" if gap == 1 else "hard")
 
 
-def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
+async def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
     """Compute BT correlation table for a given AI ranking against multiple human GTs."""
     from routers.validation_utils import norm_tier
     TIER_SCORE_MAP = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1}
@@ -78,7 +78,7 @@ def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
                     human_individual_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": winner, "completed": True, "failed": False})
 
     if len(human_individual_matches) >= 10:
-        h_lb = compute_leaderboard(papers, human_individual_matches)
+        h_lb = await compute_leaderboard(papers, human_individual_matches)
         h_rank = {e["id"]: e["score"] for e in h_lb}
         shared = sorted(set(ai_rank) & set(h_rank))
         if len(shared) >= 5:
@@ -110,7 +110,7 @@ def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
             human_majority_matches.append({"paper1_id": a, "paper2_id": b, "winner_id": c.most_common(1)[0][0], "completed": True, "failed": False})
 
     if len(human_majority_matches) >= 10:
-        h_lb = compute_leaderboard(papers, human_majority_matches)
+        h_lb = await compute_leaderboard(papers, human_majority_matches)
         h_rank = {e["id"]: e["score"] for e in h_lb}
         shared = sorted(set(ai_rank) & set(h_rank))
         if len(shared) >= 5:
@@ -209,7 +209,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
                           "winner_id": m["winner_id"], "completed": True, "failed": False}
                          for m in pw_matches_raw if m.get("winner_id")]
         if len(pw_bt_matches) >= 10:
-            lb = compute_leaderboard(paper_dicts, pw_bt_matches)
+            lb = await compute_leaderboard(paper_dicts, pw_bt_matches)
             bt_scores = {e["id"]: e["score"] for e in lb}
             shared = sorted(set(bt_scores.keys()) & set(gt.keys()))
             if len(shared) >= 5:
@@ -432,9 +432,9 @@ async def _compute_unified_dataset(dataset_id, gt_type):
         if not pw_bt_corrs and len(pw_matches_raw) >= 10:
             pw_match_dicts = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "winner_id": m["winner_id"], "completed": True, "failed": False} for m in pw_matches_raw if m.get("winner_id")]
             if len(pw_match_dicts) >= 10:
-                pw_lb = compute_leaderboard(papers, pw_match_dicts)
+                pw_lb = await compute_leaderboard(papers, pw_match_dicts)
                 pw_rank = {e["id"]: e["score"] for e in pw_lb}
-                pw_bt_corrs = _compute_bt_corrs_for_rank(pw_rank, papers, gt, "AI")
+                pw_bt_corrs = await _compute_bt_corrs_for_rank(pw_rank, papers, gt, "AI")
 
         # SI correlations: compute from SI score-derived matches
         si_matches_for_bt = []
@@ -447,9 +447,9 @@ async def _compute_unified_dataset(dataset_id, gt_type):
                     si_matches_for_bt.append({"paper1_id": a, "paper2_id": b, "winner_id": winner, "completed": True, "failed": False})
 
         if len(si_matches_for_bt) >= 10:
-            si_lb = compute_leaderboard(papers, si_matches_for_bt)
+            si_lb = await compute_leaderboard(papers, si_matches_for_bt)
             si_rank = {e["id"]: e["score"] for e in si_lb}
-            si_bt_corrs = _compute_bt_corrs_for_rank(si_rank, papers, gt, "SI")
+            si_bt_corrs = await _compute_bt_corrs_for_rank(si_rank, papers, gt, "SI")
 
         # SI Sub-Avg BT correlations
         si_sub_bt_corrs = None
@@ -462,9 +462,9 @@ async def _compute_unified_dataset(dataset_id, gt_type):
                     winner = a if si_sub_scores[a] > si_sub_scores[b] else b
                     si_sub_matches_for_bt.append({"paper1_id": a, "paper2_id": b, "winner_id": winner, "completed": True, "failed": False})
         if len(si_sub_matches_for_bt) >= 10:
-            si_sub_lb = compute_leaderboard(papers, si_sub_matches_for_bt)
+            si_sub_lb = await compute_leaderboard(papers, si_sub_matches_for_bt)
             si_sub_rank = {e["id"]: e["score"] for e in si_sub_lb}
-            si_sub_bt_corrs = _compute_bt_corrs_for_rank(si_sub_rank, papers, gt, "SI Avg")
+            si_sub_bt_corrs = await _compute_bt_corrs_for_rank(si_sub_rank, papers, gt, "SI Avg")
     except Exception as e:
         logger.warning(f"BT correlations failed for {dataset_id}: {e}")
 
