@@ -100,7 +100,7 @@ async def _extend_matches(category: str, num_matches: int, parallel: int):
     try:
         _state["phase"] = "extending"
 
-        papers = await db.papers.find({"categories": category}, {"_id": 0}).to_list(500)
+        papers = await collect_all(db.papers.find({"categories": category}, {"_id": 0}))
         paper_lookup = {p["id"]: p for p in papers}
         paper_ids = set(paper_lookup.keys())
 
@@ -229,10 +229,10 @@ async def _full_pipeline(category: str, num_matches: int, parallel: int):
 async def _do_generate_summaries(category: str, parallel: int):
     _state["phase"] = "generating_summaries"
 
-    papers = await db.papers.find(
+    papers = await collect_all(db.papers.find(
         {"categories": category},
         {"_id": 0}
-    ).to_list(500)
+    ))
 
     total = len(papers) * len(TOURNAMENT_MODELS)
     completed = 0
@@ -291,10 +291,10 @@ async def _do_generate_summaries(category: str, parallel: int):
 async def _do_run_experiment(category: str, num_matches: int, parallel: int):
     _state["phase"] = "running_experiment"
 
-    papers = await db.papers.find(
+    papers = await collect_all(db.papers.find(
         {"categories": category},
         {"_id": 0, "id": 1, "title": 1, "abstract": 1}
-    ).to_list(500)
+    ))
     paper_lookup = {p["id"]: p for p in papers}
     paper_ids = set(paper_lookup.keys())
 
@@ -438,7 +438,7 @@ async def _do_run_fullpdf_baseline(category: str, parallel: int):
     ).to_list(1000)
 
     # Need full_text for full_pdf mode
-    papers = await db.papers.find({"categories": category}, {"_id": 0}).to_list(500)
+    papers = await collect_all(db.papers.find({"categories": category}, {"_id": 0}))
     paper_lookup = {p["id"]: p for p in papers}
 
     total_work = len(original_matches) * len(TOURNAMENT_MODELS)
@@ -784,7 +784,7 @@ async def _compute_sb_convergence(category: str, steps: int):
     from scipy import stats as scipy_stats
 
     # Get papers
-    papers = await db.papers.find({"categories": category}, {"_id": 0}).to_list(500)
+    papers = await collect_all(db.papers.find({"categories": category}, {"_id": 0}))
     if not papers:
         return {"status": "no_data"}
     paper_lookup = {p["id"]: p for p in papers}

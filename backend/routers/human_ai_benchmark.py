@@ -1127,7 +1127,7 @@ async def _compute_benchmark(gt_type: str = "comp"):
     all_ds_ids = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)
                   if r["_id"] in allowed]
 
-    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
 
     per_dataset = []
@@ -1750,7 +1750,7 @@ async def _compute_ranking_quality(gt_type: str = "comp"):
     all_ds_ids = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)
                   if r["_id"] in allowed]
 
-    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
 
     per_dataset = []

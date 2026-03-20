@@ -283,7 +283,7 @@ async def compute_standalone_dataset(dataset_id, ai_source="pairwise"):
 
 async def compute_standalone_benchmark(ai_source="pairwise"):
     """Compute pooled benchmark across all standalone GT datasets."""
-    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
 
     # Find standalone datasets

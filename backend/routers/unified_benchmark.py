@@ -530,7 +530,7 @@ async def _compute_unified_benchmark(gt_type):
 
     ds_ids = [d for d in await db.validation_papers.distinct("dataset_id") if d in allowed]
 
-    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
 
     per_dataset = []

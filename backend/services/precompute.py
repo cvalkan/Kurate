@@ -145,7 +145,7 @@ async def _compute_validation_datasets():
         get_convergence_all,
     )
 
-    datasets = await db.validation_datasets.find({}, {"_id": 0}).to_list(100)
+    datasets = await db.validation_datasets.find({}, {"_id": 0}).to_list(1000)
     dataset_ids = [d["dataset_id"] for d in datasets]
 
     results = {}

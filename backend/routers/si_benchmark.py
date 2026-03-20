@@ -645,7 +645,7 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
     if not ds_with_scores:
         return {"status": "no_data"}
 
-    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
 
     per_dataset = []

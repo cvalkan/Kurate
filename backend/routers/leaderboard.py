@@ -1872,7 +1872,7 @@ async def sitemap():
     # Add archive pages
     archives = await db.leaderboard_archives.find(
         {}, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1}
-    ).to_list(1000)
+    ).to_list(5000)
     for a in archives:
         slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
         urls.append(f"  <url><loc>{base}/leaderboard/{a['category']}/{a['year']}/{slug}</loc><changefreq>never</changefreq><priority>0.6</priority></url>")

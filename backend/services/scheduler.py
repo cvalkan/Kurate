@@ -606,9 +606,9 @@ async def _download_pending_pdfs(category: str = None):
     if category:
         query["categories.0"] = category
 
-    papers_needing_pdf = await db.papers.find(
+    papers_needing_pdf = await collect_all(db.papers.find(
         query, {"_id": 0, "id": 1, "pdf_link": 1, "title": 1, "doi": 1},
-    ).to_list(500)
+    ))
 
     if not papers_needing_pdf:
         return 0

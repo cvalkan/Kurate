@@ -184,7 +184,7 @@ async def _compute_single_item_results():
     if not datasets_with_scores:
         return {"status": "no_data"}
 
-    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(100)
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta}
 
     all_results = []
@@ -1741,7 +1741,7 @@ async def _compute_assessor_evaluator():
         return model
 
     datasets = ["iclr-llm", "iclr-codegen"]
-    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {"iclr-llm": "ICLR LLM", "iclr-codegen": "ICLR Code Gen"}
     ds_names.update({d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta})
     ds_pipeline = [
@@ -2014,7 +2014,7 @@ async def _compute_summarizer_ab_results():
     ALLOWED_PREFIXES = ("iclr-", "elife-")
 
     datasets = ["iclr-llm", "iclr-codegen"]
-    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {"iclr-llm": "ICLR LLM", "iclr-codegen": "ICLR Code Gen"}
     ds_names.update({d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta})
     # Auto-discover ICLR/eLife datasets with summarizer data
@@ -2525,7 +2525,7 @@ async def _compute_judge_comparison():
     per_dataset = []
 
     for ds_id in DATASETS:
-        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(500)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION))
         if not papers:
             continue
         paper_lookup = {p["id"]: p for p in papers}
@@ -2995,7 +2995,7 @@ async def _compute_institution_bias():
                      "abstract_plus_summary:gpt_summary", "abstract_plus_summary:gemini_summary",
                      "abstract_plus_summary:thinking"]
 
-    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(100)
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta}
 
     # Accumulators
@@ -3140,7 +3140,7 @@ async def _compute_institution_bias_samepair():
                      "abstract_plus_summary:thinking"]
     TARGET_JUDGES = {"Opus 4.5", "Opus 4.6", "GPT-5.2", "Gemini 3 Pro"}
 
-    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(100)
+    ds_meta = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in ds_meta}
 
     by_judge = defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0, "ai_prestige": 0, "human_prestige": 0}))

@@ -581,10 +581,10 @@ async def get_progress_estimate(category: str = "cs.RO"):
     parallel_agents = settings.get("parallel_agents", 5)
     parallel_categories = settings.get("parallel_categories", 2)
 
-    direct_papers = await db.papers.find(
+    direct_papers = await collect_all(db.papers.find(
         {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
         {"_id": 0, "id": 1}
-    ).to_list(2000)
+    ))
     all_paper_ids = [p["id"] for p in direct_papers]
 
     raw_matches = await collect_all(db.matches.find(

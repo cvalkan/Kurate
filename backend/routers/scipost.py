@@ -1048,7 +1048,7 @@ async def _pw_run_summary_mode(parallel_agents: int = 5):
 
     try:
         # Load AI summaries from scipost_paper_data
-        summary_docs = await db.scipost_paper_data.find({}, {"_id": 0}).to_list(100)
+        summary_docs = await collect_all(db.scipost_paper_data.find({}, {"_id": 0}))
         summary_map = {d["submission_id"]: d for d in summary_docs}
 
         # Get existing abstract pairs as template

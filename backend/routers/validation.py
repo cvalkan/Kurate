@@ -85,7 +85,7 @@ async def list_datasets():
     match_stats = {r["_id"]: r["count"] async for r in db.validation_matches.aggregate(match_pipeline)}
 
     # Get dataset metadata
-    meta_docs = await db.validation_datasets.find({}, {"_id": 0}).to_list(100)
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0}).to_list(1000)
     meta = {d["dataset_id"]: d for d in meta_docs}
 
     # Use in-memory precomputed validation cache for modes (already loaded at startup)
@@ -895,7 +895,7 @@ async def _compute_consistency_analysis():
     """
     ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
     all_ds = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)]
-    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
 
     def _short_model(mu):
@@ -1344,7 +1344,7 @@ async def _compute_cycle_analysis_all():
     all_ds = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)]
 
     # Get dataset names
-    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(1000)
     ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
 
     # Fetch cycle analysis for each dataset in parallel
