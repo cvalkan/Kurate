@@ -99,10 +99,10 @@ function ComparisonTable({ data }) {
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
               <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Accuracy</th>
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Accuracy</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-indigo-500/[0.06]">SI Sub-Avg Acc</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Sub-Avg Acc</th>
               <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Spearman {"\u03C1"}</th>
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Spearman {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-indigo-500/[0.06]">SI Sub-Avg {"\u03C1"}</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Sub-Avg {"\u03C1"}</th>
               <th className="py-1.5 px-2 text-right font-medium text-foreground/50">pairs</th>
             </tr>
           </thead>
@@ -112,23 +112,26 @@ function ComparisonTable({ data }) {
                 <td className="py-1.5 px-2 text-left text-xs font-semibold">{hasIntersection ? "Pooled (same pairs)" : "Pooled (full data)"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{pwAcc != null ? `${pwAcc}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins && siAcc != null ? "font-bold" : ""}`}>{siAcc != null ? `${siAcc}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs bg-indigo-500/[0.06]">{p.si_sub_accuracy != null && p.si_sub_accuracy > 0 ? `${p.si_sub_accuracy}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{p.si_sub_accuracy != null && p.si_sub_accuracy > 0 ? `${p.si_sub_accuracy}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs bg-indigo-500/[0.06]">{p.si_sub_rho?.toFixed(3) ?? "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{p.si_sub_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{hasIntersection ? p.intersection.pairs?.toLocaleString() : (p.pw_total || 0).toLocaleString()}</td>
               </tr>
             )}
             {levels.map(({ key, label }) => {
               const d = p.by_difficulty?.[key] || {};
+              const dSub = p.si_sub_by_difficulty?.[key] || {};
               const pwB = (d.pw_rate || 0) >= (d.si_rate || 0);
               return (
                 <tr key={key} className="border-b border-border/20">
                   <td className="py-1.5 px-2 text-left text-xs text-foreground/60">{label}</td>
                   <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06] ${pwB ? "font-semibold" : ""}`}>{d.pw_rate != null ? `${d.pw_rate}%` : "\u2014"}</td>
                   <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06] ${!pwB ? "font-semibold" : ""}`}>{d.si_rate != null ? `${d.si_rate}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.03]">{dSub.rate != null && dSub.rate > 0 ? `${dSub.rate}%` : "\u2014"}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06]"></td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.03]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{(d.pw_pairs ?? d.si_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
@@ -201,10 +204,10 @@ function DatasetTable({ datasets }) {
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{dPwAcc != null ? `${dPwAcc}%` : "\u2014"}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins && dSiAcc != null ? "font-bold" : ""}`}>{dSiAcc != null ? `${dSiAcc}%` : "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-indigo-500/[0.06]">{d.si_sub?.accuracy != null && d.si_sub.accuracy > 0 ? `${d.si_sub.accuracy}%` : "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{d.si_sub?.accuracy != null && d.si_sub.accuracy > 0 ? `${d.si_sub.accuracy}%` : "\u2014"}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{d.pw?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins && d.si?.bt_rho ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className="py-1 px-1.5 text-right font-mono bg-indigo-500/[0.06]">{d.si_sub?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className="py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{d.si_sub?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{dHasIntr ? intr.pairs?.toLocaleString() : (d.pw?.total || 0).toLocaleString()}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{d.n_papers}</td>
                     <td className="py-1 px-1.5 text-center">

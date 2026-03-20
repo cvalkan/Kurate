@@ -534,6 +534,11 @@ async def _compute_unified_benchmark(gt_type):
                 pooled[key][lvl][0] += int(dl.get("rate", 0) * dl.get("n_pairs", 0) / 100)
                 pooled[key][lvl][1] += dl.get("n_pairs", 0)
                 pooled[key][lvl][2] += dl.get("n_pairs", 0)
+            # SI Sub-Avg difficulty
+            si_sub_dl = result.get("si_sub", {}).get("by_difficulty", {}).get(lvl, {})
+            pooled.setdefault("si_sub_diff", {lvl2: [0, 0, 0] for lvl2 in ["easy", "medium", "hard"]})
+            pooled["si_sub_diff"][lvl][0] += int(si_sub_dl.get("rate", 0) * si_sub_dl.get("n_pairs", 0) / 100)
+            pooled["si_sub_diff"][lvl][1] += si_sub_dl.get("n_pairs", 0)
 
     if not per_dataset:
         return {"status": "no_data"}
@@ -561,6 +566,12 @@ async def _compute_unified_benchmark(gt_type):
                     "si_rate": _rate(pooled["si_diff"][lvl][0], pooled["si_diff"][lvl][1]),
                     "pw_pairs": pooled["pw_diff"][lvl][2],
                     "si_pairs": pooled["si_diff"][lvl][2],
+                }
+                for lvl in ["easy", "medium", "hard"]
+            },
+            "si_sub_by_difficulty": {
+                lvl: {
+                    "rate": _rate(pooled.get("si_sub_diff", {}).get(lvl, [0,0])[0], pooled.get("si_sub_diff", {}).get(lvl, [0,0])[1]),
                 }
                 for lvl in ["easy", "medium", "hard"]
             },
