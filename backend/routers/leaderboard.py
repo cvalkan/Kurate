@@ -603,10 +603,7 @@ async def _bg_archive_loop():
 
 
 async def _get_cached_leaderboard():
-    """Returns pre-computed cache instantly. Falls back to sync refresh if cache is empty."""
-    if _cache["categories"]:
-        return _cache
-    await _refresh_cache()
+    """Returns pre-computed cache instantly. Never blocks — returns empty cache if not yet warmed."""
     return _cache
 
 
