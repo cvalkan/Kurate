@@ -436,6 +436,21 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             si_lb = compute_leaderboard(papers, si_matches_for_bt)
             si_rank = {e["id"]: e["score"] for e in si_lb}
             si_bt_corrs = _compute_bt_corrs_for_rank(si_rank, papers, gt, "SI")
+
+        # SI Sub-Avg BT correlations
+        si_sub_bt_corrs = None
+        si_sub_ids_list = sorted(si_sub_scores.keys())
+        si_sub_matches_for_bt = []
+        for i in range(len(si_sub_ids_list)):
+            for j in range(i + 1, len(si_sub_ids_list)):
+                a, b = si_sub_ids_list[i], si_sub_ids_list[j]
+                if si_sub_scores[a] != si_sub_scores[b]:
+                    winner = a if si_sub_scores[a] > si_sub_scores[b] else b
+                    si_sub_matches_for_bt.append({"paper1_id": a, "paper2_id": b, "winner_id": winner, "completed": True, "failed": False})
+        if len(si_sub_matches_for_bt) >= 10:
+            si_sub_lb = compute_leaderboard(papers, si_sub_matches_for_bt)
+            si_sub_rank = {e["id"]: e["score"] for e in si_sub_lb}
+            si_sub_bt_corrs = _compute_bt_corrs_for_rank(si_sub_rank, papers, gt, "SI Avg")
     except Exception as e:
         logger.warning(f"BT correlations failed for {dataset_id}: {e}")
 
@@ -465,6 +480,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             "correct": si_sub_correct, "total": si_sub_total,
             "n_scored": len(si_sub_scores),
             "bt_rho": si_sub_rho,
+            "bt_correlations": si_sub_bt_corrs,
             "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in si_sub_diff.items()},
         },
         "intersection": {

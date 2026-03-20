@@ -14,7 +14,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
+function BTCorrelationTable({ pwCorrs, siCorrs, siSubCorrs }) {
   if (!pwCorrs && !siCorrs) return null;
   const rows = [
     { key: "vs_individual", label: "vs Individual aggregate", desc: "BT vs all-expert-votes BT" },
@@ -36,7 +36,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
               <th className="py-1.5 px-2 text-left font-medium">Comparison</th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-violet-500/[0.06]" colSpan={2}>Pairwise (PW)</th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.06]" colSpan={2}>Single-Item (SI)</th>
-              <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.03]">Single-Item (SI avg)</th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.03]" colSpan={2}>Single-Item (SI avg)</th>
               <th className="py-1.5 px-2 text-left font-medium">Description</th>
             </tr>
             <tr className="border-b border-border text-muted-foreground text-[9px]">
@@ -46,6 +46,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
               <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.06]">{"\u03C1"}</th>
               <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.06]">{"\u03C4"}</th>
               <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.03]">{"\u03C1"}</th>
+              <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.03]">{"\u03C4"}</th>
               <th></th>
             </tr>
           </thead>
@@ -53,6 +54,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
             {rows.map(r => {
               const pw = pwCorrs?.[r.key];
               const si = siCorrs?.[r.key];
+              const sub = siSubCorrs?.[r.key];
               const pwWins = (pw?.rho || 0) >= (si?.rho || 0);
               return (
                 <tr key={r.key} className="border-b border-border/20">
@@ -61,7 +63,8 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
                   <td className="py-1.5 px-1.5 text-right font-mono bg-violet-500/[0.06] text-foreground/60">{f(pw?.tau)}</td>
                   <td className={`py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-semibold" : ""}`}>{f(si?.rho)}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.06] text-foreground/60">{f(si?.tau)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{f(siSubRho)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{f(sub?.rho)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.03] text-foreground/60">{f(sub?.tau)}</td>
                   <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{pw?.desc || si?.desc || r.desc}</td>
                 </tr>
               );
@@ -312,8 +315,16 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
         const pwPooled = {};
         const siPooled = {};
         allKeys.forEach(k => { pwPooled[k] = pool("pw", k); siPooled[k] = pool("si", k); });
+        const siSubPooled = {};
+        allKeys.forEach(k => {
+          const vals = ds.map(d => (d.si_sub?.bt_correlations || {})[k]).filter(Boolean);
+          siSubPooled[k] = vals.length ? {
+            rho: vals.reduce((s, v) => s + (v.rho || 0), 0) / vals.length,
+            tau: vals.filter(v => v.tau != null).length ? vals.reduce((s, v) => s + (v.tau || 0), 0) / vals.filter(v => v.tau != null).length : null,
+          } : null;
+        });
         const hasData = Object.values(pwPooled).some(v => v) || Object.values(siPooled).some(v => v);
-        return hasData ? <BTCorrelationTable pwCorrs={pwPooled} siCorrs={siPooled} siSubRho={data.pooled?.si_sub_rho} /> : null;
+        return hasData ? <BTCorrelationTable pwCorrs={pwPooled} siCorrs={siPooled} siSubCorrs={siSubPooled} /> : null;
       })()}
       <DatasetTable datasets={data.per_dataset} />
     </div>
