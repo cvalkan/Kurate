@@ -371,8 +371,14 @@ async def _compute_unified_dataset(dataset_id, gt_type):
                 si_verdict[tuple(sorted([a, b]))] = a if si_scores[a] > si_scores[b] else b
 
     common_pairs = set(pw_verdict.keys()) & set(si_verdict.keys())
-    int_pw_correct = int_si_correct = int_total = 0
+    int_pw_correct = int_si_correct = int_si_sub_correct = int_total = 0
     int_gaps = []
+    # Build SI sub verdict on intersection pairs
+    si_sub_verdict = {}
+    for pair in common_pairs:
+        a, b = pair
+        if a in si_sub_scores and b in si_sub_scores and si_sub_scores[a] != si_sub_scores[b]:
+            si_sub_verdict[pair] = a if si_sub_scores[a] > si_sub_scores[b] else b
     for pair in common_pairs:
         a, b = pair
         if a not in gt or b not in gt or gt[a] == gt[b]:
@@ -384,6 +390,8 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             int_pw_correct += 1
         if si_verdict[pair] == human_winner:
             int_si_correct += 1
+        if pair in si_sub_verdict and si_sub_verdict[pair] == human_winner:
+            int_si_sub_correct += 1
 
     # --- BT Ranking Correlations: reuse from Human AI Benchmark where available ---
     pw_bt_corrs = None
@@ -462,6 +470,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
         "intersection": {
             "pw_accuracy": _rate(int_pw_correct, int_total),
             "si_accuracy": _rate(int_si_correct, int_total),
+            "si_sub_accuracy": _rate(int_si_sub_correct, int_total),
             "pairs": int_total,
             "avg_h1_gap": round(float(np.mean(int_gaps)), 2) if int_gaps else 0,
         },
@@ -522,6 +531,9 @@ async def _compute_unified_benchmark(gt_type):
         pooled["int_pw_correct"] += int(intr.get("pw_accuracy", 0) * intr.get("pairs", 0) / 100)
         pooled["int_si_correct"] += int(intr.get("si_accuracy", 0) * intr.get("pairs", 0) / 100)
         pooled["int_total"] += intr.get("pairs", 0)
+        pooled.setdefault("int_si_sub_correct", 0)
+        if intr.get("si_sub_accuracy") is not None:
+            pooled["int_si_sub_correct"] += int(intr["si_sub_accuracy"] * intr.get("pairs", 0) / 100)
 
         if result["pw"]["bt_rho"] is not None:
             pooled["pw_rhos"].append(result["pw"]["bt_rho"])
@@ -578,6 +590,7 @@ async def _compute_unified_benchmark(gt_type):
             "intersection": {
                 "pw_accuracy": _rate(pooled["int_pw_correct"], pooled["int_total"]),
                 "si_accuracy": _rate(pooled["int_si_correct"], pooled["int_total"]),
+                "si_sub_accuracy": _rate(pooled.get("int_si_sub_correct", 0), pooled["int_total"]),
                 "pairs": pooled["int_total"],
             },
         },

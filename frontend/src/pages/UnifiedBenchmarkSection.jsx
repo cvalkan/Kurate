@@ -115,7 +115,7 @@ function ComparisonTable({ data }) {
                 <td className="py-1.5 px-2 text-left text-xs font-semibold">{hasIntersection ? "Pooled (same pairs)" : "Pooled (full data)"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{pwAcc != null ? `${pwAcc}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins && siAcc != null ? "font-bold" : ""}`}>{siAcc != null ? `${siAcc}%` : "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{p.si_sub_accuracy != null && p.si_sub_accuracy > 0 ? `${p.si_sub_accuracy}%` : "\u2014"}</td>
+                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{(hasIntersection ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy) != null ? `${hasIntersection ? p.intersection.si_sub_accuracy : p.si_sub_accuracy}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{p.si_sub_rho?.toFixed(3) ?? "\u2014"}</td>
@@ -273,7 +273,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
               <Metric label="SI Accuracy" value={hSiAcc != null ? `${hSiAcc}%` : "\u2014"} sub={hHasSI ? `${hPairs?.toLocaleString()} ${hHasIntr ? "same" : "SI"} pairs` : "no SI data"} accent={hSiAcc != null && hSiAcc > (hPwAcc || 0)} />
             </div>
             <div className="border border-border rounded-lg p-3 bg-background">
-              <Metric label="SI Averageuracy" value={p.si_sub_accuracy != null && p.si_sub_accuracy > 0 ? `${p.si_sub_accuracy}%` : "\u2014"} sub="mean of (sig, rig, nov, cla)" accent={false} />
+              <Metric label="SI Average Accuracy" value={(() => { const v = hasIntersection ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy; return v != null && v > 0 ? `${v}%` : "\u2014"; })()} sub="mean of (sig, rig, nov, cla)" accent={false} />
             </div>
           </>);
         })()}
