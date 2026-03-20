@@ -82,7 +82,7 @@ async def _refresh_cache():
         matches = await db.matches.find(
             {"completed": True, "failed": {"$ne": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1, "shared_categories": 1, "primary_category": 1, "model_used": 1, "tokens": 1, "created_at": 1, "id": 1},
-        ).to_list(100000)
+        ).to_list(200000)  # Must exceed total matches (currently ~67K, grows with tournaments)
         await asyncio.sleep(0)  # Yield after matches load
         likes = {}
         async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):

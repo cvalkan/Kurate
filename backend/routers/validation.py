@@ -926,7 +926,7 @@ async def _compute_consistency_analysis():
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "dataset_id": 1, "paper1_id": 1, "paper2_id": 1,
          "winner_id": 1, "model_used": 1, "content_mode": 1, "abstract_only": 1},
-    ).to_list(100000)
+    ).to_list(200000)  # Must exceed total validation_matches (currently ~146K)
 
     # ── Section 1: Verdict Stability ──
     # Group: (dataset, pair) → (model, format) → winner
