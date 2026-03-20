@@ -1,47 +1,47 @@
 ai_rank,human_majority_rank,rank_gap,decision,h1_avg_rating,ai_bt_score,human_bt_score,title
-1,1,0,Spotlight,8.0,1797,1876,SE(3)-Stochastic Flow Matching for Protein Backbone Generation
-2,12,10,Poster,5.8,1773,1419,Learning to design protein-protein interactions with enhanced generalization
-3,8,5,Poster,7.0,1745,1568,Protein Language Model Fitness is a Matter of Preference
-4,3,1,Oral,7.5,1594,1684,Steering Protein Family Design through Profile Bayesian Flow
-5,14,9,Poster,6.0,1582,1337,Fine-Tuning Discrete Diffusion Models via Reward Optimization with Applications to DNA and Protein Design
-6,17,11,Poster,6.0,1568,1337,Str2Str: A Score-based Framework for Zero-shot Protein Conformation Sampling
-7,13,6,Poster,6.0,1568,1373,EVA: Geometric Inverse Design for Fast Protein Motif-Scaffolding with Coupled Flow
-8,7,1,Poster,7.0,1554,1568,Structure Language Models for Protein Conformation Generation
-9,11,2,Poster,6.5,1493,1424,ProteinBench: A Holistic Evaluation of Protein Foundation Models
-10,6,4,Spotlight,7.25,1480,1617,Fast Uncovering of Protein Sequence Diversity from Structure
-11,19,8,Poster,6.25,1465,1337,Protein-Ligand Interaction Prior for Binding-aware 3D Molecule Diffusion Models
-12,24,12,Poster,5.5,1449,1200,Dynamics-Informed Protein Design with Structure Conditioning
-13,2,11,Oral,8.0,1421,1876,ProtComposer: Compositional Protein Structure Generation with 3D Ellipsoids
-14,4,10,Spotlight,7.5,1407,1679,Boltzmann-Aligned Inverse Folding Model as a Predictor of Mutational Effects on Protein-Protein Interactions
-15,18,3,Poster,6.25,1407,1337,Metalic: Meta-Learning In-Context with Protein Language Models
-16,5,11,Spotlight,7.4,1312,1675,CBGBench: Fill in the Blank of Protein-Molecule Complex Binding Graph
-17,21,4,Reject,5.5,1279,1208,Generating All-Atom Protein Structure from Sequence-Only Training Data
-18,26,8,Reject,5.0,1264,1142,Bridging Sequence and Structure: Latent Diffusion for Conditional Protein Generation
-19,9,10,Poster,7.0,1254,1529,Data Distillation for extrapolative protein design through exact preference optimization
-20,10,10,Reject,5.5,1244,1433,Recombination Flow Matching Model for Protein Evolution
-21,20,1,Reject,5.75,1244,1253,ProtMamba: a homology-aware but alignment-free protein state space model
-22,25,3,Reject,5.5,1200,1168,Learning the Language of Protein Structure
-23,15,8,Reject,6.25,1200,1337,Structure-Enhanced Protein Instruction Tuning: Towards General-Purpose Protein Understanding
-24,16,8,Poster,6.0,1200,1337,Deep Reinforcement Learning for Modelling Protein Complexes
-25,35,10,Reject,4.0,1165,967,Equivariant Protein Multi-task Learning
-26,39,13,Reject,3.5,1156,862,DockGame: Cooperative Games for Multimeric Rigid Protein Docking
-27,40,13,Reject,3.5,1068,862,Disconnecting The Dots: Creating Leakage-Free Protein Datasets by Removal of Densely Connected Data Points
-28,34,6,Reject,4.25,1034,1009,Hierarchical Protein Backbone Generation with Latent and Structure Diffusion
-29,23,6,Reject,5.5,1034,1200,Antibody DomainBed: Out-of-Distribution Generalization in Therapeutic Protein Design
-30,27,3,Reject,4.5,1009,1142,Exploiting Topology of Protein Language Model Attention Maps for Token Classification
-31,30,1,Withdrawn,4.75,993,1100,$\texttt{LLaPA}$: Harnessing Language Models for Protein Enzyme Function
-32,28,4,Reject,5.25,987,1135,Microenvironment Probability Flows as Proficient Protein Engineers
-33,31,2,Desk Rejected,4.2,974,1069,ProteinWeaver: A Divide-and-Assembly Approach for Protein Backbone Design
-34,22,12,Reject,5.5,968,1208,Large Language and Protein Assistant for Protein-Protein Interactions prediction
-35,29,6,Reject,5.833333333333333,945,1102,STELLA: Leveraging Structural Representations to Enhance Protein Understanding with Multimodal LLMs
-36,42,6,Reject,3.0,879,627,Towards Robust Evaluation of Protein Generative Models: A Systematic Analysis of Metrics
-37,32,5,Withdrawn,4.5,818,1051,PROTEIN DESIGNER BASED ON SEQUENCE PROFILE USING ULTRAFAST SHAPE RECOGNITION
-38,37,1,Withdrawn,4.0,806,962,Efficient Protein Optimization via Structure-aware Hamiltonian Dynamics
-39,38,1,Reject,4.0,708,957,MoDiff: a Protein Diffusion Model for Multi-motif Scaffolding Problem
-40,44,4,Reject,3.0,708,627,Advancing Drug-Target Interaction Prediction via Graph Transformers and Residual Protein Embeddings
-41,33,8,Reject,4.5,688,1051,NL2ProGPT: Taming Large Language Model for Conversational Protein Design
-42,46,4,Withdrawn,2.0,655,524,CypST: Improving Cytochrome P450 Substrates Prediction with Fine-Tuned Protein Language Model and Graph Attention Network
-43,36,7,Withdrawn,4.0,627,967,ProteinAdapter: Adapting Pre-trained Large Protein Models for Efficient Protein Representation Learning
-44,43,1,Withdrawn,3.0,627,627,Comparing Protein Language Models Using Remote Homology Detection for Phages
-45,41,4,Withdrawn,3.6,615,636,Towards Building Reliable Conditional Diffusion Models for Protein Generation
-46,45,1,Withdrawn,3.0,615,627,Phi-Former: A Pairwise Hierarchical Approach for Compound-Protein Interaction Prediction
+1,1,0,Spotlight,8.0,1797,1797,SE(3)-Stochastic Flow Matching for Protein Backbone Generation
+2,16,14,Poster,5.8,1773,1391,Learning to design protein-protein interactions with enhanced generalization
+3,9,6,Poster,7.0,1745,1538,Protein Language Model Fitness is a Matter of Preference
+4,4,0,Oral,7.5,1594,1797,Steering Protein Family Design through Profile Bayesian Flow
+5,15,10,Poster,6.0,1582,1407,Fine-Tuning Discrete Diffusion Models via Reward Optimization with Applications to DNA and Protein Design
+6,11,5,Poster,6.0,1568,1465,Str2Str: A Score-based Framework for Zero-shot Protein Conformation Sampling
+7,13,6,Poster,6.0,1568,1465,EVA: Geometric Inverse Design for Fast Protein Motif-Scaffolding with Coupled Flow
+8,7,1,Poster,7.0,1554,1554,Structure Language Models for Protein Conformation Generation
+9,17,8,Poster,6.5,1493,1363,ProteinBench: A Holistic Evaluation of Protein Foundation Models
+10,5,5,Spotlight,7.25,1480,1785,Fast Uncovering of Protein Sequence Diversity from Structure
+11,12,1,Poster,6.25,1465,1465,Protein-Ligand Interaction Prior for Binding-aware 3D Molecule Diffusion Models
+12,8,4,Poster,5.5,1449,1554,Dynamics-Informed Protein Design with Structure Conditioning
+13,2,11,Oral,8.0,1421,1797,ProtComposer: Compositional Protein Structure Generation with 3D Ellipsoids
+14,6,8,Spotlight,7.5,1407,1785,Boltzmann-Aligned Inverse Folding Model as a Predictor of Mutational Effects on Protein-Protein Interactions
+15,10,5,Poster,6.25,1407,1480,Metalic: Meta-Learning In-Context with Protein Language Models
+16,3,13,Spotlight,7.4,1312,1797,CBGBench: Fill in the Blank of Protein-Molecule Complex Binding Graph
+17,28,11,Reject,5.5,1279,1034,Generating All-Atom Protein Structure from Sequence-Only Training Data
+18,23,5,Reject,5.0,1264,1068,Bridging Sequence and Structure: Latent Diffusion for Conditional Protein Generation
+19,14,5,Poster,7.0,1254,1449,Data Distillation for extrapolative protein design through exact preference optimization
+20,19,1,Reject,5.5,1244,1337,Recombination Flow Matching Model for Protein Evolution
+21,25,4,Reject,5.75,1244,1063,ProtMamba: a homology-aware but alignment-free protein state space model
+22,31,9,Reject,5.5,1200,974,Learning the Language of Protein Structure
+23,20,3,Reject,6.25,1200,1200,Structure-Enhanced Protein Instruction Tuning: Towards General-Purpose Protein Understanding
+24,18,6,Poster,6.0,1200,1347,Deep Reinforcement Learning for Modelling Protein Complexes
+25,21,4,Reject,4.0,1165,1092,Equivariant Protein Multi-task Learning
+26,24,2,Reject,3.5,1156,1063,DockGame: Cooperative Games for Multimeric Rigid Protein Docking
+27,29,2,Reject,3.5,1068,987,Disconnecting The Dots: Creating Leakage-Free Protein Datasets by Removal of Densely Connected Data Points
+28,26,2,Reject,4.25,1034,1034,Hierarchical Protein Backbone Generation with Latent and Structure Diffusion
+29,27,2,Reject,5.5,1034,1034,Antibody DomainBed: Out-of-Distribution Generalization in Therapeutic Protein Design
+30,22,8,Reject,4.5,1009,1092,Exploiting Topology of Protein Language Model Attention Maps for Token Classification
+31,35,4,Withdrawn,4.75,993,920,$\texttt{LLaPA}$: Harnessing Language Models for Protein Enzyme Function
+32,30,2,Reject,5.25,987,987,Microenvironment Probability Flows as Proficient Protein Engineers
+33,32,1,Desk Rejected,4.2,974,974,ProteinWeaver: A Divide-and-Assembly Approach for Protein Backbone Design
+34,33,1,Reject,5.5,968,968,Large Language and Protein Assistant for Protein-Protein Interactions prediction
+35,34,1,Reject,5.833333333333333,945,945,STELLA: Leveraging Structural Representations to Enhance Protein Understanding with Multimodal LLMs
+36,41,5,Reject,3.0,879,671,Towards Robust Evaluation of Protein Generative Models: A Systematic Analysis of Metrics
+37,36,1,Withdrawn,4.5,818,920,PROTEIN DESIGNER BASED ON SEQUENCE PROFILE USING ULTRAFAST SHAPE RECOGNITION
+38,37,1,Withdrawn,4.0,806,806,Efficient Protein Optimization via Structure-aware Hamiltonian Dynamics
+39,38,1,Reject,4.0,708,708,MoDiff: a Protein Diffusion Model for Multi-motif Scaffolding Problem
+40,39,1,Reject,3.0,708,708,Advancing Drug-Target Interaction Prediction via Graph Transformers and Residual Protein Embeddings
+41,40,1,Reject,4.5,688,688,NL2ProGPT: Taming Large Language Model for Conversational Protein Design
+42,42,0,Withdrawn,2.0,655,655,CypST: Improving Cytochrome P450 Substrates Prediction with Fine-Tuned Protein Language Model and Graph Attention Network
+43,43,0,Withdrawn,4.0,627,627,ProteinAdapter: Adapting Pre-trained Large Protein Models for Efficient Protein Representation Learning
+44,44,0,Withdrawn,3.0,627,627,Comparing Protein Language Models Using Remote Homology Detection for Phages
+45,45,0,Withdrawn,3.6,615,615,Towards Building Reliable Conditional Diffusion Models for Protein Generation
+46,46,0,Withdrawn,3.0,615,615,Phi-Former: A Pairwise Hierarchical Approach for Compound-Protein Interaction Prediction
