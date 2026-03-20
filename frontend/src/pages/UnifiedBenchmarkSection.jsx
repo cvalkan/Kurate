@@ -127,18 +127,17 @@ function ComparisonTable({ data }) {
             )}
             {levels.map(({ key, label }) => {
               const d = p.by_difficulty?.[key] || {};
-              const dSub = p.si_sub_by_difficulty?.[key] || {};
               const pwB = (d.pw_rate || 0) >= (d.si_rate || 0);
               return (
                 <tr key={key} className="border-b border-border/20">
                   <td className="py-1.5 px-2 text-left text-xs text-foreground/60">{label}</td>
                   <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06] ${pwB ? "font-semibold" : ""}`}>{d.pw_rate != null ? `${d.pw_rate}%` : "\u2014"}</td>
                   <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06] ${!pwB ? "font-semibold" : ""}`}>{d.si_rate != null ? `${d.si_rate}%` : "\u2014"}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.03]">{dSub.rate != null && dSub.rate > 0 ? `${dSub.rate}%` : "\u2014"}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.03]">{d.si_sub_rate != null && d.si_sub_rate > 0 ? `${d.si_sub_rate}%` : "\u2014"}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.03]"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{(d.pw_pairs ?? d.si_pairs ?? 0).toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{(d.pw_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
             })}
@@ -153,7 +152,7 @@ function ComparisonTable({ data }) {
           <strong>Spearman {"\u03C1"}</strong> uses each method's full data (PW: {p.pw_pairs?.toLocaleString()} matches, SI: {p.si_pairs?.toLocaleString()} pairs)
           because ranking quality depends on each method's total output.{" "}
           Both compared against <strong>h1_avg_rating</strong> (averaged human reviewer scores).
-          Pooled row uses <strong>intersection pairs</strong> (PW and SI both scored); difficulty rows use each method's full pair set.
+          All rows use the same <strong>intersection pairs</strong> (where both PW and SI have data).
         </p>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           <strong>Why split the metrics:</strong>{" "}

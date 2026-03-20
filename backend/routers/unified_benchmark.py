@@ -373,6 +373,9 @@ async def _compute_unified_dataset(dataset_id, gt_type):
     common_pairs = set(pw_verdict.keys()) & set(si_verdict.keys())
     int_pw_correct = int_si_correct = int_si_sub_correct = int_total = 0
     int_gaps = []
+    int_diff = {"easy": {"pw": [0, 0], "si": [0, 0], "si_sub": [0, 0]},
+                "medium": {"pw": [0, 0], "si": [0, 0], "si_sub": [0, 0]},
+                "hard": {"pw": [0, 0], "si": [0, 0], "si_sub": [0, 0]}}
     # Build SI sub verdict on intersection pairs
     si_sub_verdict = {}
     for pair in common_pairs:
@@ -386,12 +389,23 @@ async def _compute_unified_dataset(dataset_id, gt_type):
         int_total += 1
         human_winner = a if gt[a] > gt[b] else b
         int_gaps.append(abs(gt[a] - gt[b]))
-        if pw_verdict[pair] == human_winner:
+        pw_ok = pw_verdict[pair] == human_winner
+        si_ok = si_verdict[pair] == human_winner
+        si_sub_ok = pair in si_sub_verdict and si_sub_verdict[pair] == human_winner
+        if pw_ok:
             int_pw_correct += 1
-        if si_verdict[pair] == human_winner:
+        if si_ok:
             int_si_correct += 1
-        if pair in si_sub_verdict and si_sub_verdict[pair] == human_winner:
+        if si_sub_ok:
             int_si_sub_correct += 1
+        diff = _classify_difficulty(a, b, papers_by_id)
+        if diff:
+            int_diff[diff]["pw"][1] += 1
+            int_diff[diff]["si"][1] += 1
+            int_diff[diff]["si_sub"][1] += 1
+            if pw_ok: int_diff[diff]["pw"][0] += 1
+            if si_ok: int_diff[diff]["si"][0] += 1
+            if si_sub_ok: int_diff[diff]["si_sub"][0] += 1
 
     # --- BT Ranking Correlations: reuse from Human AI Benchmark where available ---
     pw_bt_corrs = None
@@ -489,6 +503,15 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             "si_sub_accuracy": _rate(int_si_sub_correct, int_total),
             "pairs": int_total,
             "avg_h1_gap": round(float(np.mean(int_gaps)), 2) if int_gaps else 0,
+            "by_difficulty": {
+                lvl: {
+                    "pw_rate": _rate(int_diff[lvl]["pw"][0], int_diff[lvl]["pw"][1]),
+                    "si_rate": _rate(int_diff[lvl]["si"][0], int_diff[lvl]["si"][1]),
+                    "si_sub_rate": _rate(int_diff[lvl]["si_sub"][0], int_diff[lvl]["si_sub"][1]),
+                    "pairs": int_diff[lvl]["pw"][1],
+                }
+                for lvl in ["easy", "medium", "hard"]
+            },
         },
     }
 
@@ -551,6 +574,19 @@ async def _compute_unified_benchmark(gt_type):
         if intr.get("si_sub_accuracy") is not None:
             pooled["int_si_sub_correct"] += int(intr["si_sub_accuracy"] * intr.get("pairs", 0) / 100)
 
+        # Pool intersection difficulty
+        intr_diff = intr.get("by_difficulty", {})
+        for lvl in ["easy", "medium", "hard"]:
+            ld = intr_diff.get(lvl, {})
+            n = ld.get("pairs", 0)
+            pooled.setdefault("int_diff", {"easy": {"pw": [0,0], "si": [0,0], "si_sub": [0,0]},
+                                           "medium": {"pw": [0,0], "si": [0,0], "si_sub": [0,0]},
+                                           "hard": {"pw": [0,0], "si": [0,0], "si_sub": [0,0]}})
+            for m in ["pw", "si", "si_sub"]:
+                rate = ld.get(f"{m}_rate", ld.get("si_sub_rate" if m == "si_sub" else f"{m}_rate", 0))
+                pooled["int_diff"][lvl][m][0] += int(rate * n / 100)
+                pooled["int_diff"][lvl][m][1] += n
+
         if result["pw"]["bt_rho"] is not None:
             pooled["pw_rhos"].append(result["pw"]["bt_rho"])
         if result["si"]["bt_rho"] is not None:
@@ -590,16 +626,10 @@ async def _compute_unified_benchmark(gt_type):
             "si_sub_rho": si_sub_rho_avg,
             "by_difficulty": {
                 lvl: {
-                    "pw_rate": _rate(pooled["pw_diff"][lvl][0], pooled["pw_diff"][lvl][1]),
-                    "si_rate": _rate(pooled["si_diff"][lvl][0], pooled["si_diff"][lvl][1]),
-                    "pw_pairs": pooled["pw_diff"][lvl][2],
-                    "si_pairs": pooled["si_diff"][lvl][2],
-                }
-                for lvl in ["easy", "medium", "hard"]
-            },
-            "si_sub_by_difficulty": {
-                lvl: {
-                    "rate": _rate(pooled.get("si_sub_diff", {}).get(lvl, [0,0])[0], pooled.get("si_sub_diff", {}).get(lvl, [0,0])[1]),
+                    "pw_rate": _rate(pooled.get("int_diff", {}).get(lvl, {}).get("pw", [0,0])[0], pooled.get("int_diff", {}).get(lvl, {}).get("pw", [0,0])[1]),
+                    "si_rate": _rate(pooled.get("int_diff", {}).get(lvl, {}).get("si", [0,0])[0], pooled.get("int_diff", {}).get(lvl, {}).get("si", [0,0])[1]),
+                    "si_sub_rate": _rate(pooled.get("int_diff", {}).get(lvl, {}).get("si_sub", [0,0])[0], pooled.get("int_diff", {}).get(lvl, {}).get("si_sub", [0,0])[1]),
+                    "pw_pairs": pooled.get("int_diff", {}).get(lvl, {}).get("pw", [0,0])[1],
                 }
                 for lvl in ["easy", "medium", "hard"]
             },
