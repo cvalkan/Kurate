@@ -421,6 +421,16 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
                   comes from circularity, while AI's ranking advantage is earned without it.
                 </p>
               )}
+              <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
+                <strong>Tie handling in BT:</strong> BT correlations are computed on <strong>non-tie pairs only</strong> — pairs where
+                at least one human reviewer expressed a preference. Pairs where all reviewers tied (gave both papers the same score)
+                generate no BT match and are excluded.
+                {p.tie_stats?.tie_fraction != null && <>{" "}With a {(p.tie_stats.tie_fraction * 100).toFixed(0)}% overall tie fraction,
+                roughly {(p.tie_stats.tie_fraction * 100).toFixed(0)}% of potential pairs are invisible to the human BT ranking.
+                Unlike pairwise agreement (which uses coin-flip correction for ties), BT has no equivalent correction —
+                injecting random matches would corrupt the ranking model. The BT {"\u03C1"} therefore measures ranking quality
+                on the <em>resolvable</em> subset of pairs, complementing the pairwise agreement metrics which account for ties explicitly.</>}
+              </p>
             </div>
           </div>
         );
