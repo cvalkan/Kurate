@@ -4,34 +4,54 @@
 Build and maintain a sophisticated "Validation Hub" for an AI paper-judging system at kurate.org. The platform benchmarks AI judges against human peer reviewers using multiple methodologies (pairwise comparison, single-item rating, tournament ranking) across multiple academic datasets.
 
 ## Core Architecture
-- **Backend**: FastAPI + MongoDB, precomputed JSON cache system
+- **Backend**: FastAPI + MongoDB, precomputed JSON cache system, event-driven background tasks
 - **Frontend**: React, served as compiled build
-- **Caching**: Multi-layer (precomputed JSON > MongoDB > in-memory), event-driven refresh
+- **Caching**: Multi-layer (precomputed JSON > MongoDB > in-memory LRU), event-driven refresh
+- **Background**: All loops event-driven (no polling). Compare loop wakes on data change, fetch loop sleeps until due.
 
 ## What's Been Implemented
 
 ### Session: Mar 20, 2026
-- **Coin flip text clarification**: Updated "Is the coin flip conservative?" paragraph to clearly connect 73.5%/78.4% subset numbers to table's 50% assumption
-- **Protein science CSV**: Regenerated with `human_individual_bt` column; documented structural coupling artifact (41% exact AI/H-Majority matches)
-- **Paper-level rankings table**: Sortable per-paper view with 3 aggregation methods, highlighted coupling artifacts
-- **Sidebar restructure**: Moved benchmark pages into dedicated "Judge Quality" section (separate from Experiments)
-- **AI Ranking Quality page** (NEW): Standalone ranking quality using full independent data — AI BT from random matches vs comprehensive human ground truth. Per-dataset ρ with overlap percentages
-- **BT Methodology clarification**: Human vs AI Benchmark uses controlled pairs (ρ=0.739); AI Ranking Quality uses full independent data (ρ=0.701)
-- **Endpoint**: `/api/validation/ai-ranking-quality` — computes AI BT vs full human BT per dataset
-- **Endpoint**: `/api/validation/dataset-rankings/{dataset_id}` — per-paper rankings with multiple aggregation methods
 
-### Prior Sessions (summary)
+**Methodology:**
+- Fixed cross-tier pair selection bias in matchmaking (was excluding within-tier pairs)
+- Created "AI Ranking Quality" page — standalone ranking using full independent data
+- Restructured sidebar: "Validation" section with 4 benchmark pages
+- Clarified coin flip text, added methodology banners to benchmark pages
+- Paper-level rankings table with 3 aggregation methods
+- Updated AI_PIPELINE_METHODOLOGY.md with full documentation
+
+**Performance & Scalability:**
+- Compare loop: fully event-driven (zero DB queries when idle)
+- Fetch loop: sleep-until-due (configurable `fetch_interval_hours`, default 6h)
+- `parallel_categories` admin setting (default 2, configurable 1-10)
+- `collect_all()` replaces ALL 109 `.to_list(N≥5000)` — no truncation at any scale
+- PDF parsing moved to thread pool (`run_in_executor`)
+- Leaderboard data prep moved to thread pool
+- All `compute_leaderboard` calls async (thread pool) across 30+ call sites
+- Max event-loop block: 113ms (from 538ms)
+- LRU eviction on all unbounded caches
+- Compound index on `papers.categories + summaries`
+- `/api/model-correlation` payload reduced 40% (865KB → 523KB)
+- Pre-warmed: `/datasets`, `si-rating-stats`, analysis cache at startup
+
+**Renamed:** SP Score → Gap Score across entire codebase
+
+### Prior Sessions
 - Production performance overhaul (static precomputation, event-driven caching)
 - Dataset curation (UAI 2024, MIDL, PeerRead audits)
 - Benchmark refinements (BT correlation, ceiling analysis, small-sample warnings)
-- Bug fixes (badge fonts, data mismatches, UI crashes)
-- Data export (CSV files for ICLR benchmark)
 
-## Key Methodological Decisions
-1. **Human vs AI Benchmark**: Uses CONTROLLED pairs (same pair set for AI and human) — fair head-to-head comparison
-2. **AI Ranking Quality**: Uses FULL independent data — measures absolute ranking quality without sampling assumptions
-3. **Thinking mode**: 1 judge per pair (round-robin across GPT-5.2, Claude Opus 4.6, Gemini 3 Pro)
-4. **Validation data is STATIC**: Served from precomputed JSON files
+## Key Files
+- `/app/backend/server.py` — Startup, prewarming, deferred tasks
+- `/app/backend/services/scheduler.py` — Event-driven fetch/compare loops
+- `/app/backend/routers/leaderboard.py` — Cache refresh, analysis, archive loops
+- `/app/backend/routers/human_ai_benchmark.py` — Controlled benchmark + AI ranking quality
+- `/app/backend/routers/validation_utils.py` — `collect_all()`, shared caches
+- `/app/backend/services/precompute.py` — JSON precomputation
+- `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Standalone ranking quality UI
+- `/app/memory/ROADMAP.md` — Scaling notes, known bottlenecks, architecture decisions
+- `/app/memory/AI_PIPELINE_METHODOLOGY.md` — Full methodology documentation
 
 ## Prioritized Backlog
 
@@ -39,22 +59,13 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Phase 3: Notification System (Resend email integration)
 
 ### P1
+- Run validation matches with corrected (unfiltered) pair selection
 - Score ICLR-OT with Single-Item AI
-- Update Summarizer Report Section 2 (use "full data" methodology)
-- Run AI pipeline on UAI dataset
+- Update Summarizer Report Section 2
 
 ### P2
+- Incremental BT updates for 100K+ scale (see ROADMAP.md)
+- Convert admin scraper sync requests to async httpx (see ROADMAP.md)
+- Run AI pipeline on UAI dataset
 - Consolidate MIDL experiment pipeline
-- Explore new validation datasets (NeurIPS, more ICLR topics)
-- Add HTTP security headers
-- Improve UI for tracking summary generation failures
-- Continue refactoring leaderboard.py
 - Mobile Twitter/X unfurling (BLOCKED on Cloudflare config)
-
-## Key Files
-- `/app/backend/routers/human_ai_benchmark.py` — Main benchmark + AI ranking quality + dataset rankings endpoints
-- `/app/frontend/src/pages/HumanAIBenchmarkSection.jsx` — Controlled benchmark UI + paper-level rankings
-- `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Standalone ranking quality UI
-- `/app/frontend/src/pages/ValidationHubPage.jsx` — Sidebar navigation with Judge Quality section
-- `/app/backend/data/precomputed/experiment_results.json` — Precomputed benchmark cache
-- `/app/backend/data/protein_science_rankings.csv` — Export with 3 BT methods

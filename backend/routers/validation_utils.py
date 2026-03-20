@@ -317,6 +317,7 @@ def interp(rho, p_val, n, method):
 
 _result_cache = {}
 _CACHE_TTL = 3600  # 1 hour — background refresh keeps it warm, explicit invalidation on new matches
+_RESULT_CACHE_MAX = 2000  # ~200MB max; evict oldest when exceeded
 
 
 async def cache_get(endpoint: str, dataset_id: str, content_mode: str = ""):
@@ -328,6 +329,9 @@ async def cache_get(endpoint: str, dataset_id: str, content_mode: str = ""):
 
 
 async def cache_set(endpoint: str, dataset_id: str, content_mode: str, data, match_count: int = None):
+    if len(_result_cache) >= _RESULT_CACHE_MAX:
+        oldest = min(_result_cache, key=lambda k: _result_cache[k]["ts"])
+        del _result_cache[oldest]
     _result_cache[(endpoint, dataset_id, content_mode or "")] = {
         "data": data, "ts": _time.time(),
     }

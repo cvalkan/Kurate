@@ -1066,6 +1066,7 @@ async def get_public_prompts():
 # Cache for model-correlation and convergence endpoints (keyed by category+mode)
 _analysis_cache = {}  # (endpoint, category, mode) -> {"data": ..., "ts": float}
 _ANALYSIS_CACHE_TTL = 3600  # 1 hour — data only changes when new matches are added
+_ANALYSIS_CACHE_MAX = 500   # ~50MB max; evict oldest when exceeded
 
 
 def _get_analysis_cached(endpoint: str, category: str, mode: str = ""):
@@ -1078,6 +1079,9 @@ def _get_analysis_cached(endpoint: str, category: str, mode: str = ""):
 
 def _set_analysis_cached(endpoint: str, category: str, mode: str, data):
     key = (endpoint, category or "__all__", mode or "")
+    if len(_analysis_cache) >= _ANALYSIS_CACHE_MAX:
+        oldest = min(_analysis_cache, key=lambda k: _analysis_cache[k]["ts"])
+        del _analysis_cache[oldest]
     _analysis_cache[key] = {"data": data, "ts": time.time()}
 
 
