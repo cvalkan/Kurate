@@ -27,19 +27,23 @@ async def download_and_extract_pdf(pdf_url: str, doi: str = None) -> Optional[st
             response = await http_client.get(pdf_url, timeout=60.0, follow_redirects=True)
             response.raise_for_status()
 
-        pdf_bytes = io.BytesIO(response.content)
-        reader = PdfReader(pdf_bytes)
+        # Run CPU-bound PDF parsing in thread pool to avoid blocking the event loop
+        def _parse_pdf(content):
+            pdf_bytes = io.BytesIO(content)
+            reader = PdfReader(pdf_bytes)
+            text_parts = []
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    text_parts.append(text)
+            full_text = "\n".join(text_parts)
+            full_text = " ".join(full_text.split())
+            full_text = full_text.encode("utf-8", errors="replace").decode("utf-8")
+            return full_text
 
-        text_parts = []
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                text_parts.append(text)
-
-        full_text = "\n".join(text_parts)
-        full_text = " ".join(full_text.split())
-        full_text = full_text.encode("utf-8", errors="replace").decode("utf-8")
-        return full_text
+        import asyncio as _aio
+        loop = _aio.get_event_loop()
+        return await loop.run_in_executor(None, _parse_pdf, response.content)
     except Exception as e:
         logger.warning(f"Direct PDF download failed for {pdf_url}: {e}")
         # Fallback for ChemRxiv: use Playwright to bypass Cloudflare, then paperscraper

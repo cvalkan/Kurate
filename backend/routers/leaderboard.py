@@ -94,36 +94,42 @@ async def _refresh_cache():
     all_papers, all_matches_raw, alphaxiv_likes = await _load_data()
     await asyncio.sleep(0)  # Yield before processing
 
-    # Build added_at lookup for "Most Recent" filter
-    _added_at_lookup = {}
-    for p in all_papers:
-        added = p.get("added_at")
-        if added and len(added) >= 10:
-            try:
-                _added_at_lookup[p["id"]] = datetime.fromisoformat(added.replace("Z", "+00:00"))
-            except (ValueError, TypeError):
-                pass
+    # Run CPU-bound data preparation in thread pool to avoid blocking HTTP requests
+    def _prepare_data(all_papers, all_matches_raw):
+        _added_at_lookup = {}
+        for p in all_papers:
+            added = p.get("added_at")
+            if added and len(added) >= 10:
+                try:
+                    _added_at_lookup[p["id"]] = datetime.fromisoformat(added.replace("Z", "+00:00"))
+                except (ValueError, TypeError):
+                    pass
 
-    # Exclude experiment matches from public leaderboard
-    all_matches = [m for m in all_matches_raw if not m.get("mode")]
+        all_matches = [m for m in all_matches_raw if not m.get("mode")]
+
+        papers_by_cat = {}
+        for p in all_papers:
+            cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
+            papers_by_cat.setdefault(cat, []).append(p)
+
+        match_index = {}
+        for idx, m in enumerate(all_matches):
+            for pid in (m["paper1_id"], m["paper2_id"]):
+                if pid not in match_index:
+                    match_index[pid] = []
+                match_index[pid].append(idx)
+
+        return _added_at_lookup, all_matches, papers_by_cat, match_index
+
+    import concurrent.futures
+    _loop = asyncio.get_event_loop()
+    _added_at_lookup, all_matches, papers_by_cat, match_index = await _loop.run_in_executor(
+        None, _prepare_data, all_papers, all_matches_raw
+    )
+    await asyncio.sleep(0)
 
     utc_now = datetime.now(timezone.utc)
     categories_data = {}
-
-    # Group papers by primary category
-    papers_by_cat = {}
-    for p in all_papers:
-        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
-        papers_by_cat.setdefault(cat, []).append(p)
-
-    # Pre-index: build paper_id → list of match indices for O(1) lookup
-    match_index = {}  # paper_id -> [match_idx, ...]
-    for idx, m in enumerate(all_matches):
-        for pid in (m["paper1_id"], m["paper2_id"]):
-            if pid not in match_index:
-                match_index[pid] = []
-            match_index[pid].append(idx)
-    await asyncio.sleep(0)  # Yield after index build
 
     # Load settings once
     from core.auth import get_settings
@@ -158,6 +164,7 @@ async def _refresh_cache():
         cat_matches = [all_matches[i] for i in cat_match_idxs
                        if all_matches[i]["paper1_id"] in cat_paper_ids
                        and all_matches[i]["paper2_id"] in cat_paper_ids]
+        await asyncio.sleep(0)  # Yield after match filtering
 
         full = await compute_leaderboard_async(cat_papers, cat_matches)
 
