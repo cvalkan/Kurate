@@ -15,6 +15,7 @@ from core.auth import verify_admin, get_settings, invalidate_settings_cache
 from services.scheduler import run_fetch_cycle, run_comparison_round, get_scheduler_status, _get_cat_status, wake_scheduler
 from services.arxiv import fetch_arxiv_papers
 from routers.leaderboard import _cache as lb_cache
+from routers.validation_utils import collect_all
 
 router = APIRouter(prefix="/api/admin")
 
@@ -1161,7 +1162,6 @@ async def get_experiment_comparison(category: str = "cs.RO"):
     cat_paper_ids = {p["id"] for p in all_papers}
 
     # Load standard matches (no mode field or mode=standard)
-    from routers.validation_utils import collect_all
     all_matches_raw = await collect_all(db.matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "mode": 1, "completed": 1, "failed": 1},
