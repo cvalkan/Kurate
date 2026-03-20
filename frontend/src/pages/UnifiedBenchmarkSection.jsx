@@ -273,7 +273,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
               <Metric label="SI Accuracy" value={hSiAcc != null ? `${hSiAcc}%` : "\u2014"} sub={hHasSI ? `${hPairs?.toLocaleString()} ${hHasIntr ? "same" : "SI"} pairs` : "no SI data"} accent={hSiAcc != null && hSiAcc > (hPwAcc || 0)} />
             </div>
             <div className="border border-border rounded-lg p-3 bg-background">
-              <Metric label="SI Average Accuracy" value={(() => { const v = hasIntersection ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy; return v != null && v > 0 ? `${v}%` : "\u2014"; })()} sub="mean of (sig, rig, nov, cla)" accent={false} />
+              <Metric label="SI Average Accuracy" value={(() => { const v = hHasIntr ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy; return v != null && v > 0 ? `${v}%` : "\u2014"; })()} sub="mean of (sig, rig, nov, cla)" accent={false} />
             </div>
           </>);
         })()}
