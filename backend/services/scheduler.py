@@ -900,9 +900,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 "authors": 1, "arxiv_id": 1, "link": 1, "published": 1,
                 "pdf_link": 1, "added_at": 1, "summaries": 1,
             }
-            all_papers = await db.papers.find(
+            all_papers = await collect_all(db.papers.find(
                 {"categories.0": category}, _paper_fields
-            ).to_list(5000)
+            ))
 
             if len(all_papers) < 2:
                 cat_status["current_activity"] = "Not enough papers"
@@ -932,9 +932,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 dl_count = await _download_pending_pdfs(category=category)
                 if dl_count > 0:
                     # Re-fetch and re-apply the same summary filter
-                    refetched = await db.papers.find(
+                    refetched = await collect_all(db.papers.find(
                         {"categories.0": category}, _paper_fields
-                    ).to_list(5000)
+                    ))
                     all_papers = [
                         p for p in refetched
                         if p.get("summaries") and _get_paper_summary(p, required_key)
@@ -1122,10 +1122,10 @@ async def _generate_pending_summaries(category: str = None):
         "categories.0": category
     }
 
-    all_papers = await db.papers.find(
+    all_papers = await collect_all(db.papers.find(
         query,
         {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "authors": 1, "categories": 1},
-    ).to_list(5000)
+    ))
 
     if not all_papers:
         return

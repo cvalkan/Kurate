@@ -105,9 +105,9 @@ async def _extend_matches(category: str, num_matches: int, parallel: int):
         paper_ids = set(paper_lookup.keys())
 
         # Load summaries
-        sums_raw = await db.summary_bias_summaries.find(
+        sums_raw = await collect_all(db.summary_bias_summaries.find(
             {"category": category}, {"_id": 0, "paper_id": 1, "model_key": 1, "summary_text": 1}
-        ).to_list(10000)
+        ))
         sum_lookup = {(s["paper_id"], s["model_key"]): s["summary_text"] for s in sums_raw}
 
         # Get ALL existing matches for this category
@@ -299,10 +299,10 @@ async def _do_run_experiment(category: str, num_matches: int, parallel: int):
     paper_ids = set(paper_lookup.keys())
 
     # Load all summaries into a lookup
-    summaries_raw = await db.summary_bias_summaries.find(
+    summaries_raw = await collect_all(db.summary_bias_summaries.find(
         {"category": category},
         {"_id": 0, "paper_id": 1, "model_key": 1, "summary_text": 1}
-    ).to_list(10000)
+    ))
     sum_lookup = {(s["paper_id"], s["model_key"]): s["summary_text"] for s in summaries_raw}
 
     # Get existing matches for this category

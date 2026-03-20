@@ -281,7 +281,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     query = {"dataset_id": dataset_id}
     if require_si:
         query["single_item_score"] = {"$exists": True}
-    papers = await db.validation_papers.find(query, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find(query, PAPER_LIGHT_PROJECTION))
     if not papers:
         return None
 
@@ -1532,10 +1532,10 @@ async def dataset_rankings(dataset_id: str):
     import math
     from collections import defaultdict, Counter
 
-    papers = await db.validation_papers.find(
+    papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id},
         {"_id": 0, "id": 1, "title": 1, "evaluations": 1, "decision": 1, "h1_avg_rating": 1},
-    ).to_list(5000)
+    ))
     if not papers:
         return {"status": "no_data"}
 
@@ -1788,9 +1788,9 @@ async def _compute_ranking_quality(gt_type: str = "comp"):
 
 async def _compute_standalone_ranking(dataset_id: str):
     """Compute AI ranking quality for a single dataset using full independent data."""
-    papers = await db.validation_papers.find(
+    papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION,
-    ).to_list(5000)
+    ))
     if not papers:
         return None
 

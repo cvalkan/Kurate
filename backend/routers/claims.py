@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from core.config import db, logger
+from routers.validation_utils import collect_all
 from core.auth import verify_admin
 
 router = APIRouter(prefix="/api/claim")
@@ -632,10 +633,10 @@ async def reject_claim(paper_id: str, orcid_id: str):
 @router.get("/admin/verified", dependencies=[Depends(verify_admin)])
 async def list_verified_claims():
     """Admin: list all verified (accepted) claims."""
-    papers = await db.papers.find(
+    papers = await collect_all(db.papers.find(
         {"claimed_by": {"$elemMatch": {"verified": True}}},
         {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1, "claimed_by": 1},
-    ).to_list(5000)
+    ))
 
     user_ids = set()
     for p in papers:

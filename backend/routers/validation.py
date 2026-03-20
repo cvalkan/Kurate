@@ -192,7 +192,7 @@ async def _run_tournament(dataset_id: str, max_pairs: int, parallel: int, conten
     storage_mode = f"{content_mode}:{prompt_tag}" if prompt_tag else content_mode
 
     try:
-        papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}))
         lookup = {p["id"]: p for p in papers}
         pids = list(lookup.keys())
 
@@ -379,7 +379,7 @@ async def _run_multimodel(dataset_id: str, parallel: int, max_pairs: int = 0, co
     state.update({"running": True, "completed_matches": 0, "total_matches": 0, "current_pair": "Scanning...", "started_at": _time.time()})
 
     try:
-        papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}))
         lookup = {p["id"]: p for p in papers}
 
         # Get completed matches filtered by content_mode
@@ -501,7 +501,7 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
         return cached
 
     from core.config import TOURNAMENT_MODELS
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
     match_filter.update(build_content_mode_filter(content_mode))
     matches = await collect_all(db.validation_matches.find(
@@ -725,7 +725,7 @@ async def get_cycle_analysis(dataset_id: str = Query(...), content_mode: Optiona
     if cached:
         return cached
 
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
     match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}}
     match_filter.update(build_content_mode_filter(content_mode))
     all_matches = await collect_all(db.validation_matches.find(
@@ -1660,7 +1660,7 @@ async def get_pairwise_results(dataset_id: str = Query(...), abstract_only: Opti
     return result
 
 async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[bool], content_mode: Optional[str]):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
 
     # Handle virtual ensemble modes
     is_ensemble = content_mode and content_mode.startswith("ensemble:")
@@ -1998,7 +1998,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         top_k_values = _preloaded["top_k_values"]
         expert_ratings = _preloaded.get("expert_ratings", {})
     else:
-        papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
     if not papers:
         return {"status": "no_data"}
 
@@ -2395,7 +2395,7 @@ async def _compute_convergence_and_cache(dataset_id: str, steps: int = 20):
         modes.append({"id": "ensemble:unanimity", "label": "Unanimous (3/3 agree)", "matches": len(ensemble["unanimity"])})
 
     # Preload papers and human GT once for all modes (major perf optimization)
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
     if not papers:
         return {"status": "no_data"}
 
@@ -2511,7 +2511,7 @@ async def get_irt_results(dataset_id: str = Query(...), abstract_only: Optional[
     return result
 
 async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
 
     # Handle virtual ensemble modes
     is_ensemble = content_mode and content_mode.startswith("ensemble:")
@@ -2668,7 +2668,7 @@ async def get_agreement(dataset_id: str = Query(...), abstract_only: Optional[bo
     return result
 
 async def _compute_agreement(dataset_id: str, abstract_only, content_mode):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
 
     # Handle virtual ensemble modes
     is_ensemble = content_mode and content_mode.startswith("ensemble:")
@@ -2837,7 +2837,7 @@ async def get_cross_mode_agreement(dataset_id: str = Query(...)):
     return result
 
 async def _compute_cross_mode_agreement(dataset_id: str):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
     if not papers:
         return {"status": "no_data"}
 
@@ -3256,7 +3256,7 @@ async def generate_impact_summaries(body: GenerateSummariesRequest):
     if state["running"]:
         return {"status": "already_running", **state}
 
-    papers = await db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0}))
     if not papers:
         return {"status": "error", "message": "No papers found."}
 
@@ -3314,7 +3314,7 @@ async def _generate_summaries(dataset_id: str, papers: list, model_info: dict, p
 @router.get("/impact-summary-status")
 async def get_impact_summary_status(dataset_id: str = Query(...)):
     """Check how many papers have AI impact summaries."""
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0, "id": 1, "title": 1, "ai_impact_summary": 1, "ai_impact_summary_model": 1, "ai_impact_summary_words": 1}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0, "id": 1, "title": 1, "ai_impact_summary": 1, "ai_impact_summary_model": 1, "ai_impact_summary_words": 1}))
     with_summary = [p for p in papers if p.get("ai_impact_summary")]
     avg_words = round(sum(p.get("ai_impact_summary_words", 0) for p in with_summary) / max(len(with_summary), 1))
     return {
@@ -3338,7 +3338,7 @@ async def get_dual_dimension_results(dataset_id: str = Query(...), content_mode:
     return result
 
 async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optional[str]):
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION))
 
     # Check that papers have dual scores
     has_dual = [p for p in papers if p.get("sig_score") is not None and p.get("str_score") is not None]
@@ -3436,10 +3436,10 @@ async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optiona
 @router.get("/paper-summaries")
 async def get_paper_summaries(dataset_id: str = Query(...)):
     """Get AI impact summaries for all papers in a dataset."""
-    papers = await db.validation_papers.find(
+    papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id},
         {"_id": 0, "id": 1, "title": 1, "abstract": 1, "ai_impact_summary": 1, "ai_impact_summary_model": 1, "ai_impact_summary_words": 1},
-    ).to_list(5000)
+    ))
     result = []
     for p in papers:
         result.append({
@@ -3477,10 +3477,10 @@ async def run_summarizer_comparison(body: SummarizerComparisonRequest):
     _TIER_ORDER_EXT = {**TIER_ORDER, "short paper": 2}  # extend with MIDL-style tiers
 
     for ds_id in target_ds:
-        papers = await db.validation_papers.find(
+        papers = await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id, "ai_impact_summary_claude": {"$ne": None}},
             {"_id": 0},
-        ).to_list(5000)
+        ))
         if len(papers) < 2:
             continue
 
@@ -3712,7 +3712,7 @@ async def _run_summarizer_comparison(pairs: list, parallel: int):
 @router.get("/summarizer-comparison/results")
 async def get_summarizer_comparison_results():
     """Get results of Opus 4.5 vs 4.6 summarizer A/B test."""
-    docs = await db.summarizer_comparisons.find({}, {"_id": 0}).to_list(10000)
+    docs = await collect_all(db.summarizer_comparisons.find({}, {"_id": 0}))
     if not docs:
         return {"status": "no_data", "total": 0}
 
@@ -3851,7 +3851,7 @@ async def replay_tournament(body: ReplayTournamentRequest):
         existing.add((doc["paper1_id"], doc["paper2_id"]))
 
     # Filter: skip already done, cap at max_matches_per_paper
-    papers = await db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0, "id": 1}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0, "id": 1}))
     n_papers = len(papers)
     max_total = n_papers * body.max_matches_per_paper
     match_counts = {p["id"]: 0 for p in papers}
@@ -3958,7 +3958,7 @@ async def run_targeted_pairwise(body: TargetedPairwiseRequest):
     if state["running"]:
         return {"status": "already_running", **state}
 
-    papers = await db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": body.dataset_id}, {"_id": 0}))
     if not papers:
         return {"status": "error", "message": "No papers found."}
 
@@ -4014,7 +4014,7 @@ async def _run_targeted_pairwise(dataset_id: str, pairs: list, content_mode: str
 
     abstract_only = content_mode == "abstract"
     try:
-        papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}))
         lookup = {p["id"]: p for p in papers}
         prompt_config = DEFAULT_EVALUATION_PROMPT
         completed = 0

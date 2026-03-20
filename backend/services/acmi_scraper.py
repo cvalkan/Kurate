@@ -18,6 +18,7 @@ import requests
 from datetime import datetime, timezone
 from collections import defaultdict
 from core.config import db, logger
+from routers.validation_utils import collect_all
 
 DATASET_ID = "acmi-microbiology"
 SCIETY_GROUP_URL = "https://sciety.org/groups/access-microbiology"
@@ -259,10 +260,10 @@ async def get_scraper_status() -> dict:
 
 async def get_dataset_stats() -> dict:
     """Get stats about the scraped dataset."""
-    papers = await db.validation_papers.find(
+    papers = await collect_all(db.validation_papers.find(
         {"dataset_id": DATASET_ID},
         {"_id": 0, "id": 1, "title": 1, "composite_score": 1, "n_reviewers": 1, "evaluations": 1},
-    ).to_list(5000)
+    ))
 
     if not papers:
         return {"status": "no_data"}

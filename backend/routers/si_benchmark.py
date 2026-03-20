@@ -163,11 +163,11 @@ def _classify_difficulty(p1_id, p2_id, papers_by_id):
 
 async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = False):
     """Compute benchmark for a single dataset using single-item AI scores."""
-    papers = await db.validation_papers.find(
+    papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id, "single_item_score": {"$exists": True}},
         {"_id": 0, "id": 1, "title": 1, "evaluations": 1, "decision": 1,
          "h1_avg_rating": 1, "single_item_score": 1}
-    ).to_list(5000)
+    ))
 
     # Need papers with both human evaluations and AI scores
     papers = [p for p in papers if p.get("evaluations") and p.get("single_item_score") is not None]

@@ -387,9 +387,9 @@ async def trigger_backfill_summaries(body: BackfillSummariesRequest = BackfillSu
         query["categories.0"] = body.category
 
     # Count papers needing summaries
-    all_papers = await db.papers.find(
+    all_papers = await collect_all(db.papers.find(
         query, {"_id": 0, "id": 1, "summaries": 1}
-    ).to_list(5000)
+    ))
 
     from services.scheduler import _summary_model_key, _SUMMARY_GENERATION_MODELS
     model_keys = [_summary_model_key(m) for m in _SUMMARY_GENERATION_MODELS]
@@ -1060,9 +1060,9 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
     fields = {"_id": 0, "id": 1, "title": 1, "abstract": 1, "authors": 1, "arxiv_id": 1, "published": 1}
     if not abstract_only:
         fields["full_text"] = 1
-    all_papers = await db.papers.find(
+    all_papers = await collect_all(db.papers.find(
         {"categories.0": category}, fields,
-    ).to_list(5000)
+    ))
 
     if len(all_papers) < 2:
         logger.warning(f"Prediction: not enough papers for {category}")
@@ -1150,10 +1150,10 @@ async def get_experiment_comparison(category: str = "cs.RO"):
     from services.ranking import compute_leaderboard_async
 
     # Load papers
-    all_papers = await db.papers.find(
+    all_papers = await collect_all(db.papers.find(
         {"categories.0": category},
         {"_id": 0, "full_text": 0},
-    ).to_list(5000)
+    ))
 
     if not all_papers:
         return {"papers": [], "category": category, "standard_matches": 0, "prediction_matches": 0}
@@ -2042,9 +2042,9 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
 async def deduplicate_papers():
     """Find and merge duplicate papers (same title + first author).
     Keeps the paper with more matches, reassigns matches from the duplicate."""
-    all_papers = await db.papers.find(
+    all_papers = await collect_all(db.papers.find(
         {}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "summaries": 1, "full_text": 1}
-    ).to_list(5000)
+    ))
 
     # Group by normalized title + first author
     groups = defaultdict(list)

@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TOURNAMENT_MODELS
+from routers.validation_utils import collect_all
 from core.auth import verify_admin
 from services.llm import compare_papers, generate_precomparison_impact_summary
 
@@ -216,7 +217,7 @@ async def pw_summary_results():
 
 async def _pw_results(mode: str):
     ctx = _get_ctx(mode)
-    pairs = await ctx["collection"].find({"ai_completed": True}, {"_id": 0}).to_list(10000)
+    pairs = await collect_all(ctx["collection"].find({"ai_completed": True}, {"_id": 0}))
     if not pairs:
         return {"status": "no_data", "total": 0, "mode": mode}
 
@@ -749,7 +750,7 @@ async def _pw_summary_pipeline(parallel_agents: int = 5):
         _pw_summary_state["fetching"] = False
 
         # Get existing abstract pairs as template
-        existing_pairs = await db.qeios_pairwise_abstract.find({"ai_completed": True}, {"_id": 0}).to_list(10000)
+        existing_pairs = await collect_all(db.qeios_pairwise_abstract.find({"ai_completed": True}, {"_id": 0}))
         if not existing_pairs:
             logger.warning("Qeios summary: no abstract pairs to re-evaluate")
             return

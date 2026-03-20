@@ -75,10 +75,10 @@ async def _refresh_cache():
 
     # Run heavy MongoDB loads with yields between each to let requests through
     async def _load_data():
-        papers = await db.papers.find(
+        papers = await collect_all(db.papers.find(
             {"summaries": {"$exists": True, "$ne": {}}},
             {"_id": 0, "full_text": 0, "abstract": 0}
-        ).to_list(5000)
+        ))
         await asyncio.sleep(0)  # Yield after papers load
         matches = await collect_all(db.matches.find(
             {"completed": True, "failed": {"$ne": True}},
@@ -1405,10 +1405,10 @@ async def _compute_si_rating_stats(category, model):
     if category:
         query["categories.0"] = category
 
-    papers = await db.papers.find(
+    papers = await collect_all(db.papers.find(
         query,
         {"_id": 0, "id": 1, "ai_rating": 1, "ai_ratings_by_model": 1, "categories": 1}
-    ).to_list(10000)
+    ))
 
     # Determine which models have data (avoid double-counting)
     available_models = []
@@ -1619,7 +1619,7 @@ async def _compute_si_rating_stats(category, model):
             paper_query = {"summaries": {"$exists": True, "$ne": {}}}
             if category:
                 paper_query["categories.0"] = category
-            bt_papers = await db.papers.find(paper_query, {"_id": 0, "id": 1}).to_list(5000)
+            bt_papers = await collect_all(db.papers.find(paper_query, {"_id": 0, "id": 1}))
             if bt_papers and raw_matches:
                 lb = await compute_leaderboard_async(bt_papers, raw_matches)
                 bt_ranks = {e["id"]: e.get("score", 0) for e in lb}
@@ -1698,7 +1698,7 @@ async def _compute_convergence(category, steps):
         papers = [{"id": e["id"], "title": e["title"]} for e in cat_data.get("all", [])]
     else:
         paper_query = {"categories.0": category} if category else {}
-        papers = await db.papers.find(paper_query, {"_id": 0, "id": 1, "title": 1}).to_list(10000)
+        papers = await collect_all(db.papers.find(paper_query, {"_id": 0, "id": 1, "title": 1}))
 
     if len(papers) < 5:
         return {"status": "no_data"}

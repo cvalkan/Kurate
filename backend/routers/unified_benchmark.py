@@ -136,9 +136,9 @@ async def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
 
 async def _compute_unified_dataset(dataset_id, gt_type):
     """Evaluate PW and SI each on their full data against h1_avg_rating GT."""
-    papers = await db.validation_papers.find(
+    papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION
-    ).to_list(5000)
+    ))
     if not papers:
         return None
 

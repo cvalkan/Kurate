@@ -121,11 +121,11 @@ async def _run_single_item_scoring(dataset_id: str):
 
     _single_item_state.update({"running": True, "done": 0, "total": 0, "dataset_id": dataset_id})
 
-    papers = await db.validation_papers.find(
+    papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id},
         {"_id": 0, "id": 1, "title": 1, "abstract": 1, "ai_impact_summary": 1,
          "ai_impact_summary_thinking": 1, "ai_impact_summary_opus46": 1, "single_item_score": 1}
-    ).to_list(5000)
+    ))
 
     need_scoring = [p for p in papers if p.get("abstract") and not p.get("single_item_score")]
     _single_item_state["total"] = len(need_scoring)
@@ -189,11 +189,11 @@ async def _compute_single_item_results():
 
     all_results = []
     for ds_id in datasets_with_scores:
-        papers = await db.validation_papers.find(
+        papers = await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id, "single_item_score": {"$exists": True}},
             {"_id": 0, "id": 1, "title": 1, "h1_avg_rating": 1, "single_item_score": 1,
              "single_item_details": 1, "alphaxiv_likes": 1}
-        ).to_list(5000)
+        ))
 
         scored = [p for p in papers if p.get("single_item_score") and p.get("h1_avg_rating") is not None]
         if len(scored) < 5:
@@ -528,9 +528,9 @@ async def _compute_extended_thinking_results():
     by_dataset = {}
 
     for ds_id in all_datasets:
-        papers = await db.validation_papers.find(
+        papers = await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION
-        ).to_list(5000)
+        ))
 
         # Build expert pairwise preferences → majority vote per pair (same as tournament page)
         # For multi-reviewer datasets (ICLR): uses majority vote (≥2 votes required)
@@ -635,7 +635,7 @@ async def _run_extended_thinking(dataset_id: str, num_pairs: int):
 
     _thinking_state.update({"running": True, "done": 0, "total": 0, "step": "generating_summaries", "dataset_id": dataset_id})
 
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}))
     lookup = {p["id"]: p for p in papers}
 
     # Phase 1: Generate thinking summaries for papers that don't have one
@@ -670,7 +670,7 @@ async def _run_extended_thinking(dataset_id: str, num_pairs: int):
     _thinking_state.update({"step": "tournament", "done": 0})
 
     # Reload papers with thinking summaries
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}))
     lookup = {p["id"]: p for p in papers}
     pids_with_thinking = {p["id"] for p in papers if p.get(THINKING_FIELD)}
 
@@ -823,9 +823,9 @@ async def tie_experiment_results():
     by_dataset = {}
 
     for ds_id in all_datasets:
-        papers = await db.validation_papers.find(
+        papers = await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION
-        ).to_list(5000)
+        ))
 
         expert_ratings = build_expert_ratings(papers)
         expert_majority = build_expert_majority(expert_ratings)
@@ -1003,7 +1003,7 @@ async def _run_tie_experiment(dataset_id: str, num_pairs: int):
 
     _tie_state.update({"running": True, "done": 0, "total": 0, "ties": 0, "dataset_id": dataset_id})
 
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}))
     lookup = {p["id"]: p for p in papers}
     gt = build_paper_gt_scores(papers)
 
@@ -1183,9 +1183,9 @@ async def _compute_multi_aspect_results():
     by_dataset = {}
 
     for ds_id in all_datasets:
-        papers = await db.validation_papers.find(
+        papers = await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION
-        ).to_list(5000)
+        ))
 
         expert_ratings = build_expert_ratings(papers)
         expert_majority = build_expert_majority(expert_ratings)
@@ -1292,7 +1292,7 @@ async def _compute_multi_aspect_results():
     # McNemar: aggregate vs baseline
     a = b = c = d_val = 0
     for ds_id in all_datasets:
-        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION))
         expert_ratings = build_expert_ratings(papers)
         expert_majority = build_expert_majority(expert_ratings)
         total_ep = sum(1 for exp, ratings in expert_ratings.items() for i, aa in enumerate(ratings) for bb in list(ratings)[i+1:] if ratings[aa] != ratings[bb])
@@ -1346,7 +1346,7 @@ async def _compute_multi_aspect_results():
 
     agreement_strategies = {}
     for ds_id in all_datasets:
-        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION))
         paper_list = [{"id": p["id"], "title": p.get("title", "")} for p in papers]
 
         er2 = build_expert_ratings(papers)
@@ -1498,7 +1498,7 @@ async def _run_multi_aspect(dataset_id: str, num_pairs: int):
 
     _ma_state.update({"running": True, "done": 0, "total": 0, "dataset_id": dataset_id})
 
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}))
     lookup = {p["id"]: p for p in papers}
     gt = build_paper_gt_scores(papers)
 
@@ -1757,7 +1757,7 @@ async def _compute_assessor_evaluator():
     pooled_cells = defaultdict(lambda: {"rho_vals": [], "correct": 0, "total": 0})
 
     for ds_id in datasets:
-        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION))
         paper_list = [{"id": p["id"], "title": p.get("title", "")} for p in papers]
 
         er = build_expert_ratings(papers)
@@ -2032,7 +2032,7 @@ async def _compute_summarizer_ab_results():
     by_dataset = {}
 
     for ds_id in datasets:
-        papers = await db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION).to_list(5000)
+        papers = await collect_all(db.validation_papers.find({"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION))
         paper_list = [{"id": p["id"], "title": p.get("title", "")} for p in papers]
 
         expert_ratings = build_expert_ratings(papers)
@@ -2345,7 +2345,7 @@ async def _run_summarizer_ab(dataset_id: str, summarizer: str, num_pairs: int):
     _sumab_state.update({"running": True, "phase": "selecting pairs", "done": 0, "total": 0,
                          "dataset_id": dataset_id, "summarizer": summarizer})
 
-    papers = await db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}).to_list(5000)
+    papers = await collect_all(db.validation_papers.find({"dataset_id": dataset_id}, {"_id": 0}))
     lookup = {p["id"]: p for p in papers}
     gt = build_paper_gt_scores(papers)
 
@@ -3005,9 +3005,9 @@ async def _compute_institution_bias():
     inst_distribution = Counter()
 
     for ds_id in DATASETS:
-        papers = {p["id"]: p for p in await db.validation_papers.find(
+        papers = {p["id"]: p for p in await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id}, {"_id": 0, "id": 1, "full_text": 1, "h1_avg_rating": 1}
-        ).to_list(5000)}
+        ))}
 
         paper_insts = {pid: _extract_institutions(p.get("full_text")) for pid, p in papers.items()}
         paper_tier = {pid: _prestige_tier(insts) for pid, insts in paper_insts.items()}
@@ -3150,9 +3150,9 @@ async def _compute_institution_bias_samepair():
     judge_by_cat = defaultdict(lambda: defaultdict(lambda: {"c": 0, "t": 0}))
 
     for ds_id in DATASETS:
-        papers = {p["id"]: p for p in await db.validation_papers.find(
+        papers = {p["id"]: p for p in await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id}, {"_id": 0, "id": 1, "full_text": 1, "h1_avg_rating": 1}
-        ).to_list(5000)}
+        ))}
 
         paper_insts = {pid: _extract_institutions(p.get("full_text")) for pid, p in papers.items()}
         paper_tier = {pid: _prestige_tier(insts) for pid, insts in paper_insts.items()}
@@ -3281,9 +3281,9 @@ async def _compute_institution_bias_samepair():
     sum_by_cat = defaultdict(lambda: defaultdict(lambda: {"c": 0, "t": 0}))
 
     for ds_id in DATASETS:
-        papers_local = {p["id"]: p for p in await db.validation_papers.find(
+        papers_local = {p["id"]: p for p in await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id}, {"_id": 0, "id": 1, "full_text": 1, "h1_avg_rating": 1}
-        ).to_list(5000)}
+        ))}
         pinst = {pid: _extract_institutions(p.get("full_text")) for pid, p in papers_local.items()}
         ptier = {pid: _prestige_tier(i) for pid, i in pinst.items()}
         gt_local = {pid: p["h1_avg_rating"] for pid, p in papers_local.items() if p.get("h1_avg_rating") is not None}

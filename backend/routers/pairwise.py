@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TOURNAMENT_MODELS
+from routers.validation_utils import collect_all
 from core.auth import verify_admin
 from services.llm import compare_papers
 
@@ -634,10 +635,10 @@ async def _run_pairwise_tournament(parallel: int):
     _state["progress"] = {"phase": "running", "completed": 0, "total": 0}
 
     try:
-        pending = await db.pairwise_comparisons.find(
+        pending = await collect_all(db.pairwise_comparisons.find(
             {"ai_completed": False, "ai_failed": {"$ne": True}},
             {"_id": 0},
-        ).to_list(10000)
+        ))
 
         _state["progress"]["total"] = len(pending)
         prompt_config = DEFAULT_EVALUATION_PROMPT
@@ -712,10 +713,10 @@ async def _run_pairwise_tournament(parallel: int):
 
 @router.get("/results")
 async def get_results():
-    pairs = await db.pairwise_comparisons.find(
+    pairs = await collect_all(db.pairwise_comparisons.find(
         {"ai_completed": True},
         {"_id": 0},
-    ).to_list(10000)
+    ))
 
     if not pairs:
         return {"status": "no_data", "total": 0}

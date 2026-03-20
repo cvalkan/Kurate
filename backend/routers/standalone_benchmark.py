@@ -84,11 +84,11 @@ async def compute_standalone_dataset(dataset_id, ai_source="pairwise"):
 
     ai_source: 'pairwise' (match verdicts) or 'single_item' (single_item_score)
     """
-    papers = await db.validation_papers.find(
+    papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id},
         {"_id": 0, "id": 1, "title": 1, "h1_avg_rating": 1, "decision": 1,
          "single_item_score": 1, "evaluations": 1}
-    ).to_list(5000)
+    ))
 
     # Need papers with h1_avg_rating
     papers = [p for p in papers if p.get("h1_avg_rating") is not None]

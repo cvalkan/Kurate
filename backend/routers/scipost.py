@@ -443,10 +443,10 @@ async def stop():
 
 @router.get("/results")
 async def get_results():
-    comparisons = await db.scipost_comparisons.find(
+    comparisons = await collect_all(db.scipost_comparisons.find(
         {"ai_completed": True},
         {"_id": 0}
-    ).to_list(10000)
+    ))
     
     if not comparisons:
         return {"status": "no_data", "total": 0}
@@ -1052,7 +1052,7 @@ async def _pw_run_summary_mode(parallel_agents: int = 5):
         summary_map = {d["submission_id"]: d for d in summary_docs}
 
         # Get existing abstract pairs as template
-        existing = await db.scipost_pairwise.find({"ai_completed": True}, {"_id": 0}).to_list(10000)
+        existing = await collect_all(db.scipost_pairwise.find({"ai_completed": True}, {"_id": 0}))
         if not existing:
             logger.warning("SciPost summary: no abstract pairs to re-evaluate")
             return
@@ -1179,7 +1179,7 @@ async def pw_results_extract():
 
 async def _pw_results(mode: str = "abstract"):
     ctx = _get_pw_context(mode)
-    pairs = await ctx["collection"].find({"ai_completed": True}, {"_id": 0}).to_list(10000)
+    pairs = await collect_all(ctx["collection"].find({"ai_completed": True}, {"_id": 0}))
     if not pairs:
         return {"status": "no_data", "total": 0, "mode": mode}
 
