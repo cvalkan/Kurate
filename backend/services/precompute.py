@@ -36,6 +36,7 @@ EXPERIMENT_REGISTRY = [
     "human-ai-benchmark-stan",
     "unified-benchmark-comp",
     "unified-benchmark-stan",
+    "ai-ranking-quality-comp",
 ]
 
 
@@ -75,6 +76,9 @@ def _get_cache_and_fn(name):
     if name == "unified-benchmark-stan":
         from routers.unified_benchmark import _unified_cache, _compute_unified_benchmark
         return _unified_cache.setdefault("stan", {}), lambda: _compute_unified_benchmark("stan")
+    if name == "ai-ranking-quality-comp":
+        from routers.human_ai_benchmark import _ranking_quality_cache, _compute_ranking_quality
+        return _ranking_quality_cache.setdefault("comp", {}), lambda: _compute_ranking_quality("comp")
     cache, module_path, fn_name = mapping[name]
     import importlib
     mod = importlib.import_module(module_path)

@@ -1726,13 +1726,23 @@ async def dataset_rankings(dataset_id: str):
     }
 
 
+_ranking_quality_cache = {"comp": {"data": None}, "stan": {"data": None}}
+
+
 @router.get("/ai-ranking-quality")
 async def ai_ranking_quality(gt_type: str = Query("comp")):
-    """Standalone AI ranking quality: AI BT from all its matches vs human ground truth from all expert data.
-    
-    Unlike the controlled Human-vs-AI benchmark (same pairs), this page uses each method's
-    FULL available data independently — no intersection/filtering. Measures how well AI's
-    random-sample ranking matches the comprehensive human ranking.
+    """Standalone AI ranking quality — served from precomputed cache."""
+    cache = _ranking_quality_cache.get(gt_type, {})
+    if cache.get("data"):
+        return cache["data"]
+    return {"status": "no_data", "message": "AI ranking quality not precomputed. Run admin precompute-experiments."}
+
+
+async def _compute_ranking_quality(gt_type: str = "comp"):
+    """Compute standalone AI ranking quality: AI BT from all its matches vs human ground truth from all expert data.
+
+    Unlike the controlled Human-vs-AI benchmark (same pairs), this uses each method's
+    FULL available data independently — no intersection/filtering.
     """
     allowed = COMPARATIVE_GT_DATASETS if gt_type == "comp" else STANDALONE_GT_DATASETS
 
