@@ -1458,12 +1458,18 @@ async def _compute_si_rating_stats(category, model):
         if not vals:
             continue
         hist = Counter()
+        raw_hist = Counter()
         for v in vals:
             bucket = round(round(v * 2) / 2, 1)
             bucket = max(1.0, min(10.0, bucket))
             hist[bucket] += 1
+            raw_bucket = round(v, 1)
+            raw_bucket = max(1.0, min(10.0, raw_bucket))
+            raw_hist[raw_bucket] += 1
+        raw_bins = [round(1.0 + i * 0.1, 1) for i in range(91)]
         distributions[m] = {
             "histogram": [{"bin": b, "count": hist.get(b, 0)} for b in bins],
+            "raw_histogram": [{"bin": b, "count": raw_hist.get(b, 0)} for b in raw_bins],
             "mean": round(float(np.mean(vals)), 2),
             "median": round(float(np.median(vals)), 1),
             "std": round(float(np.std(vals, ddof=1)), 2) if len(vals) > 1 else 0,

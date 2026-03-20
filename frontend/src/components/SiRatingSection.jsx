@@ -27,10 +27,13 @@ const MODEL_TABS = [
   { id: "gemini", label: "Gemini 3 Pro" },
 ];
 
-function DistributionChart({ data, metric, color }) {
-  if (!data?.histogram) return null;
-  const maxCount = Math.max(...data.histogram.map(h => h.count), 1);
-  const barW = 100 / data.histogram.length;
+function DistributionChart({ data, metric, color, showRaw }) {
+  const histData = showRaw && data?.raw_histogram ? data.raw_histogram : data?.histogram;
+  if (!histData) return null;
+  const filtered = histData.filter(h => h.count > 0 || !showRaw);
+  const display = showRaw ? filtered : histData;
+  const maxCount = Math.max(...display.map(h => h.count), 1);
+  const barW = 100 / display.length;
 
   return (
     <div className="space-y-1.5">
@@ -42,7 +45,7 @@ function DistributionChart({ data, metric, color }) {
       </div>
       <div className="relative h-20 border border-border rounded bg-secondary/10" data-testid={`si-dist-${metric}`}>
         <svg viewBox="0 0 100 50" preserveAspectRatio="none" className="w-full h-full">
-          {data.histogram.map((h, i) => {
+          {display.map((h, i) => {
             const barH = (h.count / maxCount) * 45;
             return (
               <rect key={h.bin} x={i * barW + barW * 0.1} y={50 - barH}
@@ -220,6 +223,7 @@ function CategoryBreakdown({ categories }) {
 
 export function SiRatingSection({ category }) {
   const [data, setData] = useState(null);
+  const [showRawDist, setShowRawDist] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedModel, setSelectedModel] = useState(null);
   const cacheRef = useRef({});
@@ -301,10 +305,18 @@ export function SiRatingSection({ category }) {
       ) : (
         <>
           {/* Distributions grid */}
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-muted-foreground">Score Distribution</span>
+            <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer">
+              <input type="checkbox" checked={showRawDist} onChange={e => setShowRawDist(e.target.checked)}
+                className="rounded border-border h-3 w-3" />
+              Full resolution (0.1 steps)
+            </label>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             {metrics.map(m => (
               data.distributions[m] && (
-                <DistributionChart key={m} data={data.distributions[m]} metric={m} color={METRIC_COLORS[m]} />
+                <DistributionChart key={m} data={data.distributions[m]} metric={m} color={METRIC_COLORS[m]} showRaw={showRawDist} />
               )
             ))}
           </div>
