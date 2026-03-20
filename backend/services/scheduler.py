@@ -288,9 +288,6 @@ async def _compare_loop():
     global _wake_event
     await asyncio.sleep(5)
 
-    _last_full_check = 0  # timestamp of last full stat/goal check
-    _IDLE_CHECK_INTERVAL = 300  # Only re-check goals every 5 minutes when idle
-
     while _scheduler_running:
         try:
             settings = await get_settings()
@@ -308,62 +305,50 @@ async def _compare_loop():
             if not all_tournament_cats:
                 all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
-            # Skip expensive per-category stats when system is paused — no comparisons running
             if not is_paused and active_cats:
-                import time as _time
-                now = _time.time()
-                # Only run expensive stat/goal checks when:
-                # 1. Explicitly woken (new data via wake_scheduler), OR
-                # 2. Enough time passed since last full check (IDLE_CHECK_INTERVAL)
-                should_full_check = _wake_event.is_set() or (now - _last_full_check >= _IDLE_CHECK_INTERVAL)
+                # Update per-category paper/match counts and tournament stats
+                for cat in all_tournament_cats:
+                    cat_status = _get_cat_status(cat)
+                    cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
+                    cat_status["papers_count"] = cat_paper_count
+                    cat_match_count = await db.matches.count_documents(
+                        {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
+                    )
+                    cat_status["matches_count"] = cat_match_count
+                    await update_tournament_stats(cat)
 
-                if should_full_check:
-                    _last_full_check = now
+                # Mark paused categories
+                paused_cats = all_tournament_cats - set(active_cats)
+                for cat in paused_cats:
+                    _get_cat_status(cat)["current_activity"] = "Tournament paused"
 
-                    # Update per-category paper/match counts and tournament stats
-                    for cat in all_tournament_cats:
-                        cat_status = _get_cat_status(cat)
-                        cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
-                        cat_status["papers_count"] = cat_paper_count
-                        cat_match_count = await db.matches.count_documents(
-                            {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
-                        )
-                        cat_status["matches_count"] = cat_match_count
-                        await update_tournament_stats(cat)
-
-                    # Mark paused categories
-                    paused_cats = all_tournament_cats - set(active_cats)
-                    for cat in paused_cats:
-                        _get_cat_status(cat)["current_activity"] = "Tournament paused"
-
-                    unmet_cats = []
-                    for cat in active_cats:
-                        paper_count = _get_cat_status(cat).get("papers_count", 0)
-                        if paper_count < min_papers:
-                            _get_cat_status(cat)["current_activity"] = f"Insufficient papers ({paper_count}/{min_papers})"
-                            continue
-                        tid = f"cat={cat}|mode=standard"
-                        t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "compare_paused": 1})
-                        if t_doc and t_doc.get("compare_paused"):
-                            _get_cat_status(cat)["current_activity"] = "Comparisons paused"
-                            continue
-                        if not await _check_goals_met(category=cat):
-                            unmet_cats.append(cat)
-
-                    if unmet_cats:
-                        # Run categories in batches to avoid overwhelming DB and event loop
-                        batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
-                        for i in range(0, len(unmet_cats), batch_size):
-                            batch = unmet_cats[i:i+batch_size]
-                            tasks = [run_comparison_round(category=cat) for cat in batch]
-                            await asyncio.gather(*tasks, return_exceptions=True)
-                            await asyncio.sleep(2)  # Brief yield between batches
-                        await asyncio.sleep(5)
+                unmet_cats = []
+                for cat in active_cats:
+                    paper_count = _get_cat_status(cat).get("papers_count", 0)
+                    if paper_count < min_papers:
+                        _get_cat_status(cat)["current_activity"] = f"Insufficient papers ({paper_count}/{min_papers})"
                         continue
-                    else:
-                        for cat in active_cats:
-                            if _get_cat_status(cat).get("papers_count", 0) >= min_papers:
-                                _get_cat_status(cat)["current_activity"] = "Goals met — idle"
+                    tid = f"cat={cat}|mode=standard"
+                    t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "compare_paused": 1})
+                    if t_doc and t_doc.get("compare_paused"):
+                        _get_cat_status(cat)["current_activity"] = "Comparisons paused"
+                        continue
+                    if not await _check_goals_met(category=cat):
+                        unmet_cats.append(cat)
+
+                if unmet_cats:
+                    batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
+                    for i in range(0, len(unmet_cats), batch_size):
+                        batch = unmet_cats[i:i+batch_size]
+                        tasks = [run_comparison_round(category=cat) for cat in batch]
+                        await asyncio.gather(*tasks, return_exceptions=True)
+                        await asyncio.sleep(2)
+                    # After a round completes, loop immediately to check if more work needed
+                    continue
+                else:
+                    for cat in active_cats:
+                        if _get_cat_status(cat).get("papers_count", 0) >= min_papers:
+                            _get_cat_status(cat)["current_activity"] = "Goals met — idle"
             elif is_paused:
                 for cat in all_tournament_cats:
                     _get_cat_status(cat)["current_activity"] = "System paused"
@@ -371,12 +356,9 @@ async def _compare_loop():
         except Exception as e:
             logger.error(f"Compare loop error: {e}")
 
-        # Wait up to 30s, but wake immediately if signaled
+        # Sleep until explicitly woken by wake_scheduler() — no polling
         _wake_event.clear()
-        try:
-            await asyncio.wait_for(_wake_event.wait(), timeout=30)
-        except asyncio.TimeoutError:
-            pass
+        await _wake_event.wait()
 
 
 async def _store_ranking_snapshot(category: str):
@@ -590,6 +572,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         if new_count > 0:
             from routers.leaderboard import notify_data_changed
             notify_data_changed()
+            wake_scheduler()  # New papers → compare loop should check for unmet goals
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
 
     except Exception as e:
@@ -859,6 +842,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
         if generated > 0:
             from routers.leaderboard import notify_data_changed
             notify_data_changed()
+            wake_scheduler()  # New summaries → papers now eligible for comparison
 
     # Finalize progress tracker
     prog = _summary_gen_progress.get(prog_key)
