@@ -447,8 +447,9 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
         <strong>Methodological note:</strong> The existing AI matches were generated under a pair-selection filter that
         excluded <strong>within-tier comparisons</strong> (e.g. Poster vs. Poster). All {data.total_controlled_pairs?.toLocaleString()} controlled
         pairs are cross-tier or adjacent-tier — 0% within-tier. This inflates absolute {"\u03C1"} values because AI was only
-        tested on easier pairs. The head-to-head AI-vs-human comparison remains fair (same bias for both sides), but
-        the numbers overstate ranking quality on the full pair population. The filter has been removed for future runs.
+        tested on easier pairs. The head-to-head comparison uses the same pair set, but the impact of the missing
+        within-tier pairs on AI vs. human is unknown — future runs with the corrected matchmaking will clarify this.
+        The filter has been removed.
         See <em>AI Ranking Quality</em> for a standalone assessment using full human data as ground truth.
       </div>
       <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance, hh_cf: p.tie_stats?.cf_concordance_rate, ai_h_cf: p.ai_h_cf_concordance }} />
