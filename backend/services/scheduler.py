@@ -224,13 +224,16 @@ async def start_scheduler():
 
 
 async def _fetch_loop():
-    """Independent loop for fetching papers + generating summaries. Never blocks comparisons."""
+    """Independent loop for fetching papers + generating summaries. Never blocks comparisons.
+    Sleeps until the next fetch is due — no polling."""
     await asyncio.sleep(8)  # Let compare loop start first
 
     while _scheduler_running:
+        next_due_seconds = float("inf")
         try:
             settings = await get_settings()
-            interval_hours = settings.get("fetch_interval_hours", 24)
+            interval_hours = settings.get("fetch_interval_hours", 6)
+            now = datetime.now(timezone.utc)
 
             fetch_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
             for cat in fetch_cats:
@@ -251,15 +254,8 @@ async def _fetch_loop():
                         if isinstance(nested, dict):
                             last_fetch = nested.get(parts[1])
 
-                should_fetch = False
                 if not last_fetch:
-                    should_fetch = True
-                else:
-                    last_dt = datetime.fromisoformat(last_fetch)
-                    if datetime.now(timezone.utc) - last_dt > timedelta(hours=interval_hours):
-                        should_fetch = True
-
-                if should_fetch:
+                    # Never fetched — fetch now
                     await run_fetch_cycle(category=cat)
                     now_iso = datetime.now(timezone.utc).isoformat()
                     await db.settings.update_one(
@@ -268,19 +264,33 @@ async def _fetch_loop():
                         upsert=True,
                     )
                     cat_status["last_fetch_at"] = now_iso
+                    cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
+                else:
+                    last_dt = datetime.fromisoformat(last_fetch)
+                    next_dt = last_dt + timedelta(hours=interval_hours)
+                    cat_status["next_fetch_at"] = next_dt.isoformat()
 
-                # Compute next fetch time
-                settings_refreshed = await get_settings()
-                cat_last = settings_refreshed.get(last_fetch_key)
-                if cat_last:
-                    last_dt = datetime.fromisoformat(cat_last)
-                    cat_status["next_fetch_at"] = (last_dt + timedelta(hours=interval_hours)).isoformat()
+                    if now >= next_dt:
+                        await run_fetch_cycle(category=cat)
+                        now_iso = datetime.now(timezone.utc).isoformat()
+                        await db.settings.update_one(
+                            {"key": "global"},
+                            {"$set": {last_fetch_key: now_iso}},
+                            upsert=True,
+                        )
+                        cat_status["last_fetch_at"] = now_iso
+                        cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
+                    else:
+                        # Track when next fetch is due
+                        secs_until = (next_dt - now).total_seconds()
+                        next_due_seconds = min(next_due_seconds, secs_until)
 
         except Exception as e:
             logger.error(f"Fetch loop error: {e}")
 
-        # Check every 60s whether any category needs fetching
-        await asyncio.sleep(60)
+        # Sleep until next fetch is due (minimum 60s to avoid busy-loop on errors)
+        sleep_time = max(60, min(next_due_seconds, interval_hours * 3600)) if next_due_seconds != float("inf") else interval_hours * 3600
+        await asyncio.sleep(sleep_time)
 
 
 async def _compare_loop():
