@@ -338,9 +338,10 @@ async def _compare_loop():
                         unmet_cats.append(cat)
 
                 if unmet_cats:
-                    # Run at most 2 categories at a time to avoid overwhelming DB and event loop
-                    for i in range(0, len(unmet_cats), 2):
-                        batch = unmet_cats[i:i+2]
+                    # Run categories in batches to avoid overwhelming DB and event loop
+                    batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
+                    for i in range(0, len(unmet_cats), batch_size):
+                        batch = unmet_cats[i:i+batch_size]
                         tasks = [run_comparison_round(category=cat) for cat in batch]
                         await asyncio.gather(*tasks, return_exceptions=True)
                         await asyncio.sleep(2)  # Brief yield between batches

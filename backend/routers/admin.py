@@ -52,6 +52,7 @@ class SettingsUpdate(BaseModel):
     fetch_interval_hours: Optional[int] = None
     max_papers_per_fetch: Optional[int] = None
     parallel_agents: Optional[int] = None
+    parallel_categories: Optional[int] = None
     top_k_focus: Optional[int] = None
     max_new_matches_per_round: Optional[int] = None
     ci_target: Optional[int] = None
@@ -574,6 +575,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
     parallel_agents = settings.get("parallel_agents", 5)
+    parallel_categories = settings.get("parallel_categories", 2)
 
     direct_papers = await db.papers.find(
         {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
