@@ -10,6 +10,7 @@ const METRIC_LABELS = {
   rigor: "Rigor",
   novelty: "Novelty",
   clarity: "Clarity",
+  subscore_avg: "Subscore Average",
 };
 
 const METRIC_COLORS = {
@@ -18,6 +19,7 @@ const METRIC_COLORS = {
   rigor: "#ef4444",
   novelty: "#8b5cf6",
   clarity: "#22c55e",
+  subscore_avg: "#6366f1",
 };
 
 const MODEL_TABS = [
@@ -253,7 +255,7 @@ export function SiRatingSection({ category }) {
     fetchData();
   }, [fetchData]);
 
-  const metrics = useMemo(() => ["score", "significance", "rigor", "novelty", "clarity"], []);
+  const metrics = useMemo(() => ["score", "subscore_avg", "significance", "rigor", "novelty", "clarity"], []);
 
   if (loading && !data) return <div className="h-40 bg-secondary/20 rounded-lg animate-pulse" />;
 

@@ -1446,14 +1446,25 @@ async def _compute_si_rating_stats(category, model):
         }
 
     METRICS = ["score", "significance", "rigor", "novelty", "clarity"]
+    SUB_METRICS = ["significance", "rigor", "novelty", "clarity"]
 
     arrays = {}
     for m in METRICS:
         arrays[m] = [p["rating"].get(m, 0) for p in filtered if p["rating"].get(m)]
 
+    # Compute per-paper average of subscores
+    subscore_avgs = []
+    for p in filtered:
+        subs = [p["rating"].get(m) for m in SUB_METRICS if p["rating"].get(m)]
+        if len(subs) >= 2:
+            subscore_avgs.append(round(sum(subs) / len(subs), 2))
+    arrays["subscore_avg"] = subscore_avgs
+
+    ALL_METRICS = METRICS + ["subscore_avg"]
+
     bins = [round(1.0 + i * 0.5, 1) for i in range(19)]
     distributions = {}
-    for m in METRICS:
+    for m in ALL_METRICS:
         vals = arrays[m]
         if not vals:
             continue
