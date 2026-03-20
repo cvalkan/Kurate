@@ -14,7 +14,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function BTCorrelationTable({ pwCorrs, siCorrs }) {
+function BTCorrelationTable({ pwCorrs, siCorrs, siSubRho }) {
   if (!pwCorrs && !siCorrs) return null;
   const rows = [
     { key: "vs_individual", label: "vs Individual aggregate", desc: "BT vs all-expert-votes BT" },
@@ -27,7 +27,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs }) {
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
         <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry) — PW vs SI</span>
+        <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry) — PW vs SI vs SI Sub-Avg</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
@@ -36,6 +36,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs }) {
               <th className="py-1.5 px-2 text-left font-medium">Comparison</th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-violet-500/[0.06]" colSpan={2}>Pairwise (PW)</th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.06]" colSpan={2}>Single-Item (SI)</th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.03]">{"\u03C1"} Sub-Avg</th>
               <th className="py-1.5 px-2 text-left font-medium">Description</th>
             </tr>
             <tr className="border-b border-border text-muted-foreground text-[9px]">
@@ -44,6 +45,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs }) {
               <th className="py-0.5 px-1.5 text-right bg-violet-500/[0.06]">{"\u03C4"}</th>
               <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.06]">{"\u03C1"}</th>
               <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.06]">{"\u03C4"}</th>
+              <th className="py-0.5 px-1.5 text-right bg-emerald-500/[0.03]">{"\u03C1"}</th>
               <th></th>
             </tr>
           </thead>
@@ -59,6 +61,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs }) {
                   <td className="py-1.5 px-1.5 text-right font-mono bg-violet-500/[0.06] text-foreground/60">{f(pw?.tau)}</td>
                   <td className={`py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${!pwWins ? "font-semibold" : ""}`}>{f(si?.rho)}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.06] text-foreground/60">{f(si?.tau)}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono bg-emerald-500/[0.03]">{r.key === "vs_avg_rating" ? f(siSubRho) : "\u2014"}</td>
                   <td className="py-1.5 px-2 text-muted-foreground text-[10px]">{pw?.desc || si?.desc || r.desc}</td>
                 </tr>
               );
@@ -310,7 +313,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
         const siPooled = {};
         allKeys.forEach(k => { pwPooled[k] = pool("pw", k); siPooled[k] = pool("si", k); });
         const hasData = Object.values(pwPooled).some(v => v) || Object.values(siPooled).some(v => v);
-        return hasData ? <BTCorrelationTable pwCorrs={pwPooled} siCorrs={siPooled} /> : null;
+        return hasData ? <BTCorrelationTable pwCorrs={pwPooled} siCorrs={siPooled} siSubRho={data.pooled?.si_sub_rho} /> : null;
       })()}
       <DatasetTable datasets={data.per_dataset} />
     </div>
