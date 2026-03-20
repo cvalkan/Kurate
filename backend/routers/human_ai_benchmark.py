@@ -688,47 +688,35 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
                         ds["tier_hh"][0] += 1
 
     # --- Layer 5: BT rank correlation ---
-    # Use FULL expert data for BT baselines (not restricted to controlled pairs).
-    # This ensures AI and human rankings are independently derived:
-    # - AI BT from its random thinking-mode matches
-    # - Human BT from ALL expert pairs with ≥2 non-tying opinions
-    # The pairwise agreement metrics (Layer 3/4) still use controlled pairs.
-
-    # All expert pairs with ≥2 non-tying opinions (superset of controlled pairs)
-    all_expert_pairs_ge2 = {p for p, v in expert_pair_prefs.items() if len(v) >= 2}
-
-    # Human BT from majority vote — ALL expert pairs
+    # Build human BT from committee (majority) matches — CONTROLLED PAIRS ONLY.
+    # For fair AI-vs-human comparison, both must use the same pair set.
     human_committee_matches = []
-    for pair in all_expert_pairs_ge2:
+    for pair in controlled_pairs:
         if pair in expert_majority:
             human_committee_matches.append({
                 "paper1_id": pair[0], "paper2_id": pair[1],
                 "winner_id": expert_majority[pair],
                 "completed": True, "failed": False,
             })
-    # Human BT from individual expert votes — ALL expert pairs
+    # Human BT from individual expert votes — CONTROLLED PAIRS ONLY
     human_individual_matches = []
-    for pair in all_expert_pairs_ge2:
+    for pair in controlled_pairs:
         for exp, winner in expert_pair_prefs[pair].items():
             human_individual_matches.append({
                 "paper1_id": pair[0], "paper2_id": pair[1],
                 "winner_id": winner,
                 "completed": True, "failed": False,
             })
-    # AI BT from ALL thinking-mode matches
+    # AI BT from ALL thinking-mode matches (includes controlled pairs and any extras)
     all_ai_bt_matches = [
         {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
          "winner_id": m["winner_id"], "completed": True, "failed": False}
         for m in ai_raw if m.get("winner_id")
     ]
-    # Paper universe: union of all papers seen by AI or experts
     all_bt_paper_ids = set()
     for m in ai_raw:
         all_bt_paper_ids.add(m["paper1_id"])
         all_bt_paper_ids.add(m["paper2_id"])
-    for pair in all_expert_pairs_ge2:
-        all_bt_paper_ids.add(pair[0])
-        all_bt_paper_ids.add(pair[1])
     all_bt_papers = [papers_by_id[pid] for pid in all_bt_paper_ids if pid in papers_by_id]
 
     ctrl_paper_ids = set()
@@ -837,9 +825,9 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
         indiv_rank = {e["id"]: e["score"] for e in compute_leaderboard(all_bt_papers, human_individual_matches)}
 
     for exp in experts_with_data:
-        # Expert's own BT: from ALL pairs where they had a non-tie preference
+        # Expert's own BT: from controlled pairs where they had a preference
         exp_matches = []
-        for pair in all_expert_pairs_ge2:
+        for pair in controlled_pairs:
             if exp in expert_pair_prefs.get(pair, {}):
                 exp_matches.append({
                     "paper1_id": pair[0], "paper2_id": pair[1],
@@ -869,7 +857,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
         # LOO committee for this expert: build BT from all OTHER experts' preferences (majority vote)
         loo_matches = []
-        for pair in all_expert_pairs_ge2:
+        for pair in controlled_pairs:
             prefs = expert_pair_prefs.get(pair, {})
             others = {e: w for e, w in prefs.items() if e != exp}
             if len(others) < 2:
@@ -894,7 +882,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
         # LOO Individual Aggregate BT: each other expert's preference = 1 separate BT match
         loo_indiv_matches = []
-        for pair in all_expert_pairs_ge2:
+        for pair in controlled_pairs:
             prefs = expert_pair_prefs.get(pair, {})
             for other_exp, winner in prefs.items():
                 if other_exp != exp:
@@ -915,7 +903,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
 
         # LOO h1_avg: average of all OTHER experts' scores per paper
         loo_avg = {}
-        for pid in all_bt_paper_ids:
+        for pid in ctrl_paper_ids:
             other_scores = []
             for other_exp, ratings in experts_with_data.items():
                 if other_exp == exp:
@@ -1735,4 +1723,209 @@ async def dataset_rankings(dataset_id: str):
         "n_ai_matches": len(ai_bt_matches),
         "ai_content_mode": ai_content_mode,
         "papers": rows,
+    }
+
+
+@router.get("/ai-ranking-quality")
+async def ai_ranking_quality(gt_type: str = Query("comp")):
+    """Standalone AI ranking quality: AI BT from all its matches vs human ground truth from all expert data.
+    
+    Unlike the controlled Human-vs-AI benchmark (same pairs), this page uses each method's
+    FULL available data independently — no intersection/filtering. Measures how well AI's
+    random-sample ranking matches the comprehensive human ranking.
+    """
+    allowed = COMPARATIVE_GT_DATASETS if gt_type == "comp" else STANDALONE_GT_DATASETS
+
+    ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
+    all_ds_ids = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)
+                  if r["_id"] in allowed]
+
+    meta_docs = await db.validation_datasets.find({}, {"_id": 0, "dataset_id": 1, "name": 1}).to_list(200)
+    ds_names = {d["dataset_id"]: d.get("name", d["dataset_id"]) for d in meta_docs}
+
+    per_dataset = []
+    pooled_rhos = {"indiv": [], "maj": [], "tier": [], "avg_rating": []}
+
+    for ds_id in all_ds_ids:
+        result = await _compute_standalone_ranking(ds_id)
+        if result is None:
+            continue
+        result["name"] = ds_names.get(ds_id, ds_id)
+        per_dataset.append(result)
+
+        for key in pooled_rhos:
+            val = result.get("bt", {}).get(key, {})
+            rho = val.get("spearman_rho") if isinstance(val, dict) else val
+            if rho is not None:
+                pooled_rhos[key].append(rho)
+
+    if not per_dataset:
+        return {"status": "no_data"}
+
+    pooled_bt = {}
+    for key, vals in pooled_rhos.items():
+        if vals:
+            pooled_bt[key] = {"spearman_rho": safe_round(float(np.mean(vals))), "n_datasets": len(vals)}
+
+    return {
+        "status": "ok",
+        "gt_type": gt_type,
+        "n_datasets": len(per_dataset),
+        "pooled_bt": pooled_bt,
+        "per_dataset": per_dataset,
+    }
+
+
+async def _compute_standalone_ranking(dataset_id: str):
+    """Compute AI ranking quality for a single dataset using full independent data."""
+    papers = await db.validation_papers.find(
+        {"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION,
+    ).to_list(5000)
+    if not papers:
+        return None
+
+    papers_by_id = {p["id"]: p for p in papers}
+    paper_ids = [p["id"] for p in papers]
+
+    # --- Expert data: ALL pairs with ≥2 non-tying opinions ---
+    expert_ratings = build_expert_ratings(papers)
+    experts_with_data = {e: r for e, r in expert_ratings.items() if len(r) >= 3}
+
+    if len(experts_with_data) < 2:
+        return None
+
+    expert_pair_prefs = defaultdict(dict)
+    for exp, ratings in experts_with_data.items():
+        rated_ids = list(ratings.keys())
+        for i in range(len(rated_ids)):
+            for j in range(i + 1, len(rated_ids)):
+                a, b = rated_ids[i], rated_ids[j]
+                if ratings[a] == ratings[b]:
+                    continue
+                pair = tuple(sorted([a, b]))
+                expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
+
+    all_expert_pairs_ge2 = {p for p, v in expert_pair_prefs.items() if len(v) >= 2}
+
+    expert_majority = {}
+    for pair, votes in expert_pair_prefs.items():
+        if len(votes) < 2:
+            continue
+        c = Counter(votes.values())
+        best, n = c.most_common(1)[0]
+        if n > len(votes) / 2:
+            expert_majority[pair] = best
+
+    # Human BT baselines from ALL expert data
+    human_indiv_matches = []
+    for pair in all_expert_pairs_ge2:
+        for exp, winner in expert_pair_prefs[pair].items():
+            human_indiv_matches.append({
+                "paper1_id": pair[0], "paper2_id": pair[1],
+                "winner_id": winner, "completed": True, "failed": False,
+            })
+
+    human_maj_matches = []
+    for pair in all_expert_pairs_ge2:
+        if pair in expert_majority:
+            human_maj_matches.append({
+                "paper1_id": pair[0], "paper2_id": pair[1],
+                "winner_id": expert_majority[pair], "completed": True, "failed": False,
+            })
+
+    # --- AI data: ALL thinking-mode matches ---
+    sample = await db.validation_papers.find_one(
+        {"dataset_id": dataset_id, "ai_impact_summary_thinking": {"$exists": True, "$ne": None}},
+        {"_id": 0, "id": 1},
+    )
+    ai_content_mode = "abstract_plus_summary:thinking" if sample else "abstract_plus_summary"
+    mode_count = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": ai_content_mode})
+    if mode_count == 0:
+        ai_content_mode = "abstract_plus_summary"
+
+    ai_raw = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "content_mode": ai_content_mode},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(100000)
+
+    ai_bt_matches = [
+        {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+         "winner_id": m["winner_id"], "completed": True, "failed": False}
+        for m in ai_raw if m.get("winner_id")
+    ]
+
+    if len(ai_bt_matches) < 10 or len(human_indiv_matches) < 10:
+        return None
+
+    # Paper universe: all papers in the dataset
+    all_papers = papers
+
+    # Compute leaderboards
+    ai_lb = compute_leaderboard(all_papers, ai_bt_matches)
+    h_indiv_lb = compute_leaderboard(all_papers, human_indiv_matches)
+    h_maj_lb = compute_leaderboard(all_papers, human_maj_matches) if human_maj_matches else []
+
+    ai_rank = {e["id"]: e["score"] for e in ai_lb}
+    h_indiv_rank = {e["id"]: e["score"] for e in h_indiv_lb}
+    h_maj_rank = {e["id"]: e["score"] for e in h_maj_lb}
+
+    def _correlate(a_rank, h_rank):
+        shared = sorted(set(a_rank.keys()) & set(h_rank.keys()))
+        if len(shared) < 5:
+            return None, None
+        sp, _ = scipy_stats.spearmanr([a_rank[p] for p in shared], [h_rank[p] for p in shared])
+        kt, _ = scipy_stats.kendalltau([a_rank[p] for p in shared], [h_rank[p] for p in shared])
+        rho = float(sp) if not np.isnan(sp) else None
+        tau = float(kt) if not np.isnan(kt) else None
+        return rho, tau
+
+    bt = {}
+    rho, tau = _correlate(ai_rank, h_indiv_rank)
+    bt["indiv"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+
+    rho, tau = _correlate(ai_rank, h_maj_rank)
+    bt["maj"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+
+    # AI vs tier decisions
+    tier_score_map = {}
+    for p in papers:
+        t = norm_tier(p.get("decision"))
+        if t and t in TIER_ORDER:
+            tier_score_map[p["id"]] = TIER_ORDER[t]
+    if len(tier_score_map) >= 5:
+        # Invert so higher tier = higher score
+        rho, tau = _correlate(ai_rank, {pid: -s for pid, s in tier_score_map.items()})
+        bt["tier"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+
+    # AI vs average rating
+    avg_rating_map = {}
+    for p in papers:
+        r = p.get("h1_avg_rating")
+        if r is None:
+            evals = p.get("evaluations", [])
+            vals = [e["rating_value"] for e in evals if e.get("rating_value")]
+            r = sum(vals) / len(vals) if vals else None
+        if r is not None:
+            avg_rating_map[p["id"]] = r
+    if len(avg_rating_map) >= 5:
+        rho, _ = _correlate(ai_rank, avg_rating_map)
+        bt["avg_rating"] = safe_round(rho)
+
+    # Count AI pair overlap with expert pairs
+    ai_pairs = set()
+    for m in ai_raw:
+        if m.get("winner_id"):
+            ai_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+    overlap = len(ai_pairs & all_expert_pairs_ge2)
+
+    return {
+        "dataset_id": dataset_id,
+        "n_papers": len(papers),
+        "n_ai_matches": len(ai_bt_matches),
+        "n_ai_pairs": len(ai_pairs),
+        "n_expert_pairs": len(all_expert_pairs_ge2),
+        "pair_overlap": overlap,
+        "bt": bt,
     }

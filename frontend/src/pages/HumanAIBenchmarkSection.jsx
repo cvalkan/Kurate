@@ -518,11 +518,8 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
             </div>
             <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                All BT rankings use each method{"'"}s <strong>full match data independently</strong>: AI BT is built from all
-                thinking-mode matches (1 judge per pair on a random subset); human aggregate BT is built from <em>all</em> expert
-                pairs with {"\u2265"}2 non-tying opinions — not restricted to the AI{"'"}s pair set.
-                "Single expert" builds BT from each expert{"'"}s own preferences across all their pairs,
-                then averages {"\u03C1"} across experts.
+                All BT rankings use each method's full match data on <strong>controlled pairs</strong> (the same pair set for both AI and human).
+                "Single expert" builds BT from each expert's preferences individually, then averages the correlation across all experts.
                 <strong>Majority</strong> = virtual majority vote from reviewer preferences (our construction).
                 <strong>Committee (ICLR PC)</strong> = actual program committee tier decisions (coarse: 4 tiers).
                 Human vs Committee is circular (reviewers influenced the decisions).

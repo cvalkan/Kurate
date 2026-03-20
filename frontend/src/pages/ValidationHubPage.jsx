@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
   FlaskConical, GitCompare, Beaker, Trophy, ChevronRight, FlaskRound,
-  ChevronDown,
+  ChevronDown, Scale,
 } from "lucide-react";
 
 import PairwisePage from "./PairwisePage";
@@ -29,6 +29,7 @@ import SingleItemScoringSection from "./SingleItemScoringSection";
 import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
 import HumanAIBenchmarkSection from "./HumanAIBenchmarkSection";
+import AIRankingQualitySection from "./AIRankingQualitySection";
 import { UnifiedCompSection, UnifiedStanSection } from "./UnifiedBenchmarkSection";
 import { DatasetView } from "./ValidationPage";
 
@@ -214,7 +215,7 @@ export default function ValidationHubPage() {
       "exp-thinking-overview": { title: "Extended Thinking", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
       "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
       "exp-multi-aspect": { title: "Multi-Aspect Judging", desc: "Does breaking the judgment into 5 separate dimensions (novelty, applications, rigor, breadth, timeliness) improve accuracy over a single holistic verdict?" },
-      "exp-human-ai-benchmark": { title: "Human vs AI Benchmark", desc: "Pairwise concordance-based benchmark for comparative GT datasets (8 ICLR topics, PeerRead ACL 2017). Full H-H, AI-H, tie correction, BT ranking." },
+      "exp-human-ai-benchmark": { title: "Human vs AI Benchmark", desc: "Controlled same-pair comparison: AI and human rankings built from the same pair set. Pairwise concordance, tie correction, BT ranking (8 ICLR topics, PeerRead ACL 2017)." },
       "exp-unified-comp": { title: "PW vs SI — Comparative GT", desc: "Head-to-head comparison of pairwise judges vs single-item scoring on the exact same pairs. Comparative GT (ICLR, PeerRead)." },
       "exp-unified-stan": { title: "PW vs SI — Standalone GT", desc: "Head-to-head comparison of pairwise judges vs single-item scoring on the exact same pairs. Standalone GT (eLife, MIDL, Qeios, ResearchHub)." },
       "exp-judge-comparison": { title: "Accuracy by Judge", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs (4 judges x 9 datasets x 200 pairs)." },
@@ -227,6 +228,7 @@ export default function ValidationHubPage() {
       "report-summary": { title: "Validation Summary Report", desc: "Comprehensive analysis across all datasets: single-item vs pairwise, the GT generation hypothesis, the Surprisingly Popular signal, and practical recommendations." },
       "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
       "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
+      "exp-ai-ranking-quality": { title: "AI Ranking Quality", desc: "How well does AI's ranking from its random match sample correlate with the comprehensive human ranking? Each method uses its full available data — no pair-set filtering." },
     };
     if (!selected) return { title: "", desc: "" };
     if (STATIC_META[selected]) return STATIC_META[selected];
@@ -322,18 +324,23 @@ export default function ValidationHubPage() {
             ))}
           </CollapsibleGroup>
 
+          {/* Validation — benchmark pages */}
+          <CollapsibleGroup label="Judge Quality" icon={Scale} defaultOpen={selected?.includes("benchmark") || selected?.includes("unified") || selected === "exp-ai-ranking-quality"}>
+            <NavItem item={{ id: "exp-human-ai-benchmark", label: "Human vs AI Benchmark", sub: "Controlled same-pair comparison" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-unified-comp", label: "PW vs SI — Comparative GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-unified-stan", label: "PW vs SI — Standalone GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-ai-ranking-quality", label: "AI Ranking Quality", sub: "Full data, no pair filtering" }} selected={selected} onSelect={setSelected} />
+          </CollapsibleGroup>
+
           {/* Experiments */}
           
-            <CollapsibleGroup label="Experiments" icon={FlaskRound} defaultOpen={selected?.startsWith("exp-")}>
+            <CollapsibleGroup label="Experiments" icon={FlaskRound} defaultOpen={selected?.startsWith("exp-") && !selected.includes("benchmark") && !selected.includes("unified") && selected !== "exp-ai-ranking-quality"}>
               <CollapsibleGroup label="Summarizer Quality" defaultOpen={selected === "exp-summarizer-cross" || selected === "exp-summarizer-ab" || selected === "exp-thinking-overview"}>
                 <NavItem item={{ id: "exp-summarizer-cross", label: "Accuracy by Summarizer", sub: "GPT vs Gemini vs Opus" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summarizer-ab", label: "Opus 4.5 vs 4.6", sub: "A/B test" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-thinking-overview", label: "Extended Thinking", sub: "Thinking budget effect" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
-              <CollapsibleGroup label="Judge Quality" defaultOpen={selected?.startsWith("exp-") && (selected.includes("benchmark") || selected.includes("unified") || selected === "exp-judge-comparison" || selected === "exp-assessor-evaluator")}>
-                <NavItem item={{ id: "exp-human-ai-benchmark", label: "Human vs AI Benchmark", sub: "Pairwise concordance + ties" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-unified-comp", label: "PW vs SI — Comparative GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
-                <NavItem item={{ id: "exp-unified-stan", label: "PW vs SI — Standalone GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
+              <CollapsibleGroup label="Judge Quality" defaultOpen={selected === "exp-judge-comparison" || selected === "exp-assessor-evaluator"}>
                 <NavItem item={{ id: "exp-judge-comparison", label: "Accuracy by Judge", sub: "Single judge vs round-robin" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-assessor-evaluator", label: "Summarizer × Judge Matrix", sub: "Full interaction" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
@@ -424,6 +431,7 @@ export default function ValidationHubPage() {
           {selected === "exp-human-ai-benchmark" && <HumanAIBenchmarkSection />}
           {selected === "exp-unified-comp" && <UnifiedCompSection />}
           {selected === "exp-unified-stan" && <UnifiedStanSection />}
+          {selected === "exp-ai-ranking-quality" && <AIRankingQualitySection />}
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}
