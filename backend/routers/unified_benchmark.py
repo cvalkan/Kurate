@@ -293,6 +293,66 @@ async def _compute_unified_dataset(dataset_id, gt_type):
     if pw_total < 10 and si_total < 10:
         return None
 
+    # --- SI Subscore Average: mean of (significance, rigor, novelty, clarity) ---
+    si_sub_scores = {}
+    SUB_KEYS = ["significance", "rigor", "novelty", "clarity"]
+    # From DB
+    for p in papers:
+        details = p.get("single_item_details") or {}
+        subs = [details.get(k) for k in SUB_KEYS if details.get(k)]
+        if len(subs) >= 2 and p["id"] in gt:
+            si_sub_scores[p["id"]] = round(sum(subs) / len(subs), 2)
+    # Fallback from precomputed cache
+    if not si_sub_scores:
+        try:
+            from routers.validation_experiments import _SINGLE_ITEM_CACHE
+            si_cache = _SINGLE_ITEM_CACHE.get("data", {})
+            if si_cache.get("status") == "ok":
+                for ds_data in si_cache.get("datasets", []):
+                    if ds_data.get("dataset_id") == dataset_id:
+                        title_to_id = {p.get("title", "").strip(): p["id"] for p in papers if p.get("title")}
+                        for p_data in ds_data.get("papers", []):
+                            details = p_data.get("details") or {}
+                            subs = [details.get(k) for k in SUB_KEYS if details.get(k)]
+                            if len(subs) < 2: continue
+                            avg = round(sum(subs) / len(subs), 2)
+                            title = p_data.get("title", "").strip()
+                            pid = title_to_id.get(title)
+                            if not pid:
+                                for db_t, db_pid in title_to_id.items():
+                                    if db_t.startswith(title) or title.startswith(db_t):
+                                        pid = db_pid; break
+                            if pid and pid in gt:
+                                si_sub_scores[pid] = avg
+                        break
+        except Exception:
+            pass
+
+    si_sub_correct = si_sub_total = 0
+    si_sub_diff = {lvl: [0, 0, 0] for lvl in ["easy", "medium", "hard"]}
+    si_sub_ids = sorted(set(si_sub_scores.keys()) & set(gt.keys()))
+    for i in range(len(si_sub_ids)):
+        for j in range(i + 1, len(si_sub_ids)):
+            a, b = si_sub_ids[i], si_sub_ids[j]
+            if gt[a] == gt[b] or si_sub_scores[a] == si_sub_scores[b]:
+                continue
+            si_sub_total += 1
+            human_winner = a if gt[a] > gt[b] else b
+            si_sub_winner = a if si_sub_scores[a] > si_sub_scores[b] else b
+            if si_sub_winner == human_winner:
+                si_sub_correct += 1
+            diff = _classify_difficulty(a, b, papers_by_id)
+            if diff:
+                si_sub_diff[diff][1] += 1; si_sub_diff[diff][2] += 1
+                if si_sub_winner == human_winner:
+                    si_sub_diff[diff][0] += 1
+
+    si_sub_rho = None
+    if len(si_sub_ids) >= 5:
+        sp, _ = scipy_stats.spearmanr([si_sub_scores[p] for p in si_sub_ids], [gt[p] for p in si_sub_ids])
+        if not np.isnan(sp):
+            si_sub_rho = safe_round(float(sp))
+
     # --- Intersection: same-pair comparison (PW majority verdict vs SI on common pairs) ---
     pw_verdict = {}
     pw_pair_votes = defaultdict(list)
@@ -392,6 +452,13 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             "bt_correlations": si_bt_corrs,
             "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in si_diff.items()},
         },
+        "si_sub": {
+            "accuracy": _rate(si_sub_correct, si_sub_total),
+            "correct": si_sub_correct, "total": si_sub_total,
+            "n_scored": len(si_sub_scores),
+            "bt_rho": si_sub_rho,
+            "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in si_sub_diff.items()},
+        },
         "intersection": {
             "pw_accuracy": _rate(int_pw_correct, int_total),
             "si_accuracy": _rate(int_si_correct, int_total),
@@ -442,6 +509,15 @@ async def _compute_unified_benchmark(gt_type):
         pooled["pw_papers"] += result["n_papers"]
         pooled["si_papers"] += result["si"].get("n_scored", 0)
 
+        si_sub = result.get("si_sub", {})
+        pooled.setdefault("si_sub_correct", 0)
+        pooled.setdefault("si_sub_total", 0)
+        pooled.setdefault("si_sub_rhos", [])
+        pooled["si_sub_correct"] += si_sub.get("correct", 0)
+        pooled["si_sub_total"] += si_sub.get("total", 0)
+        if si_sub.get("bt_rho") is not None:
+            pooled["si_sub_rhos"].append(si_sub["bt_rho"])
+
         intr = result.get("intersection", {})
         pooled["int_pw_correct"] += int(intr.get("pw_accuracy", 0) * intr.get("pairs", 0) / 100)
         pooled["int_si_correct"] += int(intr.get("si_accuracy", 0) * intr.get("pairs", 0) / 100)
@@ -464,6 +540,7 @@ async def _compute_unified_benchmark(gt_type):
 
     pw_rho_avg = safe_round(float(np.mean(pooled["pw_rhos"]))) if pooled["pw_rhos"] else None
     si_rho_avg = safe_round(float(np.mean(pooled["si_rhos"]))) if pooled["si_rhos"] else None
+    si_sub_rho_avg = safe_round(float(np.mean(pooled.get("si_sub_rhos", [])))) if pooled.get("si_sub_rhos") else None
 
     return {
         "status": "ok",
@@ -472,10 +549,12 @@ async def _compute_unified_benchmark(gt_type):
         "pooled": {
             "pw_accuracy": _rate(pooled["pw_correct"], pooled["pw_total"]),
             "si_accuracy": _rate(pooled["si_correct"], pooled["si_total"]),
+            "si_sub_accuracy": _rate(pooled.get("si_sub_correct", 0), pooled.get("si_sub_total", 0)),
             "pw_pairs": pooled["pw_total"],
             "si_pairs": pooled["si_total"],
             "pw_rho": pw_rho_avg,
             "si_rho": si_rho_avg,
+            "si_sub_rho": si_sub_rho_avg,
             "by_difficulty": {
                 lvl: {
                     "pw_rate": _rate(pooled["pw_diff"][lvl][0], pooled["pw_diff"][lvl][1]),
