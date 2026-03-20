@@ -178,8 +178,10 @@ function DatasetTable({ datasets }) {
                 <th className="py-1 px-2 text-left font-medium">Dataset</th>
                 <th className="py-1 px-1.5 text-right font-medium bg-violet-500/[0.06]">PW Acc</th>
                 <th className="py-1 px-1.5 text-right font-medium bg-emerald-500/[0.06]">SI Acc</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-emerald-500/[0.03]">SI Avg Acc</th>
                 <th className="py-1 px-1.5 text-right font-medium bg-violet-500/[0.06]">PW {"\u03C1"}</th>
                 <th className="py-1 px-1.5 text-right font-medium bg-emerald-500/[0.06]">SI {"\u03C1"}</th>
+                <th className="py-1 px-1.5 text-right font-medium bg-emerald-500/[0.03]">SI Avg {"\u03C1"}</th>
                 <th className="py-1 px-1.5 text-right font-medium text-foreground/50">Pairs</th>
                 <th className="py-1 px-1.5 text-right font-medium">Papers</th>
                 <th className="py-1 px-1.5 text-center font-medium">Winner</th>
