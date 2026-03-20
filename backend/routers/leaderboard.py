@@ -11,8 +11,6 @@ router = APIRouter(prefix="/api")
 
 # Pre-computed cache — refreshed in the background, never blocks requests
 _cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "warming_up": True}
-_CACHE_MAX_AGE = 3600  # Max staleness: 1 hour — only refreshes sooner if notify_data_changed() is called
-_cache_lock = asyncio.Lock()
 _bg_task_started = False
 _cache_dirty = asyncio.Event()  # Set by compare/fetch loops when data changes
 
@@ -74,16 +72,18 @@ async def _refresh_cache():
     global _cache
     _t0 = time.time()
 
-    # Run heavy MongoDB loads
+    # Run heavy MongoDB loads with yields between each to let requests through
     async def _load_data():
         papers = await db.papers.find(
             {"summaries": {"$exists": True, "$ne": {}}},
             {"_id": 0, "full_text": 0, "abstract": 0}
         ).to_list(5000)
+        await asyncio.sleep(0)  # Yield after papers load
         matches = await db.matches.find(
             {"completed": True, "failed": {"$ne": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1, "shared_categories": 1, "primary_category": 1, "model_used": 1, "tokens": 1, "created_at": 1, "id": 1},
         ).to_list(200000)
+        await asyncio.sleep(0)  # Yield after matches load
         likes = {}
         async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
             if doc.get("likes") is not None:
@@ -91,7 +91,7 @@ async def _refresh_cache():
         return papers, matches, likes
 
     all_papers, all_matches_raw, alphaxiv_likes = await _load_data()
-    await asyncio.sleep(0)  # Yield to event loop after heavy DB reads
+    await asyncio.sleep(0)  # Yield before processing
 
     # Build added_at lookup for "Most Recent" filter
     _added_at_lookup = {}
@@ -517,7 +517,7 @@ async def _refresh_cache():
 
 
 async def _bg_cache_loop():
-    """Background loop that refreshes cache when data changes or max age exceeded."""
+    """Background loop that refreshes cache ONLY when data changes."""
     global _bg_task_started
     _bg_task_started = True
     # Initial warm
@@ -528,16 +528,11 @@ async def _bg_cache_loop():
         logger.warning(f"Initial cache warm failed: {e}")
 
     while True:
-        # Wait for either: data change signal OR max age timeout
-        try:
-            await asyncio.wait_for(_cache_dirty.wait(), timeout=_CACHE_MAX_AGE)
-            # Data changed — brief debounce to batch rapid changes
-            _cache_dirty.clear()
-            await asyncio.sleep(5)
-            # Clear again in case more changes came during debounce
-            _cache_dirty.clear()
-        except asyncio.TimeoutError:
-            pass  # Max age reached, refresh anyway
+        # Wait ONLY for data change — no timeout fallback
+        await _cache_dirty.wait()
+        _cache_dirty.clear()
+        await asyncio.sleep(10)  # Debounce: batch rapid changes (e.g. 5 matches in a row)
+        _cache_dirty.clear()
 
         try:
             await _refresh_cache()
@@ -583,13 +578,11 @@ async def _bg_analysis_cache_loop():
     await _refresh_analysis()
 
     while True:
-        try:
-            await asyncio.wait_for(_cache_dirty.wait(), timeout=7200)  # 2 hours max — only refreshes sooner on data change
-            _cache_dirty.clear()
-            await asyncio.sleep(10)
-            _cache_dirty.clear()
-        except asyncio.TimeoutError:
-            pass
+        # Wait ONLY for data change — no timeout fallback
+        await _cache_dirty.wait()
+        _cache_dirty.clear()
+        await asyncio.sleep(15)  # Debounce — let a full match round complete
+        _cache_dirty.clear()
         await _refresh_analysis()
 
 
