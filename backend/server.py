@@ -494,7 +494,7 @@ async def _prewarm_all_experiment_caches():
 
     await asyncio.sleep(8)  # Wait for leaderboard cache to be ready
     try:
-        from routers.leaderboard import _compute_model_correlation, _compute_convergence, _set_analysis_cached
+        from routers.leaderboard import _compute_model_correlation, _compute_convergence, _set_analysis_cached, _compute_si_rating_stats
         from core.auth import get_settings
         settings = await get_settings()
         cats = settings.get("active_categories", [])
@@ -507,6 +507,12 @@ async def _prewarm_all_experiment_caches():
             try:
                 result = await _compute_convergence(cat, 20)
                 _set_analysis_cached("convergence", cat, "20", result)
+            except Exception:
+                pass
+            try:
+                result = await _compute_si_rating_stats(cat, None)
+                if result.get("bt_vs_si") is not None:
+                    _set_analysis_cached("si-rating-stats", cat, "all", result)
             except Exception:
                 pass
         logger.info(f"Analysis cache pre-warmed: {len(cats)} categories")

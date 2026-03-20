@@ -305,23 +305,24 @@ async def _compare_loop():
             if not all_tournament_cats:
                 all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
-            # Update per-category paper/match counts and tournament stats
-            for cat in all_tournament_cats:
-                cat_status = _get_cat_status(cat)
-                cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
-                cat_status["papers_count"] = cat_paper_count
-                cat_match_count = await db.matches.count_documents(
-                    {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
-                )
-                cat_status["matches_count"] = cat_match_count
-                await update_tournament_stats(cat)
-
-            # Mark paused categories
-            paused_cats = all_tournament_cats - set(active_cats)
-            for cat in paused_cats:
-                _get_cat_status(cat)["current_activity"] = "Tournament paused"
-
+            # Skip expensive per-category stats when system is paused — no comparisons running
             if not is_paused and active_cats:
+                # Update per-category paper/match counts and tournament stats
+                for cat in all_tournament_cats:
+                    cat_status = _get_cat_status(cat)
+                    cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
+                    cat_status["papers_count"] = cat_paper_count
+                    cat_match_count = await db.matches.count_documents(
+                        {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
+                    )
+                    cat_status["matches_count"] = cat_match_count
+                    await update_tournament_stats(cat)
+
+                # Mark paused categories
+                paused_cats = all_tournament_cats - set(active_cats)
+                for cat in paused_cats:
+                    _get_cat_status(cat)["current_activity"] = "Tournament paused"
+
                 unmet_cats = []
                 for cat in active_cats:
                     paper_count = _get_cat_status(cat).get("papers_count", 0)

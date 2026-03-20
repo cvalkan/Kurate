@@ -1311,8 +1311,7 @@ async def _compute_model_correlation(category, mode):
             pair_points = []
             for pid in pair_papers:
                 pair_points.append({
-                    "id": pid,
-                    "title": paper_titles.get(pid, "Unknown")[:50],
+                    "title": paper_titles.get(pid, "?")[:40],
                     short1: round(model_win_rates[m1][pid] * 100, 1),
                     short2: round(model_win_rates[m2][pid] * 100, 1),
                 })
