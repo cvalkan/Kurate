@@ -1521,3 +1521,204 @@ async def _compute_benchmark(gt_type: str = "comp"):
     }
 
     return summary
+
+
+
+@router.get("/dataset-rankings/{dataset_id}")
+async def dataset_rankings(dataset_id: str):
+    """Return per-paper BT rankings under different aggregation methods for a dataset."""
+    import math
+    from collections import defaultdict, Counter
+
+    papers = await db.validation_papers.find(
+        {"dataset_id": dataset_id},
+        {"_id": 0, "id": 1, "title": 1, "evaluations": 1, "decision": 1, "h1_avg_rating": 1},
+    ).to_list(5000)
+    if not papers:
+        return {"status": "no_data"}
+
+    papers_by_id = {p["id"]: p for p in papers}
+
+    # Detect thinking mode
+    sample = await db.validation_papers.find_one(
+        {"dataset_id": dataset_id, "ai_impact_summary_thinking": {"$exists": True, "$ne": None}},
+        {"_id": 0, "id": 1},
+    )
+    ai_content_mode = "abstract_plus_summary:thinking" if sample else "abstract_plus_summary"
+    mode_count = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": ai_content_mode})
+    if mode_count == 0:
+        ai_content_mode = "abstract_plus_summary"
+
+    ai_raw = await db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "content_mode": ai_content_mode},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ).to_list(100000)
+
+    if len(ai_raw) < 10:
+        return {"status": "no_data", "message": "Too few AI matches"}
+
+    # Expert ratings & pairwise preferences
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name and ev.get("rating_value") is not None:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+
+    experts_with_data = {e: r for e, r in expert_ratings.items() if len(r) >= 3}
+
+    expert_pair_prefs = defaultdict(dict)
+    for exp, ratings in experts_with_data.items():
+        rated_ids = list(ratings.keys())
+        for i in range(len(rated_ids)):
+            for j in range(i + 1, len(rated_ids)):
+                a, b = rated_ids[i], rated_ids[j]
+                if ratings[a] == ratings[b]:
+                    continue
+                pair = tuple(sorted([a, b]))
+                expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
+
+    expert_majority = {}
+    for pair, votes in expert_pair_prefs.items():
+        if len(votes) < 2:
+            continue
+        ct = Counter(votes.values())
+        best, n = ct.most_common(1)[0]
+        if n > len(votes) / 2:
+            expert_majority[pair] = best
+
+    # AI pair majority
+    ai_pair_votes = defaultdict(list)
+    for m in ai_raw:
+        if m.get("winner_id"):
+            ai_pair_votes[tuple(sorted([m["paper1_id"], m["paper2_id"]]))].append(m["winner_id"])
+    ai_pair = {}
+    for pair, votes in ai_pair_votes.items():
+        ct = Counter(votes)
+        ai_pair[pair] = ct.most_common(1)[0][0]
+
+    controlled_pairs = {p for p in (set(ai_pair.keys()) & set(expert_pair_prefs.keys()))
+                        if len(expert_pair_prefs[p]) >= 2}
+
+    # Build match sets
+    # 1. AI: all thinking matches
+    ai_bt_matches = [
+        {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+         "winner_id": m["winner_id"], "completed": True, "failed": False}
+        for m in ai_raw if m.get("winner_id")
+    ]
+
+    # 2. Human Individual: each expert vote on controlled pairs
+    human_indiv_matches = []
+    for pair in controlled_pairs:
+        for exp, winner in expert_pair_prefs[pair].items():
+            human_indiv_matches.append({
+                "paper1_id": pair[0], "paper2_id": pair[1],
+                "winner_id": winner, "completed": True, "failed": False,
+            })
+
+    # 3. Human Majority: one vote per controlled pair
+    human_maj_matches = []
+    for pair in controlled_pairs:
+        if pair in expert_majority:
+            human_maj_matches.append({
+                "paper1_id": pair[0], "paper2_id": pair[1],
+                "winner_id": expert_majority[pair], "completed": True, "failed": False,
+            })
+
+    # Compute Elo scores
+    ELO_BASE = 1200
+    paper_ids = [p["id"] for p in papers]
+
+    def _compute_elo(matches_list):
+        stats = {pid: {"w": 0, "l": 0} for pid in paper_ids}
+        for m in matches_list:
+            w = m.get("winner_id")
+            if not w:
+                continue
+            p1, p2 = m["paper1_id"], m["paper2_id"]
+            loser = p2 if w == p1 else p1
+            if w in stats:
+                stats[w]["w"] += 1
+            if loser in stats:
+                stats[loser]["l"] += 1
+
+        scores = {}
+        for pid in paper_ids:
+            s = stats[pid]
+            n = s["w"] + s["l"]
+            if n == 0:
+                scores[pid] = {"score": ELO_BASE, "wins": 0, "losses": 0, "matches": 0}
+                continue
+            p_reg = (s["w"] + 0.5) / (n + 1.0)
+            p_reg = max(0.02, min(0.98, p_reg))
+            elo = round(400.0 * math.log10(p_reg / (1 - p_reg)) + ELO_BASE)
+            scores[pid] = {"score": elo, "wins": s["w"], "losses": s["l"], "matches": n}
+        return scores
+
+    ai_elo = _compute_elo(ai_bt_matches)
+    h_indiv_elo = _compute_elo(human_indiv_matches)
+    h_maj_elo = _compute_elo(human_maj_matches)
+
+    # Tier score map
+    TIER_SCORE = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1, "withdrawn": 0, "desk rejected": 0}
+    def _norm_tier(d):
+        if not d:
+            return None
+        dl = d.lower().strip()
+        for t in TIER_SCORE:
+            if t in dl:
+                return t
+        return None
+
+    # Build result rows sorted by AI score descending
+    import hashlib
+    def _title_hash(pid):
+        return hashlib.md5(papers_by_id.get(pid, {}).get("title", pid).encode()).hexdigest()
+
+    ranked_ids = sorted(paper_ids, key=lambda pid: (ai_elo[pid]["score"], _title_hash(pid)), reverse=True)
+
+    rows = []
+    for ai_rank, pid in enumerate(ranked_ids, 1):
+        p = papers_by_id[pid]
+        dec = p.get("decision", "")
+        tier = _norm_tier(dec)
+        h1_avg = p.get("h1_avg_rating")
+        if h1_avg is None:
+            evals = p.get("evaluations", [])
+            vals = [e["rating_value"] for e in evals if e.get("rating_value")]
+            h1_avg = round(sum(vals) / len(vals), 2) if vals else None
+
+        rows.append({
+            "title": p["title"],
+            "decision": dec or None,
+            "tier": tier,
+            "h1_avg_rating": h1_avg,
+            "ai_rank": ai_rank,
+            "ai_bt": ai_elo[pid]["score"],
+            "ai_wl": f"{ai_elo[pid]['wins']}/{ai_elo[pid]['losses']}",
+            "h_indiv_bt": h_indiv_elo[pid]["score"],
+            "h_indiv_wl": f"{h_indiv_elo[pid]['wins']}/{h_indiv_elo[pid]['losses']}",
+            "h_maj_bt": h_maj_elo[pid]["score"],
+            "h_maj_wl": f"{h_maj_elo[pid]['wins']}/{h_maj_elo[pid]['losses']}",
+        })
+
+    # Add ranks for human methods
+    h_indiv_sorted = sorted(rows, key=lambda r: (-r["h_indiv_bt"], r["title"]))
+    for i, r in enumerate(h_indiv_sorted):
+        r["h_indiv_rank"] = i + 1
+    h_maj_sorted = sorted(rows, key=lambda r: (-r["h_maj_bt"], r["title"]))
+    for i, r in enumerate(h_maj_sorted):
+        r["h_maj_rank"] = i + 1
+
+    return {
+        "status": "ok",
+        "dataset_id": dataset_id,
+        "n_papers": len(papers),
+        "n_controlled_pairs": len(controlled_pairs),
+        "n_ai_matches": len(ai_bt_matches),
+        "ai_content_mode": ai_content_mode,
+        "papers": rows,
+    }

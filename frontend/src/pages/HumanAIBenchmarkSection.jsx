@@ -272,6 +272,130 @@ function DatasetTable({ datasets }) {
   );
 }
 
+function DatasetRankings({ datasets }) {
+  const [selectedDs, setSelectedDs] = useState(null);
+  const [rankData, setRankData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [sortCol, setSortCol] = useState("ai_rank");
+  const [sortAsc, setSortAsc] = useState(true);
+
+  const dsOptions = datasets?.filter(d => d.dataset_id && d.controlled_pairs >= 20) || [];
+
+  useEffect(() => {
+    if (!selectedDs) { setRankData(null); return; }
+    setLoading(true);
+    axios.get(`${API}/api/validation/dataset-rankings/${selectedDs}`, { timeout: 30000 })
+      .then(r => { if (r.data?.status === "ok") setRankData(r.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [selectedDs]);
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortAsc(!sortAsc);
+    else { setSortCol(col); setSortAsc(col.includes("rank")); }
+  };
+
+  const sorted = rankData?.papers ? [...rankData.papers].sort((a, b) => {
+    const av = a[sortCol] ?? 9999, bv = b[sortCol] ?? 9999;
+    return sortAsc ? av - bv : bv - av;
+  }) : [];
+
+  const TIER_COLORS = { oral: "text-emerald-600", spotlight: "text-sky-600", poster: "text-foreground/70", reject: "text-rose-500", withdrawn: "text-foreground/40" };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-semibold text-muted-foreground">Paper-level rankings:</span>
+        <select
+          className="text-xs border border-border rounded px-2 py-1 bg-background"
+          value={selectedDs || ""}
+          onChange={e => setSelectedDs(e.target.value || null)}
+          data-testid="dataset-rankings-select"
+        >
+          <option value="">Select a dataset...</option>
+          {dsOptions.map(d => (
+            <option key={d.dataset_id} value={d.dataset_id}>{d.name || d.dataset_id} ({d.controlled_pairs} pairs)</option>
+          ))}
+        </select>
+      </div>
+
+      {loading && <div className="text-xs text-muted-foreground mt-2 animate-pulse">Loading rankings...</div>}
+
+      {rankData && !loading && (
+        <div className="mt-3 border border-border rounded-lg overflow-hidden">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center justify-between">
+            <span className="text-xs font-semibold">
+              {dsOptions.find(d => d.dataset_id === selectedDs)?.name || selectedDs} — {rankData.n_papers} papers, {rankData.n_controlled_pairs} controlled pairs
+            </span>
+            <span className="text-[10px] text-muted-foreground">Click column headers to sort</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]" data-testid="dataset-rankings-table">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  {[
+                    { key: "ai_rank", label: "AI Rank", bg: "bg-sky-500/[0.06]" },
+                    { key: "ai_bt", label: "AI BT", bg: "bg-sky-500/[0.06]" },
+                    { key: "ai_wl", label: "AI W/L", bg: "bg-sky-500/[0.06]", noSort: true },
+                    { key: "h_indiv_rank", label: "H-Indiv Rank", bg: "bg-amber-500/[0.06]" },
+                    { key: "h_indiv_bt", label: "H-Indiv BT", bg: "bg-amber-500/[0.06]" },
+                    { key: "h_indiv_wl", label: "H-Indiv W/L", bg: "bg-amber-500/[0.06]", noSort: true },
+                    { key: "h_maj_rank", label: "H-Maj Rank", bg: "bg-rose-500/[0.06]" },
+                    { key: "h_maj_bt", label: "H-Maj BT", bg: "bg-rose-500/[0.06]" },
+                    { key: "h_maj_wl", label: "H-Maj W/L", bg: "bg-rose-500/[0.06]", noSort: true },
+                    { key: "decision", label: "Decision" },
+                    { key: "h1_avg_rating", label: "H Avg" },
+                    { key: "title", label: "Title", noSort: true },
+                  ].map(col => (
+                    <th
+                      key={col.key}
+                      className={`py-1.5 px-1.5 text-right font-medium whitespace-nowrap ${col.bg || ""} ${col.noSort ? "" : "cursor-pointer hover:text-foreground"} ${col.key === "title" ? "text-left" : ""}`}
+                      onClick={col.noSort ? undefined : () => toggleSort(col.key)}
+                    >
+                      {col.label}
+                      {sortCol === col.key && <span className="ml-0.5">{sortAsc ? "\u25B2" : "\u25BC"}</span>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((r, i) => {
+                  const matchAiMaj = r.ai_bt === r.h_maj_bt;
+                  return (
+                    <tr key={i} className={`border-b border-border/20 ${matchAiMaj ? "bg-amber-500/[0.04]" : ""}`}>
+                      <td className="py-1 px-1.5 text-right font-mono font-semibold bg-sky-500/[0.06]">{r.ai_rank}</td>
+                      <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{r.ai_bt}</td>
+                      <td className="py-1 px-1.5 text-right font-mono text-foreground/60 bg-sky-500/[0.06]">{r.ai_wl}</td>
+                      <td className="py-1 px-1.5 text-right font-mono font-semibold bg-amber-500/[0.06]">{r.h_indiv_rank}</td>
+                      <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{r.h_indiv_bt}</td>
+                      <td className="py-1 px-1.5 text-right font-mono text-foreground/60 bg-amber-500/[0.06]">{r.h_indiv_wl}</td>
+                      <td className="py-1 px-1.5 text-right font-mono font-semibold bg-rose-500/[0.06]">{r.h_maj_rank}</td>
+                      <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${matchAiMaj ? "font-bold" : ""}`}>{r.h_maj_bt}</td>
+                      <td className="py-1 px-1.5 text-right font-mono text-foreground/60 bg-rose-500/[0.06]">{r.h_maj_wl}</td>
+                      <td className={`py-1 px-1.5 text-right text-[10px] capitalize ${TIER_COLORS[r.tier] || ""}`}>{r.decision || "\u2014"}</td>
+                      <td className="py-1 px-1.5 text-right font-mono">{r.h1_avg_rating != null ? Number(r.h1_avg_rating).toFixed(1) : "\u2014"}</td>
+                      <td className="py-1 px-1.5 text-left max-w-[300px] truncate" title={r.title}>{r.title}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1">
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              <strong>AI BT</strong>: Elo from {rankData.n_ai_matches} thinking-mode matches (1 judge per pair, round-robin across 3 models).{" "}
+              <strong>H-Indiv BT</strong>: Elo from individual expert votes (each expert{"'"}s preference = one match — multiple matches per pair).{" "}
+              <strong>H-Maj BT</strong>: Elo from expert majority vote (one consensus vote per pair).{" "}
+              Rows highlighted where AI BT = H-Maj BT — a structural artifact when both have 1 vote/pair on the same pairs with identical W/L records.{" "}
+              H-Indiv BT breaks this coupling by using per-expert granularity.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BenchmarkPage({ apiUrl, headerDesc, testId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -443,6 +567,9 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
 
       {/* 5. Per-dataset breakdown */}
       <DatasetTable datasets={data.per_dataset} />
+
+      {/* 6. Per-paper rankings for a selected dataset */}
+      <DatasetRankings datasets={data.per_dataset} />
     </div>
   );
 }
