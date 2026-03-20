@@ -92,23 +92,20 @@ function ComparisonTable({ data }) {
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
         <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold">PW vs SI — Accuracy on Same Pairs, Ranking on Full Data</span>
+        <span className="text-xs font-semibold">PW vs SI — Pairwise Accuracy on Same Pairs</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: "25%" }} />
-            <col /><col /><col /><col /><col />
+            <col /><col /><col /><col />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="py-1.5 px-2 text-left font-medium">Scope</th>
               <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Accuracy</th>
               <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Accuracy</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Avg</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-violet-500/[0.06]">PW Spearman {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">SI Spearman {"\u03C1"}</th>
-              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Avg {"\u03C1"}</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.03]">SI Avg Accuracy</th>
               <th className="py-1.5 px-2 text-right font-medium text-foreground/50">pairs</th>
             </tr>
           </thead>
@@ -119,9 +116,6 @@ function ComparisonTable({ data }) {
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${pwWins ? "font-bold" : ""}`}>{pwAcc != null ? `${pwAcc}%` : "\u2014"}</td>
                 <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${!pwWins && siAcc != null ? "font-bold" : ""}`}>{siAcc != null ? `${siAcc}%` : "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{(hasIntersection ? p.intersection?.si_sub_accuracy : p.si_sub_accuracy) != null ? `${hasIntersection ? p.intersection.si_sub_accuracy : p.si_sub_accuracy}%` : "\u2014"}</td>
-                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-violet-500/[0.06] ${(p.pw_rho || 0) >= (p.si_rho || 0) ? "font-bold" : ""}`}>{p.pw_rho?.toFixed(3) ?? "\u2014"}</td>
-                <td className={`py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.06] ${(p.si_rho || 0) > (p.pw_rho || 0) ? "font-bold" : ""}`}>{p.si_rho?.toFixed(3) ?? "\u2014"}</td>
-                <td className="py-1.5 px-2 text-right font-mono text-xs bg-emerald-500/[0.03]">{p.si_sub_rho?.toFixed(3) ?? "\u2014"}</td>
                 <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/50">{hasIntersection ? p.intersection.pairs?.toLocaleString() : (p.pw_total || 0).toLocaleString()}</td>
               </tr>
             )}
@@ -134,9 +128,6 @@ function ComparisonTable({ data }) {
                   <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06] ${pwB ? "font-semibold" : ""}`}>{d.pw_rate != null ? `${d.pw_rate}%` : "\u2014"}</td>
                   <td className={`py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06] ${!pwB ? "font-semibold" : ""}`}>{d.si_rate != null ? `${d.si_rate}%` : "\u2014"}</td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.03]">{d.si_sub_rate != null && d.si_sub_rate > 0 ? `${d.si_sub_rate}%` : "\u2014"}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-violet-500/[0.06]"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.06]"></td>
-                  <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/60 bg-emerald-500/[0.03]"></td>
                   <td className="py-1.5 px-2 text-right font-mono text-xs text-foreground/40">{(d.pw_pairs ?? 0).toLocaleString()}</td>
                 </tr>
               );
@@ -148,9 +139,8 @@ function ComparisonTable({ data }) {
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           <strong>PW</strong> = pairwise AI judges (round-robin GPT-5.2, Opus, Gemini).{" "}
           <strong>SI</strong> = single-item AI scoring (Opus 4.6 Thinking, 1-10).{" "}
+          <strong>SI Avg</strong> = mean of SI subscores (significance, rigor, novelty, clarity).{" "}
           <strong>Accuracy</strong> is on the <strong>same {p.intersection?.pairs?.toLocaleString()} pairs</strong> where both methods have verdicts — ensuring a fair per-pair comparison.{" "}
-          <strong>Spearman {"\u03C1"}</strong> uses each method's full data (PW: {p.pw_pairs?.toLocaleString()} matches, SI: {p.si_pairs?.toLocaleString()} pairs)
-          because ranking quality depends on each method's total output.{" "}
           Both compared against <strong>h1_avg_rating</strong> (averaged human reviewer scores).
           All rows use the same <strong>intersection pairs</strong> (where both PW and SI have data).
         </p>
@@ -261,7 +251,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {(() => {
           const hHasIntr = (p.intersection?.pairs || 0) > 0;
           const hHasSI = (p.si_total || 0) > 0;
@@ -280,15 +270,6 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
             </div>
           </>);
         })()}
-        <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label={`PW Spearman \u03C1`} value={p.pw_rho?.toFixed(3) ?? "\u2014"} sub="BT ranking vs h1_avg" accent={(p.pw_rho || 0) >= (p.si_rho || 0)} />
-        </div>
-        <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label={`SI Spearman \u03C1`} value={p.si_rho?.toFixed(3) ?? "\u2014"} sub="score ranking vs h1_avg" accent={(p.si_rho || 0) > (p.pw_rho || 0)} />
-        </div>
-        <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label={`SI Avg \u03C1`} value={p.si_sub_rho?.toFixed(3) ?? "\u2014"} sub="subscore avg vs h1_avg" accent={false} />
-        </div>
       </div>
 
       <ComparisonTable data={data} />
