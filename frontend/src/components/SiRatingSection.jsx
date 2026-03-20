@@ -30,8 +30,7 @@ const MODEL_TABS = [
 function DistributionChart({ data, metric, color, showRaw }) {
   const histData = showRaw && data?.raw_histogram ? data.raw_histogram : data?.histogram;
   if (!histData) return null;
-  const filtered = histData.filter(h => h.count > 0 || !showRaw);
-  const display = showRaw ? filtered : histData;
+  const display = histData;
   const maxCount = Math.max(...display.map(h => h.count), 1);
   const barW = 100 / display.length;
 
