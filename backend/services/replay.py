@@ -15,6 +15,7 @@ import math
 from datetime import datetime, timezone
 from collections import defaultdict, Counter
 from core.config import db, logger
+from routers.validation_utils import collect_all
 
 REPLAY_COLLECTION = "deeper_dive_replays"
 _BUDGET_KEYWORDS = ("budget", "balance", "insufficient", "credit", "quota")
@@ -138,7 +139,7 @@ async def select_replay_pairs(max_pairs: int = 200) -> dict:
         existing_replays.add((r["original_match_id"], r["condition"]))
 
     # Find completed matches involving at least one recommended paper
-    matches = await db.matches.find(
+    matches = await collect_all(db.matches.find(
         {
             "completed": True, "failed": {"$ne": True},
             "mode": {"$exists": False},
@@ -149,7 +150,7 @@ async def select_replay_pairs(max_pairs: int = 200) -> dict:
         },
         {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
          "primary_category": 1, "model_used": 1},
-    ).to_list(50000)
+    ))
 
     # Deduplicate by paper pair (keep first match per unique pair)
     seen_pairs = set()
@@ -355,7 +356,7 @@ def _get_summary(paper: dict, meta: dict, condition: str) -> str:
 
 async def compute_replay_analysis() -> dict:
     """Compute statistical analysis from all replay results in DB."""
-    results = await db[REPLAY_COLLECTION].find({}, {"_id": 0}).to_list(100000)
+    results = await collect_all(db[REPLAY_COLLECTION].find({}, {"_id": 0}))
 
     control = [r for r in results if r["condition"] == "control"]
     treatment = [r for r in results if r["condition"] == "treatment"]

@@ -1,11 +1,3 @@
-"""
-Summary Bias Experiment — Does the LLM that wrote the summary bias the judge?
-
-Pipeline:
-1. Generate AI impact summaries for papers in a category using all 3 LLMs
-2. Run N random matches x 9 configurations (3 judges x 3 summary sources)
-3. Analyze pairwise match-level agreement and bias patterns
-"""
 import asyncio
 import uuid
 import random
@@ -16,11 +8,20 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from core.config import db, logger, TOURNAMENT_MODELS, DEFAULT_EVALUATION_PROMPT
+from routers.validation_utils import collect_all
 from core.auth import verify_admin
 from services.llm import generate_precomparison_impact_summary, compare_papers
 from services.ranking import compute_leaderboard, compute_leaderboard_async
 from services.task_tracker import TaskTracker
 
+"""
+Summary Bias Experiment — Does the LLM that wrote the summary bias the judge?
+
+Pipeline:
+1. Generate AI impact summaries for papers in a category using all 3 LLMs
+2. Run N random matches x 9 configurations (3 judges x 3 summary sources)
+3. Analyze pairwise match-level agreement and bias patterns
+"""
 router = APIRouter(prefix="/api/summary-bias")
 
 _state = {"phase": "idle", "progress": {}}
@@ -110,10 +111,10 @@ async def _extend_matches(category: str, num_matches: int, parallel: int):
         sum_lookup = {(s["paper_id"], s["model_key"]): s["summary_text"] for s in sums_raw}
 
         # Get ALL existing matches for this category
-        all_main = await db.matches.find(
+        all_main = await collect_all(db.matches.find(
             {"completed": True, "failed": {"$ne": True}, "primary_category": category},
             {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
-        ).to_list(100000)
+        ))
 
         # Already-used matches in the experiment
         used_ids = set()
@@ -305,10 +306,10 @@ async def _do_run_experiment(category: str, num_matches: int, parallel: int):
     sum_lookup = {(s["paper_id"], s["model_key"]): s["summary_text"] for s in summaries_raw}
 
     # Get existing matches for this category
-    existing_matches = await db.matches.find(
+    existing_matches = await collect_all(db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category},
         {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
-    ).to_list(100000)
+    ))
 
     # Filter to matches where both papers have all 3 summaries
     model_keys = [_mk(m) for m in TOURNAMENT_MODELS]
@@ -556,10 +557,10 @@ async def get_results(category: str = Query("q-bio.BM")):
 
 
 async def _compute_results(category: str):
-    all_docs = await db.summary_bias_matches.find(
+    all_docs = await collect_all(db.summary_bias_matches.find(
         {"category": category, "completed": True, "failed": {"$ne": True}},
         {"_id": 0}
-    ).to_list(100000)
+    ))
 
     # Separate summary experiment matches from full-pdf and abstract baselines
     matches = [m for m in all_docs if m.get("summary_key") not in ("full_pdf", "abstract")]
@@ -790,19 +791,19 @@ async def _compute_sb_convergence(category: str, steps: int):
     paper_ids = set(paper_lookup.keys())
 
     # ── Reference 1: Extract-based ranking from main tournament ──
-    main_matches = await db.matches.find(
+    main_matches = await collect_all(db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
-    ).to_list(100000)
+    ))
     extract_lb = await compute_leaderboard_async(papers, main_matches)
     extract_rank = {e["id"]: e["rank"] for e in extract_lb}
 
     # ── Get summary-bias matches (consensus) ──
-    all_docs = await db.summary_bias_matches.find(
+    all_docs = await collect_all(db.summary_bias_matches.find(
         {"category": category, "completed": True, "failed": {"$ne": True}},
         {"_id": 0, "original_match_id": 1, "paper1_id": 1, "paper2_id": 1,
          "winner_id": 1, "judge_key": 1, "summary_key": 1, "created_at": 1}
-    ).to_list(100000)
+    ))
 
     summary_docs = [m for m in all_docs if m.get("summary_key") not in ("full_pdf", "abstract")]
     fullpdf_docs = [m for m in all_docs if m.get("summary_key") == "full_pdf"]

@@ -1,3 +1,15 @@
+import asyncio
+import uuid
+import json
+import re
+import random
+import math
+from datetime import datetime, timezone
+from collections import defaultdict, Counter
+from core.config import db, logger, EMERGENT_LLM_KEY
+from routers.validation_utils import collect_all
+from emergentintegrations.llm.chat import LlmChat, UserMessage
+
 """
 Deep Dive Validation Experiment — Parameterized Pipeline
 
@@ -8,17 +20,6 @@ Deep Dive Validation Experiment — Parameterized Pipeline
 
 All results stored in DB, resumable at each step. Parameterized by dataset_id and source_mode.
 """
-import asyncio
-import uuid
-import json
-import re
-import random
-import math
-from datetime import datetime, timezone
-from collections import defaultdict, Counter
-from core.config import db, logger, EMERGENT_LLM_KEY
-from emergentintegrations.llm.chat import LlmChat, UserMessage
-
 ASSESSMENT_MODEL = {"provider": "anthropic", "model": "claude-opus-4-6"}
 PARALLEL = 5
 _BUDGET_KEYWORDS = ("budget", "balance", "insufficient", "credit", "quota")
@@ -272,10 +273,10 @@ async def run_step4(dataset_id: str, source_mode: str = "abstract_plus_summary:o
     logger.info(f"Step 4: {len(dd_lookup)} deep-dive assessments for {dataset_id}")
 
     # Load ALL original matches (not deduplicated — replay every single one)
-    orig_matches = await db.validation_matches.find(
+    orig_matches = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, "content_mode": source_mode},
         {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
-    ).to_list(50000)
+    ))
 
     # Check already replayed
     existing = set()
@@ -432,7 +433,7 @@ async def _insert_as_validation_matches(keys: dict, dataset_id: str):
     if existing > 0:
         logger.info(f"Convergence: already have {existing} deep_dive matches for {dataset_id}, skipping")
         return
-    replays = await db[keys["replays"]].find({}, {"_id": 0}).to_list(100000)
+    replays = await collect_all(db[keys["replays"]].find({}, {"_id": 0}))
     docs = [{
         "id": r["id"], "dataset_id": dataset_id,
         "paper1_id": r["paper1_id"], "paper2_id": r["paper2_id"],
@@ -468,14 +469,14 @@ async def compute_analysis(dataset_id: str) -> dict:
     source_mode = (exp_doc or {}).get("source_mode") or "abstract_plus_summary"
     
     # Load both baseline and deep_dive matches
-    baseline_matches = await db.validation_matches.find(
+    baseline_matches = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "content_mode": source_mode},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
-    dd_matches = await db.validation_matches.find(
+    ))
+    dd_matches = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "content_mode": "deep_dive"},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+    ))
 
     if not baseline_matches and not dd_matches:
         return {}

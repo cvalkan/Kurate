@@ -1109,10 +1109,10 @@ async def _compute_model_correlation(category, mode):
             async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
                 cat_paper_ids.add(p["id"])
 
-        matches_raw = await db.matches.find(
+        matches_raw = await collect_all(db.matches.find(
             {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1, "mode": 1},
-        ).to_list(100000)
+        ))
 
         if mode:
             matches_raw = [m for m in matches_raw if m.get("mode") == mode]
@@ -1612,10 +1612,10 @@ async def _compute_si_rating_stats(category, model):
             match_query = {"completed": True, "failed": {"$ne": True}}
             if category:
                 match_query["$or"] = [{"shared_categories": category}, {"primary_category": category}]
-            raw_matches = await db.matches.find(
+            raw_matches = await collect_all(db.matches.find(
                 match_query,
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
-            ).to_list(100000)
+            ))
             paper_query = {"summaries": {"$exists": True, "$ne": {}}}
             if category:
                 paper_query["categories.0"] = category
@@ -1714,10 +1714,10 @@ async def _compute_convergence(category, steps):
         match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
         if category:
             match_query["paper1_id"] = {"$in": list(pid_set)}
-        all_matches = await db.matches.find(
+        all_matches = await collect_all(db.matches.find(
             match_query,
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
-        ).to_list(100000)
+        ))
         all_matches = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
 
     if len(all_matches) < 20:

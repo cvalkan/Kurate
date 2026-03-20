@@ -17,7 +17,7 @@ from fastapi import APIRouter, Query
 
 from core.config import db, logger
 from routers.validation_utils import (
-    build_expert_ratings, safe_round, norm_tier, TIER_ORDER,
+    collect_all, build_expert_ratings, safe_round, norm_tier, TIER_ORDER,
     COMPARATIVE_GT_DATASETS, STANDALONE_GT_DATASETS,
 )
 from services.ranking import compute_leaderboard_async as compute_leaderboard
@@ -179,10 +179,10 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
         pw_paper_ids = set()
         for mode in PREFERRED_MODES:
             mode_filter = build_content_mode_filter(mode)
-            pw_raw = await db.validation_matches.find(
+            pw_raw = await collect_all(db.validation_matches.find(
                 {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}, **mode_filter},
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1}
-            ).to_list(100000)
+            ))
             if len(pw_raw) >= 20:
                 for m in pw_raw:
                     pw_paper_ids.add(m["paper1_id"])

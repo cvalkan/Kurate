@@ -24,7 +24,7 @@ from typing import Optional
 
 from core.config import db, logger
 from routers.validation_utils import (
-    build_expert_ratings, build_expert_majority, build_content_mode_filter,
+    collect_all, build_expert_ratings, build_expert_majority, build_content_mode_filter,
     safe_round, PAPER_LIGHT_PROJECTION, norm_tier, TIER_ORDER,
     COMPARATIVE_GT_DATASETS, STANDALONE_GT_DATASETS,
 )
@@ -343,11 +343,11 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     if mode_count == 0:
         ai_content_mode = "abstract_plus_summary"
 
-    ai_raw = await db.validation_matches.find(
+    ai_raw = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
          "content_mode": ai_content_mode},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+    ))
     ai_mode_used = ai_content_mode
 
     if len(ai_raw) < 20:
@@ -1552,11 +1552,11 @@ async def dataset_rankings(dataset_id: str):
     if mode_count == 0:
         ai_content_mode = "abstract_plus_summary"
 
-    ai_raw = await db.validation_matches.find(
+    ai_raw = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
          "content_mode": ai_content_mode},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+    ))
 
     if len(ai_raw) < 10:
         return {"status": "no_data", "message": "Too few AI matches"}
@@ -1854,11 +1854,11 @@ async def _compute_standalone_ranking(dataset_id: str):
     if mode_count == 0:
         ai_content_mode = "abstract_plus_summary"
 
-    ai_raw = await db.validation_matches.find(
+    ai_raw = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
          "content_mode": ai_content_mode},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+    ))
 
     ai_bt_matches = [
         {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],

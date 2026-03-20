@@ -1,9 +1,3 @@
-"""
-SciPost Pairwise Comparison — Compare AI vs human referees on specific dimensions.
-
-Fetches papers with referee reports from SciPost Physics, compares AI judgments
-against human ratings on: validity, significance, originality, clarity.
-"""
 import asyncio
 import uuid
 import re
@@ -18,8 +12,15 @@ from typing import Optional, List
 
 from core.config import db, logger, TOURNAMENT_MODELS
 from core.auth import verify_admin
+from routers.validation_utils import collect_all
 from services.llm import call_llm, compare_papers, download_and_extract_pdf
 
+"""
+SciPost Pairwise Comparison — Compare AI vs human referees on specific dimensions.
+
+Fetches papers with referee reports from SciPost Physics, compares AI judgments
+against human ratings on: validity, significance, originality, clarity.
+"""
 router = APIRouter(prefix="/api/scipost")
 
 _state = {"fetching": False, "running": False, "progress": {}}
@@ -832,10 +833,10 @@ async def _pw_run_synced(num_pairs_per_dim: int, dimensions: list, parallel_agen
                     all_pairs.append((p1, s1, p2, s2))
 
             existing_keys = set()
-            existing_docs = await db.scipost_pairwise_extract.find(
+            existing_docs = await collect_all(db.scipost_pairwise_extract.find(
                 {"dimension": dim},
                 {"_id": 0, "pair_key": 1, "paper1.submission_id": 1, "paper2.submission_id": 1},
-            ).to_list(100000)
+            ))
             for doc in existing_docs:
                 key = doc.get("pair_key")
                 if not key:

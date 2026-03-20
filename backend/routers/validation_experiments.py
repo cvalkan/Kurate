@@ -22,7 +22,7 @@ from services.task_tracker import TaskTracker
 import numpy as np
 from scipy import stats as scipy_stats
 from routers.validation_utils import (
-    TIER_ORDER, RANKABLE_TIERS, norm_tier,
+    collect_all, TIER_ORDER, RANKABLE_TIERS, norm_tier,
     build_expert_ratings, build_human_pairwise_matches, build_expert_majority, build_ai_majority,
     build_content_mode_filter, safe_round, interp, cache_get, cache_set,
     PAPER_LIGHT_PROJECTION, build_paper_gt_scores, filter_cross_tier_matches, is_cross_tier_pair,
@@ -241,11 +241,11 @@ async def _compute_single_item_results():
             pw_content_mode = "abstract_plus_summary"
         summary_model = "Opus 4.6 Thinking" if has_thinking_summary else "Opus 4.5"
 
-        pairwise_matches = await db.validation_matches.find(
+        pairwise_matches = await collect_all(db.validation_matches.find(
             {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
              "content_mode": pw_content_mode},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
-        ).to_list(100000)
+        ))
 
         gt = {p["id"]: p["h1_avg_rating"] for p in scored}
         pw_correct = 0
@@ -298,11 +298,11 @@ async def _compute_single_item_results():
                     pw_pval = round(pw_pval_v, 4) if pw_pval_v >= 0.001 else 0.0
 
         # Check for controlled thinking_judge pairwise experiment
-        tj_matches = await db.validation_matches.find(
+        tj_matches = await collect_all(db.validation_matches.find(
             {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
              "content_mode": "abstract_plus_summary:thinking_judge"},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
-        ).to_list(100000)
+        ))
         tj_row = None
         if len(tj_matches) >= 20:
             tj_correct = tj_total = 0

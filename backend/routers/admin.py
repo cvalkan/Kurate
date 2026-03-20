@@ -587,10 +587,10 @@ async def get_progress_estimate(category: str = "cs.RO"):
     ).to_list(2000)
     all_paper_ids = [p["id"] for p in direct_papers]
 
-    raw_matches = await db.matches.find(
+    raw_matches = await collect_all(db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+    ))
 
     total_papers = len(all_paper_ids)
     if total_papers == 0:
@@ -1069,10 +1069,10 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
         return
 
     # Get existing matches for this mode to avoid duplicates
-    existing = await db.matches.find(
+    existing = await collect_all(db.matches.find(
         {"mode": mode, "completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1},
-    ).to_list(100000)
+    ))
 
     cat_paper_ids = {p["id"] for p in all_papers}
     compared = set()
@@ -2418,10 +2418,10 @@ async def backfill_archives():
     await db.leaderboard_archives.delete_many({})
 
     # --- Load all data once ---
-    all_papers = await db.papers.find(
+    all_papers = await collect_all(db.papers.find(
         {}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "published": 1, "link": 1,
              "arxiv_id": 1, "categories": 1, "ai_rating": 1}
-    ).to_list(50000)
+    ))
 
     # Build ai_ratings lookup
     ai_ratings = {}

@@ -13,6 +13,8 @@ from services.llm import download_and_extract_pdf, compare_papers, generate_prec
 from services.ranking import compute_leaderboard, compute_leaderboard_async
 
 
+from routers.validation_utils import collect_all
+
 def _re_escape(s: str) -> str:
     """Escape a string for use in MongoDB regex."""
     return _re_mod.escape(s)
@@ -386,10 +388,10 @@ async def _store_ranking_snapshot(category: str):
     if len(papers) < 2:
         return
 
-    all_matches = await db.matches.find(
+    all_matches = await collect_all(db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
-    ).to_list(100000)
+    ))
 
     pid_set = {p["id"] for p in papers}
     filtered = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
@@ -446,10 +448,10 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     paper_wins = {pid: 0 for pid in paper_ids}
     compared_pairs = set()
 
-    all_matches = await db.matches.find(
+    all_matches = await collect_all(db.matches.find(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+    ))
 
     for m in all_matches:
         if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
@@ -939,10 +941,10 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     ]
 
             # Only load standard matches for this category (exclude experiments)
-            all_matches = await db.matches.find(
+            all_matches = await collect_all(db.matches.find(
                 {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-            ).to_list(100000)
+            ))
 
             paper_stats = {}
             for p in all_papers:

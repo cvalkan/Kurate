@@ -1,8 +1,3 @@
-"""
-Shared utilities for the validation system.
-Eliminates duplication of tier normalization, expert rating extraction,
-content mode filtering, and safe math helpers.
-"""
 import math
 import asyncio
 import time as _time
@@ -10,6 +5,14 @@ from collections import defaultdict, Counter
 from typing import Optional
 
 
+from core.config import db
+
+
+"""
+Shared utilities for the validation system.
+Eliminates duplication of tier normalization, expert rating extraction,
+content mode filtering, and safe math helpers.
+"""
 # ─── Cursor Utilities ──────────────────────────────────────────────────────────
 
 async def collect_all(cursor, batch_size: int = 2000):
@@ -29,9 +32,6 @@ async def collect_all(cursor, batch_size: int = 2000):
 
 # Projection for paper queries in analysis endpoints — excludes large text fields
 PAPER_LIGHT_PROJECTION = {"_id": 0, "full_text": 0, "ai_impact_summary_opus46": 0, "ai_impact_summary_fairness_v1": 0}
-
-from core.config import db
-
 
 # ─── Ground Truth Type Classification ──────────────────────────────────────────
 
@@ -155,12 +155,12 @@ async def build_ensemble_matches(dataset_id: str, min_models: int = 3) -> dict:
         "prompt_tag": {"$exists": False},
     }
 
-    all_matches = await db.validation_matches.find(
+    all_matches = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
          **_extract_filter},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
          "model_used": 1, "created_at": 1},
-    ).to_list(100000)
+    ))
 
     # Group by pair → model → winner (within the same mode)
     pair_verdicts = defaultdict(dict)

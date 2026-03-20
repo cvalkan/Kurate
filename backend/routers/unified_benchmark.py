@@ -19,7 +19,7 @@ from fastapi import APIRouter, Query
 from core.config import db, logger
 from services.ranking import compute_leaderboard_async as compute_leaderboard
 from routers.validation_utils import (
-    build_expert_ratings, build_content_mode_filter, safe_round,
+    collect_all, build_expert_ratings, build_content_mode_filter, safe_round,
     PAPER_LIGHT_PROJECTION, norm_tier,
     COMPARATIVE_GT_DATASETS, STANDALONE_GT_DATASETS,
 )
@@ -171,11 +171,11 @@ async def _compute_unified_dataset(dataset_id, gt_type):
     if pw_count_check == 0:
         pw_content_mode = "abstract_plus_summary"
 
-    pw_matches_raw = await db.validation_matches.find(
+    pw_matches_raw = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
          "content_mode": pw_content_mode},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ).to_list(100000)
+    ))
 
     # PW accuracy: each match vs h1_avg_rating ordering
     pw_correct = pw_total = 0

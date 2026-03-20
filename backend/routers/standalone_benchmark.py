@@ -13,7 +13,7 @@ from collections import defaultdict, Counter
 
 from core.config import db, logger
 from routers.validation_utils import (
-    build_content_mode_filter, safe_round, PAPER_LIGHT_PROJECTION,
+    collect_all, build_content_mode_filter, safe_round, PAPER_LIGHT_PROJECTION,
     norm_tier, STANDALONE_GT_DATASETS,
 )
 from services.ranking import compute_leaderboard_async as compute_leaderboard
@@ -126,11 +126,11 @@ async def compute_standalone_dataset(dataset_id, ai_source="pairwise"):
         ai_raw = []
         for mode in PREFERRED_MODES:
             mode_filter = build_content_mode_filter(mode)
-            ai_raw = await db.validation_matches.find(
+            ai_raw = await collect_all(db.validation_matches.find(
                 {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
                  **mode_filter},
                 {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-            ).to_list(100000)
+            ))
             if len(ai_raw) >= 20:
                 break
 
