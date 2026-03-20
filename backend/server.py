@@ -796,6 +796,9 @@ async def _prewarm_validation_cache():
         ]
         async for _ in db.validation_matches.aggregate(pipeline2):
             pass
+        # Pre-populate the /datasets endpoint cache so the first request is instant
+        from routers.validation import list_datasets
+        await list_datasets()
         logger.info("Validation cache pre-warmed")
     except Exception as e:
         logger.warning(f"Validation cache prewarm failed: {e}")

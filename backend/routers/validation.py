@@ -88,24 +88,13 @@ async def list_datasets():
     meta_docs = await db.validation_datasets.find({}, {"_id": 0}).to_list(100)
     meta = {d["dataset_id"]: d for d in meta_docs}
 
-    # Include precomputed modes from validation_results.json (avoids per-dataset DB queries)
-    from services.precompute import VALIDATION_FILE
+    # Use in-memory precomputed validation cache for modes (already loaded at startup)
+    from routers.validation_utils import _result_cache
     precomputed_modes = {}
-    try:
-        if VALIDATION_FILE.exists():
-            import json as _json
-            with open(VALIDATION_FILE) as f:
-                val_data = _json.load(f)
-            for ds_id, ds_data in val_data.items():
-                if isinstance(ds_data, dict):
-                    modes = set()
-                    for key in ds_data.keys():
-                        if key.startswith("pairwise:"):
-                            modes.add(key.split(":", 1)[1])
-                    if modes:
-                        precomputed_modes[ds_id] = sorted(modes)
-    except Exception:
-        pass
+    mode_keys = [k for k in _result_cache.keys() if k[0] == "pairwise" and k[2]]
+    for _, ds_id, mode in mode_keys:
+        precomputed_modes.setdefault(ds_id, set()).add(mode)
+    precomputed_modes = {ds_id: sorted(modes) for ds_id, modes in precomputed_modes.items()}
 
     datasets = []
     for ds_id, ps in paper_stats.items():
