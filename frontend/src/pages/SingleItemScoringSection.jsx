@@ -151,13 +151,13 @@ export default function SingleItemScoringSection({ datasetId }) {
             </div>
           </div>
 
-          {/* SP Analysis — "Surprisingly Popular" signal */}
+          {/* Gap Analysis */}
           {ds.sp_analysis && (
             <div className="border border-border rounded-lg overflow-hidden" data-testid="sis-sp-analysis">
               <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-                <h3 className="text-xs font-medium">"Surprisingly Popular" Analysis: BT Rank - SI Rank</h3>
+                <h3 className="text-xs font-medium">Gap Analysis: Tournament Rank vs Standalone Rating</h3>
                 <div className="text-[10px] text-muted-foreground mt-0.5">
-                  Does the gap between pairwise ranking and standalone scoring predict paper quality? Inspired by the Surprisingly Popular algorithm.
+                  Does the gap between pairwise ranking and standalone scoring predict paper quality? Positive gap = paper performs better in head-to-head competition than its standalone rating predicts.
                 </div>
               </div>
               <div className="p-3 space-y-3">

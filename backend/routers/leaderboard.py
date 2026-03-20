@@ -177,7 +177,7 @@ async def _refresh_cache():
             if ai_r is not None:
                 entry["ai_rating"] = ai_r
 
-        # Compute SP score (BT percentile - AI percentile) for papers with both signals
+        # Compute Gap score (BT percentile - AI percentile) for papers with both signals
         entries_with_both = [e for e in full if e.get("ai_rating") and e.get("comparisons", 0) >= 3]
         if len(entries_with_both) >= 2:
             from scipy import stats as _sp_stats
@@ -186,9 +186,9 @@ async def _refresh_cache():
             _si_vals = _np.array([e["ai_rating"] for e in entries_with_both])
             _bt_pct = _sp_stats.rankdata(_bt_vals) / len(entries_with_both) * 100
             _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
-            _sp_raw = _bt_pct - _si_pct
+            _gap_raw = _bt_pct - _si_pct
             for i, entry in enumerate(entries_with_both):
-                entry["sp_score"] = round(float(_sp_raw[i]), 1)
+                entry["gap_score"] = round(float(_gap_raw[i]), 1)
 
         # Yield to event loop after CPU-bound leaderboard computation
         await asyncio.sleep(0)
@@ -1992,7 +1992,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
             "link": entry.get("link"),
             "arxiv_id": entry.get("arxiv_id"),
             "ai_rating": entry.get("ai_rating"),
-            "sp_score": entry.get("sp_score"),
+            "gap_score": entry.get("gap_score"),
         })
 
     if period_type == "weekly":

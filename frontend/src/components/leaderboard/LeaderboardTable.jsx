@@ -89,7 +89,7 @@ export function LeaderboardTable({
         case "comparisons": return getComparisons(p) || 0;
         case "community_likes": return p.community_likes || 0;
         case "ai_rating": { const r = p.ai_rating; return (typeof r === "object" && r ? r.score : r) || 0; }
-        case "sp_score": return p.sp_score || 0;
+        case "gap_score": return p.gap_score || 0;
         case "published": return p.published || "";
         case "bookmarked_at": return p.bookmarked_at || "";
         default: return 0;
@@ -178,7 +178,7 @@ export function LeaderboardTable({
           {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.wilson_margin} />}
           {!isMobile && <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />}
           {showRatingCol && !isMobile && !isTablet && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
-          {showGapCol && !isMobile && !isTablet && <SortHeader label="Gap" sortKey="sp_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Tournament rank minus standalone rating rank. Positive = does better in competition." />}
+          {showGapCol && !isMobile && !isTablet && <SortHeader label="Gap" sortKey="gap_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Tournament rank minus standalone rating rank. Positive = does better in competition." />}
           {!isMobile && <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.published} />}
           {bookmarksMode && !isMobile && <SortHeader label="Saved" sortKey="bookmarked_at" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="When you bookmarked this paper." />}
           {bookmarksMode && <div />}
@@ -221,7 +221,7 @@ export function LeaderboardTable({
             </div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
             {showRatingCol && !isMobile && !isTablet && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{(typeof paper.ai_rating === "object" && paper.ai_rating ? paper.ai_rating.score : paper.ai_rating) || "—"}</div>}
-            {showGapCol && !isMobile && !isTablet && <div className={`text-right font-mono text-[10px] sm:text-xs ${paper.sp_score > 0 ? "text-emerald-600" : paper.sp_score < 0 ? "text-red-400" : "text-muted-foreground"}`}>{paper.sp_score != null ? (paper.sp_score > 0 ? "+" : "") + paper.sp_score : "—"}</div>}
+            {showGapCol && !isMobile && !isTablet && <div className={`text-right font-mono text-[10px] sm:text-xs ${paper.gap_score > 0 ? "text-emerald-600" : paper.gap_score < 0 ? "text-red-400" : "text-muted-foreground"}`}>{paper.gap_score != null ? (paper.gap_score > 0 ? "+" : "") + paper.gap_score : "—"}</div>}
             {!isMobile && <div className="text-right text-xs text-muted-foreground">
               {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
             </div>}

@@ -41,7 +41,7 @@ def _build_enriched_paper_map():
                     "comparisons": entry.get("comparisons"),
                     "wilson_margin": entry.get("wilson_margin"),
                     "ci": entry.get("ci"),
-                    "sp_score": entry.get("sp_score"),
+                    "gap_score": entry.get("gap_score"),
                 })
             else:
                 paper_map[pid] = dict(entry)
@@ -199,7 +199,7 @@ async def get_public_list(list_id: str, request: Request):
                 "losses": p.get("losses"), "comparisons": p.get("comparisons"),
                 "wilson_margin": p.get("wilson_margin"), "ci": p.get("ci"),
                 "ai_rating": p.get("ai_rating", {}).get("score") if isinstance(p.get("ai_rating"), dict) else p.get("ai_rating"),
-                "sp_score": p.get("sp_score"),
+                "gap_score": p.get("gap_score"),
             })
 
     return {

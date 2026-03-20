@@ -974,7 +974,7 @@ async def update_summary_prompt(update: PromptUpdate):
     return {"success": True}
 
 
-# --- Prediction Experiment (Surprisingly Popular) ---
+# --- Prediction Experiment (Gap Score) ---
 
 DEFAULT_PREDICTION_PROMPT = {
     "system_prompt": """You are predicting scientific consensus. Your task is NOT to evaluate the papers yourself, but to anticipate which paper the broader scientific community would consider more impactful.
@@ -1147,7 +1147,7 @@ async def _run_prediction_round(category: str, max_pairs: int, abstract_only: bo
 
 @router.get("/experiment-comparison", dependencies=[Depends(verify_admin)])
 async def get_experiment_comparison(category: str = "cs.RO"):
-    """Compare standard vs prediction rankings for the Surprisingly Popular experiment."""
+    """Compare standard vs prediction rankings for the Gap Score experiment."""
     from services.ranking import compute_leaderboard_async
 
     # Load papers
@@ -2400,7 +2400,7 @@ async def backfill_archives():
 
     FROZEN_FIELDS = ["rank", "id", "title", "authors", "score", "wins", "losses",
                      "comparisons", "win_rate", "ci", "wilson_margin", "published", "link", "arxiv_id",
-                     "ai_rating", "sp_score"]
+                     "ai_rating", "gap_score"]
     MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June",
                    "July", "August", "September", "October", "November", "December"]
 
@@ -2414,7 +2414,7 @@ async def backfill_archives():
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
     utc_now = datetime.now(timezone.utc)
 
-    # Drop existing archives so we regenerate with full field set (ai_rating, sp_score)
+    # Drop existing archives so we regenerate with full field set (ai_rating, gap_score)
     await db.leaderboard_archives.delete_many({})
 
     # --- Load all data once ---
@@ -2496,7 +2496,7 @@ async def backfill_archives():
         for i, e in enumerate(lb):
             e["rank"] = i + 1
 
-        # Inject ai_rating and compute sp_score
+        # Inject ai_rating and compute gap_score
         for e in lb:
             ai_r = ai_ratings.get(e["id"])
             if ai_r is not None:
@@ -2510,9 +2510,9 @@ async def backfill_archives():
             _si_vals = _np.array([e["ai_rating"] for e in entries_with_both])
             _bt_pct = _sp_stats.rankdata(_bt_vals) / len(entries_with_both) * 100
             _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
-            _sp_raw = _bt_pct - _si_pct
+            _gap_raw = _bt_pct - _si_pct
             for i, entry in enumerate(entries_with_both):
-                entry["sp_score"] = round(float(_sp_raw[i]), 1)
+                entry["gap_score"] = round(float(_gap_raw[i]), 1)
 
         return lb
 

@@ -68,7 +68,7 @@ export function AdminExperiment() {
   return (
     <div className="space-y-6" data-testid="admin-experiment">
       <div>
-        <h2 className="font-heading text-lg font-medium mb-1">Surprisingly Popular Experiment</h2>
+        <h2 className="font-heading text-lg font-medium mb-1">Gap Score Experiment</h2>
         <p className="text-xs text-muted-foreground max-w-2xl">
           Based on Drazen Prelec's method. Compares standard rankings (full-text, "which is better?") with prediction rankings (abstract-only, "which would the crowd pick?").
           Papers that rank higher in the standard tournament than predicted may be <span className="text-foreground font-medium">hidden gems</span>.

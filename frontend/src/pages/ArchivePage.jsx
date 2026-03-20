@@ -91,7 +91,7 @@ export default function ArchivePage() {
             sortDir="asc"
             onSort={() => {}}
             showRatingCol={entries.some(e => e.ai_rating)}
-            showGapCol={entries.some(e => e.sp_score)}
+            showGapCol={entries.some(e => e.gap_score)}
           />
         </div>
 

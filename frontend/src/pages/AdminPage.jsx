@@ -396,7 +396,7 @@ export default function AdminPage() {
           <div className="space-y-4 border-t border-border pt-6">
             <h3 className="text-sm font-medium flex items-center gap-2">
               <FlaskConical className="h-4 w-4 text-accent" />
-              Prediction Prompt (Surprisingly Popular)
+              Prediction Prompt (Gap Score)
             </h3>
             <p className="text-xs text-muted-foreground">Used for the prediction tournament comparisons.</p>
             <div>

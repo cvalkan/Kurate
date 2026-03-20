@@ -357,7 +357,7 @@ async def _compute_single_item_results():
             "details": p.get("single_item_details", {}),
         } for p in scored], key=lambda x: x["ai_score"], reverse=True)
 
-        # Surprisingly Popular analysis: BT_norm - SI_norm as independent signal
+        # Gap Score analysis: BT_norm - SI_norm as independent signal
         sp_analysis = None
         if pairwise_matches and len(scored) >= 10:
             from collections import defaultdict as _dd
