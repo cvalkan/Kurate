@@ -2110,6 +2110,8 @@ async def deduplicate_papers():
     _invalidate_admin_cache()
     lb_cache.clear()
     lb_cache.update({"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "warming_up": True})
+    from routers.leaderboard import notify_data_changed
+    notify_data_changed()
 
     return {
         "status": "ok",
