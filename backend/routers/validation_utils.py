@@ -15,10 +15,11 @@ content mode filtering, and safe math helpers.
 """
 # ─── Cursor Utilities ──────────────────────────────────────────────────────────
 
-async def collect_all(cursor, batch_size: int = 500):
+async def collect_all(cursor, batch_size: int = 10000):
     """Collect all documents from a Motor cursor without any cap.
     Yields to the event loop between batches so HTTP requests aren't blocked.
-    Uses small batches (500) to keep individual BSON deserialization bursts short."""
+    Batch size of 10000 balances network round-trips (fewer = slower on remote DB)
+    vs event-loop responsiveness (smaller = more frequent yields)."""
     docs = []
     while True:
         batch = await cursor.to_list(length=batch_size)
