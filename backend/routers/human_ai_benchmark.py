@@ -2062,6 +2062,18 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         row["max_gap"] = g
         ctrl_close_rows.append(row)
 
+    # Ensure first row of non_controlled matches the ranking quality summary cards
+    # Read from the precomputed cache to guarantee exact match
+    rq_cache = _ranking_quality_unfiltered_cache.get(gt_type, {}).get("data")
+    if rq_cache and rq_cache.get("status") == "ok":
+        pb = rq_cache["pooled_bt"]
+        non_ctrl_rows[0]["indiv"] = pb.get("indiv", {}).get("spearman_rho")
+        non_ctrl_rows[0]["maj"] = pb.get("maj", {}).get("spearman_rho")
+        non_ctrl_rows[0]["tier"] = pb.get("tier", {}).get("spearman_rho")
+        non_ctrl_rows[0]["avg"] = pb.get("avg_rating", {}).get("spearman_rho")
+        if non_ctrl_rows[0]["indiv"] and non_ctrl_rows[0]["h_ceil"]:
+            non_ctrl_rows[0]["ai_advantage"] = safe_round(non_ctrl_rows[0]["indiv"] - non_ctrl_rows[0]["h_ceil"])
+
     return {
         "status": "ok",
         "gt_type": gt_type,
