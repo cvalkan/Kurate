@@ -300,6 +300,65 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
           </p>
         </div>
       </div>
+
+      {/* Pooled Top/Bottom K% Overlap Table */}
+      {data.pooled_overlap_table && data.pooled_overlap_table.length > 0 && (
+        <div className="mt-6 border border-border rounded-lg overflow-hidden">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
+            <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold">Top/Bottom K% Overlap: AI vs Human Ground Truth (pooled)</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-1.5 px-2 text-left font-medium">GT Method</th>
+                  <th className="py-1.5 px-2 text-right font-medium">K%</th>
+                  <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">Top K% actual</th>
+                  <th className="py-1.5 px-2 text-right font-medium bg-emerald-500/[0.06]">Top K% expected</th>
+                  <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">Bottom K% actual</th>
+                  <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">Bottom K% expected</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.pooled_overlap_table.map((r, i) => {
+                  const topDiff = r.top_actual != null && r.top_expected != null ? r.top_actual - r.top_expected : null;
+                  const botDiff = r.bottom_actual != null && r.bottom_expected != null ? r.bottom_actual - r.bottom_expected : null;
+                  const isFirst = i === 0 || data.pooled_overlap_table[i-1]?.gt !== r.gt;
+                  return (
+                    <tr key={i} className={`border-b border-border/20 ${isFirst ? "border-t border-border/40" : ""}`}>
+                      <td className="py-1 px-2 text-left font-medium">{isFirst ? r.gt_name : ""}</td>
+                      <td className="py-1 px-2 text-right font-mono">{r.pct}%</td>
+                      <td className="py-1 px-2 text-right font-mono bg-emerald-500/[0.06]">
+                        {r.top_actual != null ? `${Math.round(r.top_actual)}%` : "\u2014"}
+                      </td>
+                      <td className="py-1 px-2 text-right font-mono bg-emerald-500/[0.06] text-foreground/50">
+                        {r.top_expected != null ? `${Math.round(r.top_expected)}%` : "\u2014"}
+                        {topDiff != null && <span className={`ml-1 text-[9px] ${topDiff >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{topDiff >= 0 ? "+" : ""}{Math.round(topDiff)}</span>}
+                      </td>
+                      <td className="py-1 px-2 text-right font-mono bg-rose-500/[0.06]">
+                        {r.bottom_actual != null ? `${Math.round(r.bottom_actual)}%` : "\u2014"}
+                      </td>
+                      <td className="py-1 px-2 text-right font-mono bg-rose-500/[0.06] text-foreground/50">
+                        {r.bottom_expected != null ? `${Math.round(r.bottom_expected)}%` : "\u2014"}
+                        {botDiff != null && <span className={`ml-1 text-[9px] ${botDiff >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{botDiff >= 0 ? "+" : ""}{Math.round(botDiff)}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              <strong>Actual</strong>: observed overlap between AI{"'"}s top/bottom K% and GT{"'"}s top/bottom K%.{" "}
+              <strong>Expected</strong>: simulated overlap at the observed {"\u03C1"} assuming Gaussian noise (500 trials).{" "}
+              Negative delta = AI{"'"}s errors concentrate in the tails more than {"\u03C1"} alone predicts.{" "}
+              Pooled across {data.n_datasets} datasets (equal-weighted).
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

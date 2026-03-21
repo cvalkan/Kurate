@@ -2268,6 +2268,7 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
     per_dataset = []
     pooled_rhos = {"indiv": [], "maj": [], "tier": [], "avg_rating": []}
     pooled_top10 = {}
+    pooled_overlap_table = {}
 
     for ds_id in all_ds_ids:
         result = await _compute_standalone_ranking(ds_id, include_within_tier=include_within_tier)
@@ -2291,6 +2292,15 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
             if v.get("expected") is not None:
                 pooled_top10[k]["expected"].append(v["expected"])
 
+        # Collect overlap table
+        for row in result.get("overlap_table", []):
+            key = (row["gt"], row["pct"])
+            pooled_overlap_table.setdefault(key, {"gt_name": row["gt_name"], "pct": row["pct"],
+                "top_actual": [], "top_expected": [], "bottom_actual": [], "bottom_expected": []})
+            for f in ["top_actual", "top_expected", "bottom_actual", "bottom_expected"]:
+                if row.get(f) is not None:
+                    pooled_overlap_table[key][f].append(row[f])
+
     if not per_dataset:
         return {"status": "no_data"}
 
@@ -2309,12 +2319,23 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
         if entry:
             pooled_top10_avg[key] = entry
 
+    # Pool overlap table
+    pooled_ot_rows = []
+    for key in sorted(pooled_overlap_table.keys()):
+        entry = pooled_overlap_table[key]
+        row = {"gt": key[0], "gt_name": entry["gt_name"], "pct": entry["pct"]}
+        for f in ["top_actual", "top_expected", "bottom_actual", "bottom_expected"]:
+            vals = entry[f]
+            row[f] = safe_round(float(np.mean(vals))) if vals else None
+        pooled_ot_rows.append(row)
+
     return {
         "status": "ok",
         "gt_type": gt_type,
         "n_datasets": len(per_dataset),
         "pooled_bt": pooled_bt,
         "pooled_top10_overlap": pooled_top10_avg,
+        "pooled_overlap_table": pooled_ot_rows,
         "per_dataset": per_dataset,
     }
 
@@ -2518,52 +2539,62 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
             ai_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
     overlap = len(ai_pairs & all_expert_pairs_ge2)
 
-    # Top-K% overlap: fraction of AI's top-K% papers that are also in GT's top-K%
-    # Also compute expected overlap given the ρ (via simulation)
+    # Top/Bottom K% overlap across GT methods and percentiles
     import random as _rng_top
-    def _compute_top_overlap(ai_rank_map, gt_rank_map, frac):
+    def _compute_overlap(ai_rank_map, gt_rank_map, frac, bottom=False):
         shared = sorted(set(ai_rank_map.keys()) & set(gt_rank_map.keys()))
         if len(shared) < 5:
             return None, None
         k = max(1, int(len(shared) * frac))
-        ai_sorted = sorted(shared, key=lambda p: ai_rank_map.get(p, 0), reverse=True)
-        gt_sorted = sorted(shared, key=lambda p: gt_rank_map.get(p, 0), reverse=True)
+        ai_sorted = sorted(shared, key=lambda p: ai_rank_map.get(p, 0), reverse=not bottom)
+        gt_sorted = sorted(shared, key=lambda p: gt_rank_map.get(p, 0), reverse=not bottom)
         actual = len(set(ai_sorted[:k]) & set(gt_sorted[:k])) / k * 100
-        # Expected overlap: simulate from the Spearman ρ
         sp, _ = scipy_stats.spearmanr([ai_rank_map[p] for p in shared], [gt_rank_map[p] for p in shared])
         if np.isnan(sp):
             return actual, None
         n = len(shared)
-        _rng_top.seed(42)
-        expected_overlaps = []
+        np.random.seed(42)
+        exps = []
         for _ in range(500):
             x = np.random.randn(n)
             noise = np.random.randn(n)
             y = float(sp) * x + np.sqrt(max(0, 1 - float(sp)**2)) * noise
-            x_top = set(np.argsort(x)[-k:])
-            y_top = set(np.argsort(y)[-k:])
-            expected_overlaps.append(len(x_top & y_top) / k * 100)
-        expected = float(np.mean(expected_overlaps))
-        return actual, expected
+            if bottom:
+                x_sel = set(np.argsort(x)[:k])
+                y_sel = set(np.argsort(y)[:k])
+            else:
+                x_sel = set(np.argsort(x)[-k:])
+                y_sel = set(np.argsort(y)[-k:])
+            exps.append(len(x_sel & y_sel) / k * 100)
+        return actual, float(np.mean(exps))
 
+    # Build the full overlap table
+    overlap_table = []
+    gt_methods = [("indiv", "Aggregate", h_indiv_rank), ("maj", "Majority", h_maj_rank), ("avg_rating", "Avg Rating", avg_rating_map)]
+    fracs = [0.05, 0.10, 0.20, 0.30]
+
+    for gt_key, gt_name, gt_rank in gt_methods:
+        for frac in fracs:
+            pct = int(frac * 100)
+            # Top K%
+            actual_t, expected_t = _compute_overlap(ai_rank, gt_rank, frac, bottom=False)
+            # Bottom K%
+            actual_b, expected_b = _compute_overlap(ai_rank, gt_rank, frac, bottom=True)
+            overlap_table.append({
+                "gt": gt_key, "gt_name": gt_name, "pct": pct,
+                "top_actual": safe_round(actual_t) if actual_t is not None else None,
+                "top_expected": safe_round(expected_t) if expected_t is not None else None,
+                "bottom_actual": safe_round(actual_b) if actual_b is not None else None,
+                "bottom_expected": safe_round(expected_b) if expected_b is not None else None,
+            })
+
+    # Also keep the simple top_overlap for summary cards
     top_overlap = {}
-    for gt_label, gt_rank_map in [("indiv", h_indiv_rank), ("maj", h_maj_rank), ("avg_rating", avg_rating_map)]:
+    for gt_key, gt_name, gt_rank in gt_methods:
         for pct_label, frac in [("10", 0.10), ("20", 0.20)]:
-            actual, expected = _compute_top_overlap(ai_rank, gt_rank_map, frac)
+            actual, expected = _compute_overlap(ai_rank, gt_rank, frac, bottom=False)
             if actual is not None:
-                key = f"{gt_label}_top{pct_label}"
-                top_overlap[key] = {"actual": safe_round(actual), "expected": safe_round(expected) if expected else None}
-
-    # vs tier: top-K% = highest tiers
-    if tier_score_map:
-        top_tiers = {pid for pid, s in tier_score_map.items() if s >= 3}  # oral + spotlight
-        if top_tiers:
-            ai_sorted_all = sorted(paper_ids, key=lambda p: ai_rank.get(p, 0), reverse=True)
-            for pct_label, frac in [("10", 0.10), ("20", 0.20)]:
-                k = max(1, int(len(paper_ids) * frac))
-                ai_topk = set(ai_sorted_all[:k])
-                actual = len(ai_topk & top_tiers) / max(len(top_tiers), 1) * 100
-                top_overlap[f"tier_top{pct_label}"] = {"actual": safe_round(actual), "expected": None}
+                top_overlap[f"{gt_key}_top{pct_label}"] = {"actual": safe_round(actual), "expected": safe_round(expected) if expected else None}
 
     return {
         "dataset_id": dataset_id,
@@ -2574,4 +2605,5 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         "pair_overlap": overlap,
         "bt": bt,
         "top_overlap": top_overlap,
+        "overlap_table": overlap_table,
     }
