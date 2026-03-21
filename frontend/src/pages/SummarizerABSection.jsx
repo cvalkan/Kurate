@@ -132,7 +132,12 @@ export default function SummarizerABSection() {
         <div className="text-xs text-muted-foreground space-y-1.5">
           <p><strong>Question:</strong> How does the choice of summarizer model affect tournament accuracy and ranking, controlling for the same judge models and paper pairs?</p>
           <p><strong>Method:</strong> Generate impact assessment summaries using GPT-5.2, Gemini 3 Pro, and compare with existing Opus 4.5/4.6/Thinking summaries. Run the same round-robin judges on the same cross-tier pairs. Compare pairwise accuracy and ranking correlation on overlapping pairs.</p>
-          <p><strong>All comparisons on exact same pairs</strong> to avoid pair-selection bias (which previously inflated the Opus 4.6 Thinking advantage from +0.057 to +0.000 on ranking).</p>
+          <p><strong>All comparisons on exact same pairs</strong> to avoid pair-selection bias.</p>
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 leading-relaxed mt-1">
+            <strong>Limitation:</strong> The common-pairs intersection is <strong>100% cross-tier</strong> at ~5 M/P. This comparison
+            cannot test within-tier robustness. A controlled within-tier test (same pairs through all summarizers) would
+            require ~5,000 additional matches. Until then, the ranking below applies to cross-tier comparisons only.
+          </div>
         </div>
       </div>
 
