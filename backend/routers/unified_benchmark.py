@@ -592,6 +592,33 @@ async def _compute_unified_benchmark(gt_type):
     si_rho_avg = safe_round(float(np.mean(pooled["si_rhos"]))) if pooled["si_rhos"] else None
     si_sub_rho_avg = safe_round(float(np.mean(pooled.get("si_sub_rhos", [])))) if pooled.get("si_sub_rhos") else None
 
+    # Pool per-GT-method ranking correlations (matching the breakdown table)
+    # Only average over datasets where BOTH PW and SI have data for that metric
+    gt_methods = ["vs_individual", "vs_avg_rating", "vs_majority", "vs_committee"]
+    pooled_rank_corrs = {}
+    for m in gt_methods:
+        pw_vals = []
+        si_vals = []
+        for result in per_dataset:
+            pw_rc = result.get("pw", {}).get("ranking_correlations", {})
+            si_rc = result.get("si", {}).get("ranking_correlations") or {}
+            pw_v = pw_rc.get(m, {}).get("rho") if pw_rc.get(m) else None
+            si_v = si_rc.get(m, {}).get("rho") if si_rc.get(m) else None
+            if pw_v is not None and si_v is not None:
+                pw_vals.append(pw_v)
+                si_vals.append(si_v)
+        if pw_vals:
+            pooled_rank_corrs[m] = {
+                "pw_rho": safe_round(float(np.mean(pw_vals))),
+                "si_rho": safe_round(float(np.mean(si_vals))),
+                "n_datasets": len(pw_vals),
+            }
+
+    # Use vs_individual as the headline rho (most principled GT)
+    if pooled_rank_corrs.get("vs_individual"):
+        pw_rho_avg = pooled_rank_corrs["vs_individual"]["pw_rho"]
+        si_rho_avg = pooled_rank_corrs["vs_individual"]["si_rho"]
+
     return {
         "status": "ok",
         "gt_type": gt_type,
