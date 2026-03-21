@@ -1696,29 +1696,29 @@ async def dataset_rankings(dataset_id: str):
     paper_ids = [p["id"] for p in papers]
 
     def _compute_elo(matches_list):
-        stats = {pid: {"w": 0, "l": 0} for pid in paper_ids}
+        """Compute BT scores normalized to Elo range for a set of matches."""
+        from services.ranking import calculate_bradley_terry, _bt_to_elo
+        bt_matches = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                        "winner_id": m["winner_id"], "completed": True, "failed": False}
+                       for m in matches_list if m.get("winner_id")]
+        bt_raw = calculate_bradley_terry(bt_matches, paper_ids)
+        elo_map = _bt_to_elo(bt_raw, ELO_BASE)
+        
+        # Also compute win/loss stats
+        w_stats = {pid: {"w": 0, "l": 0} for pid in paper_ids}
         for m in matches_list:
             w = m.get("winner_id")
-            if not w:
-                continue
+            if not w: continue
             p1, p2 = m["paper1_id"], m["paper2_id"]
             loser = p2 if w == p1 else p1
-            if w in stats:
-                stats[w]["w"] += 1
-            if loser in stats:
-                stats[loser]["l"] += 1
-
+            if w in w_stats: w_stats[w]["w"] += 1
+            if loser in w_stats: w_stats[loser]["l"] += 1
+        
         scores = {}
         for pid in paper_ids:
-            s = stats[pid]
+            s = w_stats[pid]
             n = s["w"] + s["l"]
-            if n == 0:
-                scores[pid] = {"score": ELO_BASE, "wins": 0, "losses": 0, "matches": 0}
-                continue
-            p_reg = (s["w"] + 0.5) / (n + 1.0)
-            p_reg = max(0.02, min(0.98, p_reg))
-            elo = round(400.0 * math.log10(p_reg / (1 - p_reg)) + ELO_BASE)
-            scores[pid] = {"score": elo, "wins": s["w"], "losses": s["l"], "matches": n}
+            scores[pid] = {"score": elo_map.get(pid, ELO_BASE), "wins": s["w"], "losses": s["l"], "matches": n}
         return scores
 
     ai_elo = _compute_elo(ai_bt_matches)
@@ -2094,7 +2094,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     async def _compute_weighted_row(ds_items, weight_fn, gap_field, label):
         """Compute ranking rho using proper per-match weighted BT (fractional wins/losses).
         No match duplication — weights are applied directly in the likelihood function."""
-        from services.ranking import compute_weighted_elo
+        from services.ranking import compute_weighted_bt
         rhos = {"indiv": [], "maj": [], "tier": [], "avg": [], "h_ceil": []}
         total_pairs = 0
 
@@ -2108,7 +2108,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             total_pairs += len({tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in all_m})
 
             # Proper weighted BT: fractional wins/losses in the Elo formula
-            ai_rank = compute_weighted_elo(all_m, paper_ids,
+            ai_rank = compute_weighted_bt(all_m, paper_ids,
                                            weight_fn=lambda m: max(0.01, weight_fn(m[gap_field])))
 
             h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,

@@ -10,19 +10,26 @@ from scipy import stats as scipy_stats
 _compute_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="lb-compute")
 
 
-def calculate_bradley_terry(matches: List[dict], paper_ids: List[str]) -> Dict[str, float]:
+def calculate_bradley_terry(matches: List[dict], paper_ids: List[str], prior_strength: float = 1.0) -> Dict[str, float]:
+    """BT MLE with optional regularization prior.
+    
+    prior_strength > 0 adds virtual matches: each paper beats a phantom opponent
+    with `prior_strength` virtual wins, preventing degenerate scores for papers
+    with few or zero wins. Equivalent to a Dirichlet prior on BT strengths.
+    Set prior_strength=0 for pure MLE (only suitable with 50+ matches/paper).
+    """
     n = len(paper_ids)
     if n == 0:
         return {}
 
     pid_set = set(paper_ids)
     scores = {pid: 1.0 for pid in paper_ids}
-    wins = {pid: 0 for pid in paper_ids}
-    comparisons = {pid: 0 for pid in paper_ids}
+    wins = {pid: prior_strength for pid in paper_ids}  # Prior: virtual wins
+    comparisons = {pid: 2 * prior_strength for pid in paper_ids}  # Prior: virtual matches
 
     # Pre-filter valid matches and index by paper
     valid_matches = []
-    paper_matches = {pid: [] for pid in paper_ids}  # pid -> list of (opponent_pid, match_idx)
+    paper_matches = {pid: [] for pid in paper_ids}  # pid -> list of match indices
 
     for match in matches:
         if match.get("completed") and match.get("winner_id") and not match.get("failed"):
@@ -45,7 +52,8 @@ def calculate_bradley_terry(matches: List[dict], paper_ids: List[str]) -> Dict[s
         new_scores = {}
         for pid in paper_ids:
             if comparisons.get(pid, 0) > 0:
-                denominator = 0.0
+                # BT update: include prior contribution
+                denominator = prior_strength / (scores.get(pid, 1.0) + 1.0)  # Prior: vs phantom with strength 1.0
                 for midx in paper_matches[pid]:
                     p1, p2 = valid_matches[midx]
                     denominator += 1.0 / (scores.get(p1, 1.0) + scores.get(p2, 1.0))
@@ -65,7 +73,7 @@ def calculate_bradley_terry(matches: List[dict], paper_ids: List[str]) -> Dict[s
     return scores
 
 
-def compute_weighted_elo(matches: List[dict], paper_ids: List[str], weight_fn=None) -> Dict[str, float]:
+def compute_weighted_bt(matches: List[dict], paper_ids: List[str], weight_fn=None) -> Dict[str, float]:
     """Compute Elo scores with per-match fractional weights in the likelihood.
     
     Unlike match duplication, this properly weights the BT likelihood:
@@ -117,9 +125,9 @@ def compute_weighted_elo(matches: List[dict], paper_ids: List[str], weight_fn=No
     return scores
 
 
-async def compute_weighted_elo_async(matches, paper_ids, weight_fn=None):
+async def compute_weighted_bt_async(matches, paper_ids, weight_fn=None):
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(_compute_pool, compute_weighted_elo, matches, paper_ids, weight_fn)
+    return await loop.run_in_executor(_compute_pool, compute_weighted_bt, matches, paper_ids, weight_fn)
 
 
 
@@ -275,6 +283,26 @@ def calculate_confidence_interval(wins: int, comparisons: int, confidence_level:
     }
 
 
+def _bt_to_elo(bt_scores: Dict[str, float], base: int = 1200) -> Dict[str, int]:
+    """Convert raw BT strengths to Elo-scale scores for display.
+    BT strengths are on an arbitrary positive scale; this maps them to
+    a familiar Elo range centered at `base`."""
+    if not bt_scores:
+        return {}
+    vals = [v for v in bt_scores.values() if v > 0]
+    if not vals:
+        return {pid: base for pid in bt_scores}
+    median = sorted(vals)[len(vals) // 2]
+    scores = {}
+    for pid, strength in bt_scores.items():
+        if strength <= 0:
+            scores[pid] = base - 400
+        else:
+            # Elo = 400 * log10(strength / median) + base
+            scores[pid] = round(400.0 * math.log10(strength / median) + base)
+    return scores
+
+
 def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     paper_ids = [p["id"] for p in papers]
     ELO_BASE = 1200
@@ -301,8 +329,11 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
             for i, p in enumerate(sorted_papers)
         ]
 
-    _bt_scores = calculate_bradley_terry(matches, paper_ids)  # noqa: F841 — computed for model validation
+    # Use proper Bradley-Terry MLE for ranking (accounts for opponent strength)
+    bt_scores = calculate_bradley_terry(matches, paper_ids)
+    elo_scores = _bt_to_elo(bt_scores, ELO_BASE)
 
+    # Also compute win/loss stats for CI and display
     stats = {pid: {"wins": 0, "losses": 0, "comparisons": 0} for pid in paper_ids}
     for match in matches:
         if match.get("completed") and match.get("winner_id") and not match.get("failed"):
@@ -316,30 +347,19 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
                 stats[loser]["losses"] += 1
                 stats[loser]["comparisons"] += 1
 
-    elo_scores = {}
+    # CI from win-rate (simpler to compute than BT Fisher information)
     elo_ci = {}
     for pid in paper_ids:
         s = stats.get(pid, {"wins": 0, "comparisons": 0})
         w, n = s["wins"], s["comparisons"]
-
         if n == 0:
-            elo_scores[pid] = ELO_BASE
             elo_ci[pid] = 0
             continue
-
-        # Regularized win rate (Jeffreys prior: add 0.5 wins and 0.5 losses)
         p_reg = (w + 0.5) / (n + 1.0)
         p_reg = max(0.02, min(0.98, p_reg))
-
-        # Elo from logistic: Elo = 400 * log10(p/(1-p)) + base
-        elo = 400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE
-        elo_scores[pid] = round(elo)
-
-        # 95% CI in Elo points
         se_logit = 1.0 / math.sqrt((n + 1.0) * p_reg * (1.0 - p_reg))
         se_elo = (400.0 / math.log(10)) * se_logit
-        ci = round(1.96 * se_elo)
-        elo_ci[pid] = min(ci, 400)  # Cap at 400
+        elo_ci[pid] = min(round(1.96 * se_elo), 400)
 
     paper_lookup = {p["id"]: p for p in papers}
     # Deterministic tiebreaker for papers with equal scores (e.g., all at 1200 with 0 matches)
