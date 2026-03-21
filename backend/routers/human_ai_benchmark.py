@@ -1809,6 +1809,211 @@ async def ai_ranking_quality_unfiltered(gt_type: str = Query("comp")):
     return {"status": "no_data", "message": "Unfiltered AI ranking quality not precomputed."}
 
 
+_gap_analysis_cache = {"comp": {"data": None}}
+
+
+@router.get("/ai-ranking-gap-analysis")
+async def ai_ranking_gap_analysis(gt_type: str = Query("comp")):
+    """AI ranking quality at different SI-score gap thresholds — served from precomputed cache."""
+    cache = _gap_analysis_cache.get(gt_type, {})
+    if cache.get("data"):
+        return cache["data"]
+    return {"status": "no_data", "message": "Gap analysis not precomputed."}
+
+
+async def _compute_gap_analysis(gt_type: str = "comp"):
+    """Compute AI ranking quality at multiple SI-gap thresholds.
+    Shows how correlation changes when AI matches are filtered by the
+    predicted quality gap (SI score difference) between papers."""
+    allowed = COMPARATIVE_GT_DATASETS if gt_type == "comp" else STANDALONE_GT_DATASETS
+    TIER_MAP = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1, "withdrawn": 0, "desk rejected": 0}
+
+    ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
+    all_ds_ids = [r["_id"] async for r in db.validation_papers.aggregate(ds_pipeline)
+                  if r["_id"] in allowed]
+
+    # Load all data per dataset
+    ds_data = {}
+    for ds_id in all_ds_ids:
+        papers = await collect_all(db.validation_papers.find(
+            {"dataset_id": ds_id},
+            {"_id": 0, "id": 1, "title": 1, "evaluations": 1, "decision": 1,
+             "single_item_score": 1, "single_item_scores": 1}))
+        if not papers:
+            continue
+        papers_by_id = {p["id"]: p for p in papers}
+
+        si_scores = {}
+        for p in papers:
+            si = p.get("single_item_score") or p.get("single_item_scores", {}).get("overall")
+            if si is not None:
+                si_scores[p["id"]] = si
+        if len(si_scores) < 10:
+            continue
+
+        expert_ratings = defaultdict(dict)
+        for p in papers:
+            for ev in p.get("evaluations", []):
+                name = ev.get("evaluator", "")
+                if name and ev.get("rating_value") is not None:
+                    expert_ratings[name][p["id"]] = ev["rating_value"]
+        experts_map = {e: r for e, r in expert_ratings.items() if len(r) >= 3}
+
+        expert_pair_prefs = defaultdict(dict)
+        for exp, ratings in experts_map.items():
+            pids = list(ratings.keys())
+            for i in range(len(pids)):
+                for j in range(i + 1, len(pids)):
+                    a, b = pids[i], pids[j]
+                    if ratings[a] == ratings[b]:
+                        continue
+                    pair = tuple(sorted([a, b]))
+                    expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
+
+        expert_majority = {}
+        for pair, votes in expert_pair_prefs.items():
+            if len(votes) < 2:
+                continue
+            c = Counter(votes.values())
+            best, n = c.most_common(1)[0]
+            if n > len(votes) / 2:
+                expert_majority[pair] = best
+
+        all_expert_ge2 = {p for p, v in expert_pair_prefs.items() if len(v) >= 2}
+
+        # Load all thinking matches (base + experiment)
+        base = await collect_all(db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": "abstract_plus_summary:thinking", "winner_id": {"$ne": None},
+             "experiment_tag": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}))
+        exp_matches = await collect_all(db.validation_matches.find(
+            {"dataset_id": ds_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": "abstract_plus_summary:thinking", "winner_id": {"$ne": None},
+             "experiment_tag": {"$exists": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}))
+
+        all_matches = base + exp_matches
+        for m in all_matches:
+            s1, s2 = si_scores.get(m["paper1_id"]), si_scores.get(m["paper2_id"])
+            m["_si_gap"] = abs(s1 - s2) if s1 is not None and s2 is not None else None
+
+        tier_rank = {p["id"]: -TIER_MAP[norm_tier(p.get("decision"))]
+                     for p in papers if norm_tier(p.get("decision")) in TIER_MAP}
+        avg_map = {}
+        for p in papers:
+            evals = p.get("evaluations", [])
+            vals = [e["rating_value"] for e in evals if e.get("rating_value")]
+            if vals:
+                avg_map[p["id"]] = sum(vals) / len(vals)
+
+        ds_data[ds_id] = {
+            "papers": papers, "papers_by_id": papers_by_id, "experts_map": experts_map,
+            "expert_pair_prefs": expert_pair_prefs, "expert_majority": expert_majority,
+            "all_expert_ge2": all_expert_ge2, "all_matches": all_matches,
+            "tier_rank": tier_rank, "avg_map": avg_map,
+        }
+
+    # Compute metrics at each gap threshold
+    gap_thresholds = [0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
+    rows = []
+
+    for min_gap in gap_thresholds:
+        rhos = {"indiv": [], "maj": [], "tier": [], "avg": [], "h_ceil": []}
+        total_matches = 0
+        total_ctrl = 0
+
+        for ds_id, c in ds_data.items():
+            papers = c["papers"]
+            filtered = [m for m in c["all_matches"]
+                        if m.get("_si_gap") is not None and m["_si_gap"] >= min_gap]
+            if len(filtered) < 10:
+                continue
+            total_matches += len(filtered)
+
+            pv = defaultdict(list)
+            for m in filtered:
+                pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+                pv[pair].append(m["winner_id"])
+            ai_pair = {pair: Counter(v).most_common(1)[0][0] for pair, v in pv.items()}
+            ctrl = set(ai_pair.keys()) & c["all_expert_ge2"]
+            total_ctrl += len(ctrl)
+            if len(ctrl) < 10:
+                continue
+
+            ai_bt = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": ai_pair[p],
+                      "completed": True, "failed": False} for p in ctrl]
+            h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
+                        "completed": True, "failed": False}
+                       for p in ctrl for _, w in c["expert_pair_prefs"][p].items()]
+            h_maj = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": c["expert_majority"][p],
+                      "completed": True, "failed": False}
+                     for p in ctrl if p in c["expert_majority"]]
+
+            ai_rank = {e["id"]: e["score"] for e in await compute_leaderboard(papers, ai_bt)}
+
+            def _rho(a, b):
+                s = sorted(set(a) & set(b))
+                if len(s) < 5:
+                    return None
+                sp, _ = scipy_stats.spearmanr([a[p] for p in s], [b[p] for p in s])
+                return safe_round(float(sp)) if not np.isnan(sp) else None
+
+            r = _rho(ai_rank, {e["id"]: e["score"] for e in await compute_leaderboard(papers, h_indiv)})
+            if r is not None:
+                rhos["indiv"].append(r)
+            r = _rho(ai_rank, {e["id"]: e["score"] for e in await compute_leaderboard(papers, h_maj)})
+            if r is not None:
+                rhos["maj"].append(r)
+            s = sorted(set(ai_rank) & set(c["tier_rank"]))
+            if len(s) >= 5:
+                sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in s], [c["tier_rank"][p] for p in s])
+                if not np.isnan(sp):
+                    rhos["tier"].append(safe_round(abs(float(sp))))
+            s = sorted(set(ai_rank) & set(c["avg_map"]))
+            if len(s) >= 5:
+                sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in s], [c["avg_map"][p] for p in s])
+                if not np.isnan(sp):
+                    rhos["avg"].append(safe_round(float(sp)))
+
+            # Human ceiling
+            for exp in c["experts_map"]:
+                em = [{"paper1_id": p[0], "paper2_id": p[1],
+                       "winner_id": c["expert_pair_prefs"][p][exp],
+                       "completed": True, "failed": False}
+                      for p in ctrl if exp in c["expert_pair_prefs"].get(p, {})]
+                if len(em) < 10:
+                    continue
+                er = {e["id"]: e["score"] for e in await compute_leaderboard(papers, em)}
+                lm = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
+                       "completed": True, "failed": False}
+                      for p in ctrl for e2, w in c["expert_pair_prefs"][p].items() if e2 != exp]
+                if len(lm) < 10:
+                    continue
+                lr = {e["id"]: e["score"] for e in await compute_leaderboard(papers, lm)}
+                r = _rho(er, lr)
+                if r is not None:
+                    rhos["h_ceil"].append(r)
+
+        row = {
+            "min_gap": min_gap,
+            "matches": total_matches,
+            "controlled_pairs": total_ctrl,
+        }
+        for key in ["indiv", "maj", "tier", "avg", "h_ceil"]:
+            vals = rhos[key]
+            row[key] = safe_round(float(np.mean(vals))) if vals else None
+        row["ai_advantage"] = safe_round(row["indiv"] - row["h_ceil"]) if row["indiv"] and row["h_ceil"] else None
+        rows.append(row)
+
+    return {
+        "status": "ok",
+        "gt_type": gt_type,
+        "n_datasets": len(ds_data),
+        "rows": rows,
+    }
+
+
 async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: bool = False):
     """Compute standalone AI ranking quality: AI BT from all its matches vs human ground truth from all expert data.
 

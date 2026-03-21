@@ -39,6 +39,7 @@ EXPERIMENT_REGISTRY = [
     "ai-ranking-quality-comp",
     "human-ai-benchmark-unfiltered-comp",
     "ai-ranking-quality-unfiltered-comp",
+    "ai-ranking-gap-analysis-comp",
 ]
 
 
@@ -87,6 +88,9 @@ def _get_cache_and_fn(name):
     if name == "ai-ranking-quality-unfiltered-comp":
         from routers.human_ai_benchmark import _ranking_quality_unfiltered_cache, _compute_ranking_quality
         return _ranking_quality_unfiltered_cache.setdefault("comp", {}), lambda: _compute_ranking_quality("comp", include_within_tier=True)
+    if name == "ai-ranking-gap-analysis-comp":
+        from routers.human_ai_benchmark import _gap_analysis_cache, _compute_gap_analysis
+        return _gap_analysis_cache.setdefault("comp", {}), lambda: _compute_gap_analysis("comp")
     cache, module_path, fn_name = mapping[name]
     import importlib
     mod = importlib.import_module(module_path)

@@ -9,7 +9,87 @@ export default function AIRankingQualitySection() {
 }
 
 export function AIRankingQualityUnfilteredSection() {
-  return <AIRankingQualityPage apiUrl="/api/validation/ai-ranking-quality-unfiltered?gt_type=comp" testId="ai-ranking-quality-unfiltered" isUnfiltered />;
+  return <>
+    <AIRankingQualityPage apiUrl="/api/validation/ai-ranking-quality-unfiltered?gt_type=comp" testId="ai-ranking-quality-unfiltered" isUnfiltered />
+    <GapAnalysisTable />
+  </>;
+}
+
+function GapAnalysisTable() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    axios.get(`${API}/api/validation/ai-ranking-gap-analysis?gt_type=comp`, { timeout: 60000 })
+      .then(r => { if (r.data?.status === "ok") setData(r.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="mt-6 h-40 bg-secondary/30 rounded-lg animate-pulse" />;
+  if (!data) return null;
+
+  const f = v => v != null ? v.toFixed(3) : "\u2014";
+  const rows = data.rows || [];
+  const baseline = rows[0] || {};
+
+  return (
+    <div className="mt-8 border border-border rounded-lg overflow-hidden" data-testid="gap-analysis-table">
+      <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
+        <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold">Effect of SI-Score Gap Sampling on Ranking Correlation</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground">
+              <th className="py-1.5 px-2 text-left font-medium">SI gap {"\u2265"}</th>
+              <th className="py-1.5 px-2 text-right font-medium">Matches</th>
+              <th className="py-1.5 px-2 text-right font-medium">Ctrl pairs</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">{"\u03C1"} vs Aggregate</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">{"\u03C1"} vs Majority</th>
+              <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">{"\u03C1"} vs Committee</th>
+              <th className="py-1.5 px-2 text-right font-medium">{"\u03C1"} vs Avg Rating</th>
+              <th className="py-1.5 px-2 text-right font-medium">H ceiling</th>
+              <th className="py-1.5 px-2 text-right font-medium">AI advantage</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const delta_i = r.indiv != null && baseline.indiv != null ? r.indiv - baseline.indiv : null;
+              return (
+                <tr key={i} className={`border-b border-border/20 ${i === 0 ? "bg-sky-500/[0.03] font-semibold" : ""}`}>
+                  <td className="py-1.5 px-2 text-left font-mono">{r.min_gap === 0 ? "0 (all)" : r.min_gap.toFixed(2)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-foreground/60">{r.matches?.toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-foreground/60">{r.controlled_pairs?.toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono bg-sky-500/[0.06]">
+                    {f(r.indiv)}
+                    {delta_i != null && i > 0 && <span className={`ml-1 text-[9px] ${delta_i >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{delta_i >= 0 ? "+" : ""}{delta_i.toFixed(3)}</span>}
+                  </td>
+                  <td className="py-1.5 px-2 text-right font-mono bg-amber-500/[0.06]">{f(r.maj)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono bg-rose-500/[0.06]">{f(r.tier)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono">{f(r.avg)}</td>
+                  <td className="py-1.5 px-2 text-right font-mono">{f(r.h_ceil)}</td>
+                  <td className={`py-1.5 px-2 text-right font-mono font-semibold ${r.ai_advantage > 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                    {r.ai_advantage != null ? (r.ai_advantage >= 0 ? "+" : "") + r.ai_advantage.toFixed(3) : "\u2014"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          Each row uses only AI matches where the SI (single-item) score gap between papers {"\u2265"} the threshold.
+          Higher thresholds keep only "easy" pairs where AI is confident, boosting absolute {"\u03C1"} but using fewer matches.{" "}
+          <strong>vs Committee {"\u03C1"} decreases</strong> with higher thresholds because the BT model loses data for
+          adjacent-tier boundaries (e.g. Spotlight vs Poster) — it can rank extremes but not the middle.{" "}
+          <strong>AI advantage</strong> is largest at gap = 0 (all pairs) because within-tier pairs hurt humans more than AI.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
