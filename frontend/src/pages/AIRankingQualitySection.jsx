@@ -90,10 +90,10 @@ function GapAnalysisTable() {
 
   return (
     <div>
-      {data.controlled_wide && renderTable(
-        "Controlled: Wide-Gap Sampling (SI gap \u2265 threshold)",
-        "Both AI and human BT use the same controlled pair set. Higher thresholds select easier pairs where both methods agree more — boosting absolute \u03C1 but measuring agreement on progressively easier subsets.",
-        data.controlled_wide, "min_gap", "SI gap \u2265"
+      {data.non_controlled && renderTable(
+        "Non-Controlled: Wide-Gap Sampling (AI filtered, human GT fixed)",
+        "AI BT from gap-filtered matches; human GT from all expert pairs (fixed). Higher thresholds reduce AI's data \u2192 BT ranking degrades \u2192 \u03C1 drops. More matches always help.",
+        data.non_controlled, "min_gap", "SI gap \u2265"
       )}
       {data.controlled_close && renderTable(
         "Controlled: Close-Cut Oversampling (SI gap \u2264 threshold)",
