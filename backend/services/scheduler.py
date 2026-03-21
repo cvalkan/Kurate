@@ -227,7 +227,8 @@ async def start_scheduler():
 
 async def _fetch_loop():
     """Independent loop for fetching papers + generating summaries. Never blocks comparisons.
-    Sleeps until the next fetch is due — no polling."""
+    Processes ONE category at a time with a cooldown between categories to avoid
+    overwhelming the MongoDB connection pool on remote (Atlas) instances."""
     await asyncio.sleep(8)  # Let compare loop start first
 
     while _scheduler_running:
@@ -256,8 +257,16 @@ async def _fetch_loop():
                         if isinstance(nested, dict):
                             last_fetch = nested.get(parts[1])
 
+                should_fetch = False
                 if not last_fetch:
-                    # Never fetched — fetch now
+                    should_fetch = True
+                elif now >= datetime.fromisoformat(last_fetch) + timedelta(hours=interval_hours):
+                    should_fetch = True
+                else:
+                    secs_until = (datetime.fromisoformat(last_fetch) + timedelta(hours=interval_hours) - now).total_seconds()
+                    next_due_seconds = min(next_due_seconds, secs_until)
+
+                if should_fetch:
                     await run_fetch_cycle(category=cat)
                     now_iso = datetime.now(timezone.utc).isoformat()
                     await db.settings.update_one(
@@ -267,25 +276,10 @@ async def _fetch_loop():
                     )
                     cat_status["last_fetch_at"] = now_iso
                     cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
-                else:
-                    last_dt = datetime.fromisoformat(last_fetch)
-                    next_dt = last_dt + timedelta(hours=interval_hours)
-                    cat_status["next_fetch_at"] = next_dt.isoformat()
-
-                    if now >= next_dt:
-                        await run_fetch_cycle(category=cat)
-                        now_iso = datetime.now(timezone.utc).isoformat()
-                        await db.settings.update_one(
-                            {"key": "global"},
-                            {"$set": {last_fetch_key: now_iso}},
-                            upsert=True,
-                        )
-                        cat_status["last_fetch_at"] = now_iso
-                        cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
-                    else:
-                        # Track when next fetch is due
-                        secs_until = (next_dt - now).total_seconds()
-                        next_due_seconds = min(next_due_seconds, secs_until)
+                    # Cooldown between categories to avoid saturating the DB connection pool
+                    await asyncio.sleep(10)
+                    # Re-read settings in case pause was toggled during fetch
+                    settings = await get_settings()
 
         except Exception as e:
             logger.error(f"Fetch loop error: {e}")
@@ -520,27 +514,31 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             id_field = "arxiv_id"
 
         new_count = 0
+        # Batch dedup: load all existing IDs and titles for this category in one query
+        existing_ids = set()
+        existing_titles = set()
+        async for doc in db.papers.find(
+            {"categories.0": category} if not category.startswith("chemrxiv.") else {},
+            {"_id": 0, id_field: 1, "title": 1, "authors": 1}
+        ):
+            if doc.get(id_field):
+                existing_ids.add(doc[id_field])
+            t = (doc.get("title") or "").strip().lower()
+            a = ((doc.get("authors") or [""])[0] or "").strip().lower()
+            if t and a:
+                existing_titles.add((t, a))
+
         for rp in raw_papers:
-            # Dedup by source-specific ID
-            dedup_key = id_field
             dedup_value = rp.get(id_field) or rp.get("doi") or rp.get("arxiv_id")
             if not dedup_value:
                 continue
-            exists = await db.papers.find_one({dedup_key: dedup_value}, {"_id": 0, "id": 1})
-            if exists:
+            if dedup_value in existing_ids:
                 continue
-            # Additional dedup: check title + first author to catch cross-listings
             title_norm = rp["title"].strip().lower()
             first_author = (rp.get("authors") or [""])[0].strip().lower() if rp.get("authors") else ""
-            if first_author:
-                title_dupe = await db.papers.find_one(
-                    {"title": {"$regex": f"^{_re_escape(title_norm)}$", "$options": "i"},
-                     "authors.0": {"$regex": f"^{_re_escape(first_author)}$", "$options": "i"}},
-                    {"_id": 0, "id": 1},
-                )
-                if title_dupe:
-                    logger.info(f"[{category}] Skipping duplicate (title+author match): {rp['title'][:60]}")
-                    continue
+            if first_author and (title_norm, first_author) in existing_titles:
+                logger.info(f"[{category}] Skipping duplicate (title+author match): {rp['title'][:60]}")
+                continue
             paper_doc = {
                 "id": str(uuid.uuid4()),
                 "title": rp["title"],
