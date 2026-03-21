@@ -2091,7 +2091,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     # Table 4: BT Match Weighting — all matches, different weights by SI gap
     import math as _math
 
-    async def _compute_weighted_row(ds_items, weight_fn, gap_field, label):
+    async def _compute_weighted_row(ds_items, weight_fn, gap_field, label, is_uniform=False):
         """Compute ranking rho using proper per-match weighted BT (fractional wins/losses).
         No match duplication — weights are applied directly in the likelihood function."""
         from services.ranking import compute_weighted_bt
@@ -2100,16 +2100,26 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
 
         for ds_id, c in ds_items:
             papers = c["papers"]
-            all_m = [m for m in c["all_matches"] if m.get(gap_field) is not None]
+            if is_uniform:
+                all_m = c["all_matches"]
+            else:
+                all_m = [m for m in c["all_matches"] if m.get(gap_field) is not None]
             if len(all_m) < 10:
                 continue
 
             paper_ids = [p["id"] for p in papers]
             total_pairs += len({tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in all_m})
 
-            # Proper weighted BT: fractional wins/losses in the Elo formula
-            ai_rank = compute_weighted_bt(all_m, paper_ids,
-                                           weight_fn=lambda m: max(0.01, weight_fn(m[gap_field])))
+            # Proper weighted BT: fractional wins/losses
+            if is_uniform:
+                ai_lb = await compute_leaderboard(papers, [
+                    {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                     "winner_id": m["winner_id"], "completed": True, "failed": False}
+                    for m in all_m if m.get("winner_id")])
+                ai_rank = {e["id"]: e["score"] for e in ai_lb}
+            else:
+                ai_rank = compute_weighted_bt(all_m, paper_ids,
+                                               weight_fn=lambda m: max(0.01, weight_fn(m[gap_field])))
 
             h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
                         "completed": True, "failed": False}
@@ -2168,18 +2178,26 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         return row
 
     weight_schemes = [
-        ("Uniform (baseline)", lambda g: 1),
-        ("Close-cut 2x", lambda g: max(1, round(2 / (g + 0.5)))),
-        ("Close-cut 4x", lambda g: max(1, round(4 / (g + 0.5)))),
-        ("Close-cut 8x", lambda g: max(1, round(8 / (g + 0.5)))),
-        ("Wide-gap 2x", lambda g: max(1, round(1 + g))),
-        ("Wide-gap 4x", lambda g: max(1, round(1 + g * 2))),
-        ("Wide-gap only (gap>1)", lambda g: max(1, round(g)) if g > 1 else 1),
+        ("Uniform (baseline)", lambda g: 1, True),
+        ("Close-cut 2x", lambda g: max(1, round(2 / (g + 0.5))), False),
+        ("Close-cut 4x", lambda g: max(1, round(4 / (g + 0.5))), False),
+        ("Close-cut 8x", lambda g: max(1, round(8 / (g + 0.5))), False),
+        ("Wide-gap 2x", lambda g: max(1, round(1 + g)), False),
+        ("Wide-gap 4x", lambda g: max(1, round(1 + g * 2)), False),
+        ("Wide-gap only (gap>1)", lambda g: max(1, round(g)) if g > 1 else 1, False),
     ]
 
     weighted_rows = []
-    for label, wfn in weight_schemes:
-        row = await _compute_weighted_row(ds_items, wfn, "_si_gap", label)
+    # Uniform baseline: use gap=0 values from _compute_ranking_quality (single code path)
+    uni_row = {"label": "Uniform (baseline)", "pairs": gap0_row["pairs"],
+               "indiv": gap0_row["indiv"], "maj": gap0_row["maj"], "tier": gap0_row["tier"],
+               "avg": gap0_row["avg"], "h_ceil": gap0_full.get("h_ceil"),
+               "ai_advantage": gap0_row.get("ai_advantage")}
+    weighted_rows.append(uni_row)
+    for label, wfn, is_uni in weight_schemes:
+        if is_uni:
+            continue  # Already added above
+        row = await _compute_weighted_row(ds_items, wfn, "_si_gap", label, is_uniform=False)
         weighted_rows.append(row)
 
     # Table 5: BT Gap Sampling (non-controlled) — like Table 1 but using BT score gap
@@ -2198,16 +2216,19 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
 
     # Table 6: BT Gap Weighting
     bt_weight_schemes = [
-        ("Uniform (baseline)", lambda g: 1),
-        ("Close-cut 2x (BT)", lambda g: max(1, round(200 / (g + 50)))),
-        ("Close-cut 4x (BT)", lambda g: max(1, round(400 / (g + 50)))),
-        ("Close-cut 8x (BT)", lambda g: max(1, round(800 / (g + 50)))),
-        ("Wide-gap 2x (BT)", lambda g: max(1, round(1 + g / 100))),
-        ("Wide-gap 4x (BT)", lambda g: max(1, round(1 + g / 50))),
+        ("Uniform (baseline)", lambda g: 1, True),
+        ("Close-cut 2x (BT)", lambda g: max(1, round(200 / (g + 50))), False),
+        ("Close-cut 4x (BT)", lambda g: max(1, round(400 / (g + 50))), False),
+        ("Close-cut 8x (BT)", lambda g: max(1, round(800 / (g + 50))), False),
+        ("Wide-gap 2x (BT)", lambda g: max(1, round(1 + g / 100)), False),
+        ("Wide-gap 4x (BT)", lambda g: max(1, round(1 + g / 50)), False),
     ]
     bt_weighted_rows = []
-    for label, wfn in bt_weight_schemes:
-        row = await _compute_weighted_row(ds_items, wfn, "_bt_gap", label)
+    bt_weighted_rows.append(dict(uni_row))  # Same uniform baseline
+    for label, wfn, is_uni in bt_weight_schemes:
+        if is_uni:
+            continue
+        row = await _compute_weighted_row(ds_items, wfn, "_bt_gap", label, is_uniform=False)
         bt_weighted_rows.append(row)
 
     return {
