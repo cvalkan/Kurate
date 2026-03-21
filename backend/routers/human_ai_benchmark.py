@@ -1893,7 +1893,33 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
              "experiment_tag": {"$exists": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}))
 
-        all_matches = base + exp_matches
+        # Apply natural-proportion subsampling (same as summary cards)
+        import random as _rng
+        def _is_within_gap(m):
+            t1 = norm_tier(papers_by_id.get(m["paper1_id"], {}).get("decision"))
+            t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
+            return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
+
+        exp_within = [m for m in exp_matches if _is_within_gap(m)]
+        all_pids = list(papers_by_id.keys())
+        nat_ca, nat_w = 0, 0
+        for i in range(len(all_pids)):
+            for j in range(i + 1, len(all_pids)):
+                t1 = norm_tier(papers_by_id[all_pids[i]].get("decision"))
+                t2 = norm_tier(papers_by_id[all_pids[j]].get("decision"))
+                if t1 and t2:
+                    if TIER_MAP.get(t1) == TIER_MAP.get(t2):
+                        nat_w += 1
+                    else:
+                        nat_ca += 1
+        nat_frac = nat_w / (nat_ca + nat_w) if (nat_ca + nat_w) > 0 else 0.3
+        target_w = int(len(base) * nat_frac / max(0.01, 1 - nat_frac))
+        target_w = min(target_w, len(exp_within))
+        if target_w < len(exp_within):
+            _rng.seed(42 + hash(ds_id))
+            exp_within = _rng.sample(exp_within, target_w)
+
+        all_matches = base + exp_within
         for m in all_matches:
             s1, s2 = si_scores.get(m["paper1_id"]), si_scores.get(m["paper2_id"])
             m["_si_gap"] = abs(s1 - s2) if s1 is not None and s2 is not None else None
@@ -1935,20 +1961,23 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             for m in filtered:
                 pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
                 pv[pair].append(m["winner_id"])
-            ai_pair = {pair: Counter(v).most_common(1)[0][0] for pair, v in pv.items()}
-            ctrl = set(ai_pair.keys()) & c["all_expert_ge2"]
-            total_ctrl += len(ctrl)
-            if len(ctrl) < 10:
+            ai_pairs = set(pv.keys())
+            total_ctrl += len(ai_pairs)
+            if len(filtered) < 10:
                 continue
 
-            ai_bt = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": ai_pair[p],
-                      "completed": True, "failed": False} for p in ctrl]
+            # AI BT from gap-filtered matches
+            ai_bt = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                      "winner_id": m["winner_id"], "completed": True, "failed": False}
+                     for m in filtered]
+
+            # Human GT from ALL expert pairs (non-controlled, same as summary cards)
             h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
                         "completed": True, "failed": False}
-                       for p in ctrl for _, w in c["expert_pair_prefs"][p].items()]
+                       for p in c["all_expert_ge2"] for _, w in c["expert_pair_prefs"][p].items()]
             h_maj = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": c["expert_majority"][p],
                       "completed": True, "failed": False}
-                     for p in ctrl if p in c["expert_majority"]]
+                     for p in c["all_expert_ge2"] if p in c["expert_majority"]]
 
             ai_rank = {e["id"]: e["score"] for e in await compute_leaderboard(papers, ai_bt)}
 
@@ -1976,18 +2005,18 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                 if not np.isnan(sp):
                     rhos["avg"].append(safe_round(float(sp)))
 
-            # Human ceiling
+            # Human ceiling — use all expert pairs (non-controlled)
             for exp in c["experts_map"]:
                 em = [{"paper1_id": p[0], "paper2_id": p[1],
                        "winner_id": c["expert_pair_prefs"][p][exp],
                        "completed": True, "failed": False}
-                      for p in ctrl if exp in c["expert_pair_prefs"].get(p, {})]
+                      for p in c["all_expert_ge2"] if exp in c["expert_pair_prefs"].get(p, {})]
                 if len(em) < 10:
                     continue
                 er = {e["id"]: e["score"] for e in await compute_leaderboard(papers, em)}
                 lm = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
                        "completed": True, "failed": False}
-                      for p in ctrl for e2, w in c["expert_pair_prefs"][p].items() if e2 != exp]
+                      for p in c["all_expert_ge2"] for e2, w in c["expert_pair_prefs"][p].items() if e2 != exp]
                 if len(lm) < 10:
                     continue
                 lr = {e["id"]: e["score"] for e in await compute_leaderboard(papers, lm)}

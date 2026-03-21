@@ -82,10 +82,11 @@ function GapAnalysisTable() {
       <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           Each row uses only AI matches where the SI (single-item) score gap between papers {"\u2265"} the threshold.
-          Higher thresholds keep only "easy" pairs where AI is confident, boosting absolute {"\u03C1"} but using fewer matches.{" "}
-          <strong>vs Committee {"\u03C1"} decreases</strong> with higher thresholds because the BT model loses data for
-          adjacent-tier boundaries (e.g. Spotlight vs Poster) — it can rank extremes but not the middle.{" "}
-          <strong>AI advantage</strong> is largest at gap = 0 (all pairs) because within-tier pairs hurt humans more than AI.
+          Higher thresholds keep only "easy" pairs where AI is confident, but <strong>reduce total match count</strong> — giving the BT model
+          less data, which degrades the ranking.{" "}
+          Human ground truth is independent of AI{"'"}s gap filter (uses all expert pairs), so <strong>H ceiling stays constant</strong>.{" "}
+          <strong>AI advantage is largest at gap = 0</strong> (all pairs) because more matches = more stable BT ranking.
+          Gap-based sampling does not improve ranking quality — it just removes data.
         </p>
       </div>
     </div>
