@@ -383,9 +383,9 @@ function DatasetRankings({ datasets }) {
           </div>
           <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1">
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              <strong>AI BT</strong>: Elo from {rankData.n_ai_matches} thinking-mode matches (1 judge per pair, round-robin across 3 models).{" "}
-              <strong>H-Indiv BT</strong>: Elo from individual expert votes (each expert{"'"}s preference = one match — multiple matches per pair).{" "}
-              <strong>H-Maj BT</strong>: Elo from expert majority vote (one consensus vote per pair).{" "}
+              <strong>AI BT</strong>: Score from {rankData.n_ai_matches} thinking-mode matches (1 judge per pair, round-robin across 3 models).{" "}
+              <strong>H-Indiv BT</strong>: Score from individual expert votes (each expert{"'"}s preference = one match — multiple matches per pair).{" "}
+              <strong>H-Maj BT</strong>: Score from expert majority vote (one consensus vote per pair).{" "}
               Rows highlighted where AI BT = H-Maj BT — a structural artifact when both have 1 vote/pair on the same pairs with identical W/L records.{" "}
               H-Indiv BT breaks this coupling by using per-expert granularity.
             </p>

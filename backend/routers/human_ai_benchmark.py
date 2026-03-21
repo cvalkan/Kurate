@@ -1692,17 +1692,17 @@ async def dataset_rankings(dataset_id: str):
             })
 
     # Compute Elo scores
-    ELO_BASE = 1200
+    SCORE_BASE = 1200
     paper_ids = [p["id"] for p in papers]
 
     def _compute_elo(matches_list):
         """Compute BT scores normalized to Elo range for a set of matches."""
-        from services.ranking import calculate_bradley_terry, _bt_to_elo
+        from services.ranking import calculate_bradley_terry, _bt_to_score
         bt_matches = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
                         "winner_id": m["winner_id"], "completed": True, "failed": False}
                        for m in matches_list if m.get("winner_id")]
         bt_raw = calculate_bradley_terry(bt_matches, paper_ids)
-        elo_map = _bt_to_elo(bt_raw, ELO_BASE)
+        elo_map = _bt_to_score(bt_raw, SCORE_BASE)
         
         # Also compute win/loss stats
         w_stats = {pid: {"w": 0, "l": 0} for pid in paper_ids}
@@ -1718,7 +1718,7 @@ async def dataset_rankings(dataset_id: str):
         for pid in paper_ids:
             s = w_stats[pid]
             n = s["w"] + s["l"]
-            scores[pid] = {"score": elo_map.get(pid, ELO_BASE), "wins": s["w"], "losses": s["l"], "matches": n}
+            scores[pid] = {"score": elo_map.get(pid, SCORE_BASE), "wins": s["w"], "losses": s["l"], "matches": n}
         return scores
 
     ai_elo = _compute_elo(ai_bt_matches)

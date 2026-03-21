@@ -286,7 +286,7 @@ export default function LeaderboardPage() {
           ? "Cross-category rankings based on available tournament matches between tagged papers."
           : isTagMode
           ? "All papers ranked by their tournament performance within their primary categories."
-          : "Elo-style ratings from Bradley-Terry model with 95% confidence intervals. Papers compared using full-text deep analysis."}
+          : "Win-rate scores from pairwise comparisons with 95% confidence intervals. Papers compared using full-text deep analysis."}
       </div>
     </div>
     <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} defaultType="field" />

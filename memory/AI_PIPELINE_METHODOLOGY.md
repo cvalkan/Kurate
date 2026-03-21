@@ -143,7 +143,7 @@ The controlled ρ is consistently higher (except PeerRead) because the shared pa
 
 ### 3. Structural BT Score Coupling
 
-When both AI and human majority are computed from the **same pair set** with **1 vote per pair each**, papers where both methods agree unanimously produce identical win/loss records → identical Elo scores. For Protein Science, 19/46 papers (41%) have exactly matching AI and human-majority BT scores, concentrated at the bottom of the ranking (all 0-win papers).
+When both AI and human majority are computed from the **same pair set** with **1 vote per pair each**, papers where both methods agree unanimously produce identical win/loss records → identical win-rate scores. For Protein Science, 19/46 papers (41%) have exactly matching AI and human-majority BT scores, concentrated at the bottom of the ranking (all 0-win papers).
 
 This is a mathematical guarantee, not a meaningful finding. The Human Individual BT (using per-expert-vote granularity: multiple matches per pair) breaks this coupling completely (0% exact matches).
 
@@ -193,15 +193,15 @@ Each round selects pairs using a priority system:
 - Papers with 0 matches have urgency 999 (highest priority)
 - Sort all papers by urgency, descending
 - For each needy paper, pick an opponent via calibration split:
-  - `calibration_ratio`% of matches (default 50%) pair needy papers against **established** papers (already converged), chosen by **Elo proximity** — matching similar-strength papers produces more informative comparisons.
+  - `calibration_ratio`% of matches (default 50%) pair needy papers against **established** papers (already converged), chosen by **score proximity** — matching similar-strength papers produces more informative comparisons.
   - The remaining matches pair **needy vs. needy** — both papers benefit from the same match.
-  - New papers (0 matches) target the **median Elo** when selecting an established opponent.
+  - New papers (0 matches) target the **median score** when selecting an established opponent.
 
 *Rule 2 — Top-K cross-matches:*
 After Rule 1, remaining slots are filled with missing top-K pairwise comparisons.
 
 *Rule 3 — Repeat matches for validation:*
-Only after ALL convergence goals are met: re-compare Elo-adjacent papers to validate close ranking boundaries.
+Only after ALL convergence goals are met: re-compare score-adjacent papers to validate close ranking boundaries.
 
 ### Validation Benchmark (AI vs. Human)
 
@@ -211,7 +211,7 @@ The validation benchmark uses a **different, simpler** matchmaking strategy:
 2. Select pairs using a round-robin strategy that ensures minimum coverage per paper (~15–20 matches each)
 3. Remaining slots are filled with weighted-random selection (biased toward under-matched papers)
 
-No Elo-proximity, no CI targets, no calibration split.
+No score-proximity, no CI targets, no calibration split.
 
 **Historical note (pre–Mar 2026):** The original matchmaking code filtered pairs to only cross-tier comparisons (papers with different h1_avg_rating), excluding all within-tier pairs. This was an erroneous optimization introduced by a previous agent — not a deliberate design choice. It has been removed. All existing thinking-mode matches were generated under the old filter and therefore contain no within-tier comparisons. New validation runs will sample from all pairs.
 

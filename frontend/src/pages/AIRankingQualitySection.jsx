@@ -100,11 +100,11 @@ function GapAnalysisTable() {
       )}
       {data.bt_sampling && renderTable(
         "BT-Gap Sampling (AI filtered by BT score gap, human GT fixed)",
-        "Like SI-gap sampling but using the AI\u2019s own BT ranking scores to determine pair difficulty. BT gaps are in Elo points. Matches between similarly-ranked papers (small BT gap) are the hardest.",
+        "Like SI-gap sampling but using the AI\u2019s own BT ranking scores to determine pair difficulty. BT gaps are in score points. Matches between similarly-ranked papers (small BT gap) are the hardest.",
         data.bt_sampling, "min_gap", "BT gap \u2265"
       )}
       {data.bt_weighted && renderWeightedTable("BT-Gap Match Weighting", data.bt_weighted,
-        "Weights based on BT score difference (Elo points). Close-cut: emphasize matches between similarly-ranked papers. Wide-gap: emphasize matches between papers far apart in the ranking."
+        "Weights based on BT score difference (score points). Close-cut: emphasize matches between similarly-ranked papers. Wide-gap: emphasize matches between papers far apart in the ranking."
       )}
     </div>
   );

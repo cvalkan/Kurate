@@ -7,10 +7,10 @@ import { BookmarkButton } from "@/components/BookmarkButton";
 import { useBookmarks } from "@/contexts/BookmarkContext";
 
 const COLUMN_TIPS = {
-  rank: "Position based on Elo score (higher = better). Click to restore default ranking.",
+  rank: "Position based on win-rate score (higher = better). Click to restore default ranking.",
   title: "Paper title. Click to sort alphabetically.",
-  score: "Elo-style rating from Bradley-Terry model. 1200 = average, higher = stronger.",
-  score_g: "Elo score from ALL matches across all categories (Bradley-Terry). Reflects overall performance.",
+  score: "Win-rate score from pairwise comparisons. 1200 = average, higher = stronger.",
+  score_g: "Win-rate score from ALL matches across all categories (Bradley-Terry). Reflects overall performance.",
   win_rate: "Percentage of head-to-head comparisons won within this set.",
   win_rate_g: "Win rate across ALL matches the paper has participated in, not just this filtered set.",
   wilson_margin: "95% Wilson confidence interval half-width. The interval is asymmetric \u2014 at 99% win rate, \u00B16% means the true rate is likely between 93\u2013100% (not 93\u2013105%). At extreme win rates the uncertainty is mostly one-sided because win rate can\u2019t exceed 100% or go below 0%. Lower margin = more matches played = more certainty.",
@@ -173,7 +173,7 @@ export function LeaderboardTable({
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
-          <SortHeader label={isMobile ? "Elo" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
+          <SortHeader label={isMobile ? "Score" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
           {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
           {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.wilson_margin} />}
           {!isMobile && <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />}

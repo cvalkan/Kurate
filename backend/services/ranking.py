@@ -83,9 +83,9 @@ def compute_weighted_bt(matches: List[dict], paper_ids: List[str], weight_fn=Non
     weight_fn: callable(match_dict) -> float weight >= 0. Default: uniform (1.0).
     Returns: {paper_id: elo_score}
     """
-    ELO_BASE = 1200
+    SCORE_BASE = 1200
     if not paper_ids or not matches:
-        return {pid: ELO_BASE for pid in paper_ids}
+        return {pid: SCORE_BASE for pid in paper_ids}
     
     pid_set = set(paper_ids)
     stats = {pid: {"w": 0.0, "n": 0.0} for pid in paper_ids}
@@ -115,12 +115,12 @@ def compute_weighted_bt(matches: List[dict], paper_ids: List[str], weight_fn=Non
     for pid in paper_ids:
         s = stats[pid]
         if s["n"] == 0:
-            scores[pid] = ELO_BASE
+            scores[pid] = SCORE_BASE
             continue
         # Same regularized Elo but with fractional wins/comparisons
         p_reg = (s["w"] + 0.5) / (s["n"] + 1.0)
         p_reg = max(0.02, min(0.98, p_reg))
-        scores[pid] = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE)
+        scores[pid] = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + SCORE_BASE)
     
     return scores
 
@@ -283,7 +283,7 @@ def calculate_confidence_interval(wins: int, comparisons: int, confidence_level:
     }
 
 
-def _bt_to_elo(bt_scores: Dict[str, float], base: int = 1200) -> Dict[str, int]:
+def _bt_to_score(bt_scores: Dict[str, float], base: int = 1200) -> Dict[str, int]:
     """Convert raw BT strengths to Elo-scale scores for display.
     Maps BT strengths to a familiar range (~800-1600) by converting each paper's
     implied win probability vs the average opponent to an Elo score."""
@@ -308,7 +308,7 @@ def _bt_to_elo(bt_scores: Dict[str, float], base: int = 1200) -> Dict[str, int]:
 
 def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     paper_ids = [p["id"] for p in papers]
-    ELO_BASE = 1200
+    SCORE_BASE = 1200
 
     if not paper_ids or not matches:
         import hashlib
@@ -322,7 +322,7 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
                 "arxiv_id": p.get("arxiv_id", ""),
                 "link": p.get("link", ""),
                 "published": p.get("published", ""),
-                "score": ELO_BASE,
+                "score": SCORE_BASE,
                 "ci": 0,
                 "wins": 0,
                 "losses": 0,
@@ -351,30 +351,30 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     # equally strong). This is optimal for sparse data (<50 matches/paper) where opponent
     # strength cannot be reliably estimated. For dense data, proper BT with lower prior
     # would be better, but the difference is small.
-    elo_scores = {}
+    wr_scores = {}
     for pid in paper_ids:
         s = stats.get(pid, {"wins": 0, "comparisons": 0})
         w, n = s["wins"], s["comparisons"]
         if n == 0:
-            elo_scores[pid] = ELO_BASE
+            wr_scores[pid] = SCORE_BASE
         else:
             p_reg = (w + 0.5) / (n + 1.0)
             p_reg = max(0.02, min(0.98, p_reg))
-            elo_scores[pid] = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE)
+            wr_scores[pid] = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + SCORE_BASE)
 
     # CI from win-rate (simpler to compute than BT Fisher information)
-    elo_ci = {}
+    wr_ci = {}
     for pid in paper_ids:
         s = stats.get(pid, {"wins": 0, "comparisons": 0})
         w, n = s["wins"], s["comparisons"]
         if n == 0:
-            elo_ci[pid] = 0
+            wr_ci[pid] = 0
             continue
         p_reg = (w + 0.5) / (n + 1.0)
         p_reg = max(0.02, min(0.98, p_reg))
         se_logit = 1.0 / math.sqrt((n + 1.0) * p_reg * (1.0 - p_reg))
         se_elo = (400.0 / math.log(10)) * se_logit
-        elo_ci[pid] = min(round(1.96 * se_elo), 400)
+        wr_ci[pid] = min(round(1.96 * se_elo), 400)
 
     paper_lookup = {p["id"]: p for p in papers}
     # Deterministic tiebreaker for papers with equal scores (e.g., all at 1200 with 0 matches)
@@ -383,7 +383,7 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     def _title_hash(pid):
         title = paper_lookup.get(pid, {}).get("title", pid)
         return hashlib.md5(title.encode()).hexdigest()
-    ranked = sorted(paper_ids, key=lambda pid: (elo_scores.get(pid, ELO_BASE), _title_hash(pid)), reverse=True)
+    ranked = sorted(paper_ids, key=lambda pid: (wr_scores.get(pid, SCORE_BASE), _title_hash(pid)), reverse=True)
 
     leaderboard = []
     for rank, pid in enumerate(ranked, 1):
@@ -407,8 +407,8 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
             "arxiv_id": p.get("arxiv_id", ""),
             "link": p.get("link", ""),
             "published": p.get("published", ""),
-            "score": elo_scores.get(pid, ELO_BASE),
-            "ci": elo_ci.get(pid, 0),
+            "score": wr_scores.get(pid, SCORE_BASE),
+            "ci": wr_ci.get(pid, 0),
             "wilson_margin": wilson_m,
             "win_rate": win_rate,
             "wins": s["wins"],

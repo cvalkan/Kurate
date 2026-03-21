@@ -1240,8 +1240,8 @@ def _select_pairs(
         margins[pid] = wilson_margin_pct(w, c)
 
     # Compute BT scores for opponent selection (accounts for opponent strength)
-    from services.ranking import calculate_bradley_terry, _bt_to_elo
-    ELO_BASE = 1200
+    from services.ranking import calculate_bradley_terry, _bt_to_score
+    SCORE_BASE = 1200
     # Build BT from the stats we already have (wins/losses per paper)
     # Construct pseudo-matches from the stats
     bt_raw = {}
@@ -1258,13 +1258,13 @@ def _select_pairs(
                 bt_raw[pid] = max(1e-6, (w + 0.5) / (c + 1.0))
     else:
         bt_raw = {pid: 1.0 for pid in paper_ids}
-    elo_scores = _bt_to_elo(bt_raw, ELO_BASE)
+    wr_scores = _bt_to_score(bt_raw, SCORE_BASE)
 
-    elo_vals = sorted(elo_scores.values())
+    elo_vals = sorted(wr_scores.values())
     median_elo = elo_vals[len(elo_vals) // 2]
 
     # Identify top-K papers using Elo (not raw win-rate)
-    all_ranked = sorted(paper_ids, key=lambda pid: elo_scores[pid], reverse=True)
+    all_ranked = sorted(paper_ids, key=lambda pid: wr_scores[pid], reverse=True)
     top_k_ids = set(all_ranked[:min(top_k, len(all_ranked))])
     top_k_list = all_ranked[:min(top_k, len(all_ranked))]
 
@@ -1303,7 +1303,7 @@ def _select_pairs(
         if prefer_established:
             # Pick established opponent closest to target Elo (not arbitrary first-found).
             # New papers (0 matches) target median; papers with data target their current Elo.
-            target = median_elo if comparisons[p1] == 0 else elo_scores[p1]
+            target = median_elo if comparisons[p1] == 0 else wr_scores[p1]
             best_dist = float('inf')
             for p2 in established:
                 if p2 == p1 or not can_pair(p2):
@@ -1311,7 +1311,7 @@ def _select_pairs(
                 pair_key = tuple(sorted([p1, p2]))
                 if pair_key in compared_pairs:
                     continue
-                dist = abs(elo_scores[p2] - target)
+                dist = abs(wr_scores[p2] - target)
                 if dist < best_dist:
                     best_dist = dist
                     best = p2
@@ -1377,7 +1377,7 @@ def _select_pairs(
             for i in range(len(top_k_list)) for j in range(i + 1, len(top_k_list))
         )
         if not missing_topk:
-            elo_sorted = sorted(paper_ids, key=lambda pid: elo_scores[pid])
+            elo_sorted = sorted(paper_ids, key=lambda pid: wr_scores[pid])
             for i in range(len(elo_sorted) - 1):
                 if len(pairs) >= max_pairs:
                     break

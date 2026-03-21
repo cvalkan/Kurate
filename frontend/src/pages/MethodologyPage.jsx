@@ -80,7 +80,7 @@ export default function MethodologyPage() {
         </Step>
 
         <Step number={6} icon={BarChart3} title="Bradley-Terry Scoring">
-          <p>Global rankings are derived from pairwise results using the <span className="text-foreground font-medium">Bradley-Terry model</span>, converted to Elo-like scores centered at 1200. Win rates include <span className="text-foreground font-medium">95% Wilson confidence intervals</span>.</p>
+          <p>Global rankings are derived from pairwise results using the <span className="text-foreground font-medium">Bradley-Terry model</span>, converted to win-rate scores centered at 1200. Win rates include <span className="text-foreground font-medium">95% Wilson confidence intervals</span>.</p>
         </Step>
 
         <Step number={7} icon={Users} title="Multi-Model Consensus">
@@ -92,7 +92,7 @@ export default function MethodologyPage() {
         </Step>
 
         <Step number={9} icon={Trophy} title="Dynamic Leaderboard">
-          <p>Rankings show Elo score, win rate, confidence interval, match count, and publication date. All data is pre-computed for instant loading and updates automatically as new papers arrive.</p>
+          <p>Rankings show win-rate score, win rate, confidence interval, match count, and publication date. All data is pre-computed for instant loading and updates automatically as new papers arrive.</p>
         </Step>
 
         <Step number={10} icon={Download} title="Continuous Operation">
