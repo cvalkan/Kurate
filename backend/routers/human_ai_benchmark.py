@@ -2078,6 +2078,104 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         row["max_gap"] = g
         ctrl_close_rows.append(row)
 
+    # Table 4: BT Match Weighting — all matches, different weights by SI gap
+    import math as _math
+
+    async def _compute_weighted_row(ds_items, weight_fn, label):
+        """Like _compute_row but duplicates matches proportional to weight_fn(si_gap)."""
+        rhos = {"indiv": [], "maj": [], "tier": [], "avg": [], "h_ceil": []}
+        total_eff_matches = 0
+        total_pairs = 0
+
+        for ds_id, c in ds_items:
+            papers = c["papers"]
+            all_m = [m for m in c["all_matches"] if m.get("_si_gap") is not None]
+            if len(all_m) < 10:
+                continue
+
+            # Weight and duplicate matches
+            weighted_matches = []
+            for m in all_m:
+                w = max(1, round(weight_fn(m["_si_gap"])))
+                for _ in range(w):
+                    weighted_matches.append({"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                                             "winner_id": m["winner_id"], "completed": True, "failed": False})
+            total_eff_matches += len(weighted_matches)
+            total_pairs += len({tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in all_m})
+
+            ai_rank = {e["id"]: e["score"] for e in await compute_leaderboard(papers, weighted_matches)}
+
+            h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
+                        "completed": True, "failed": False}
+                       for p in c["all_expert_ge2"] for _, w in c["expert_pair_prefs"][p].items()]
+            h_maj = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": c["expert_majority"][p],
+                      "completed": True, "failed": False}
+                     for p in c["all_expert_ge2"] if p in c["expert_majority"]]
+
+            def _rho(a, b):
+                s = sorted(set(a) & set(b))
+                if len(s) < 5:
+                    return None
+                sp, _ = scipy_stats.spearmanr([a[p] for p in s], [b[p] for p in s])
+                return safe_round(float(sp)) if not np.isnan(sp) else None
+
+            r = _rho(ai_rank, {e["id"]: e["score"] for e in await compute_leaderboard(papers, h_indiv)})
+            if r is not None:
+                rhos["indiv"].append(r)
+            r = _rho(ai_rank, {e["id"]: e["score"] for e in await compute_leaderboard(papers, h_maj)})
+            if r is not None:
+                rhos["maj"].append(r)
+            s = sorted(set(ai_rank) & set(c["tier_rank"]))
+            if len(s) >= 5:
+                sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in s], [c["tier_rank"][p] for p in s])
+                if not np.isnan(sp):
+                    rhos["tier"].append(safe_round(abs(float(sp))))
+            s = sorted(set(ai_rank) & set(c["avg_map"]))
+            if len(s) >= 5:
+                sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in s], [c["avg_map"][p] for p in s])
+                if not np.isnan(sp):
+                    rhos["avg"].append(safe_round(float(sp)))
+
+            for exp in c["experts_map"]:
+                em = [{"paper1_id": p[0], "paper2_id": p[1],
+                       "winner_id": c["expert_pair_prefs"][p][exp],
+                       "completed": True, "failed": False}
+                      for p in c["all_expert_ge2"] if exp in c["expert_pair_prefs"].get(p, {})]
+                if len(em) < 10:
+                    continue
+                er = {e["id"]: e["score"] for e in await compute_leaderboard(papers, em)}
+                lm = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
+                       "completed": True, "failed": False}
+                      for p in c["all_expert_ge2"] for e2, w in c["expert_pair_prefs"][p].items() if e2 != exp]
+                if len(lm) < 10:
+                    continue
+                lr = {e["id"]: e["score"] for e in await compute_leaderboard(papers, lm)}
+                r = _rho(er, lr)
+                if r is not None:
+                    rhos["h_ceil"].append(r)
+
+        row = {"label": label, "eff_matches": total_eff_matches, "pairs": total_pairs}
+        for key in ["indiv", "maj", "tier", "avg", "h_ceil"]:
+            vals = rhos[key]
+            row[key] = safe_round(float(np.mean(vals))) if vals else None
+        row["ai_advantage"] = safe_round(row["indiv"] - row["h_ceil"]) if row["indiv"] and row["h_ceil"] else None
+        return row
+
+    weight_schemes = [
+        ("Uniform (baseline)", lambda g: 1),
+        ("Close-cut 2x", lambda g: max(1, round(2 / (g + 0.5)))),
+        ("Close-cut 4x", lambda g: max(1, round(4 / (g + 0.5)))),
+        ("Close-cut 8x", lambda g: max(1, round(8 / (g + 0.5)))),
+        ("Wide-gap 2x", lambda g: max(1, round(1 + g))),
+        ("Wide-gap 4x", lambda g: max(1, round(1 + g * 2))),
+        ("Wide-gap only (gap>1)", lambda g: max(1, round(g)) if g > 1 else 1),
+    ]
+
+    weighted_rows = []
+    for label, wfn in weight_schemes:
+        row = await _compute_weighted_row(ds_items, wfn, label)
+        weighted_rows.append(row)
+
     return {
         "status": "ok",
         "gt_type": gt_type,
@@ -2085,6 +2183,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         "non_controlled": non_ctrl_rows,
         "controlled_wide": ctrl_wide_rows,
         "controlled_close": ctrl_close_rows,
+        "weighted": weighted_rows,
     }
 
 

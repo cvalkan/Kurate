@@ -95,6 +95,61 @@ function GapAnalysisTable() {
         "AI BT from gap-filtered matches; human GT from all expert pairs (fixed). Higher thresholds reduce AI's data \u2192 BT ranking degrades \u2192 \u03C1 drops. More matches always help.",
         data.non_controlled, "min_gap", "SI gap \u2265"
       )}
+      {data.weighted && (
+        <div className="mt-6 border border-border rounded-lg overflow-hidden">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
+            <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold">BT Match Weighting (all matches kept, different weights by SI gap)</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-1.5 px-2 text-left font-medium">Weighting</th>
+                  <th className="py-1.5 px-2 text-right font-medium">Eff. matches</th>
+                  <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">{"\u03C1"} vs Aggregate</th>
+                  <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">{"\u03C1"} vs Majority</th>
+                  <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">{"\u03C1"} vs Committee</th>
+                  <th className="py-1.5 px-2 text-right font-medium">{"\u03C1"} vs Avg Rating</th>
+                  <th className="py-1.5 px-2 text-right font-medium">H ceiling</th>
+                  <th className="py-1.5 px-2 text-right font-medium">AI advantage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.weighted.map((r, i) => {
+                  const baseline = data.weighted[0];
+                  const delta = r.indiv != null && baseline.indiv != null ? r.indiv - baseline.indiv : null;
+                  return (
+                    <tr key={i} className={`border-b border-border/20 ${i === 0 ? "bg-sky-500/[0.03] font-semibold" : ""}`}>
+                      <td className="py-1.5 px-2 text-left">{r.label}</td>
+                      <td className="py-1.5 px-2 text-right font-mono text-foreground/60">{r.eff_matches?.toLocaleString()}</td>
+                      <td className="py-1.5 px-2 text-right font-mono bg-sky-500/[0.06]">
+                        {f(r.indiv)}
+                        {delta != null && i > 0 && <span className={`ml-1 text-[9px] ${delta >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{delta >= 0 ? "+" : ""}{delta.toFixed(3)}</span>}
+                      </td>
+                      <td className="py-1.5 px-2 text-right font-mono bg-amber-500/[0.06]">{f(r.maj)}</td>
+                      <td className="py-1.5 px-2 text-right font-mono bg-rose-500/[0.06]">{f(r.tier)}</td>
+                      <td className="py-1.5 px-2 text-right font-mono">{f(r.avg)}</td>
+                      <td className="py-1.5 px-2 text-right font-mono">{f(r.h_ceil)}</td>
+                      <td className={`py-1.5 px-2 text-right font-mono font-semibold ${r.ai_advantage != null && r.ai_advantage > 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                        {r.ai_advantage != null ? (r.ai_advantage >= 0 ? "+" : "") + r.ai_advantage.toFixed(3) : "\u2014"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              All matches are kept — weights are applied by duplicating matches proportionally.{" "}
+              <strong>Close-cut Nx</strong>: matches with small SI gap get up to Nx weight (formula: N/(gap+0.5)).{" "}
+              <strong>Wide-gap Nx</strong>: matches with large SI gap get higher weight.{" "}
+              Human GT uses all expert pairs (fixed, unweighted). Non-controlled methodology.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
