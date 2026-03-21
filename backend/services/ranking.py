@@ -65,6 +65,65 @@ def calculate_bradley_terry(matches: List[dict], paper_ids: List[str]) -> Dict[s
     return scores
 
 
+def compute_weighted_elo(matches: List[dict], paper_ids: List[str], weight_fn=None) -> Dict[str, float]:
+    """Compute Elo scores with per-match fractional weights in the likelihood.
+    
+    Unlike match duplication, this properly weights the BT likelihood:
+    weighted_wins = sum(weight_i * win_i), weighted_n = sum(weight_i)
+    Then applies the same regularized Elo formula.
+    
+    weight_fn: callable(match_dict) -> float weight >= 0. Default: uniform (1.0).
+    Returns: {paper_id: elo_score}
+    """
+    ELO_BASE = 1200
+    if not paper_ids or not matches:
+        return {pid: ELO_BASE for pid in paper_ids}
+    
+    pid_set = set(paper_ids)
+    stats = {pid: {"w": 0.0, "n": 0.0} for pid in paper_ids}
+    
+    for m in matches:
+        p1, p2 = m.get("paper1_id"), m.get("paper2_id")
+        winner = m.get("winner_id")
+        if not (p1 and p2 and winner):
+            continue
+        if p1 not in pid_set or p2 not in pid_set:
+            continue
+        
+        weight = weight_fn(m) if weight_fn else 1.0
+        if weight <= 0:
+            continue
+        
+        winner = m["winner_id"]
+        loser = p2 if winner == p1 else p1
+        
+        if winner in stats:
+            stats[winner]["w"] += weight
+            stats[winner]["n"] += weight
+        if loser in stats:
+            stats[loser]["n"] += weight
+    
+    scores = {}
+    for pid in paper_ids:
+        s = stats[pid]
+        if s["n"] == 0:
+            scores[pid] = ELO_BASE
+            continue
+        # Same regularized Elo but with fractional wins/comparisons
+        p_reg = (s["w"] + 0.5) / (s["n"] + 1.0)
+        p_reg = max(0.02, min(0.98, p_reg))
+        scores[pid] = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE)
+    
+    return scores
+
+
+async def compute_weighted_elo_async(matches, paper_ids, weight_fn=None):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_compute_pool, compute_weighted_elo, matches, paper_ids, weight_fn)
+
+
+
+
 def calculate_bt_confidence_intervals(
     matches: List[dict], paper_ids: List[str], confidence_level: float = 0.95,
 ) -> Dict[str, Dict]:

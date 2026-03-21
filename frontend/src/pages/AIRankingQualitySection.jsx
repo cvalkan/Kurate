@@ -124,7 +124,7 @@ function renderWeightedTable(title, rows, description) {
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="py-1.5 px-2 text-left font-medium">Weighting</th>
-              <th className="py-1.5 px-2 text-right font-medium">Eff. matches</th>
+              <th className="py-1.5 px-2 text-right font-medium">Pairs</th>
               <th className="py-1.5 px-2 text-right font-medium bg-sky-500/[0.06]">{"\u03C1"} vs Aggregate</th>
               <th className="py-1.5 px-2 text-right font-medium bg-amber-500/[0.06]">{"\u03C1"} vs Majority</th>
               <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">{"\u03C1"} vs Committee</th>
@@ -139,7 +139,7 @@ function renderWeightedTable(title, rows, description) {
               return (
                 <tr key={i} className={`border-b border-border/20 ${i === 0 ? "bg-sky-500/[0.03] font-semibold" : ""}`}>
                   <td className="py-1.5 px-2 text-left">{r.label}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-foreground/60">{r.eff_matches?.toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right font-mono text-foreground/60">{r.pairs?.toLocaleString()}</td>
                   <td className="py-1.5 px-2 text-right font-mono bg-sky-500/[0.06]">
                     {f(r.indiv)}
                     {delta != null && i > 0 && <span className={`ml-1 text-[9px] ${delta >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{delta >= 0 ? "+" : ""}{delta.toFixed(3)}</span>}

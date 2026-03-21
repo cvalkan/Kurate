@@ -2092,9 +2092,10 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     import math as _math
 
     async def _compute_weighted_row(ds_items, weight_fn, gap_field, label):
-        """Like _compute_row but duplicates matches proportional to weight_fn(si_gap)."""
+        """Compute ranking rho using proper per-match weighted BT (fractional wins/losses).
+        No match duplication — weights are applied directly in the likelihood function."""
+        from services.ranking import compute_weighted_elo
         rhos = {"indiv": [], "maj": [], "tier": [], "avg": [], "h_ceil": []}
-        total_eff_matches = 0
         total_pairs = 0
 
         for ds_id, c in ds_items:
@@ -2103,17 +2104,12 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             if len(all_m) < 10:
                 continue
 
-            # Weight and duplicate matches
-            weighted_matches = []
-            for m in all_m:
-                w = max(1, round(weight_fn(m[gap_field])))
-                for _ in range(w):
-                    weighted_matches.append({"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
-                                             "winner_id": m["winner_id"], "completed": True, "failed": False})
-            total_eff_matches += len(weighted_matches)
+            paper_ids = [p["id"] for p in papers]
             total_pairs += len({tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in all_m})
 
-            ai_rank = {e["id"]: e["score"] for e in await compute_leaderboard(papers, weighted_matches)}
+            # Proper weighted BT: fractional wins/losses in the Elo formula
+            ai_rank = compute_weighted_elo(all_m, paper_ids,
+                                           weight_fn=lambda m: max(0.01, weight_fn(m[gap_field])))
 
             h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
                         "completed": True, "failed": False}
@@ -2164,7 +2160,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                 if r is not None:
                     rhos["h_ceil"].append(r)
 
-        row = {"label": label, "eff_matches": total_eff_matches, "pairs": total_pairs}
+        row = {"label": label, "pairs": total_pairs}
         for key in ["indiv", "maj", "tier", "avg", "h_ceil"]:
             vals = rhos[key]
             row[key] = safe_round(float(np.mean(vals))) if vals else None
