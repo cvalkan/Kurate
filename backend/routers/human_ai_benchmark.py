@@ -368,7 +368,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
 
         # Only take within-tier matches from experiments (ignore any extra cross/adj)
-        exp_within = [m for m in exp_raw if _is_within(m)]
+        exp_within = sorted([m for m in exp_raw if _is_within(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
 
         # Compute natural within-tier fraction
         all_pids = list(papers_by_id.keys())
@@ -1836,9 +1836,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     ds_data = {}
     for ds_id in all_ds_ids:
         papers = await collect_all(db.validation_papers.find(
-            {"dataset_id": ds_id},
-            {"_id": 0, "id": 1, "title": 1, "evaluations": 1, "decision": 1,
-             "single_item_score": 1, "single_item_scores": 1}))
+            {"dataset_id": ds_id}, PAPER_LIGHT_PROJECTION))
         if not papers:
             continue
         papers_by_id = {p["id"]: p for p in papers}
@@ -1851,12 +1849,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         if len(si_scores) < 10:
             continue
 
-        expert_ratings = defaultdict(dict)
-        for p in papers:
-            for ev in p.get("evaluations", []):
-                name = ev.get("evaluator", "")
-                if name and ev.get("rating_value") is not None:
-                    expert_ratings[name][p["id"]] = ev["rating_value"]
+        expert_ratings = build_expert_ratings(papers)
         experts_map = {e: r for e, r in expert_ratings.items() if len(r) >= 3}
 
         expert_pair_prefs = defaultdict(dict)
@@ -1900,7 +1893,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
 
-        exp_within = [m for m in exp_matches if _is_within_gap(m)]
+        exp_within = sorted([m for m in exp_matches if _is_within_gap(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
         all_pids = list(papers_by_id.keys())
         nat_ca, nat_w = 0, 0
         for i in range(len(all_pids)):
@@ -1928,10 +1921,13 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                      for p in papers if norm_tier(p.get("decision")) in TIER_MAP}
         avg_map = {}
         for p in papers:
-            evals = p.get("evaluations", [])
-            vals = [e["rating_value"] for e in evals if e.get("rating_value")]
-            if vals:
-                avg_map[p["id"]] = sum(vals) / len(vals)
+            r = p.get("h1_avg_rating")
+            if r is None:
+                evals = p.get("evaluations", [])
+                vals = [e["rating_value"] for e in evals if e.get("rating_value")]
+                r = sum(vals) / len(vals) if vals else None
+            if r is not None:
+                avg_map[p["id"]] = r
 
         ds_data[ds_id] = {
             "papers": papers, "papers_by_id": papers_by_id, "experts_map": experts_map,
@@ -2041,8 +2037,28 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     gap_thresholds = [0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
 
     # Table 1: Non-controlled (AI filtered, human GT fixed)
-    non_ctrl_rows = []
-    for g in gap_thresholds:
+    # For gap=0, use _compute_ranking_quality directly (single code path, no duplication)
+    rq = await _compute_ranking_quality(gt_type, include_within_tier=True)
+    rq_pb = rq["pooled_bt"] if rq and rq.get("status") == "ok" else {}
+    gap0_row = {
+        "min_gap": 0,
+        "matches": sum(len(c["all_matches"]) for c in ds_data.values()),
+        "pairs": sum(len({tuple(sorted([m["paper1_id"], m["paper2_id"]])) for m in c["all_matches"]}) for c in ds_data.values()),
+        "indiv": rq_pb.get("indiv", {}).get("spearman_rho"),
+        "maj": rq_pb.get("maj", {}).get("spearman_rho"),
+        "tier": rq_pb.get("tier", {}).get("spearman_rho"),
+        "avg": rq_pb.get("avg_rating", {}).get("spearman_rho"),
+        "h_ceil": None,
+        "ai_advantage": None,
+    }
+    # Compute h_ceil from _compute_row for gap=0 (since ranking quality doesn't have it)
+    gap0_full = await _compute_row(ds_items, lambda m: m.get("_si_gap") is not None and m["_si_gap"] >= 0, controlled=False)
+    gap0_row["h_ceil"] = gap0_full.get("h_ceil")
+    if gap0_row["indiv"] and gap0_row["h_ceil"]:
+        gap0_row["ai_advantage"] = safe_round(gap0_row["indiv"] - gap0_row["h_ceil"])
+    non_ctrl_rows = [gap0_row]
+
+    for g in gap_thresholds[1:]:
         row = await _compute_row(ds_items, lambda m, g=g: m.get("_si_gap") is not None and m["_si_gap"] >= g, controlled=False)
         row["min_gap"] = g
         non_ctrl_rows.append(row)
@@ -2061,18 +2077,6 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         row = await _compute_row(ds_items, lambda m, g=g: m.get("_si_gap") is not None and m["_si_gap"] <= g, controlled=True)
         row["max_gap"] = g
         ctrl_close_rows.append(row)
-
-    # Ensure first row of non_controlled matches the ranking quality summary cards
-    # Read from the precomputed cache to guarantee exact match
-    rq_cache = _ranking_quality_unfiltered_cache.get(gt_type, {}).get("data")
-    if rq_cache and rq_cache.get("status") == "ok":
-        pb = rq_cache["pooled_bt"]
-        non_ctrl_rows[0]["indiv"] = pb.get("indiv", {}).get("spearman_rho")
-        non_ctrl_rows[0]["maj"] = pb.get("maj", {}).get("spearman_rho")
-        non_ctrl_rows[0]["tier"] = pb.get("tier", {}).get("spearman_rho")
-        non_ctrl_rows[0]["avg"] = pb.get("avg_rating", {}).get("spearman_rho")
-        if non_ctrl_rows[0]["indiv"] and non_ctrl_rows[0]["h_ceil"]:
-            non_ctrl_rows[0]["ai_advantage"] = safe_round(non_ctrl_rows[0]["indiv"] - non_ctrl_rows[0]["h_ceil"])
 
     return {
         "status": "ok",
@@ -2230,7 +2234,7 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
             t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
 
-        exp_within = [m for m in exp_sr if _is_within_sr(m)]
+        exp_within = sorted([m for m in exp_sr if _is_within_sr(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
 
         all_pids = list(papers_by_id.keys())
         nat_cross_adj, nat_within = 0, 0
