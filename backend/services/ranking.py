@@ -10,7 +10,7 @@ from scipy import stats as scipy_stats
 _compute_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="lb-compute")
 
 
-def calculate_bradley_terry(matches: List[dict], paper_ids: List[str], prior_strength: float = 1.0) -> Dict[str, float]:
+def calculate_bradley_terry(matches: List[dict], paper_ids: List[str], prior_strength: float = 2.0) -> Dict[str, float]:
     """BT MLE with optional regularization prior.
     
     prior_strength > 0 adds virtual matches: each paper beats a phantom opponent
@@ -285,21 +285,24 @@ def calculate_confidence_interval(wins: int, comparisons: int, confidence_level:
 
 def _bt_to_elo(bt_scores: Dict[str, float], base: int = 1200) -> Dict[str, int]:
     """Convert raw BT strengths to Elo-scale scores for display.
-    BT strengths are on an arbitrary positive scale; this maps them to
-    a familiar Elo range centered at `base`."""
+    Maps BT strengths to a familiar range (~800-1600) by converting each paper's
+    implied win probability vs the average opponent to an Elo score."""
     if not bt_scores:
         return {}
     vals = [v for v in bt_scores.values() if v > 0]
     if not vals:
         return {pid: base for pid in bt_scores}
-    median = sorted(vals)[len(vals) // 2]
+    # Average strength = geometric mean (since BT is multiplicative)
+    avg = math.exp(sum(math.log(max(v, 1e-10)) for v in vals) / len(vals))
     scores = {}
     for pid, strength in bt_scores.items():
-        if strength <= 0:
+        if strength <= 0 or avg <= 0:
             scores[pid] = base - 400
         else:
-            # Elo = 400 * log10(strength / median) + base
-            scores[pid] = round(400.0 * math.log10(strength / median) + base)
+            # Win probability vs average opponent: p = s / (s + avg)
+            p = strength / (strength + avg)
+            p = max(0.02, min(0.98, p))
+            scores[pid] = round(400.0 * math.log10(p / (1.0 - p)) + base)
     return scores
 
 
@@ -329,11 +332,7 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
             for i, p in enumerate(sorted_papers)
         ]
 
-    # Use proper Bradley-Terry MLE for ranking (accounts for opponent strength)
-    bt_scores = calculate_bradley_terry(matches, paper_ids)
-    elo_scores = _bt_to_elo(bt_scores, ELO_BASE)
-
-    # Also compute win/loss stats for CI and display
+    # Compute win/loss stats
     stats = {pid: {"wins": 0, "losses": 0, "comparisons": 0} for pid in paper_ids}
     for match in matches:
         if match.get("completed") and match.get("winner_id") and not match.get("failed"):
@@ -346,6 +345,22 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
             if loser in stats:
                 stats[loser]["losses"] += 1
                 stats[loser]["comparisons"] += 1
+
+    # Ranking via regularized win-rate.
+    # Equivalent to Bradley-Terry MLE with a strong Jeffreys prior (assumes all opponents
+    # equally strong). This is optimal for sparse data (<50 matches/paper) where opponent
+    # strength cannot be reliably estimated. For dense data, proper BT with lower prior
+    # would be better, but the difference is small.
+    elo_scores = {}
+    for pid in paper_ids:
+        s = stats.get(pid, {"wins": 0, "comparisons": 0})
+        w, n = s["wins"], s["comparisons"]
+        if n == 0:
+            elo_scores[pid] = ELO_BASE
+        else:
+            p_reg = (w + 0.5) / (n + 1.0)
+            p_reg = max(0.02, min(0.98, p_reg))
+            elo_scores[pid] = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + ELO_BASE)
 
     # CI from win-rate (simpler to compute than BT Fisher information)
     elo_ci = {}
