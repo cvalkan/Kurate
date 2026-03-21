@@ -396,7 +396,7 @@ function DatasetRankings({ datasets }) {
   );
 }
 
-function BenchmarkPage({ apiUrl, headerDesc, testId }) {
+function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -443,15 +443,24 @@ function BenchmarkPage({ apiUrl, headerDesc, testId }) {
       </div>
 
       {/* 1. Merged agreement + difficulty + tie impact table */}
-      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
-        <strong>Methodological note:</strong> The existing AI matches were generated under a pair-selection filter that
-        excluded <strong>within-tier comparisons</strong> (e.g. Poster vs. Poster). All {data.total_controlled_pairs?.toLocaleString()} controlled
-        pairs are cross-tier or adjacent-tier — 0% within-tier. This inflates absolute {"\u03C1"} values because AI was only
-        tested on easier pairs. The head-to-head comparison uses the same pair set, but the impact of the missing
-        within-tier pairs on AI vs. human is unknown — future runs with the corrected matchmaking will clarify this.
-        The filter has been removed.
-        See <em>AI Ranking Quality</em> for a standalone assessment using full human data as ground truth.
-      </div>
+      {isUnfiltered ? (
+        <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-900 leading-relaxed">
+          <strong>Unfiltered benchmark:</strong> This page includes <strong>within-tier matches</strong> (e.g. Poster vs Poster)
+          generated specifically to test AI on the full difficulty spectrum. The original filtered benchmark excluded
+          these pairs. Both AI and human metrics drop with within-tier inclusion, but AI{"'"}s advantage over the human
+          ceiling is preserved. Compare with the <em>Human vs AI Benchmark</em> (filtered) page for the controlled baseline.
+        </div>
+      ) : (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
+          <strong>Methodological note:</strong> The existing AI matches were generated under a pair-selection filter that
+          excluded <strong>within-tier comparisons</strong> (e.g. Poster vs. Poster). All {data.total_controlled_pairs?.toLocaleString()} controlled
+          pairs are cross-tier or adjacent-tier — 0% within-tier. This inflates absolute {"\u03C1"} values because AI was only
+          tested on easier pairs. The head-to-head comparison uses the same pair set, but the impact of the missing
+          within-tier pairs on AI vs. human is unknown — future runs with the corrected matchmaking will clarify this.
+          The filter has been removed.
+          See <em>Human vs AI (Unfiltered)</em> for results including within-tier pairs.
+        </div>
+      )}
       <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance, hh_cf: p.tie_stats?.cf_concordance_rate, ai_h_cf: p.ai_h_cf_concordance }} />
 
       {/* 2. Ranking Correlation (Bradley-Terry) */}
@@ -596,5 +605,6 @@ export function HumanAIBenchmarkUnfilteredSection() {
     apiUrl="/api/validation/human-ai-benchmark-unfiltered?gt_type=comp"
     headerDesc={<>Same setup as Human vs AI Benchmark, but <strong>including within-tier matches</strong> (e.g. Poster vs Poster). AI judges use Opus 4.6 Thinking summaries, round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. <strong>8 ICLR topics</strong> (PeerRead excluded — no tier decisions).</>}
     testId="human-ai-benchmark-unfiltered"
+    isUnfiltered
   />;
 }

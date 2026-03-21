@@ -9,10 +9,10 @@ export default function AIRankingQualitySection() {
 }
 
 export function AIRankingQualityUnfilteredSection() {
-  return <AIRankingQualityPage apiUrl="/api/validation/ai-ranking-quality-unfiltered?gt_type=comp" testId="ai-ranking-quality-unfiltered" />;
+  return <AIRankingQualityPage apiUrl="/api/validation/ai-ranking-quality-unfiltered?gt_type=comp" testId="ai-ranking-quality-unfiltered" isUnfiltered />;
 }
 
-function AIRankingQualityPage({ apiUrl, testId }) {
+function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,12 +43,20 @@ function AIRankingQualityPage({ apiUrl, testId }) {
         Each method uses its full available data independently.
       </div>
 
-      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
-        <strong>Methodological note:</strong> The existing AI matches were generated under a pair-selection filter that
-        excluded <strong>within-tier comparisons</strong> (e.g. Poster vs. Poster), so AI{"'"}s pair sample is biased toward
-        easier comparisons. The human ground truth uses all expert pairs including within-tier. The filter has been
-        removed for future validation runs; the {"\u03C1"} values below will improve as within-tier AI matches are added.
-      </div>
+      {isUnfiltered ? (
+        <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-900 leading-relaxed">
+          <strong>Unfiltered:</strong> AI matches now include <strong>within-tier pairs</strong> (e.g. Poster vs Poster).
+          Both AI and human ground truth use their full available data. Compare with <em>AI Ranking Quality</em> (filtered)
+          for the baseline without within-tier pairs.
+        </div>
+      ) : (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
+          <strong>Methodological note:</strong> The existing AI matches were generated under a pair-selection filter that
+          excluded <strong>within-tier comparisons</strong> (e.g. Poster vs. Poster), so AI{"'"}s pair sample is biased toward
+          easier comparisons. The human ground truth uses all expert pairs including within-tier. The filter has been
+          removed for future validation runs. See <em>AI Ranking (Unfiltered)</em> for results including within-tier matches.
+        </div>
+      )}
 
       {/* Pooled summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
