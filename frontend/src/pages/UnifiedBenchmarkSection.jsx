@@ -291,27 +291,39 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
           Object.keys(d.pw?.ranking_correlations || {}).forEach(k => pwKeys.add(k));
           Object.keys(d.si?.ranking_correlations || {}).forEach(k => siKeys.add(k));
         });
-        // Pool: average rho/tau across datasets (weighted by presence)
-        const pool = (method, key) => {
-          const vals = ds.map(d => d[method]?.ranking_correlations?.[key]).filter(Boolean);
-          if (!vals.length) return null;
+        // Pool: average rho/tau across datasets where BOTH PW and SI have data (paired)
+        const poolPaired = (key) => {
+          const paired = ds.filter(d => d.pw?.ranking_correlations?.[key] && d.si?.ranking_correlations?.[key]);
+          if (!paired.length) return { pw: null, si: null, siSub: null };
+          const pwVals = paired.map(d => d.pw.ranking_correlations[key]);
+          const siVals = paired.map(d => d.si.ranking_correlations[key]);
+          const siSubVals = paired.map(d => d.si_sub?.ranking_correlations?.[key]).filter(Boolean);
           return {
-            rho: vals.reduce((s, v) => s + (v.rho || 0), 0) / vals.length,
-            tau: vals.reduce((s, v) => s + (v.tau || 0), 0) / vals.filter(v => v.tau != null).length || null,
-            desc: vals[0]?.desc,
+            pw: {
+              rho: pwVals.reduce((s, v) => s + (v.rho || 0), 0) / pwVals.length,
+              tau: pwVals.filter(v => v.tau != null).length ? pwVals.reduce((s, v) => s + (v.tau || 0), 0) / pwVals.filter(v => v.tau != null).length : null,
+              desc: pwVals[0]?.desc,
+            },
+            si: {
+              rho: siVals.reduce((s, v) => s + (v.rho || 0), 0) / siVals.length,
+              tau: siVals.filter(v => v.tau != null).length ? siVals.reduce((s, v) => s + (v.tau || 0), 0) / siVals.filter(v => v.tau != null).length : null,
+              desc: siVals[0]?.desc,
+            },
+            siSub: siSubVals.length ? {
+              rho: siSubVals.reduce((s, v) => s + (v.rho || 0), 0) / siSubVals.length,
+              tau: siSubVals.filter(v => v.tau != null).length ? siSubVals.reduce((s, v) => s + (v.tau || 0), 0) / siSubVals.filter(v => v.tau != null).length : null,
+            } : null,
           };
         };
         const allKeys = [...new Set([...pwKeys, ...siKeys])];
         const pwPooled = {};
         const siPooled = {};
-        allKeys.forEach(k => { pwPooled[k] = pool("pw", k); siPooled[k] = pool("si", k); });
         const siSubPooled = {};
         allKeys.forEach(k => {
-          const vals = ds.map(d => (d.si_sub?.ranking_correlations || {})[k]).filter(Boolean);
-          siSubPooled[k] = vals.length ? {
-            rho: vals.reduce((s, v) => s + (v.rho || 0), 0) / vals.length,
-            tau: vals.filter(v => v.tau != null).length ? vals.reduce((s, v) => s + (v.tau || 0), 0) / vals.filter(v => v.tau != null).length : null,
-          } : null;
+          const p = poolPaired(k);
+          pwPooled[k] = p.pw;
+          siPooled[k] = p.si;
+          siSubPooled[k] = p.siSub;
         });
         const hasData = Object.values(pwPooled).some(v => v) || Object.values(siPooled).some(v => v);
         return hasData ? <RankCorrelationTable pwCorrs={pwPooled} siCorrs={siPooled} siSubCorrs={siSubPooled} /> : null;
