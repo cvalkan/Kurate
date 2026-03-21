@@ -260,7 +260,7 @@ function DatasetTable({ datasets }) {
           </table>
           <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              <strong>Note on PeerRead ACL 2017:</strong> This dataset behaves differently from ICLR — AI-H BT correlation (0.434) is far below
+              <strong>Note on PeerRead ACL 2017:</strong> This dataset behaves differently from ICLR — AI-H ranking correlation (0.434) is far below
               the ICLR range (0.69–0.90). Contributing factors: only 2–3 reviewers per paper (vs 4–5), a coarser 1–5 scale with 51% tie rate,
               no decision tiers (all null), and 2017-era NLP reviewing norms that may not align with modern LLM assessments.
               The high H-H agreement (86.7%) is likely inflated by the 2-reviewer double-filter bias (footnote 8 above).
@@ -338,7 +338,7 @@ function DatasetRankings({ datasets }) {
                     { key: "ai_bt", label: "AI BT", bg: "bg-sky-500/[0.06]" },
                     { key: "ai_wl", label: "AI W/L", bg: "bg-sky-500/[0.06]", noSort: true },
                     { key: "h_indiv_rank", label: "H-Indiv Rank", bg: "bg-amber-500/[0.06]" },
-                    { key: "h_indiv_bt", label: "H-Indiv BT", bg: "bg-amber-500/[0.06]" },
+                    { key: "h_indiv_bt", label: "H-Indiv score", bg: "bg-amber-500/[0.06]" },
                     { key: "h_indiv_wl", label: "H-Indiv W/L", bg: "bg-amber-500/[0.06]", noSort: true },
                     { key: "h_maj_rank", label: "H-Maj Rank", bg: "bg-rose-500/[0.06]" },
                     { key: "h_maj_bt", label: "H-Maj BT", bg: "bg-rose-500/[0.06]" },
@@ -384,10 +384,10 @@ function DatasetRankings({ datasets }) {
           <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1">
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               <strong>AI BT</strong>: Score from {rankData.n_ai_matches} thinking-mode matches (1 judge per pair, round-robin across 3 models).{" "}
-              <strong>H-Indiv BT</strong>: Score from individual expert votes (each expert{"'"}s preference = one match — multiple matches per pair).{" "}
+              <strong>H-Indiv score</strong>: Score from individual expert votes (each expert{"'"}s preference = one match — multiple matches per pair).{" "}
               <strong>H-Maj BT</strong>: Score from expert majority vote (one consensus vote per pair).{" "}
-              Rows highlighted where AI BT = H-Maj BT — a structural artifact when both have 1 vote/pair on the same pairs with identical W/L records.{" "}
-              H-Indiv BT breaks this coupling by using per-expert granularity.
+              Rows highlighted where AI score = H-Maj score — a structural artifact when both have 1 vote/pair on the same pairs with identical W/L records.{" "}
+              H-Indiv score breaks this coupling by using per-expert granularity.
             </p>
           </div>
         </div>
@@ -469,21 +469,21 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
           { group: "AI vs Human", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, color: "sky", pair: "indiv", side: "ai",
-            desc: "Each expert's vote on each pair is a separate BT match (preserving individual disagreements). AI BT is compared against this combined human BT" },
+            desc: "Each expert's vote on each pair is a separate match (preserving individual disagreements). AI ranking is compared against this combined human ranking" },
           { group: "", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null, pair: "avg", side: "ai",
-            desc: "AI BT ranking vs simple average of reviewer scores — different methodologies (BT vs mean)" },
+            desc: "AI ranking vs simple average of reviewer scores — different methodologies (ranking vs mean)" },
           { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, color: "amber", pair: "maj", side: "ai",
-            desc: "AI BT vs BT from majority-vote matches — one match per pair, loses margin information" },
+            desc: "AI ranking vs majority-vote matches — one match per pair, loses margin information" },
           { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: bt.vs_tier_tau, color: "rose", pair: "tier", side: "ai",
-            desc: "AI BT vs actual program committee tier decisions — coarse (4 tiers only)" },
+            desc: "AI ranking vs actual program committee tier decisions — coarse (4 tiers only)" },
           { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: bt.avg_expert_vs_loo_indiv?.kendall_tau, color: "sky", pair: "indiv", side: "h",
             desc: "One human reviewer vs all other reviewers (self excluded) — mirrors the AI row: single judge vs crowd. Apples-to-apples human ceiling" },
           { group: "", label: "Single expert vs Avg Rating (LOO)", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: bt.avg_expert_vs_loo_avg?.kendall_tau, pair: "avg", side: "h",
-            desc: "One reviewer's BT vs LOO average scores — different methodologies (BT vs mean)" },
+            desc: "One reviewer's ranking vs LOO average scores — different methodologies (ranking vs mean)" },
           { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: bt.avg_expert_vs_loo?.kendall_tau, color: "amber", pair: "maj", side: "h",
-            desc: "One reviewer's BT vs LOO majority BT — loses margin information, LOO ties skipped" },
+            desc: "One reviewer's ranking vs LOO majority ranking — loses margin information, LOO ties skipped" },
           { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: bt.avg_expert_vs_tier?.kendall_tau, color: "rose", pair: "tier", side: "h",
-            desc: "Expert BT vs tier decisions — circular (reviewers influenced the decisions)" },
+            desc: "Expert ranking vs tier decisions — circular (reviewers influenced the decisions)" },
           { group: "", label: "Single expert vs Majority", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, circular: true,
             desc: "Circular — expert's own votes are included in the majority" },
           { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau, circular: true,
@@ -536,8 +536,8 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
             </div>
             <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                All BT rankings use each method's full match data on <strong>controlled pairs</strong> (the same pair set for both AI and human).
-                "Single expert" builds BT from each expert's preferences individually, then averages the correlation across all experts.
+                All rankings use each method's full match data on <strong>controlled pairs</strong> (the same pair set for both AI and human).
+                "Single expert" builds ranking from each expert's preferences individually, then averages the correlation across all experts.
                 <strong>Majority</strong> = virtual majority vote from reviewer preferences (our construction).
                 <strong>Committee (ICLR PC)</strong> = actual program committee tier decisions (coarse: 4 tiers).
                 Human vs Committee is circular (reviewers influenced the decisions).
@@ -566,13 +566,13 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
                 </p>
               )}
               <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
-                <strong>Tie handling in BT:</strong> BT correlations are computed on <strong>non-tie pairs only</strong> — pairs where
+                <strong>Tie handling in ranking:</strong> Ranking correlations are computed on <strong>non-tie pairs only</strong> — pairs where
                 at least one human reviewer expressed a preference. Pairs where all reviewers tied (gave both papers the same score)
-                generate no BT match and are excluded.
+                generate no match and are excluded.
                 {p.tie_stats?.tie_fraction != null && <>{" "}With a {(p.tie_stats.tie_fraction * 100).toFixed(0)}% overall tie fraction,
-                roughly {(p.tie_stats.tie_fraction * 100).toFixed(0)}% of potential pairs are invisible to the human BT ranking.
-                Unlike pairwise agreement (which uses coin-flip correction for ties), BT has no equivalent correction —
-                injecting random matches would corrupt the ranking model. The BT {"\u03C1"} therefore measures ranking quality
+                roughly {(p.tie_stats.tie_fraction * 100).toFixed(0)}% of potential pairs are invisible to the human ranking.
+                Unlike pairwise agreement (which uses coin-flip correction for ties), ranking has no equivalent correction —
+                injecting random matches would corrupt the ranking. The ranking {"\u03C1"} therefore measures ranking quality
                 on the <em>resolvable</em> subset of pairs, complementing the pairwise agreement metrics which account for ties explicitly.</>}
               </p>
             </div>

@@ -131,7 +131,7 @@ export default function SummarizerABSection() {
         </h3>
         <div className="text-xs text-muted-foreground space-y-1.5">
           <p><strong>Question:</strong> How does the choice of summarizer model affect tournament accuracy and ranking, controlling for the same judge models and paper pairs?</p>
-          <p><strong>Method:</strong> Generate impact assessment summaries using GPT-5.2, Gemini 3 Pro, and compare with existing Opus 4.5/4.6/Thinking summaries. Run the same round-robin judges on the same cross-tier pairs. Compare pairwise accuracy and BT ranking correlation on overlapping pairs.</p>
+          <p><strong>Method:</strong> Generate impact assessment summaries using GPT-5.2, Gemini 3 Pro, and compare with existing Opus 4.5/4.6/Thinking summaries. Run the same round-robin judges on the same cross-tier pairs. Compare pairwise accuracy and ranking correlation on overlapping pairs.</p>
           <p><strong>All comparisons on exact same pairs</strong> to avoid pair-selection bias (which previously inflated the Opus 4.6 Thinking advantage from +0.057 to +0.000 on ranking).</p>
         </div>
       </div>

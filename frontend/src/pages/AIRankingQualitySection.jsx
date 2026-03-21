@@ -92,19 +92,19 @@ function GapAnalysisTable() {
     <div>
       {data.non_controlled && renderTable(
         "Non-Controlled: Wide-Gap Sampling (AI filtered, human GT fixed)",
-        "AI BT from gap-filtered matches; human GT from all expert pairs (fixed). Higher thresholds reduce AI's data \u2192 BT ranking degrades \u2192 \u03C1 drops. More matches always help.",
+        "AI ranking from gap-filtered matches; human GT from all expert pairs (fixed). Higher thresholds reduce AI's data \u2192 ranking degrades \u2192 \u03C1 drops. More matches always help.",
         data.non_controlled, "min_gap", "SI gap \u2265"
       )}
       {data.weighted && renderWeightedTable("SI-Gap Match Weighting", data.weighted,
         "Weights based on SI score difference. Close-cut Nx: small SI gap \u2192 higher weight. Wide-gap Nx: large SI gap \u2192 higher weight."
       )}
       {data.bt_sampling && renderTable(
-        "BT-Gap Sampling (AI filtered by BT score gap, human GT fixed)",
-        "Like SI-gap sampling but using the AI\u2019s own BT ranking scores to determine pair difficulty. BT gaps are in score points. Matches between similarly-ranked papers (small BT gap) are the hardest.",
-        data.bt_sampling, "min_gap", "BT gap \u2265"
+        "Score-Gap Sampling (AI filtered by score gap, human GT fixed)",
+        "Like SI-gap sampling but using the AI\u2019s own ranking scores to determine pair difficulty. Score gaps are in score points. Matches between similarly-ranked papers (small score gap) are the hardest.",
+        data.bt_sampling, "min_gap", "score gap \u2265"
       )}
       {data.bt_weighted && renderWeightedTable("BT-Gap Match Weighting", data.bt_weighted,
-        "Weights based on BT score difference (score points). Close-cut: emphasize matches between similarly-ranked papers. Wide-gap: emphasize matches between papers far apart in the ranking."
+        "Weights based on Score difference (score points). Close-cut: emphasize matches between similarly-ranked papers. Wide-gap: emphasize matches between papers far apart in the ranking."
       )}
     </div>
   );
@@ -190,7 +190,7 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
   return (
     <div className="space-y-6" data-testid={testId}>
       <div className="text-[10px] text-muted-foreground leading-relaxed">
-        AI BT ranking from <strong>all thinking-mode matches</strong> (1 judge per pair, random sample).
+        AI ranking from <strong>all thinking-mode matches</strong> (1 judge per pair, random sample).
         Human ground truth from <strong>all expert pairs</strong> with {"\u2265"}2 non-tying opinions — not restricted to AI{"'"}s pair set.
         Each method uses its full available data independently.
       </div>
@@ -272,10 +272,10 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
         </div>
         <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1.5">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            <strong>vs Aggregate</strong>: AI BT ranking correlated with human BT where each expert vote is a separate match.{" "}
-            <strong>vs Majority</strong>: AI BT vs human majority-vote BT (one consensus per pair).{" "}
-            <strong>vs Committee</strong>: AI BT vs actual program committee tier decisions (ICLR only).{" "}
-            <strong>vs Avg Rating</strong>: AI BT vs simple average of expert scores.
+            <strong>vs Aggregate</strong>: AI ranking correlated with human ranking where each expert vote is a separate match.{" "}
+            <strong>vs Majority</strong>: AI ranking vs human majority-vote ranking (one consensus per pair).{" "}
+            <strong>vs Committee</strong>: AI ranking vs actual program committee tier decisions (ICLR only).{" "}
+            <strong>vs Avg Rating</strong>: AI ranking vs simple average of expert scores.
           </p>
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             <strong>Overlap</strong>: fraction of expert pairs that AI also evaluated. Lower overlap = more independent comparison.

@@ -17,10 +17,10 @@ function Metric({ label, value, sub, accent }) {
 function BTCorrelationTable({ pwCorrs, siCorrs, siSubCorrs }) {
   if (!pwCorrs && !siCorrs) return null;
   const rows = [
-    { key: "vs_individual", label: "vs Individual aggregate", desc: "BT vs all-expert-votes BT" },
-    { key: "vs_avg_rating", label: "vs Avg Rating", desc: "BT vs average reviewer scores" },
-    { key: "vs_majority", label: "vs Majority", desc: "BT vs majority-vote BT" },
-    { key: "vs_committee", label: "vs Committee (ICLR PC)", desc: "BT vs committee tier decisions" },
+    { key: "vs_individual", label: "vs Individual aggregate", desc: "Ranking vs all-expert-votes ranking" },
+    { key: "vs_avg_rating", label: "vs Avg Rating", desc: "Ranking vs average reviewer scores" },
+    { key: "vs_majority", label: "vs Majority", desc: "Ranking vs majority-vote ranking" },
+    { key: "vs_committee", label: "vs Committee (ICLR PC)", desc: "Ranking vs committee tier decisions" },
   ];
   const f = v => v != null ? v.toFixed(3) : "\u2014";
   return (

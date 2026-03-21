@@ -261,8 +261,8 @@ function DatasetTable({ datasets }) {
                 <th className="py-1 px-2 text-right font-medium">H-C% (LOO)</th>
                 <th className="py-1 px-2 text-right font-medium text-muted-foreground/60">H-C%</th>
                 <th className="py-1 px-2 text-right font-medium">rho</th>
-                <th className="py-1 px-2 text-right font-medium">BT(C)</th>
-                <th className="py-1 px-2 text-right font-medium text-muted-foreground/60">BT(I)</th>
+                <th className="py-1 px-2 text-right font-medium">PW(C)</th>
+                <th className="py-1 px-2 text-right font-medium text-muted-foreground/60">PW(I)</th>
                 <th className="py-1 px-2 text-right font-medium">Pairs</th>
                 <th className="py-1 px-2 text-right font-medium">Experts</th>
               </tr>
@@ -351,15 +351,15 @@ function SIBenchmarkPage({ apiUrl, headerDesc, testId }) {
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
           { group: "AI vs Human", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null,
-            desc: "AI BT ranking vs h1_avg_rating ranking (same metric as summary table)" },
+            desc: "AI ranking vs h1_avg_rating ranking (same metric as summary table)" },
           { group: "", label: "AI vs Committee", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau,
-            desc: "AI BT vs expert-majority BT" },
+            desc: "AI ranking vs expert-majority ranking" },
           { group: "", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau,
-            desc: "AI BT vs all-expert-votes BT" },
+            desc: "AI ranking vs all-expert-votes ranking" },
           { group: "Human internal", label: "Single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau,
-            desc: "Each expert's BT vs committee BT (averaged)" },
+            desc: "Each expert's ranking vs committee ranking (averaged)" },
           { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau,
-            desc: "Each expert's BT vs all-votes BT (averaged)" },
+            desc: "Each expert's ranking vs all-votes ranking (averaged)" },
         ];
         let lastGroup = "";
         return (
@@ -397,7 +397,7 @@ function SIBenchmarkPage({ apiUrl, headerDesc, testId }) {
             </div>
             <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                All BT rankings computed on the same controlled paper sets. "Avg single expert" builds BT from each expert's preferences
+                All rankings computed on the same controlled paper sets. "Avg single expert" builds ranking from each expert's preferences
                 individually, then averages the correlation across all experts — this is the typical single-rater baseline.
               </p>
             </div>

@@ -224,7 +224,7 @@ export default function AssessorEvaluatorSection() {
           <li><strong>Evaluator:</strong> The model that compares two papers' summaries and picks a winner.</li>
           <li><strong>Round-Robin:</strong> Simulated by randomly picking one judge per pair (50 trials averaged). Same match count as a single judge — not a data-pooling advantage.</li>
           <li><strong>Same pairs:</strong> Intersection of all 5 summarizers — every cell uses the exact same paper pairs.</li>
-          <li><strong>Ranking ρ:</strong> Spearman correlation between AI's BT ranking and human reviewers' BT ranking.</li>
+          <li><strong>Ranking ρ:</strong> Spearman correlation between AI's pairwise ranking and human reviewers' ranking.</li>
           <li><strong>Accuracy:</strong> Fraction of pairwise comparisons where AI agrees with human expert majority.</li>
         </ul>
       </div>

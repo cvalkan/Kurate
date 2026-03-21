@@ -149,7 +149,7 @@ export default function ValidationReportPage() {
                 <strong>Ranking correlation (fairest comparison):</strong>{" "}
                 AI vs Individual aggregate {"\u03C1"} = {bt.individual?.spearman_rho?.toFixed(3)} vs
                 Single expert vs Individual aggregate (LOO) = {bt.avg_expert_vs_loo_indiv?.spearman_rho?.toFixed(3)}.
-                Same methodology (BT vs BT), no circularity on either side.
+                Same methodology (ranking vs ranking), no circularity on either side.
                 AI outperforms the average individual expert by{" "}
                 {bt.individual?.spearman_rho && bt.avg_expert_vs_loo_indiv?.spearman_rho
                   ? (bt.individual.spearman_rho - bt.avg_expert_vs_loo_indiv.spearman_rho).toFixed(3) : "?"} on ranking quality.
@@ -470,7 +470,7 @@ export default function ValidationReportPage() {
 
       {/* 10. Gap Signal */}
       <Section num="11" title="The Gap Signal (Pairwise Rank vs Standalone Rank)">
-        <p>The gap between pairwise rank and standalone rank (BT - SI) independently predicts quality:</p>
+        <p>The gap between pairwise rank and standalone rank (PW - SI) independently predicts quality:</p>
         <div className="overflow-x-auto mt-1">
           <table className="w-full text-[10px]">
             <thead>

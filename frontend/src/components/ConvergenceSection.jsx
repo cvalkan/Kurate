@@ -228,7 +228,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, lo
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {isLeaderboard
               ? "How many matches for stable rankings? Convergence measured against final ranking at all matches."
-              : "How many matches for stable rankings? Ground truth = human BT ranking from reviewer scores. For multi-dimension datasets (e.g., eLife), the aggregate is the average of per-dimension Spearman correlations (significance + strength)."}
+              : "How many matches for stable rankings? Ground truth = human ranking from reviewer scores. For multi-dimension datasets (e.g., eLife), the aggregate is the average of per-dimension Spearman correlations (significance + strength)."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -323,7 +323,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, lo
         <div className="border border-border rounded-lg p-3" data-testid="convergence-sig-chart">
           <div className="mb-2">
             <h3 className="text-sm font-semibold">Significance Ranking Convergence</h3>
-            <p className="text-[10px] text-muted-foreground">AI BT ranking vs human BT ranking from significance preferences (useful → landmark)</p>
+            <p className="text-[10px] text-muted-foreground">AI ranking vs human ranking from significance preferences (useful → landmark)</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={logDualData}>
@@ -349,7 +349,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, lo
         <div className="border border-border rounded-lg p-3" data-testid="convergence-str-chart">
           <div className="mb-2">
             <h3 className="text-sm font-semibold">Strength of Evidence Ranking Convergence</h3>
-            <p className="text-[10px] text-muted-foreground">AI BT ranking vs human BT ranking from strength preferences (inadequate → exceptional)</p>
+            <p className="text-[10px] text-muted-foreground">AI ranking vs human ranking from strength preferences (inadequate → exceptional)</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={logDualData}>

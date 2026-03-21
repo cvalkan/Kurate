@@ -108,7 +108,7 @@ function DatasetTable({ datasets }) {
                 <th className="py-1 px-2 text-left font-medium">Dataset</th>
                 <th className="py-1 px-2 text-right font-medium">AI-GT%</th>
                 <th className="py-1 px-2 text-right font-medium">CF%</th>
-                <th className="py-1 px-2 text-right font-medium">BT rho</th>
+                <th className="py-1 px-2 text-right font-medium">Ranking ρ</th>
                 <th className="py-1 px-2 text-right font-medium">GT tie%</th>
                 <th className="py-1 px-2 text-right font-medium">Pairs</th>
                 <th className="py-1 px-2 text-right font-medium">Papers</th>
@@ -174,7 +174,7 @@ function StandaloneBenchmarkPage({ apiUrl, headerDesc, testId }) {
           <Metric label="AI-GT (ties excl.)" value={`${p.agreement?.rate ?? "\u2014"}%`} sub="GT ties excluded" />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="BT Spearman rho" value={bt.spearman_rho?.toFixed(3) ?? "\u2014"} sub="AI vs GT ranking" accent />
+          <Metric label="Ranking Spearman ρ" value={bt.spearman_rho?.toFixed(3) ?? "\u2014"} sub="AI vs GT ranking" accent />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label="GT Tie Rate" value={`${p.gt_tie_rate ?? "\u2014"}%`} sub="same aggregate score" />

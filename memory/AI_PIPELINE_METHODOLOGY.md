@@ -78,8 +78,8 @@ Only pairs where BOTH an AI match AND at least one human reviewer comparison exi
 
 All metrics are computed both with ties excluded and with coin-flip correction (ties resolved randomly at 50%).
 
-**Ranking Correlation (Bradley-Terry):**
-- Individual votes from all reviewers are fed as separate matches into a BT model to produce a human ranking
+**Ranking Correlation (regularized win-rate):**
+- Individual votes from all reviewers are fed as separate matches into a ranking model to produce a human ranking
 - AI pairwise matches produce an AI ranking
 - Spearman ρ and Kendall τ measure correlation between the two rankings
 - Multiple comparison targets: individual aggregate, majority, committee tiers, average score
@@ -94,8 +94,8 @@ All metrics are computed both with ties excluded and with coin-flip correction (
 | Metric | AI | Human | Notes |
 |---|---|---|---|
 | Pairwise agreement (coin-flip) | 74.4% | 73.4% | AI matches human-level |
-| BT ranking ρ (vs. individual aggregate) | **0.739** | 0.660 (LOO) | AI outperforms single expert (controlled pairs) |
-| BT ranking ρ (vs. committee) | **0.762** | 0.681 | AI outperforms despite human circularity advantage |
+| pairwise ranking ρ (vs. individual aggregate) | **0.739** | 0.660 (LOO) | AI outperforms single expert (controlled pairs) |
+| pairwise ranking ρ (vs. committee) | **0.762** | 0.681 | AI outperforms despite human circularity advantage |
 | Ceiling utilization (vs. 0.878 max) | **87%** | 78% | AI captures more ranking signal |
 
 ## Known Limitations and Methodological Issues
@@ -129,7 +129,7 @@ Both AI and human rankings are built from the **same pair set** (the intersectio
 **Standalone quality (AI Ranking Quality page):**
 AI ranking from ALL its thinking-mode matches; human ground truth from ALL expert pairs. Each method uses its full available data independently. This measures absolute ranking quality without coupling the two datasets.
 
-The difference matters because for ICLR datasets, experts cover ~99% of all possible pairs, while AI only evaluates ~25–35%. On the controlled page, the human BT is artificially restricted to AI's sparse pair set (losing 65–75% of available expert data). The standalone page uses the full human data as ground truth.
+The difference matters because for ICLR datasets, experts cover ~99% of all possible pairs, while AI only evaluates ~25–35%. On the controlled page, the human pairwise is artificially restricted to AI's sparse pair set (losing 65–75% of available expert data). The standalone page uses the full human data as ground truth.
 
 | Dataset | ρ (controlled) | ρ (standalone) | Δ |
 |---|---|---|---|
@@ -141,11 +141,11 @@ The difference matters because for ICLR datasets, experts cover ~99% of all poss
 
 The controlled ρ is consistently higher (except PeerRead) because the shared pair set is systematically easier (see §1 above: no within-tier pairs).
 
-### 3. Structural BT Score Coupling
+### 3. Structural pairwise Score Coupling
 
-When both AI and human majority are computed from the **same pair set** with **1 vote per pair each**, papers where both methods agree unanimously produce identical win/loss records → identical win-rate scores. For Protein Science, 19/46 papers (41%) have exactly matching AI and human-majority BT scores, concentrated at the bottom of the ranking (all 0-win papers).
+When both AI and human majority are computed from the **same pair set** with **1 vote per pair each**, papers where both methods agree unanimously produce identical win/loss records → identical win-rate scores. For Protein Science, 19/46 papers (41%) have exactly matching AI and human-majority pairwise scores, concentrated at the bottom of the ranking (all 0-win papers).
 
-This is a mathematical guarantee, not a meaningful finding. The Human Individual BT (using per-expert-vote granularity: multiple matches per pair) breaks this coupling completely (0% exact matches).
+This is a mathematical guarantee, not a meaningful finding. The Human Individual pairwise (using per-expert-vote granularity: multiple matches per pair) breaks this coupling completely (0% exact matches).
 
 ### 4. Author Visibility in Stage 1
 
@@ -255,7 +255,7 @@ The Spearman rank correlation between any ranking and the ICLR committee decisio
 
 AI's ρ (0.762) significantly exceeds what its 82.9% cross-tier accuracy alone would predict (ρ ≈ 0.584 for random within-tier ordering at that accuracy). The gap (0.762 − 0.584 = 0.178) demonstrates that AI produces **meaningful within-tier ranking** — not just correct tier classification.
 
-**Important caveat:** This within-tier signal was inferred entirely from cross-tier matches (see §Known Limitations, item 1). AI was never directly tested on within-tier pairs. The BT model extrapolates within-tier ordering from how papers perform against cross-tier opponents. Future validation runs with the corrected matchmaking will include direct within-tier comparisons.
+**Important caveat:** This within-tier signal was inferred entirely from cross-tier matches (see §Known Limitations, item 1). AI was never directly tested on within-tier pairs. The ranking model extrapolates within-tier ordering from how papers perform against cross-tier opponents. Future validation runs with the corrected matchmaking will include direct within-tier comparisons.
 
 This is a **conservative win for AI** over single human experts (0.762 vs 0.681):
 - The human's higher pairwise accuracy (87.9% vs 82.9%) comes from **circularity** (their scores influenced the committee decisions)

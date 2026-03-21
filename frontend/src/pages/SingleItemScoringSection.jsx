@@ -180,20 +180,20 @@ export default function SingleItemScoringSection({ datasetId }) {
                     <div className="text-[10px] text-muted-foreground">Who's Right?</div>
                     <div className="text-sm font-mono font-semibold">
                       {ds.sp_analysis.bt_right_pct > ds.sp_analysis.si_right_pct
-                        ? <span className="text-violet-700">BT {ds.sp_analysis.bt_right_pct}%</span>
+                        ? <span className="text-violet-700">PW {ds.sp_analysis.bt_right_pct}%</span>
                         : <span className="text-blue-700">SI {ds.sp_analysis.si_right_pct}%</span>}
                     </div>
                     <div className="text-[9px] text-muted-foreground">
                       {ds.sp_analysis.bt_right_pct > ds.sp_analysis.si_right_pct
                         ? `SI ${ds.sp_analysis.si_right_pct}%`
-                        : `BT ${ds.sp_analysis.bt_right_pct}%`}
+                        : `PW ${ds.sp_analysis.bt_right_pct}%`}
                     </div>
                   </div>
                 </div>
                 <div className="text-[10px] text-muted-foreground border-t border-border/30 pt-2">
                   {ds.sp_analysis.significant
-                    ? <><strong>SP signal is significant:</strong> The pure BT-minus-SI gap independently predicts human quality (Spearman rho = {ds.sp_analysis.sp_rho?.toFixed(3)}). Pairwise comparison reveals quality dimensions that standalone scoring misses — the "surprisingly competitive" papers are genuinely better.</>
-                    : <><strong>SP signal is not significant:</strong> The BT-SI gap does not predict human quality on this dataset. Both methods capture the same underlying signal; pairwise adds no unique information beyond standalone scoring.</>}
+                    ? <><strong>SP signal is significant:</strong> The pure PW-minus-SI gap independently predicts human quality (Spearman rho = {ds.sp_analysis.sp_rho?.toFixed(3)}). Pairwise comparison reveals quality dimensions that standalone scoring misses — the "surprisingly competitive" papers are genuinely better.</>
+                    : <><strong>SP signal is not significant:</strong> The PW-SI gap does not predict human quality on this dataset. Both methods capture the same underlying signal; pairwise adds no unique information beyond standalone scoring.</>}
                 </div>
               </div>
             </div>

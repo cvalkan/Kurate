@@ -520,7 +520,7 @@ function StandardStats({ datasetId, isAdmin }) {
               <div key={key} className="border border-border rounded-lg overflow-hidden">
                 <div className="px-3 py-2 bg-secondary/10 border-b border-border">
                   <h3 className="text-xs font-medium flex items-center gap-1.5">
-                    <Users className="h-3 w-3" /> Pairwise BT{label ? ` — ${label}` : ""} 
+                    <Users className="h-3 w-3" /> Pairwise Ranking{label ? ` — ${label}` : ""} 
                     <span className="text-muted-foreground font-normal">({modeLabel})</span>
                   </h3>
                 </div>
@@ -572,7 +572,7 @@ function StandardStats({ datasetId, isAdmin }) {
               <div className="border border-border rounded-lg overflow-hidden">
                 <div className="px-3 py-2 bg-emerald-500/10 border-b border-border">
                   <h3 className="text-xs font-medium flex items-center gap-1.5">
-                    <Sparkles className="h-3 w-3" /> AI Pairwise BT vs Single-Item Score
+                    <Sparkles className="h-3 w-3" /> AI Pairwise Ranking vs Single-Item Score
                     <span className="text-muted-foreground font-normal">(Opus 4.6 Thinking)</span>
                   </h3>
                 </div>
@@ -586,7 +586,7 @@ function StandardStats({ datasetId, isAdmin }) {
                     {activePairwise.si_correlation.papers} papers with both pairwise matches and single-item scores
                   </div>
                   <div className="text-[10px] text-muted-foreground bg-secondary/10 rounded px-2 py-1.5">
-                    Correlation between the BT ranking from pairwise tournament matches (round-robin judges reading Opus 4.6 Thinking summaries)
+                    Correlation between the ranking from pairwise tournament matches (round-robin judges reading Opus 4.6 Thinking summaries)
                     and the ranking from Opus 4.6 Thinking single-item scores (direct paper scoring without comparison).
                   </div>
                 </div>
@@ -765,7 +765,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="px-3 py-2 bg-secondary/10 border-b border-border">
           <h3 className="text-xs font-medium flex items-center gap-1.5">
-            <BarChart3 className="h-3 w-3" /> Inter-Model Rank Correlation (BT)
+            <BarChart3 className="h-3 w-3" /> Inter-Model Rank Correlation
           </h3>
         </div>
         <div className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -826,7 +826,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
           <div className="pt-2 border-t border-border/50 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {data.majority_bt_vs_human_bt && (
               <div>
-                <div className="text-[10px] text-muted-foreground mb-2">Majority-Vote BT Ranking vs Human BT</div>
+                <div className="text-[10px] text-muted-foreground mb-2">Majority-Vote Ranking vs Human Ranking</div>
                 <div className="inline-block">
                   <CorrelationBadge value={data.majority_bt_vs_human_bt.spearman_rho} label={`Spearman \u03C1 (${data.majority_bt_vs_human_bt.papers} papers)`} />
                 </div>
@@ -834,7 +834,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
             )}
             {data.unanimity_bt_vs_human_bt && (
               <div>
-                <div className="text-[10px] text-muted-foreground mb-2">Unanimity BT Ranking vs Human BT</div>
+                <div className="text-[10px] text-muted-foreground mb-2">Unanimity Ranking vs Human Ranking</div>
                 <div className="inline-block">
                   <CorrelationBadge value={data.unanimity_bt_vs_human_bt.spearman_rho} label={`Spearman \u03C1 (${data.unanimity_bt_vs_human_bt.papers} papers)`} />
                 </div>
@@ -1115,7 +1115,7 @@ export default function ValidationPage() {
         <h3 className="text-sm font-medium mb-2">Methodology</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
           <li><strong>Data:</strong> Papers with peer reviews from ICLR OpenReview, PeerRead (ACL 2017), and F1000Research (biomedical). Full text used for section extraction where available.</li>
-          <li><strong>Pairwise BT:</strong> Derives head-to-head matches from reviewers who scored multiple papers. Both sides ranked via Bradley-Terry. Implicitly cancels severity bias.</li>
+          <li><strong>Pairwise Ranking:</strong> Derives head-to-head matches from reviewers who scored multiple papers. Both sides ranked via regularized win-rate. Implicitly cancels severity bias.</li>
           <li><strong>IRT Score:</strong> Z-scores each reviewer's ratings against their personal mean/std, averages per paper. Explicitly removes severity bias. Produces finer-grained scores.</li>
           <li><strong>Multi-Model:</strong> Each pair is evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro. Inter-model agreement and majority-vote accuracy are computed.</li>
           <li><strong>Agreement:</strong> Expert-Expert = reviewer pairwise agreement rate. AI-Expert = AI vs individual reviewer. AI-Majority = AI vs reviewer consensus.</li>
