@@ -79,8 +79,8 @@ export default function MethodologyPage() {
           <p>The matchmaker uses goal-directed pair selection with two convergence tiers: <span className="text-foreground">general papers</span> (Wilson 95% CI &le; 15%) and <span className="text-foreground">top-K papers</span> (CI &le; 10%, with mandatory cross-matches). Papers with the widest confidence intervals are matched first. A calibration ratio ensures new papers are compared against established ones for transitive score calibration.</p>
         </Step>
 
-        <Step number={6} icon={BarChart3} title="Bradley-Terry Scoring">
-          <p>Global rankings are derived from pairwise results using the <span className="text-foreground font-medium">Bradley-Terry model</span>, converted to win-rate scores centered at 1200. Win rates include <span className="text-foreground font-medium">95% Wilson confidence intervals</span>.</p>
+        <Step number={6} icon={BarChart3} title="Regularized Win-Rate Scoring">
+          <p>Global rankings are derived from pairwise results using <span className="text-foreground font-medium">regularized win-rates</span> (Jeffreys prior), mapped to scores centered at 1200. Win rates include <span className="text-foreground font-medium">95% Wilson confidence intervals</span>.</p>
         </Step>
 
         <Step number={7} icon={Users} title="Multi-Model Consensus">
