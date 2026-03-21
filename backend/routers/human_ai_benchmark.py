@@ -1917,6 +1917,16 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             s1, s2 = si_scores.get(m["paper1_id"]), si_scores.get(m["paper2_id"])
             m["_si_gap"] = abs(s1 - s2) if s1 is not None and s2 is not None else None
 
+        # Compute BT scores from all matches, then annotate each match with BT gap
+        from services.ranking import compute_leaderboard as _sync_lb
+        bt_lb = _sync_lb(papers, [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                                    "winner_id": m["winner_id"], "completed": True, "failed": False}
+                                   for m in all_matches if m.get("winner_id")])
+        bt_scores = {e["id"]: e["score"] for e in bt_lb}
+        for m in all_matches:
+            b1, b2 = bt_scores.get(m["paper1_id"]), bt_scores.get(m["paper2_id"])
+            m["_bt_gap"] = abs(b1 - b2) if b1 is not None and b2 is not None else None
+
         tier_rank = {p["id"]: -TIER_MAP[norm_tier(p.get("decision"))]
                      for p in papers if norm_tier(p.get("decision")) in TIER_MAP}
         avg_map = {}
@@ -2081,7 +2091,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     # Table 4: BT Match Weighting — all matches, different weights by SI gap
     import math as _math
 
-    async def _compute_weighted_row(ds_items, weight_fn, label):
+    async def _compute_weighted_row(ds_items, weight_fn, gap_field, label):
         """Like _compute_row but duplicates matches proportional to weight_fn(si_gap)."""
         rhos = {"indiv": [], "maj": [], "tier": [], "avg": [], "h_ceil": []}
         total_eff_matches = 0
@@ -2089,14 +2099,14 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
 
         for ds_id, c in ds_items:
             papers = c["papers"]
-            all_m = [m for m in c["all_matches"] if m.get("_si_gap") is not None]
+            all_m = [m for m in c["all_matches"] if m.get(gap_field) is not None]
             if len(all_m) < 10:
                 continue
 
             # Weight and duplicate matches
             weighted_matches = []
             for m in all_m:
-                w = max(1, round(weight_fn(m["_si_gap"])))
+                w = max(1, round(weight_fn(m[gap_field])))
                 for _ in range(w):
                     weighted_matches.append({"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
                                              "winner_id": m["winner_id"], "completed": True, "failed": False})
@@ -2173,8 +2183,36 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
 
     weighted_rows = []
     for label, wfn in weight_schemes:
-        row = await _compute_weighted_row(ds_items, wfn, label)
+        row = await _compute_weighted_row(ds_items, wfn, "_si_gap", label)
         weighted_rows.append(row)
+
+    # Table 5: BT Gap Sampling (non-controlled) — like Table 1 but using BT score gap
+    # BT gaps are in Elo points (typically 0-800), not 1-10 like SI
+    bt_gap_thresholds = [0, 25, 50, 100, 200, 300, 500]
+    bt_sampling_rows = []
+    # Row 0: reuse ranking quality values (gap=0 = all matches)
+    bt_gap0 = {"min_gap": 0, "matches": gap0_row["matches"], "pairs": gap0_row["pairs"],
+               "indiv": gap0_row["indiv"], "maj": gap0_row["maj"], "tier": gap0_row["tier"],
+               "avg": gap0_row["avg"], "h_ceil": gap0_full.get("h_ceil"), "ai_advantage": gap0_row.get("ai_advantage")}
+    bt_sampling_rows.append(bt_gap0)
+    for g in bt_gap_thresholds[1:]:
+        row = await _compute_row(ds_items, lambda m, g=g: m.get("_bt_gap") is not None and m["_bt_gap"] >= g, controlled=False)
+        row["min_gap"] = g
+        bt_sampling_rows.append(row)
+
+    # Table 6: BT Gap Weighting
+    bt_weight_schemes = [
+        ("Uniform (baseline)", lambda g: 1),
+        ("Close-cut 2x (BT)", lambda g: max(1, round(200 / (g + 50)))),
+        ("Close-cut 4x (BT)", lambda g: max(1, round(400 / (g + 50)))),
+        ("Close-cut 8x (BT)", lambda g: max(1, round(800 / (g + 50)))),
+        ("Wide-gap 2x (BT)", lambda g: max(1, round(1 + g / 100))),
+        ("Wide-gap 4x (BT)", lambda g: max(1, round(1 + g / 50))),
+    ]
+    bt_weighted_rows = []
+    for label, wfn in bt_weight_schemes:
+        row = await _compute_weighted_row(ds_items, wfn, "_bt_gap", label)
+        bt_weighted_rows.append(row)
 
     return {
         "status": "ok",
@@ -2184,6 +2222,8 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         "controlled_wide": ctrl_wide_rows,
         "controlled_close": ctrl_close_rows,
         "weighted": weighted_rows,
+        "bt_sampling": bt_sampling_rows,
+        "bt_weighted": bt_weighted_rows,
     }
 
 
