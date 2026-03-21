@@ -2282,10 +2282,14 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
             if rho is not None:
                 pooled_rhos[key].append(rho)
 
-        # Collect top-10% overlap
-        t10 = result.get("top10_overlap", {})
-        for k, v in t10.items():
-            pooled_top10.setdefault(k, []).append(v)
+        # Collect top overlap
+        to = result.get("top_overlap", {})
+        for k, v in to.items():
+            pooled_top10.setdefault(k, {"actual": [], "expected": []})
+            if v.get("actual") is not None:
+                pooled_top10[k]["actual"].append(v["actual"])
+            if v.get("expected") is not None:
+                pooled_top10[k]["expected"].append(v["expected"])
 
     if not per_dataset:
         return {"status": "no_data"}
@@ -2297,8 +2301,13 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
 
     pooled_top10_avg = {}
     for key, vals in pooled_top10.items():
-        if vals:
-            pooled_top10_avg[key] = safe_round(float(np.mean(vals)))
+        entry = {}
+        if vals.get("actual"):
+            entry["actual"] = safe_round(float(np.mean(vals["actual"])))
+        if vals.get("expected"):
+            entry["expected"] = safe_round(float(np.mean(vals["expected"])))
+        if entry:
+            pooled_top10_avg[key] = entry
 
     return {
         "status": "ok",
@@ -2509,25 +2518,52 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
             ai_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
     overlap = len(ai_pairs & all_expert_pairs_ge2)
 
-    # Top-10% overlap: fraction of AI's top-10% papers that are also in GT's top-10%
-    top10_overlap = {}
-    n_top = max(1, len(paper_ids) // 10)
-    ai_sorted = sorted(paper_ids, key=lambda p: ai_rank.get(p, 0), reverse=True)
-    ai_top10 = set(ai_sorted[:n_top])
-
-    for gt_label, gt_rank in [("indiv", h_indiv_rank), ("maj", h_maj_rank), ("avg_rating", avg_rating_map)]:
-        shared = sorted(set(ai_rank.keys()) & set(gt_rank.keys()))
+    # Top-K% overlap: fraction of AI's top-K% papers that are also in GT's top-K%
+    # Also compute expected overlap given the ρ (via simulation)
+    import random as _rng_top
+    def _compute_top_overlap(ai_rank_map, gt_rank_map, frac):
+        shared = sorted(set(ai_rank_map.keys()) & set(gt_rank_map.keys()))
         if len(shared) < 5:
-            continue
-        gt_sorted = sorted(shared, key=lambda p: gt_rank.get(p, 0), reverse=True)
-        gt_top10 = set(gt_sorted[:n_top])
-        top10_overlap[gt_label] = safe_round(len(ai_top10 & gt_top10) / n_top * 100)
+            return None, None
+        k = max(1, int(len(shared) * frac))
+        ai_sorted = sorted(shared, key=lambda p: ai_rank_map.get(p, 0), reverse=True)
+        gt_sorted = sorted(shared, key=lambda p: gt_rank_map.get(p, 0), reverse=True)
+        actual = len(set(ai_sorted[:k]) & set(gt_sorted[:k])) / k * 100
+        # Expected overlap: simulate from the Spearman ρ
+        sp, _ = scipy_stats.spearmanr([ai_rank_map[p] for p in shared], [gt_rank_map[p] for p in shared])
+        if np.isnan(sp):
+            return actual, None
+        n = len(shared)
+        _rng_top.seed(42)
+        expected_overlaps = []
+        for _ in range(500):
+            x = np.random.randn(n)
+            noise = np.random.randn(n)
+            y = float(sp) * x + np.sqrt(max(0, 1 - float(sp)**2)) * noise
+            x_top = set(np.argsort(x)[-k:])
+            y_top = set(np.argsort(y)[-k:])
+            expected_overlaps.append(len(x_top & y_top) / k * 100)
+        expected = float(np.mean(expected_overlaps))
+        return actual, expected
 
-    # vs tier: top-10% = oral + spotlight (highest tiers)
+    top_overlap = {}
+    for gt_label, gt_rank_map in [("indiv", h_indiv_rank), ("maj", h_maj_rank), ("avg_rating", avg_rating_map)]:
+        for pct_label, frac in [("10", 0.10), ("20", 0.20)]:
+            actual, expected = _compute_top_overlap(ai_rank, gt_rank_map, frac)
+            if actual is not None:
+                key = f"{gt_label}_top{pct_label}"
+                top_overlap[key] = {"actual": safe_round(actual), "expected": safe_round(expected) if expected else None}
+
+    # vs tier: top-K% = highest tiers
     if tier_score_map:
-        top_tiers = {pid for pid, s in tier_score_map.items() if s >= 3}  # oral=4, spotlight=3
+        top_tiers = {pid for pid, s in tier_score_map.items() if s >= 3}  # oral + spotlight
         if top_tiers:
-            top10_overlap["tier"] = safe_round(len(ai_top10 & top_tiers) / max(len(top_tiers), 1) * 100)
+            ai_sorted_all = sorted(paper_ids, key=lambda p: ai_rank.get(p, 0), reverse=True)
+            for pct_label, frac in [("10", 0.10), ("20", 0.20)]:
+                k = max(1, int(len(paper_ids) * frac))
+                ai_topk = set(ai_sorted_all[:k])
+                actual = len(ai_topk & top_tiers) / max(len(top_tiers), 1) * 100
+                top_overlap[f"tier_top{pct_label}"] = {"actual": safe_round(actual), "expected": None}
 
     return {
         "dataset_id": dataset_id,
@@ -2537,5 +2573,5 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         "n_expert_pairs": len(all_expert_pairs_ge2),
         "pair_overlap": overlap,
         "bt": bt,
-        "top10_overlap": top10_overlap,
+        "top_overlap": top_overlap,
     }
