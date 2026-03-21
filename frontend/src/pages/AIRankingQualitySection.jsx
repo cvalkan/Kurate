@@ -244,6 +244,7 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
                 <th className="py-1.5 px-2 text-right font-medium bg-rose-500/[0.06]">vs Committee</th>
                 <th className="py-1.5 px-2 text-right font-medium">vs Avg Rating</th>
                 <th className="py-1.5 px-2 text-right font-medium text-foreground/50">AI pairs</th>
+                <th className="py-1.5 px-2 text-right font-medium text-foreground/50">M/P</th>
                 <th className="py-1.5 px-2 text-right font-medium text-foreground/50">Expert pairs</th>
                 <th className="py-1.5 px-2 text-right font-medium text-foreground/50">Overlap</th>
               </tr>
@@ -260,6 +261,7 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
                     <td className="py-1.5 px-2 text-right font-mono bg-rose-500/[0.06]">{f(bt.tier?.spearman_rho)}</td>
                     <td className="py-1.5 px-2 text-right font-mono">{typeof bt.avg_rating === "number" ? bt.avg_rating.toFixed(3) : f(bt.avg_rating?.spearman_rho)}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{d.n_ai_pairs}</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{d.n_papers > 0 ? (d.n_ai_matches * 2 / d.n_papers).toFixed(1) : "\u2014"}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{d.n_expert_pairs}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{overlapPct}%</td>
                   </tr>
