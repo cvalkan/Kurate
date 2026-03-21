@@ -1940,19 +1940,15 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             "tier_rank": tier_rank, "avg_map": avg_map,
         }
 
-    # Compute metrics at each gap threshold
-    gap_thresholds = [0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
-    rows = []
-
-    for min_gap in gap_thresholds:
+    # Helper: compute metrics for a filtered match subset
+    async def _compute_row(ds_data_items, match_filter_fn, controlled):
         rhos = {"indiv": [], "maj": [], "tier": [], "avg": [], "h_ceil": []}
         total_matches = 0
-        total_ctrl = 0
+        total_pairs = 0
 
-        for ds_id, c in ds_data.items():
+        for ds_id, c in ds_data_items:
             papers = c["papers"]
-            filtered = [m for m in c["all_matches"]
-                        if m.get("_si_gap") is not None and m["_si_gap"] >= min_gap]
+            filtered = [m for m in c["all_matches"] if match_filter_fn(m)]
             if len(filtered) < 10:
                 continue
             total_matches += len(filtered)
@@ -1961,23 +1957,34 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             for m in filtered:
                 pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
                 pv[pair].append(m["winner_id"])
-            ai_pairs = set(pv.keys())
-            total_ctrl += len(ai_pairs)
-            if len(filtered) < 10:
-                continue
+            ai_pair = {pair: Counter(v).most_common(1)[0][0] for pair, v in pv.items()}
 
-            # AI BT from gap-filtered matches
-            ai_bt = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
-                      "winner_id": m["winner_id"], "completed": True, "failed": False}
-                     for m in filtered]
-
-            # Human GT from ALL expert pairs (non-controlled, same as summary cards)
-            h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
-                        "completed": True, "failed": False}
-                       for p in c["all_expert_ge2"] for _, w in c["expert_pair_prefs"][p].items()]
-            h_maj = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": c["expert_majority"][p],
-                      "completed": True, "failed": False}
-                     for p in c["all_expert_ge2"] if p in c["expert_majority"]]
+            if controlled:
+                ctrl = set(ai_pair.keys()) & c["all_expert_ge2"]
+                total_pairs += len(ctrl)
+                if len(ctrl) < 10:
+                    continue
+                ai_bt = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": ai_pair[p],
+                          "completed": True, "failed": False} for p in ctrl]
+                h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
+                            "completed": True, "failed": False}
+                           for p in ctrl for _, w in c["expert_pair_prefs"][p].items()]
+                h_maj = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": c["expert_majority"][p],
+                          "completed": True, "failed": False}
+                         for p in ctrl if p in c["expert_majority"]]
+                ceiling_pairs = ctrl
+            else:
+                total_pairs += len(ai_pair)
+                ai_bt = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                          "winner_id": m["winner_id"], "completed": True, "failed": False}
+                         for m in filtered]
+                h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
+                            "completed": True, "failed": False}
+                           for p in c["all_expert_ge2"] for _, w in c["expert_pair_prefs"][p].items()]
+                h_maj = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": c["expert_majority"][p],
+                          "completed": True, "failed": False}
+                         for p in c["all_expert_ge2"] if p in c["expert_majority"]]
+                ceiling_pairs = c["all_expert_ge2"]
 
             ai_rank = {e["id"]: e["score"] for e in await compute_leaderboard(papers, ai_bt)}
 
@@ -2005,18 +2012,17 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                 if not np.isnan(sp):
                     rhos["avg"].append(safe_round(float(sp)))
 
-            # Human ceiling — use all expert pairs (non-controlled)
             for exp in c["experts_map"]:
                 em = [{"paper1_id": p[0], "paper2_id": p[1],
                        "winner_id": c["expert_pair_prefs"][p][exp],
                        "completed": True, "failed": False}
-                      for p in c["all_expert_ge2"] if exp in c["expert_pair_prefs"].get(p, {})]
+                      for p in ceiling_pairs if exp in c["expert_pair_prefs"].get(p, {})]
                 if len(em) < 10:
                     continue
                 er = {e["id"]: e["score"] for e in await compute_leaderboard(papers, em)}
                 lm = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
                        "completed": True, "failed": False}
-                      for p in c["all_expert_ge2"] for e2, w in c["expert_pair_prefs"][p].items() if e2 != exp]
+                      for p in ceiling_pairs for e2, w in c["expert_pair_prefs"][p].items() if e2 != exp]
                 if len(lm) < 10:
                     continue
                 lr = {e["id"]: e["score"] for e in await compute_leaderboard(papers, lm)}
@@ -2024,22 +2030,45 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                 if r is not None:
                     rhos["h_ceil"].append(r)
 
-        row = {
-            "min_gap": min_gap,
-            "matches": total_matches,
-            "controlled_pairs": total_ctrl,
-        }
+        row = {"matches": total_matches, "pairs": total_pairs}
         for key in ["indiv", "maj", "tier", "avg", "h_ceil"]:
             vals = rhos[key]
             row[key] = safe_round(float(np.mean(vals))) if vals else None
         row["ai_advantage"] = safe_round(row["indiv"] - row["h_ceil"]) if row["indiv"] and row["h_ceil"] else None
-        rows.append(row)
+        return row
+
+    ds_items = list(ds_data.items())
+    gap_thresholds = [0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
+
+    # Table 1: Non-controlled (AI filtered, human GT fixed)
+    non_ctrl_rows = []
+    for g in gap_thresholds:
+        row = await _compute_row(ds_items, lambda m, g=g: m.get("_si_gap") is not None and m["_si_gap"] >= g, controlled=False)
+        row["min_gap"] = g
+        non_ctrl_rows.append(row)
+
+    # Table 2: Controlled — wide gap (same pairs for AI & human)
+    ctrl_wide_rows = []
+    for g in gap_thresholds:
+        row = await _compute_row(ds_items, lambda m, g=g: m.get("_si_gap") is not None and m["_si_gap"] >= g, controlled=True)
+        row["min_gap"] = g
+        ctrl_wide_rows.append(row)
+
+    # Table 3: Controlled — close-cut oversampling (SI gap ≤ threshold)
+    close_thresholds = [99, 3.0, 2.0, 1.5, 1.0, 0.5, 0.25]
+    ctrl_close_rows = []
+    for g in close_thresholds:
+        row = await _compute_row(ds_items, lambda m, g=g: m.get("_si_gap") is not None and m["_si_gap"] <= g, controlled=True)
+        row["max_gap"] = g
+        ctrl_close_rows.append(row)
 
     return {
         "status": "ok",
         "gt_type": gt_type,
         "n_datasets": len(ds_data),
-        "rows": rows,
+        "non_controlled": non_ctrl_rows,
+        "controlled_wide": ctrl_wide_rows,
+        "controlled_close": ctrl_close_rows,
     }
 
 
