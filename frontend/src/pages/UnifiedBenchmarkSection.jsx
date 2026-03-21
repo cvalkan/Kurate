@@ -195,9 +195,9 @@ function DatasetTable({ datasets }) {
                 const dPwAcc = dHasIntr ? intr.pw_accuracy : d.pw?.accuracy;
                 const dSiAcc = dHasIntr ? intr.si_accuracy : (dHasSI ? d.si?.accuracy : null);
                 const dSubAcc = d.si_sub?.accuracy > 0 ? d.si_sub.accuracy : null;
-                const pwRho = d.pw?.bt_rho || 0;
-                const siRho = d.si?.bt_rho || 0;
-                const subRho = d.si_sub?.bt_rho || 0;
+                const pwRho = d.pw?.ranking_rho || 0;
+                const siRho = d.si?.ranking_rho || 0;
+                const subRho = d.si_sub?.ranking_rho || 0;
                 // Best of 3 for accuracy and rho
                 const accBest = Math.max(dPwAcc || 0, dSiAcc || 0, dSubAcc || 0);
                 const rhoBest = Math.max(pwRho, siRho, subRho);
@@ -210,9 +210,9 @@ function DatasetTable({ datasets }) {
                     <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${(dPwAcc || 0) === accBest ? "font-bold" : ""}`}>{dPwAcc != null ? `${dPwAcc}%` : "\u2014"}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${(dSiAcc || 0) === accBest ? "font-bold" : ""}`}>{dSiAcc != null ? `${dSiAcc}%` : "\u2014"}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03] ${(dSubAcc || 0) === accBest ? "font-bold" : ""}`}>{dSubAcc != null ? `${dSubAcc}%` : "\u2014"}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwRho === rhoBest ? "font-bold" : ""}`}>{d.pw?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${siRho === rhoBest ? "font-bold" : ""}`}>{d.si?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
-                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03] ${subRho === rhoBest ? "font-bold" : ""}`}>{d.si_sub?.bt_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-violet-500/[0.06] ${pwRho === rhoBest ? "font-bold" : ""}`}>{d.pw?.ranking_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.06] ${siRho === rhoBest ? "font-bold" : ""}`}>{d.si?.ranking_rho?.toFixed(3) ?? "\u2014"}</td>
+                    <td className={`py-1 px-1.5 text-right font-mono bg-emerald-500/[0.03] ${subRho === rhoBest ? "font-bold" : ""}`}>{d.si_sub?.ranking_rho?.toFixed(3) ?? "\u2014"}</td>
                     <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{dHasIntr ? intr.pairs?.toLocaleString() : (d.pw?.total || 0).toLocaleString()}</td>
                     <td className="py-1 px-1.5 text-right font-mono">{d.n_papers}</td>
                     <td className="py-1 px-1.5 text-center">
@@ -288,12 +288,12 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
         const pwKeys = new Set();
         const siKeys = new Set();
         ds.forEach(d => {
-          Object.keys(d.pw?.bt_correlations || {}).forEach(k => pwKeys.add(k));
-          Object.keys(d.si?.bt_correlations || {}).forEach(k => siKeys.add(k));
+          Object.keys(d.pw?.ranking_correlations || {}).forEach(k => pwKeys.add(k));
+          Object.keys(d.si?.ranking_correlations || {}).forEach(k => siKeys.add(k));
         });
         // Pool: average rho/tau across datasets (weighted by presence)
         const pool = (method, key) => {
-          const vals = ds.map(d => d[method]?.bt_correlations?.[key]).filter(Boolean);
+          const vals = ds.map(d => d[method]?.ranking_correlations?.[key]).filter(Boolean);
           if (!vals.length) return null;
           return {
             rho: vals.reduce((s, v) => s + (v.rho || 0), 0) / vals.length,
@@ -307,7 +307,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
         allKeys.forEach(k => { pwPooled[k] = pool("pw", k); siPooled[k] = pool("si", k); });
         const siSubPooled = {};
         allKeys.forEach(k => {
-          const vals = ds.map(d => (d.si_sub?.bt_correlations || {})[k]).filter(Boolean);
+          const vals = ds.map(d => (d.si_sub?.ranking_correlations || {})[k]).filter(Boolean);
           siSubPooled[k] = vals.length ? {
             rho: vals.reduce((s, v) => s + (v.rho || 0), 0) / vals.length,
             tau: vals.filter(v => v.tau != null).length ? vals.reduce((s, v) => s + (v.tau || 0), 0) / vals.filter(v => v.tau != null).length : null,

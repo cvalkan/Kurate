@@ -52,7 +52,7 @@ def _classify_difficulty(p1_id, p2_id, papers_by_id):
     return "easy" if gap >= 2 else ("medium" if gap == 1 else "hard")
 
 
-async def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
+async def _compute_rank_corrs(ai_rank, papers, gt, label):
     """Compute BT correlation table for a given AI ranking against multiple human GTs."""
     from routers.validation_utils import norm_tier
     TIER_SCORE_MAP = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1}
@@ -210,10 +210,10 @@ async def _compute_unified_dataset(dataset_id, gt_type):
                          for m in pw_matches_raw if m.get("winner_id")]
         if len(pw_bt_matches) >= 10:
             lb = await compute_leaderboard(paper_dicts, pw_bt_matches)
-            bt_scores = {e["id"]: e["score"] for e in lb}
-            shared = sorted(set(bt_scores.keys()) & set(gt.keys()))
+            rank_scores = {e["id"]: e["score"] for e in lb}
+            shared = sorted(set(rank_scores.keys()) & set(gt.keys()))
             if len(shared) >= 5:
-                sp, _ = scipy_stats.spearmanr([bt_scores[p] for p in shared],
+                sp, _ = scipy_stats.spearmanr([rank_scores[p] for p in shared],
                                                [gt[p] for p in shared])
                 if not np.isnan(sp):
                     pw_rho = safe_round(float(sp))
@@ -407,34 +407,17 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             if si_ok: int_diff[diff]["si"][0] += 1
             if si_sub_ok: int_diff[diff]["si_sub"][0] += 1
 
-    # --- BT Ranking Correlations: reuse from Human AI Benchmark where available ---
-    pw_bt_corrs = None
-    si_bt_corrs = None
-    try:
-        # Try HAB first (exact match for comparative GT datasets)
-        from routers.human_ai_benchmark import _compute_dataset_benchmark
-        hab_result = await _compute_dataset_benchmark(dataset_id)
-        if hab_result and hab_result.get("bt_correlation"):
-            hab_bt = hab_result["bt_correlation"]
-            pw_bt_corrs = {}
-            if hab_bt.get("individual"):
-                pw_bt_corrs["vs_individual"] = {"rho": hab_bt["individual"].get("spearman_rho"), "tau": hab_bt["individual"].get("kendall_tau"), "desc": "AI ranking vs all-expert-votes ranking"}
-            if hab_bt.get("vs_avg_rating_rho") is not None:
-                pw_bt_corrs["vs_avg_rating"] = {"rho": hab_bt["vs_avg_rating_rho"], "tau": None, "desc": "AI ranking vs simple average of reviewer scores"}
-            if hab_bt.get("committee"):
-                pw_bt_corrs["vs_majority"] = {"rho": hab_bt["committee"].get("spearman_rho"), "tau": hab_bt["committee"].get("kendall_tau"), "desc": "AI ranking vs majority-vote ranking"}
-            if hab_bt.get("vs_tier_rho") is not None:
-                pw_bt_corrs["vs_committee"] = {"rho": hab_bt["vs_tier_rho"], "tau": hab_bt.get("vs_tier_tau"), "desc": "AI ranking vs committee tier decisions"}
-            if not pw_bt_corrs:
-                pw_bt_corrs = None
+    # --- Ranking Correlations: compute from the PW/SI matches loaded for this page ---
+    pw_rank_corrs = None
+    si_rank_corrs = None
 
-        # Fallback: compute PW correlations independently (for standalone GT datasets)
-        if not pw_bt_corrs and len(pw_matches_raw) >= 10:
-            pw_match_dicts = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "winner_id": m["winner_id"], "completed": True, "failed": False} for m in pw_matches_raw if m.get("winner_id")]
-            if len(pw_match_dicts) >= 10:
-                pw_lb = await compute_leaderboard(papers, pw_match_dicts)
-                pw_rank = {e["id"]: e["score"] for e in pw_lb}
-                pw_bt_corrs = await _compute_bt_corrs_for_rank(pw_rank, papers, gt, "AI")
+    # PW correlations from pairwise matches
+    if len(pw_matches_raw) >= 10:
+        pw_match_dicts = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "winner_id": m["winner_id"], "completed": True, "failed": False} for m in pw_matches_raw if m.get("winner_id")]
+        if len(pw_match_dicts) >= 10:
+            pw_lb = await compute_leaderboard(papers, pw_match_dicts)
+            pw_rank = {e["id"]: e["score"] for e in pw_lb}
+            pw_rank_corrs = await _compute_rank_corrs(pw_rank, papers, gt, "AI")
 
         # SI correlations: compute from SI score-derived matches
         si_matches_for_bt = []
@@ -449,10 +432,10 @@ async def _compute_unified_dataset(dataset_id, gt_type):
         if len(si_matches_for_bt) >= 10:
             si_lb = await compute_leaderboard(papers, si_matches_for_bt)
             si_rank = {e["id"]: e["score"] for e in si_lb}
-            si_bt_corrs = await _compute_bt_corrs_for_rank(si_rank, papers, gt, "SI")
+            si_rank_corrs = await _compute_rank_corrs(si_rank, papers, gt, "SI")
 
         # SI Sub-Avg BT correlations
-        si_sub_bt_corrs = None
+        si_sub_rank_corrs = None
         si_sub_ids_list = sorted(si_sub_scores.keys())
         si_sub_matches_for_bt = []
         for i in range(len(si_sub_ids_list)):
@@ -464,9 +447,7 @@ async def _compute_unified_dataset(dataset_id, gt_type):
         if len(si_sub_matches_for_bt) >= 10:
             si_sub_lb = await compute_leaderboard(papers, si_sub_matches_for_bt)
             si_sub_rank = {e["id"]: e["score"] for e in si_sub_lb}
-            si_sub_bt_corrs = await _compute_bt_corrs_for_rank(si_sub_rank, papers, gt, "SI Avg")
-    except Exception as e:
-        logger.warning(f"BT correlations failed for {dataset_id}: {e}")
+            si_sub_rank_corrs = await _compute_rank_corrs(si_sub_rank, papers, gt, "SI Avg")
 
     return {
         "dataset_id": dataset_id,
@@ -475,8 +456,8 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             "accuracy": _rate(pw_correct, pw_total),
             "correct": pw_correct, "total": pw_total,
             "pairs": len(pw_pairs_seen),
-            "bt_rho": pw_rho,
-            "bt_correlations": pw_bt_corrs,
+            "ranking_rho": pw_rho,
+            "ranking_correlations": pw_rank_corrs,
             "mode": pw_content_mode,
             "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in pw_diff.items()},
         },
@@ -485,16 +466,16 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             "correct": si_correct, "total": si_total,
             "pairs": si_total,
             "n_scored": len(si_scores),
-            "bt_rho": si_rho,
-            "bt_correlations": si_bt_corrs,
+            "ranking_rho": si_rho,
+            "ranking_correlations": si_rank_corrs,
             "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in si_diff.items()},
         },
         "si_sub": {
             "accuracy": _rate(si_sub_correct, si_sub_total),
             "correct": si_sub_correct, "total": si_sub_total,
             "n_scored": len(si_sub_scores),
-            "bt_rho": si_sub_rho,
-            "bt_correlations": si_sub_bt_corrs,
+            "ranking_rho": si_sub_rho,
+            "ranking_correlations": si_sub_rank_corrs,
             "by_difficulty": {lvl: {"rate": _rate(v[0], v[1]), "n_pairs": v[2]} for lvl, v in si_sub_diff.items()},
         },
         "intersection": {
@@ -563,8 +544,8 @@ async def _compute_unified_benchmark(gt_type):
         pooled.setdefault("si_sub_rhos", [])
         pooled["si_sub_correct"] += si_sub.get("correct", 0)
         pooled["si_sub_total"] += si_sub.get("total", 0)
-        if si_sub.get("bt_rho") is not None:
-            pooled["si_sub_rhos"].append(si_sub["bt_rho"])
+        if si_sub.get("ranking_rho") is not None:
+            pooled["si_sub_rhos"].append(si_sub["ranking_rho"])
 
         intr = result.get("intersection", {})
         pooled["int_pw_correct"] += int(intr.get("pw_accuracy", 0) * intr.get("pairs", 0) / 100)
@@ -587,10 +568,10 @@ async def _compute_unified_benchmark(gt_type):
                 pooled["int_diff"][lvl][m][0] += int(rate * n / 100)
                 pooled["int_diff"][lvl][m][1] += n
 
-        if result["pw"]["bt_rho"] is not None:
-            pooled["pw_rhos"].append(result["pw"]["bt_rho"])
-        if result["si"]["bt_rho"] is not None:
-            pooled["si_rhos"].append(result["si"]["bt_rho"])
+        if result["pw"]["ranking_rho"] is not None:
+            pooled["pw_rhos"].append(result["pw"]["ranking_rho"])
+        if result["si"]["ranking_rho"] is not None:
+            pooled["si_rhos"].append(result["si"]["ranking_rho"])
 
         for lvl in ["easy", "medium", "hard"]:
             for method, key in [("pw", "pw_diff"), ("si", "si_diff")]:
