@@ -84,13 +84,13 @@ async def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
         if len(shared) >= 5:
             sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
             kt, _ = scipy_stats.kendalltau([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
-            corrs["vs_individual"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": f"{label} BT vs all-expert-votes BT"}
+            corrs["vs_individual"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": f"{label} ranking vs all-expert-votes ranking"}
 
     # vs Avg Rating
     shared_avg = sorted(set(ai_rank) & set(gt))
     if len(shared_avg) >= 5:
         sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared_avg], [gt[p] for p in shared_avg])
-        corrs["vs_avg_rating"] = {"rho": safe_round(sp), "tau": None, "desc": f"{label} BT vs average reviewer scores"}
+        corrs["vs_avg_rating"] = {"rho": safe_round(sp), "tau": None, "desc": f"{label} ranking vs average reviewer scores"}
 
     # vs Majority
     from collections import Counter as _Counter
@@ -116,7 +116,7 @@ async def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
         if len(shared) >= 5:
             sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
             kt, _ = scipy_stats.kendalltau([ai_rank[p] for p in shared], [h_rank[p] for p in shared])
-            corrs["vs_majority"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": f"{label} BT vs majority-vote BT"}
+            corrs["vs_majority"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": f"{label} ranking vs majority-vote ranking"}
 
     # vs Committee (Tier)
     tier_score_map = {}
@@ -129,7 +129,7 @@ async def _compute_bt_corrs_for_rank(ai_rank, papers, gt, label):
         if len(shared_t) >= 5:
             sp, _ = scipy_stats.spearmanr([ai_rank[p] for p in shared_t], [tier_score_map[p] for p in shared_t])
             kt, _ = scipy_stats.kendalltau([ai_rank[p] for p in shared_t], [tier_score_map[p] for p in shared_t])
-            corrs["vs_committee"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": f"{label} BT vs committee tier decisions"}
+            corrs["vs_committee"] = {"rho": safe_round(sp), "tau": safe_round(kt), "desc": f"{label} ranking vs committee tier decisions"}
 
     return corrs if corrs else None
 
@@ -418,13 +418,13 @@ async def _compute_unified_dataset(dataset_id, gt_type):
             hab_bt = hab_result["bt_correlation"]
             pw_bt_corrs = {}
             if hab_bt.get("individual"):
-                pw_bt_corrs["vs_individual"] = {"rho": hab_bt["individual"].get("spearman_rho"), "tau": hab_bt["individual"].get("kendall_tau"), "desc": "AI BT vs all-expert-votes BT"}
+                pw_bt_corrs["vs_individual"] = {"rho": hab_bt["individual"].get("spearman_rho"), "tau": hab_bt["individual"].get("kendall_tau"), "desc": "AI ranking vs all-expert-votes ranking"}
             if hab_bt.get("vs_avg_rating_rho") is not None:
-                pw_bt_corrs["vs_avg_rating"] = {"rho": hab_bt["vs_avg_rating_rho"], "tau": None, "desc": "AI BT vs simple average of reviewer scores"}
+                pw_bt_corrs["vs_avg_rating"] = {"rho": hab_bt["vs_avg_rating_rho"], "tau": None, "desc": "AI ranking vs simple average of reviewer scores"}
             if hab_bt.get("committee"):
-                pw_bt_corrs["vs_majority"] = {"rho": hab_bt["committee"].get("spearman_rho"), "tau": hab_bt["committee"].get("kendall_tau"), "desc": "AI BT vs majority-vote BT"}
+                pw_bt_corrs["vs_majority"] = {"rho": hab_bt["committee"].get("spearman_rho"), "tau": hab_bt["committee"].get("kendall_tau"), "desc": "AI ranking vs majority-vote ranking"}
             if hab_bt.get("vs_tier_rho") is not None:
-                pw_bt_corrs["vs_committee"] = {"rho": hab_bt["vs_tier_rho"], "tau": hab_bt.get("vs_tier_tau"), "desc": "AI BT vs committee tier decisions"}
+                pw_bt_corrs["vs_committee"] = {"rho": hab_bt["vs_tier_rho"], "tau": hab_bt.get("vs_tier_tau"), "desc": "AI ranking vs committee tier decisions"}
             if not pw_bt_corrs:
                 pw_bt_corrs = None
 
