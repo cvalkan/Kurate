@@ -590,3 +590,11 @@ export default function HumanAIBenchmarkSection() {
     testId="human-ai-benchmark"
   />;
 }
+
+export function HumanAIBenchmarkUnfilteredSection() {
+  return <BenchmarkPage
+    apiUrl="/api/validation/human-ai-benchmark-unfiltered?gt_type=comp"
+    headerDesc={<>Same setup as Human vs AI Benchmark, but <strong>including within-tier matches</strong> (e.g. Poster vs Poster). AI judges use Opus 4.6 Thinking summaries, round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. <strong>8 ICLR topics</strong> (PeerRead excluded — no tier decisions).</>}
+    testId="human-ai-benchmark-unfiltered"
+  />;
+}

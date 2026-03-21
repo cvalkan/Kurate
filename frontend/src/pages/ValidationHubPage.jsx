@@ -28,8 +28,8 @@ import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import SingleItemScoringSection from "./SingleItemScoringSection";
 import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
-import HumanAIBenchmarkSection from "./HumanAIBenchmarkSection";
-import AIRankingQualitySection from "./AIRankingQualitySection";
+import HumanAIBenchmarkSection, { HumanAIBenchmarkUnfilteredSection } from "./HumanAIBenchmarkSection";
+import AIRankingQualitySection, { AIRankingQualityUnfilteredSection } from "./AIRankingQualitySection";
 import { UnifiedCompSection, UnifiedStanSection } from "./UnifiedBenchmarkSection";
 import { DatasetView } from "./ValidationPage";
 
@@ -229,6 +229,8 @@ export default function ValidationHubPage() {
       "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
       "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
       "exp-ai-ranking-quality": { title: "AI Ranking Quality", desc: "How well does AI's ranking from its random match sample correlate with the comprehensive human ranking? Each method uses its full available data — no pair-set filtering." },
+      "exp-human-ai-benchmark-unfiltered": { title: "Human vs AI (Unfiltered)", desc: "Same as Human vs AI Benchmark but including within-tier matches (e.g. Poster vs Poster). Tests AI on the full difficulty spectrum." },
+      "exp-ai-ranking-quality-unfiltered": { title: "AI Ranking Quality (Unfiltered)", desc: "AI ranking quality including within-tier matches. Each method uses its full data independently." },
     };
     if (!selected) return { title: "", desc: "" };
     if (STATIC_META[selected]) return STATIC_META[selected];
@@ -325,9 +327,11 @@ export default function ValidationHubPage() {
           </CollapsibleGroup>
 
           {/* Validation — benchmark pages */}
-          <CollapsibleGroup label="Validation" icon={Scale} defaultOpen={selected?.includes("benchmark") || selected?.includes("unified") || selected === "exp-ai-ranking-quality"}>
+          <CollapsibleGroup label="Validation" icon={Scale} defaultOpen={selected?.includes("benchmark") || selected?.includes("unified") || selected?.includes("ranking-quality")}>
             <NavItem item={{ id: "exp-ai-ranking-quality", label: "AI Ranking Quality", sub: "Full data, no pair filtering" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-human-ai-benchmark", label: "Human vs AI Benchmark", sub: "Controlled same-pair comparison" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-ai-ranking-quality-unfiltered", label: "AI Ranking (Unfiltered)", sub: "Including within-tier pairs" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-human-ai-benchmark-unfiltered", label: "Human vs AI (Unfiltered)", sub: "Including within-tier pairs" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-unified-comp", label: "PW vs SI — Comparative GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-unified-stan", label: "PW vs SI — Standalone GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
           </CollapsibleGroup>
@@ -429,9 +433,11 @@ export default function ValidationHubPage() {
           {selected === "exp-assessor-evaluator" && <AssessorEvaluatorSection />}
           {selected === "exp-judge-comparison" && <JudgeComparisonSection />}
           {selected === "exp-human-ai-benchmark" && <HumanAIBenchmarkSection />}
+          {selected === "exp-human-ai-benchmark-unfiltered" && <HumanAIBenchmarkUnfilteredSection />}
           {selected === "exp-unified-comp" && <UnifiedCompSection />}
           {selected === "exp-unified-stan" && <UnifiedStanSection />}
           {selected === "exp-ai-ranking-quality" && <AIRankingQualitySection />}
+          {selected === "exp-ai-ranking-quality-unfiltered" && <AIRankingQualityUnfilteredSection />}
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}

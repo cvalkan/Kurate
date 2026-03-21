@@ -5,16 +5,24 @@ import { BarChart3 } from "lucide-react";
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
 export default function AIRankingQualitySection() {
+  return <AIRankingQualityPage apiUrl="/api/validation/ai-ranking-quality?gt_type=comp" testId="ai-ranking-quality" />;
+}
+
+export function AIRankingQualityUnfilteredSection() {
+  return <AIRankingQualityPage apiUrl="/api/validation/ai-ranking-quality-unfiltered?gt_type=comp" testId="ai-ranking-quality-unfiltered" />;
+}
+
+function AIRankingQualityPage({ apiUrl, testId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API}/api/validation/ai-ranking-quality?gt_type=comp`, { timeout: 60000 })
+    axios.get(`${API}${apiUrl}`, { timeout: 60000 })
       .then(r => { if (r.data?.status === "ok") setData(r.data); else setError("No data"); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [apiUrl]);
 
   if (loading) return (
     <div className="space-y-3 animate-pulse">
@@ -28,7 +36,7 @@ export default function AIRankingQualitySection() {
   const pb = data.pooled_bt;
 
   return (
-    <div className="space-y-6" data-testid="ai-ranking-quality">
+    <div className="space-y-6" data-testid={testId}>
       <div className="text-[10px] text-muted-foreground leading-relaxed">
         AI BT ranking from <strong>all thinking-mode matches</strong> (1 judge per pair, random sample).
         Human ground truth from <strong>all expert pairs</strong> with {"\u2265"}2 non-tying opinions — not restricted to AI{"'"}s pair set.

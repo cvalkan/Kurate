@@ -33,6 +33,7 @@ from services.ranking import compute_leaderboard_async as compute_leaderboard
 router = APIRouter(prefix="/api/validation")
 
 _benchmark_cache = {"comp": {"data": None}, "stan": {"data": None}}
+_benchmark_unfiltered_cache = {"comp": {"data": None}, "stan": {"data": None}}
 
 
 async def _load_cached_benchmark(gt_type: str):
@@ -276,7 +277,7 @@ def _classify_difficulty(p1_id, p2_id, papers_by_id):
         return "hard"      # within-tier (e.g., poster vs poster)
 
 
-async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
+async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, include_within_tier: bool = False):
     """Compute all benchmark metrics for a single dataset."""
     query = {"dataset_id": dataset_id}
     if require_si:
@@ -343,9 +344,13 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False):
     if mode_count == 0:
         ai_content_mode = "abstract_plus_summary"
 
+    ai_match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "content_mode": ai_content_mode}
+    if not include_within_tier:
+        ai_match_filter["experiment_tag"] = {"$exists": False}
+
     ai_raw = await collect_all(db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": ai_content_mode},
+        ai_match_filter,
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ))
     ai_mode_used = ai_content_mode
@@ -1115,10 +1120,20 @@ async def human_ai_benchmark(gt_type: str = Query("comp")):
     return {"status": "no_data", "message": "Human-AI benchmark not precomputed. Run admin precompute-experiments."}
 
 
-async def _compute_benchmark(gt_type: str = "comp"):
+@router.get("/human-ai-benchmark-unfiltered")
+async def human_ai_benchmark_unfiltered(gt_type: str = Query("comp")):
+    """Human vs AI benchmark including within-tier matches — served from precomputed cache."""
+    cache = _benchmark_unfiltered_cache.get(gt_type, {})
+    if cache.get("data"):
+        return cache["data"]
+    return {"status": "no_data", "message": "Unfiltered benchmark not precomputed."}
+
+
+async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = False):
     """Compute the full benchmark across datasets filtered by GT type.
     gt_type='comp': comparative GT (ICLR, PeerRead, eLife Neuro)
     gt_type='stan': standalone GT (eLife bio, MIDL, Qeios, ResearchHub)
+    include_within_tier: if True, includes experiment-tagged within-tier matches
     """
     allowed = COMPARATIVE_GT_DATASETS if gt_type == "comp" else STANDALONE_GT_DATASETS
 
@@ -1167,7 +1182,7 @@ async def _compute_benchmark(gt_type: str = "comp"):
     require_si = False
 
     # Compute all datasets in parallel
-    tasks = [_compute_dataset_benchmark(ds_id, require_si=require_si) for ds_id in all_ds_ids]
+    tasks = [_compute_dataset_benchmark(ds_id, require_si=require_si, include_within_tier=include_within_tier) for ds_id in all_ds_ids]
     results_list = await asyncio.gather(*tasks)
 
     for ds_id, result in zip(all_ds_ids, results_list):
@@ -1727,6 +1742,7 @@ async def dataset_rankings(dataset_id: str):
 
 
 _ranking_quality_cache = {"comp": {"data": None}, "stan": {"data": None}}
+_ranking_quality_unfiltered_cache = {"comp": {"data": None}, "stan": {"data": None}}
 
 
 @router.get("/ai-ranking-quality")
@@ -1738,7 +1754,16 @@ async def ai_ranking_quality(gt_type: str = Query("comp")):
     return {"status": "no_data", "message": "AI ranking quality not precomputed. Run admin precompute-experiments."}
 
 
-async def _compute_ranking_quality(gt_type: str = "comp"):
+@router.get("/ai-ranking-quality-unfiltered")
+async def ai_ranking_quality_unfiltered(gt_type: str = Query("comp")):
+    """AI ranking quality including within-tier matches — served from precomputed cache."""
+    cache = _ranking_quality_unfiltered_cache.get(gt_type, {})
+    if cache.get("data"):
+        return cache["data"]
+    return {"status": "no_data", "message": "Unfiltered AI ranking quality not precomputed."}
+
+
+async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: bool = False):
     """Compute standalone AI ranking quality: AI BT from all its matches vs human ground truth from all expert data.
 
     Unlike the controlled Human-vs-AI benchmark (same pairs), this uses each method's
@@ -1757,7 +1782,7 @@ async def _compute_ranking_quality(gt_type: str = "comp"):
     pooled_rhos = {"indiv": [], "maj": [], "tier": [], "avg_rating": []}
 
     for ds_id in all_ds_ids:
-        result = await _compute_standalone_ranking(ds_id)
+        result = await _compute_standalone_ranking(ds_id, include_within_tier=include_within_tier)
         if result is None:
             continue
         result["name"] = ds_names.get(ds_id, ds_id)
@@ -1786,7 +1811,7 @@ async def _compute_ranking_quality(gt_type: str = "comp"):
     }
 
 
-async def _compute_standalone_ranking(dataset_id: str):
+async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool = False):
     """Compute AI ranking quality for a single dataset using full independent data."""
     papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id}, PAPER_LIGHT_PROJECTION,
@@ -1854,9 +1879,13 @@ async def _compute_standalone_ranking(dataset_id: str):
     if mode_count == 0:
         ai_content_mode = "abstract_plus_summary"
 
+    ai_sr_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "content_mode": ai_content_mode}
+    if not include_within_tier:
+        ai_sr_filter["experiment_tag"] = {"$exists": False}
+
     ai_raw = await collect_all(db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": ai_content_mode},
+        ai_sr_filter,
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ))
 
