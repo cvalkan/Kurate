@@ -544,12 +544,15 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
                 All pooled {"\u03C1"} values are <strong>equal-weighted across datasets</strong> (each dataset contributes one {"\u03C1"} regardless of size).
                 Size-weighted pooling would lower all correlations because PeerRead ACL 2017 (the largest dataset by match count) has the weakest {"\u03C1"}.
               </p>
-              {bt.vs_tier_rho != null && bt.avg_expert_vs_tier?.spearman_rho != null && (
+              {bt.individual?.spearman_rho != null && bt.avg_expert_vs_loo_indiv?.spearman_rho != null && (
                 <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
-                  <strong>Key finding</strong> (highlighted rows): AI outperforms a single human expert at predicting committee decisions
-                  ({bt.vs_tier_rho.toFixed(3)} vs {bt.avg_expert_vs_tier.spearman_rho.toFixed(3)}) — even though the human has
-                  a circularity advantage (their scores influenced those very decisions). AI compensates with consistency:
-                  no off-days or idiosyncratic biases that make individual reviewers disagree with the eventual consensus.
+                  <strong>Key finding</strong> (highlighted rows): AI outperforms a single human expert across all ground truth methods.
+                  vs Individual aggregate: {bt.individual.spearman_rho.toFixed(3)} vs {bt.avg_expert_vs_loo_indiv.spearman_rho.toFixed(3)} (advantage: +{(bt.individual.spearman_rho - bt.avg_expert_vs_loo_indiv.spearman_rho).toFixed(3)}).
+                  {bt.vs_tier_rho != null && bt.avg_expert_vs_tier?.spearman_rho != null && <>vs Committee:
+                  {bt.vs_tier_rho.toFixed(3)} vs {bt.avg_expert_vs_tier.spearman_rho.toFixed(3)} — even though
+                  the human has a circularity advantage (their scores influenced the committee decisions).</>}
+                  {" "}AI compensates with consistency: no off-days or idiosyncratic biases that make individual reviewers
+                  disagree with the eventual consensus.
                 </p>
               )}
               {bt.vs_tier_rho != null && bt.avg_expert_vs_tier?.spearman_rho != null && (
@@ -559,10 +562,6 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
                   AI reaches <strong>{(bt.vs_tier_rho / 0.878 * 100).toFixed(0)}%</strong> of this ceiling
                   ({bt.vs_tier_rho.toFixed(3)}), a single expert reaches {(bt.avg_expert_vs_tier.spearman_rho / 0.878 * 100).toFixed(0)}%
                   ({bt.avg_expert_vs_tier.spearman_rho.toFixed(3)}).
-                  Notably, AI's {"\u03C1"} significantly exceeds what its 82.9% cross-tier accuracy alone would predict ({"\u03C1"} {"\u2248"} 0.58 for
-                  random within-tier ordering at that accuracy) — indicating AI produces <strong>meaningful within-tier ranking</strong>,
-                  not just correct tier classification. This is a <strong>conservative win for AI</strong>: the human's higher pairwise accuracy (87.9%)
-                  comes from circularity, while AI's ranking advantage is earned without it.
                 </p>
               )}
               <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
@@ -603,7 +602,7 @@ export default function HumanAIBenchmarkSection() {
 export function HumanAIBenchmarkUnfilteredSection() {
   return <BenchmarkPage
     apiUrl="/api/validation/human-ai-benchmark-unfiltered?gt_type=comp"
-    headerDesc={<>Same setup as Human vs AI Benchmark, but <strong>including within-tier matches</strong> (e.g. Poster vs Poster). AI judges use Opus 4.6 Thinking summaries, round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. <strong>8 ICLR topics</strong> (PeerRead excluded — no tier decisions).</>}
+    headerDesc={<>Same setup as Human vs AI Benchmark, but <strong>including within-tier matches</strong> (e.g. Poster vs Poster). AI judges use Opus 4.6 Thinking summaries, round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro. <strong>8 ICLR topics + PeerRead</strong> (PeerRead has no tier decisions, so no within-tier supplement for that dataset).</>}
     testId="human-ai-benchmark-unfiltered"
     isUnfiltered
   />;
