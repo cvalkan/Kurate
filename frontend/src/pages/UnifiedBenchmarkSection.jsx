@@ -14,7 +14,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function BTCorrelationTable({ pwCorrs, siCorrs, siSubCorrs }) {
+function RankCorrelationTable({ pwCorrs, siCorrs, siSubCorrs }) {
   if (!pwCorrs && !siCorrs) return null;
   const rows = [
     { key: "vs_individual", label: "vs Individual aggregate", desc: "Ranking vs all-expert-votes ranking" },
@@ -27,7 +27,7 @@ function BTCorrelationTable({ pwCorrs, siCorrs, siSubCorrs }) {
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
         <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry) — PW vs SI vs SI Avg</span>
+        <span className="text-xs font-semibold">Ranking Correlation (Pairwise) — PW vs SI vs SI Avg</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
@@ -314,7 +314,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
           } : null;
         });
         const hasData = Object.values(pwPooled).some(v => v) || Object.values(siPooled).some(v => v);
-        return hasData ? <BTCorrelationTable pwCorrs={pwPooled} siCorrs={siPooled} siSubCorrs={siSubPooled} /> : null;
+        return hasData ? <RankCorrelationTable pwCorrs={pwPooled} siCorrs={siPooled} siSubCorrs={siSubPooled} /> : null;
       })()}
       <DatasetTable datasets={data.per_dataset} />
     </div>

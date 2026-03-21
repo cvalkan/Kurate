@@ -400,7 +400,7 @@ function ConvergenceTab({ datasetId, label, isRunning }) {
       <div>
         <h3 className="text-sm font-semibold mb-1">Ranking Convergence</h3>
         <p className="text-[10px] text-muted-foreground mb-3">
-          Spearman rank correlation between AI tournament ranking (Bradley-Terry) and human reviewer ranking, as matches accumulate.
+          Spearman rank correlation between AI tournament ranking (pairwise win-rate) and human reviewer ranking, as matches accumulate.
         </p>
         <ValidationConvergence key={key} datasets={[{ dataset_id: datasetId, name: label }]} />
       </div>

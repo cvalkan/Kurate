@@ -10,7 +10,7 @@ const COLUMN_TIPS = {
   rank: "Position based on win-rate score (higher = better). Click to restore default ranking.",
   title: "Paper title. Click to sort alphabetically.",
   score: "Win-rate score from pairwise comparisons. 1200 = average, higher = stronger.",
-  score_g: "Win-rate score from ALL matches across all categories (Bradley-Terry). Reflects overall performance.",
+  score_g: "Win-rate score from ALL matches across all categories (pairwise win-rate). Reflects overall performance.",
   win_rate: "Percentage of head-to-head comparisons won within this set.",
   win_rate_g: "Win rate across ALL matches the paper has participated in, not just this filtered set.",
   wilson_margin: "95% Wilson confidence interval half-width. The interval is asymmetric \u2014 at 99% win rate, \u00B16% means the true rate is likely between 93\u2013100% (not 93\u2013105%). At extreme win rates the uncertainty is mostly one-sided because win rate can\u2019t exceed 100% or go below 0%. Lower margin = more matches played = more certainty.",

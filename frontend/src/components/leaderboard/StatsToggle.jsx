@@ -21,7 +21,7 @@ export function StatsToggle({ globalStats, setGlobalStats }) {
               <Globe className="h-3 w-3" /> Global
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">Stats from all tournament matches each paper has participated in, using Bradley-Terry scores across all categories.</p></TooltipContent>
+          <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">Stats from all tournament matches each paper has participated in, using pairwise win-rate scores across all categories.</p></TooltipContent>
         </Tooltip>
       </div>
     </div>

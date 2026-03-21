@@ -2223,11 +2223,11 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     # Table 6: BT Gap Weighting
     bt_weight_schemes = [
         ("Uniform (baseline)", lambda g: 1, True),
-        ("Close-cut 2x (BT)", lambda g: max(1, round(200 / (g + 50))), False),
-        ("Close-cut 4x (BT)", lambda g: max(1, round(400 / (g + 50))), False),
-        ("Close-cut 8x (BT)", lambda g: max(1, round(800 / (g + 50))), False),
-        ("Wide-gap 2x (BT)", lambda g: max(1, round(1 + g / 100)), False),
-        ("Wide-gap 4x (BT)", lambda g: max(1, round(1 + g / 50)), False),
+        ("Close-cut 2x (score)", lambda g: max(1, round(200 / (g + 50))), False),
+        ("Close-cut 4x (score)", lambda g: max(1, round(400 / (g + 50))), False),
+        ("Close-cut 8x (score)", lambda g: max(1, round(800 / (g + 50))), False),
+        ("Wide-gap 2x (score)", lambda g: max(1, round(1 + g / 100)), False),
+        ("Wide-gap 4x (score)", lambda g: max(1, round(1 + g / 50)), False),
     ]
     bt_weighted_rows = []
     bt_weighted_rows.append(dict(uni_row))  # Same uniform baseline

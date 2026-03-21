@@ -108,7 +108,7 @@ export default function ConsistencySection() {
         <div className="text-xs text-muted-foreground space-y-1.5">
           <p>Two types of inconsistency can undermine AI tournament rankings:</p>
           <p><strong>1. Verdict instability:</strong> The same pair of papers gets different winners when the judge model or input format changes. Measured as the <em>flip rate</em> — the fraction of same-pair evaluations that disagree.</p>
-          <p><strong>2. Condorcet cycles:</strong> Three papers form an intransitive loop (A &gt; B &gt; C &gt; A). This violates the transitivity assumption of Bradley-Terry and injects noise into rankings. Measured per (model, format) context.</p>
+          <p><strong>2. Condorcet cycles:</strong> Three papers form an intransitive loop (A &gt; B &gt; C &gt; A). This violates the transitivity assumption of pairwise ranking and injects noise into rankings. Measured per (model, format) context.</p>
         </div>
         <div className="mt-2 text-[10px] text-muted-foreground">
           {data.total_matches.toLocaleString()} matches across {data.datasets} datasets.

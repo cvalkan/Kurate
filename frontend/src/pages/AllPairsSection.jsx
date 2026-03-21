@@ -85,7 +85,7 @@ export default function AllPairsSection() {
         </h3>
         <div className="text-xs text-muted-foreground space-y-1.5">
           <p><strong>Scope:</strong> All match data — every pairwise judgment across all models, formats, and datasets. Maximum statistical power for detecting ranking intransitivity.</p>
-          <p><strong>Condorcet cycle:</strong> Three papers (A, B, C) where A &gt; B, B &gt; C, but C &gt; A. Violations of transitivity that inject noise into Bradley-Terry rankings.</p>
+          <p><strong>Condorcet cycle:</strong> Three papers (A, B, C) where A &gt; B, B &gt; C, but C &gt; A. Violations of transitivity that inject noise into pairwise rankings.</p>
         </div>
         {agg && <div className="mt-2 text-[10px] text-muted-foreground">{agg.pooled_all.pairs.toLocaleString()} unique pairs, {agg.pooled_all.triples.toLocaleString()} triples across {agg.datasets} datasets.</div>}
       </div>

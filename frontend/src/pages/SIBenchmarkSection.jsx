@@ -345,7 +345,7 @@ function SIBenchmarkPage({ apiUrl, headerDesc, testId }) {
       {/* 1. Merged agreement + difficulty + tie impact table */}
       <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} pooled={p} />
 
-      {/* 2. Ranking Correlation (Bradley-Terry) */}
+      {/* 2. Ranking Correlation (Pairwise) */}
       {(() => {
         const bt = p.bt_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
@@ -365,7 +365,7 @@ function SIBenchmarkPage({ apiUrl, headerDesc, testId }) {
         return (
           <div className="border border-border rounded-lg overflow-hidden">
             <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-              <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry)</span>
+              <span className="text-xs font-semibold">Ranking Correlation (Pairwise)</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">

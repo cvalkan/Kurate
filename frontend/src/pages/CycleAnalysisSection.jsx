@@ -75,7 +75,7 @@ export default function CycleAnalysisSection() {
         <div className="text-xs text-muted-foreground space-y-1.5">
           <p><strong>Question:</strong> How often do AI pairwise judgments form inconsistent loops (A beats B, B beats C, but C beats A)?</p>
           <p><strong>Method:</strong> For every triple of papers where all 3 pairwise comparisons exist, check if the preferences form a cycle. Report the cycle rate per model, majority vote (2/3+), and unanimity (3/3).</p>
-          <p><strong>Why it matters:</strong> Cycles indicate the ranking is not fully transitive — Bradley-Terry assumes transitivity, so cycles add noise. Lower cycle rate = more coherent, trustworthy ranking.</p>
+          <p><strong>Why it matters:</strong> Cycles indicate the ranking is not fully transitive — the ranking model assumes transitivity, so cycles add noise. Lower cycle rate = more coherent, trustworthy ranking.</p>
         </div>
       </div>
 

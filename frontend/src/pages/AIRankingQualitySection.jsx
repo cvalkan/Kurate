@@ -103,7 +103,7 @@ function GapAnalysisTable() {
         "Like SI-gap sampling but using the AI\u2019s own ranking scores to determine pair difficulty. Score gaps are in score points. Matches between similarly-ranked papers (small score gap) are the hardest.",
         data.bt_sampling, "min_gap", "score gap \u2265"
       )}
-      {data.bt_weighted && renderWeightedTable("BT-Gap Match Weighting", data.bt_weighted,
+      {data.bt_weighted && renderWeightedTable("Score-Gap Match Weighting", data.bt_weighted,
         "Weights based on Score difference (score points). Close-cut: emphasize matches between similarly-ranked papers. Wide-gap: emphasize matches between papers far apart in the ranking."
       )}
     </div>

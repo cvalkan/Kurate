@@ -205,16 +205,16 @@ function DatasetTable({ datasets }) {
               <tr className="border-b border-border text-muted-foreground text-[9px]">
                 <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">AI-H%</th>
                 <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">H-H%</th>
-                <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">AI BT</th>
-                <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">H BT</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">AI Score</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-sky-500/[0.06]">H Score</th>
                 <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI%</th>
                 <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">H%(LOO)</th>
-                <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI BT</th>
-                <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">H BT</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">AI Score</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-amber-500/[0.06]">H Score</th>
                 <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI%</th>
                 <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">H%</th>
-                <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI BT</th>
-                <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">H BT</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">AI Score</th>
+                <th className="py-0.5 px-1.5 text-right font-medium bg-rose-500/[0.06]">H Score</th>
               </tr>
             </thead>
             <tbody>
@@ -335,13 +335,13 @@ function DatasetRankings({ datasets }) {
                 <tr className="border-b border-border text-muted-foreground">
                   {[
                     { key: "ai_rank", label: "AI Rank", bg: "bg-sky-500/[0.06]" },
-                    { key: "ai_bt", label: "AI BT", bg: "bg-sky-500/[0.06]" },
+                    { key: "ai_bt", label: "AI Score", bg: "bg-sky-500/[0.06]" },
                     { key: "ai_wl", label: "AI W/L", bg: "bg-sky-500/[0.06]", noSort: true },
                     { key: "h_indiv_rank", label: "H-Indiv Rank", bg: "bg-amber-500/[0.06]" },
                     { key: "h_indiv_bt", label: "H-Indiv score", bg: "bg-amber-500/[0.06]" },
                     { key: "h_indiv_wl", label: "H-Indiv W/L", bg: "bg-amber-500/[0.06]", noSort: true },
                     { key: "h_maj_rank", label: "H-Maj Rank", bg: "bg-rose-500/[0.06]" },
-                    { key: "h_maj_bt", label: "H-Maj BT", bg: "bg-rose-500/[0.06]" },
+                    { key: "h_maj_bt", label: "H-Maj Score", bg: "bg-rose-500/[0.06]" },
                     { key: "h_maj_wl", label: "H-Maj W/L", bg: "bg-rose-500/[0.06]", noSort: true },
                     { key: "decision", label: "Decision" },
                     { key: "h1_avg_rating", label: "H Avg" },
@@ -383,9 +383,9 @@ function DatasetRankings({ datasets }) {
           </div>
           <div className="px-3 py-2 bg-secondary/5 border-t border-border/50 space-y-1">
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              <strong>AI BT</strong>: Score from {rankData.n_ai_matches} thinking-mode matches (1 judge per pair, round-robin across 3 models).{" "}
+              <strong>AI Score</strong>: Score from {rankData.n_ai_matches} thinking-mode matches (1 judge per pair, round-robin across 3 models).{" "}
               <strong>H-Indiv score</strong>: Score from individual expert votes (each expert{"'"}s preference = one match — multiple matches per pair).{" "}
-              <strong>H-Maj BT</strong>: Score from expert majority vote (one consensus vote per pair).{" "}
+              <strong>H-Maj Score</strong>: Score from expert majority vote (one consensus vote per pair).{" "}
               Rows highlighted where AI score = H-Maj score — a structural artifact when both have 1 vote/pair on the same pairs with identical W/L records.{" "}
               H-Indiv score breaks this coupling by using per-expert granularity.
             </p>
@@ -463,7 +463,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
       )}
       <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance, hh_cf: p.tie_stats?.cf_concordance_rate, ai_h_cf: p.ai_h_cf_concordance }} />
 
-      {/* 2. Ranking Correlation (Bradley-Terry) */}
+      {/* 2. Ranking Correlation (Pairwise) */}
       {(() => {
         const bt = p.bt_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
@@ -495,7 +495,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
         return (
           <div className="border border-border rounded-lg overflow-hidden">
             <div className="px-3 py-2 bg-secondary/10 border-b border-border">
-              <span className="text-xs font-semibold">Ranking Correlation (Bradley-Terry)</span>
+              <span className="text-xs font-semibold">Ranking Correlation (Pairwise)</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
