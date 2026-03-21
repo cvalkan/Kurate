@@ -344,20 +344,22 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     if mode_count == 0:
         ai_content_mode = "abstract_plus_summary"
 
-    ai_match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": ai_content_mode}
-    if not include_within_tier:
-        ai_match_filter["experiment_tag"] = {"$exists": False}
+    # When including within-tier, add experiment within-tier matches to the base
+    # cross/adjacent set, subsampled to their natural proportion.
+    if include_within_tier:
+        # Load base matches (no experiment tag) = cross/adjacent only
+        base_raw = await collect_all(db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": ai_content_mode, "experiment_tag": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ))
+        # Load experiment matches (within-tier supplements)
+        exp_raw = await collect_all(db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": ai_content_mode, "experiment_tag": {"$exists": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ))
 
-    ai_raw = await collect_all(db.validation_matches.find(
-        ai_match_filter,
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ))
-
-    # When including within-tier, subsample experiment matches to their natural proportion.
-    # Without this, within-tier pairs are overrepresented (we generated as many within-tier
-    # matches as existing cross/adjacent, but naturally within-tier is only ~30-50% of pairs).
-    if include_within_tier and ai_raw:
         import random as _rng
         TIER_MAP = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1, "withdrawn": 0, "desk rejected": 0}
         def _is_within(m):
@@ -365,7 +367,10 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
 
-        # Count natural proportions from all possible pairs
+        # Only take within-tier matches from experiments (ignore any extra cross/adj)
+        exp_within = [m for m in exp_raw if _is_within(m)]
+
+        # Compute natural within-tier fraction
         all_pids = list(papers_by_id.keys())
         nat_cross_adj, nat_within = 0, 0
         for i in range(len(all_pids)):
@@ -380,22 +385,20 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         nat_total = nat_cross_adj + nat_within
         nat_within_frac = nat_within / nat_total if nat_total > 0 else 0.3
 
-        # Split matches into cross/adj and within-tier
-        cross_adj_matches = [m for m in ai_raw if not _is_within(m)]
-        within_matches = [m for m in ai_raw if _is_within(m)]
-
-        # Target: within_tier should be nat_within_frac of total
-        # total = len(cross_adj) + n_within_subsample
-        # nat_within_frac = n_within_subsample / total
-        # → n_within_subsample = len(cross_adj) * nat_within_frac / (1 - nat_within_frac)
-        target_within = int(len(cross_adj_matches) * nat_within_frac / max(0.01, 1 - nat_within_frac))
-        target_within = min(target_within, len(within_matches))
-
-        if target_within < len(within_matches):
+        # Subsample within-tier to natural proportion relative to base
+        target_within = int(len(base_raw) * nat_within_frac / max(0.01, 1 - nat_within_frac))
+        target_within = min(target_within, len(exp_within))
+        if target_within < len(exp_within):
             _rng.seed(42 + hash(dataset_id))
-            within_matches = _rng.sample(within_matches, target_within)
+            exp_within = _rng.sample(exp_within, target_within)
 
-        ai_raw = cross_adj_matches + within_matches
+        ai_raw = base_raw + exp_within
+    else:
+        ai_raw = await collect_all(db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": ai_content_mode, "experiment_tag": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ))
     ai_mode_used = ai_content_mode
 
     if len(ai_raw) < 20:
@@ -1933,13 +1936,26 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
     ))
 
     # Subsample within-tier to natural proportion (same logic as _compute_dataset_benchmark)
-    if include_within_tier and ai_raw:
+    if include_within_tier:
+        base_sr = await collect_all(db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": ai_content_mode, "experiment_tag": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ))
+        exp_sr = await collect_all(db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+             "content_mode": ai_content_mode, "experiment_tag": {"$exists": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ))
+
         import random as _rng
         TIER_MAP = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1, "withdrawn": 0, "desk rejected": 0}
         def _is_within_sr(m):
             t1 = norm_tier(papers_by_id.get(m["paper1_id"], {}).get("decision"))
             t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
+
+        exp_within = [m for m in exp_sr if _is_within_sr(m)]
 
         all_pids = list(papers_by_id.keys())
         nat_cross_adj, nat_within = 0, 0
@@ -1955,14 +1971,17 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         nat_total = nat_cross_adj + nat_within
         nat_within_frac = nat_within / nat_total if nat_total > 0 else 0.3
 
-        cross_adj_m = [m for m in ai_raw if not _is_within_sr(m)]
-        within_m = [m for m in ai_raw if _is_within_sr(m)]
-        target_within = int(len(cross_adj_m) * nat_within_frac / max(0.01, 1 - nat_within_frac))
-        target_within = min(target_within, len(within_m))
-        if target_within < len(within_m):
+        target_within = int(len(base_sr) * nat_within_frac / max(0.01, 1 - nat_within_frac))
+        target_within = min(target_within, len(exp_within))
+        if target_within < len(exp_within):
             _rng.seed(42 + hash(dataset_id))
-            within_m = _rng.sample(within_m, target_within)
-        ai_raw = cross_adj_m + within_m
+            exp_within = _rng.sample(exp_within, target_within)
+        ai_raw = base_sr + exp_within
+    else:
+        ai_raw = await collect_all(db.validation_matches.find(
+            ai_sr_filter,
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ))
 
     ai_bt_matches = [
         {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
