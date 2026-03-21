@@ -60,7 +60,7 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 ### P1
 - Run validation matches with corrected (unfiltered) pair selection
-- Score ICLR-OT with Single-Item AI
+- ~~Score ICLR-OT with Single-Item AI~~ ✅ Completed Mar 21, 2026 (52 papers scored, ρ=0.66, AI-H concordance=70.5%)
 - Update Summarizer Report Section 2
 
 ### P2
