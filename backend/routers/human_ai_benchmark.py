@@ -367,8 +367,10 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
 
-        # Only take within-tier matches from experiments (ignore any extra cross/adj)
-        exp_within = sorted([m for m in exp_raw if _is_within(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
+        # Combine base + all experiment matches, then ensure natural within-tier proportion
+        all_combined = base_raw + exp_raw
+        cross_adj = sorted([m for m in all_combined if not _is_within(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
+        within = sorted([m for m in all_combined if _is_within(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
 
         # Compute natural within-tier fraction
         all_pids = list(papers_by_id.keys())
@@ -385,14 +387,14 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         nat_total = nat_cross_adj + nat_within
         nat_within_frac = nat_within / nat_total if nat_total > 0 else 0.3
 
-        # Subsample within-tier to natural proportion relative to base
-        target_within = int(len(base_raw) * nat_within_frac / max(0.01, 1 - nat_within_frac))
-        target_within = min(target_within, len(exp_within))
-        if target_within < len(exp_within):
+        # Subsample within-tier to natural proportion relative to cross/adj
+        target_within = int(len(cross_adj) * nat_within_frac / max(0.01, 1 - nat_within_frac))
+        target_within = min(target_within, len(within))
+        if target_within < len(within):
             _rng.seed(42 + hash(dataset_id))
-            exp_within = _rng.sample(exp_within, target_within)
+            within = _rng.sample(within, target_within)
 
-        ai_raw = base_raw + exp_within
+        ai_raw = cross_adj + within
     else:
         ai_raw = await collect_all(db.validation_matches.find(
             {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
@@ -1893,7 +1895,11 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
 
-        exp_within = sorted([m for m in exp_matches if _is_within_gap(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
+        # Combine base + all experiment matches, then ensure natural within-tier proportion
+        all_gap_combined = base + exp_matches
+        cross_adj_gap = sorted([m for m in all_gap_combined if not _is_within_gap(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
+        within_gap = sorted([m for m in all_gap_combined if _is_within_gap(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
+
         all_pids = list(papers_by_id.keys())
         nat_ca, nat_w = 0, 0
         for i in range(len(all_pids)):
@@ -1906,13 +1912,13 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                     else:
                         nat_ca += 1
         nat_frac = nat_w / (nat_ca + nat_w) if (nat_ca + nat_w) > 0 else 0.3
-        target_w = int(len(base) * nat_frac / max(0.01, 1 - nat_frac))
-        target_w = min(target_w, len(exp_within))
-        if target_w < len(exp_within):
+        target_w = int(len(cross_adj_gap) * nat_frac / max(0.01, 1 - nat_frac))
+        target_w = min(target_w, len(within_gap))
+        if target_w < len(within_gap):
             _rng.seed(42 + hash(ds_id))
-            exp_within = _rng.sample(exp_within, target_w)
+            within_gap = _rng.sample(within_gap, target_w)
 
-        all_matches = base + exp_within
+        all_matches = cross_adj_gap + within_gap
         for m in all_matches:
             s1, s2 = si_scores.get(m["paper1_id"]), si_scores.get(m["paper2_id"])
             m["_si_gap"] = abs(s1 - s2) if s1 is not None and s2 is not None else None
@@ -2390,7 +2396,10 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
             t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
 
-        exp_within = sorted([m for m in exp_sr if _is_within_sr(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
+        # Combine base + all experiment matches, then ensure natural within-tier proportion
+        all_sr_combined = base_sr + exp_sr
+        cross_adj_sr = sorted([m for m in all_sr_combined if not _is_within_sr(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
+        within_sr = sorted([m for m in all_sr_combined if _is_within_sr(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
 
         all_pids = list(papers_by_id.keys())
         nat_cross_adj, nat_within = 0, 0
@@ -2406,12 +2415,12 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         nat_total = nat_cross_adj + nat_within
         nat_within_frac = nat_within / nat_total if nat_total > 0 else 0.3
 
-        target_within = int(len(base_sr) * nat_within_frac / max(0.01, 1 - nat_within_frac))
-        target_within = min(target_within, len(exp_within))
-        if target_within < len(exp_within):
+        target_within = int(len(cross_adj_sr) * nat_within_frac / max(0.01, 1 - nat_within_frac))
+        target_within = min(target_within, len(within_sr))
+        if target_within < len(within_sr):
             _rng.seed(42 + hash(dataset_id))
-            exp_within = _rng.sample(exp_within, target_within)
-        ai_raw = base_sr + exp_within
+            within_sr = _rng.sample(within_sr, target_within)
+        ai_raw = cross_adj_sr + within_sr
     else:
         ai_raw = await collect_all(db.validation_matches.find(
             ai_sr_filter,
