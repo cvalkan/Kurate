@@ -100,11 +100,6 @@ function GapAnalysisTable() {
         "Both AI and human BT use the same controlled pair set. Lower thresholds focus on harder pairs where SI predicts similar quality. Tests whether AI can resolve fine-grained differences that SI scores consider close.",
         data.controlled_close, "max_gap", "SI gap \u2264"
       )}
-      {data.non_controlled && renderTable(
-        "Non-Controlled: Wide-Gap Sampling (AI filtered, human GT fixed)",
-        "AI BT from gap-filtered matches; human GT from all expert pairs (fixed). Higher thresholds reduce AI's data \u2192 BT ranking degrades \u2192 \u03C1 drops. More matches always help.",
-        data.non_controlled, "min_gap", "SI gap \u2265"
-      )}
     </div>
   );
 }
