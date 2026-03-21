@@ -211,16 +211,17 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
       )}
 
       {/* Pooled summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: "vs Aggregate", rho: pb.indiv?.spearman_rho, n: pb.indiv?.n_datasets },
           { label: "vs Majority Vote", rho: pb.maj?.spearman_rho, n: pb.maj?.n_datasets },
           { label: "vs Committee (Tier)", rho: pb.tier?.spearman_rho, n: pb.tier?.n_datasets },
           { label: "vs Avg Rating", rho: pb.avg_rating?.spearman_rho, n: pb.avg_rating?.n_datasets },
+          { label: "Top 10% Overlap", rho: data.pooled_top10_overlap?.indiv, n: null, pct: true },
         ].map((m, i) => (
           <div key={i} className="border border-border rounded-lg p-3 bg-background text-center">
             <div className={`text-lg font-bold font-mono ${i === 0 ? "text-accent" : "text-foreground"}`}>
-              {f(m.rho)}
+              {m.pct ? (m.rho != null ? `${Math.round(m.rho)}%` : "\u2014") : f(m.rho)}
             </div>
             <div className="text-[10px] text-muted-foreground leading-tight">{m.label}</div>
             {m.n && <div className="text-[9px] text-muted-foreground/60 mt-0.5">{m.n} datasets</div>}
@@ -247,6 +248,7 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
                 <th className="py-1.5 px-2 text-right font-medium text-foreground/50">M/P</th>
                 <th className="py-1.5 px-2 text-right font-medium text-foreground/50">Expert pairs</th>
                 <th className="py-1.5 px-2 text-right font-medium text-foreground/50">Overlap</th>
+                <th className="py-1.5 px-2 text-right font-medium text-foreground/50">Top 10%</th>
               </tr>
             </thead>
             <tbody>
@@ -264,6 +266,7 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{d.n_papers > 0 ? (d.n_ai_matches * 2 / d.n_papers).toFixed(1) : "\u2014"}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{d.n_expert_pairs}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{overlapPct}%</td>
+                    <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{d.top10_overlap?.indiv != null ? `${Math.round(d.top10_overlap.indiv)}%` : "\u2014"}</td>
                   </tr>
                 );
               })}

@@ -2267,6 +2267,7 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
 
     per_dataset = []
     pooled_rhos = {"indiv": [], "maj": [], "tier": [], "avg_rating": []}
+    pooled_top10 = {}
 
     for ds_id in all_ds_ids:
         result = await _compute_standalone_ranking(ds_id, include_within_tier=include_within_tier)
@@ -2281,6 +2282,11 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
             if rho is not None:
                 pooled_rhos[key].append(rho)
 
+        # Collect top-10% overlap
+        t10 = result.get("top10_overlap", {})
+        for k, v in t10.items():
+            pooled_top10.setdefault(k, []).append(v)
+
     if not per_dataset:
         return {"status": "no_data"}
 
@@ -2289,11 +2295,17 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
         if vals:
             pooled_bt[key] = {"spearman_rho": safe_round(float(np.mean(vals))), "n_datasets": len(vals)}
 
+    pooled_top10_avg = {}
+    for key, vals in pooled_top10.items():
+        if vals:
+            pooled_top10_avg[key] = safe_round(float(np.mean(vals)))
+
     return {
         "status": "ok",
         "gt_type": gt_type,
         "n_datasets": len(per_dataset),
         "pooled_bt": pooled_bt,
+        "pooled_top10_overlap": pooled_top10_avg,
         "per_dataset": per_dataset,
     }
 
@@ -2497,6 +2509,26 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
             ai_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
     overlap = len(ai_pairs & all_expert_pairs_ge2)
 
+    # Top-10% overlap: fraction of AI's top-10% papers that are also in GT's top-10%
+    top10_overlap = {}
+    n_top = max(1, len(paper_ids) // 10)
+    ai_sorted = sorted(paper_ids, key=lambda p: ai_rank.get(p, 0), reverse=True)
+    ai_top10 = set(ai_sorted[:n_top])
+
+    for gt_label, gt_rank in [("indiv", h_indiv_rank), ("maj", h_maj_rank), ("avg_rating", avg_rating_map)]:
+        shared = sorted(set(ai_rank.keys()) & set(gt_rank.keys()))
+        if len(shared) < 5:
+            continue
+        gt_sorted = sorted(shared, key=lambda p: gt_rank.get(p, 0), reverse=True)
+        gt_top10 = set(gt_sorted[:n_top])
+        top10_overlap[gt_label] = safe_round(len(ai_top10 & gt_top10) / n_top * 100)
+
+    # vs tier: top-10% = oral + spotlight (highest tiers)
+    if tier_score_map:
+        top_tiers = {pid for pid, s in tier_score_map.items() if s >= 3}  # oral=4, spotlight=3
+        if top_tiers:
+            top10_overlap["tier"] = safe_round(len(ai_top10 & top_tiers) / max(len(top_tiers), 1) * 100)
+
     return {
         "dataset_id": dataset_id,
         "n_papers": len(papers),
@@ -2505,4 +2537,5 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         "n_expert_pairs": len(all_expert_pairs_ge2),
         "pair_overlap": overlap,
         "bt": bt,
+        "top10_overlap": top10_overlap,
     }
