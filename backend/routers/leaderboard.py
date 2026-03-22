@@ -795,12 +795,19 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
                 "n": len(liked),
             }
 
+    # is_ranking = tournament goals not yet met (still actively comparing)
+    # Read directly from scheduler status (source of truth for tournament state)
+    from services.scheduler import _get_cat_status
+    cat_status = _get_cat_status(category)
+    cat_activity = cat_status.get("current_activity", "")
+    is_ranking = cat_activity not in ("Idle", "Goals met — idle", "Tournament paused", "System paused", "Comparisons paused")
+
     return {
         "leaderboard": entries,
         "total_papers": total_in_cat,
         "total_in_period": total_in_period,
         "total_matches": match_count,
-        "is_ranking": total_in_cat > 0,
+        "is_ranking": is_ranking,
         "period": period,
         "category": category,
         "tags": None,
