@@ -2044,6 +2044,27 @@ async def reconcile_rankings_endpoint(category: str = None):
     return {"status": "ok", "results": results}
 
 
+@router.get("/system-logs", dependencies=[Depends(verify_admin)])
+async def get_system_logs(
+    level: str = None, label: str = None, hours: int = 24, limit: int = 200,
+):
+    """Query persisted system logs (memory tracking, events). Stored 7 days."""
+    from datetime import datetime, timezone, timedelta
+    query = {"ts": {"$gte": datetime.now(timezone.utc) - timedelta(hours=hours)}}
+    if level:
+        query["level"] = level
+    if label:
+        query["label"] = {"$regex": label, "$options": "i"}
+    logs = await db.system_logs.find(
+        query, {"_id": 0}
+    ).sort("ts", -1).limit(limit).to_list(limit)
+    # Convert datetime to ISO string for JSON serialization
+    for log in logs:
+        if "ts" in log:
+            log["ts"] = log["ts"].isoformat()
+    return {"logs": logs, "count": len(logs)}
+
+
 
 @router.post("/dedup-papers", dependencies=[Depends(verify_admin)])
 async def deduplicate_papers():

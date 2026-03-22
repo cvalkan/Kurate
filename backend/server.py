@@ -235,7 +235,8 @@ async def startup():
 
     # Start accepting connections NOW — everything else runs in background
     asyncio.create_task(_deferred_startup())
-    from core.memlog import log_mem
+    from core.memlog import log_mem, ensure_ttl_index
+    await ensure_ttl_index(db)
     log_mem("Server started")
     logger.info("Kurate.org Leaderboard started")
 

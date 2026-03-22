@@ -1,12 +1,25 @@
-"""Lightweight process memory reporter for diagnosing OOM issues."""
+"""Lightweight process memory reporter for diagnosing OOM issues.
+
+Logs to both stdout and MongoDB (system_logs collection with 7-day TTL).
+"""
 import os
 import time
 import psutil
 import logging
+from datetime import datetime, timezone
 
 logger = logging.getLogger("papersumo")
 
 _process = psutil.Process(os.getpid())
+_db = None
+
+
+def _get_db():
+    global _db
+    if _db is None:
+        from core.config import db
+        _db = db
+    return _db
 
 
 def get_mem_mb() -> float:
@@ -15,56 +28,51 @@ def get_mem_mb() -> float:
 
 
 def log_mem(label: str):
-    """Log current memory usage with a label."""
-    logger.info(f"[MEM] {label}: {get_mem_mb():.0f}MB RSS")
+    """Log current memory usage with a label. Also persists to MongoDB."""
+    mb = get_mem_mb()
+    logger.info(f"[MEM] {label}: {mb:.0f}MB RSS")
+    _persist("mem", label, {"rss_mb": round(mb)})
 
 
-class track_mem:
-    """Context manager that logs memory before/after a block + duration.
-    
-    Usage:
-        with track_mem("seed_rankings"):
-            await seed_rankings(db)
-        # Logs: [MEM] seed_rankings: 320MB → 325MB (+5MB) in 2.3s
-    """
-    def __init__(self, label: str):
-        self.label = label
-        self.start_mb = 0.0
-        self.start_time = 0.0
-
-    def __enter__(self):
-        self.start_mb = get_mem_mb()
-        self.start_time = time.perf_counter()
-        return self
-
-    def __exit__(self, *exc):
-        end_mb = get_mem_mb()
-        elapsed = time.perf_counter() - self.start_time
-        delta = end_mb - self.start_mb
-        sign = "+" if delta >= 0 else ""
-        logger.info(f"[MEM] {self.label}: {self.start_mb:.0f}MB → {end_mb:.0f}MB ({sign}{delta:.0f}MB) in {elapsed:.1f}s")
+def log_event(level: str, label: str, data: dict = None):
+    """Log a structured event to stdout and MongoDB."""
+    msg = f"[{level.upper()}] {label}"
+    if data:
+        msg += f": {data}"
+    logger.info(msg)
+    _persist(level, label, data or {})
 
 
-class async_track_mem:
-    """Async context manager version of track_mem.
-    
-    Usage:
-        async with async_track_mem("reconcile"):
-            await reconcile_rankings(db)
-    """
-    def __init__(self, label: str):
-        self.label = label
-        self.start_mb = 0.0
-        self.start_time = 0.0
+def _persist(level: str, label: str, data: dict):
+    """Fire-and-forget write to MongoDB system_logs collection."""
+    try:
+        db = _get_db()
+        doc = {
+            "ts": datetime.now(timezone.utc),
+            "level": level,
+            "label": label,
+            **data,
+        }
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_async_persist(db, doc))
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
 
-    async def __aenter__(self):
-        self.start_mb = get_mem_mb()
-        self.start_time = time.perf_counter()
-        return self
 
-    async def __aexit__(self, *exc):
-        end_mb = get_mem_mb()
-        elapsed = time.perf_counter() - self.start_time
-        delta = end_mb - self.start_mb
-        sign = "+" if delta >= 0 else ""
-        logger.info(f"[MEM] {self.label}: {self.start_mb:.0f}MB → {end_mb:.0f}MB ({sign}{delta:.0f}MB) in {elapsed:.1f}s")
+async def _async_persist(db, doc):
+    try:
+        await db.system_logs.insert_one(doc)
+    except Exception:
+        pass
+
+
+async def ensure_ttl_index(db):
+    """Create TTL index on system_logs (auto-delete after 7 days). Call once at startup."""
+    try:
+        await db.system_logs.create_index("ts", expireAfterSeconds=7 * 86400, name="ttl_7d")
+    except Exception:
+        pass
