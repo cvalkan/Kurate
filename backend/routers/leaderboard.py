@@ -484,15 +484,21 @@ def start_cache_bg():
 
 
 async def _bg_analysis_cache_loop():
-    """Background loop that refreshes model-correlation and convergence when data changes."""
+    """Background loop that refreshes model-correlation and convergence when data changes.
+    
+    Debounced at 120s to batch rapid changes (comparison rounds complete every 5-15min).
+    GC between categories to prevent memory accumulation.
+    """
     await asyncio.sleep(15)  # Wait for leaderboard cache to be ready first
 
-    # Compute once immediately on startup
     async def _refresh_analysis():
         try:
+            import gc
             from core.auth import get_settings
+            from core.memlog import log_mem
             settings = await get_settings()
             cats = settings.get("active_categories", [])
+            log_mem(f"analysis_refresh start ({len(cats)} categories)")
             for cat in cats:
                 try:
                     result = await _compute_model_correlation(cat, None)
@@ -504,7 +510,9 @@ async def _bg_analysis_cache_loop():
                     _set_analysis_cached("convergence", cat, "20", result)
                 except Exception:
                     pass
-                await asyncio.sleep(0)
+                gc.collect()
+                await asyncio.sleep(2)  # Cooldown between categories
+            log_mem(f"analysis_refresh done ({len(cats)} categories)")
             logger.info(f"Analysis cache refreshed: {len(cats)} categories")
         except Exception as e:
             logger.warning(f"Analysis cache refresh failed: {e}")
@@ -512,10 +520,9 @@ async def _bg_analysis_cache_loop():
     await _refresh_analysis()
 
     while True:
-        # Wait ONLY for data change — no timeout fallback
         await _cache_dirty.wait()
         _cache_dirty.clear()
-        await asyncio.sleep(15)  # Debounce — let a full match round complete
+        await asyncio.sleep(120)  # 120s debounce — batch rapid comparison rounds
         _cache_dirty.clear()
         await _refresh_analysis()
 
@@ -1255,15 +1262,9 @@ async def _compute_model_correlation(category, mode):
     from scipy import stats as scipy_stats
 
     # Always query DB (no in-memory cache dependency)
-    use_cache = False
-    cat_paper_ids = None
-
-    if category:
-        cat_paper_ids = set()
-        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-            cat_paper_ids.add(p["id"])
-
     match_query = {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}}
+    if category:
+        match_query["primary_category"] = category  # Filter at DB level, not Python
     matches_raw = await collect_all(db.matches.find(
         match_query,
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1, "mode": 1},
@@ -1274,9 +1275,10 @@ async def _compute_model_correlation(category, mode):
     else:
         matches_raw = [m for m in matches_raw if not m.get("mode")]
 
-    matches = [m for m in matches_raw if not cat_paper_ids or (m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids)]
+    matches = matches_raw  # Already filtered by category at DB level
     paper_titles = {}
-    async for p in db.rankings.find({}, {"_id": 0, "paper_id": 1, "title": 1}):
+    rank_query = {"category": category} if category else {}
+    async for p in db.rankings.find(rank_query, {"_id": 0, "paper_id": 1, "title": 1}):
         paper_titles[p["paper_id"]] = p["title"]
 
     if not matches:
@@ -1887,9 +1889,9 @@ async def _compute_convergence(category, steps):
     # Step size adapts to dataset size: 0.25 for small, larger for big datasets
     sample_indices = set()
     avg_targets = []
-    # For large datasets (>200 papers), use coarser steps to keep computation <30s
-    fine_step = 0.25 if n_papers <= 500 else 0.5 if n_papers <= 1000 else 1.0
-    coarse_step = 1.0 if n_papers <= 500 else 2.0 if n_papers <= 1000 else 4.0
+    # For large datasets (>200 papers), use coarser steps to keep computation <10s
+    fine_step = 0.5 if n_papers <= 200 else 1.0 if n_papers <= 500 else 2.0
+    coarse_step = 2.0 if n_papers <= 200 else 4.0 if n_papers <= 500 else 8.0
     fine_limit = min(10.0, max_avg)
     t = fine_step
     while t <= fine_limit:
