@@ -541,7 +541,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             first_author = (rp.get("authors") or [""])[0].strip().lower() if rp.get("authors") else ""
             content_hash = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
             if content_hash in existing_hashes:
-                logger.info(f"[{category}] Skipping duplicate (hash match): {rp['title'][:60]}")
+                logger.debug(f"[{category}] Skipping duplicate (hash match): {rp['title'][:60]}")
                 continue
             paper_doc = {
                 "id": str(uuid.uuid4()),
