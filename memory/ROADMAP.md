@@ -57,6 +57,9 @@ The production container has **2GB RAM** (~1.0-1.2GB available for the Python pr
 
 If OOM persists: upgrade to 4GB container, or disable pre-caching (compute model-correlation and convergence on-demand only).
 
+### Known Behavior: Multiple Restarts During Deployment
+The deploy platform writes files to disk sequentially (not atomically). With `--reload` enabled, each file write triggers a uvicorn restart. Deploying 15+ modified files causes 2-3 restart cycles before the final stable process starts. This adds ~15-20s to deploy time but is harmless — the last restart has all files and runs stably. The intermediate restarts show truncated startup logs (e.g., startup tasks begin but never finish) — this is NOT a crash or OOM, just the hot-reload cycle.
+
 ---
 
 ## Option 3: DB-Backed Leaderboard — Detailed Implementation Plan
