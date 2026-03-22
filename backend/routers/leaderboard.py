@@ -488,8 +488,9 @@ async def _bg_analysis_cache_loop():
     
     Debounced at 120s to batch rapid changes (comparison rounds complete every 5-15min).
     GC between categories to prevent memory accumulation.
+    Initial delay: 120s to avoid running concurrently with startup tasks.
     """
-    await asyncio.sleep(15)  # Wait for leaderboard cache to be ready first
+    await asyncio.sleep(120)  # Wait for ALL startup tasks to complete before first run
 
     async def _refresh_analysis():
         try:

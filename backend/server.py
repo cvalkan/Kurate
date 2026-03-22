@@ -790,7 +790,7 @@ async def _startup_seed_targeted_matches():
     """One-time: import all validation matches and deep-dive data not yet on this database."""
     await asyncio.sleep(10)
     try:
-        # --- Match seed (v5) ---
+        # --- Match seed (v5) — skip immediately if already done ---
         flag = await db.settings.find_one({"key": "experiment_seed_v5b"}, {"_id": 0})
         if not (flag and flag.get("done")):
             from pathlib import Path
