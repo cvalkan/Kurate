@@ -566,56 +566,57 @@ async def _prewarm_all_experiment_caches():
 
 
 async def _startup_dedup():
-    """Auto-deduplicate papers on startup (merges duplicates by title+author).
+    """Auto-deduplicate papers on startup using content hashes.
     
-    IMPORTANT: Only loads lightweight fields (id, title, authors) + boolean flags
-    for summaries/full_text existence. Loading full_text or summaries here would
-    cause a ~500MB+ memory spike that can trigger OOM kills.
+    Uses a SHA-256 hash of (normalized title + first author) for O(1) grouping.
+    Only loads lightweight fields (id, title, authors) — no full_text or summaries.
     """
     await asyncio.sleep(10)  # Wait for DB + caches to be ready
     try:
+        import hashlib
         from collections import defaultdict
-        # Only load lightweight fields — NOT full_text or summaries content
-        all_papers = []
+
+        # Build hash → paper_id mapping in a single streaming pass
+        hash_groups = defaultdict(list)  # hash → [paper_id, ...]
         async for p in db.papers.find(
             {},
             {"_id": 0, "id": 1, "title": 1, "authors": 1},
         ):
-            all_papers.append(p)
-            if len(all_papers) % 500 == 0:
-                await asyncio.sleep(0)  # Yield to event loop
-
-        groups = defaultdict(list)
-        for p in all_papers:
             title_norm = p["title"].strip().lower()
             first_author = (p.get("authors") or [""])[0].strip().lower() if p.get("authors") else ""
-            groups[(title_norm, first_author)].append(p)
+            h = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
+            hash_groups[h].append(p["id"])
 
-        # Free the full list — only groups needed now
-        del all_papers
+        # Only process groups with duplicates (rare — usually 0)
+        dup_groups = {h: ids for h, ids in hash_groups.items() if len(ids) > 1}
+        del hash_groups  # Free memory
+
+        if not dup_groups:
+            return
 
         merged = 0
-        for key, papers in groups.items():
-            if len(papers) < 2:
-                continue
-            # Only fetch summaries/full_text existence for actual duplicates (rare)
-            for p in papers:
-                p["_mc"] = await db.matches.count_documents({"$or": [{"paper1_id": p["id"]}, {"paper2_id": p["id"]}]})
-                p["_hs"] = await db.papers.count_documents({"id": p["id"], "summaries": {"$exists": True, "$ne": {}}}) > 0
-                p["_ht"] = await db.papers.count_documents({"id": p["id"], "full_text": {"$ne": None}}) > 0
+        for h, paper_ids in dup_groups.items():
+            # Fetch minimal metadata only for actual duplicates
+            papers = []
+            for pid in paper_ids:
+                mc = await db.matches.count_documents({"$or": [{"paper1_id": pid}, {"paper2_id": pid}]})
+                hs = await db.papers.count_documents({"id": pid, "summaries": {"$exists": True, "$ne": {}}}) > 0
+                ht = await db.papers.count_documents({"id": pid, "full_text": {"$ne": None}}) > 0
+                papers.append({"id": pid, "_mc": mc, "_hs": hs, "_ht": ht})
+
             papers.sort(key=lambda p: (p["_hs"], p["_ht"], p["_mc"]), reverse=True)
             keeper = papers[0]
             for dup in papers[1:]:
                 await db.matches.update_many({"paper1_id": dup["id"]}, {"$set": {"paper1_id": keeper["id"]}})
                 await db.matches.update_many({"paper2_id": dup["id"]}, {"$set": {"paper2_id": keeper["id"]}})
                 await db.matches.update_many({"winner_id": dup["id"]}, {"$set": {"winner_id": keeper["id"]}})
-                if dup.get("_hs") and not keeper.get("_hs"):
-                    # Need to copy summaries — fetch just the summaries field from the dup
+                if dup["_hs"] and not keeper["_hs"]:
                     dup_doc = await db.papers.find_one({"id": dup["id"]}, {"_id": 0, "summaries": 1})
                     if dup_doc and dup_doc.get("summaries"):
                         await db.papers.update_one({"id": keeper["id"]}, {"$set": {"summaries": dup_doc["summaries"]}})
                 await db.papers.delete_one({"id": dup["id"]})
                 merged += 1
+
         if merged > 0:
             await db.matches.delete_many({"$expr": {"$eq": ["$paper1_id", "$paper2_id"]}})
             logger.info(f"Startup dedup: merged {merged} duplicate papers")

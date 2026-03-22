@@ -556,6 +556,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 "full_text": None,
                 "added_at": datetime.now(timezone.utc).isoformat(),
                 "needs_pdf": True,
+                "dedup_hash": hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16],
             }
             # Store source-specific IDs
             if rp.get("arxiv_id"):
