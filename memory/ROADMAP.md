@@ -10,18 +10,43 @@
 
 ### Scaling Path to 100K+ Papers
 
-#### Option 1: Streaming Leaderboard Computation (Target: 100K papers)
-The current bottleneck is `_refresh_cache()` loading ALL papers + matches into memory simultaneously (for leaderboard ranking via `compute_leaderboard`). At 50K+ papers this exceeds 8GB during the 2x peak (old + new cache).
+**Why Options 1 & 2 alone don't reach 1M**: The real bottleneck isn't the refresh spike — it's the **steady-state cache** holding all papers, matches, match indices, and per-category leaderboard entries permanently in memory. At 1M papers + 30M matches, this alone is ~75GB regardless of how cleverly you refresh it.
+
+| Approach | What it solves | Limit (8GB) | Limit (16GB) | Complexity | Effort |
+|---|---|---|---|---|---|
+| Current (post Mar 22 fixes) | Dedup + summaries out of memory | ~50K | ~100K | Done | Done |
+| Option 1: Per-category streaming | Refresh 2x peak | ~100K | ~200K | Medium | ~1 weekend |
+| Option 2: Incremental updates | Refresh O(1) per match | ~100K | ~200K | High | ~1 week |
+| **Option 3: DB-backed leaderboard** | **Eliminates in-memory cache entirely** | **Unlimited** | **Unlimited** | **Medium-High** | **~1 week** |
+
+#### Option 1: Per-Category Streaming Refresh (Target: 100-200K papers)
+The current bottleneck is `_refresh_cache()` loading ALL papers + matches into memory simultaneously. At 50K+ papers this exceeds 8GB during the 2x peak (old + new cache coexist during swap).
 - **Approach**: Stream papers and matches per-category instead of loading all at once. Only one category's data in memory at a time.
 - **Complexity**: Medium. Requires restructuring `_refresh_cache` to iterate categories sequentially, each loading/computing/storing independently.
-- **Estimated impact**: Reduces peak from O(total_papers) to O(max_category_papers). With largest category ~1K papers, this makes 100K total papers trivial.
+- **Estimated impact**: Reduces peak from O(total_papers) to O(max_category_papers). With largest category ~1K papers, this makes 100-200K total papers trivial.
+- **Limitation**: Steady-state cache still grows linearly. Only buys 2-4x headroom.
 
 #### Option 2: Incremental Cache Updates (Target: 200K+ papers)
 Instead of recomputing ALL rankings on every data change, update only affected papers.
-- **Approach**: When a new match arrives, update only the two papers' scores using online BT/win-rate update. Periodic full recomputation as a consistency check.
+- **Approach**: When a new match arrives, update only the two papers' scores using online win-rate update. Periodic full recomputation as a consistency check.
 - **Complexity**: High. Requires maintaining running scores in DB, careful concurrency handling, and a reconciliation mechanism.
 - **Estimated impact**: Eliminates the 2x memory peak entirely. Cache refresh becomes O(1) per match instead of O(N) per data change.
-- **Architecture change**: "Recompute everything on data change" → "Incremental update + periodic full reconciliation"
+- **Limitation**: Same as Option 1 — steady-state cache still linear. Hardest to get right (concurrency edge cases) for the least additional payoff over Option 1.
+
+#### Option 3: DB-Backed Leaderboard — No In-Memory Cache (Target: 1M+ papers)
+Store computed rankings in MongoDB. Serve requests via indexed queries. **This is what Chess.com, Lichess, etc. do for millions of rated players.**
+- **Approach**:
+  - Store one document per paper with `{score, rank, win_rate, wins, losses, comparisons}` in a `rankings` collection
+  - Create compound index `{category: 1, rank: 1}` for instant sorted queries
+  - Serve leaderboard requests with `find({category: X}).sort({rank: 1}).skip(offset).limit(50)` — O(1) memory
+  - When a match completes: update only the 2 affected papers' scores in the `rankings` collection
+  - Periodic full recomputation (e.g. daily) as a consistency check
+- **Complexity**: Medium-High. Requires refactoring all leaderboard endpoints to query DB instead of cache, and changing the match completion hook.
+- **Estimated impact**: Memory becomes O(1) — completely independent of paper count. 1M, 10M papers all work in 1GB.
+- **Tradeoff**: ~5-20ms per leaderboard request (vs ~0ms from in-memory cache). Negligible for users but measurable.
+- **Recommendation**: Implement this when approaching 30K papers. Not needed until then since current limit is ~50K.
+
+**Practical timeline**: With NeurIPS, more ICLR topics, and other venues, expect ~10-20K papers within a year — well within the current 50K limit. Revisit at 30K.
 
 ### Sync Blocking in Admin Scrapers
 - `pairwise.py`: 8× `requests.get()` + `time.sleep()` — blocks event loop during Qeios scraping
