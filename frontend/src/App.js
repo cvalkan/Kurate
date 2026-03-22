@@ -56,15 +56,19 @@ function AppRouter() {
   );
 }
 
+import { ThemeProvider } from "@/contexts/ThemeContext";
+
 function App() {
   return (
     <div className="min-h-screen bg-background">
       <BrowserRouter>
-        <AuthProvider>
-          <BookmarkProvider>
-            <AppRouter />
-          </BookmarkProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <BookmarkProvider>
+              <AppRouter />
+            </BookmarkProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </div>
   );

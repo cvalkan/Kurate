@@ -91,6 +91,12 @@ code, .mono {
     body {
         @apply bg-background text-foreground;
     }
+
+/* Dark mode: invert the logo since it's dark text on transparent background */
+.dark img[alt="Kurate.org"] {
+    filter: invert(1);
+}
+
 }
 
 /* Custom scrollbar */

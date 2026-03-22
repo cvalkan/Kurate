@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import { Trophy, Shield, BarChart3, BookOpen, LogIn, LogOut, User, Menu, X, FlaskConical, Bookmark } from "lucide-react";
+import { Trophy, Shield, BarChart3, BookOpen, LogIn, LogOut, User, Menu, X, FlaskConical, Bookmark, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { AuthModal } from "@/components/AuthModal";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -19,6 +20,7 @@ const NAV_LINKS = [
 export default function Navbar() {
   const location = useLocation();
   const { user, loading: authLoading, logout } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [activeLabel, setActiveLabel] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -87,6 +89,10 @@ export default function Navbar() {
             })}
 
             <div className="w-px h-5 bg-border mx-1" />
+
+            <Button variant="ghost" size="sm" onClick={toggleTheme} className="h-8 w-8 p-0" data-testid="theme-toggle">
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
 
             {authLoading ? (
               <div className="h-8 w-8 rounded-full bg-secondary animate-pulse" />
@@ -177,6 +183,14 @@ export default function Navbar() {
                 Sign out
               </button>
             )}
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:bg-secondary/50 hover:text-foreground w-full text-left"
+              data-testid="mobile-theme-toggle"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </button>
           </div>
         </div>
       )}

@@ -136,8 +136,33 @@ export function LeaderboardTable({
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
-  const visibleList = sorted;
-  const showSentinel = hasMore;
+  // Progressive DOM rendering: limit rendered nodes to prevent mobile jank.
+  // Server pagination loads data in pages; this limits how many are in the DOM at once.
+  const [renderCount, setRenderCount] = useState(80);
+  const renderSentinelRef = useRef(null);
+
+  // Reset render count when leaderboard changes (new fetch)
+  useEffect(() => { setRenderCount(80); }, [leaderboard]);
+
+  // Progressive render: add more DOM nodes as user scrolls within loaded data
+  useEffect(() => {
+    const sentinel = renderSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setRenderCount(prev => prev + 80);
+        }
+      },
+      { rootMargin: "400px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [sorted]);
+
+  const visibleList = sorted.slice(0, renderCount);
+  const needsServerLoad = hasMore && renderCount >= sorted.length;
+  const needsClientRender = sorted.length > renderCount;
 
   const scoreLabel = isGlobal ? "Score (G)" : "Score";
   const winLabel = isGlobal ? "Win % (G)" : "Win %";
@@ -240,7 +265,10 @@ export function LeaderboardTable({
           </Link>
         ))}
       </div>
-      {showSentinel && <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">{loadingMore ? "Loading more..." : "Scroll for more"}</div>}
+      {/* Progressive render sentinel (more DOM nodes from already-loaded data) */}
+      {needsClientRender && <div ref={renderSentinelRef} className="py-2" />}
+      {/* Server pagination sentinel (fetch next page) */}
+      {needsServerLoad && <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">{loadingMore ? "Loading more..." : "Scroll for more"}</div>}
     </>
   );
 }
