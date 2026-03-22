@@ -458,44 +458,38 @@ async def get_admin_status(category: str = "cs.RO"):
         return cached
 
     lb_cache = _get_lb_cache()
-    lb_cat_data = lb_cache.get("categories", {}).get(category, {})
-    raw_matches = lb_cache.get("_raw_matches", [])
-    raw_papers = lb_cache.get("_raw_papers", [])
 
-    # All counts — prefer leaderboard cache (refreshed in background), fall back to scheduler
+    # All counts — from DB rankings + scheduler
     cat_scheduler = _get_cat_status(category)
-    lb_papers = lb_cat_data.get("_papers", 0)
+    total_papers = await db.rankings.count_documents({"category": category})
     sched_papers = cat_scheduler.get("papers_count", 0)
-    total_papers = lb_papers or sched_papers
-    lb_matches = lb_cat_data.get("_matches", 0)
+    if not total_papers:
+        total_papers = sched_papers
+    total_matches = await db.matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+    )
     sched_matches = cat_scheduler.get("matches_count", 0)
-    total_matches = max(lb_matches, sched_matches)  # Use higher (scheduler updates live during rounds)
+    total_matches = max(total_matches, sched_matches)
     failed_matches = lb_cache.get("_failed_by_cat", {}).get(category, 0)
 
-    # Unranked from leaderboard data
-    if lb_cat_data and lb_cat_data.get("all") is not None:
-        ranked_ids = {e["id"] for e in lb_cat_data["all"] if e.get("comparisons", 0) > 0}
-        all_ids = {e["id"] for e in lb_cat_data["all"]}
-        unranked = len(all_ids - ranked_ids)
-    else:
-        unranked = 0
+    # Unranked from rankings DB
+    ranked_count = await db.rankings.count_documents({"category": category, "comparisons": {"$gt": 0}})
+    unranked = total_papers - ranked_count
 
-    # Recent matches from in-memory cache
-    if raw_matches:
-        cat_matches_sorted = sorted(
-            (m for m in raw_matches if m.get("primary_category") == category),
-            key=lambda m: m.get("created_at", ""),
-            reverse=True,
-        )[:10]
-    else:
-        cat_matches_sorted = []
+    # Recent matches from DB
+    cat_matches_sorted = await db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
+        {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "reasoning": 1, "created_at": 1, "model_used": 1}
+    ).sort("created_at", -1).limit(10).to_list(10)
 
-    # Paper titles from in-memory cache
+    # Paper titles from rankings DB
     paper_ids_needed = set()
     for m in cat_matches_sorted:
         paper_ids_needed.update([m["paper1_id"], m["paper2_id"], m.get("winner_id", "")])
     paper_ids_needed.discard("")
-    paper_titles = {p["id"]: p["title"] for p in raw_papers if p["id"] in paper_ids_needed} if raw_papers else {}
+    paper_titles = {}
+    async for r in db.rankings.find({"paper_id": {"$in": list(paper_ids_needed)}}, {"_id": 0, "paper_id": 1, "title": 1}):
+        paper_titles[r["paper_id"]] = r["title"]
 
     enriched_recent = []
     for m in cat_matches_sorted:
@@ -560,7 +554,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     lb_cache = _get_lb_cache()
     precomputed = lb_cache.get("_progress", {}).get(category)
     if precomputed:
-        realtime_summaries = lb_cache.get("categories", {}).get(category, {}).get("_papers", 0)
+        realtime_summaries = precomputed.get("total_papers", 0)  # from rankings count
         # If summary gen is running, get fresh count from DB
         if is_gen_running:
             realtime_summaries = await db.papers.count_documents(
@@ -771,16 +765,12 @@ async def get_usage_stats(category: str = None):
 
     lb_cache = _get_lb_cache()
 
-    raw_matches = lb_cache.get("_raw_matches", [])
-
-    # Compute model stats from in-memory matches
-    model_stats = {}
+    # Compute model stats from DB matches
+    match_query = {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}, "mode": {"$exists": False}}
     if category:
-        matches_iter = (m for m in raw_matches if m.get("primary_category") == category)
-    else:
-        matches_iter = iter(raw_matches)
-
-    for m in matches_iter:
+        match_query["primary_category"] = category
+    model_stats = {}
+    async for m in db.matches.find(match_query, {"_id": 0, "model_used": 1, "tokens": 1}):
         mu = m.get("model_used", {})
         if not mu:
             continue
@@ -811,12 +801,11 @@ async def get_usage_stats(category: str = None):
     if category:
         total_chars = storage_cache.get("chars_by_cat", {}).get(category, 0)
         papers_with_text = lb_cache.get("_pdf_by_cat", {}).get(category, 0)
-        cat_sched = _get_cat_status(category)
-        total_papers = cat_sched.get("papers_count", 0) or lb_cache.get("categories", {}).get(category, {}).get("_papers", 0)
+        total_papers = await db.rankings.count_documents({"category": category})
     else:
         total_chars = storage_cache.get("total_chars", 0)
         papers_with_text = storage_cache.get("total_with_text", 0)
-        total_papers = lb_cache.get("total_papers", 0)
+        total_papers = await db.rankings.count_documents({})
 
     # --- Summary generation stats from pre-computed cache ---
     precomputed_summary = lb_cache.get("_summary_stats", {}).get(cache_cat, {})
@@ -2135,9 +2124,15 @@ async def deduplicate_papers():
     _invalidate_admin_cache()
     lb_cache = _get_lb_cache()
     lb_cache.clear()
-    lb_cache.update({"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "warming_up": True})
+    lb_cache.update({"ts": 0, "total_papers": 0, "total_matches": 0, "warming_up": True})
     from routers.leaderboard import notify_data_changed
     notify_data_changed()
+    # Also reseed rankings after dedup
+    try:
+        from services.ranking import seed_rankings
+        await seed_rankings(db)
+    except Exception:
+        pass
 
     return {
         "status": "ok",

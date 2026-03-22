@@ -21,30 +21,28 @@ def _esc(t):
     return html_mod.escape(str(t))
 
 
-def _build_enriched_paper_map():
-    """Build paper map from leaderboard cache with computed scores."""
-    from routers.leaderboard import _cache as lb_cache
+async def _build_enriched_paper_map():
+    """Build paper map from rankings DB with computed scores."""
     paper_map = {}
-    # First, load raw papers for metadata (authors, categories, etc.)
-    for p in lb_cache.get("_raw_papers", []):
-        paper_map[p["id"]] = dict(p)
-    # Then overlay computed scores from per-category leaderboard entries
-    for cat_data in lb_cache.get("categories", {}).values():
-        for entry in cat_data.get("all", []):
-            pid = entry.get("id")
-            if pid in paper_map:
-                paper_map[pid].update({
-                    "score": entry.get("score"),
-                    "win_rate": entry.get("win_rate"),
-                    "wins": entry.get("wins"),
-                    "losses": entry.get("losses"),
-                    "comparisons": entry.get("comparisons"),
-                    "wilson_margin": entry.get("wilson_margin"),
-                    "ci": entry.get("ci"),
-                    "gap_score": entry.get("gap_score"),
-                })
-            else:
-                paper_map[pid] = dict(entry)
+    async for r in db.rankings.find({}, {"_id": 0}):
+        paper_map[r["paper_id"]] = {
+            "id": r["paper_id"],
+            "title": r.get("title", ""),
+            "authors": r.get("authors", []),
+            "categories": r.get("categories", []),
+            "published": r.get("published", ""),
+            "link": r.get("link", ""),
+            "arxiv_id": r.get("arxiv_id", ""),
+            "score": r.get("score"),
+            "win_rate": r.get("win_rate"),
+            "wins": r.get("wins"),
+            "losses": r.get("losses"),
+            "comparisons": r.get("comparisons"),
+            "wilson_margin": r.get("wilson_margin"),
+            "ci": r.get("ci"),
+            "gap_score": r.get("gap_score"),
+            "ai_rating": r.get("ai_rating"),
+        }
     return paper_map
 
 
@@ -57,7 +55,7 @@ async def _prerender_list_image(list_id: str, name: str, curator: str, paper_ids
     """Pre-render and store the OG image for a reading list."""
     try:
         from core.image_store import store_image
-        paper_map = _build_enriched_paper_map()
+        paper_map = await _build_enriched_paper_map()
         papers = [paper_map[pid] for pid in paper_ids[:8] if pid in paper_map]
         img_bytes = _render_list_image(
             name=name, description="", curator=curator,
