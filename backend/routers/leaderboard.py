@@ -911,30 +911,28 @@ async def _db_tag_leaderboard_impl(
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
     search: str = None, cursor: str = None,
 ):
-    # Find paper IDs matching the tags
+    # Query rankings directly by categories (no papers collection round-trip)
     tag_set = list(set(tag_list))
     if tag_mode == "and" and len(tag_set) > 1:
-        paper_query = {"categories": {"$all": tag_set}, "summaries": {"$exists": True, "$ne": {}}}
+        tag_filter = {"categories": {"$all": tag_set}}
     else:
-        paper_query = {"categories": {"$in": tag_set}, "summaries": {"$exists": True, "$ne": {}}}
+        tag_filter = {"categories": {"$in": tag_set}}
 
-    matching_ids = set()
-    async for p in db.papers.find(paper_query, {"_id": 0, "id": 1}):
-        matching_ids.add(p["id"])
+    # Count matching papers from rankings (fast — uses categories_score index)
+    matching_count = await db.rankings.count_documents(tag_filter)
 
-    if not matching_ids and not show_all:
+    if matching_count == 0 and not show_all:
         return {
             "leaderboard": [], "total_papers": 0, "total_in_period": 0,
             "total_matches": 0, "is_ranking": False, "period": period,
             "category": None, "tags": tag_list, "tag_mode": tag_mode,
         }
 
-    # Build rankings query
+    # Build query for the page
     if show_all:
-        # Show all papers, but mark which ones match the tags
         rank_query = _build_period_filter(period)
     else:
-        rank_query = {"paper_id": {"$in": list(matching_ids)}}
+        rank_query = dict(tag_filter)
         rank_query.update(_build_period_filter(period))
 
     if search:
@@ -945,14 +943,12 @@ async def _db_tag_leaderboard_impl(
 
     total_in_period = await db.rankings.count_documents(rank_query)
 
-    # Count matches between matching papers
-    tag_match_count = 0
-    if matching_ids:
-        tag_match_count = await db.matches.count_documents({
-            "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
-            "paper1_id": {"$in": list(matching_ids)},
-            "paper2_id": {"$in": list(matching_ids)},
-        })
+    # Get matching IDs for tag badge (only needed if show_all — otherwise all results match)
+    matching_ids = None
+    if show_all:
+        matching_ids = set()
+        async for r in db.rankings.find(tag_filter, {"_id": 0, "paper_id": 1}):
+            matching_ids.add(r["paper_id"])
 
     # Keyset pagination
     if cursor and not search:
@@ -972,7 +968,7 @@ async def _db_tag_leaderboard_impl(
         entry = _rank_doc_to_entry(doc)
         entry["rank"] = rank_num
         entry["primary_category"] = doc.get("category", "unknown")
-        entry["matches_tag"] = doc["paper_id"] in matching_ids
+        entry["matches_tag"] = matching_ids is None or doc["paper_id"] in matching_ids
         rank_num += 1
         entries.append(entry)
         last_doc = doc
@@ -983,10 +979,10 @@ async def _db_tag_leaderboard_impl(
 
     return {
         "leaderboard": entries,
-        "total_papers": len(matching_ids),
-        "total_all_papers": total_in_period if show_all else len(matching_ids),
+        "total_papers": matching_count,
+        "total_all_papers": total_in_period if show_all else matching_count,
         "total_in_period": total_in_period,
-        "total_matches": tag_match_count,
+        "total_matches": 0,  # Skip expensive cross-join match count
         "is_ranking": False,
         "period": period,
         "category": None,
