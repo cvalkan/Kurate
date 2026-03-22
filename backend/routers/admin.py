@@ -2047,6 +2047,15 @@ async def get_extraction_stats(category: str = None, refresh: bool = False):
         _extraction_cache["computing"] = False
 
 
+@router.post("/reconcile-rankings", dependencies=[Depends(verify_admin)])
+async def reconcile_rankings_endpoint(category: str = None):
+    """Manually trigger a full rankings reconciliation (recompute from matches and compare)."""
+    from services.ranking import reconcile_rankings
+    results = await reconcile_rankings(db, category=category)
+    return {"status": "ok", "results": results}
+
+
+
 @router.post("/dedup-papers", dependencies=[Depends(verify_admin)])
 async def deduplicate_papers():
     """Find and merge duplicate papers (same title + first author).

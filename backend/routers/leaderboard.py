@@ -206,236 +206,34 @@ async def _compute_summary_stats_agg():
 
 
 async def _refresh_cache():
-    """Heavy computation — builds a new cache dict, then swaps atomically.
-    The old cache continues serving requests during the entire computation."""
+    """Lightweight metadata refresh — computes only admin stats and small caches.
+    
+    Phase 3: All leaderboard serving now uses the `rankings` DB collection directly.
+    This function only maintains small metadata caches (~20MB total) for admin panel,
+    tags, categories, summary stats, progress, and archives.
+    """
     global _cache
     _t0 = time.time()
 
-    # Run heavy MongoDB loads with yields between each to let requests through
-    async def _load_data():
-        # Exclude ALL large text fields — summaries, full_text, abstract, ai_impact_*.
-        # Summary stats are computed via aggregation pipeline (see _compute_summary_stats_agg).
-        # This reduces per-paper memory from ~67KB to ~9KB.
-        papers = await collect_all(db.papers.find(
-            {"summaries": {"$exists": True, "$ne": {}}},
-            {"_id": 0, "full_text": 0, "abstract": 0, "summaries": 0,
-             "summary_tokens": 0, "summary_dates": 0,
-             "ai_impact_summary": 0, "ai_impact_summary_opus46": 0,
-             "ai_impact_summary_thinking": 0}
-        ))
-        await asyncio.sleep(0)  # Yield after papers load
-        matches = await collect_all(db.matches.find(
-            {"completed": True, "failed": {"$ne": True}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "mode": 1, "shared_categories": 1, "primary_category": 1, "model_used": 1, "tokens": 1, "created_at": 1, "id": 1},
-        ))
-        await asyncio.sleep(0)  # Yield after matches load
-        likes = {}
-        async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
-            if doc.get("likes") is not None:
-                likes[doc["id"]] = doc["likes"]
-        return papers, matches, likes
-
-    all_papers, all_matches_raw, alphaxiv_likes = await _load_data()
-    await asyncio.sleep(0)  # Yield before processing
-
-    # Run CPU-bound data preparation in thread pool to avoid blocking HTTP requests
-    def _prepare_data(all_papers, all_matches_raw):
-        _added_at_lookup = {}
-        for p in all_papers:
-            added = p.get("added_at")
-            if added and len(added) >= 10:
-                try:
-                    _added_at_lookup[p["id"]] = datetime.fromisoformat(added.replace("Z", "+00:00"))
-                except (ValueError, TypeError):
-                    pass
-
-        all_matches = [m for m in all_matches_raw if not m.get("mode")]
-
-        papers_by_cat = {}
-        for p in all_papers:
-            cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
-            papers_by_cat.setdefault(cat, []).append(p)
-
-        match_index = {}
-        for idx, m in enumerate(all_matches):
-            for pid in (m["paper1_id"], m["paper2_id"]):
-                if pid not in match_index:
-                    match_index[pid] = []
-                match_index[pid].append(idx)
-
-        return _added_at_lookup, all_matches, papers_by_cat, match_index
-
-    import concurrent.futures
-    _loop = asyncio.get_event_loop()
-    _added_at_lookup, all_matches, papers_by_cat, match_index = await _loop.run_in_executor(
-        None, _prepare_data, all_papers, all_matches_raw
-    )
-    await asyncio.sleep(0)
-
-    utc_now = datetime.now(timezone.utc)
-    categories_data = {}
-
-    # Load settings once
     from core.auth import get_settings
     settings = await get_settings()
-
-    # Use dynamic active categories from settings
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
-    # --- Load AI ratings (single-item scores from summary generation) ---
-    ai_ratings = {}
-    for p in all_papers:
-        rating = p.get("ai_rating")
-        if rating and isinstance(rating, dict) and rating.get("score"):
-            ai_ratings[p["id"]] = round(rating["score"], 1)
+    # --- Counts ---
+    total_papers = await db.rankings.count_documents({})
+    total_matches = await db.matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    )
 
-    for cat_id in active_cats:
-        cat_papers = papers_by_cat.get(cat_id, [])
-        if not cat_papers:
-            categories_data[cat_id] = {
-                "all": [], "recent": [], "week": [], "month": [],
-                "_matches": 0, "_papers": 0, "_is_ranking": False,
-            }
-            continue
-
-        cat_paper_ids = {p["id"] for p in cat_papers}
-
-        # Use pre-built index: collect matches where BOTH papers are in this category
-        cat_match_idxs = set()
-        for pid in cat_paper_ids:
-            for midx in match_index.get(pid, []):
-                cat_match_idxs.add(midx)
-        cat_matches = [all_matches[i] for i in cat_match_idxs
-                       if all_matches[i]["paper1_id"] in cat_paper_ids
-                       and all_matches[i]["paper2_id"] in cat_paper_ids]
-        await asyncio.sleep(0)  # Yield after match filtering
-
-        full = await compute_leaderboard_async(cat_papers, cat_matches)
-
-        # Inject AlphaXiv community likes and AI ratings into leaderboard entries
-        for entry in full:
-            likes = alphaxiv_likes.get(entry["id"])
-            if likes is not None:
-                entry["community_likes"] = likes
-            ai_r = ai_ratings.get(entry["id"])
-            if ai_r is not None:
-                entry["ai_rating"] = ai_r
-
-        # Compute Gap score (BT percentile - AI percentile) for papers with both signals
-        entries_with_both = [e for e in full if e.get("ai_rating") and e.get("comparisons", 0) >= 3]
-        if len(entries_with_both) >= 2:
-            from scipy import stats as _sp_stats
-            import numpy as _np
-            _bt_vals = _np.array([e["score"] for e in entries_with_both])
-            _si_vals = _np.array([e["ai_rating"] for e in entries_with_both])
-            _bt_pct = _sp_stats.rankdata(_bt_vals) / len(entries_with_both) * 100
-            _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
-            _gap_raw = _bt_pct - _si_pct
-            for i, entry in enumerate(entries_with_both):
-                entry["gap_score"] = round(float(_gap_raw[i]), 1)
-
-        # Yield to event loop after CPU-bound leaderboard computation
-        await asyncio.sleep(0)
-
-        paper_dates = {}
-        for entry in full:
-            try:
-                paper_dates[entry["id"]] = datetime.fromisoformat(entry.get("published", "").replace("Z", "+00:00"))
-            except (ValueError, KeyError):
-                pass
-
-        max_date = max(paper_dates.values()) if paper_dates else utc_now
-        recent_cutoff = datetime(max_date.year, max_date.month, max_date.day, tzinfo=timezone.utc)
-
-        def filter_and_rerank(cutoff, entries=full):
-            filtered = [{**e} for e in entries if e["id"] in paper_dates and paper_dates[e["id"]] >= cutoff]
-            for i, e in enumerate(filtered):
-                e["rank"] = i + 1
-            return filtered
-
-        # "Recent" = papers added to the system in last 48h, sorted by published date
-        added_cutoff = utc_now - timedelta(hours=48)
-        recent_by_added = [{**e} for e in full if _added_at_lookup.get(e["id"], datetime.min.replace(tzinfo=timezone.utc)) >= added_cutoff]
-        for i, e in enumerate(recent_by_added):
-            e["rank"] = i + 1
-
-        categories_data[cat_id] = {
-            "all": full,
-            "recent": recent_by_added if recent_by_added else filter_and_rerank(recent_cutoff),
-            "week": filter_and_rerank(utc_now - timedelta(weeks=1)),
-            "month": filter_and_rerank(utc_now - timedelta(days=30)),
-            "_matches": len(cat_matches),
-            "_papers": len(cat_papers),
-            "_is_ranking": True,
-        }
-
-        # Compute community correlation if enough data
-        liked_entries = [(e["score"], e["community_likes"]) for e in full if "community_likes" in e]
-        if len(liked_entries) >= 10:
-            import scipy.stats
-            scores, likes = zip(*liked_entries)
-            rho, pval = scipy.stats.spearmanr(scores, likes)
-            categories_data[cat_id]["_community_correlation"] = {
-                "rho": round(rho, 4) if not (rho != rho) else None,
-                "p_value": round(pval, 4) if not (pval != pval) else None,
-                "n": len(liked_entries),
-            }
-
-    # --- Derive "all papers" leaderboard from per-category results (no extra compute_leaderboard call) ---
-    paper_cat_lookup = {p["id"]: p.get("categories", ["unknown"])[0] for p in all_papers}
-    all_full = []
-    for cat_id, cat_data in categories_data.items():
-        for entry in cat_data.get("all", []):
-            all_full.append({**entry, "primary_category": cat_id})
-    # Re-rank by score globally
-    all_full.sort(key=lambda e: (e.get("score", 0), e.get("wins", 0)), reverse=True)
-    for i, entry in enumerate(all_full):
-        entry["rank"] = i + 1
-
-    all_periods = {"all": all_full}
-    for period_key in ("recent", "week", "month"):
-        filtered, _ = _apply_period_filter(all_full, period_key, added_at_lookup=_added_at_lookup)
-        all_periods[period_key] = filtered
-
-    # Build new cache dict (old cache continues serving during this entire function)
-    new_cache = {
-        "ts": time.time(),
-        "categories": categories_data,
-        "total_papers": len(all_papers),
-        "total_matches": len(all_matches),
-        "warming_up": False,
-        "_raw_papers": all_papers,
-        "_raw_matches": all_matches,
-        "_added_at_lookup": _added_at_lookup,
-        "_raw_matches_all": all_matches_raw,
-        "_match_index": match_index,
-        "_paper_cat_lookup": paper_cat_lookup,
-        "_all_papers_leaderboard": all_periods,
-    }
-    # Preserve keys that other code sets on the cache (archives, failed counts, etc.)
-    for k in _cache:
-        if k not in new_cache:
-            new_cache[k] = _cache[k]
-    # Atomic swap — requests see either the old cache or the new one, never a mix
-    _cache = new_cache
-    _t1 = time.time()
-    logger.info(f"Cache refresh took {_t1 - _t0:.1f}s ({len(all_papers)} papers, {len(all_matches)} matches, {len(categories_data)} categories)")
-
-    # Force GC to release the old cache data immediately (prevents memory doubling)
-    import gc
-    gc.collect()
-
-    # Pre-compute failed match counts per category (for admin panel)
+    # --- Failed match counts per category ---
     failed_by_cat = Counter()
     async for m in db.matches.find(
         {"failed": True, "mode": {"$exists": False}},
         {"_id": 0, "primary_category": 1},
     ):
         failed_by_cat[m.get("primary_category", "unknown")] += 1
-    _cache["_failed_by_cat"] = dict(failed_by_cat)
 
-    # Pre-compute PDF counts and storage stats per category (for admin panel)
-    # Use aggregation to count chars server-side — avoids loading full_text over the network
+    # --- PDF/storage stats via aggregation ---
     pdf_by_cat = Counter()
     storage_chars_by_cat = Counter()
     storage_chars_total = 0
@@ -448,14 +246,8 @@ async def _refresh_cache():
         pdf_by_cat[cat] = doc["count"]
         storage_chars_by_cat[cat] = doc["chars"]
         storage_chars_total += doc["chars"]
-    _cache["_pdf_by_cat"] = dict(pdf_by_cat)
-    _cache["_storage"] = {
-        "total_chars": storage_chars_total,
-        "total_with_text": sum(pdf_by_cat.values()),
-        "chars_by_cat": dict(storage_chars_by_cat),
-    }
 
-    # --- Pre-compute progress data per category (avoids DB queries on admin panel) ---
+    # --- Progress per category (from rankings DB) ---
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
@@ -463,38 +255,36 @@ async def _refresh_cache():
 
     progress_by_cat = {}
     for cat_id in active_cats:
-        cat_data = categories_data.get(cat_id, {})
-        entries = cat_data.get("all", [])
-        total_papers = len(entries)
-        if total_papers == 0:
-            progress_by_cat[cat_id] = {
-                "total_papers": 0, "goals_met": True, "category": cat_id,
-            }
+        entries = await db.rankings.find(
+            {"category": cat_id},
+            {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1}
+        ).sort("score", -1).to_list(10000)
+
+        cat_total = len(entries)
+        if cat_total == 0:
+            progress_by_cat[cat_id] = {"total_papers": 0, "goals_met": True, "category": cat_id}
             continue
 
-        # Build compared_pairs set from matches
-        cat_paper_ids = {e["id"] for e in entries}
-        compared_pairs = set()
-        for m in all_matches:
-            p1, p2 = m["paper1_id"], m["paper2_id"]
-            if p1 in cat_paper_ids and p2 in cat_paper_ids:
-                compared_pairs.add(tuple(sorted([p1, p2])))
+        cat_paper_ids = {e["paper_id"] for e in entries}
 
-        # Sort by win rate for top-K identification
-        sorted_entries = sorted(
-            entries,
-            key=lambda e: e.get("wins", 0) / max(e.get("comparisons", 0), 1),
-            reverse=True,
-        )
-        top_k_list = sorted_entries[:min(top_k, total_papers)]
-        top_k_ids = {e["id"] for e in top_k_list}
+        # Count compared pairs for this category
+        compared_pairs = set()
+        async for m in db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id, "mode": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1}
+        ):
+            if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids:
+                compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+
+        top_k_list = entries[:min(top_k, cat_total)]
+        top_k_ids = {e["paper_id"] for e in top_k_list}
 
         # Goal 1: General CI
         general_converged = general_total = general_additional = 0
         widest_general = 0.0
         general_margins = []
         for e in entries:
-            if e["id"] in top_k_ids:
+            if e["paper_id"] in top_k_ids:
                 continue
             general_total += 1
             n, w = e.get("comparisons", 0), e.get("wins", 0)
@@ -530,7 +320,7 @@ async def _refresh_cache():
         matches_for_goal2 = 0 if goal2_met else max(0, int(topk_additional * 0.6))
 
         # Goal 3: Cross-matches among top-K
-        topk_id_list = [e["id"] for e in top_k_list]
+        topk_id_list = [e["paper_id"] for e in top_k_list]
         topk_total_pairs = len(topk_id_list) * (len(topk_id_list) - 1) // 2
         topk_matched_pairs = sum(
             1 for i in range(len(topk_id_list))
@@ -542,104 +332,121 @@ async def _refresh_cache():
 
         total_est = max(matches_for_goal1, matches_for_goal2) + matches_for_goal3
         est_minutes = max(0, round(total_est * (10.0 / max(parallel_agents, 1)) / 60))
-
         cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
 
         progress_by_cat[cat_id] = {
-            "total_papers": total_papers,
+            "total_papers": cat_total,
             "total_matches": cat_matches_done,
             "papers_with_pdf": pdf_by_cat.get(cat_id, 0),
             "category": cat_id,
             "goals_met": bool(goal1_met and goal2_met and goal3_met),
-            "goal1": {
-                "met": bool(goal1_met),
-                "label": f"General CI \u2264 {ci_target_general}%",
-                "done": int(general_converged),
-                "total": int(general_total),
-                "median_margin": round(median_general, 1),
-            },
-            "goal2": {
-                "met": bool(goal2_met),
-                "label": f"Top-{topk_total} CI \u2264 {ci_target}%",
-                "done": int(topk_converged),
-                "total": int(topk_total),
-                "median_margin": round(median_topk, 1),
-            },
-            "goal3": {
-                "met": bool(goal3_met),
-                "label": f"Top-{len(topk_id_list)} cross-matches",
-                "done": int(topk_matched_pairs),
-                "total": int(topk_total_pairs),
-            },
+            "goal1": {"met": bool(goal1_met), "label": f"General CI \u2264 {ci_target_general}%",
+                      "done": int(general_converged), "total": int(general_total), "median_margin": round(median_general, 1)},
+            "goal2": {"met": bool(goal2_met), "label": f"Top-{topk_total} CI \u2264 {ci_target}%",
+                      "done": int(topk_converged), "total": int(topk_total), "median_margin": round(median_topk, 1)},
+            "goal3": {"met": bool(goal3_met), "label": f"Top-{len(topk_id_list)} cross-matches",
+                      "done": int(topk_matched_pairs), "total": int(topk_total_pairs)},
             "estimated_matches_remaining": int(total_est),
             "estimated_minutes": int(est_minutes),
         }
+        await asyncio.sleep(0)  # Yield between categories
 
-    _cache["_progress"] = progress_by_cat
+    # --- Summary stats via aggregation ---
+    summary_stats = await _compute_summary_stats_agg()
 
-    # Update _is_ranking from freshly computed progress (not stale DB)
-    for cat_id, prog in progress_by_cat.items():
-        if cat_id in categories_data:
-            categories_data[cat_id]["_is_ranking"] = not prog.get("goals_met", False)
-
-    await asyncio.sleep(0)  # Yield after progress computation
-
-    # --- Pre-compute summary & rating stats via aggregation (no summaries in memory) ---
-    _cache["_summary_stats"] = await _compute_summary_stats_agg()
-
+    # --- Rating stats via aggregation ---
     rating_stats = {"__all__": {"rated": 0, "with_summaries": 0}}
-    # Since papers are loaded WITHOUT summaries, use the filter query we already applied:
-    # all papers in all_papers already have summaries (query filter), so count all of them.
-    for p in all_papers:
-        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
-        if cat not in rating_stats:
-            rating_stats[cat] = {"rated": 0, "with_summaries": 0}
-        # All papers in this set have summaries (query ensures it)
-        rating_stats[cat]["with_summaries"] += 1
-        rating_stats["__all__"]["with_summaries"] += 1
-        has_rating = bool(p.get("ai_rating") and isinstance(p.get("ai_rating"), dict) and p["ai_rating"].get("score"))
-        if has_rating:
-            rating_stats[cat]["rated"] += 1
-            rating_stats["__all__"]["rated"] += 1
-    _cache["_rating_stats"] = rating_stats
+    async for doc in db.papers.aggregate([
+        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+        {"$project": {
+            "cat": {"$arrayElemAt": ["$categories", 0]},
+            "has_rating": {"$and": [
+                {"$ne": [{"$type": "$ai_rating"}, "missing"]},
+                {"$ne": ["$ai_rating", None]},
+            ]},
+        }},
+        {"$group": {
+            "_id": "$cat",
+            "with_summaries": {"$sum": 1},
+            "rated": {"$sum": {"$cond": ["$has_rating", 1, 0]}},
+        }},
+    ]):
+        cat = doc["_id"] or "unknown"
+        rating_stats[cat] = {"rated": doc["rated"], "with_summaries": doc["with_summaries"]}
+        rating_stats["__all__"]["rated"] += doc["rated"]
+        rating_stats["__all__"]["with_summaries"] += doc["with_summaries"]
 
-    # Invalidate tag cache on data refresh
+    # --- Tags via aggregation ---
     _tag_cache.clear()
-
-    # Pre-compute tags data
     tag_counts = Counter()
-    for p in all_papers:
-        for cat in p.get("categories", []):
-            tag_counts[cat] += 1
+    async for doc in db.papers.aggregate([
+        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+        {"$unwind": "$categories"},
+        {"$group": {"_id": "$categories", "count": {"$sum": 1}}},
+    ]):
+        tag_counts[doc["_id"]] = doc["count"]
+
     tag_match_counts = Counter()
-    for m in all_matches:
-        for cat in m.get("shared_categories", []):
-            tag_match_counts[cat] += 1
-    _cache["_tags"] = [
+    async for doc in db.matches.aggregate([
+        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
+        {"$unwind": "$shared_categories"},
+        {"$group": {"_id": "$shared_categories", "count": {"$sum": 1}}},
+    ]):
+        tag_match_counts[doc["_id"]] = doc["count"]
+
+    tags_list = [
         {"id": tag, "count": count, "matches": tag_match_counts.get(tag, 0)}
         for tag, count in tag_counts.most_common()
     ]
 
-    # Pre-compute categories list
+    # --- Categories list ---
     try:
         from core.arxiv_categories import ARXIV_TAXONOMY
     except ImportError:
         ARXIV_TAXONOMY = {}
-    _cache["_categories"] = [
+    categories_list = [
         {"id": cat_id, "name": CATEGORIES.get(cat_id) or ARXIV_TAXONOMY.get(cat_id) or cat_id}
         for cat_id in active_cats
     ]
-    _cache["_default_category"] = active_cats[0] if active_cats else "cs.RO"
 
-    # Pre-load archive list (lightweight metadata only)
+    # --- Archives ---
     try:
         archive_docs = await db.leaderboard_archives.find(
             {}, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1,
                  "period_type": 1, "paper_count": 1, "match_count": 1, "label": 1}
         ).sort([("year", -1), ("week", -1)]).to_list(500)
-        _cache["_archives"] = archive_docs
     except Exception:
-        _cache["_archives"] = []
+        archive_docs = []
+
+    # Build new lightweight cache (metadata only — no papers/matches in memory)
+    new_cache = {
+        "ts": time.time(),
+        "total_papers": total_papers,
+        "total_matches": total_matches,
+        "warming_up": False,
+        "_failed_by_cat": dict(failed_by_cat),
+        "_pdf_by_cat": dict(pdf_by_cat),
+        "_storage": {
+            "total_chars": storage_chars_total,
+            "total_with_text": sum(pdf_by_cat.values()),
+            "chars_by_cat": dict(storage_chars_by_cat),
+        },
+        "_progress": progress_by_cat,
+        "_summary_stats": summary_stats,
+        "_rating_stats": rating_stats,
+        "_tags": tags_list,
+        "_categories": categories_list,
+        "_default_category": active_cats[0] if active_cats else "cs.RO",
+        "_archives": archive_docs,
+    }
+    # Preserve any keys set by other code
+    for k in _cache:
+        if k not in new_cache:
+            new_cache[k] = _cache[k]
+
+    _cache = new_cache
+    _t1 = time.time()
+    logger.info(f"Metadata cache refresh took {_t1 - _t0:.1f}s ({total_papers} papers, {total_matches} matches, {len(active_cats)} categories)")
 
 
 async def _bg_cache_loop():
@@ -721,6 +528,18 @@ async def _bg_archive_loop():
             await run_archive_snapshots()
         except Exception as e:
             logger.warning(f"Archive snapshot check failed: {e}")
+
+        # Daily rankings reconciliation (Phase 4)
+        try:
+            from services.ranking import reconcile_rankings
+            results = await reconcile_rankings(db)
+            drifted = sum(1 for r in results.values() if r.get("drifted"))
+            if drifted:
+                logger.warning(f"Rankings reconciliation: {drifted}/{len(results)} categories had drift — reseeded")
+            else:
+                logger.info(f"Rankings reconciliation: all {len(results)} categories consistent")
+        except Exception as e:
+            logger.warning(f"Rankings reconciliation failed: {e}")
         # Sleep until next day at 00:05 UTC
         now = datetime.now(timezone.utc)
         tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
@@ -740,18 +559,21 @@ async def get_all_tags():
     # Serve pre-computed tags from background cache
     if "_tags" in cache:
         return {"tags": cache["_tags"]}
-    # Fallback: compute from raw data (only on cold cache)
+    # Fallback: compute from DB (only on cold cache)
     from collections import Counter
-    raw_papers = cache.get("_raw_papers", [])
-    raw_matches = cache.get("_raw_matches", [])
     tag_counts = Counter()
-    for p in raw_papers:
-        for cat in p.get("categories", []):
-            tag_counts[cat] += 1
+    async for doc in db.rankings.aggregate([
+        {"$unwind": "$categories"},
+        {"$group": {"_id": "$categories", "count": {"$sum": 1}}},
+    ]):
+        tag_counts[doc["_id"]] = doc["count"]
     tag_match_counts = Counter()
-    for m in raw_matches:
-        for cat in m.get("shared_categories", []):
-            tag_match_counts[cat] += 1
+    async for doc in db.matches.aggregate([
+        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
+        {"$unwind": "$shared_categories"},
+        {"$group": {"_id": "$shared_categories", "count": {"$sum": 1}}},
+    ]):
+        tag_match_counts[doc["_id"]] = doc["count"]
     tags = [
         {"id": tag, "count": count, "matches": tag_match_counts.get(tag, 0)}
         for tag, count in tag_counts.most_common()
@@ -1115,170 +937,6 @@ def _filter_archives_by_frequency(archives, category, settings):
     return filtered
 
 
-async def _compute_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None):
-    """Return all papers from all categories — served from pre-computed cache."""
-    cache = await _get_cached_leaderboard()
-    all_lb = cache.get("_all_papers_leaderboard")
-
-    if not all_lb:
-        return {
-            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
-            "total_matches": 0, "is_ranking": False, "period": period,
-            "category": None, "tags": None, "tag_mode": None, "show_all": True,
-        }
-
-    data = all_lb.get(period, all_lb.get("all", []))
-    data = _apply_search(data, search)
-
-    return {
-        "leaderboard": data[offset:offset + limit],
-        "total_papers": cache.get("total_papers", 0),
-        "total_in_period": len(data),
-        "total_matches": cache.get("total_matches", 0),
-        "is_ranking": False,
-        "period": period,
-        "category": None,
-        "tags": None,
-        "tag_mode": None,
-        "show_all": True,
-    }
-
-
-
-async def _compute_tag_leaderboard(
-    tag_list: list, period: str, limit: int, offset: int,
-    tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
-    search: str = None,
-):
-    """Compute leaderboard for tag queries — cached per tag combination."""
-    # Build a cache key from the query parameters (excluding pagination and search)
-    cache_key = (frozenset(tag_list), period, tag_mode, global_stats, show_all)
-
-    now = time.time()
-    cached = _tag_cache.get(cache_key)
-    if cached and now - cached["ts"] < _TAG_CACHE_TTL:
-        # Serve from cache, apply search + pagination
-        full_data = _apply_search(cached["result"]["_full_data"], search)
-        full_result = cached["result"]
-        return {
-            **{k: v for k, v in full_result.items() if k != "_full_data"},
-            "leaderboard": full_data[offset:offset + limit],
-            "total_in_period": len(full_data),
-        }
-
-    cache = await _get_cached_leaderboard()
-    raw_papers = cache.get("_raw_papers", [])
-    raw_matches = cache.get("_raw_matches", [])
-    match_index = cache.get("_match_index", {})
-    paper_cat_lookup = cache.get("_paper_cat_lookup", {})
-
-    if not raw_papers:
-        return {
-            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
-            "total_matches": 0, "is_ranking": False, "period": period,
-            "category": None, "tags": tag_list, "tag_mode": tag_mode,
-        }
-
-    # Identify which papers match the selected tags
-    tag_set = set(tag_list)
-    if tag_mode == "and" and len(tag_list) > 1:
-        matching_papers = [p for p in raw_papers if tag_set.issubset(set(p.get("categories", [])))]
-    else:
-        matching_papers = [p for p in raw_papers if tag_set.intersection(set(p.get("categories", [])))]
-
-    matching_ids = {p["id"] for p in matching_papers}
-
-    if not matching_papers and not show_all:
-        return {
-            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
-            "total_matches": 0, "is_ranking": False, "period": period,
-            "category": None, "tags": tag_list, "tag_mode": tag_mode,
-        }
-
-    # Decide which papers to include in the output
-    display_papers = raw_papers if show_all else matching_papers
-    display_ids = {p["id"] for p in display_papers}
-
-    # Use pre-built match index for fast match lookup
-    display_match_idxs = set()
-    for pid in display_ids:
-        for midx in match_index.get(pid, []):
-            display_match_idxs.add(midx)
-    display_matches = [raw_matches[i] for i in display_match_idxs
-                       if raw_matches[i]["paper1_id"] in display_ids
-                       and raw_matches[i]["paper2_id"] in display_ids]
-
-    full = await compute_leaderboard_async(display_papers, display_matches)
-
-    # Add primary_category and matches_tag flag
-    for entry in full:
-        entry["matches_tag"] = entry["id"] in matching_ids
-        entry["primary_category"] = paper_cat_lookup.get(entry["id"], "unknown")
-
-    # If global_stats requested, use pre-computed "All Papers" BT scores
-    if global_stats:
-        all_lb = cache.get("_all_papers_leaderboard", {}).get("all", [])
-        global_lookup = {e["id"]: e for e in all_lb}
-        for entry in full:
-            g = global_lookup.get(entry["id"])
-            if g:
-                entry["global_score"] = g["score"]
-                entry["global_wins"] = g["wins"]
-                entry["global_losses"] = g["losses"]
-                entry["global_comparisons"] = g["comparisons"]
-                entry["global_win_rate"] = g["win_rate"]
-            else:
-                entry["global_score"] = 1200
-                entry["global_wins"] = 0
-                entry["global_losses"] = 0
-                entry["global_comparisons"] = 0
-                entry["global_win_rate"] = 0
-
-    # Period filtering
-    data, total_in_period = _apply_period_filter(full, period, added_at_lookup=cache.get("_added_at_lookup"))
-
-    # Count matches only between matching papers (for the "local" match count)
-    tag_match_idxs = set()
-    for pid in matching_ids:
-        for midx in match_index.get(pid, []):
-            tag_match_idxs.add(midx)
-    tag_only_match_count = sum(
-        1 for i in tag_match_idxs
-        if raw_matches[i]["paper1_id"] in matching_ids
-        and raw_matches[i]["paper2_id"] in matching_ids
-    )
-
-    result = {
-        "total_papers": len(matching_papers),
-        "total_all_papers": len(display_papers) if show_all else len(matching_papers),
-        "total_in_period": total_in_period,
-        "total_matches": tag_only_match_count,
-        "total_all_matches": len(display_matches) if show_all else tag_only_match_count,
-        "is_ranking": False,
-        "period": period,
-        "category": None,
-        "tags": tag_list,
-        "tag_mode": tag_mode,
-        "show_all": show_all,
-        "global_stats": global_stats,
-        "_full_data": data,  # Full list for pagination
-    }
-
-    # Store in cache (evict oldest if full)
-    if len(_tag_cache) >= _TAG_CACHE_MAX:
-        oldest_key = min(_tag_cache, key=lambda k: _tag_cache[k]["ts"])
-        del _tag_cache[oldest_key]
-    _tag_cache[cache_key] = {"ts": now, "result": result}
-
-    # Apply search filter (after caching unfiltered data)
-    searched_data = _apply_search(data, search)
-
-    return {
-        **{k: v for k, v in result.items() if k != "_full_data"},
-        "leaderboard": searched_data[offset:offset + limit],
-        "total_in_period": len(searched_data),
-    }
-
 
 @router.get("/papers/{paper_id}")
 async def get_paper_detail(paper_id: str):
@@ -1355,16 +1013,12 @@ async def get_system_status():
 
     now = time.time()
     if _status_cache["data"] is None or now - _status_cache["ts"] > 10:
-        # Use leaderboard background cache (refreshed every 20s)
-        total_papers = _cache.get("total_papers", 0)
-        total_matches = _cache.get("total_matches", 0)
-        failed_by_cat = _cache.get("_failed_by_cat", {})
-        failed_matches = sum(failed_by_cat.values())
-        # Fallback to DB only if cache is completely empty (cold boot)
-        if total_papers == 0 and not _cache.get("categories"):
-            total_papers = await db.papers.count_documents({})
-            total_matches = await db.matches.count_documents({"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}})
-            failed_matches = await db.matches.count_documents({"failed": True})
+        # Query DB directly — no dependency on in-memory cache
+        total_papers = await db.rankings.count_documents({})
+        total_matches = await db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        )
+        failed_matches = await db.matches.count_documents({"failed": True})
         _status_cache["data"] = {
             "total_papers": total_papers,
             "total_matches": total_matches,
@@ -1444,37 +1098,30 @@ async def _compute_model_correlation(category, mode):
     import numpy as np
     from scipy import stats as scipy_stats
 
-    # Use leaderboard cache when possible (standard matches, no mode filter)
-    use_cache = not mode
+    # Always query DB (no in-memory cache dependency)
+    use_cache = False
     cat_paper_ids = None
 
-    if use_cache and _cache.get("_raw_matches"):
-        matches_raw = _cache["_raw_matches"]  # Already filtered: completed=True, failed!=True, no mode
-        if category:
-            cat_data = _cache.get("categories", {}).get(category, {})
-            cat_paper_ids = {e["id"] for e in cat_data.get("all", [])} if cat_data else set()
-        matches = [m for m in matches_raw if not cat_paper_ids or (m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids)]
-        paper_titles = {p["id"]: p["title"] for p in _cache.get("_raw_papers", [])}
+    if category:
+        cat_paper_ids = set()
+        async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
+            cat_paper_ids.add(p["id"])
+
+    match_query = {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}}
+    matches_raw = await collect_all(db.matches.find(
+        match_query,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1, "mode": 1},
+    ))
+
+    if mode:
+        matches_raw = [m for m in matches_raw if m.get("mode") == mode]
     else:
-        if category:
-            cat_paper_ids = set()
-            async for p in db.papers.find({"categories.0": category}, {"_id": 0, "id": 1}):
-                cat_paper_ids.add(p["id"])
+        matches_raw = [m for m in matches_raw if not m.get("mode")]
 
-        matches_raw = await collect_all(db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1, "mode": 1},
-        ))
-
-        if mode:
-            matches_raw = [m for m in matches_raw if m.get("mode") == mode]
-        else:
-            matches_raw = [m for m in matches_raw if not m.get("mode")]
-
-        matches = [m for m in matches_raw if not cat_paper_ids or (m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids)]
-        paper_titles = {}
-        async for p in db.papers.find({}, {"_id": 0, "id": 1, "title": 1}):
-            paper_titles[p["id"]] = p["title"]
+    matches = [m for m in matches_raw if not cat_paper_ids or (m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids)]
+    paper_titles = {}
+    async for p in db.rankings.find({}, {"_id": 0, "paper_id": 1, "title": 1}):
+        paper_titles[p["paper_id"]] = p["title"]
 
     if not matches:
         return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category, "mode": mode}
@@ -2044,33 +1691,28 @@ async def _compute_convergence(category, steps):
     settings = await get_settings()
     top_k_focus = settings.get("top_k_focus", 10)
 
-    # Use leaderboard cache when available (avoids DB queries)
-    if category and _cache.get("categories", {}).get(category):
-        cat_data = _cache["categories"][category]
-        papers = [{"id": e["id"], "title": e["title"]} for e in cat_data.get("all", [])]
-    else:
-        paper_query = {"categories.0": category} if category else {}
-        papers = await collect_all(db.papers.find(paper_query, {"_id": 0, "id": 1, "title": 1}))
+    # Always query DB (no in-memory cache dependency)
+    paper_query = {"categories.0": category} if category else {}
+    papers = []
+    async for p in db.rankings.find(
+        {"category": category} if category else {},
+        {"_id": 0, "paper_id": 1, "title": 1}
+    ):
+        papers.append({"id": p["paper_id"], "title": p["title"]})
 
     if len(papers) < 5:
         return {"status": "no_data"}
 
     pid_set = {p["id"] for p in papers}
 
-    # Use _raw_matches_all from cache (has created_at), fall back to DB
-    raw_from_cache = _cache.get("_raw_matches_all", [])
-    if raw_from_cache:
-        all_matches = [m for m in raw_from_cache if not m.get("mode")
-                       and m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
-    else:
-        match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-        if category:
-            match_query["paper1_id"] = {"$in": list(pid_set)}
-        all_matches = await collect_all(db.matches.find(
-            match_query,
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
-        ))
-        all_matches = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
+    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    if category:
+        match_query["primary_category"] = category
+    all_matches = await collect_all(db.matches.find(
+        match_query,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1},
+    ))
+    all_matches = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
 
     if len(all_matches) < 20:
         return {"status": "no_data"}
@@ -2214,10 +1856,9 @@ async def sitemap():
     for path, freq, priority in static_pages:
         urls.append(f"  <url><loc>{base}{path}</loc><changefreq>{freq}</changefreq><priority>{priority}</priority></url>")
 
-    # Add paper pages from cache
-    papers = _cache.get("_raw_papers", [])
-    for p in papers:
-        pid = p.get("id", "")
+    # Add paper pages from rankings DB
+    async for r in db.rankings.find({}, {"_id": 0, "paper_id": 1}):
+        pid = r.get("paper_id", "")
         if pid:
             urls.append(f"  <url><loc>{base}/paper/{pid}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>")
 
@@ -2311,33 +1952,34 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     if existing:
         return None  # Already archived
 
-    # Get the appropriate leaderboard period from cache
-    cat_data = _cache.get("categories", {}).get(category, {})
-    period_key = "month" if period_type == "monthly" else "week"
-    source_lb = cat_data.get(period_key, [])
-    if not source_lb:
+    # Get papers for this period from rankings DB
+    period_filter = _build_period_filter("month" if period_type == "monthly" else "week")
+    rank_query = {"category": category}
+    rank_query.update(period_filter)
+    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort("score", -1).to_list(10000)
+    if not source_entries:
         return None
 
     # Freeze the leaderboard: store essential fields only
     frozen_entries = []
-    for entry in source_lb:
+    for i, r in enumerate(source_entries, 1):
         frozen_entries.append({
-            "rank": entry.get("rank"),
-            "id": entry.get("id"),
-            "title": entry.get("title", ""),
-            "authors": entry.get("authors", []),
-            "score": entry.get("score"),
-            "wins": entry.get("wins"),
-            "losses": entry.get("losses"),
-            "comparisons": entry.get("comparisons"),
-            "win_rate": entry.get("win_rate"),
-            "ci": entry.get("ci"),
-            "wilson_margin": entry.get("wilson_margin"),
-            "published": entry.get("published"),
-            "link": entry.get("link"),
-            "arxiv_id": entry.get("arxiv_id"),
-            "ai_rating": entry.get("ai_rating"),
-            "gap_score": entry.get("gap_score"),
+            "rank": i,
+            "id": r.get("paper_id"),
+            "title": r.get("title", ""),
+            "authors": r.get("authors", []),
+            "score": r.get("score"),
+            "wins": r.get("wins"),
+            "losses": r.get("losses"),
+            "comparisons": r.get("comparisons"),
+            "win_rate": r.get("win_rate"),
+            "ci": r.get("ci"),
+            "wilson_margin": r.get("wilson_margin"),
+            "published": r.get("published"),
+            "link": r.get("link"),
+            "arxiv_id": r.get("arxiv_id"),
+            "ai_rating": r.get("ai_rating"),
+            "gap_score": r.get("gap_score"),
         })
 
     if period_type == "weekly":
