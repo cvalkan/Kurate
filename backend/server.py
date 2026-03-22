@@ -278,8 +278,8 @@ async def _deferred_startup():
         )
         await db.validation_matches.create_index([("dataset_id", 1), ("completed", 1)])
         # Summarizer comparisons indexes
-        await db.summarizer_comparisons.create_index("dataset_id")
-        await db.summarizer_comparisons.create_index([("paper1_id", 1), ("paper2_id", 1)])
+        await db.summarizer_comparisons.create_index("dataset_id", name="dataset_id")
+        await db.summarizer_comparisons.create_index([("paper1_id", 1), ("paper2_id", 1)], name="paper_pair")
         # Pairwise comparison indexes
         await db.pairwise_comparisons.create_index("id", unique=True)
         await db.pairwise_comparisons.create_index([("reviewer", 1), ("source", 1)])
