@@ -525,6 +525,26 @@ async def seed_rankings(db, category: str = None):
             elif r and isinstance(r, (int, float)):
                 ai_ratings[p["id"]] = round(r, 1)
 
+        # Load AlphaXiv community likes
+        community_likes = {}
+        async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
+            if doc.get("likes") is not None:
+                community_likes[doc["id"]] = doc["likes"]
+
+        # Compute gap scores (BT percentile - AI percentile)
+        gap_scores = {}
+        entries_with_both = [e for e in lb if ai_ratings.get(e["id"]) and e.get("comparisons", 0) >= 3]
+        if len(entries_with_both) >= 2:
+            from scipy import stats as _sp_stats
+            import numpy as _np
+            _bt_vals = _np.array([e["score"] for e in entries_with_both])
+            _si_vals = _np.array([ai_ratings[e["id"]] for e in entries_with_both])
+            _bt_pct = _sp_stats.rankdata(_bt_vals) / len(entries_with_both) * 100
+            _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
+            _gap_raw = _bt_pct - _si_pct
+            for i, entry in enumerate(entries_with_both):
+                gap_scores[entry["id"]] = round(float(_gap_raw[i]), 1)
+
         ops = []
         for entry in lb:
             doc = {
@@ -546,6 +566,8 @@ async def seed_rankings(db, category: str = None):
                 "added_at": entry.get("added_at", ""),
                 "categories": next((p.get("categories", []) for p in papers if p["id"] == entry["id"]), [cat]),
                 "ai_rating": ai_ratings.get(entry["id"]),
+                "community_likes": community_likes.get(entry["id"]),
+                "gap_score": gap_scores.get(entry["id"]),
                 "updated_at": now_iso,
             }
             ops.append(UpdateOne(

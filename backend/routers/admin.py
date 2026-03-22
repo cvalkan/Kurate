@@ -2050,7 +2050,7 @@ async def deduplicate_papers():
     """Find and merge duplicate papers (same title + first author).
     Keeps the paper with more matches, reassigns matches from the duplicate."""
     all_papers = await collect_all(db.papers.find(
-        {}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "summaries": 1, "full_text": 1}
+        {}, {"_id": 0, "id": 1, "title": 1, "authors": 1}
     ))
 
     # Group by normalized title + first author
@@ -2067,14 +2067,13 @@ async def deduplicate_papers():
         if len(papers) < 2:
             continue
 
-        # Count matches for each duplicate
+        # Count matches and check existence of summaries/full_text for each duplicate
         for p in papers:
             p["_match_count"] = await db.matches.count_documents(
                 {"$or": [{"paper1_id": p["id"]}, {"paper2_id": p["id"]}]}
             )
-            # Prefer paper with summaries and full_text
-            p["_has_summaries"] = bool(p.get("summaries"))
-            p["_has_text"] = bool(p.get("full_text"))
+            p["_has_summaries"] = await db.papers.count_documents({"id": p["id"], "summaries": {"$exists": True, "$ne": {}}}) > 0
+            p["_has_text"] = await db.papers.count_documents({"id": p["id"], "full_text": {"$ne": None}}) > 0
 
         # Sort: prefer summaries > full_text > more matches
         papers.sort(key=lambda p: (p["_has_summaries"], p["_has_text"], p["_match_count"]), reverse=True)
