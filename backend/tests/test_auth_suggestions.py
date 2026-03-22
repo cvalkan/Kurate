@@ -8,7 +8,7 @@ import os
 import time
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-methodology-1.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scale-fix.preview.emergentagent.com').rstrip('/')
 ADMIN_PASSWORD = "papersumo2025"
 
 # Test user credentials - unique for each test run

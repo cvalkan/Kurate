@@ -2,7 +2,7 @@
 """Run summarizer A/B experiment across ICLR datasets for GPT and Gemini."""
 import requests, time
 
-API = "https://ai-methodology-1.preview.emergentagent.com"
+API = "https://scale-fix.preview.emergentagent.com"
 ADMIN_TOKEN = "adm_PwgAikZRN0yUbPwU72rgzilv_OTqJYv5pMFHYptbW98"
 HEADERS = {"Content-Type": "application/json", "X-Admin-Token": ADMIN_TOKEN}
 

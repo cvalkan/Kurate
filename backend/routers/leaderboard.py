@@ -758,11 +758,49 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
         }
 
 
-async def _db_category_leaderboard_impl(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None):
-    from core.auth import get_settings
-    settings = await get_settings()
+async def _get_community_correlation(category: str):
+    """Compute community correlation for a category (currently only cs.RO)."""
+    if category != "cs.RO":
+        return None
+    liked = []
+    async for doc in db.rankings.find(
+        {"category": category, "community_likes": {"$exists": True, "$ne": None}},
+        {"_id": 0, "score": 1, "community_likes": 1}
+    ):
+        liked.append((doc["score"], doc["community_likes"]))
+    if len(liked) >= 10:
+        from scipy import stats as _sp
+        import numpy as _np
+        scores, likes = zip(*liked)
+        rho, pval = _sp.spearmanr(scores, likes)
+        return {
+            "rho": round(rho, 4) if not _np.isnan(rho) else None,
+            "p_value": round(pval, 4) if not _np.isnan(pval) else None,
+            "n": len(liked),
+        }
+    return None
 
-    total_in_cat = await db.rankings.count_documents({"category": category})
+
+async def _db_category_leaderboard_impl(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None):
+    import asyncio
+    from core.auth import get_settings
+
+    # Phase 1: Fire all independent operations in parallel to minimize event-loop wait
+    phase1 = [
+        get_settings(),
+        db.rankings.count_documents({"category": category}),
+        db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+        ),
+        _get_community_correlation(category),
+    ]
+    if period == "recent":
+        phase1.append(_build_recent_filter({"category": category}))
+        settings, total_in_cat, match_count, community_corr, recent_filter = await asyncio.gather(*phase1)
+    else:
+        settings, total_in_cat, match_count, community_corr = await asyncio.gather(*phase1)
+        recent_filter = None
+
     if total_in_cat == 0:
         return {
             "leaderboard": [], "total_papers": 0, "total_in_period": 0,
@@ -775,7 +813,7 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
 
     # Period filter (rolling window for "recent")
     if period == "recent":
-        query.update(await _build_recent_filter({"category": category}))
+        query.update(recent_filter)
     else:
         query.update(_build_period_filter(period))
 
@@ -785,10 +823,13 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
             {"authors": {"$regex": search, "$options": "i"}},
         ]
 
-    total_in_period = await db.rankings.count_documents(query)
+    # Phase 2: Query-dependent count + archives in parallel
+    total_in_period, archives = await asyncio.gather(
+        db.rankings.count_documents(query),
+        _get_archives_for_category(category, settings),
+    )
 
     sort_field = "rank" if period == "all" and not search else "score"
-    sort_dir = 1 if sort_field == "rank" else -1
 
     # Keyset pagination: O(1) for any page depth (vs O(N) for skip-based)
     if cursor and not search:
@@ -817,31 +858,7 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
     if entries and last_doc and len(entries) == limit:
         next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
 
-    match_count = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
-    )
-
-    community_corr = None
-    if category == "cs.RO":
-        liked = []
-        async for doc in db.rankings.find(
-            {"category": category, "community_likes": {"$exists": True, "$ne": None}},
-            {"_id": 0, "score": 1, "community_likes": 1}
-        ):
-            liked.append((doc["score"], doc["community_likes"]))
-        if len(liked) >= 10:
-            from scipy import stats as _sp
-            scores, likes = zip(*liked)
-            rho, pval = _sp.spearmanr(scores, likes)
-            import numpy as _np
-            community_corr = {
-                "rho": round(rho, 4) if not _np.isnan(rho) else None,
-                "p_value": round(pval, 4) if not _np.isnan(pval) else None,
-                "n": len(liked),
-            }
-
     # is_ranking = tournament goals not yet met (still actively comparing)
-    # Read directly from scheduler status (source of truth for tournament state)
     from services.scheduler import _get_cat_status
     cat_status = _get_cat_status(category)
     cat_activity = cat_status.get("current_activity", "")
@@ -861,7 +878,7 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
         "community_correlation": community_corr,
         "show_rating_column": settings.get("show_rating_column", True),
         "show_gap_column": settings.get("show_gap_column", True),
-        "archives": await _get_archives_for_category(category, settings),
+        "archives": archives,
         "next_cursor": next_cursor,
     }
 
@@ -887,11 +904,23 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
 
 
 async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, search: str = None, cursor: str = None):
-    # Period filter (rolling window for "recent")
+    import asyncio
+
+    # Phase 1: Build filter + fire independent counts in parallel
+    phase1 = [
+        db.rankings.count_documents({}),
+        db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        ),
+    ]
     if period == "recent":
-        query = await _build_recent_filter()
+        phase1.append(_build_recent_filter())
+        total_papers, total_matches, recent_filter = await asyncio.gather(*phase1)
+        query = recent_filter
     else:
+        total_papers, total_matches = await asyncio.gather(*phase1)
         query = _build_period_filter(period)
+
     if search:
         query["$or"] = [
             {"title": {"$regex": search, "$options": "i"}},
@@ -899,10 +928,6 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
         ]
 
     total_in_period = await db.rankings.count_documents(query)
-    total_papers = await db.rankings.count_documents({})
-    total_matches = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-    )
 
     # Keyset pagination
     if cursor and not search:
@@ -974,6 +999,7 @@ async def _db_tag_leaderboard_impl(
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
     search: str = None, cursor: str = None,
 ):
+    import asyncio
     # Query rankings directly by categories (no papers collection round-trip)
     tag_set = list(set(tag_list))
     if tag_mode == "and" and len(tag_set) > 1:
@@ -981,8 +1007,14 @@ async def _db_tag_leaderboard_impl(
     else:
         tag_filter = {"categories": {"$in": tag_set}}
 
-    # Count matching papers from rankings (fast — uses categories_score index)
-    matching_count = await db.rankings.count_documents(tag_filter)
+    # Phase 1: Count + recent filter in parallel
+    phase1 = [db.rankings.count_documents(tag_filter)]
+    if period == "recent":
+        phase1.append(_build_recent_filter(tag_filter if not show_all else None))
+        matching_count, recent_filter = await asyncio.gather(*phase1)
+    else:
+        (matching_count,) = await asyncio.gather(*phase1)
+        recent_filter = None
 
     if matching_count == 0 and not show_all:
         return {
@@ -992,10 +1024,6 @@ async def _db_tag_leaderboard_impl(
         }
 
     # Build query for the page
-    if period == "recent":
-        recent_filter = await _build_recent_filter(tag_filter if not show_all else None)
-    else:
-        recent_filter = None
 
     if show_all:
         rank_query = recent_filter if recent_filter else _build_period_filter(period)
