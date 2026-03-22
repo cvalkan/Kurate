@@ -566,62 +566,77 @@ async def _prewarm_all_experiment_caches():
 
 
 async def _startup_dedup():
-    """Auto-deduplicate papers on startup using content hashes.
+    """Backfill dedup_hash on existing papers and create unique index.
     
-    Uses a SHA-256 hash of (normalized title + first author) for O(1) grouping.
-    Only loads lightweight fields (id, title, authors) — no full_text or summaries.
+    Once backfilled, dedup happens at insert time (unique index prevents duplicates).
+    No more full-table scan on startup — just a one-time migration.
     """
-    await asyncio.sleep(10)  # Wait for DB + caches to be ready
+    import hashlib
+
+    # Check if migration already done
+    flag = await db.settings.find_one({"key": "dedup_hash_backfill_v1"}, {"_id": 0})
+    if flag and flag.get("done"):
+        return
+
+    # Backfill dedup_hash for papers that don't have one
+    backfilled = 0
+    async for p in db.papers.find(
+        {"dedup_hash": {"$exists": False}},
+        {"_id": 0, "id": 1, "title": 1, "authors": 1},
+    ):
+        title_norm = p["title"].strip().lower()
+        first_author = (p.get("authors") or [""])[0].strip().lower() if p.get("authors") else ""
+        h = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
+        await db.papers.update_one({"id": p["id"]}, {"$set": {"dedup_hash": h}})
+        backfilled += 1
+        if backfilled % 200 == 0:
+            await asyncio.sleep(0)
+
+    # Merge any duplicates found by hash collision
+    pipeline = [
+        {"$group": {"_id": "$dedup_hash", "count": {"$sum": 1}, "ids": {"$push": "$id"}}},
+        {"$match": {"count": {"$gt": 1}}},
+    ]
+    merged = 0
+    async for group in db.papers.aggregate(pipeline):
+        paper_ids = group["ids"]
+        # Fetch lightweight metadata to decide which to keep
+        papers = []
+        for pid in paper_ids:
+            mc = await db.matches.count_documents({"$or": [{"paper1_id": pid}, {"paper2_id": pid}]})
+            hs = await db.papers.count_documents({"id": pid, "summaries": {"$exists": True, "$ne": {}}}) > 0
+            ht = await db.papers.count_documents({"id": pid, "full_text": {"$ne": None}}) > 0
+            papers.append({"id": pid, "_mc": mc, "_hs": hs, "_ht": ht})
+        papers.sort(key=lambda p: (p["_hs"], p["_ht"], p["_mc"]), reverse=True)
+        keeper = papers[0]
+        for dup in papers[1:]:
+            await db.matches.update_many({"paper1_id": dup["id"]}, {"$set": {"paper1_id": keeper["id"]}})
+            await db.matches.update_many({"paper2_id": dup["id"]}, {"$set": {"paper2_id": keeper["id"]}})
+            await db.matches.update_many({"winner_id": dup["id"]}, {"$set": {"winner_id": keeper["id"]}})
+            if dup["_hs"] and not keeper["_hs"]:
+                dup_doc = await db.papers.find_one({"id": dup["id"]}, {"_id": 0, "summaries": 1})
+                if dup_doc and dup_doc.get("summaries"):
+                    await db.papers.update_one({"id": keeper["id"]}, {"$set": {"summaries": dup_doc["summaries"]}})
+            await db.papers.delete_one({"id": dup["id"]})
+            merged += 1
+
+    if merged > 0:
+        await db.matches.delete_many({"$expr": {"$eq": ["$paper1_id", "$paper2_id"]}})
+
+    # Create unique index (sparse: papers without hash are ignored)
     try:
-        import hashlib
-        from collections import defaultdict
-
-        # Build hash → paper_id mapping in a single streaming pass
-        hash_groups = defaultdict(list)  # hash → [paper_id, ...]
-        async for p in db.papers.find(
-            {},
-            {"_id": 0, "id": 1, "title": 1, "authors": 1},
-        ):
-            title_norm = p["title"].strip().lower()
-            first_author = (p.get("authors") or [""])[0].strip().lower() if p.get("authors") else ""
-            h = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
-            hash_groups[h].append(p["id"])
-
-        # Only process groups with duplicates (rare — usually 0)
-        dup_groups = {h: ids for h, ids in hash_groups.items() if len(ids) > 1}
-        del hash_groups  # Free memory
-
-        if not dup_groups:
-            return
-
-        merged = 0
-        for h, paper_ids in dup_groups.items():
-            # Fetch minimal metadata only for actual duplicates
-            papers = []
-            for pid in paper_ids:
-                mc = await db.matches.count_documents({"$or": [{"paper1_id": pid}, {"paper2_id": pid}]})
-                hs = await db.papers.count_documents({"id": pid, "summaries": {"$exists": True, "$ne": {}}}) > 0
-                ht = await db.papers.count_documents({"id": pid, "full_text": {"$ne": None}}) > 0
-                papers.append({"id": pid, "_mc": mc, "_hs": hs, "_ht": ht})
-
-            papers.sort(key=lambda p: (p["_hs"], p["_ht"], p["_mc"]), reverse=True)
-            keeper = papers[0]
-            for dup in papers[1:]:
-                await db.matches.update_many({"paper1_id": dup["id"]}, {"$set": {"paper1_id": keeper["id"]}})
-                await db.matches.update_many({"paper2_id": dup["id"]}, {"$set": {"paper2_id": keeper["id"]}})
-                await db.matches.update_many({"winner_id": dup["id"]}, {"$set": {"winner_id": keeper["id"]}})
-                if dup["_hs"] and not keeper["_hs"]:
-                    dup_doc = await db.papers.find_one({"id": dup["id"]}, {"_id": 0, "summaries": 1})
-                    if dup_doc and dup_doc.get("summaries"):
-                        await db.papers.update_one({"id": keeper["id"]}, {"$set": {"summaries": dup_doc["summaries"]}})
-                await db.papers.delete_one({"id": dup["id"]})
-                merged += 1
-
-        if merged > 0:
-            await db.matches.delete_many({"$expr": {"$eq": ["$paper1_id", "$paper2_id"]}})
-            logger.info(f"Startup dedup: merged {merged} duplicate papers")
+        await db.papers.create_index("dedup_hash", unique=True, sparse=True, name="dedup_hash_unique")
     except Exception as e:
-        logger.warning(f"Startup dedup failed: {e}")
+        logger.warning(f"dedup_hash index creation warning: {e}")
+
+    # Mark migration as done
+    await db.settings.update_one(
+        {"key": "dedup_hash_backfill_v1"},
+        {"$set": {"key": "dedup_hash_backfill_v1", "done": True, "backfilled": backfilled, "merged": merged}},
+        upsert=True,
+    )
+    if backfilled or merged:
+        logger.info(f"Dedup hash backfill: {backfilled} hashed, {merged} duplicates merged")
 
 
 async def _startup_regen_truncated_summaries():

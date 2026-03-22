@@ -1,15 +1,27 @@
 # Kurate.org — Scaling & Architecture Notes
 
-## Known Scaling Bottlenecks
+## Memory Scaling (Updated Mar 22, 2026)
 
-### Event Loop Blocking During Leaderboard Refresh
-- **Current**: Max 113ms burst with 2K papers + 67K matches (Motor BSON deserialization)
-- **At 100K+ papers**: Expected ~500ms burst (proportional to data volume)
-- **Fix if needed**: Switch to incremental BT updates instead of full recomputation. The BT algorithm supports online updates (adding one match updates two paper scores) without recomputing all rankings from scratch. This requires:
-  - Maintaining running BT scores in the database
-  - Updating only affected papers when a new match arrives
-  - Periodic full recomputation as a consistency check
-- **Architecture change**: Move from "recompute everything on data change" to "incremental update + periodic full reconciliation"
+### Current State
+- **Per-paper memory**: ~8.6KB (down from ~67KB — summaries excluded from cache via aggregation pipeline)
+- **Per-match memory**: ~2.2KB  
+- **Dedup**: Insert-time via unique `dedup_hash` index (no startup scan)
+- **Safe limit**: ~50K papers in 8GB container (up from ~2-5K)
+
+### Scaling Path to 100K+ Papers
+
+#### Option 1: Streaming Leaderboard Computation (Target: 100K papers)
+The current bottleneck is `_refresh_cache()` loading ALL papers + matches into memory simultaneously (for leaderboard ranking via `compute_leaderboard`). At 50K+ papers this exceeds 8GB during the 2x peak (old + new cache).
+- **Approach**: Stream papers and matches per-category instead of loading all at once. Only one category's data in memory at a time.
+- **Complexity**: Medium. Requires restructuring `_refresh_cache` to iterate categories sequentially, each loading/computing/storing independently.
+- **Estimated impact**: Reduces peak from O(total_papers) to O(max_category_papers). With largest category ~1K papers, this makes 100K total papers trivial.
+
+#### Option 2: Incremental Cache Updates (Target: 200K+ papers)
+Instead of recomputing ALL rankings on every data change, update only affected papers.
+- **Approach**: When a new match arrives, update only the two papers' scores using online BT/win-rate update. Periodic full recomputation as a consistency check.
+- **Complexity**: High. Requires maintaining running scores in DB, careful concurrency handling, and a reconciliation mechanism.
+- **Estimated impact**: Eliminates the 2x memory peak entirely. Cache refresh becomes O(1) per match instead of O(N) per data change.
+- **Architecture change**: "Recompute everything on data change" → "Incremental update + periodic full reconciliation"
 
 ### Sync Blocking in Admin Scrapers
 - `pairwise.py`: 8× `requests.get()` + `time.sleep()` — blocks event loop during Qeios scraping

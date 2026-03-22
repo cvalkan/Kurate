@@ -519,19 +519,17 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             id_field = "arxiv_id"
 
         new_count = 0
-        # Batch dedup: load all existing IDs and titles for this category in one query
+        # Batch dedup: load existing source IDs and dedup hashes for this category
         existing_ids = set()
-        existing_titles = set()
+        existing_hashes = set()
         async for doc in db.papers.find(
             {"categories.0": category} if not category.startswith("chemrxiv.") else {},
-            {"_id": 0, id_field: 1, "title": 1, "authors": 1}
+            {"_id": 0, id_field: 1, "dedup_hash": 1}
         ):
             if doc.get(id_field):
                 existing_ids.add(doc[id_field])
-            t = (doc.get("title") or "").strip().lower()
-            a = ((doc.get("authors") or [""])[0] or "").strip().lower()
-            if t and a:
-                existing_titles.add((t, a))
+            if doc.get("dedup_hash"):
+                existing_hashes.add(doc["dedup_hash"])
 
         for rp in raw_papers:
             dedup_value = rp.get(id_field) or rp.get("doi") or rp.get("arxiv_id")
@@ -541,8 +539,9 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 continue
             title_norm = rp["title"].strip().lower()
             first_author = (rp.get("authors") or [""])[0].strip().lower() if rp.get("authors") else ""
-            if first_author and (title_norm, first_author) in existing_titles:
-                logger.info(f"[{category}] Skipping duplicate (title+author match): {rp['title'][:60]}")
+            content_hash = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
+            if content_hash in existing_hashes:
+                logger.info(f"[{category}] Skipping duplicate (hash match): {rp['title'][:60]}")
                 continue
             paper_doc = {
                 "id": str(uuid.uuid4()),
@@ -556,7 +555,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 "full_text": None,
                 "added_at": datetime.now(timezone.utc).isoformat(),
                 "needs_pdf": True,
-                "dedup_hash": hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16],
+                "dedup_hash": content_hash,
             }
             # Store source-specific IDs
             if rp.get("arxiv_id"):
@@ -566,6 +565,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             if rp.get("doi"):
                 paper_doc["doi"] = rp["doi"]
             await db.papers.insert_one(paper_doc)
+            existing_hashes.add(content_hash)  # Prevent same-batch duplicates
             new_count += 1
 
         cat_status["current_activity"] = f"Fetched {new_count} new papers, downloading PDFs..."

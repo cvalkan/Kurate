@@ -67,6 +67,144 @@ def _apply_period_filter(full_leaderboard, period, added_at_lookup=None):
     return filtered, len(filtered)
 
 
+
+async def _compute_summary_stats_agg():
+    """Compute summary stats per category using MongoDB aggregation.
+    
+    Runs entirely server-side — no summaries loaded into Python memory.
+    Replaces the old approach that iterated over all_papers with summaries in RAM.
+    """
+    # Pipeline: for each paper, extract summary model keys and token tracking,
+    # then group by category.
+    pipeline = [
+        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+        {"$project": {
+            "_id": 0,
+            "cat": {"$arrayElemAt": ["$categories", 0]},
+            "summary_keys": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+            "token_keys": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}},
+        }},
+        {"$unwind": "$summary_keys"},
+        # Filter out short summaries (< 50 chars) — match the old Python logic
+        {"$match": {"summary_keys.v": {"$type": "string"}, "$expr": {"$gte": [{"$strLenCP": "$summary_keys.v"}, 50]}}},
+        {"$group": {
+            "_id": {"cat": "$cat", "model": "$summary_keys.k"},
+            "count": {"$sum": 1},
+        }},
+    ]
+
+    # Run the per-model-per-category counts
+    model_counts = {}  # (cat, model) -> count
+    async for doc in db.papers.aggregate(pipeline, allowDiskUse=True):
+        cat = doc["_id"]["cat"] or "unknown"
+        model = doc["_id"]["model"]
+        model_counts[(cat, model)] = doc["count"]
+
+    # Also get per-paper model counts for papers_with_all_3
+    pipeline_all3 = [
+        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+        {"$project": {
+            "_id": 0,
+            "cat": {"$arrayElemAt": ["$categories", 0]},
+            "summary_keys": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+        }},
+        # Count valid summaries per paper (>= 50 chars)
+        {"$project": {
+            "cat": 1,
+            "valid_summaries": {
+                "$filter": {
+                    "input": "$summary_keys",
+                    "as": "s",
+                    "cond": {"$and": [
+                        {"$eq": [{"$type": "$$s.v"}, "string"]},
+                        {"$gte": [{"$strLenCP": "$$s.v"}, 50]},
+                    ]},
+                },
+            },
+        }},
+        {"$project": {
+            "cat": 1,
+            "n_models": {"$size": "$valid_summaries"},
+        }},
+        {"$group": {
+            "_id": "$cat",
+            "papers_with_summaries": {"$sum": 1},
+            "papers_with_all_3": {"$sum": {"$cond": [{"$gte": ["$n_models", 3]}, 1, 0]}},
+        }},
+    ]
+
+    cat_paper_counts = {}  # cat -> {papers_with_summaries, papers_with_all_3}
+    async for doc in db.papers.aggregate(pipeline_all3, allowDiskUse=True):
+        cat = doc["_id"] or "unknown"
+        cat_paper_counts[cat] = {
+            "papers_with_summaries": doc["papers_with_summaries"],
+            "papers_with_all_3": doc["papers_with_all_3"],
+        }
+
+    # Token tracking aggregation (separate — only papers with tracked tokens)
+    pipeline_tokens = [
+        {"$match": {"summary_tokens": {"$exists": True, "$ne": {}}}},
+        {"$project": {
+            "_id": 0,
+            "cat": {"$arrayElemAt": ["$categories", 0]},
+            "token_pairs": {"$objectToArray": "$summary_tokens"},
+        }},
+        {"$unwind": "$token_pairs"},
+        {"$match": {"token_pairs.v": {"$type": "object"}}},
+        {"$group": {
+            "_id": {"cat": "$cat", "model": "$token_pairs.k"},
+            "tracked_input": {"$sum": {"$ifNull": ["$token_pairs.v.input", 0]}},
+            "tracked_output": {"$sum": {"$ifNull": ["$token_pairs.v.output", 0]}},
+            "tracked_thinking": {"$sum": {"$ifNull": ["$token_pairs.v.thinking", 0]}},
+            "tracked_count": {"$sum": 1},
+        }},
+    ]
+
+    token_stats = {}  # (cat, model) -> {tracked_input, ...}
+    async for doc in db.papers.aggregate(pipeline_tokens, allowDiskUse=True):
+        cat = doc["_id"]["cat"] or "unknown"
+        model = doc["_id"]["model"]
+        token_stats[(cat, model)] = {
+            "tracked_input": doc["tracked_input"],
+            "tracked_output": doc["tracked_output"],
+            "tracked_thinking": doc["tracked_thinking"],
+            "tracked_count": doc["tracked_count"],
+        }
+
+    # Assemble into the same structure the admin endpoint expects
+    all_cats = set(c for c, _ in model_counts) | set(cat_paper_counts.keys())
+    all_models = set(m for _, m in model_counts)
+
+    result = {"__all__": {"models": {}, "papers_with_summaries": 0, "papers_with_all_3": 0}}
+    for cat in all_cats:
+        cp = cat_paper_counts.get(cat, {})
+        result[cat] = {
+            "models": {},
+            "papers_with_summaries": cp.get("papers_with_summaries", 0),
+            "papers_with_all_3": cp.get("papers_with_all_3", 0),
+        }
+        result["__all__"]["papers_with_summaries"] += cp.get("papers_with_summaries", 0)
+        result["__all__"]["papers_with_all_3"] += cp.get("papers_with_all_3", 0)
+
+    for (cat, model), count in model_counts.items():
+        ts = token_stats.get((cat, model), {})
+        entry = {
+            "summaries": count,
+            "tracked_input": ts.get("tracked_input", 0),
+            "tracked_output": ts.get("tracked_output", 0),
+            "tracked_thinking": ts.get("tracked_thinking", 0),
+            "tracked_count": ts.get("tracked_count", 0),
+        }
+        result[cat]["models"][model] = entry
+        # Accumulate into __all__
+        if model not in result["__all__"]["models"]:
+            result["__all__"]["models"][model] = {"summaries": 0, "tracked_input": 0, "tracked_output": 0, "tracked_thinking": 0, "tracked_count": 0}
+        for k in ("summaries", "tracked_input", "tracked_output", "tracked_thinking", "tracked_count"):
+            result["__all__"]["models"][model][k] += entry[k]
+
+    return result
+
+
 async def _refresh_cache():
     """Heavy computation — builds a new cache dict, then swaps atomically.
     The old cache continues serving requests during the entire computation."""
@@ -75,13 +213,13 @@ async def _refresh_cache():
 
     # Run heavy MongoDB loads with yields between each to let requests through
     async def _load_data():
-        # IMPORTANT: Exclude large text fields to reduce memory footprint.
-        # summaries (~5KB × 3 models × 2000 papers = ~30MB) are not needed
-        # for leaderboard computation or serving — only for comparison rounds
-        # which read directly from DB.
+        # Exclude ALL large text fields — summaries, full_text, abstract, ai_impact_*.
+        # Summary stats are computed via aggregation pipeline (see _compute_summary_stats_agg).
+        # This reduces per-paper memory from ~67KB to ~9KB.
         papers = await collect_all(db.papers.find(
             {"summaries": {"$exists": True, "$ne": {}}},
-            {"_id": 0, "full_text": 0, "abstract": 0,
+            {"_id": 0, "full_text": 0, "abstract": 0, "summaries": 0,
+             "summary_tokens": 0, "summary_dates": 0,
              "ai_impact_summary": 0, "ai_impact_summary_opus46": 0,
              "ai_impact_summary_thinking": 0}
         ))
@@ -446,64 +584,24 @@ async def _refresh_cache():
 
     await asyncio.sleep(0)  # Yield after progress computation
 
-    # --- Pre-compute summary stats (avoids expensive DB scan on /stats) ---
-    summary_stats_by_cat = {"__all__": {"models": {}, "papers_with_summaries": 0, "papers_with_all_3": 0}}
-    for p in all_papers:
-        cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
-        sums = p.get("summaries", {})
-        sum_tokens = p.get("summary_tokens", {})
-        if not sums:
-            continue
-        if cat not in summary_stats_by_cat:
-            summary_stats_by_cat[cat] = {"models": {}, "papers_with_summaries": 0, "papers_with_all_3": 0}
-        summary_stats_by_cat[cat]["papers_with_summaries"] += 1
-        summary_stats_by_cat["__all__"]["papers_with_summaries"] += 1
-        model_count = 0
-        for mk, text in sums.items():
-            if not isinstance(text, str) or len(text) < 50:
-                continue
-            model_count += 1
-            for bucket in (cat, "__all__"):
-                if mk not in summary_stats_by_cat[bucket]["models"]:
-                    summary_stats_by_cat[bucket]["models"][mk] = {"summaries": 0, "tracked_input": 0, "tracked_output": 0, "tracked_thinking": 0, "tracked_count": 0}
-                summary_stats_by_cat[bucket]["models"][mk]["summaries"] += 1
-                # Aggregate actual tracked tokens if available
-                tk = sum_tokens.get(mk)
-                if tk and isinstance(tk, dict):
-                    summary_stats_by_cat[bucket]["models"][mk]["tracked_input"] += tk.get("input", 0)
-                    summary_stats_by_cat[bucket]["models"][mk]["tracked_output"] += tk.get("output", 0)
-                    summary_stats_by_cat[bucket]["models"][mk]["tracked_thinking"] += tk.get("thinking", 0)
-                    summary_stats_by_cat[bucket]["models"][mk]["tracked_count"] += 1
-        if model_count >= 3:
-            summary_stats_by_cat[cat]["papers_with_all_3"] += 1
-            summary_stats_by_cat["__all__"]["papers_with_all_3"] += 1
+    # --- Pre-compute summary & rating stats via aggregation (no summaries in memory) ---
+    _cache["_summary_stats"] = await _compute_summary_stats_agg()
 
-    _cache["_summary_stats"] = summary_stats_by_cat
-
-    # --- Pre-compute per-category rating stats (for instant admin panel display) ---
     rating_stats = {"__all__": {"rated": 0, "with_summaries": 0}}
+    # Since papers are loaded WITHOUT summaries, use the filter query we already applied:
+    # all papers in all_papers already have summaries (query filter), so count all of them.
     for p in all_papers:
         cat = p.get("categories", ["unknown"])[0] if p.get("categories") else "unknown"
         if cat not in rating_stats:
             rating_stats[cat] = {"rated": 0, "with_summaries": 0}
-        has_summary = bool(p.get("summaries"))
+        # All papers in this set have summaries (query ensures it)
+        rating_stats[cat]["with_summaries"] += 1
+        rating_stats["__all__"]["with_summaries"] += 1
         has_rating = bool(p.get("ai_rating") and isinstance(p.get("ai_rating"), dict) and p["ai_rating"].get("score"))
-        if has_summary:
-            rating_stats[cat]["with_summaries"] += 1
-            rating_stats["__all__"]["with_summaries"] += 1
         if has_rating:
             rating_stats[cat]["rated"] += 1
             rating_stats["__all__"]["rated"] += 1
     _cache["_rating_stats"] = rating_stats
-
-    # Strip large 'summaries' dict from cached papers — not needed for leaderboard serving.
-    # Must happen AFTER summary/rating stats are computed (they read summaries above).
-    # Saves ~30-50MB persistent RAM with 2000+ papers × 3 summaries each.
-    for p in all_papers:
-        p.pop("summaries", None)
-        p.pop("ai_impact_summary", None)
-        p.pop("summary_tokens", None)
-        p.pop("summary_dates", None)
 
     # Invalidate tag cache on data refresh
     _tag_cache.clear()
