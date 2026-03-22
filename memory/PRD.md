@@ -19,14 +19,12 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Scores: range 3.5–8.2, mean 6.65
 - Now included in all benchmark endpoints (human-ai-benchmark, ai-ranking-quality, si-benchmark)
 
-**DB-Backed Rankings (Phase 1 of Option 3):**
-- Created `rankings` collection with 2135 entries across 10 categories
-- 0 score mismatches with in-memory cache (mathematically identical)
-- Indexes: paper_id (unique), category+rank, category+score, category+published, category+added_at
-- Incremental updates: per-match score update + per-round rerank hooked into scheduler
-- New papers automatically added to rankings after summary generation
-- Seeding: one-time migration on startup, idempotent
-- Query performance: 0.7ms (category top-50), 1.5ms (all papers), 3.4ms (regex search)
+**DB-Backed Rankings (Phases 1+2 of Option 3):**
+- Phase 1: Created `rankings` collection (2135 entries, 10 categories), 5 indexes, incremental update hooks in scheduler
+- Phase 2: Migrated all 3 leaderboard serving paths (category, all-papers, tag-filtered) to DB queries
+- Query latency: 0.7ms (category), 1.5ms (all papers), 3.4ms (search) — vs ~0ms from old cache
+- 0 score mismatches with full recomputation after live match test
+- Old in-memory cache still runs in parallel for non-leaderboard endpoints (tags, model-correlation, etc.)
 - Root cause: Kubernetes OOM-killing the container when concurrent memory-intensive operations overlap
 - Fix 1: `_startup_dedup` replaced with one-time hash backfill + unique index — no startup scan at all
 - Fix 2: All background startup tasks now run sequentially with GC between each

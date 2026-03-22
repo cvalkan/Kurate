@@ -790,6 +790,274 @@ def _apply_search(data: list, search: str) -> list:
     return [{**p, "rank": i + 1} for i, p in enumerate(filtered)]
 
 
+# ─── DB-Backed Leaderboard Serving (Phase 2) ────────────────────────────────
+
+# Projection for rankings queries — exclude MongoDB _id, include all serving fields
+_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "score": 1,
+              "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
+              "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
+              "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1,
+              "community_likes": 1, "categories": 1}
+
+
+def _rank_doc_to_entry(doc: dict) -> dict:
+    """Convert a rankings DB document to a leaderboard entry (matching the old cache format)."""
+    return {
+        "id": doc["paper_id"],
+        "rank": doc.get("rank", 0),
+        "title": doc.get("title", ""),
+        "authors": doc.get("authors", []),
+        "arxiv_id": doc.get("arxiv_id", ""),
+        "link": doc.get("link", ""),
+        "published": doc.get("published", ""),
+        "score": doc.get("score", 1200),
+        "ci": doc.get("ci", 0),
+        "wilson_margin": doc.get("wilson_margin", 100.0),
+        "win_rate": doc.get("win_rate", 0.0),
+        "wins": doc.get("wins", 0),
+        "losses": doc.get("losses", 0),
+        "comparisons": doc.get("comparisons", 0),
+        **({"ai_rating": doc["ai_rating"]} if doc.get("ai_rating") else {}),
+        **({"gap_score": doc["gap_score"]} if doc.get("gap_score") else {}),
+        **({"community_likes": doc["community_likes"]} if doc.get("community_likes") is not None else {}),
+    }
+
+
+def _build_period_filter(period: str) -> dict:
+    """Build a MongoDB query filter for time periods."""
+    if period == "all":
+        return {}
+    utc_now = datetime.now(timezone.utc)
+    if period == "recent":
+        # "Most Recent" = papers added to the system in last 48h
+        cutoff = (utc_now - timedelta(hours=48)).isoformat()
+        return {"added_at": {"$gte": cutoff}}
+    elif period == "week":
+        cutoff = (utc_now - timedelta(weeks=1)).isoformat()
+        return {"published": {"$gte": cutoff}}
+    elif period == "month":
+        cutoff = (utc_now - timedelta(days=30)).isoformat()
+        return {"published": {"$gte": cutoff}}
+    return {}
+
+
+async def _get_archives_for_category(category: str, settings: dict) -> list:
+    """Load archive list from DB (lightweight metadata only)."""
+    archives = await db.leaderboard_archives.find(
+        {"category": category},
+        {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1,
+         "period_type": 1, "paper_count": 1, "match_count": 1, "label": 1}
+    ).sort([("year", -1), ("week", -1)]).to_list(200)
+    return _filter_archives_by_frequency(archives, category, settings)
+
+
+async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None):
+    """Serve primary category leaderboard from DB rankings collection."""
+    from core.auth import get_settings
+    settings = await get_settings()
+
+    # Check if rankings exist for this category
+    total_in_cat = await db.rankings.count_documents({"category": category})
+    if total_in_cat == 0:
+        # Fall back to warming-up state if no rankings yet
+        return {
+            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+            "total_matches": 0, "is_ranking": False, "period": period,
+            "category": category, "tags": None, "tag_mode": None,
+            "warming_up": True, "message": "Leaderboard data is loading, please wait...",
+        }
+
+    # Build query
+    query = {"category": category}
+    query.update(_build_period_filter(period))
+
+    # Add search filter
+    if search:
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"authors": {"$regex": search, "$options": "i"}},
+        ]
+
+    # Count total matching docs (for "total_in_period")
+    total_in_period = await db.rankings.count_documents(query)
+
+    # Fetch sorted page — sort by rank (pre-computed), or by score for period-filtered views
+    sort_field = "rank" if period == "all" and not search else "score"
+    sort_dir = 1 if sort_field == "rank" else -1
+    cursor = db.rankings.find(query, _RANK_PROJ).sort(sort_field, sort_dir).skip(offset).limit(limit)
+    entries = []
+    rank_offset = offset + 1
+    async for doc in cursor:
+        entry = _rank_doc_to_entry(doc)
+        if period != "all" or search:
+            # Re-rank within the filtered/searched view
+            entry["rank"] = rank_offset
+            rank_offset += 1
+        entries.append(entry)
+
+    # Match count for this category
+    match_count = await db.matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+    )
+
+    # Community correlation (AlphaXiv)
+    community_corr = None
+    if category == "cs.RO":
+        liked = []
+        async for doc in db.rankings.find(
+            {"category": category, "community_likes": {"$exists": True, "$ne": None}},
+            {"_id": 0, "score": 1, "community_likes": 1}
+        ):
+            liked.append((doc["score"], doc["community_likes"]))
+        if len(liked) >= 10:
+            from scipy import stats as _sp
+            scores, likes = zip(*liked)
+            rho, pval = _sp.spearmanr(scores, likes)
+            import numpy as _np
+            community_corr = {
+                "rho": round(rho, 4) if not _np.isnan(rho) else None,
+                "p_value": round(pval, 4) if not _np.isnan(pval) else None,
+                "n": len(liked),
+            }
+
+    return {
+        "leaderboard": entries,
+        "total_papers": total_in_cat,
+        "total_in_period": total_in_period,
+        "total_matches": match_count,
+        "is_ranking": total_in_cat > 0,
+        "period": period,
+        "category": category,
+        "tags": None,
+        "tag_mode": None,
+        "warming_up": False,
+        "community_correlation": community_corr,
+        "show_rating_column": settings.get("show_rating_column", True),
+        "show_gap_column": settings.get("show_gap_column", True),
+        "archives": await _get_archives_for_category(category, settings),
+    }
+
+
+async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None):
+    """Serve cross-category 'all papers' leaderboard from DB rankings."""
+    query = _build_period_filter(period)
+    if search:
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"authors": {"$regex": search, "$options": "i"}},
+        ]
+
+    total_in_period = await db.rankings.count_documents(query)
+    total_papers = await db.rankings.count_documents({})
+    total_matches = await db.matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    )
+
+    cursor = db.rankings.find(query, _RANK_PROJ).sort("score", -1).skip(offset).limit(limit)
+    entries = []
+    rank_num = offset + 1
+    async for doc in cursor:
+        entry = _rank_doc_to_entry(doc)
+        entry["rank"] = rank_num
+        entry["primary_category"] = doc.get("category", "unknown")
+        rank_num += 1
+        entries.append(entry)
+
+    return {
+        "leaderboard": entries,
+        "total_papers": total_papers,
+        "total_in_period": total_in_period,
+        "total_matches": total_matches,
+        "is_ranking": False,
+        "period": period,
+        "category": None,
+        "tags": None,
+        "tag_mode": None,
+        "show_all": True,
+    }
+
+
+async def _db_tag_leaderboard(
+    tag_list: list, period: str, limit: int, offset: int,
+    tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
+    search: str = None,
+):
+    """Serve tag-filtered leaderboard from DB rankings.
+    
+    Approach A: filter rankings by papers matching the tags, sort by score.
+    No BT recomputation — uses pre-computed global scores.
+    """
+    # Find paper IDs matching the tags
+    tag_set = list(set(tag_list))
+    if tag_mode == "and" and len(tag_set) > 1:
+        paper_query = {"categories": {"$all": tag_set}, "summaries": {"$exists": True, "$ne": {}}}
+    else:
+        paper_query = {"categories": {"$in": tag_set}, "summaries": {"$exists": True, "$ne": {}}}
+
+    matching_ids = set()
+    async for p in db.papers.find(paper_query, {"_id": 0, "id": 1}):
+        matching_ids.add(p["id"])
+
+    if not matching_ids and not show_all:
+        return {
+            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+            "total_matches": 0, "is_ranking": False, "period": period,
+            "category": None, "tags": tag_list, "tag_mode": tag_mode,
+        }
+
+    # Build rankings query
+    if show_all:
+        # Show all papers, but mark which ones match the tags
+        rank_query = _build_period_filter(period)
+    else:
+        rank_query = {"paper_id": {"$in": list(matching_ids)}}
+        rank_query.update(_build_period_filter(period))
+
+    if search:
+        rank_query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"authors": {"$regex": search, "$options": "i"}},
+        ]
+
+    total_in_period = await db.rankings.count_documents(rank_query)
+
+    # Count matches between matching papers
+    tag_match_count = 0
+    if matching_ids:
+        tag_match_count = await db.matches.count_documents({
+            "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+            "paper1_id": {"$in": list(matching_ids)},
+            "paper2_id": {"$in": list(matching_ids)},
+        })
+
+    cursor = db.rankings.find(rank_query, _RANK_PROJ).sort("score", -1).skip(offset).limit(limit)
+    entries = []
+    rank_num = offset + 1
+    async for doc in cursor:
+        entry = _rank_doc_to_entry(doc)
+        entry["rank"] = rank_num
+        entry["primary_category"] = doc.get("category", "unknown")
+        entry["matches_tag"] = doc["paper_id"] in matching_ids
+        rank_num += 1
+        entries.append(entry)
+
+    return {
+        "leaderboard": entries,
+        "total_papers": len(matching_ids),
+        "total_all_papers": total_in_period if show_all else len(matching_ids),
+        "total_in_period": total_in_period,
+        "total_matches": tag_match_count,
+        "is_ranking": False,
+        "period": period,
+        "category": None,
+        "tags": tag_list,
+        "tag_mode": tag_mode,
+        "show_all": show_all,
+        "global_stats": global_stats,
+    }
+
+
+
 @router.get("/leaderboard")
 async def get_leaderboard(
     category: Optional[str] = Query("cs.RO", description="arXiv primary category"),
@@ -802,62 +1070,18 @@ async def get_leaderboard(
     limit: int = Query(10000, description="Max papers to return", ge=1, le=100000),
     offset: int = Query(0, description="Offset for pagination", ge=0),
 ):
-    # Tag-based filtering: compute on-demand
+    # Tag-based filtering
     if tags:
-        tag_list = [t.strip() for t in tags.split(",") if t.strip()][:50]  # Cap at 50 tags
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()][:50]
         if tag_list:
-            return await _compute_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search)
+            return await _db_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search)
 
-    # Show all papers from all categories (tag panel open, no tags selected)
+    # All papers cross-category
     if show_all:
-        return await _compute_all_papers_leaderboard(period, limit, offset, search)
+        return await _db_all_papers_leaderboard(period, limit, offset, search)
 
-    # Default: use pre-computed primary category cache
-    cache = await _get_cached_leaderboard()
-    
-    # If cache is still warming up, return indicator
-    if cache.get("warming_up", True) and not cache["categories"]:
-        return {
-            "leaderboard": [],
-            "total_papers": 0,
-            "total_in_period": 0,
-            "total_matches": 0,
-            "is_ranking": False,
-            "period": period,
-            "category": category,
-            "tags": None,
-            "tag_mode": None,
-            "warming_up": True,
-            "message": "Leaderboard data is loading, please wait...",
-        }
-    
-    cat_data = cache["categories"].get(category, {})
-    data = cat_data.get(period, cat_data.get("all", []))
-
-    # Apply search filter
-    data = _apply_search(data, search)
-
-    from core.auth import get_settings
-    settings = await get_settings()
-
-    return {
-        "leaderboard": data[offset:offset + limit],
-        "total_papers": cat_data.get("_papers", 0),
-        "total_in_period": len(data),
-        "total_matches": cat_data.get("_matches", 0),
-        "is_ranking": cat_data.get("_is_ranking", False),
-        "period": period,
-        "category": category,
-        "tags": None,
-        "tag_mode": None,
-        "warming_up": False,
-        "community_correlation": cat_data.get("_community_correlation"),
-        "show_rating_column": settings.get("show_rating_column", True),
-        "show_gap_column": settings.get("show_gap_column", True),
-        "archives": _filter_archives_by_frequency(
-            [a for a in cache.get("_archives", []) if a.get("category") == category],
-            category, settings),
-    }
+    # Primary category leaderboard — served from DB rankings
+    return await _db_category_leaderboard(category, period, limit, offset, search)
 
 
 def _filter_archives_by_frequency(archives, category, settings):
