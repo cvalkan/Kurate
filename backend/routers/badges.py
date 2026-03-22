@@ -15,24 +15,41 @@ from core.config import db, logger
 
 router = APIRouter(prefix="/api/badge")
 
-# Ensure bundled Inter fonts are installed in system font directory
+# Font installation deferred to background (was blocking module import for 10s+)
 _FONT_DIR = Path(__file__).parent.parent / "fonts"
-_SYSTEM_FONT_DIR = Path("/usr/share/fonts/truetype/inter")
-try:
-    if _FONT_DIR.exists():
-        _SYSTEM_FONT_DIR.mkdir(parents=True, exist_ok=True)
-        installed = 0
-        for f in _FONT_DIR.glob("*.ttf"):
-            dest = _SYSTEM_FONT_DIR / f.name
-            if not dest.exists() or dest.stat().st_size != f.stat().st_size:
-                shutil.copy2(f, dest)
-                installed += 1
-        if installed > 0:
-            import subprocess
-            subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=10)
-            logger.info(f"Installed {installed} bundled Inter fonts")
-except Exception as e:
-    logger.warning(f"Failed to install bundled fonts: {e}")
+_fonts_installed = False
+
+async def _install_fonts_if_needed():
+    """Install bundled Inter fonts in background. Non-blocking."""
+    global _fonts_installed
+    if _fonts_installed:
+        return
+    try:
+        import asyncio
+        _SYSTEM_FONT_DIR = Path("/usr/share/fonts/truetype/inter")
+        if _FONT_DIR.exists():
+            _SYSTEM_FONT_DIR.mkdir(parents=True, exist_ok=True)
+            installed = 0
+            for f in _FONT_DIR.glob("*.ttf"):
+                dest = _SYSTEM_FONT_DIR / f.name
+                if not dest.exists() or dest.stat().st_size != f.stat().st_size:
+                    shutil.copy2(f, dest)
+                    installed += 1
+            if installed > 0:
+                proc = await asyncio.create_subprocess_exec(
+                    "fc-cache", "-f",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=10)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                logger.info(f"Installed {installed} bundled Inter fonts")
+        _fonts_installed = True
+    except Exception as e:
+        logger.warning(f"Failed to install bundled fonts: {e}")
+        _fonts_installed = True  # Don't retry
 
 # Fallback: set FONTCONFIG_FILE to ensure fonts are discoverable
 import os as _os
@@ -175,6 +192,7 @@ async def get_badge(category: str, year: int, week: int, paper_id: str):
 @router.get("/{category}/{year}/w{week}/{paper_id}/image.png")
 async def get_badge_image(category: str, year: int, week: int, paper_id: str):
     """Serve pre-rendered badge image, falling back to on-the-fly rendering."""
+    await _install_fonts_if_needed()  # Lazy font install on first image request
     from core.image_store import get_image, store_image
     store_key = f"badge:w:{category}/{year}/{week}/{paper_id}"
     # 1. Check persistent store (pre-rendered)
