@@ -48,6 +48,15 @@ Store computed rankings in MongoDB. Serve requests via indexed queries. **This i
 
 **Practical timeline**: With NeurIPS, more ICLR topics, and other venues, expect ~10-20K papers within a year — well within the current 50K limit. Revisit at 30K.
 
+### Known Risk: 2GB Container Memory Limit
+The production container has **2GB RAM** (~1.0-1.2GB available for the Python process after OS/nginx/driver overhead). Current peak RSS is ~500-550MB, leaving ~650MB headroom. The **analysis cache refresh** (model-correlation + convergence for 10 categories) adds ~30MB per run. If it overlaps with other heavy operations or concurrent requests, it could trigger OOM. Mitigations in place:
+- Analysis loop delayed 120s after startup (no concurrent spike with startup tasks)
+- 120s debounce between refreshes (no rapid-fire)
+- GC between categories
+- DB-level category filtering (9K matches per category, not 92K)
+
+If OOM persists: upgrade to 4GB container, or disable pre-caching (compute model-correlation and convergence on-demand only).
+
 ---
 
 ## Option 3: DB-Backed Leaderboard — Detailed Implementation Plan
