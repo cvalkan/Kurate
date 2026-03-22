@@ -696,6 +696,19 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
     
     Supports keyset pagination via cursor for O(1) deep page access.
     """
+    try:
+        return await _db_category_leaderboard_impl(category, period, limit, offset, search, cursor)
+    except Exception as e:
+        logger.error(f"Leaderboard query failed for {category}: {e}")
+        return {
+            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+            "total_matches": 0, "is_ranking": False, "period": period,
+            "category": category, "tags": None, "tag_mode": None,
+            "warming_up": True, "message": "Leaderboard data is temporarily unavailable.",
+        }
+
+
+async def _db_category_leaderboard_impl(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None):
     from core.auth import get_settings
     settings = await get_settings()
 
@@ -792,10 +805,19 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
 
 
 async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None, cursor: str = None):
-    """Serve cross-category 'all papers' leaderboard from DB rankings.
-    
-    Supports keyset pagination for O(1) deep page access at any scale.
-    """
+    """Serve cross-category 'all papers' leaderboard from DB rankings."""
+    try:
+        return await _db_all_papers_leaderboard_impl(period, limit, offset, search, cursor)
+    except Exception as e:
+        logger.error(f"All-papers leaderboard query failed: {e}")
+        return {
+            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+            "total_matches": 0, "is_ranking": False, "period": period,
+            "category": None, "tags": None, "tag_mode": None, "show_all": True,
+        }
+
+
+async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, search: str = None, cursor: str = None):
     query = _build_period_filter(period)
     if search:
         query["$or"] = [
@@ -855,11 +877,23 @@ async def _db_tag_leaderboard(
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
     search: str = None, cursor: str = None,
 ):
-    """Serve tag-filtered leaderboard from DB rankings.
-    
-    Approach A: filter rankings by papers matching the tags, sort by score.
-    No BT recomputation — uses pre-computed global scores.
-    """
+    """Serve tag-filtered leaderboard from DB rankings."""
+    try:
+        return await _db_tag_leaderboard_impl(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor)
+    except Exception as e:
+        logger.error(f"Tag leaderboard query failed for {tag_list}: {e}")
+        return {
+            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+            "total_matches": 0, "is_ranking": False, "period": period,
+            "category": None, "tags": tag_list, "tag_mode": tag_mode,
+        }
+
+
+async def _db_tag_leaderboard_impl(
+    tag_list: list, period: str, limit: int, offset: int,
+    tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
+    search: str = None, cursor: str = None,
+):
     # Find paper IDs matching the tags
     tag_set = list(set(tag_list))
     if tag_mode == "and" and len(tag_set) > 1:

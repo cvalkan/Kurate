@@ -567,6 +567,9 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
     """Incrementally update rankings after a single match completes.
     
     Updates only the 2 affected papers' scores. O(1) per match.
+    Uses optimistic concurrency: the score write is conditional on the comparisons
+    count not having changed since the atomic increment. If a concurrent update
+    raced, the conditional write is a no-op and rerank_category corrects it.
     """
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -578,19 +581,21 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
         else:
             inc_fields["losses"] = 1
 
-        # Atomic increment + fetch updated stats
+        # Step 1: Atomic increment + fetch updated stats
         doc = await db.rankings.find_one_and_update(
             {"paper_id": paper_id, "category": category},
             {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
-            return_document=True,  # Return the document AFTER update
+            return_document=True,
             projection={"_id": 0, "wins": 1, "comparisons": 1},
         )
 
         if doc:
-            # Recompute score from updated stats
+            # Step 2: Conditional score write — only applies if comparisons
+            # hasn't changed since step 1 (prevents race with concurrent matches)
             new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
             await db.rankings.update_one(
-                {"paper_id": paper_id, "category": category},
+                {"paper_id": paper_id, "category": category,
+                 "comparisons": doc["comparisons"]},  # Optimistic concurrency guard
                 {"$set": new_stats},
             )
 
