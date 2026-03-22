@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 import os
 import time as _time
 import asyncio
@@ -148,13 +149,14 @@ _cors_allow_all = _cors_raw.strip() == "*"
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    # When CORS_ORIGINS="*", use allow_origin_regex to echo the request origin
-    # (allow_origins=["*"] + allow_credentials=True is invalid per CORS spec)
     allow_origins=[] if _cors_allow_all else _cors_raw.split(","),
     allow_origin_regex=".*" if _cors_allow_all else None,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Compress responses >500 bytes (JSON payloads shrink 5-7×)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 @app.get("/api/health")
