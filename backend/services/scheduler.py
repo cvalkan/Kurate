@@ -495,8 +495,11 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
 
 
 async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
+    from core.memlog import log_mem
     if category in _fetching_cats:
         return {"status": "already_fetching"}
+
+    log_mem(f"fetch_cycle({category}) start")
 
     _fetching_cats.add(category)
     cat_status = _get_cat_status(category)
@@ -886,11 +889,13 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
 
 async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO"):
+    from core.memlog import log_mem
     lock = _get_lock(category)
     if lock.locked():
         return {"status": "already_processing"}
 
     async with lock:
+        log_mem(f"comparison_round({category}) start")
         cat_status = _get_cat_status(category)
         cat_status["is_processing"] = True
         cat_status["current_activity"] = "Comparing papers..."

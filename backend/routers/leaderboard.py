@@ -444,7 +444,8 @@ async def _refresh_cache():
 
     _cache = new_cache
     _t1 = time.time()
-    logger.info(f"Metadata cache refresh took {_t1 - _t0:.1f}s ({total_papers} papers, {total_matches} matches, {len(active_cats)} categories)")
+    from core.memlog import get_mem_mb
+    logger.info(f"Metadata cache refresh took {_t1 - _t0:.1f}s ({total_papers} papers, {total_matches} matches, {len(active_cats)} categories) [RSS: {get_mem_mb():.0f}MB]")
 
 
 async def _bg_cache_loop():

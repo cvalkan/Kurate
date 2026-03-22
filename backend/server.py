@@ -235,6 +235,8 @@ async def startup():
 
     # Start accepting connections NOW — everything else runs in background
     asyncio.create_task(_deferred_startup())
+    from core.memlog import log_mem
+    log_mem("Server started")
     logger.info("Kurate.org Leaderboard started")
 
 
@@ -484,7 +486,10 @@ async def _staggered_startup_tasks():
     spike to 2-3x normal levels. Sequential execution keeps peak memory ~40% lower.
     """
     import gc
+    from core.memlog import log_mem
     _g = globals()
+
+    log_mem("Staggered startup begin")
 
     # Phase 1: Fast, lightweight cache prewarms (run in parallel — tiny memory footprint)
     _fast_tasks = ["_prewarm_extraction_cache", "_prewarm_validation_cache", "_prewarm_all_experiment_caches"]
@@ -509,8 +514,9 @@ async def _staggered_startup_tasks():
                 await _fn()
             except Exception as e:
                 logger.warning(f"Startup task {_name} failed: {e}")
-            gc.collect()  # Force GC between heavy tasks to release memory
-            await asyncio.sleep(1)  # Yield to event loop
+            gc.collect()
+            log_mem(f"After {_name}")
+            await asyncio.sleep(1)
 
 
 

@@ -484,6 +484,7 @@ async def seed_rankings(db, category: str = None):
     from routers.validation_utils import collect_all
     from core.auth import get_settings
     from core.config import CATEGORIES
+    from core.memlog import async_track_mem, log_mem
 
     settings = await get_settings()
     if category:
@@ -491,6 +492,7 @@ async def seed_rankings(db, category: str = None):
     else:
         cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
+    log_mem(f"seed_rankings start ({len(cats)} categories)")
     total_seeded = 0
     for cat in cats:
         papers = await collect_all(db.papers.find(
@@ -627,12 +629,13 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
 
 
 async def rerank_category(db, category: str):
-    """Recompute rank numbers for all papers in a category.
-    
-    Called after a batch of matches completes. O(papers_in_category).
-    Uses score descending with title hash tiebreaker (same as compute_leaderboard).
-    """
+    """Recompute rank numbers for all papers in a category."""
     import hashlib
+    from core.memlog import log_mem
+    import time as _time
+
+    _t0 = _time.perf_counter()
+    _m0 = log_mem(f"rerank_category({category}) start") or 0
 
     # Fetch all papers in category sorted by score desc
     cursor = db.rankings.find(
@@ -662,6 +665,9 @@ async def rerank_category(db, category: str):
 
     # Refresh gap_score and community_likes (stale after score changes)
     await _refresh_derived_fields(db, category)
+
+    _elapsed = _time.perf_counter() - _t0
+    log_mem(f"rerank_category({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
 
 
 async def _refresh_derived_fields(db, category: str):
@@ -783,6 +789,11 @@ async def reconcile_rankings(db, category: str = None):
     """
     from core.auth import get_settings
     from core.config import CATEGORIES, logger
+    from core.memlog import log_mem
+    import time as _time
+
+    _t0 = _time.perf_counter()
+    log_mem("reconcile_rankings start")
 
     settings = await get_settings()
     cats = [category] if category else settings.get("active_categories", list(CATEGORIES.keys()))
@@ -839,4 +850,6 @@ async def reconcile_rankings(db, category: str = None):
 
         await asyncio.sleep(0)
 
+    _elapsed = _time.perf_counter() - _t0
+    log_mem(f"reconcile_rankings done ({len(cats)} categories, {_elapsed:.1f}s)")
     return results
