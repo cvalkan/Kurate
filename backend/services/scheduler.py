@@ -276,8 +276,10 @@ async def _fetch_loop():
                     )
                     cat_status["last_fetch_at"] = now_iso
                     cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
-                    # Cooldown between categories to avoid saturating the DB connection pool
-                    await asyncio.sleep(10)
+                    # Cooldown between categories: GC + sleep to release memory before next category
+                    import gc
+                    gc.collect()
+                    await asyncio.sleep(15)
                     # Re-read settings in case pause was toggled during fetch
                     settings = await get_settings()
 
@@ -348,6 +350,9 @@ async def _compare_loop():
                         batch = unmet_cats[i:i+batch_size]
                         tasks = [run_comparison_round(category=cat) for cat in batch]
                         await asyncio.gather(*tasks, return_exceptions=True)
+                        # GC between batches to release match/paper data from completed rounds
+                        import gc
+                        gc.collect()
                         await asyncio.sleep(2)
                     # After a round completes, loop immediately to check if more work needed
                     continue

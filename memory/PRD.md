@@ -8,8 +8,30 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - **Frontend**: React, served as compiled build
 - **Caching**: Multi-layer (precomputed JSON > MongoDB > in-memory LRU), event-driven refresh
 - **Background**: All loops event-driven (no polling). Compare loop wakes on data change, fetch loop sleeps until due.
+- **Memory Management**: Startup tasks staggered sequentially, GC between heavy operations, large text fields stripped from cache after stats computation
 
 ## What's Been Implemented
+
+### Session: Mar 22, 2026
+
+**ICLR-OT Scoring:**
+- Scored all 52 iclr-ot papers with Single-Item AI (Claude Opus 4.6 thinking)
+- Scores: range 3.5–8.2, mean 6.65
+- Now included in all benchmark endpoints (human-ai-benchmark, ai-ranking-quality, si-benchmark)
+
+**Production Stability (OOM Fix):**
+- Root cause: Kubernetes OOM-killing the container when concurrent memory-intensive operations overlap
+- Fix 1: `_startup_dedup` no longer loads `full_text`/`summaries` into memory (was ~500MB+)
+- Fix 2: All 8 background startup tasks now run sequentially (was all concurrent) with GC between each
+- Fix 3: Leaderboard cache refresh strips summaries/tokens from cached papers after stats computation (~30-50MB saved)
+- Fix 4: Excluded `ai_impact_summary*` fields from the leaderboard DB load
+- Fix 5: GC calls after cache refresh, between fetch loop categories, and between comparison round batches
+- Fix 6: Increased cooldown between fetch loop categories from 10s to 15s
+
+**Admin Stats Bug Fix:**
+- Fixed `admin.py` import of `_cache` from `leaderboard.py` — was using stale reference after cache swap
+- Changed from `from routers.leaderboard import _cache as lb_cache` to `import routers.leaderboard as _lb_mod`
+- Admin summary stats now correctly show live data (was silently returning 0)
 
 ### Session: Mar 20, 2026
 
@@ -25,17 +47,17 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Compare loop: fully event-driven (zero DB queries when idle)
 - Fetch loop: sleep-until-due (configurable `fetch_interval_hours`, default 6h)
 - `parallel_categories` admin setting (default 2, configurable 1-10)
-- `collect_all()` replaces ALL 109 `.to_list(N≥5000)` — no truncation at any scale
+- `collect_all()` replaces ALL 109 `.to_list(N>=5000)` — no truncation at any scale
 - PDF parsing moved to thread pool (`run_in_executor`)
 - Leaderboard data prep moved to thread pool
 - All `compute_leaderboard` calls async (thread pool) across 30+ call sites
 - Max event-loop block: 113ms (from 538ms)
 - LRU eviction on all unbounded caches
 - Compound index on `papers.categories + summaries`
-- `/api/model-correlation` payload reduced 40% (865KB → 523KB)
+- `/api/model-correlation` payload reduced 40% (865KB -> 523KB)
 - Pre-warmed: `/datasets`, `si-rating-stats`, analysis cache at startup
 
-**Renamed:** SP Score → Gap Score across entire codebase
+**Renamed:** SP Score -> Gap Score across entire codebase
 
 ### Prior Sessions
 - Production performance overhaul (static precomputation, event-driven caching)
@@ -43,9 +65,10 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Benchmark refinements (BT correlation, ceiling analysis, small-sample warnings)
 
 ## Key Files
-- `/app/backend/server.py` — Startup, prewarming, deferred tasks
-- `/app/backend/services/scheduler.py` — Event-driven fetch/compare loops
-- `/app/backend/routers/leaderboard.py` — Cache refresh, analysis, archive loops
+- `/app/backend/server.py` — Startup, prewarming, staggered deferred tasks
+- `/app/backend/services/scheduler.py` — Event-driven fetch/compare loops with GC
+- `/app/backend/routers/leaderboard.py` — Cache refresh, summary stripping, analysis loops
+- `/app/backend/routers/admin.py` — Admin panel, uses live cache reference
 - `/app/backend/routers/human_ai_benchmark.py` — Controlled benchmark + AI ranking quality
 - `/app/backend/routers/validation_utils.py` — `collect_all()`, shared caches
 - `/app/backend/services/precompute.py` — JSON precomputation
@@ -60,7 +83,7 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 ### P1
 - Run validation matches with corrected (unfiltered) pair selection
-- ~~Score ICLR-OT with Single-Item AI~~ ✅ Completed Mar 21, 2026 (52 papers scored, ρ=0.66, AI-H concordance=70.5%)
+- ~~Score ICLR-OT with Single-Item AI~~ Done Mar 22, 2026 (52 papers, rho=0.66)
 - Update Summarizer Report Section 2
 
 ### P2

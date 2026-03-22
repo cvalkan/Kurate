@@ -14,7 +14,12 @@ from core.config import db, logger, DEFAULT_SETTINGS, DEFAULT_EVALUATION_PROMPT,
 from core.auth import verify_admin, get_settings, invalidate_settings_cache
 from services.scheduler import run_fetch_cycle, run_comparison_round, get_scheduler_status, _get_cat_status, wake_scheduler
 from services.arxiv import fetch_arxiv_papers
-from routers.leaderboard import _cache as lb_cache
+import routers.leaderboard as _lb_mod
+
+def _get_lb_cache():
+    """Get the current leaderboard cache. Uses module reference to always get the latest."""
+    return _lb_mod._cache
+
 from routers.validation_utils import collect_all
 
 router = APIRouter(prefix="/api/admin")
@@ -452,6 +457,7 @@ async def get_admin_status(category: str = "cs.RO"):
     if cached:
         return cached
 
+    lb_cache = _get_lb_cache()
     lb_cat_data = lb_cache.get("categories", {}).get(category, {})
     raw_matches = lb_cache.get("_raw_matches", [])
     raw_papers = lb_cache.get("_raw_papers", [])
@@ -551,6 +557,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     is_paused = global_paused or tournament_paused
 
     # Use pre-computed progress from leaderboard background cache
+    lb_cache = _get_lb_cache()
     precomputed = lb_cache.get("_progress", {}).get(category)
     if precomputed:
         realtime_summaries = lb_cache.get("categories", {}).get(category, {}).get("_papers", 0)
@@ -761,6 +768,8 @@ async def get_usage_stats(category: str = None):
     cached = _get_admin_cached("stats", cache_cat)
     if cached:
         return cached
+
+    lb_cache = _get_lb_cache()
 
     raw_matches = lb_cache.get("_raw_matches", [])
 
@@ -2115,6 +2124,7 @@ async def deduplicate_papers():
 
     # Invalidate caches after cleanup
     _invalidate_admin_cache()
+    lb_cache = _get_lb_cache()
     lb_cache.clear()
     lb_cache.update({"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "warming_up": True})
     from routers.leaderboard import notify_data_changed

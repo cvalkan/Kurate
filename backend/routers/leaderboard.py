@@ -75,9 +75,15 @@ async def _refresh_cache():
 
     # Run heavy MongoDB loads with yields between each to let requests through
     async def _load_data():
+        # IMPORTANT: Exclude large text fields to reduce memory footprint.
+        # summaries (~5KB × 3 models × 2000 papers = ~30MB) are not needed
+        # for leaderboard computation or serving — only for comparison rounds
+        # which read directly from DB.
         papers = await collect_all(db.papers.find(
             {"summaries": {"$exists": True, "$ne": {}}},
-            {"_id": 0, "full_text": 0, "abstract": 0}
+            {"_id": 0, "full_text": 0, "abstract": 0,
+             "ai_impact_summary": 0, "ai_impact_summary_opus46": 0,
+             "ai_impact_summary_thinking": 0}
         ))
         await asyncio.sleep(0)  # Yield after papers load
         matches = await collect_all(db.matches.find(
@@ -276,6 +282,10 @@ async def _refresh_cache():
     _cache = new_cache
     _t1 = time.time()
     logger.info(f"Cache refresh took {_t1 - _t0:.1f}s ({len(all_papers)} papers, {len(all_matches)} matches, {len(categories_data)} categories)")
+
+    # Force GC to release the old cache data immediately (prevents memory doubling)
+    import gc
+    gc.collect()
 
     # Pre-compute failed match counts per category (for admin panel)
     failed_by_cat = Counter()
@@ -485,6 +495,15 @@ async def _refresh_cache():
             rating_stats[cat]["rated"] += 1
             rating_stats["__all__"]["rated"] += 1
     _cache["_rating_stats"] = rating_stats
+
+    # Strip large 'summaries' dict from cached papers — not needed for leaderboard serving.
+    # Must happen AFTER summary/rating stats are computed (they read summaries above).
+    # Saves ~30-50MB persistent RAM with 2000+ papers × 3 summaries each.
+    for p in all_papers:
+        p.pop("summaries", None)
+        p.pop("ai_impact_summary", None)
+        p.pop("summary_tokens", None)
+        p.pop("summary_dates", None)
 
     # Invalidate tag cache on data refresh
     _tag_cache.clear()
