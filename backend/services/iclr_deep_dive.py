@@ -640,7 +640,7 @@ async def compute_analysis(dataset_id: str) -> dict:
 
 async def compute_convergence_by_dimension(dataset_id: str, steps: int = 10) -> dict:
     """Compute ranking convergence against each GT dimension separately.
-    Uses Bradley-Terry ranking (same as main convergence). Cached in DB.
+    Uses win-rate ranking (same as main convergence). Cached in DB.
     """
     keys = _keys(dataset_id)
     cache_key = f"{keys['experiment']}_convergence"
@@ -669,7 +669,7 @@ async def compute_convergence_by_dimension(dataset_id: str, steps: int = 10) -> 
 async def _compute_convergence_by_dimension_impl(dataset_id: str, steps: int = 10) -> dict:
     """Compute ranking convergence against each GT dimension separately.
     
-    For each content_mode (baseline, deep_dive), builds Bradley-Terry rankings
+    For each content_mode (baseline, deep_dive), builds win-rate rankings
     at increasing match counts and computes Spearman correlation against
     4 ground truth dimensions: composite, rigour, presentation, conclusions.
     """
@@ -743,7 +743,7 @@ async def _compute_convergence_by_dimension_impl(dataset_id: str, steps: int = 1
         # Sort by created_at
         matches.sort(key=lambda m: m.get("created_at", ""))
 
-        # Compute at each step using Bradley-Terry ranking (via background computation)
+        # Compute at each step using win-rate ranking (via background computation)
         from services.ranking import compute_leaderboard_async
         curve_points = []
         step_sizes = set()

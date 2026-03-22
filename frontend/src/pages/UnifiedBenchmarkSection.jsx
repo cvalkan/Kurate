@@ -283,7 +283,7 @@ function UnifiedPage({ apiUrl, headerDesc, testId }) {
 
       <ComparisonTable data={data} />
       {(() => {
-        // Aggregate BT correlations from per-dataset data
+        // Aggregate ranking correlations from per-dataset data
         const ds = data.per_dataset || [];
         const pwKeys = new Set();
         const siKeys = new Set();

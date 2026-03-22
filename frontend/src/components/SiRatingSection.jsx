@@ -438,7 +438,7 @@ export function SiRatingSection({ category }) {
             </div>
           )}
 
-          {/* BT Pairwise vs SI Score Correlation */}
+          {/* Pairwise Ranking vs SI Score Correlation */}
           {data.bt_vs_si && (
             <div className="mt-4 p-3 border border-emerald-200 bg-emerald-500/5 rounded-lg" data-testid="bt-vs-si-section">
               <h3 className="text-sm font-medium mb-1">Pairwise Tournament vs Single-Item Ranking</h3>

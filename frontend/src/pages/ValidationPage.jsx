@@ -822,7 +822,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
             )}
           </div>
 
-          {/* BT correlations — side by side */}
+          {/* Ranking correlations — side by side */}
           <div className="pt-2 border-t border-border/50 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {data.majority_bt_vs_human_bt && (
               <div>

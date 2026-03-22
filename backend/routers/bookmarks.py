@@ -34,7 +34,7 @@ async def get_bookmarks(request: Request):
 
     # Fetch current paper data with scores from leaderboard cache
     from routers.reading_lists import _build_enriched_paper_map
-    paper_map = _build_enriched_paper_map()
+    paper_map = await _build_enriched_paper_map()
     bookmark_dates = {b["paper_id"]: b.get("created_at") for b in bookmarks}
 
     papers = []

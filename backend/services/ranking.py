@@ -347,10 +347,9 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
                 stats[loser]["comparisons"] += 1
 
     # Ranking via regularized win-rate.
-    # Equivalent to Bradley-Terry MLE with a strong Jeffreys prior (assumes all opponents
+    # Equivalent to a Bayesian posterior with a Jeffreys prior (assumes all opponents
     # equally strong). This is optimal for sparse data (<50 matches/paper) where opponent
-    # strength cannot be reliably estimated. For dense data, proper BT with lower prior
-    # would be better, but the difference is small.
+    # strength cannot be reliably estimated.
     wr_scores = {}
     for pid in paper_ids:
         s = stats.get(pid, {"wins": 0, "comparisons": 0})
