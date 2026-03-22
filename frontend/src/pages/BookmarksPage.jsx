@@ -21,7 +21,6 @@ export default function BookmarksPage() {
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState(() => _ss("filter") || "");
-  const [displayCount, setDisplayCount] = useState(50);
   const [sortKey, setSortKey] = useState(() => _ss("sortKey") || "");
   const [sortDir, setSortDir] = useState(() => _ss("sortDir") || "desc");
   const [showRatingCol, setShowRatingCol] = useState(true);
@@ -219,7 +218,7 @@ export default function BookmarksPage() {
                 leaderboard={ranked} loading={false} showCatCol={!filter}
                 hasSelectedTags={false} globalStats={false}
                 debouncedKeyword="" keyword=""
-                displayCount={displayCount} setDisplayCount={setDisplayCount}
+                onLoadMore={null} hasMore={false} loadingMore={false}
                 sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
                 showRatingCol={showRatingCol} showGapCol={showGapCol}
                 bookmarksMode={true} onRemoveBookmark={handleRemove}

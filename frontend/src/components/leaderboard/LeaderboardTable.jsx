@@ -43,23 +43,24 @@ function SortHeader({ label, sortKey, currentSort, currentDir, onSort, className
 
 export function LeaderboardTable({
   leaderboard, loading, showCatCol, hasSelectedTags, globalStats,
-  debouncedKeyword, keyword, displayCount, setDisplayCount,
+  debouncedKeyword, keyword, onLoadMore, hasMore, loadingMore,
   sortKey, sortDir, onSort, showRatingCol = true, showGapCol = true,
   bookmarksMode = false, onRemoveBookmark, selectedPapers, onToggleSelect,
 }) {
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
 
+  // Infinite scroll: trigger server-side load when sentinel is visible
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    if (!sentinel || !onLoadMore) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setDisplayCount(prev => prev + 50); },
-      { rootMargin: "200px" }
+      ([entry]) => { if (entry.isIntersecting && hasMore && !loadingMore) onLoadMore(); },
+      { rootMargin: "400px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [leaderboard, setDisplayCount]);
+  }, [leaderboard, onLoadMore, hasMore, loadingMore]);
 
   const isGlobal = hasSelectedTags && globalStats;
   const getScore = (p) => isGlobal && p.global_score !== undefined ? p.global_score : p.score;
@@ -135,8 +136,8 @@ export function LeaderboardTable({
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
-  const visibleList = sorted.slice(0, displayCount);
-  const hasMore = sorted.length > visibleList.length;
+  const visibleList = sorted;
+  const showSentinel = hasMore;
 
   const scoreLabel = isGlobal ? "Score (G)" : "Score";
   const winLabel = isGlobal ? "Win % (G)" : "Win %";
@@ -239,7 +240,7 @@ export function LeaderboardTable({
           </Link>
         ))}
       </div>
-      {hasMore && <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">Loading more...</div>}
+      {showSentinel && <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">{loadingMore ? "Loading more..." : "Scroll for more"}</div>}
     </>
   );
 }

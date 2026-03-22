@@ -42,7 +42,8 @@ export default function LeaderboardPage() {
   const [keyword, setKeyword] = useState(searchParams.get("q") || "");
   const [debouncedKeyword, setDebouncedKeyword] = useState(searchParams.get("q") || "");
   const [globalStats, setGlobalStats] = useState(searchParams.get("global") === "1");
-  const [displayCount, setDisplayCount] = useState(50);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sortKey, setSortKey] = useState(searchParams.get("sort") || "rank");
   const [sortDir, setSortDir] = useState(searchParams.get("dir") || "asc");
 
@@ -110,13 +111,15 @@ export default function LeaderboardPage() {
     return () => clearTimeout(t);
   }, [keyword]);
 
+  const PAGE_SIZE = 100;
+
   const fetchLeaderboard = useCallback(async () => {
     if (!category && !isTagMode) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const params = { period };
+      const params = { period, limit: PAGE_SIZE };
       if (debouncedKeyword) params.search = debouncedKeyword;
       if (hasSelectedTags) {
         params.tags = selectedTags.join(",");
@@ -129,17 +132,17 @@ export default function LeaderboardPage() {
       }
       const res = await axios.get(`${API}/api/leaderboard`, { params, signal: controller.signal });
       if (!controller.signal.aborted) {
-        // Check for warming_up status
         if (res.data.warming_up) {
           setWarmingUp(true);
           setLeaderboard([]);
+          setNextCursor(null);
           setLoading(false);
-          // Retry after 2 seconds
           setTimeout(() => fetchLeaderboard(), 2000);
           return;
         }
         setWarmingUp(false);
         setLeaderboard(res.data.leaderboard || []);
+        setNextCursor(res.data.next_cursor || null);
         setTotalPapers(res.data.total_papers || 0);
         setTotalMatches(res.data.total_matches || 0);
         setIsRanking(res.data.is_ranking || false);
@@ -156,12 +159,44 @@ export default function LeaderboardPage() {
     }
   }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword]);
 
+  // Load next page using keyset cursor (infinite scroll)
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params = { period, limit: PAGE_SIZE, cursor: nextCursor };
+      if (debouncedKeyword) params.search = debouncedKeyword;
+      if (hasSelectedTags) {
+        params.tags = selectedTags.join(",");
+        params.tag_mode = tagMode;
+        params.global_stats = globalStats;
+      } else if (isTagMode) {
+        params.show_all = true;
+      } else {
+        params.category = category;
+      }
+      const res = await axios.get(`${API}/api/leaderboard`, { params });
+      const newEntries = res.data.leaderboard || [];
+      if (newEntries.length > 0) {
+        // Fix rank numbers to continue from where we left off
+        const startRank = leaderboard.length + 1;
+        const renumbered = newEntries.map((e, i) => ({ ...e, rank: startRank + i }));
+        setLeaderboard(prev => [...prev, ...renumbered]);
+      }
+      setNextCursor(res.data.next_cursor || null);
+    } catch (err) {
+      console.error("Failed to load more:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length]);
+
   // Fetch on param change (debounce tag mode)
   const initialLoadDone = useRef(false);
   const debounceRef = useRef(null);
   useEffect(() => {
     if (!initialLoadDone.current) setLoading(true);
-    setDisplayCount(50);
+    setNextCursor(null);  // Reset cursor on param change
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (isTagMode && initialLoadDone.current) {
       debounceRef.current = setTimeout(() => fetchLeaderboard().then(() => { initialLoadDone.current = true; }), 250);
@@ -275,8 +310,9 @@ export default function LeaderboardPage() {
             loading={loading && !activeArchive} showCatCol={isTagMode}
             hasSelectedTags={hasSelectedTags} globalStats={globalStats}
             debouncedKeyword={debouncedKeyword} keyword={keyword}
-            displayCount={activeArchive ? 999 : displayCount}
-            setDisplayCount={setDisplayCount}
+            onLoadMore={activeArchive ? null : loadMore}
+            hasMore={activeArchive ? false : !!nextCursor}
+            loadingMore={loadingMore}
             sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
             showRatingCol={showRatingCol} showGapCol={showGapCol}
           />
