@@ -15,10 +15,35 @@ _cache = {"ts": 0, "categories": {}, "total_papers": 0, "total_matches": 0, "war
 _bg_task_started = False
 _cache_dirty = asyncio.Event()  # Set by compare/fetch loops when data changes
 
+# Cached match counts — updated on data change, not per-request.
+# Eliminates a 50-200ms COLLSCAN on the matches collection for every leaderboard request.
+_match_count_cache = {}  # category_or_"__all__" -> {"count": int, "ts": float}
+_MATCH_COUNT_TTL = 300  # 5 min TTL (safety net — normally invalidated by data change)
+
+
+async def _get_match_count(category: str = None) -> int:
+    """Return cached match count for a category (or all). Refreshes on miss/stale."""
+    key = category or "__all__"
+    cached = _match_count_cache.get(key)
+    if cached and (time.time() - cached["ts"]) < _MATCH_COUNT_TTL:
+        return cached["count"]
+    q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    if category:
+        q["primary_category"] = category
+    count = await db.matches.count_documents(q)
+    _match_count_cache[key] = {"count": count, "ts": time.time()}
+    return count
+
+
+def _invalidate_match_counts():
+    """Call when matches are added/changed. Clears the cache."""
+    _match_count_cache.clear()
+
 
 def notify_data_changed():
     """Call this when matches or papers are added/changed. Triggers a cache refresh."""
     _cache_dirty.set()
+    _invalidate_match_counts()
 
 # Tag query cache — keyed on (frozenset(tags), period, tag_mode, global_stats, show_all)
 _tag_cache = {}  # key -> {"ts": float, "result": dict}
@@ -221,9 +246,7 @@ async def _refresh_cache():
 
     # --- Counts ---
     total_papers = await db.rankings.count_documents({})
-    total_matches = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-    )
+    total_matches = await _get_match_count()
 
     # --- Failed match counts per category ---
     failed_by_cat = Counter()
@@ -798,9 +821,7 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
     phase1 = [
         get_settings(),
         db.rankings.count_documents({"category": category}),
-        db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
-        ),
+        _get_match_count(category),
         _get_community_correlation(category),
     ]
     if period == "recent":
@@ -920,9 +941,7 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
     # Phase 1: Build filter + fire independent counts in parallel
     phase1 = [
         db.rankings.count_documents({}),
-        db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-        ),
+        _get_match_count(),
     ]
     if period == "recent":
         phase1.append(_build_recent_filter())

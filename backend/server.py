@@ -312,6 +312,7 @@ async def _deferred_startup():
         await db.rankings.create_index([("category", 1), ("score", -1)])
         await db.rankings.create_index([("category", 1), ("published", -1)])
         await db.rankings.create_index([("category", 1), ("added_at", -1)])
+        await db.rankings.create_index([("added_at", -1)], name="added_at_-1")  # For unscoped "recent" (all-papers view)
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
