@@ -769,12 +769,14 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
 
 
 async def reconcile_rankings(db, category: str = None):
-    """Full recomputation and comparison with incremental rankings.
+    """Verify ranking scores are consistent with actual match data.
     
-    Used as a daily consistency check. Overwrites if drift detected.
-    Returns {category: {drifted: bool, max_score_diff: int, papers_checked: int}}.
+    Lightweight approach: compare each paper's (wins, comparisons) in the rankings
+    collection against actual counts from the matches collection. No bulk loading
+    of papers or matches into memory — uses per-paper DB queries.
+    
+    Returns {category: {drifted: bool, drifted_papers: int, papers_checked: int}}.
     """
-    from routers.validation_utils import collect_all
     from core.auth import get_settings
     from core.config import CATEGORIES, logger
 
@@ -783,44 +785,53 @@ async def reconcile_rankings(db, category: str = None):
     results = {}
 
     for cat in cats:
-        papers = await collect_all(db.papers.find(
-            {"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}},
-            {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-             "link": 1, "published": 1, "added_at": 1, "categories": 1,
-             "ai_rating": 1},
-        ))
-        matches = await collect_all(db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": cat,
-             "mode": {"$exists": False}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
-             "completed": 1, "failed": 1},
-        ))
-
-        lb = compute_leaderboard(papers, matches)
-        recomputed = {e["id"]: e for e in lb}
-
-        # Compare with current rankings
-        max_diff = 0
         drifted_papers = 0
-        async for r in db.rankings.find({"category": cat}, {"_id": 0, "paper_id": 1, "score": 1}):
-            expected = recomputed.get(r["paper_id"])
-            if expected:
-                diff = abs(r["score"] - expected["score"])
-                max_diff = max(max_diff, diff)
-                if diff > 0:
-                    drifted_papers += 1
+        papers_checked = 0
+
+        async for r in db.rankings.find(
+            {"category": cat},
+            {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1}
+        ):
+            pid = r["paper_id"]
+            papers_checked += 1
+
+            # Count actual wins and comparisons from matches collection
+            actual_comparisons = await db.matches.count_documents({
+                "completed": True, "failed": {"$ne": True}, "primary_category": cat,
+                "mode": {"$exists": False},
+                "$or": [{"paper1_id": pid}, {"paper2_id": pid}],
+            })
+            actual_wins = await db.matches.count_documents({
+                "completed": True, "failed": {"$ne": True}, "primary_category": cat,
+                "mode": {"$exists": False},
+                "winner_id": pid,
+            })
+
+            # Check if rankings match reality
+            if r.get("wins", 0) != actual_wins or r.get("comparisons", 0) != actual_comparisons:
+                drifted_papers += 1
+                # Fix the paper's stats and recompute score
+                new_stats = compute_paper_score(actual_wins, actual_comparisons)
+                await db.rankings.update_one(
+                    {"paper_id": pid, "category": cat},
+                    {"$set": {
+                        "wins": actual_wins,
+                        "losses": actual_comparisons - actual_wins,
+                        "comparisons": actual_comparisons,
+                        **new_stats,
+                    }},
+                )
 
         results[cat] = {
-            "drifted": max_diff > 0,
-            "max_score_diff": max_diff,
-            "papers_checked": len(recomputed),
+            "drifted": drifted_papers > 0,
             "drifted_papers": drifted_papers,
+            "papers_checked": papers_checked,
         }
 
-        # If drift detected, overwrite with full recomputation
-        if max_diff > 0:
-            logger.warning(f"Rankings drift in {cat}: max_diff={max_diff}, {drifted_papers} papers affected. Reseeding.")
-            await seed_rankings(db, category=cat)
+        # If any drift was found, rerank the category
+        if drifted_papers > 0:
+            logger.warning(f"Rankings drift in {cat}: {drifted_papers} papers corrected")
+            await rerank_category(db, cat)
 
         await asyncio.sleep(0)
 
