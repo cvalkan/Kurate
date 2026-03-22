@@ -584,6 +584,21 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         # Final paper count (with summaries — for compare loop eligibility)
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
+        # Add new papers with summaries to DB-backed rankings
+        if new_count > 0:
+            try:
+                from services.ranking import insert_ranking_for_paper
+                async for p in db.papers.find(
+                    {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
+                    {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+                     "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1}
+                ):
+                    existing = await db.rankings.find_one({"paper_id": p["id"]}, {"_id": 0, "paper_id": 1})
+                    if not existing:
+                        await insert_ranking_for_paper(db, p)
+            except Exception as e:
+                logger.warning(f"[{category}] Rankings insert failed: {e}")
+
         cat_status["current_activity"] = "Idle"
         if new_count > 0:
             from routers.leaderboard import notify_data_changed
@@ -1050,6 +1065,15 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     completed += 1
 
                 await db.matches.insert_one(match_doc)
+                # Incrementally update DB-backed rankings for this match
+                if match_doc.get("completed") and match_doc.get("winner_id"):
+                    try:
+                        from services.ranking import update_rankings_for_match
+                        w_id = match_doc["winner_id"]
+                        l_id = p2_id if w_id == p1_id else p1_id
+                        await update_rankings_for_match(db, category, w_id, l_id)
+                    except Exception:
+                        pass  # Non-critical — rerank_category fixes it at round end
                 cat_status["matches_count"] = total_matches + completed + failed
                 cat_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
 
@@ -1081,6 +1105,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             # Store ranking snapshot for convergence tracking
             if completed > 0:
                 await _store_ranking_snapshot(category)
+                # Update DB-backed rankings incrementally
+                try:
+                    from services.ranking import rerank_category
+                    await rerank_category(db, category)
+                except Exception as e:
+                    logger.warning(f"[{category}] Rankings rerank failed: {e}")
                 # Signal leaderboard cache to refresh
                 from routers.leaderboard import notify_data_changed
                 notify_data_changed()

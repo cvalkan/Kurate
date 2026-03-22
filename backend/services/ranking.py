@@ -442,3 +442,295 @@ def wilson_margin_pct(wins, comparisons):
     lower = max(0, center - spread)
     upper = min(1, center + spread)
     return round((upper - lower) / 2 * 100, 1)
+
+
+# ─── DB-Backed Rankings (Phase 1 of Option 3) ────────────────────────────────
+# The `rankings` collection stores pre-computed scores and ranks per paper.
+# Updated incrementally on each match completion. Serves leaderboard queries
+# directly from indexed DB queries — O(1) memory regardless of paper count.
+
+SCORE_BASE_CONST = 1200  # Same base as compute_leaderboard
+
+
+def compute_paper_score(wins: int, comparisons: int) -> dict:
+    """Compute score, CI, wilson_margin, win_rate for a single paper.
+    
+    Mathematically identical to compute_leaderboard's per-paper logic.
+    Used for incremental updates (2 papers per match) instead of full recomputation.
+    """
+    if comparisons == 0:
+        return {"score": SCORE_BASE_CONST, "ci": 0, "wilson_margin": 100.0, "win_rate": 0.0}
+
+    w, n = wins, comparisons
+    p_reg = (w + 0.5) / (n + 1.0)
+    p_reg = max(0.02, min(0.98, p_reg))
+    score = round(400.0 * math.log10(p_reg / (1.0 - p_reg)) + SCORE_BASE_CONST)
+
+    se_logit = 1.0 / math.sqrt((n + 1.0) * p_reg * (1.0 - p_reg))
+    se_elo = (400.0 / math.log(10)) * se_logit
+    ci = min(round(1.96 * se_elo), 400)
+
+    wm = wilson_margin_pct(w, n)
+    wr = round(100 * w / n, 1)
+
+    return {"score": score, "ci": ci, "wilson_margin": wm, "win_rate": wr}
+
+
+async def seed_rankings(db, category: str = None):
+    """Seed the rankings collection from current papers + matches.
+    
+    Runs compute_leaderboard per category and inserts the results.
+    Idempotent: uses upsert on paper_id.
+    """
+    from routers.validation_utils import collect_all
+    from core.auth import get_settings
+    from core.config import CATEGORIES
+
+    settings = await get_settings()
+    if category:
+        cats = [category]
+    else:
+        cats = settings.get("active_categories", list(CATEGORIES.keys()))
+
+    total_seeded = 0
+    for cat in cats:
+        papers = await collect_all(db.papers.find(
+            {"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}},
+            {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+             "link": 1, "published": 1, "added_at": 1, "categories": 1,
+             "ai_rating": 1},
+        ))
+        if not papers:
+            continue
+
+        matches = await collect_all(db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": cat,
+             "mode": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+             "completed": 1, "failed": 1},
+        ))
+
+        lb = compute_leaderboard(papers, matches)
+
+        # Bulk upsert into rankings
+        from pymongo import UpdateOne
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # Build ai_rating lookup
+        ai_ratings = {}
+        for p in papers:
+            r = p.get("ai_rating")
+            if r and isinstance(r, dict) and r.get("score"):
+                ai_ratings[p["id"]] = round(r["score"], 1)
+            elif r and isinstance(r, (int, float)):
+                ai_ratings[p["id"]] = round(r, 1)
+
+        ops = []
+        for entry in lb:
+            doc = {
+                "paper_id": entry["id"],
+                "category": cat,
+                "rank": entry["rank"],
+                "score": entry["score"],
+                "ci": entry["ci"],
+                "wilson_margin": entry.get("wilson_margin", 100.0),
+                "win_rate": entry.get("win_rate", 0.0),
+                "wins": entry["wins"],
+                "losses": entry["losses"],
+                "comparisons": entry["comparisons"],
+                "title": entry["title"],
+                "authors": entry.get("authors", []),
+                "arxiv_id": entry.get("arxiv_id", ""),
+                "link": entry.get("link", ""),
+                "published": entry.get("published", ""),
+                "added_at": entry.get("added_at", ""),
+                "categories": next((p.get("categories", []) for p in papers if p["id"] == entry["id"]), [cat]),
+                "ai_rating": ai_ratings.get(entry["id"]),
+                "updated_at": now_iso,
+            }
+            ops.append(UpdateOne(
+                {"paper_id": entry["id"]},
+                {"$set": doc},
+                upsert=True,
+            ))
+
+        if ops:
+            await db.rankings.bulk_write(ops, ordered=False)
+            total_seeded += len(ops)
+
+        await asyncio.sleep(0)  # Yield between categories
+
+    return total_seeded
+
+
+async def update_rankings_for_match(db, category: str, winner_id: str, loser_id: str):
+    """Incrementally update rankings after a single match completes.
+    
+    Updates only the 2 affected papers' scores. O(1) per match.
+    """
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    for paper_id, is_winner in [(winner_id, True), (loser_id, False)]:
+        inc_fields = {"comparisons": 1}
+        if is_winner:
+            inc_fields["wins"] = 1
+        else:
+            inc_fields["losses"] = 1
+
+        # Atomic increment + fetch updated stats
+        doc = await db.rankings.find_one_and_update(
+            {"paper_id": paper_id, "category": category},
+            {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
+            return_document=True,  # Return the document AFTER update
+            projection={"_id": 0, "wins": 1, "comparisons": 1},
+        )
+
+        if doc:
+            # Recompute score from updated stats
+            new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
+            await db.rankings.update_one(
+                {"paper_id": paper_id, "category": category},
+                {"$set": new_stats},
+            )
+
+
+async def rerank_category(db, category: str):
+    """Recompute rank numbers for all papers in a category.
+    
+    Called after a batch of matches completes. O(papers_in_category).
+    Uses score descending with title hash tiebreaker (same as compute_leaderboard).
+    """
+    import hashlib
+
+    # Fetch all papers in category sorted by score desc
+    cursor = db.rankings.find(
+        {"category": category},
+        {"_id": 0, "paper_id": 1, "score": 1, "title": 1},
+    ).sort("score", -1)
+
+    # Sort with tiebreaker
+    entries = []
+    async for doc in cursor:
+        title_hash = hashlib.md5(doc.get("title", doc["paper_id"]).encode()).hexdigest()
+        entries.append((doc["paper_id"], doc["score"], title_hash))
+
+    # Stable sort: score desc, then title hash desc (same as compute_leaderboard)
+    entries.sort(key=lambda e: (e[1], e[2]), reverse=True)
+
+    # Bulk update ranks
+    from pymongo import UpdateOne
+    ops = []
+    for rank, (paper_id, _, _) in enumerate(entries, 1):
+        ops.append(UpdateOne(
+            {"paper_id": paper_id, "category": category},
+            {"$set": {"rank": rank}},
+        ))
+    if ops:
+        await db.rankings.bulk_write(ops, ordered=False)
+
+
+async def insert_ranking_for_paper(db, paper_doc: dict):
+    """Add a ranking entry for a newly inserted paper. Score = 1200, rank = last."""
+    from datetime import datetime, timezone
+
+    cat = paper_doc.get("categories", ["unknown"])[0] if paper_doc.get("categories") else "unknown"
+
+    # Get current max rank for this category
+    last = await db.rankings.find_one(
+        {"category": cat}, sort=[("rank", -1)], projection={"_id": 0, "rank": 1}
+    )
+    next_rank = (last["rank"] + 1) if last else 1
+
+    r = paper_doc.get("ai_rating")
+    ai_rating = None
+    if r and isinstance(r, dict) and r.get("score"):
+        ai_rating = round(r["score"], 1)
+    elif r and isinstance(r, (int, float)):
+        ai_rating = round(r, 1)
+
+    await db.rankings.update_one(
+        {"paper_id": paper_doc["id"]},
+        {"$set": {
+            "paper_id": paper_doc["id"],
+            "category": cat,
+            "rank": next_rank,
+            "score": SCORE_BASE_CONST,
+            "ci": 0,
+            "wilson_margin": 100.0,
+            "win_rate": 0.0,
+            "wins": 0,
+            "losses": 0,
+            "comparisons": 0,
+            "title": paper_doc["title"],
+            "authors": paper_doc.get("authors", []),
+            "arxiv_id": paper_doc.get("arxiv_id", ""),
+            "link": paper_doc.get("link", ""),
+            "published": paper_doc.get("published", ""),
+            "added_at": paper_doc.get("added_at", datetime.now(timezone.utc).isoformat()),
+            "categories": paper_doc.get("categories", [cat]),
+            "ai_rating": ai_rating,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+
+async def reconcile_rankings(db, category: str = None):
+    """Full recomputation and comparison with incremental rankings.
+    
+    Used as a daily consistency check. Overwrites if drift detected.
+    Returns {category: {drifted: bool, max_score_diff: int, papers_checked: int}}.
+    """
+    from routers.validation_utils import collect_all
+    from core.auth import get_settings
+    from core.config import CATEGORIES, logger
+
+    settings = await get_settings()
+    cats = [category] if category else settings.get("active_categories", list(CATEGORIES.keys()))
+    results = {}
+
+    for cat in cats:
+        papers = await collect_all(db.papers.find(
+            {"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}},
+            {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+             "link": 1, "published": 1, "added_at": 1, "categories": 1,
+             "ai_rating": 1},
+        ))
+        matches = await collect_all(db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": cat,
+             "mode": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+             "completed": 1, "failed": 1},
+        ))
+
+        lb = compute_leaderboard(papers, matches)
+        recomputed = {e["id"]: e for e in lb}
+
+        # Compare with current rankings
+        max_diff = 0
+        drifted_papers = 0
+        async for r in db.rankings.find({"category": cat}, {"_id": 0, "paper_id": 1, "score": 1}):
+            expected = recomputed.get(r["paper_id"])
+            if expected:
+                diff = abs(r["score"] - expected["score"])
+                max_diff = max(max_diff, diff)
+                if diff > 0:
+                    drifted_papers += 1
+
+        results[cat] = {
+            "drifted": max_diff > 0,
+            "max_score_diff": max_diff,
+            "papers_checked": len(recomputed),
+            "drifted_papers": drifted_papers,
+        }
+
+        # If drift detected, overwrite with full recomputation
+        if max_diff > 0:
+            logger.warning(f"Rankings drift in {cat}: max_diff={max_diff}, {drifted_papers} papers affected. Reseeding.")
+            await seed_rankings(db, category=cat)
+
+        await asyncio.sleep(0)
+
+    return results

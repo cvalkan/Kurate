@@ -301,6 +301,12 @@ async def _deferred_startup():
         # Author verifications (ORCID claiming)
         await db.author_verifications.create_index("user_id", unique=True)
         await db.author_verifications.create_index("orcid_id")
+        # Rankings collection (DB-backed leaderboard)
+        await db.rankings.create_index("paper_id", unique=True)
+        await db.rankings.create_index([("category", 1), ("rank", 1)])
+        await db.rankings.create_index([("category", 1), ("score", -1)])
+        await db.rankings.create_index([("category", 1), ("published", -1)])
+        await db.rankings.create_index([("category", 1), ("added_at", -1)])
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
@@ -488,6 +494,7 @@ async def _staggered_startup_tasks():
     # Phase 2: Memory-heavy startup tasks (run SEQUENTIALLY with GC between each)
     _heavy_tasks = [
         "_startup_dedup",
+        "_startup_seed_rankings",
         "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab",
         "_startup_check_interrupted_tasks",
@@ -637,6 +644,53 @@ async def _startup_dedup():
     )
     if backfilled or merged:
         logger.info(f"Dedup hash backfill: {backfilled} hashed, {merged} duplicates merged")
+
+
+
+async def _startup_seed_rankings():
+    """Seed the DB-backed rankings collection if empty or stale.
+    
+    One-time migration from in-memory cache to DB-backed leaderboard.
+    Runs on every startup but is fast (~1s) if rankings already exist
+    and match the current paper count.
+    """
+    try:
+        from services.ranking import seed_rankings
+        from core.auth import get_settings
+        from core.config import CATEGORIES
+
+        settings = await get_settings()
+        cats = settings.get("active_categories", list(CATEGORIES.keys()))
+
+        # Check if rankings need seeding
+        rankings_count = await db.rankings.count_documents({})
+        papers_count = await db.papers.count_documents({"summaries": {"$exists": True, "$ne": {}}})
+
+        if rankings_count == 0 and papers_count > 0:
+            logger.info(f"Seeding rankings collection from {papers_count} papers...")
+            seeded = await seed_rankings(db)
+            logger.info(f"Rankings seeded: {seeded} entries across {len(cats)} categories")
+        elif rankings_count > 0:
+            # Check for new papers not yet in rankings
+            ranked_ids = set()
+            async for doc in db.rankings.find({}, {"_id": 0, "paper_id": 1}):
+                ranked_ids.add(doc["paper_id"])
+
+            unranked = 0
+            async for p in db.papers.find(
+                {"summaries": {"$exists": True, "$ne": {}}, "id": {"$nin": list(ranked_ids)}},
+                {"_id": 0, "id": 1}
+            ).limit(10):
+                unranked += 1
+
+            if unranked > 0:
+                logger.info(f"Found {unranked}+ unranked papers, reseeding rankings...")
+                seeded = await seed_rankings(db)
+                logger.info(f"Rankings reseeded: {seeded} entries")
+            else:
+                logger.info(f"Rankings collection up to date ({rankings_count} entries)")
+    except Exception as e:
+        logger.warning(f"Rankings seed failed: {e}")
 
 
 async def _startup_regen_truncated_summaries():
