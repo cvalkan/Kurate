@@ -690,7 +690,24 @@ async def _startup_seed_rankings():
                 seeded = await seed_rankings(db)
                 logger.info(f"Rankings reseeded: {seeded} entries")
             else:
-                logger.info(f"Rankings collection up to date ({rankings_count} entries)")
+                # Backfill added_at if empty (one-time migration after seed_rankings fix)
+                empty_added = await db.rankings.count_documents({"added_at": ""})
+                if empty_added > 0:
+                    logger.info(f"Backfilling added_at for {empty_added} rankings...")
+                    backfilled = 0
+                    async for p in db.papers.find(
+                        {"added_at": {"$exists": True, "$ne": None, "$ne": ""}},
+                        {"_id": 0, "id": 1, "added_at": 1}
+                    ):
+                        result = await db.rankings.update_one(
+                            {"paper_id": p["id"], "added_at": ""},
+                            {"$set": {"added_at": p["added_at"]}}
+                        )
+                        if result.modified_count:
+                            backfilled += 1
+                    logger.info(f"Backfilled added_at for {backfilled} rankings")
+                else:
+                    logger.info(f"Rankings collection up to date ({rankings_count} entries)")
     except Exception as e:
         logger.warning(f"Rankings seed failed: {e}")
 
