@@ -706,7 +706,7 @@ async def _build_recent_filter(scope_query: dict = None) -> dict:
     scope_query: optional MongoDB filter to scope the anchor lookup
     (e.g., {"category": "cs.RO"} or {"categories": {"$in": ["cs.AI"]}})
     """
-    anchor_query = {"added_at": {"$exists": True, "$ne": ""}}
+    anchor_query = {"added_at": {"$nin": ["", None]}}
     if scope_query:
         anchor_query.update(scope_query)
 
