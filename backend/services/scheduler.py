@@ -603,6 +603,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 logger.warning(f"[{category}] Rankings insert failed: {e}")
 
         cat_status["current_activity"] = "Idle"
+        log_mem(f"fetch_cycle({category}) done (new={new_count}, fetched={len(raw_papers)})")
         if new_count > 0:
             from routers.leaderboard import notify_data_changed
             notify_data_changed()
@@ -612,6 +613,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
     except Exception as e:
         logger.error(f"Fetch cycle failed for {category}: {e}")
         cat_status["current_activity"] = f"Fetch failed: {str(e)[:100]}"
+        log_mem(f"fetch_cycle({category}) FAILED: {str(e)[:80]}")
         return {"status": "error", "error": str(e)}
     finally:
         _fetching_cats.discard(category)
@@ -1106,6 +1108,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             cat_status["last_process_at"] = now_iso
             cat_status["current_activity"] = f"{total_matches + completed} total matches"
             logger.info(f"[{category}] Comparison round: {completed} ok, {failed} failed")
+            log_mem(f"comparison_round({category}) done (ok={completed}, fail={failed}, total={total_matches + completed})")
 
             # Store ranking snapshot for convergence tracking
             if completed > 0:
@@ -1125,6 +1128,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
         except Exception as e:
             logger.error(f"[{category}] Comparison round failed: {e}")
             cat_status["current_activity"] = f"Processing error: {str(e)[:100]}"
+            log_mem(f"comparison_round({category}) FAILED: {str(e)[:80]}")
             return {"status": "error", "error": str(e)}
         finally:
             cat_status["is_processing"] = False

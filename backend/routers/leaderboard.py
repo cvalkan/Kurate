@@ -532,12 +532,15 @@ async def _bg_analysis_cache_loop():
 async def _bg_archive_loop():
     """Background loop that checks and creates archive snapshots daily at 00:00 UTC.
     Also runs rankings reconciliation daily (not on startup — seed_rankings handles that)."""
+    from core.memlog import log_mem
     await asyncio.sleep(30)  # Wait for cache to warm
 
     # First iteration: only archive snapshots, skip reconciliation
     # (rankings are already verified by _startup_seed_rankings)
     try:
+        log_mem("archive_loop initial run start")
         await run_archive_snapshots()
+        log_mem("archive_loop initial run done")
     except Exception as e:
         logger.warning(f"Archive snapshot check failed: {e}")
 
@@ -549,12 +552,15 @@ async def _bg_archive_loop():
         await asyncio.sleep(max(sleep_seconds, 3600))
 
         try:
+            log_mem("archive_loop daily run start")
             await run_archive_snapshots()
+            log_mem("archive_loop daily snapshots done")
         except Exception as e:
             logger.warning(f"Archive snapshot check failed: {e}")
 
         # Daily rankings reconciliation
         try:
+            log_mem("reconciliation daily start")
             from services.ranking import reconcile_rankings
             results = await reconcile_rankings(db)
             drifted = sum(1 for r in results.values() if r.get("drifted"))
@@ -562,6 +568,7 @@ async def _bg_archive_loop():
                 logger.warning(f"Rankings reconciliation: {drifted}/{len(results)} categories had drift — reseeded")
             else:
                 logger.info(f"Rankings reconciliation: all {len(results)} categories consistent")
+            log_mem(f"reconciliation daily done (drift={drifted}/{len(results)})")
         except Exception as e:
             logger.warning(f"Rankings reconciliation failed: {e}")
 
@@ -743,10 +750,12 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
     try:
         result = await _db_category_leaderboard_impl(category, period, limit, offset, search, cursor)
         _elapsed = time.time() - _t0
-        if _elapsed > 1.0:
+        entries_n = len(result.get("leaderboard", []))
+        if _elapsed > 0.2:
             from core.memlog import log_event
             log_event("slow_query", f"category_leaderboard({category}, {period})",
-                      {"elapsed_s": round(_elapsed, 1), "entries": len(result.get("leaderboard", []))})
+                      {"elapsed_s": round(_elapsed, 3), "entries": entries_n,
+                       "search": bool(search), "cursor": bool(cursor)})
         return result
     except Exception as e:
         logger.error(f"Leaderboard query failed for {category}: {e}")
@@ -889,10 +898,12 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
     try:
         result = await _db_all_papers_leaderboard_impl(period, limit, offset, search, cursor)
         _elapsed = time.time() - _t0
-        if _elapsed > 1.0:
+        entries_n = len(result.get("leaderboard", []))
+        if _elapsed > 0.2:
             from core.memlog import log_event
             log_event("slow_query", f"all_papers_leaderboard({period})",
-                      {"elapsed_s": round(_elapsed, 1), "entries": len(result.get("leaderboard", []))})
+                      {"elapsed_s": round(_elapsed, 3), "entries": entries_n,
+                       "search": bool(search), "cursor": bool(cursor)})
         return result
     except Exception as e:
         logger.error(f"All-papers leaderboard query failed: {e}")
@@ -980,10 +991,13 @@ async def _db_tag_leaderboard(
     try:
         result = await _db_tag_leaderboard_impl(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor)
         _elapsed = time.time() - _t0
-        if _elapsed > 1.0:
+        entries_n = len(result.get("leaderboard", []))
+        if _elapsed > 0.2:
             from core.memlog import log_event
             log_event("slow_query", f"tag_leaderboard({tag_list[:3]}, {period})",
-                      {"elapsed_s": round(_elapsed, 1), "entries": len(result.get("leaderboard", []))})
+                      {"elapsed_s": round(_elapsed, 3), "entries": entries_n,
+                       "tags": tag_list[:5], "show_all": show_all,
+                       "search": bool(search), "cursor": bool(cursor)})
         return result
     except Exception as e:
         logger.error(f"Tag leaderboard query failed for {tag_list}: {e}")
