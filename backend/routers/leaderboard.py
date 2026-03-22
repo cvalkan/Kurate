@@ -1662,35 +1662,11 @@ async def _compute_si_rating_stats(category, model):
     # BT Pairwise Ranking vs Claude Opus 4.6 Thinking Single-Item Score Correlation
     bt_vs_si = None
     try:
-        # Collect BT scores from leaderboard cache or compute from DB
+        # Collect BT scores from rankings DB
         bt_ranks = {}
-        cache = _cache
-        if cache.get("categories"):
-            if category and cache["categories"].get(category):
-                for entry in cache["categories"][category].get("all", []):
-                    bt_ranks[entry["id"]] = entry.get("score", 0)
-            else:
-                for cat_data in cache["categories"].values():
-                    for entry in cat_data.get("all", []):
-                        if entry["id"] not in bt_ranks:
-                            bt_ranks[entry["id"]] = entry.get("score", 0)
-
-        if not bt_ranks:
-            from services.ranking import compute_leaderboard_async
-            match_query = {"completed": True, "failed": {"$ne": True}}
-            if category:
-                match_query["$or"] = [{"shared_categories": category}, {"primary_category": category}]
-            raw_matches = await collect_all(db.matches.find(
-                match_query,
-                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1}
-            ))
-            paper_query = {"summaries": {"$exists": True, "$ne": {}}}
-            if category:
-                paper_query["categories.0"] = category
-            bt_papers = await collect_all(db.papers.find(paper_query, {"_id": 0, "id": 1}))
-            if bt_papers and raw_matches:
-                lb = await compute_leaderboard_async(bt_papers, raw_matches)
-                bt_ranks = {e["id"]: e.get("score", 0) for e in lb}
+        rank_query = {"category": category} if category else {}
+        async for r in db.rankings.find(rank_query, {"_id": 0, "paper_id": 1, "score": 1}):
+            bt_ranks[r["paper_id"]] = r.get("score", 0)
 
         # Use ONLY Claude SI scores (from ai_rating or ai_ratings_by_model.claude)
         si_map = {}

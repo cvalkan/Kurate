@@ -182,8 +182,8 @@ async def get_public_list(list_id: str, request: Request):
         if not user or user["user_id"] != rl.get("user_id"):
             raise HTTPException(404, "Reading list not found")
 
-    # Enrich with paper data from leaderboard cache (with computed scores)
-    paper_map = _build_enriched_paper_map()
+    # Enrich with paper data from rankings DB
+    paper_map = await _build_enriched_paper_map()
 
     papers = []
     for pid in rl.get("paper_ids", []):
@@ -457,7 +457,7 @@ async def get_list_image(list_id: str):
     if not rl:
         raise HTTPException(404, "Reading list not found")
 
-    paper_map = _build_enriched_paper_map()
+    paper_map = await _build_enriched_paper_map()
     papers = []
     for pid in rl.get("paper_ids", [])[:8]:
         p = paper_map.get(pid)
