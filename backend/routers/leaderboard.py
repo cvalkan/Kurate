@@ -265,17 +265,6 @@ async def _refresh_cache():
             progress_by_cat[cat_id] = {"total_papers": 0, "goals_met": True, "category": cat_id}
             continue
 
-        cat_paper_ids = {e["paper_id"] for e in entries}
-
-        # Count compared pairs for this category
-        compared_pairs = set()
-        async for m in db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id, "mode": {"$exists": False}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1}
-        ):
-            if m["paper1_id"] in cat_paper_ids and m["paper2_id"] in cat_paper_ids:
-                compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
-
         top_k_list = entries[:min(top_k, cat_total)]
         top_k_ids = {e["paper_id"] for e in top_k_list}
 
@@ -319,14 +308,23 @@ async def _refresh_cache():
         median_topk = sorted(topk_margins)[len(topk_margins) // 2] if topk_margins else 0.0
         matches_for_goal2 = 0 if goal2_met else max(0, int(topk_additional * 0.6))
 
-        # Goal 3: Cross-matches among top-K
+        # Goal 3: Cross-matches among top-K (use targeted count queries, not full scan)
         topk_id_list = [e["paper_id"] for e in top_k_list]
         topk_total_pairs = len(topk_id_list) * (len(topk_id_list) - 1) // 2
-        topk_matched_pairs = sum(
-            1 for i in range(len(topk_id_list))
-            for j in range(i + 1, len(topk_id_list))
-            if tuple(sorted([topk_id_list[i], topk_id_list[j]])) in compared_pairs
-        )
+        topk_matched_pairs = 0
+        for i in range(len(topk_id_list)):
+            for j in range(i + 1, len(topk_id_list)):
+                p1, p2 = topk_id_list[i], topk_id_list[j]
+                has_match = await db.matches.count_documents({
+                    "completed": True, "failed": {"$ne": True}, "primary_category": cat_id,
+                    "mode": {"$exists": False},
+                    "$or": [
+                        {"paper1_id": p1, "paper2_id": p2},
+                        {"paper1_id": p2, "paper2_id": p1},
+                    ],
+                }) > 0
+                if has_match:
+                    topk_matched_pairs += 1
         goal3_met = topk_matched_pairs == topk_total_pairs
         matches_for_goal3 = topk_total_pairs - topk_matched_pairs
 
