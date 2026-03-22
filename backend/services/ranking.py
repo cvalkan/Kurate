@@ -545,8 +545,12 @@ async def seed_rankings(db, category: str = None):
             for i, entry in enumerate(entries_with_both):
                 gap_scores[entry["id"]] = round(float(_gap_raw[i]), 1)
 
+        # Build lookups from paper data (leaderboard entries don't carry all fields)
+        paper_lookup = {p["id"]: p for p in papers}
+
         ops = []
         for entry in lb:
+            p = paper_lookup.get(entry["id"], {})
             doc = {
                 "paper_id": entry["id"],
                 "category": cat,
@@ -562,9 +566,9 @@ async def seed_rankings(db, category: str = None):
                 "authors": entry.get("authors", []),
                 "arxiv_id": entry.get("arxiv_id", ""),
                 "link": entry.get("link", ""),
-                "published": entry.get("published", ""),
-                "added_at": entry.get("added_at", ""),
-                "categories": next((p.get("categories", []) for p in papers if p["id"] == entry["id"]), [cat]),
+                "published": p.get("published", entry.get("published", "")),
+                "added_at": p.get("added_at", ""),
+                "categories": p.get("categories", [cat]),
                 "ai_rating": ai_ratings.get(entry["id"]),
                 "community_likes": community_likes.get(entry["id"]),
                 "gap_score": gap_scores.get(entry["id"]),

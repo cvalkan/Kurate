@@ -732,7 +732,28 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
         }
 
     query = {"category": category}
-    query.update(_build_period_filter(period))
+
+    # "Most Recent": rolling 48h window anchored to the latest addition, not wall-clock time.
+    # If the latest paper was added Friday, this shows everything from Wed-Fri even on Sunday.
+    if period == "recent":
+        latest = await db.rankings.find_one(
+            {"category": category, "added_at": {"$exists": True, "$ne": ""}},
+            {"_id": 0, "added_at": 1},
+            sort=[("added_at", -1)],
+        )
+        if latest and latest.get("added_at"):
+            anchor = latest["added_at"]
+            # Parse anchor, subtract 48h
+            try:
+                anchor_dt = datetime.fromisoformat(anchor.replace("Z", "+00:00"))
+                cutoff = (anchor_dt - timedelta(hours=48)).isoformat()
+            except (ValueError, TypeError):
+                cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+            query["added_at"] = {"$gte": cutoff}
+        else:
+            query.update(_build_period_filter(period))
+    else:
+        query.update(_build_period_filter(period))
 
     if search:
         query["$or"] = [
