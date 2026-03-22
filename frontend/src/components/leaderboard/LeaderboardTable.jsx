@@ -50,17 +50,33 @@ export function LeaderboardTable({
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
 
-  // Infinite scroll: trigger server-side load when sentinel is visible
+  // Progressive DOM rendering + server pagination via single sentinel
+  const [renderCount, setRenderCount] = useState(100);
+
+  // Reset on new data
+  useEffect(() => { setRenderCount(100); }, [leaderboard]);
+
+  // Single unified sentinel: handles both progressive render and server page loads
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || !onLoadMore) return;
+    if (!sentinel) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting && hasMore && !loadingMore) onLoadMore(); },
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        // If there are loaded entries not yet rendered: expand render window
+        if (leaderboard.length > renderCount) {
+          setRenderCount(prev => prev + 100);
+        }
+        // If all loaded entries are rendered and more pages exist: fetch next page
+        else if (hasMore && onLoadMore && !loadingMore) {
+          onLoadMore();
+        }
+      },
       { rootMargin: "400px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [leaderboard, onLoadMore, hasMore, loadingMore]);
+  }, [leaderboard, renderCount, onLoadMore, hasMore, loadingMore]);
 
   const isGlobal = hasSelectedTags && globalStats;
   const getScore = (p) => isGlobal && p.global_score !== undefined ? p.global_score : p.score;
@@ -136,33 +152,8 @@ export function LeaderboardTable({
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
-  // Progressive DOM rendering: limit rendered nodes to prevent mobile jank.
-  // Server pagination loads data in pages; this limits how many are in the DOM at once.
-  const [renderCount, setRenderCount] = useState(80);
-  const renderSentinelRef = useRef(null);
-
-  // Reset render count when leaderboard changes (new fetch)
-  useEffect(() => { setRenderCount(80); }, [leaderboard]);
-
-  // Progressive render: add more DOM nodes as user scrolls within loaded data
-  useEffect(() => {
-    const sentinel = renderSentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setRenderCount(prev => prev + 80);
-        }
-      },
-      { rootMargin: "400px" }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [sorted]);
-
   const visibleList = sorted.slice(0, renderCount);
-  const needsServerLoad = hasMore && renderCount >= sorted.length;
-  const needsClientRender = sorted.length > renderCount;
+  const hasMoreToShow = hasMore || sorted.length > renderCount;
 
   const scoreLabel = isGlobal ? "Score (G)" : "Score";
   const winLabel = isGlobal ? "Win % (G)" : "Win %";
@@ -265,10 +256,8 @@ export function LeaderboardTable({
           </Link>
         ))}
       </div>
-      {/* Progressive render sentinel (more DOM nodes from already-loaded data) */}
-      {needsClientRender && <div ref={renderSentinelRef} className="py-2" />}
-      {/* Server pagination sentinel (fetch next page) */}
-      {needsServerLoad && <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">{loadingMore ? "Loading more..." : "Scroll for more"}</div>}
+      {/* Unified sentinel: triggers both progressive render and server page loads */}
+      {hasMoreToShow && <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">{loadingMore ? "Loading more..." : ""}</div>}
     </>
   );
 }
