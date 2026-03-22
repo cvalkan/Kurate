@@ -645,7 +645,7 @@ async def rerank_category(db, category: str):
     # Stable sort: score desc, then title hash desc (same as compute_leaderboard)
     entries.sort(key=lambda e: (e[1], e[2]), reverse=True)
 
-    # Bulk update ranks
+    # Bulk update ranks + refresh derived fields (gap_score, community_likes)
     from pymongo import UpdateOne
     ops = []
     for rank, (paper_id, _, _) in enumerate(entries, 1):
@@ -653,6 +653,71 @@ async def rerank_category(db, category: str):
             {"paper_id": paper_id, "category": category},
             {"$set": {"rank": rank}},
         ))
+    if ops:
+        await db.rankings.bulk_write(ops, ordered=False)
+
+    # Refresh gap_score and community_likes (stale after score changes)
+    await _refresh_derived_fields(db, category)
+
+
+async def _refresh_derived_fields(db, category: str):
+    """Refresh gap_score and community_likes for a category after reranking."""
+    from routers.validation_utils import collect_all
+
+    # Load ai_ratings for this category
+    ai_ratings = {}
+    async for p in db.papers.find(
+        {"categories.0": category},
+        {"_id": 0, "id": 1, "ai_rating": 1}
+    ):
+        r = p.get("ai_rating")
+        if r and isinstance(r, dict) and r.get("score"):
+            ai_ratings[p["id"]] = round(r["score"], 1)
+        elif r and isinstance(r, (int, float)):
+            ai_ratings[p["id"]] = round(r, 1)
+
+    # Load community likes
+    community_likes = {}
+    async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
+        if doc.get("likes") is not None:
+            community_likes[doc["id"]] = doc["likes"]
+
+    # Compute gap scores from current rankings
+    rankings = []
+    async for r in db.rankings.find(
+        {"category": category},
+        {"_id": 0, "paper_id": 1, "score": 1, "comparisons": 1}
+    ):
+        rankings.append(r)
+
+    gap_scores = {}
+    entries_with_both = [
+        e for e in rankings
+        if ai_ratings.get(e["paper_id"]) and e.get("comparisons", 0) >= 3
+    ]
+    if len(entries_with_both) >= 2:
+        from scipy import stats as _sp_stats
+        import numpy as _np
+        _bt_vals = _np.array([e["score"] for e in entries_with_both])
+        _si_vals = _np.array([ai_ratings[e["paper_id"]] for e in entries_with_both])
+        _bt_pct = _sp_stats.rankdata(_bt_vals) / len(entries_with_both) * 100
+        _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
+        _gap_raw = _bt_pct - _si_pct
+        for i, entry in enumerate(entries_with_both):
+            gap_scores[entry["paper_id"]] = round(float(_gap_raw[i]), 1)
+
+    # Bulk update
+    from pymongo import UpdateOne
+    ops = []
+    for r in rankings:
+        pid = r["paper_id"]
+        update = {}
+        if pid in gap_scores:
+            update["gap_score"] = gap_scores[pid]
+        if pid in community_likes:
+            update["community_likes"] = community_likes[pid]
+        if update:
+            ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
 
