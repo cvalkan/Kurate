@@ -350,7 +350,9 @@ async def _refresh_cache():
         await asyncio.sleep(0)  # Yield between categories
 
     # --- Summary stats via aggregation ---
+    _t_progress = time.time()
     summary_stats = await _compute_summary_stats_agg()
+    logger.info(f"Progress + summary stats computed in {time.time() - _t_progress:.1f}s")
 
     # --- Rating stats via aggregation ---
     rating_stats = {"__all__": {"rated": 0, "with_summaries": 0}}
@@ -701,12 +703,16 @@ async def _get_archives_for_category(category: str, settings: dict) -> list:
 
 
 async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None):
-    """Serve primary category leaderboard from DB rankings collection.
-    
-    Supports keyset pagination via cursor for O(1) deep page access.
-    """
+    """Serve primary category leaderboard from DB rankings collection."""
+    _t0 = time.time()
     try:
-        return await _db_category_leaderboard_impl(category, period, limit, offset, search, cursor)
+        result = await _db_category_leaderboard_impl(category, period, limit, offset, search, cursor)
+        _elapsed = time.time() - _t0
+        if _elapsed > 1.0:
+            from core.memlog import log_event
+            log_event("slow_query", f"category_leaderboard({category}, {period})",
+                      {"elapsed_s": round(_elapsed, 1), "entries": len(result.get("leaderboard", []))})
+        return result
     except Exception as e:
         logger.error(f"Leaderboard query failed for {category}: {e}")
         return {
@@ -843,8 +849,15 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
 
 async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None, cursor: str = None):
     """Serve cross-category 'all papers' leaderboard from DB rankings."""
+    _t0 = time.time()
     try:
-        return await _db_all_papers_leaderboard_impl(period, limit, offset, search, cursor)
+        result = await _db_all_papers_leaderboard_impl(period, limit, offset, search, cursor)
+        _elapsed = time.time() - _t0
+        if _elapsed > 1.0:
+            from core.memlog import log_event
+            log_event("slow_query", f"all_papers_leaderboard({period})",
+                      {"elapsed_s": round(_elapsed, 1), "entries": len(result.get("leaderboard", []))})
+        return result
     except Exception as e:
         logger.error(f"All-papers leaderboard query failed: {e}")
         return {
@@ -915,8 +928,15 @@ async def _db_tag_leaderboard(
     search: str = None, cursor: str = None,
 ):
     """Serve tag-filtered leaderboard from DB rankings."""
+    _t0 = time.time()
     try:
-        return await _db_tag_leaderboard_impl(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor)
+        result = await _db_tag_leaderboard_impl(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor)
+        _elapsed = time.time() - _t0
+        if _elapsed > 1.0:
+            from core.memlog import log_event
+            log_event("slow_query", f"tag_leaderboard({tag_list[:3]}, {period})",
+                      {"elapsed_s": round(_elapsed, 1), "entries": len(result.get("leaderboard", []))})
+        return result
     except Exception as e:
         logger.error(f"Tag leaderboard query failed for {tag_list}: {e}")
         return {
