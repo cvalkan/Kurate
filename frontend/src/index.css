@@ -92,9 +92,9 @@ code, .mono {
         @apply bg-background text-foreground;
     }
 
-/* Dark mode: invert the logo since it's dark text on transparent background */
+/* Dark mode: invert lightness while preserving hue (keeps blue logo blue) */
 .dark img[alt="Kurate.org"] {
-    filter: invert(1);
+    filter: invert(1) hue-rotate(180deg);
 }
 
 }
