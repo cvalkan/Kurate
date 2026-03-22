@@ -622,6 +622,24 @@ _RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "score": 1,
               "community_likes": 1, "categories": 1}
 
 
+def _encode_cursor(score: int, paper_id: str) -> str:
+    """Encode a keyset pagination cursor as a URL-safe base64 token."""
+    import base64, json
+    payload = json.dumps({"s": score, "p": paper_id}, separators=(",", ":"))
+    return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+
+
+def _decode_cursor(cursor: str) -> tuple:
+    """Decode a keyset cursor → (score, paper_id). Returns (None, None) on invalid input."""
+    import base64, json
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+        return payload["s"], payload["p"]
+    except Exception:
+        return None, None
+
+
 def _rank_doc_to_entry(doc: dict) -> dict:
     """Convert a rankings DB document to a leaderboard entry (matching the old cache format)."""
     return {
@@ -673,15 +691,16 @@ async def _get_archives_for_category(category: str, settings: dict) -> list:
     return _filter_archives_by_frequency(archives, category, settings)
 
 
-async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None):
-    """Serve primary category leaderboard from DB rankings collection."""
+async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None):
+    """Serve primary category leaderboard from DB rankings collection.
+    
+    Supports keyset pagination via cursor for O(1) deep page access.
+    """
     from core.auth import get_settings
     settings = await get_settings()
 
-    # Check if rankings exist for this category
     total_in_cat = await db.rankings.count_documents({"category": category})
     if total_in_cat == 0:
-        # Fall back to warming-up state if no rankings yet
         return {
             "leaderboard": [], "total_papers": 0, "total_in_period": 0,
             "total_matches": 0, "is_ranking": False, "period": period,
@@ -689,40 +708,51 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
             "warming_up": True, "message": "Leaderboard data is loading, please wait...",
         }
 
-    # Build query
     query = {"category": category}
     query.update(_build_period_filter(period))
 
-    # Add search filter
     if search:
         query["$or"] = [
             {"title": {"$regex": search, "$options": "i"}},
             {"authors": {"$regex": search, "$options": "i"}},
         ]
 
-    # Count total matching docs (for "total_in_period")
     total_in_period = await db.rankings.count_documents(query)
 
-    # Fetch sorted page — sort by rank (pre-computed), or by score for period-filtered views
     sort_field = "rank" if period == "all" and not search else "score"
     sort_dir = 1 if sort_field == "rank" else -1
-    cursor = db.rankings.find(query, _RANK_PROJ).sort(sort_field, sort_dir).skip(offset).limit(limit)
+
+    # Keyset pagination: O(1) for any page depth (vs O(N) for skip-based)
+    if cursor and not search:
+        cursor_score, cursor_pid = _decode_cursor(cursor)
+        if cursor_score is not None:
+            query["$or"] = [
+                {"score": {"$lt": cursor_score}},
+                {"score": cursor_score, "paper_id": {"$lt": cursor_pid}},
+            ]
+            offset = 0
+
+    sort_key = [("rank", 1)] if sort_field == "rank" else [("score", -1), ("paper_id", -1)]
+    cursor_obj = db.rankings.find(query, _RANK_PROJ).sort(sort_key).skip(offset).limit(limit)
     entries = []
     rank_offset = offset + 1
-    async for doc in cursor:
+    last_doc = None
+    async for doc in cursor_obj:
         entry = _rank_doc_to_entry(doc)
         if period != "all" or search:
-            # Re-rank within the filtered/searched view
             entry["rank"] = rank_offset
             rank_offset += 1
         entries.append(entry)
+        last_doc = doc
 
-    # Match count for this category
+    next_cursor = None
+    if entries and last_doc and len(entries) == limit:
+        next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
+
     match_count = await db.matches.count_documents(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
     )
 
-    # Community correlation (AlphaXiv)
     community_corr = None
     if category == "cs.RO":
         liked = []
@@ -757,11 +787,15 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
         "show_rating_column": settings.get("show_rating_column", True),
         "show_gap_column": settings.get("show_gap_column", True),
         "archives": await _get_archives_for_category(category, settings),
+        "next_cursor": next_cursor,
     }
 
 
-async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None):
-    """Serve cross-category 'all papers' leaderboard from DB rankings."""
+async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None, cursor: str = None):
+    """Serve cross-category 'all papers' leaderboard from DB rankings.
+    
+    Supports keyset pagination for O(1) deep page access at any scale.
+    """
     query = _build_period_filter(period)
     if search:
         query["$or"] = [
@@ -775,15 +809,31 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
         {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
     )
 
-    cursor = db.rankings.find(query, _RANK_PROJ).sort("score", -1).skip(offset).limit(limit)
+    # Keyset pagination
+    if cursor and not search:
+        cursor_score, cursor_pid = _decode_cursor(cursor)
+        if cursor_score is not None:
+            query["$or"] = [
+                {"score": {"$lt": cursor_score}},
+                {"score": cursor_score, "paper_id": {"$lt": cursor_pid}},
+            ]
+            offset = 0
+
+    cursor_obj = db.rankings.find(query, _RANK_PROJ).sort([("score", -1), ("paper_id", -1)]).skip(offset).limit(limit)
     entries = []
     rank_num = offset + 1
-    async for doc in cursor:
+    last_doc = None
+    async for doc in cursor_obj:
         entry = _rank_doc_to_entry(doc)
         entry["rank"] = rank_num
         entry["primary_category"] = doc.get("category", "unknown")
         rank_num += 1
         entries.append(entry)
+        last_doc = doc
+
+    next_cursor = None
+    if entries and last_doc and len(entries) == limit:
+        next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
 
     return {
         "leaderboard": entries,
@@ -796,13 +846,14 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
         "tags": None,
         "tag_mode": None,
         "show_all": True,
+        "next_cursor": next_cursor,
     }
 
 
 async def _db_tag_leaderboard(
     tag_list: list, period: str, limit: int, offset: int,
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
-    search: str = None,
+    search: str = None, cursor: str = None,
 ):
     """Serve tag-filtered leaderboard from DB rankings.
     
@@ -852,16 +903,32 @@ async def _db_tag_leaderboard(
             "paper2_id": {"$in": list(matching_ids)},
         })
 
-    cursor = db.rankings.find(rank_query, _RANK_PROJ).sort("score", -1).skip(offset).limit(limit)
+    # Keyset pagination
+    if cursor and not search:
+        cursor_score, cursor_pid = _decode_cursor(cursor)
+        if cursor_score is not None:
+            rank_query["$or"] = [
+                {"score": {"$lt": cursor_score}},
+                {"score": cursor_score, "paper_id": {"$lt": cursor_pid}},
+            ]
+            offset = 0
+
+    cursor_obj = db.rankings.find(rank_query, _RANK_PROJ).sort([("score", -1), ("paper_id", -1)]).skip(offset).limit(limit)
     entries = []
     rank_num = offset + 1
-    async for doc in cursor:
+    last_doc = None
+    async for doc in cursor_obj:
         entry = _rank_doc_to_entry(doc)
         entry["rank"] = rank_num
         entry["primary_category"] = doc.get("category", "unknown")
         entry["matches_tag"] = doc["paper_id"] in matching_ids
         rank_num += 1
         entries.append(entry)
+        last_doc = doc
+
+    next_cursor = None
+    if entries and last_doc and len(entries) == limit:
+        next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
 
     return {
         "leaderboard": entries,
@@ -876,6 +943,7 @@ async def _db_tag_leaderboard(
         "tag_mode": tag_mode,
         "show_all": show_all,
         "global_stats": global_stats,
+        "next_cursor": next_cursor,
     }
 
 
@@ -891,19 +959,20 @@ async def get_leaderboard(
     search: Optional[str] = Query(None, description="Search papers by title (case-insensitive)", max_length=200),
     limit: int = Query(10000, description="Max papers to return", ge=1, le=100000),
     offset: int = Query(0, description="Offset for pagination", ge=0),
+    cursor: Optional[str] = Query(None, description="Keyset pagination cursor (from previous response's next_cursor)"),
 ):
     # Tag-based filtering
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()][:50]
         if tag_list:
-            return await _db_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search)
+            return await _db_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor)
 
     # All papers cross-category
     if show_all:
-        return await _db_all_papers_leaderboard(period, limit, offset, search)
+        return await _db_all_papers_leaderboard(period, limit, offset, search, cursor)
 
     # Primary category leaderboard — served from DB rankings
-    return await _db_category_leaderboard(category, period, limit, offset, search)
+    return await _db_category_leaderboard(category, period, limit, offset, search, cursor)
 
 
 def _filter_archives_by_frequency(archives, category, settings):
