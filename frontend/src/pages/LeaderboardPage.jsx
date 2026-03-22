@@ -111,7 +111,9 @@ export default function LeaderboardPage() {
     return () => clearTimeout(t);
   }, [keyword]);
 
-  const PAGE_SIZE = 100;
+  // Load all entries in one call at current scale (<5K papers/category).
+  // Server-side cursor pagination exists in the API for future use at 10K+ scale.
+  const PAGE_SIZE = 10000;
 
   const fetchLeaderboard = useCallback(async () => {
     if (!category && !isTagMode) return;
