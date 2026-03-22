@@ -682,12 +682,13 @@ def _rank_doc_to_entry(doc: dict) -> dict:
 
 
 def _build_period_filter(period: str) -> dict:
-    """Build a MongoDB query filter for time periods."""
+    """Build a MongoDB query filter for time periods (non-recent only).
+    For 'recent', use _build_recent_filter() which needs async DB access."""
     if period == "all":
         return {}
     utc_now = datetime.now(timezone.utc)
     if period == "recent":
-        # "Most Recent" = papers added to the system in last 48h
+        # Fallback: static 48h (use _build_recent_filter for rolling window)
         cutoff = (utc_now - timedelta(hours=48)).isoformat()
         return {"added_at": {"$gte": cutoff}}
     elif period == "week":
@@ -697,6 +698,32 @@ def _build_period_filter(period: str) -> dict:
         cutoff = (utc_now - timedelta(days=30)).isoformat()
         return {"published": {"$gte": cutoff}}
     return {}
+
+
+async def _build_recent_filter(scope_query: dict = None) -> dict:
+    """Rolling 48h window anchored to the latest addition within scope.
+    
+    scope_query: optional MongoDB filter to scope the anchor lookup
+    (e.g., {"category": "cs.RO"} or {"categories": {"$in": ["cs.AI"]}})
+    """
+    anchor_query = {"added_at": {"$exists": True, "$ne": ""}}
+    if scope_query:
+        anchor_query.update(scope_query)
+
+    latest = await db.rankings.find_one(
+        anchor_query,
+        {"_id": 0, "added_at": 1},
+        sort=[("added_at", -1)],
+    )
+    if latest and latest.get("added_at"):
+        try:
+            anchor_dt = datetime.fromisoformat(latest["added_at"].replace("Z", "+00:00"))
+            cutoff = (anchor_dt - timedelta(hours=48)).isoformat()
+            return {"added_at": {"$gte": cutoff}}
+        except (ValueError, TypeError):
+            pass
+    # Fallback: static 48h
+    return {"added_at": {"$gte": (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()}}
 
 
 async def _get_archives_for_category(category: str, settings: dict) -> list:
@@ -745,25 +772,9 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
 
     query = {"category": category}
 
-    # "Most Recent": rolling 48h window anchored to the latest addition, not wall-clock time.
-    # If the latest paper was added Friday, this shows everything from Wed-Fri even on Sunday.
+    # Period filter (rolling window for "recent")
     if period == "recent":
-        latest = await db.rankings.find_one(
-            {"category": category, "added_at": {"$exists": True, "$ne": ""}},
-            {"_id": 0, "added_at": 1},
-            sort=[("added_at", -1)],
-        )
-        if latest and latest.get("added_at"):
-            anchor = latest["added_at"]
-            # Parse anchor, subtract 48h
-            try:
-                anchor_dt = datetime.fromisoformat(anchor.replace("Z", "+00:00"))
-                cutoff = (anchor_dt - timedelta(hours=48)).isoformat()
-            except (ValueError, TypeError):
-                cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-            query["added_at"] = {"$gte": cutoff}
-        else:
-            query.update(_build_period_filter(period))
+        query.update(await _build_recent_filter({"category": category}))
     else:
         query.update(_build_period_filter(period))
 
@@ -875,7 +886,11 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
 
 
 async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, search: str = None, cursor: str = None):
-    query = _build_period_filter(period)
+    # Period filter (rolling window for "recent")
+    if period == "recent":
+        query = await _build_recent_filter()
+    else:
+        query = _build_period_filter(period)
     if search:
         query["$or"] = [
             {"title": {"$regex": search, "$options": "i"}},
@@ -976,11 +991,16 @@ async def _db_tag_leaderboard_impl(
         }
 
     # Build query for the page
+    if period == "recent":
+        recent_filter = await _build_recent_filter(tag_filter if not show_all else None)
+    else:
+        recent_filter = None
+
     if show_all:
-        rank_query = _build_period_filter(period)
+        rank_query = recent_filter if recent_filter else _build_period_filter(period)
     else:
         rank_query = dict(tag_filter)
-        rank_query.update(_build_period_filter(period))
+        rank_query.update(recent_filter if recent_filter else _build_period_filter(period))
 
     if search:
         rank_query["$or"] = [
