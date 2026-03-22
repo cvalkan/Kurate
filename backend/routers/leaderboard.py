@@ -521,15 +521,30 @@ async def _bg_analysis_cache_loop():
 
 
 async def _bg_archive_loop():
-    """Background loop that checks and creates archive snapshots daily at 00:00 UTC."""
+    """Background loop that checks and creates archive snapshots daily at 00:00 UTC.
+    Also runs rankings reconciliation daily (not on startup — seed_rankings handles that)."""
     await asyncio.sleep(30)  # Wait for cache to warm
+
+    # First iteration: only archive snapshots, skip reconciliation
+    # (rankings are already verified by _startup_seed_rankings)
+    try:
+        await run_archive_snapshots()
+    except Exception as e:
+        logger.warning(f"Archive snapshot check failed: {e}")
+
     while True:
+        # Sleep until next day at 00:05 UTC
+        now = datetime.now(timezone.utc)
+        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
+        sleep_seconds = (tomorrow - now).total_seconds()
+        await asyncio.sleep(max(sleep_seconds, 3600))
+
         try:
             await run_archive_snapshots()
         except Exception as e:
             logger.warning(f"Archive snapshot check failed: {e}")
 
-        # Daily rankings reconciliation (Phase 4)
+        # Daily rankings reconciliation
         try:
             from services.ranking import reconcile_rankings
             results = await reconcile_rankings(db)
@@ -540,11 +555,6 @@ async def _bg_archive_loop():
                 logger.info(f"Rankings reconciliation: all {len(results)} categories consistent")
         except Exception as e:
             logger.warning(f"Rankings reconciliation failed: {e}")
-        # Sleep until next day at 00:05 UTC
-        now = datetime.now(timezone.utc)
-        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
-        sleep_seconds = (tomorrow - now).total_seconds()
-        await asyncio.sleep(max(sleep_seconds, 3600))  # At least 1 hour between checks
 
 
 async def _get_cached_leaderboard():

@@ -699,11 +699,12 @@ async def _startup_regen_truncated_summaries():
     Gated by a DB flag so it only runs once. Resumes cleanly after restarts —
     already-regenerated papers no longer match the scan filter.
     """
-    await asyncio.sleep(60)  # Wait for caches + scheduler to be fully ready
     try:
         flag = await db.settings.find_one({"key": "regen_truncated_summaries_v1"}, {"_id": 0})
         if flag and flag.get("done"):
-            return  # Already completed
+            return  # Already completed — skip immediately (no 60s wait)
+
+        await asyncio.sleep(60)  # Wait for caches + scheduler to be fully ready
 
         from routers.admin import _run_regen, _get_regen_progress, _set_regen_progress
 
@@ -732,8 +733,12 @@ async def _startup_regen_truncated_summaries():
 
 async def _startup_resume_summarizer_ab():
     """Resume incomplete summarizer-ab tasks that were interrupted by a restart."""
-    await asyncio.sleep(30)  # Wait for caches + scheduler to be ready
     try:
+        # Quick check if there's anything to resume before waiting
+        count = await db.summarizer_ab_tasks.count_documents({"status": "running"})
+        if count == 0:
+            return  # Nothing to resume — skip immediately
+        await asyncio.sleep(30)  # Wait for caches + scheduler to be ready
         from routers.validation_experiments import resume_incomplete_summarizer_ab
         await resume_incomplete_summarizer_ab()
     except Exception as e:
