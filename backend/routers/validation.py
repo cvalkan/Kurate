@@ -25,6 +25,7 @@ from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TIE_ALLOWED_PROMP
 from core.auth import verify_admin, get_settings
 from services.llm import compare_papers
 from services.ranking import compute_leaderboard, compute_leaderboard_async
+from routers.validation_utils import collect_all
 from services.task_tracker import TaskTracker
 from routers.validation_utils import (
     TIER_ORDER, RANKABLE_TIERS, norm_tier,
@@ -922,7 +923,6 @@ async def _compute_consistency_analysis():
         return cm
 
     # ── Load all matches across all datasets ──
-    from routers.validation_utils import collect_all
     all_matches = await collect_all(db.validation_matches.find(
         {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "dataset_id": 1, "paper1_id": 1, "paper2_id": 1,
