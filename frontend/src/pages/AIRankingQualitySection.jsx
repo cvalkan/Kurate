@@ -193,6 +193,9 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
         AI ranking from <strong>all thinking-mode matches</strong> (1 judge per pair, random sample).
         Human ground truth from <strong>all expert pairs</strong> with {"\u2265"}2 non-tying opinions — not restricted to AI{"'"}s pair set.
         Each method uses its full available data independently.
+        {" "}<strong>Note:</strong> {"\u03C1"} values here differ slightly from the <em>Human vs AI Benchmark</em> page because the human
+        ranking uses all available expert preferences (not restricted to controlled pairs), giving the human side more data.
+        The AI match set is the same on both pages.
       </div>
 
       {isUnfiltered ? (
@@ -333,8 +336,10 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
           </p>
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             <strong>Key difference from Human vs AI Benchmark</strong>: that page uses <em>controlled pairs</em> (same pair set
-            for both AI and human) to enable fair head-to-head comparison. This page uses each method{"'"}s <em>full data</em> to
-            measure absolute ranking quality without sampling assumptions.
+            for both AI and human) to enable fair head-to-head comparison — the human ranking is restricted to pairs the AI also judged.
+            This page uses each method{"'"}s <em>full data</em> independently:
+            the human ranking draws on all expert pairs (including those AI didn{"'"}t judge), giving it more information.
+            This is why {"\u03C1"} values here differ slightly from the benchmark page even though the AI match set is the same.
           </p>
         </div>
       </div>

@@ -215,7 +215,7 @@ export default function ValidationHubPage() {
       "exp-thinking-overview": { title: "Extended Thinking", desc: "Does giving the summarizer a thinking budget improve agreement with human experts? Compares Opus 4.6 standard vs Opus 4.6 with extended thinking." },
       "exp-tie-allowed": { title: "Tie-Allowed Judging", desc: "Does allowing AI judges to declare ties improve accuracy on decisive pairs? Compares forced-choice vs tie-allowed prompts on the same opus46 pairs." },
       "exp-multi-aspect": { title: "Multi-Aspect Judging", desc: "Does breaking the judgment into 5 separate dimensions (novelty, applications, rigor, breadth, timeliness) improve accuracy over a single holistic verdict?" },
-      "exp-human-ai-benchmark": { title: "Human vs AI Benchmark (Legacy)", desc: "Controlled same-pair comparison: AI and human rankings built from the same pair set. Pairwise concordance, tie correction, Ranking correlation (8 ICLR topics, PeerRead ACL 2017)." },
+      "exp-human-ai-benchmark": { title: "Human vs AI Benchmark (Legacy)", desc: "Controlled same-pair comparison: AI and human rankings built from the same pair set. Pairwise concordance with tie correction, ranking correlation. Cross-tier pairs only. 8 ICLR topics + PeerRead ACL 2017." },
       "exp-unified-comp": { title: "PW vs SI — Comparative GT", desc: "Head-to-head comparison of pairwise judges vs single-item scoring on the exact same pairs. Comparative GT (ICLR, PeerRead)." },
       "exp-unified-stan": { title: "PW vs SI — Standalone GT", desc: "Head-to-head comparison of pairwise judges vs single-item scoring on the exact same pairs. Standalone GT (eLife, MIDL, Qeios, ResearchHub)." },
       "exp-judge-comparison": { title: "Accuracy by Judge", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs (4 judges x 9 datasets x 200 pairs)." },
@@ -228,9 +228,9 @@ export default function ValidationHubPage() {
       "report-summary": { title: "Validation Summary Report", desc: "Comprehensive analysis across all datasets: single-item vs pairwise, the GT generation hypothesis, the Gap score signal, and practical recommendations." },
       "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
       "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
-      "exp-ai-ranking-quality": { title: "AI Ranking Quality (Legacy)", desc: "How well does AI's ranking from its random match sample correlate with the comprehensive human ranking? Each method uses its full available data — no pair-set filtering." },
-      "exp-human-ai-benchmark-unfiltered": { title: "Human vs AI Benchmark", desc: "Same as Human vs AI Benchmark but including within-tier matches (e.g. Poster vs Poster). Tests AI on the full difficulty spectrum." },
-      "exp-ai-ranking-quality-unfiltered": { title: "AI Ranking Quality", desc: "AI ranking quality including within-tier matches. Each method uses its full data independently." },
+      "exp-ai-ranking-quality": { title: "AI Ranking Quality (Legacy)", desc: "How well does AI's ranking correlate with the human ranking? Each method uses its full available data independently — the human ranking includes expert pairs the AI didn't judge. Cross-tier pairs only." },
+      "exp-human-ai-benchmark-unfiltered": { title: "Human vs AI Benchmark", desc: "Controlled same-pair comparison including within-tier matches (e.g. Poster vs Poster). Tests AI on the full difficulty spectrum. 8 ICLR topics + PeerRead." },
+      "exp-ai-ranking-quality-unfiltered": { title: "AI Ranking Quality", desc: "AI ranking quality including within-tier matches. Each method uses its full data independently — the human ranking includes expert pairs the AI didn't judge." },
     };
     if (!selected) return { title: "", desc: "" };
     if (STATIC_META[selected]) return STATIC_META[selected];

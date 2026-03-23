@@ -559,7 +559,9 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
             </div>
             <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                All rankings use each method's full match data on <strong>controlled pairs</strong> (the same pair set for both AI and human).
+                All rankings use normalized win-rate scores on <strong>controlled pairs</strong> (the same pair set for both AI and human).
+                The human ranking is restricted to these controlled pairs to ensure a fair same-pair-set comparison — the <em>AI Ranking Quality</em> page
+                uses each method{"'"}s full data independently and may produce slightly different {"\u03C1"} values.
                 "Single expert" builds ranking from each expert's preferences individually, then averages the correlation across all experts.
                 <strong>Majority</strong> = virtual majority vote from reviewer preferences (our construction).
                 <strong>Committee (ICLR PC)</strong> = actual program committee tier decisions (coarse: 4 tiers).
