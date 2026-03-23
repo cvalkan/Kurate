@@ -584,6 +584,10 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         cat_status["current_activity"] = "Generating summaries..."
         await _generate_paper_summaries(category=category, force=force)
 
+        # Explicit GC after heavy operations to release memory before next steps
+        import gc
+        gc.collect()
+
         # Final paper count (with summaries — for compare loop eligibility)
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
@@ -748,6 +752,9 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     Claude uses extended thinking for higher-quality summaries.
     All three models generate summaries, but only Claude Thinking is
     used in live tournament comparisons.
+    
+    Memory-optimized: scans with a lightweight projection (no full_text/summaries),
+    then loads full paper data only for the few that actually need generation.
     """
     global _summary_gen_stop
     _summary_gen_stop = False  # Clear stop flag on new run
@@ -761,10 +768,6 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     query["full_text"] = {"$ne": None}
 
     total_papers = await db.papers.count_documents(query)
-    paper_cursor = db.papers.find(
-        query,
-        {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
-    )
 
     cat_status = _get_cat_status(category) if category else None
     sem = asyncio.Semaphore(parallel)
@@ -772,7 +775,6 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     failed = 0
     skipped = 0
     scanned = 0
-    batch_size = max(25, min(parallel * 10, 250))
 
     # Track progress for external visibility
     prog_key = category or "__all__"
@@ -787,29 +789,60 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
         if prog:
             prog.update({"generated": generated, "failed": failed, "skipped": skipped, "scanned": scanned})
 
-    async def gen_one(paper, model_info):
-        nonlocal generated, failed, skipped
-        # Instant stop check — no cache delay
+    # All model keys we need to check
+    all_model_keys = [_summary_model_key(m) for m in _SUMMARY_GENERATION_MODELS]
+
+    # Phase 1: Lightweight scan — only load IDs and summary keys (NOT full_text)
+    # This avoids loading ~100MB of full_text for papers that already have summaries.
+    _light_proj = {"_id": 0, "id": 1, "summaries": 1}
+    papers_needing_gen = []  # list of (paper_id, [model_infos_needed])
+
+    paper_cursor = db.papers.find(query, _light_proj)
+    async for paper in paper_cursor:
+        scanned += 1
+        needed_models = []
+        for model_info in _SUMMARY_GENERATION_MODELS:
+            mk = _summary_model_key(model_info)
+            if not _get_paper_summary(paper, mk):
+                needed_models.append(model_info)
+            else:
+                skipped += 1
+        if needed_models:
+            papers_needing_gen.append((paper["id"], needed_models))
+        if scanned % 100 == 0:
+            _sync_progress()
+            if cat_status:
+                cat_status["current_activity"] = f"Scanning for missing summaries... ({scanned}/{total_papers})"
+
+    _sync_progress()
+    if cat_status:
+        cat_status["current_activity"] = f"Generating summaries for {len(papers_needing_gen)} papers..."
+
+    # Phase 2: Load full paper data ONLY for papers that need generation
+    async def gen_one(paper_id, model_info):
+        nonlocal generated, failed
         if _summary_gen_stop:
             return
-        # Also check settings for pause
         s = await get_settings()
         if s.get("paused", False):
             return
 
         mk = _summary_model_key(model_info)
-        # Check if already exists (including fallback keys) — don't regenerate
-        if _get_paper_summary(paper, mk):
-            skipped += 1
-            _sync_progress()
-            return
-
         async with sem:
-            # Re-check stop flag after acquiring semaphore
             if _summary_gen_stop:
                 return
             s2 = await get_settings()
             if s2.get("paused", False):
+                return
+            # Load full paper data on-demand (only when actually generating)
+            paper = await db.papers.find_one(
+                {"id": paper_id},
+                {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
+            )
+            if not paper:
+                return
+            # Re-check in case another worker already generated it
+            if _get_paper_summary(paper, mk):
                 return
             try:
                 result = await generate_precomparison_impact_summary(paper, model_override=model_info)
@@ -841,7 +874,6 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                     from services.llm import parse_ratings_from_summary as _parse_ratings
                     _model_ratings = _parse_ratings(summary_val)
                     if _model_ratings:
-                        # Map model key to short name: anthropic:claude-opus-4-6:thinking -> claude
                         _model_short = "claude" if "anthropic" in mk else "gpt" if "openai" in mk else "gemini" if "gemini" in mk else None
                         if _model_short:
                             update_fields[f"ai_ratings_by_model.{_model_short}"] = _model_ratings
@@ -861,15 +893,14 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                 failed += 1
                 _sync_progress()
 
-    async for paper_batch in _iter_cursor_batches(paper_cursor, batch_size=batch_size):
-        scanned += len(paper_batch)
-        if cat_status:
-            cat_status["current_activity"] = f"Generating summaries... ({scanned}/{total_papers} scanned, {generated} new)"
-        _sync_progress()
+    # Process papers needing generation in small batches
+    batch_size = max(10, min(parallel * 5, 50))
+    for i in range(0, len(papers_needing_gen), batch_size):
+        batch = papers_needing_gen[i:i+batch_size]
         tasks = []
-        for paper in paper_batch:
-            for model_info in _SUMMARY_GENERATION_MODELS:
-                tasks.append(gen_one(paper, model_info))
+        for paper_id, needed_models in batch:
+            for model_info in needed_models:
+                tasks.append(gen_one(paper_id, model_info))
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
