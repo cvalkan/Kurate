@@ -38,7 +38,7 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
           <colgroup>
             <col style={{ width: "22%" }} />
             <col /><col /><col /><col /><col /><col />
-            <col style={{ width: "5%" }} /><col style={{ width: "5.5%" }} /><col style={{ width: "6%" }} />
+            <col style={{ width: "5.5%" }} /><col style={{ width: "6%" }} />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
@@ -49,7 +49,6 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
               <th className="py-1.5 px-1.5 text-right font-medium bg-amber-500/[0.06]"><div>Human vs.</div><div>Majority (LOO)<sup>3</sup></div></th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-rose-500/[0.06]"><div>AI vs.</div><div>Committee<sup>4</sup></div></th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-rose-500/[0.06]"><div>Human vs.</div><div>Committee<sup>4,5</sup></div></th>
-              <th className="py-1.5 px-1.5 text-right font-medium">tie%<sup>6</sup></th>
               <th className="py-1.5 px-1.5 text-right font-medium">kappa</th>
               <th className="py-1.5 px-1.5 text-right font-medium">pairs</th>
             </tr>
@@ -60,7 +59,7 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
               const cfCell = (val, tiePct, bg) => (
                 <td className={`py-1 px-1.5 text-right font-mono text-xs ${bg}`}>
                   <div className="font-bold">{val != null ? `${val}%` : "\u2014"}</div>
-                  {tiePct != null && <div className="text-[8px] text-muted-foreground/60 font-normal">{tiePct}% ties</div>}
+                  {tiePct != null && <div className="text-[8px] text-muted-foreground/60 font-normal">{tiePct}% ties<sup>6</sup></div>}
                 </td>
               );
               return (
@@ -72,7 +71,6 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                 {cfCell(tieImpact.coin_flip.human_committee_loo, tr.hc_loo, "bg-amber-500/[0.06]")}
                 {cfCell(tierAccuracy?.cf_ai_rate ?? tierAccuracy?.ai_rate, tr.tier_ai, "bg-rose-500/[0.06]")}
                 {cfCell(tierAccuracy?.cf_hh_rate ?? tierAccuracy?.hh_rate, tr.tier_hh, "bg-rose-500/[0.06] font-normal text-foreground/60")}
-                <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
                 <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
                 <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{(totalPairsCf ?? tieImpact.coin_flip.total_pairs ?? totalPairs)?.toLocaleString()}</td>
               </tr>
@@ -86,25 +84,32 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{kfmt(pw.ai_human)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{totalPairs?.toLocaleString()}</td>
             </tr>
             {difficulty && levels.map(({ key, label, desc }) => {
               const d = difficulty[key] || {};
+              const tieCell = (val, tiePct, bg) => (
+                <td className={`py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 ${bg}`}>
+                  <div>{val}</div>
+                  {tiePct != null && <div className="text-[8px] text-muted-foreground/50">{tiePct}% ties</div>}
+                </td>
+              );
+              // Compute per-cell tie fractions for difficulty rows from cf vs nontie totals
+              const ahTiePct = d.ah_cf_n > 0 && d.ai_human?.pairs >= 0 ? Math.round((d.ah_cf_n - d.ai_human.pairs) / d.ah_cf_n * 100) : null;
+              const hhTiePct = d.hh_cf_n > 0 && d.human_human?.pairs >= 0 ? Math.round((d.hh_cf_n - d.human_human.pairs) / d.hh_cf_n * 100) : null;
               return (
                 <tr key={key} className="border-b border-border/20">
                   <td className="py-1.5 px-2 text-left text-xs">
                     <div className="text-foreground/60">{label}</div>
                     <div className="text-foreground/40 text-[9px] whitespace-nowrap">{desc}</div>
                   </td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{d.ah_cf != null ? fmtN(d.ah_cf, d.ah_cf_n) : fmt(d.ai_human)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{d.hh_cf != null ? fmtN(d.hh_cf, d.hh_cf_n) : fmt(d.human_human)}</td>
+                  {tieCell(d.ah_cf != null ? fmtN(d.ah_cf, d.ah_cf_n) : fmt(d.ai_human), ahTiePct, "bg-sky-500/[0.06]")}
+                  {tieCell(d.hh_cf != null ? fmtN(d.hh_cf, d.hh_cf_n) : fmt(d.human_human), hhTiePct, "bg-sky-500/[0.06]")}
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmtN(d.ai_committee?.rate, d.ai_committee?.pairs)}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? fmtN(d.hc_loo_cf, d.hc_loo_cf_n) : fmt(d.human_committee_loo)}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{d.tier_ai?.pairs > 0 ? fmtN(d.tier_ai.rate, d.tier_ai.pairs) : "\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{d.tier_hh?.pairs > 0 ? fmtN(d.tier_hh.rate, d.tier_hh.pairs) : "\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{d.hh_tie_rate != null ? `${d.hh_tie_rate}%` : "\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{d.ah_cf_kappa != null ? d.ah_cf_kappa.toFixed(2) : "\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
                 </tr>
@@ -122,7 +127,6 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
                 </tr>
                 <tr className="border-b border-border/30">
                   <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">Equal-weighted (ties excluded)<sup>9,8</sup><div className="text-foreground/40 text-[9px]">per reviewer, ties dropped</div></td>
@@ -132,7 +136,6 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
                 </tr>
@@ -148,7 +151,7 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
           <p><sup>3</sup> When LOO voters split evenly, the pair is skipped — a selection bias toward pairs where remaining experts agree. More common than in non-LOO (fewer voters).</p>
           <p><sup>4</sup> <strong>Committee</strong> = actual ICLR program committee accept/reject tier decisions (cross-tier pairs only).</p>
           <p><sup>5</sup> <strong>Circular</strong>: the same reviewers who provide scores also influenced the committee decisions — structurally inflating human accuracy. AI vs. Committee has no such circularity.</p>
-          <p><sup>6</sup> Fraction of expert comparisons that are ties (at least one reviewer gave both papers the same score). ICLR uses only 6 distinct ratings (1, 3, 5, 6, 8, 10) on a 1–10 scale, heavily concentrated around 5–6, making ties structurally common.</p>
+          <p><sup>6</sup> <strong>Tie fractions</strong> differ by column because "tie" means different things: <strong>AI/H vs. Human</strong> — reviewer gave both papers the same score (score tie). <strong>AI/H vs. Majority</strong> — no clear majority among non-tying reviewers (majority tie). <strong>AI/H vs. Committee</strong> — both papers received the same acceptance tier, e.g. Poster vs. Poster (tier tie). ICLR uses only 6 distinct ratings (1, 3, 5, 6, 8, 10) on a 1–10 scale, heavily concentrated around 5–6, making score ties structurally common (~20–40%). Tier ties are even more frequent (~40–50%) since most papers are accepted as Poster.</p>
           <p><sup>7</sup> <strong>Coin flip</strong>: tied experts get a random preference (50% expected agreement) instead of being excluded. Corrects the double-filter selection bias in Human vs. Human.</p>
           <p><sup>8</sup> <strong>Ties excluded</strong>: only comparisons where expert(s) had clear preferences. This creates a <strong>selection bias</strong> because Human vs. Human requires <em>both</em> experts to have preferences on the same pair (double filter), while AI vs. Human only requires one (single filter). Example: if experts A, B, C review a pair and B ties, Human vs. Human keeps only A-C (1 of 3 comparisons), while AI vs. Human keeps AI-A and AI-C (2 of 3). The double filter retains only comparisons where both reviewers could distinguish the papers — an inherently more agreeable subset. Difficulty rows use coin-flip to correct for this.</p>
           <p><sup>9</sup> <strong>Equal-weighted</strong>: concordance averaged per dataset (each dataset weighted equally regardless of how many comparisons it contributes). Because reviewer identities are positional, "per reviewer pair" is effectively per dataset. Pooled rows weight by comparison volume, so large high-agreement datasets dominate.</p>
