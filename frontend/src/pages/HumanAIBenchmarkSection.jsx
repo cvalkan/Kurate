@@ -56,6 +56,12 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
           <tbody>
             {tieImpact?.coin_flip && (() => {
               const tr = tieImpact.tie_rates || {};
+              // For Committee columns, use actual same-tier count (not generic cf_total diff)
+              const tierAiTie = tierAccuracy?.cf_ai_total > 0 && tierAccuracy?.tier_same_count > 0
+                ? Math.round(tierAccuracy.tier_same_count / tierAccuracy.cf_ai_total * 100) : null;
+              const tierHhTie = tierAccuracy?.cf_hh_total > 0 && tierAccuracy?.tier_same_count > 0
+                ? Math.round(tierAccuracy.tier_same_count / tierAccuracy.cf_hh_total * 100 * (tierAccuracy.cf_hh_total / Math.max(tierAccuracy.cf_ai_total, 1))) : null;
+              // Simpler: use backend tie_rates which are computed correctly
               const cfCell = (val, tiePct, bg) => (
                 <td className={`py-1 px-1.5 text-right font-mono text-xs ${bg}`}>
                   <div className="font-bold">{val != null ? `${val}%` : "\u2014"}</div>
@@ -69,8 +75,8 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                 {cfCell(tieImpact.coin_flip.human_human, tr.hh, "bg-sky-500/[0.06]")}
                 {cfCell(tieImpact.coin_flip.ai_committee, tr.ac, "bg-amber-500/[0.06]")}
                 {cfCell(tieImpact.coin_flip.human_committee_loo, tr.hc_loo, "bg-amber-500/[0.06]")}
-                {cfCell(tierAccuracy?.cf_ai_rate ?? tierAccuracy?.ai_rate, tr.tier_ai, "bg-rose-500/[0.06]")}
-                {cfCell(tierAccuracy?.cf_hh_rate ?? tierAccuracy?.hh_rate, tr.tier_hh, "bg-rose-500/[0.06] font-normal text-foreground/60")}
+                {cfCell(tierAccuracy?.cf_ai_rate ?? tierAccuracy?.ai_rate, tierAiTie, "bg-rose-500/[0.06]")}
+                {cfCell(tierAccuracy?.cf_hh_rate ?? tierAccuracy?.hh_rate, tierAiTie, "bg-rose-500/[0.06] font-normal text-foreground/60")}
                 <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
                 <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{(totalPairsCf ?? tieImpact.coin_flip.total_pairs ?? totalPairs)?.toLocaleString()}</td>
               </tr>
@@ -92,12 +98,15 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
               const tieCell = (val, tiePct, bg) => (
                 <td className={`py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 ${bg}`}>
                   <div>{val}</div>
-                  {tiePct != null && <div className="text-[8px] text-muted-foreground/50">{tiePct}% ties</div>}
+                  {tiePct != null && tiePct > 0 && <div className="text-[8px] text-muted-foreground/50">{tiePct}% ties<sup>6</sup></div>}
                 </td>
               );
-              // Compute per-cell tie fractions for difficulty rows from cf vs nontie totals
+              // Per-cell tie fractions for difficulty rows
               const ahTiePct = d.ah_cf_n > 0 && d.ai_human?.pairs >= 0 ? Math.round((d.ah_cf_n - d.ai_human.pairs) / d.ah_cf_n * 100) : null;
               const hhTiePct = d.hh_cf_n > 0 && d.human_human?.pairs >= 0 ? Math.round((d.hh_cf_n - d.human_human.pairs) / d.hh_cf_n * 100) : null;
+              const hlTiePct = d.hc_loo_cf_n > 0 && d.human_committee_loo?.pairs >= 0 ? Math.round((d.hc_loo_cf_n - d.human_committee_loo.pairs) / d.hc_loo_cf_n * 100) : null;
+              // Committee tier: within-tier row has no committee data (all same-tier → all ties)
+              const tierTiePct = key === "hard" ? null : null; // Committee only has cross/adjacent data — no tie info per difficulty
               return (
                 <tr key={key} className="border-b border-border/20">
                   <td className="py-1.5 px-2 text-left text-xs">
@@ -107,7 +116,7 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                   {tieCell(d.ah_cf != null ? fmtN(d.ah_cf, d.ah_cf_n) : fmt(d.ai_human), ahTiePct, "bg-sky-500/[0.06]")}
                   {tieCell(d.hh_cf != null ? fmtN(d.hh_cf, d.hh_cf_n) : fmt(d.human_human), hhTiePct, "bg-sky-500/[0.06]")}
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmtN(d.ai_committee?.rate, d.ai_committee?.pairs)}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{d.hc_loo_cf != null ? fmtN(d.hc_loo_cf, d.hc_loo_cf_n) : fmt(d.human_committee_loo)}</td>
+                  {tieCell(d.hc_loo_cf != null ? fmtN(d.hc_loo_cf, d.hc_loo_cf_n) : fmt(d.human_committee_loo), hlTiePct, "bg-amber-500/[0.06]")}
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{d.tier_ai?.pairs > 0 ? fmtN(d.tier_ai.rate, d.tier_ai.pairs) : "\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{d.tier_hh?.pairs > 0 ? fmtN(d.tier_hh.rate, d.tier_hh.pairs) : "\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{d.ah_cf_kappa != null ? d.ah_cf_kappa.toFixed(2) : "\u2014"}</td>

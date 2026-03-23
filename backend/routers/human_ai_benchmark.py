@@ -1034,6 +1034,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     cf_hc_loo_agree = cf_hc_loo_total = 0.0
     cf_tier_ai_agree = cf_tier_ai_total = 0.0  # AI vs committee tier
     cf_tier_hh_agree = cf_tier_hh_total = 0.0  # Human vs committee tier
+    cf_tier_same_count = 0  # Count of actual same-tier (committee tie) pairs
 
     for pair in controlled_pairs_cf:
         prefs = expert_pair_prefs.get(pair, {})  # may be empty for all-tie pairs
@@ -1116,7 +1117,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
                     cf_hc_loo_total += 1
                     cf_hc_loo_agree += 0.5
 
-        # AI vs Committee tier (cf) — includes same-tier as coin flip
+        # AI vs Committee tier (cf) — includes same-tier as coin flip only when within-tier is included
         pa = papers_by_id.get(a, {})
         pb = papers_by_id.get(b, {})
         ta = norm_tier(pa.get("decision"))
@@ -1124,8 +1125,8 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         if ta is not None and tb is not None:
             sa = TIER_SCORE.get(ta, -1)
             sb = TIER_SCORE.get(tb, -1)
-            cf_tier_ai_total += 1
             if sa != sb:
+                cf_tier_ai_total += 1
                 tier_winner = a if sa > sb else b
                 if ai_pair[pair] == tier_winner:
                     cf_tier_ai_agree += 1
@@ -1136,8 +1137,10 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
                             cf_tier_hh_agree += 1
                     else:
                         cf_tier_hh_agree += 0.5
-            else:
-                # Same tier → committee tie → coin flip
+            elif include_within_tier:
+                # Same tier → committee tie → coin flip (only when within-tier page)
+                cf_tier_same_count += 1
+                cf_tier_ai_total += 1
                 cf_tier_ai_agree += 0.5
                 for exp, has_pref in experts_for_pair:
                     cf_tier_hh_total += 1
@@ -1225,6 +1228,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             "cf_hh_rate": _cf_rate_ext(cf_tier_hh_agree, cf_tier_hh_total),
             "cf_ai_total": int(cf_tier_ai_total),
             "cf_hh_total": int(cf_tier_hh_total),
+            "tier_same_count": cf_tier_same_count,
         },
         "n_rater_pairs": n_pairs,
         "ceiling": ceiling,
@@ -1494,6 +1498,8 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
         if ta.get("cf_hh_rate") is not None and ta.get("cf_hh_total", 0) > 0:
             pooled["tier_cf_hh_agree"] += ta["cf_hh_rate"] * ta["cf_hh_total"] / 100.0
             pooled["tier_cf_hh_total"] += ta["cf_hh_total"]
+        pooled.setdefault("tier_same_count", 0)
+        pooled["tier_same_count"] += ta.get("tier_same_count", 0)
 
         # Pool difficulty stats
         for level in ["easy", "medium", "hard"]:
@@ -1752,6 +1758,7 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
                 "cf_ai_total": pooled.get("tier_cf_ai_total", 0),
                 "cf_hh_rate": _rate(pooled.get("tier_cf_hh_agree", 0), pooled.get("tier_cf_hh_total", 0)) if pooled.get("tier_cf_hh_total", 0) > 0 else None,
                 "cf_hh_total": pooled.get("tier_cf_hh_total", 0),
+                "tier_same_count": pooled.get("tier_same_count", 0),
             },
         },
         "per_dataset": per_dataset,
