@@ -615,9 +615,10 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
 
     except Exception as e:
-        logger.error(f"Fetch cycle failed for {category}: {e}")
-        cat_status["current_activity"] = f"Fetch failed: {str(e)[:100]}"
-        log_mem(f"fetch_cycle({category}) FAILED: {str(e)[:80]}")
+        err_msg = str(e) or f"{type(e).__name__} (no message)"
+        logger.error(f"Fetch cycle failed for {category}: {err_msg}")
+        cat_status["current_activity"] = f"Fetch failed: {err_msg[:100]}"
+        log_mem(f"fetch_cycle({category}) FAILED: {err_msg[:80]}")
         return {"status": "error", "error": str(e)}
     finally:
         _fetching_cats.discard(category)
