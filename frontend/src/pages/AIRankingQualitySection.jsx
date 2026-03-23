@@ -279,6 +279,44 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
                   </tr>
                 );
               })}
+              {/* Aggregate row */}
+              {(() => {
+                const ds = data.per_dataset || [];
+                const pb = data.pooled_bt || {};
+                const sumAiPairs = ds.reduce((s, d) => s + (d.n_ai_pairs || 0), 0);
+                const sumAiMatches = ds.reduce((s, d) => s + (d.n_ai_matches || 0), 0);
+                const sumPapers = ds.reduce((s, d) => s + (d.n_papers || 0), 0);
+                const sumExpertPairs = ds.reduce((s, d) => s + (d.n_expert_pairs || 0), 0);
+                const sumOverlap = ds.reduce((s, d) => s + (d.pair_overlap || 0), 0);
+                const overlapPct = sumExpertPairs > 0 ? Math.round(100 * sumOverlap / sumExpertPairs) : 0;
+                // Average top overlaps
+                const top10vals = ds.map(d => d.top_overlap?.indiv_top10?.actual).filter(v => v != null);
+                const top10exp = ds.map(d => d.top_overlap?.indiv_top10?.expected).filter(v => v != null);
+                const top20vals = ds.map(d => d.top_overlap?.indiv_top20?.actual).filter(v => v != null);
+                const top20exp = ds.map(d => d.top_overlap?.indiv_top20?.expected).filter(v => v != null);
+                const avg = (arr) => arr.length > 0 ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
+                return (
+                  <tr className="border-t-2 border-border bg-accent/10 font-semibold">
+                    <td className="py-2 px-2 text-left">Pooled / Total</td>
+                    <td className="py-2 px-2 text-right font-mono bg-sky-500/[0.06]">{f(pb.indiv?.spearman_rho)}</td>
+                    <td className="py-2 px-2 text-right font-mono bg-amber-500/[0.06]">{f(pb.maj?.spearman_rho)}</td>
+                    <td className="py-2 px-2 text-right font-mono bg-rose-500/[0.06]">{f(pb.tier?.spearman_rho)}</td>
+                    <td className="py-2 px-2 text-right font-mono">{f(pb.avg_rating?.spearman_rho)}</td>
+                    <td className="py-2 px-2 text-right font-mono text-foreground/50">{sumAiPairs.toLocaleString()}</td>
+                    <td className="py-2 px-2 text-right font-mono text-foreground/50">{sumPapers > 0 ? (sumAiMatches * 2 / sumPapers).toFixed(1) : "\u2014"}</td>
+                    <td className="py-2 px-2 text-right font-mono text-foreground/50">{sumExpertPairs.toLocaleString()}</td>
+                    <td className="py-2 px-2 text-right font-mono text-foreground/50">{overlapPct}%</td>
+                    <td className="py-2 px-2 text-right font-mono text-foreground/50">
+                      {avg(top10vals) != null ? `${avg(top10vals)}%` : "\u2014"}
+                      {avg(top10exp) != null && <span className="text-[9px] text-muted-foreground/50 ml-0.5">({avg(top10exp)}%)</span>}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono text-foreground/50">
+                      {avg(top20vals) != null ? `${avg(top20vals)}%` : "\u2014"}
+                      {avg(top20exp) != null && <span className="text-[9px] text-muted-foreground/50 ml-0.5">({avg(top20exp)}%)</span>}
+                    </td>
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         </div>
