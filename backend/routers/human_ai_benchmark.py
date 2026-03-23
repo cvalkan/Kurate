@@ -420,6 +420,18 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     # Further restrict to pairs with 2+ expert opinions for reliability
     controlled_pairs = {p for p in controlled_pairs if len(expert_pair_prefs[p]) >= 2}
 
+    # Extended controlled set for coin-flip row: includes all-expert-tie pairs.
+    # A pair qualifies if ≥2 experts rated both papers (regardless of ties) AND AI has a verdict.
+    expert_pair_rated = defaultdict(set)  # pair → set of experts who rated both papers
+    for exp, ratings in experts_with_data.items():
+        rated_ids = list(ratings.keys())
+        for i in range(len(rated_ids)):
+            for j in range(i + 1, len(rated_ids)):
+                pair = tuple(sorted([rated_ids[i], rated_ids[j]]))
+                expert_pair_rated[pair].add(exp)
+    all_rated_pairs_ge2 = {p for p, exps in expert_pair_rated.items() if len(exps) >= 2}
+    controlled_pairs_cf = all_rated_pairs_ge2 & set(ai_pair.keys())
+
     if len(controlled_pairs) < 10:
         return None
 
@@ -1014,11 +1026,128 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     def _rate(a, t):
         return round(a / max(t, 1) * 100, 1)
 
-    def _cf_rate(agree, nontie_total, tie_count):
-        total = nontie_total + tie_count
+    # --- Layer 7: Coin-flip extended stats (uses controlled_pairs_cf including all-expert-tie pairs) ---
+    cf_hh_agree = cf_hh_total = 0.0
+    cf_ah_agree = cf_ah_total = 0.0
+    cf_ac_agree = cf_ac_total = 0.0   # AI vs expert majority
+    cf_hc_agree = cf_hc_total = 0.0   # Human vs expert majority
+    cf_hc_loo_agree = cf_hc_loo_total = 0.0
+    cf_tier_ai_agree = cf_tier_ai_total = 0.0  # AI vs committee tier
+    cf_tier_hh_agree = cf_tier_hh_total = 0.0  # Human vs committee tier
+
+    for pair in controlled_pairs_cf:
+        prefs = expert_pair_prefs.get(pair, {})  # may be empty for all-tie pairs
+        a, b = pair
+
+        # All experts who rated both papers (with or without preference)
+        experts_for_pair = []
+        for exp in expert_pair_rated.get(pair, set()):
+            ratings = experts_with_data[exp]
+            has_pref = ratings[a] != ratings[b]
+            experts_for_pair.append((exp, has_pref))
+
+        # AI vs Human (cf): preference → check agreement, tie → 0.5
+        for exp, has_pref in experts_for_pair:
+            cf_ah_total += 1
+            if has_pref:
+                winner = prefs.get(exp)
+                if winner and ai_pair[pair] == winner:
+                    cf_ah_agree += 1
+            else:
+                cf_ah_agree += 0.5
+
+        # Human vs Human (cf): each expert pair
+        for i in range(len(experts_for_pair)):
+            for j in range(i + 1, len(experts_for_pair)):
+                exp1, pref1 = experts_for_pair[i]
+                exp2, pref2 = experts_for_pair[j]
+                cf_hh_total += 1
+                if pref1 and pref2:
+                    w1 = prefs.get(exp1)
+                    w2 = prefs.get(exp2)
+                    if w1 and w2 and w1 == w2:
+                        cf_hh_agree += 1
+                else:
+                    cf_hh_agree += 0.5  # at least one ties → coin flip
+
+        # AI vs Majority (cf)
+        cf_ac_total += 1
+        if pair in expert_majority:
+            if ai_pair[pair] == expert_majority[pair]:
+                cf_ac_agree += 1
+        else:
+            cf_ac_agree += 0.5  # no majority (all tie or split) → coin flip
+
+        # Human vs Majority (cf) — individual expert vs majority
+        if pair in expert_majority:
+            for exp, has_pref in experts_for_pair:
+                cf_hc_total += 1
+                if has_pref:
+                    if prefs.get(exp) == expert_majority[pair]:
+                        cf_hc_agree += 1
+                else:
+                    cf_hc_agree += 0.5
+        else:
+            for exp, has_pref in experts_for_pair:
+                cf_hc_total += 1
+                cf_hc_agree += 0.5
+
+        # Human vs Majority LOO (cf)
+        for exp_name, has_pref in experts_for_pair:
+            others = {e: prefs[e] for e in prefs if e != exp_name}
+            if len(others) >= 2:
+                c = Counter(others.values())
+                best, n = c.most_common(1)[0]
+                if n > len(others) / 2:
+                    cf_hc_loo_total += 1
+                    if has_pref:
+                        if prefs.get(exp_name) == best:
+                            cf_hc_loo_agree += 1
+                    else:
+                        cf_hc_loo_agree += 0.5
+                else:
+                    # Split among non-tying experts, no clear LOO majority → coin flip
+                    cf_hc_loo_total += 1
+                    cf_hc_loo_agree += 0.5
+            else:
+                # Fewer than 2 others with preferences
+                other_rated = [e for e, _ in experts_for_pair if e != exp_name]
+                if len(other_rated) >= 2:
+                    cf_hc_loo_total += 1
+                    cf_hc_loo_agree += 0.5
+
+        # AI vs Committee tier (cf) — includes same-tier as coin flip
+        pa = papers_by_id.get(a, {})
+        pb = papers_by_id.get(b, {})
+        ta = norm_tier(pa.get("decision"))
+        tb = norm_tier(pb.get("decision"))
+        if ta is not None and tb is not None:
+            sa = TIER_SCORE.get(ta, -1)
+            sb = TIER_SCORE.get(tb, -1)
+            cf_tier_ai_total += 1
+            if sa != sb:
+                tier_winner = a if sa > sb else b
+                if ai_pair[pair] == tier_winner:
+                    cf_tier_ai_agree += 1
+                for exp, has_pref in experts_for_pair:
+                    cf_tier_hh_total += 1
+                    if has_pref:
+                        if prefs.get(exp) == tier_winner:
+                            cf_tier_hh_agree += 1
+                    else:
+                        cf_tier_hh_agree += 0.5
+            else:
+                # Same tier → committee tie → coin flip
+                cf_tier_ai_agree += 0.5
+                for exp, has_pref in experts_for_pair:
+                    cf_tier_hh_total += 1
+                    cf_tier_hh_agree += 0.5
+
+    def _cf_rate_ext(agree, total):
+        """Coin-flip rate from the extended controlled set."""
         if total == 0:
             return None
-        return round((agree + 0.5 * tie_count) / total * 100, 1)
+        return round(agree / total * 100, 1)
 
 
     def _format_difficulty(stats):
@@ -1065,6 +1194,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         "n_papers": len(papers),
         "n_experts": len(experts_with_data),
         "controlled_pairs": len(controlled_pairs),
+        "controlled_pairs_cf": len(controlled_pairs_cf),
         "ai_mode": ai_mode_used,
         "inter_rater_rho": safe_round(rho) if rho else None,
         "ai_h_concordance": safe_round(ai_h_concordance) if ai_h_concordance else None,
@@ -1091,23 +1221,34 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             "ai_rate": _rate(tier_ai_agree, tier_ai_total),
             "hh_agree": tier_hh_agree, "hh_total": tier_hh_total,
             "hh_rate": _rate(tier_hh_agree, tier_hh_total),
+            "cf_ai_rate": _cf_rate_ext(cf_tier_ai_agree, cf_tier_ai_total),
+            "cf_hh_rate": _cf_rate_ext(cf_tier_hh_agree, cf_tier_hh_total),
+            "cf_ai_total": int(cf_tier_ai_total),
+            "cf_hh_total": int(cf_tier_hh_total),
         },
         "n_rater_pairs": n_pairs,
         "ceiling": ceiling,
         "pairwise": {
             "human_human": {"agree": hh_agree, "total": hh_total, "rate": _rate(hh_agree, hh_total),
                             "kappa": safe_round(hh_kappa), "ci": _wilson_ci(hh_agree, hh_total),
-                            "cf_rate": _cf_rate(hh_agree, hh_total, hh_tie_one + hh_tie_both)},
+                            "cf_rate": _cf_rate_ext(cf_hh_agree, cf_hh_total),
+                            "cf_total": int(cf_hh_total)},
             "human_committee": {"agree": hc_agree, "total": hc_total, "rate": _rate(hc_agree, hc_total),
-                                "kappa": safe_round(hc_kappa), "ci": _wilson_ci(hc_agree, hc_total)},
+                                "kappa": safe_round(hc_kappa), "ci": _wilson_ci(hc_agree, hc_total),
+                                "cf_rate": _cf_rate_ext(cf_hc_agree, cf_hc_total),
+                                "cf_total": int(cf_hc_total)},
             "human_committee_loo": {"agree": hc_loo_agree, "total": hc_loo_total, "rate": _rate(hc_loo_agree, hc_loo_total),
                                     "kappa": safe_round(hc_loo_kappa), "ci": _wilson_ci(hc_loo_agree, hc_loo_total),
-                                    "cf_rate": _cf_rate(hc_loo_agree, hc_loo_total, hc_loo_tie)},
+                                    "cf_rate": _cf_rate_ext(cf_hc_loo_agree, cf_hc_loo_total),
+                                    "cf_total": int(cf_hc_loo_total)},
             "ai_human": {"agree": ah_agree, "total": ah_total, "rate": _rate(ah_agree, ah_total),
                          "kappa": safe_round(ah_kappa), "ci": _wilson_ci(ah_agree, ah_total),
-                         "cf_rate": _cf_rate(ah_agree, ah_total, ah_tie)},
+                         "cf_rate": _cf_rate_ext(cf_ah_agree, cf_ah_total),
+                         "cf_total": int(cf_ah_total)},
             "ai_committee": {"agree": ac_agree, "total": ac_total, "rate": _rate(ac_agree, ac_total),
-                             "kappa": safe_round(ac_kappa), "ci": _wilson_ci(ac_agree, ac_total)},
+                             "kappa": safe_round(ac_kappa), "ci": _wilson_ci(ac_agree, ac_total),
+                             "cf_rate": _cf_rate_ext(cf_ac_agree, cf_ac_total),
+                             "cf_total": int(cf_ac_total)},
         },
         "by_difficulty": _format_difficulty(difficulty_stats),
         "bt_correlation": {
@@ -1249,6 +1390,8 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
             pooled[pool_key][1] += pw[key]["total"]
 
         pooled["total_pairs"] += result["controlled_pairs"]
+        pooled.setdefault("total_pairs_cf", 0)
+        pooled["total_pairs_cf"] += result.get("controlled_pairs_cf", result["controlled_pairs"])
         pooled["total_papers"] += result["n_papers"]
 
         if result.get("inter_rater_rho") is not None:
@@ -1422,34 +1565,43 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
     ai_h_cf_conc_avg = float(np.mean(pooled.get("ai_h_cf_concordances", []))) if pooled.get("ai_h_cf_concordances") else None
     ai_h_rho_avg = math.sin(math.pi * (ai_h_conc_avg - 0.5)) if ai_h_conc_avg else None
 
-    # Pooled tie impact analysis — compute coin-flip rates for all metrics
+    # Pooled tie impact analysis — compute coin-flip rates from per-dataset extended cf stats
     hh_a, hh_t = pooled["hh"][0], pooled["hh"][1]
     ah_a, ah_t = pooled["ah"][0], pooled["ah"][1]
-    hc_a, hc_t = pooled["hc"][0], pooled["hc"][1]
-    hc_loo_a, hc_loo_t = pooled["hc_loo"][0], pooled["hc_loo"][1]
-    ac_a, ac_t = pooled["ac"][0], pooled["ac"][1]
+    hc_loo_t = pooled["hc_loo"][1]
     hh_t1, hh_t2 = pooled["ti_hh_tie_one"], pooled["ti_hh_tie_both"]
     ah_tie = pooled["ti_ah_tie"]
     hc_tie = pooled["ti_hc_tie"]
     hc_loo_tie = pooled["ti_hc_loo_tie"]
 
-    hh_total_cf = hh_t + hh_t1 + hh_t2
+    # Aggregate cf stats from per-dataset results (proper extended coin-flip)
+    pooled_cf = {"hh": [0.0, 0.0], "ah": [0.0, 0.0], "ac": [0.0, 0.0],
+                 "hc": [0.0, 0.0], "hc_loo": [0.0, 0.0],
+                 "tier_ai": [0.0, 0.0], "tier_hh": [0.0, 0.0]}
+    for result in per_dataset:
+        pw = result.get("pairwise", {})
+        for key, pool_key in [("human_human", "hh"), ("human_committee", "hc"),
+                               ("human_committee_loo", "hc_loo"),
+                               ("ai_human", "ah"), ("ai_committee", "ac")]:
+            cf_total = pw[key].get("cf_total", 0)
+            cf_rate_val = pw[key].get("cf_rate")
+            if cf_rate_val is not None and cf_total > 0:
+                pooled_cf[pool_key][0] += cf_rate_val * cf_total / 100.0
+                pooled_cf[pool_key][1] += cf_total
+        ta = result.get("tier_accuracy", {})
+        for src, dst in [("cf_ai_total", "tier_ai"), ("cf_hh_total", "tier_hh")]:
+            t = ta.get(src, 0)
+            r = ta.get(src.replace("total", "rate"))
+            if r is not None and t > 0:
+                pooled_cf[dst][0] += r * t / 100.0
+                pooled_cf[dst][1] += t
+
+    def _pooled_cf_rate(key):
+        a, t = pooled_cf[key]
+        return round(a / max(t, 1) * 100, 1) if t > 0 else None
+
     ah_total_cf = ah_t + ah_tie
 
-    def _cf_rate(agree, nontie_total, tie_count):
-        """Coin-flip rate: existing agrees + 50% of tie comparisons."""
-        total = nontie_total + tie_count
-        if total == 0:
-            return None
-        return round((agree + 0.5 * tie_count) / total * 100, 1)
-
-    hh_cf_rate = _cf_rate(hh_a, hh_t, hh_t1 + hh_t2)
-    ah_cf_rate = _cf_rate(ah_a, ah_t, ah_tie)
-    hc_cf_rate = _cf_rate(hc_a, hc_t, hc_tie)
-    hc_loo_cf_rate = _cf_rate(hc_loo_a, hc_loo_t, hc_loo_tie)
-    # AI-Comm: AI never ties and committee is built from non-tie votes,
-    # so the coin-flip doesn't change AI-Comm directly. Keep as-is.
-    ac_cf_rate = _rate(ac_a, ac_t) if ac_t > 0 else None
     # kappa for coin-flip AI-H
     ah_cf_agree = ah_a + 0.5 * ah_tie
     ah_cf_kappa = safe_round(_cohens_kappa(int(ah_cf_agree), ah_total_cf)) if ah_total_cf > 0 else None
@@ -1462,13 +1614,13 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
 
     tie_impact = {
         "coin_flip": {
-            "human_human": hh_cf_rate,
-            "human_committee": hc_cf_rate,
-            "human_committee_loo": hc_loo_cf_rate,
-            "ai_human": ah_cf_rate,
-            "ai_committee": ac_cf_rate,
+            "human_human": _pooled_cf_rate("hh"),
+            "human_committee": _pooled_cf_rate("hc"),
+            "human_committee_loo": _pooled_cf_rate("hc_loo"),
+            "ai_human": _pooled_cf_rate("ah"),
+            "ai_committee": _pooled_cf_rate("ac"),
             "ai_human_kappa": ah_cf_kappa,
-            "total_pairs": hh_total_cf,
+            "total_pairs": pooled.get("total_pairs_cf", pooled["total_pairs"]),
         },
         "excluded": {
             "hh_rate": _rate(hh_a, hh_t),
@@ -1491,6 +1643,7 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
         "gt_type": gt_type,
         "n_datasets": len(per_dataset),
         "total_controlled_pairs": pooled["total_pairs"],
+        "total_controlled_pairs_cf": pooled.get("total_pairs_cf", pooled["total_pairs"]),
         "total_papers": pooled["total_papers"],
         "avg_matches_per_paper": round(2 * pooled["total_pairs"] / max(pooled["total_papers"], 1), 1),
         "pooled": {
@@ -2371,6 +2524,16 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
 
     all_expert_pairs_ge2 = {p for p, v in expert_pair_prefs.items() if len(v) >= 2}
 
+    # Extended expert pairs including all-expert-tie pairs (for accurate pair counts)
+    expert_pair_rated_sr = defaultdict(set)
+    for exp, ratings in experts_with_data.items():
+        rated_ids = list(ratings.keys())
+        for i in range(len(rated_ids)):
+            for j in range(i + 1, len(rated_ids)):
+                pair = tuple(sorted([rated_ids[i], rated_ids[j]]))
+                expert_pair_rated_sr[pair].add(exp)
+    all_rated_pairs_ge2_sr = {p for p, exps in expert_pair_rated_sr.items() if len(exps) >= 2}
+
     expert_majority = {}
     for pair, votes in expert_pair_prefs.items():
         if len(votes) < 2:
@@ -2538,6 +2701,7 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         if m.get("winner_id"):
             ai_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
     overlap = len(ai_pairs & all_expert_pairs_ge2)
+    overlap_incl_ties = len(ai_pairs & all_rated_pairs_ge2_sr)
 
     # Top/Bottom K% overlap across GT methods and percentiles
     import random as _rng_top
@@ -2602,7 +2766,9 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         "n_ai_matches": len(ai_bt_matches),
         "n_ai_pairs": len(ai_pairs),
         "n_expert_pairs": len(all_expert_pairs_ge2),
+        "n_expert_pairs_incl_ties": len(all_rated_pairs_ge2_sr),
         "pair_overlap": overlap,
+        "pair_overlap_incl_ties": overlap_incl_ties,
         "bt": bt,
         "top_overlap": top_overlap,
         "overlap_table": overlap_table,
