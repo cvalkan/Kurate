@@ -283,10 +283,15 @@ function DatasetTable({ datasets }) {
           </table>
           <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              <strong>Note on PeerRead ACL 2017:</strong> This dataset behaves differently from ICLR — AI-H ranking correlation (0.434) is far below
-              the ICLR range (0.69–0.90). Contributing factors: only 2–3 reviewers per paper (vs 4–5), a coarser 1–5 scale with 51% tie rate,
+              <strong>Note on PeerRead ACL 2017:</strong> This dataset behaves differently from ICLR — AI-H ranking correlation ({(() => {
+                const pr = data.per_dataset?.find(d => d.name?.includes("PeerRead"));
+                return pr?.bt_correlation?.individual?.spearman_rho?.toFixed(3) ?? "—";
+              })()}) is far below
+              the ICLR range. Contributing factors: only 2–3 reviewers per paper (vs 4–6), a coarser 1–5 scale with ~{(() => {
+                const pr = data.per_dataset?.find(d => d.name?.includes("PeerRead"));
+                return pr?.tie_stats?.tie_fraction ? Math.round(pr.tie_stats.tie_fraction * 100) : "?";
+              })()}% tie rate,
               no decision tiers (all null), and 2017-era NLP reviewing norms that may not align with modern LLM assessments.
-              The high H-H agreement (86.7%) is likely inflated by the 2-reviewer double-filter bias (footnote 8 above).
             </p>
           </div>
         </div>
@@ -567,7 +572,8 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
                 <strong>Committee (ICLR PC)</strong> = actual program committee tier decisions (coarse: 4 tiers).
                 Human vs Committee is circular (reviewers influenced the decisions).
                 All pooled {"\u03C1"} values are <strong>equal-weighted across datasets</strong> (each dataset contributes one {"\u03C1"} regardless of size).
-                Size-weighted pooling would lower all correlations because PeerRead ACL 2017 (the largest dataset by match count) has the weakest {"\u03C1"}.
+                Size-weighted pooling would lower all correlations because datasets with weaker {"\u03C1"} (PeerRead, ICLR PDEs) happen to have
+                larger pair counts, pulling the weighted average down.
               </p>
               {bt.individual?.spearman_rho != null && bt.avg_expert_vs_loo_indiv?.spearman_rho != null && (
                 <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
