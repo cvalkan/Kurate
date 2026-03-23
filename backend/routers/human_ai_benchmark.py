@@ -1641,6 +1641,10 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
             "hh": _tie_pct(hh_t1 + hh_t2, hh_t),
             "ah": _tie_pct(ah_tie, ah_t),
             "hc_loo": _tie_pct(hc_loo_tie, hc_loo_t),
+            "ac": round((pooled_cf["ac"][1] - pooled["ac"][1]) / max(pooled_cf["ac"][1], 1) * 100, 1) if pooled_cf["ac"][1] > 0 else None,
+            "hc": round((pooled_cf["hc"][1] - pooled["hc"][1]) / max(pooled_cf["hc"][1], 1) * 100, 1) if pooled_cf["hc"][1] > 0 else None,
+            "tier_ai": round((pooled.get("tier_cf_ai_total", 0) - pooled.get("tier_ai_total", 0)) / max(pooled.get("tier_cf_ai_total", 1), 1) * 100, 1) if pooled.get("tier_cf_ai_total", 0) > 0 else None,
+            "tier_hh": round((pooled.get("tier_cf_hh_total", 0) - pooled.get("tier_hh_total", 0)) / max(pooled.get("tier_cf_hh_total", 1), 1) * 100, 1) if pooled.get("tier_cf_hh_total", 0) > 0 else None,
         },
         "tie_counts": {
             "hh_nontie": hh_t, "hh_one_tie": hh_t1, "hh_both_tie": hh_t2,

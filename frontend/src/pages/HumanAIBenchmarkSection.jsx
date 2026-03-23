@@ -55,20 +55,29 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
             </tr>
           </thead>
           <tbody>
-            {tieImpact?.coin_flip && (
+            {tieImpact?.coin_flip && (() => {
+              const tr = tieImpact.tie_rates || {};
+              const cfCell = (val, tiePct, bg) => (
+                <td className={`py-1 px-1.5 text-right font-mono text-xs ${bg}`}>
+                  <div className="font-bold">{val != null ? `${val}%` : "\u2014"}</div>
+                  {tiePct != null && <div className="text-[8px] text-muted-foreground/60 font-normal">{tiePct}% ties</div>}
+                </td>
+              );
+              return (
               <tr className="border-b border-border bg-accent/5">
-                <td className="py-1.5 px-2 text-left text-xs font-semibold">All pairs (ties = coin flip)<sup>7</sup></td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{tieImpact.coin_flip.ai_human != null ? `${tieImpact.coin_flip.ai_human}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{tieImpact.coin_flip.human_human != null ? `${tieImpact.coin_flip.human_human}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.ai_committee != null ? `${tieImpact.coin_flip.ai_committee}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-amber-500/[0.06]">{tieImpact.coin_flip.human_committee_loo != null ? `${tieImpact.coin_flip.human_committee_loo}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-rose-500/[0.06]">{tierAccuracy?.cf_ai_rate != null ? `${tierAccuracy.cf_ai_rate}%` : tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{tierAccuracy?.cf_hh_rate != null ? `${tierAccuracy.cf_hh_rate}%` : tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.tie_rates?.hh != null ? `${tieImpact.tie_rates.hh}%` : ""}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
-                <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{(totalPairsCf ?? tieImpact.coin_flip.total_pairs ?? totalPairs)?.toLocaleString()}</td>
+                <td className="py-1 px-2 text-left text-xs font-semibold">All pairs (ties = coin flip)<sup>7</sup></td>
+                {cfCell(tieImpact.coin_flip.ai_human, tr.ah, "bg-sky-500/[0.06]")}
+                {cfCell(tieImpact.coin_flip.human_human, tr.hh, "bg-sky-500/[0.06]")}
+                {cfCell(tieImpact.coin_flip.ai_committee, tr.ac, "bg-amber-500/[0.06]")}
+                {cfCell(tieImpact.coin_flip.human_committee_loo, tr.hc_loo, "bg-amber-500/[0.06]")}
+                {cfCell(tierAccuracy?.cf_ai_rate ?? tierAccuracy?.ai_rate, tr.tier_ai, "bg-rose-500/[0.06]")}
+                {cfCell(tierAccuracy?.cf_hh_rate ?? tierAccuracy?.hh_rate, tr.tier_hh, "bg-rose-500/[0.06] font-normal text-foreground/60")}
+                <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
+                <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
+                <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{(totalPairsCf ?? tieImpact.coin_flip.total_pairs ?? totalPairs)?.toLocaleString()}</td>
               </tr>
-            )}
+              );
+            })()}
             <tr className="border-b border-border/40">
               <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">All pairs (ties excluded)<sup>8</sup></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
