@@ -57,10 +57,10 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
             {tieImpact?.coin_flip && (() => {
               const tr = tieImpact.tie_rates || {};
               // For Committee columns, use actual same-tier count (not generic cf_total diff)
-              const tierAiTie = tierAccuracy?.cf_ai_total > 0 && tierAccuracy?.tier_same_count > 0
-                ? Math.round(tierAccuracy.tier_same_count / tierAccuracy.cf_ai_total * 100) : null;
-              const tierHhTie = tierAccuracy?.cf_hh_total > 0 && tierAccuracy?.tier_same_count > 0
-                ? Math.round(tierAccuracy.tier_same_count / tierAccuracy.cf_hh_total * 100 * (tierAccuracy.cf_hh_total / Math.max(tierAccuracy.cf_ai_total, 1))) : null;
+              const tierAiTie = tierAccuracy?.cf_ai_total > 0
+                ? Math.round((tierAccuracy.tier_same_count || 0) / tierAccuracy.cf_ai_total * 100) : null;
+              const tierHhTie = tierAccuracy?.cf_hh_total > 0
+                ? Math.round((tierAccuracy.tier_same_count || 0) / tierAccuracy.cf_hh_total * 100) : null;
               // Simpler: use backend tie_rates which are computed correctly
               const cfCell = (val, tiePct, bg) => (
                 <td className={`py-1 px-1.5 text-right font-mono text-xs ${bg}`}>
