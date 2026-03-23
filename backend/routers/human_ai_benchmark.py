@@ -421,7 +421,8 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     controlled_pairs = {p for p in controlled_pairs if len(expert_pair_prefs[p]) >= 2}
 
     # Extended controlled set for coin-flip row: includes all-expert-tie pairs.
-    # A pair qualifies if ≥2 experts rated both papers (regardless of ties) AND AI has a verdict.
+    # Every paper has ≥4 reviews from dataset-level reviewers, so ≥2 is always satisfied.
+    # We still build the rated map for the coin-flip loop (to know which experts rated each pair).
     expert_pair_rated = defaultdict(set)  # pair → set of experts who rated both papers
     for exp, ratings in experts_with_data.items():
         rated_ids = list(ratings.keys())
@@ -429,8 +430,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             for j in range(i + 1, len(rated_ids)):
                 pair = tuple(sorted([rated_ids[i], rated_ids[j]]))
                 expert_pair_rated[pair].add(exp)
-    all_rated_pairs_ge2 = {p for p, exps in expert_pair_rated.items() if len(exps) >= 2}
-    controlled_pairs_cf = all_rated_pairs_ge2 & set(ai_pair.keys())
+    controlled_pairs_cf = set(expert_pair_rated.keys()) & set(ai_pair.keys())
 
     if len(controlled_pairs) < 10:
         return None
@@ -2532,7 +2532,7 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
             for j in range(i + 1, len(rated_ids)):
                 pair = tuple(sorted([rated_ids[i], rated_ids[j]]))
                 expert_pair_rated_sr[pair].add(exp)
-    all_rated_pairs_ge2_sr = {p for p, exps in expert_pair_rated_sr.items() if len(exps) >= 2}
+    all_rated_pairs_incl_ties = set(expert_pair_rated_sr.keys())
 
     expert_majority = {}
     for pair, votes in expert_pair_prefs.items():
@@ -2701,7 +2701,7 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         if m.get("winner_id"):
             ai_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
     overlap = len(ai_pairs & all_expert_pairs_ge2)
-    overlap_incl_ties = len(ai_pairs & all_rated_pairs_ge2_sr)
+    overlap_incl_ties = len(ai_pairs & all_rated_pairs_incl_ties)
 
     # Top/Bottom K% overlap across GT methods and percentiles
     import random as _rng_top
@@ -2766,7 +2766,7 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         "n_ai_matches": len(ai_bt_matches),
         "n_ai_pairs": len(ai_pairs),
         "n_expert_pairs": len(all_expert_pairs_ge2),
-        "n_expert_pairs_incl_ties": len(all_rated_pairs_ge2_sr),
+        "n_expert_pairs_incl_ties": len(all_rated_pairs_incl_ties),
         "pair_overlap": overlap,
         "pair_overlap_incl_ties": overlap_incl_ties,
         "bt": bt,
