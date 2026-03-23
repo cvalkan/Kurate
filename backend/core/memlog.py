@@ -30,7 +30,11 @@ def get_mem_mb() -> float:
 def log_mem(label: str):
     """Log current memory usage with a label. Also persists to MongoDB."""
     mb = get_mem_mb()
-    logger.info(f"[MEM] {label}: {mb:.0f}MB RSS")
+    # Use WARNING for failure labels to avoid log viewer misclassification
+    if "FAILED" in label:
+        logger.warning(f"[MEM] {label}: {mb:.0f}MB RSS")
+    else:
+        logger.info(f"[MEM] {label}: {mb:.0f}MB RSS")
     _persist("mem", label, {"rss_mb": round(mb)})
 
 

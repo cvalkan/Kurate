@@ -906,7 +906,10 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             await asyncio.gather(*tasks, return_exceptions=True)
 
     if total_papers:
-        logger.info(f"[{category}] Summary generation complete: {generated} new, {failed} failed, {skipped} skipped across {scanned} papers")
+        parts = [f"{generated} new", f"{skipped} skipped", f"{scanned} papers scanned"]
+        if failed > 0:
+            parts.insert(1, f"{failed} errors")
+        logger.info(f"[{category}] Summary generation done: {', '.join(parts)}")
         if generated > 0:
             from routers.leaderboard import notify_data_changed
             notify_data_changed()
