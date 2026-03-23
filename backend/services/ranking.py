@@ -484,7 +484,7 @@ async def seed_rankings(db, category: str = None):
     from routers.validation_utils import collect_all
     from core.auth import get_settings
     from core.config import CATEGORIES
-    from core.memlog import async_track_mem, log_mem
+    from core.memlog import log_mem
 
     settings = await get_settings()
     if category:
