@@ -84,12 +84,12 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
             })()}
             <tr className="border-b border-border/40">
               <td className="py-1.5 px-2 text-left text-xs font-normal text-foreground/60">All pairs (ties excluded)<sup>8</sup></td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.ai_human)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{fmt(pw.human_human)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.ai_committee)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmt(pw.human_committee_loo)}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</td>
-              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]"><div>{fmt(pw.ai_human)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]"><div>{fmt(pw.human_human)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]"><div>{fmt(pw.ai_committee)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]"><div>{fmt(pw.human_committee_loo)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]"><div>{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]"><div>{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{kfmt(pw.ai_human)}</td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{totalPairs?.toLocaleString()}</td>
             </tr>
@@ -98,15 +98,17 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
               const tieCell = (val, tiePct, bg) => (
                 <td className={`py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 ${bg}`}>
                   <div>{val}</div>
-                  {tiePct != null && tiePct > 0 && <div className="text-[8px] text-muted-foreground/50">{tiePct}% ties<sup>6</sup></div>}
+                  {tiePct != null && <div className="text-[8px] text-muted-foreground/50">{tiePct}% ties<sup>6</sup></div>}
                 </td>
               );
               // Per-cell tie fractions for difficulty rows
               const ahTiePct = d.ah_cf_n > 0 && d.ai_human?.pairs >= 0 ? Math.round((d.ah_cf_n - d.ai_human.pairs) / d.ah_cf_n * 100) : null;
               const hhTiePct = d.hh_cf_n > 0 && d.human_human?.pairs >= 0 ? Math.round((d.hh_cf_n - d.human_human.pairs) / d.hh_cf_n * 100) : null;
               const hlTiePct = d.hc_loo_cf_n > 0 && d.human_committee_loo?.pairs >= 0 ? Math.round((d.hc_loo_cf_n - d.human_committee_loo.pairs) / d.hc_loo_cf_n * 100) : null;
-              // Committee tier: within-tier row has no committee data (all same-tier → all ties)
-              const tierTiePct = key === "hard" ? null : null; // Committee only has cross/adjacent data — no tie info per difficulty
+              // AI vs Majority: same tie rate as AI vs Human (expert score ties affect both equally per pair)
+              const amTiePct = ahTiePct;
+              // Committee: cross-tier and adjacent-tier have 0% committee ties; within-tier is all committee ties (shows "—")
+              const tierTiePct = key === "hard" ? null : 0;
               return (
                 <tr key={key} className="border-b border-border/20">
                   <td className="py-1.5 px-2 text-left text-xs">
@@ -115,10 +117,10 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                   </td>
                   {tieCell(d.ah_cf != null ? fmtN(d.ah_cf, d.ah_cf_n) : fmt(d.ai_human), ahTiePct, "bg-sky-500/[0.06]")}
                   {tieCell(d.hh_cf != null ? fmtN(d.hh_cf, d.hh_cf_n) : fmt(d.human_human), hhTiePct, "bg-sky-500/[0.06]")}
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{fmtN(d.ai_committee?.rate, d.ai_committee?.pairs)}</td>
+                  {tieCell(fmtN(d.ai_committee?.rate, d.ai_committee?.pairs), amTiePct, "bg-amber-500/[0.06]")}
                   {tieCell(d.hc_loo_cf != null ? fmtN(d.hc_loo_cf, d.hc_loo_cf_n) : fmt(d.human_committee_loo), hlTiePct, "bg-amber-500/[0.06]")}
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{d.tier_ai?.pairs > 0 ? fmtN(d.tier_ai.rate, d.tier_ai.pairs) : "\u2014"}</td>
-                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{d.tier_hh?.pairs > 0 ? fmtN(d.tier_hh.rate, d.tier_hh.pairs) : "\u2014"}</td>
+                  {tieCell(d.tier_ai?.pairs > 0 ? fmtN(d.tier_ai.rate, d.tier_ai.pairs) : "\u2014", tierTiePct, "bg-rose-500/[0.06]")}
+                  {tieCell(d.tier_hh?.pairs > 0 ? fmtN(d.tier_hh.rate, d.tier_hh.pairs) : "\u2014", tierTiePct, "bg-rose-500/[0.06]")}
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{d.ah_cf_kappa != null ? d.ah_cf_kappa.toFixed(2) : "\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{(d.n_pairs ?? 0).toLocaleString()}</td>
                 </tr>
