@@ -553,13 +553,11 @@ async def _bg_analysis_cache_loop():
 
 
 async def _bg_archive_loop():
-    """Background loop that checks and creates archive snapshots daily at 00:00 UTC.
-    Also runs rankings reconciliation daily (not on startup — seed_rankings handles that)."""
+    """Background loop that checks and creates archive snapshots daily at 00:00 UTC."""
     from core.memlog import log_mem
     await asyncio.sleep(30)  # Wait for cache to warm
 
-    # First iteration: only archive snapshots, skip reconciliation
-    # (rankings are already verified by _startup_seed_rankings)
+    # First iteration: archive snapshots only
     try:
         log_mem("archive_loop initial run start")
         await run_archive_snapshots()
@@ -580,20 +578,6 @@ async def _bg_archive_loop():
             log_mem("archive_loop daily snapshots done")
         except Exception as e:
             logger.warning(f"Archive snapshot check failed: {e}")
-
-        # Daily rankings reconciliation
-        try:
-            log_mem("reconciliation daily start")
-            from services.ranking import reconcile_rankings
-            results = await reconcile_rankings(db)
-            drifted = sum(1 for r in results.values() if r.get("drifted"))
-            if drifted:
-                logger.warning(f"Rankings reconciliation: {drifted}/{len(results)} categories had drift — reseeded")
-            else:
-                logger.info(f"Rankings reconciliation: all {len(results)} categories consistent")
-            log_mem(f"reconciliation daily done (drift={drifted}/{len(results)})")
-        except Exception as e:
-            logger.warning(f"Rankings reconciliation failed: {e}")
 
 
 async def _get_cached_leaderboard():
@@ -1232,20 +1216,36 @@ async def get_paper_detail(paper_id: str):
             "failed": m.get("failed", False),
         })
 
-    # Compute stats from matches (source of truth)
-    wins = sum(1 for m in enriched_matches if m["won"] and not m["failed"])
-    total = sum(1 for m in enriched_matches if not m["failed"])
-    ci = calculate_confidence_interval(wins, total)
+    # Stats from rankings collection (same source as leaderboard — always in sync)
+    ranking_doc = await db.rankings.find_one(
+        {"paper_id": paper_id},
+        {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
+         "score": 1, "rank": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1}
+    )
+
+    if ranking_doc:
+        stats = {
+            "wins": ranking_doc.get("wins", 0),
+            "losses": ranking_doc.get("losses", 0),
+            "comparisons": ranking_doc.get("comparisons", 0),
+            "confidence": calculate_confidence_interval(
+                ranking_doc.get("wins", 0), ranking_doc.get("comparisons", 0)),
+        }
+    else:
+        # Paper not yet in rankings (newly added) — compute from matches
+        wins = sum(1 for m in enriched_matches if m["won"] and not m["failed"])
+        total = sum(1 for m in enriched_matches if not m["failed"])
+        stats = {
+            "wins": wins,
+            "losses": total - wins,
+            "comparisons": total,
+            "confidence": calculate_confidence_interval(wins, total),
+        }
 
     return {
         "paper": paper,
         "matches": enriched_matches,
-        "stats": {
-            "wins": wins,
-            "losses": total - wins,
-            "comparisons": total,
-            "confidence": ci,
-        },
+        "stats": stats,
     }
 
 
