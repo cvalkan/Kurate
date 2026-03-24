@@ -103,24 +103,36 @@ function CustomTooltip({ active, payload, label, formatter }) {
 export function AdminStatistics({ categories }) {
   const [timeseries, setTimeseries] = useState(null);
   const [summaryStats, setSummaryStats] = useState(null);
+  const [memoryData, setMemoryData] = useState(null);
+  const [memHours, setMemHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("cumulative"); // "daily" | "cumulative"
   const [scopeMode, setScopeMode] = useState("system"); // "system" | "category"
 
   const fetchData = useCallback(async () => {
     try {
-      const [tsRes, statsRes] = await Promise.all([
+      const [tsRes, statsRes, memRes] = await Promise.all([
         axios.get(`${API}/api/admin/timeseries`, { headers: getAdminHeaders() }),
         axios.get(`${API}/api/admin/stats`, { headers: getAdminHeaders() }),
+        axios.get(`${API}/api/admin/system-logs?hours=${memHours}`, { headers: getAdminHeaders() }),
       ]);
       setTimeseries(tsRes.data);
       setSummaryStats(statsRes.data.summaries || null);
+      // Process memory logs into chart data
+      const logs = (memRes.data?.logs || []).filter(l => l.level === "mem" && l.rss_mb);
+      const chartData = logs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
+        ts: l.ts,
+        time: new Date(l.ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+        rss: l.rss_mb,
+        label: l.label,
+      }));
+      setMemoryData(chartData);
     } catch (err) {
       console.error("Failed to load stats:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [memHours]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -306,6 +318,71 @@ export function AdminStatistics({ categories }) {
                   </div>
                 );
               })}
+          </div>
+        </div>
+      )}
+
+      {/* Memory Usage Over Time */}
+      {memoryData && memoryData.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4" data-testid="memory-chart">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-medium">Memory Usage (RSS)</h3>
+              <span className="text-xs text-muted-foreground">
+                Current: {memoryData[memoryData.length - 1]?.rss}MB / 2048MB
+              </span>
+            </div>
+            <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
+              {[6, 12, 24, 72, 168].map(h => (
+                <Button
+                  key={h}
+                  variant={memHours === h ? "default" : "ghost"}
+                  size="sm" className="h-6 text-[10px] px-2"
+                  onClick={() => setMemHours(h)}
+                >
+                  {h <= 24 ? `${h}h` : `${h/24}d`}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={memoryData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="memGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval="preserveStartEnd" />
+                <YAxis domain={[0, 2048]} ticks={[0, 512, 1024, 1536, 2048]} tickFormatter={v => `${v}MB`} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={55} />
+                <RechartsTooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]?.payload;
+                    return (
+                      <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
+                        <div className="font-medium">{d?.ts ? new Date(d.ts).toLocaleString() : ""}</div>
+                        <div className="text-muted-foreground mt-0.5">{d?.label}</div>
+                        <div className="font-mono mt-1" style={{ color: d?.rss > 1536 ? "#ef4444" : d?.rss > 1024 ? "#f59e0b" : "#10b981" }}>
+                          {d?.rss}MB
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                {/* Danger zone */}
+                <Area type="monotone" dataKey={() => 2048} stroke="none" fill="#ef4444" fillOpacity={0.05} />
+                <Area type="stepAfter" dataKey="rss" stroke="#ef4444" fill="url(#memGrad)" strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> &lt;1GB Safe</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> 1-1.5GB Warning</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> &gt;1.5GB Danger (2GB limit)</span>
           </div>
         </div>
       )}
