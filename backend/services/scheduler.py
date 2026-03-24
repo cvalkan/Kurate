@@ -959,7 +959,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             _paper_fields = {
                 "_id": 0, "id": 1, "title": 1, "abstract": 1,
                 "authors": 1, "arxiv_id": 1, "link": 1, "published": 1,
-                "pdf_link": 1, "added_at": 1, "summaries": 1,
+                "pdf_link": 1, "added_at": 1,
             }
             all_papers = await collect_all(db.papers.find(
                 {"categories.0": category}, _paper_fields
@@ -970,15 +970,18 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 return {"status": "not_enough_papers"}
 
             # Filter out papers without the required summary for the current source.
-            # This ensures papers aren't compared using only abstracts when a summary
-            # is expected. Resolves the issue where papers with only GPT/Gemini summaries
-            # would participate in a Claude-only tournament.
+            # Uses a lightweight DB query to check existence (avoids loading ~385MB of summary text).
             summary_model = _pick_summary_source(summary_source)
             required_key = _summary_model_key(summary_model)
-            papers_with_summaries = [
-                p for p in all_papers
-                if p.get("summaries") and _get_paper_summary(p, required_key)
-            ]
+            fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
+            all_keys = [required_key] + fallback_keys
+            summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
+            summary_filter["categories.0"] = category
+            papers_with_summary = set()
+            async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
+                papers_with_summary.add(doc["id"])
+
+            papers_with_summaries = [p for p in all_papers if p["id"] in papers_with_summary]
             papers_without = len(all_papers) - len(papers_with_summaries)
             if papers_without > 0:
                 logger.info(f"[{category}] Excluding {papers_without} papers without {required_key} summary from matchmaking")
@@ -996,10 +999,10 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     refetched = await collect_all(db.papers.find(
                         {"categories.0": category}, _paper_fields
                     ))
-                    all_papers = [
-                        p for p in refetched
-                        if p.get("summaries") and _get_paper_summary(p, required_key)
-                    ]
+                    papers_with_summary_2 = set()
+                    async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
+                        papers_with_summary_2.add(doc["id"])
+                    all_papers = [p for p in refetched if p["id"] in papers_with_summary_2]
 
             # Only load standard matches for this category (exclude experiments)
             all_matches = await collect_all(db.matches.find(
