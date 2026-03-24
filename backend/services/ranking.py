@@ -513,19 +513,26 @@ async def seed_rankings(db, category: str = None):
 
         lb = compute_leaderboard(papers, matches)
 
-        # Bulk upsert into rankings
-        from pymongo import UpdateOne
-        from datetime import datetime, timezone
-        now_iso = datetime.now(timezone.utc).isoformat()
-
-        # Build ai_rating lookup
+        # Build lookups from paper data before freeing
         ai_ratings = {}
+        paper_lookup = {}
         for p in papers:
+            paper_lookup[p["id"]] = p
             r = p.get("ai_rating")
             if r and isinstance(r, dict) and r.get("score"):
                 ai_ratings[p["id"]] = round(r["score"], 1)
             elif r and isinstance(r, (int, float)):
                 ai_ratings[p["id"]] = round(r, 1)
+
+        # Free raw data
+        del papers, matches
+        import gc
+        gc.collect()
+
+        # Bulk upsert into rankings
+        from pymongo import UpdateOne
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
 
         # Load AlphaXiv community likes
         community_likes = {}
@@ -548,8 +555,6 @@ async def seed_rankings(db, category: str = None):
                 gap_scores[entry["id"]] = round(float(_gap_raw[i]), 1)
 
         # Build lookups from paper data (leaderboard entries don't carry all fields)
-        paper_lookup = {p["id"]: p for p in papers}
-
         ops = []
         for entry in lb:
             p = paper_lookup.get(entry["id"], {})
@@ -896,6 +901,9 @@ async def reconcile_rankings(db, category: str = None):
             logger.warning(f"Rankings drift in {cat}: {drifted_papers} papers corrected")
             await rerank_category(db, cat)
 
+        # GC between categories to prevent arena accumulation
+        import gc
+        gc.collect()
         await asyncio.sleep(0)
 
     _elapsed = _time.perf_counter() - _t0
