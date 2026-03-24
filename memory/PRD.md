@@ -8,85 +8,69 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - **Frontend**: React, served as compiled build
 - **Caching**: Multi-layer (precomputed JSON > MongoDB > in-memory LRU), event-driven refresh
 - **Background**: All loops event-driven (no polling). Compare loop wakes on data change, fetch loop sleeps until due.
-- **Memory Management**: Startup tasks staggered sequentially, GC between heavy operations, large text fields stripped from cache after stats computation
 
 ## What's Been Implemented
 
-### Session: Mar 22, 2026 (Performance & Observability)
+### Session: Mar 23, 2026
 
-**Leaderboard Query Parallelization:**
-- All 3 leaderboard endpoints (category, all-papers, tag-filtered) now use `asyncio.gather` for independent DB calls
-- Reduced from ~7 sequential awaits to ~2 parallel batches
-- Production `all_papers(recent)` dropped from 589ms → <200ms
+**Performance & Observability:**
+- Parallelized all 3 leaderboard endpoints (category, all-papers, tag-filtered) with asyncio.gather
+- Match count cache with 5-min TTL, invalidated on data change
+- New indexes: `rankings.added_at_-1`, `rankings.categories_score`
+- Slow query threshold lowered from 1.0s to 200ms with per-column metadata
+- End-of-cycle logging for fetch cycles, comparison rounds, archive/reconciliation
+- Better error messages for failed fetch cycles (exception type shown)
+- Fixed false-positive error logs (INFO with "FAILED" → WARNING level)
 
-**New Indexes:**
-- `rankings.added_at_-1` — for unscoped "Most Recent" queries (all-papers view). Reduced anchor lookup from 8.6ms → 0.38ms
-- `rankings.categories_score` — for tag-filtered views. Eliminated COLLSCAN on categories field
+**Memory Leak Fix:**
+- Root cause: `_generate_paper_summaries` loaded every paper's full_text (~55-80KB) just to check if summaries exist
+- Fix: Two-phase scan — lightweight projection first, on-demand full load for papers needing generation
+- Result: Fetch rotation growth dropped from +651MB to +57MB. No more OOM crashes.
 
-**Match Count Cache:**
-- `_get_match_count(category)` caches match counts per category with 5-min TTL
-- Invalidated via `notify_data_changed()` when new matches complete
-- Eliminates 50-200ms COLLSCAN on 92K matches collection per request
+**Tie Handling Overhaul (Human vs AI Benchmark):**
+- All-expert-tie pairs now included in coin-flip extended controlled set (+917 pairs on unfiltered)
+- Committee tier ties (same-tier pairs like Poster-Poster) treated as coin flips in unfiltered benchmark
+- Per-column tie fractions displayed in every table cell with footnote explaining 3 tie types
+- Consistent cf_rate computed for all 6 columns (was missing for AI/H vs Committee)
+- Filtered page correctly shows 0% tier ties (no same-tier pairs by design)
+- "Ties excluded" row shows "0% ties" everywhere for debugging clarity
+- Updated all page descriptions explaining controlled pairs vs full data, and why ρ values differ between pages
+- Fixed hardcoded numbers in footnotes (PeerRead rho, ICLR range, tie rates)
+- Added Pooled/Total aggregate row to AI Ranking Quality per-dataset table
 
-**Enhanced Observability:**
-- Slow query threshold lowered from 1.0s → 200ms with richer metadata (tags, entries, search, cursor)
-- End-of-cycle logging for fetch cycles (start + done/failed with paper counts)
-- End-of-cycle logging for comparison rounds (start + done with ok/fail counts)
-- End-of-cycle logging for archive loop (archive snapshots + daily reconciliation)
-
-**Memory Leak Fix in Fetch Cycles:**
-- Root cause: `_generate_paper_summaries` loaded every paper's `full_text` (~55-80KB) + `summaries` (~28KB) just to check if summaries exist
-- For cs.RO with ~1248 production papers: ~100MB loaded, 97% wasted on already-complete papers
-- Fix: Two-phase approach — lightweight scan (id + summary keys only), then on-demand full load for papers needing generation
-- Saves ~190MB per fetch rotation in production, preventing OOM kills every ~3 hours
-- Added explicit GC after summary generation within each fetch cycle
-
-### Session: Mar 22, 2026 (Earlier — Stability)
-
-**ICLR-OT Scoring:**
-- Scored all 52 iclr-ot papers with Single-Item AI (Claude Opus 4.6 thinking)
-- Scores: range 3.5–8.2, mean 6.65
-
-**DB-Backed Rankings (All 4 Phases Complete):**
-- Phase 1: `rankings` collection (2135 entries, 10 categories), 5 indexes, incremental update hooks
-- Phase 2: All leaderboard serving migrated to DB queries
-- Phase 3: Removed in-memory leaderboard cache (~570MB freed)
-- Phase 4: Daily reconciliation + manual endpoint
-- Memory: O(1) regardless of paper count
-
-**Admin Stats Bug Fix:**
-- Fixed `admin.py` import of `_cache` from `leaderboard.py`
+**Data Integrity:**
+- `rerank_category` now verifies win/loss counts via aggregation after every comparison round (catches silently failed incremental updates)
+- Paper detail endpoint auto-corrects stale rankings when viewed
+- Fixed `collect_all` import in validation.py (was causing precompute failures)
+- Fixed `async_track_mem` import in ranking.py
 
 ### Prior Sessions
-- Production performance overhaul (static precomputation, event-driven caching)
-- Dataset curation (UAI 2024, MIDL, PeerRead audits)
-- Benchmark refinements (BT correlation, ceiling analysis, small-sample warnings)
+- DB-Backed Rankings (all 4 phases), production stability overhaul
 - Dark mode, infinite scroll, GZip compression
-- Methodology pages, cross-tier pair selection fix
+- Dataset curation, benchmark refinements, methodology pages
 
 ## Key Files
-- `/app/backend/server.py` — Startup, prewarming, staggered deferred tasks, index creation
-- `/app/backend/services/scheduler.py` — Event-driven fetch/compare loops with GC, memory-optimized summary generation
-- `/app/backend/routers/leaderboard.py` — DB-backed leaderboard serving, parallelized queries, match count cache, slow query logging
-- `/app/backend/routers/admin.py` — Admin panel, system log endpoint
-- `/app/backend/core/memlog.py` — Memory and performance logging to MongoDB
-- `/app/frontend/src/pages/LeaderboardPage.jsx` — Main frontend page with infinite scroll
-- `/app/memory/ROADMAP.md` — Scaling notes, known bottlenecks, architecture decisions
+- `/app/backend/routers/leaderboard.py` — Parallelized queries, match count cache, paper detail with auto-correction
+- `/app/backend/routers/human_ai_benchmark.py` — Tie handling, coin-flip extended controlled set, per-column tie fractions
+- `/app/backend/services/ranking.py` — rerank_category with drift detection, compute_paper_score
+- `/app/backend/services/scheduler.py` — Memory-optimized summary generation, end-of-cycle logging
+- `/app/backend/core/memlog.py` — WARNING level for FAILED events
+- `/app/frontend/src/pages/HumanAIBenchmarkSection.jsx` — Per-column tie fractions, updated footnotes
+- `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Aggregate row, updated descriptions
 
 ## Prioritized Backlog
 
 ### P0
-- Monitor next production fetch rotation to confirm memory fix
-- Phase 3: Notification System (Resend email integration)
+- Deploy rankings drift fix + paper detail auto-correct
+- Trigger precompute after deploy
 
 ### P1
-- Run validation matches with corrected (unfiltered) pair selection
+- Phase 3: Notification System (Resend email integration)
 - Update Summarizer Report Section 2
-- Run AI pipeline on UAI dataset
 
 ### P2
 - Server-side sorting (sort_by/sort_dir params) for leaderboard API
-- Virtual scrolling (react-window) for mobile performance at scale
+- Virtual scrolling (react-window) for mobile performance
 - Hybrid page loading (200-row initial + background fetch)
 - Convert admin scraper sync requests to async httpx
 - Mobile Twitter/X unfurling (BLOCKED on Cloudflare config)

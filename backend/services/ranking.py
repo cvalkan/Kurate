@@ -629,7 +629,11 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
 
 
 async def rerank_category(db, category: str):
-    """Recompute rank numbers for all papers in a category."""
+    """Recompute rank numbers AND verify win/loss counts for all papers in a category.
+    
+    After each comparison round, this ensures rankings are fully consistent with
+    the matches collection — catching any missed incremental updates.
+    """
     import hashlib
     from core.memlog import log_mem
     import time as _time
@@ -637,37 +641,81 @@ async def rerank_category(db, category: str):
     _t0 = _time.perf_counter()
     _m0 = log_mem(f"rerank_category({category}) start") or 0
 
-    # Fetch all papers in category sorted by score desc
-    cursor = db.rankings.find(
-        {"category": category},
-        {"_id": 0, "paper_id": 1, "score": 1, "title": 1},
-    ).sort("score", -1)
+    # Step 1: Compute actual win/loss counts from matches via aggregation
+    actual_stats = {}
+    # Count comparisons per paper
+    async for doc in db.matches.aggregate([
+        {"$match": {"completed": True, "failed": {"$ne": True},
+                     "primary_category": category, "mode": {"$exists": False}}},
+        {"$facet": {
+            "as_p1": [
+                {"$group": {"_id": "$paper1_id", "total": {"$sum": 1},
+                            "wins": {"$sum": {"$cond": [{"$eq": ["$winner_id", "$paper1_id"]}, 1, 0]}}}}
+            ],
+            "as_p2": [
+                {"$group": {"_id": "$paper2_id", "total": {"$sum": 1},
+                            "wins": {"$sum": {"$cond": [{"$eq": ["$winner_id", "$paper2_id"]}, 1, 0]}}}}
+            ],
+        }},
+    ]):
+        for entry in doc.get("as_p1", []):
+            pid = entry["_id"]
+            actual_stats.setdefault(pid, {"wins": 0, "comparisons": 0})
+            actual_stats[pid]["wins"] += entry["wins"]
+            actual_stats[pid]["comparisons"] += entry["total"]
+        for entry in doc.get("as_p2", []):
+            pid = entry["_id"]
+            actual_stats.setdefault(pid, {"wins": 0, "comparisons": 0})
+            actual_stats[pid]["wins"] += entry["wins"]
+            actual_stats[pid]["comparisons"] += entry["total"]
 
-    # Sort with tiebreaker
+    # Step 2: Fetch all rankings, fix counts if drifted, collect for sorting
     entries = []
-    async for doc in cursor:
-        title_hash = hashlib.md5(doc.get("title", doc["paper_id"]).encode()).hexdigest()
-        entries.append((doc["paper_id"], doc["score"], title_hash))
-
-    # Stable sort: score desc, then title hash desc (same as compute_leaderboard)
-    entries.sort(key=lambda e: (e[1], e[2]), reverse=True)
-
-    # Bulk update ranks + refresh derived fields (gap_score, community_likes)
     from pymongo import UpdateOne
-    ops = []
+    fix_ops = []
+    async for doc in db.rankings.find(
+        {"category": category},
+        {"_id": 0, "paper_id": 1, "score": 1, "title": 1, "wins": 1, "comparisons": 1}
+    ):
+        pid = doc["paper_id"]
+        title_hash = hashlib.md5(doc.get("title", pid).encode()).hexdigest()
+
+        actual = actual_stats.get(pid, {"wins": 0, "comparisons": 0})
+        a_wins = actual["wins"]
+        a_comp = actual["comparisons"]
+
+        # Fix drift if detected
+        if doc.get("wins", 0) != a_wins or doc.get("comparisons", 0) != a_comp:
+            new_stats = compute_paper_score(a_wins, a_comp)
+            fix_ops.append(UpdateOne(
+                {"paper_id": pid, "category": category},
+                {"$set": {"wins": a_wins, "losses": a_comp - a_wins,
+                          "comparisons": a_comp, **new_stats}},
+            ))
+            entries.append((pid, new_stats.get("score", SCORE_BASE_CONST), title_hash))
+        else:
+            entries.append((pid, doc["score"], title_hash))
+
+    if fix_ops:
+        await db.rankings.bulk_write(fix_ops, ordered=False)
+
+    # Step 3: Sort and assign ranks
+    entries.sort(key=lambda e: (e[1], e[2]), reverse=True)
+    rank_ops = []
     for rank, (paper_id, _, _) in enumerate(entries, 1):
-        ops.append(UpdateOne(
+        rank_ops.append(UpdateOne(
             {"paper_id": paper_id, "category": category},
             {"$set": {"rank": rank}},
         ))
-    if ops:
-        await db.rankings.bulk_write(ops, ordered=False)
+    if rank_ops:
+        await db.rankings.bulk_write(rank_ops, ordered=False)
 
-    # Refresh gap_score and community_likes (stale after score changes)
+    # Refresh gap_score and community_likes
     await _refresh_derived_fields(db, category)
 
     _elapsed = _time.perf_counter() - _t0
-    log_mem(f"rerank_category({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
+    drift_msg = f", fixed {len(fix_ops)} drifted" if fix_ops else ""
+    log_mem(f"rerank_category({category}) done ({len(entries)} papers, {_elapsed:.1f}s{drift_msg})")
 
 
 async def _refresh_derived_fields(db, category: str):

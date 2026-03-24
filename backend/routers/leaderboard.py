@@ -6,7 +6,7 @@ import asyncio
 import time
 from core.config import db, logger, CATEGORIES
 from routers.validation_utils import collect_all
-from services.ranking import compute_leaderboard, compute_leaderboard_async, calculate_confidence_interval, wilson_margin_pct
+from services.ranking import compute_leaderboard, compute_leaderboard_async, calculate_confidence_interval, wilson_margin_pct, compute_paper_score
 
 router = APIRouter(prefix="/api")
 
@@ -1232,10 +1232,26 @@ async def get_paper_detail(paper_id: str):
             "failed": m.get("failed", False),
         })
 
-    # Compute stats
+    # Compute stats from matches (live, source of truth)
     wins = sum(1 for m in enriched_matches if m["won"] and not m["failed"])
     total = sum(1 for m in enriched_matches if not m["failed"])
     ci = calculate_confidence_interval(wins, total)
+
+    # Also read from rankings DB (same source as leaderboard) for consistency
+    ranking_doc = await db.rankings.find_one(
+        {"paper_id": paper_id},
+        {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1, "score": 1,
+         "rank": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1, "category": 1}
+    )
+
+    # If rankings are stale (mismatch), update them inline
+    if ranking_doc and (ranking_doc.get("wins") != wins or ranking_doc.get("comparisons") != total):
+        new_stats = compute_paper_score(wins, total)
+        cat = ranking_doc.get("category", paper.get("categories", ["unknown"])[0])
+        await db.rankings.update_one(
+            {"paper_id": paper_id, "category": cat},
+            {"$set": {"wins": wins, "losses": total - wins, "comparisons": total, **new_stats}},
+        )
 
     return {
         "paper": paper,
