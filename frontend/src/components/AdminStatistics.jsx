@@ -122,7 +122,7 @@ export function AdminStatistics({ categories }) {
       const logs = (memRes.data?.logs || []).filter(l => l.level === "mem" && l.rss_mb);
       const chartData = logs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
         ts: l.ts,
-        epoch: new Date(l.ts).getTime(),
+        epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
         rss: l.rss_mb,
         label: l.label,
       }));
@@ -381,7 +381,7 @@ export function AdminStatistics({ categories }) {
                     const d = payload[0]?.payload;
                     return (
                       <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
-                        <div className="font-medium">{d?.ts ? new Date(d.ts).toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " CET" : ""}</div>
+                        <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " CET" : ""}</div>
                         <div className="text-muted-foreground mt-0.5">{d?.label}</div>
                         <div className="font-mono mt-1" style={{ color: d?.rss > 1536 ? "#ef4444" : d?.rss > 1024 ? "#f59e0b" : "#10b981" }}>
                           {d?.rss}MB
