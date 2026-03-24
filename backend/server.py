@@ -719,6 +719,15 @@ async def _startup_seed_rankings():
                     logger.info(f"Backfilled added_at for {backfilled} rankings")
                 else:
                     logger.info(f"Rankings collection up to date ({rankings_count} entries)")
+
+        # Always reconcile on startup to fix any stale win/loss counts
+        from services.ranking import reconcile_rankings
+        results = await reconcile_rankings(db)
+        drifted = sum(1 for r in results.values() if r.get("drifted"))
+        if drifted:
+            logger.warning(f"Startup reconciliation: fixed {drifted}/{len(results)} categories with drift")
+        else:
+            logger.info(f"Startup reconciliation: all {len(results)} categories consistent")
     except Exception as e:
         logger.warning(f"Rankings seed failed: {e}")
 
