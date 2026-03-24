@@ -1114,8 +1114,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                         w_id = match_doc["winner_id"]
                         l_id = p2_id if w_id == p1_id else p1_id
                         await update_rankings_for_match(db, category, w_id, l_id)
-                    except Exception:
-                        pass  # Non-critical — rerank_category fixes it at round end
+                    except Exception as e:
+                        logger.warning(f"[{category}] Rankings update failed for match {match_doc['id']}: {e}")
                 cat_status["matches_count"] = total_matches + completed + failed
                 cat_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
 
