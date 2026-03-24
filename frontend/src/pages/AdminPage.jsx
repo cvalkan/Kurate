@@ -174,7 +174,7 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "ci_target", "ci_target_general", "calibration_ratio"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "ci_target", "ci_target_general", "calibration_ratio", "parallel_categories"]) {
         if (editSettings[key] !== settings[key]) {
           updates[key] = Number(editSettings[key]);
         }
@@ -277,6 +277,7 @@ export default function AdminPage() {
               { key: "ci_target", label: "Top-K CI Target (%)", help: "Tight Wilson CI margin target for top-K papers. Default: 10%", min: 1, max: 30 },
               { key: "ci_target_general", label: "General CI Target (%)", help: "Looser Wilson CI margin target for non-top-K papers. Default: 15%", min: 5, max: 50 },
               { key: "calibration_ratio", label: "Calibration Ratio (%)", help: "% of new-paper matches paired against established (converged) papers for score calibration. 0=all needy-vs-needy, 100=all needy-vs-established. Default: 50%", min: 0, max: 100 },
+              { key: "parallel_categories", label: "Parallel Categories", help: "Number of categories to run comparison rounds for concurrently. Higher = faster but more memory. Default: 2", min: 1, max: 10 },
             ].map(({ key, label, help, min, max, step }) => (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
