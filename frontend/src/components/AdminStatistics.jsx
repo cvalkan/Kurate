@@ -122,7 +122,7 @@ export function AdminStatistics({ categories }) {
       const logs = (memRes.data?.logs || []).filter(l => l.level === "mem" && l.rss_mb);
       const chartData = logs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
         ts: l.ts,
-        time: new Date(l.ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+        epoch: new Date(l.ts).getTime(),
         rss: l.rss_mb,
         label: l.label,
       }));
@@ -356,7 +356,23 @@ export function AdminStatistics({ categories }) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval="preserveStartEnd" />
+                <XAxis
+                  dataKey="epoch"
+                  type="number"
+                  scale="time"
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={(epoch) => {
+                    const d = new Date(epoch);
+                    if (memHours > 24) {
+                      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " +
+                             d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+                    }
+                    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+                  }}
+                  tick={{ fontSize: 10 }}
+                  stroke="hsl(var(--muted-foreground))"
+                  tickCount={memHours <= 12 ? 8 : memHours <= 24 ? 10 : 8}
+                />
                 <YAxis domain={[0, 2048]} ticks={[0, 512, 1024, 1536, 2048]} tickFormatter={v => `${v}MB`} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={55} />
                 <RechartsTooltip
                   content={({ active, payload }) => {
