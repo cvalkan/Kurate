@@ -363,11 +363,12 @@ export function AdminStatistics({ categories }) {
                   domain={["dataMin", "dataMax"]}
                   tickFormatter={(epoch) => {
                     const d = new Date(epoch);
+                    const opts = { timeZone: "Europe/Berlin" };
                     if (memHours > 24) {
-                      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " +
-                             d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+                      return d.toLocaleDateString("en-US", { ...opts, month: "short", day: "numeric" }) + " " +
+                             d.toLocaleTimeString("en-US", { ...opts, hour: "2-digit", minute: "2-digit", hour12: false });
                     }
-                    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+                    return d.toLocaleTimeString("en-US", { ...opts, hour: "2-digit", minute: "2-digit", hour12: false });
                   }}
                   tick={{ fontSize: 10 }}
                   stroke="hsl(var(--muted-foreground))"
@@ -380,7 +381,7 @@ export function AdminStatistics({ categories }) {
                     const d = payload[0]?.payload;
                     return (
                       <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
-                        <div className="font-medium">{d?.ts ? new Date(d.ts).toLocaleString() : ""}</div>
+                        <div className="font-medium">{d?.ts ? new Date(d.ts).toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " CET" : ""}</div>
                         <div className="text-muted-foreground mt-0.5">{d?.label}</div>
                         <div className="font-mono mt-1" style={{ color: d?.rss > 1536 ? "#ef4444" : d?.rss > 1024 ? "#f59e0b" : "#10b981" }}>
                           {d?.rss}MB
