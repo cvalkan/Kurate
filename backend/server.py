@@ -720,14 +720,23 @@ async def _startup_seed_rankings():
                 else:
                     logger.info(f"Rankings collection up to date ({rankings_count} entries)")
 
-        # Always reconcile on startup to fix any stale win/loss counts
-        from services.ranking import reconcile_rankings
-        results = await reconcile_rankings(db)
-        drifted = sum(1 for r in results.values() if r.get("drifted"))
-        if drifted:
-            logger.warning(f"Startup reconciliation: fixed {drifted}/{len(results)} categories with drift")
-        else:
-            logger.info(f"Startup reconciliation: all {len(results)} categories consistent")
+        # Schedule reconciliation as a background task (non-blocking).
+        # Avoids 300s+ startup delay that causes health check timeouts.
+        # The comparison round's rerank_category also verifies counts, so
+        # any drift is caught within minutes of the first round.
+        async def _bg_reconcile():
+            try:
+                await asyncio.sleep(30)  # Let startup complete first
+                from services.ranking import reconcile_rankings
+                results = await reconcile_rankings(db)
+                drifted = sum(1 for r in results.values() if r.get("drifted"))
+                if drifted:
+                    logger.warning(f"Startup reconciliation: fixed {drifted}/{len(results)} categories with drift")
+                else:
+                    logger.info(f"Startup reconciliation: all {len(results)} categories consistent")
+            except Exception as e:
+                logger.warning(f"Startup reconciliation failed: {e}")
+        asyncio.create_task(_bg_reconcile())
     except Exception as e:
         logger.warning(f"Rankings seed failed: {e}")
 
