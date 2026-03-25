@@ -358,6 +358,10 @@ async def _compare_loop():
                         repaired = await process_repair_queue(db)
                         if repaired:
                             logger.info(f"Repair queue: fixed {repaired} papers")
+                        # Log queue size for monitoring
+                        queue_size = await db.rankings_repair_queue.count_documents({})
+                        from core.memlog import log_event
+                        log_event("repair_queue", "repair_queue_size", {"size": queue_size, "repaired": repaired})
                         await asyncio.sleep(2)
                     # After a round completes, loop immediately to check if more work needed
                     continue

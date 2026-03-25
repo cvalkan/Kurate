@@ -104,6 +104,7 @@ export function AdminStatistics({ categories }) {
   const [timeseries, setTimeseries] = useState(null);
   const [summaryStats, setSummaryStats] = useState(null);
   const [memoryData, setMemoryData] = useState(null);
+  const [repairQueueData, setRepairQueueData] = useState(null);
   const [memHours, setMemHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("cumulative"); // "daily" | "cumulative"
@@ -119,14 +120,24 @@ export function AdminStatistics({ categories }) {
       setTimeseries(tsRes.data);
       setSummaryStats(statsRes.data.summaries || null);
       // Process memory logs into chart data
-      const logs = (memRes.data?.logs || []).filter(l => l.level === "mem" && l.rss_mb);
-      const chartData = logs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
+      const allLogs = memRes.data?.logs || [];
+      const memLogs = allLogs.filter(l => l.level === "mem" && l.rss_mb);
+      const chartData = memLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
         ts: l.ts,
         epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
         rss: l.rss_mb,
         label: l.label,
       }));
       setMemoryData(chartData);
+      // Process repair queue logs
+      const queueLogs = allLogs.filter(l => l.level === "repair_queue");
+      const queueData = queueLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
+        ts: l.ts,
+        epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
+        size: l.size ?? 0,
+        repaired: l.repaired ?? 0,
+      }));
+      setRepairQueueData(queueData);
     } catch (err) {
       console.error("Failed to load stats:", err);
     } finally {
@@ -400,6 +411,52 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> &lt;1GB Safe</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> 1-1.5GB Warning</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> &gt;1.5GB Danger (2GB limit)</span>
+          </div>
+        </div>
+      )}
+
+      {/* Repair Queue History */}
+      {repairQueueData && repairQueueData.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4" data-testid="repair-queue-chart">
+          <div className="flex items-center gap-2 mb-4">
+            <Cpu className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Repair Queue Size</h3>
+            <span className="text-xs text-muted-foreground">
+              Current: {repairQueueData[repairQueueData.length - 1]?.size ?? 0}
+            </span>
+          </div>
+          <div className="h-[140px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={repairQueueData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                <XAxis
+                  dataKey="epoch" type="number" scale="time" domain={["dataMin", "dataMax"]}
+                  tickFormatter={(epoch) => {
+                    const d = new Date(epoch);
+                    const opts = { timeZone: "Europe/Berlin" };
+                    return memHours > 24
+                      ? d.toLocaleDateString("en-US", { ...opts, month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { ...opts, hour: "2-digit", minute: "2-digit", hour12: false })
+                      : d.toLocaleTimeString("en-US", { ...opts, hour: "2-digit", minute: "2-digit", hour12: false });
+                  }}
+                  tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
+                  tickCount={6}
+                />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={30} />
+                <RechartsTooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]?.payload;
+                    return (
+                      <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
+                        <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) + " CET" : ""}</div>
+                        <div className="font-mono mt-1">Queue: {d?.size} {d?.repaired > 0 && <span className="text-emerald-600">(repaired {d.repaired})</span>}</div>
+                      </div>
+                    );
+                  }}
+                />
+                <Area type="stepAfter" dataKey="size" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
