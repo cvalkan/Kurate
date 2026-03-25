@@ -89,6 +89,20 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Retry-and-repair-queue for incremental ranking updates
 - Lightweight rank re-sorting after each comparison round
 
+### Session: Mar 25, 2026 (continued)
+
+**Opus 4.6 Thinking Accept/Reject Accuracy Test:**
+- Built and ran single-item accept/reject prediction experiment following ReviewerToo (arXiv:2510.08867) methodology
+- 100 ICLR 2025 papers (50 accept, 50 reject), 5-way categorical decisions grounded in ICLR 2025 Reviewer Guide
+- Input: abstract + Opus 4.6 summary, Model: claude-opus-4-6 with thinking (budget_tokens=8000)
+- **Binary accuracy: 76.0%** (96 papers completed, 4 budget-limited). Precision 72.5%, Recall 80.4%, F1 0.763
+- **5-way accuracy: 62.5%** — model never predicts Oral/Spotlight, clusters to Poster/Reject
+- Compared to paper's META agent (81.8%), human avg (83.9%), human top-1% (92.4%)
+- Also computed pairwise cross-tier accuracy from existing data: **87.2%** (beats individual human reviewers at 82.9%)
+- Key finding: pairwise comparison (87.2%) significantly easier than single-item absolute judgment (76.0%)
+- Report: `/app/memory/OPUS46_ACCEPT_REJECT_REPORT.md`, data: `/app/tools/opus46_accept_reject_results.json`
+- Script: `/app/tools/test_opus46_accept_reject.py`
+
 ### Prior Sessions
 - DB-Backed Rankings (all 4 phases), production stability overhaul
 - Dark mode, infinite scroll, GZip compression
