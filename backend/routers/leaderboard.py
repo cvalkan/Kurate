@@ -1693,6 +1693,32 @@ async def _compute_model_correlation(category, mode):
     except Exception as e:
         logger.warning(f"PW inter-model by method failed: {e}")
 
+    # Recompute Rank Correlations from model_rankings reg_wr so they match the PW Inter-Model table exactly
+    if model_rankings:
+        for i, m1 in enumerate(model_keys):
+            for j, m2 in enumerate(model_keys):
+                if i >= j:
+                    continue
+                if m1 not in model_rankings or m2 not in model_rankings:
+                    continue
+                r1 = model_rankings[m1].get("reg_wr", {})
+                r2 = model_rankings[m2].get("reg_wr", {})
+                common = sorted(set(r1.keys()) & set(r2.keys()))
+                if len(common) >= 5:
+                    v1 = [r1[p] for p in common]
+                    v2 = [r2[p] for p in common]
+                    sp_r, sp_p = scipy_stats.spearmanr(v1, v2)
+                    pe_r, pe_p = scipy_stats.pearsonr(v1, v2)
+                    pair_key = f"{m1} vs {m2}"
+                    if pair_key in sorted_correlations:
+                        sorted_correlations[pair_key] = {
+                            "spearman_r": round(float(sp_r), 3),
+                            "spearman_p": round(float(sp_p), 4),
+                            "pearson_r": round(float(pe_r), 3),
+                            "pearson_p": round(float(pe_p), 4),
+                            "n_papers": len(common),
+                        }
+
     return {
         "models": [{"key": mk, "short": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
         "correlations": sorted_correlations,
