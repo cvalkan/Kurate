@@ -368,122 +368,73 @@ export function SiRatingSection({ category }) {
             )}
           </div>
 
-          {/* Pairwise Ranking vs SI Score — multi-method comparison */}
-          {data.pw_vs_si && data.pw_vs_si.overall?.length > 0 && (
+          {/* Pairwise Tournament vs Single-Item Ranking */}
+          {data.pw_vs_si && Object.keys(data.pw_vs_si.per_model || {}).length > 0 && (
             <div className="mt-6 space-y-4" data-testid="pw-vs-si-section">
               <div className="pb-2 border-b border-border">
                 <h3 className="text-sm font-semibold">Pairwise Tournament vs Single-Item Ranking</h3>
                 <p className="text-[10px] text-muted-foreground mt-0.5 max-w-2xl">
-                  How well does the pairwise tournament ranking (from {data.pw_vs_si.n_matches?.toLocaleString()} head-to-head matches) agree
-                  with averaged single-item scores? TrueSkill is the most robust PW estimator — it produces the most stable rankings from sparse match data.
+                  PW ranking correlated against each model's individual SI scores.
+                  "Combined" uses all models' matches ({data.pw_vs_si.n_matches?.toLocaleString()}); "Within" uses only that model's own matches.
                 </p>
               </div>
 
-              {/* Overall comparison table */}
-              <div className="border border-border rounded-lg overflow-hidden">
-                <div className="px-3 py-1.5 bg-emerald-500/5 border-b border-border">
-                  <span className="text-[10px] font-semibold text-muted-foreground">
-                    PW Method vs Averaged SI Score
-                  </span>
-                </div>
-                <table className="w-full text-[11px]">
-                  <thead>
-                    <tr className="border-b border-border text-muted-foreground bg-secondary/5">
-                      <th className="py-1.5 px-3 text-left font-medium">PW Estimator</th>
-                      <th className="py-1.5 px-3 text-right font-medium">Spearman {"\u03C1"}</th>
-                      <th className="py-1.5 px-3 text-right font-medium">Kendall {"\u03C4"}</th>
-                      <th className="py-1.5 px-3 text-right font-medium">Pearson r</th>
-                      <th className="py-1.5 px-3 text-right font-medium">n</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.pw_vs_si.overall.map((row, i) => {
-                      const isBest = data.pw_vs_si.overall.length > 1 &&
-                        row.spearman_rho === Math.max(...data.pw_vs_si.overall.map(r => r.spearman_rho));
-                      return (
-                        <tr key={row.method} className={`border-b border-border/20 ${isBest ? "bg-emerald-500/[0.06]" : ""}`}>
-                          <td className="py-1.5 px-3 font-medium">
-                            {row.label}
-                            {isBest && <span className="ml-1.5 text-[9px] text-emerald-600 font-semibold">BEST</span>}
-                          </td>
-                          <td className={`py-1.5 px-3 text-right font-mono font-semibold ${isBest ? "text-emerald-700" : ""}`}>
-                            {row.spearman_rho.toFixed(4)}
-                          </td>
-                          <td className="py-1.5 px-3 text-right font-mono">{row.kendall_tau.toFixed(4)}</td>
-                          <td className="py-1.5 px-3 text-right font-mono">{row.pearson_r.toFixed(4)}</td>
-                          <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.n}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
               {/* Per-model PW vs SI — combined + within-model */}
-              {Object.keys(data.pw_vs_si.per_model || {}).length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground mb-2">Per-Model Breakdown</h4>
-                  <p className="text-[10px] text-muted-foreground mb-3 max-w-2xl">
-                    PW ranking correlated against each model's individual SI scores.
-                    "Combined" uses all models' matches; "Within" uses only that model's own matches.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {["claude", "gpt", "gemini"].map(mk => {
-                      const mData = data.pw_vs_si.per_model[mk];
-                      if (!mData) return null;
-                      const wmData = data.pw_vs_si.within_model?.[mk];
-                      const combinedRows = mData.rows || [];
-                      const withinRows = wmData?.rows || [];
-                      const allRhos = [...combinedRows, ...withinRows].map(r => r.spearman_rho);
-                      const bestRho = allRhos.length > 0 ? Math.max(...allRhos) : null;
-                      return (
-                        <div key={mk} className="border border-border rounded-lg overflow-hidden" data-testid={`pw-vs-si-${mk}`}>
-                          <div className="px-3 py-1.5 bg-secondary/10 border-b border-border">
-                            <span className="text-[10px] font-semibold">{mData.label} SI</span>
-                          </div>
-                          <table className="w-full text-[10px]">
-                            <thead>
-                              <tr className="border-b border-border/50 text-muted-foreground">
-                                <th className="py-1 px-2 text-left font-medium">PW Method</th>
-                                <th className="py-1 px-2 text-right font-medium">{"\u03C1"}</th>
-                                <th className="py-1 px-2 text-right font-medium">{"\u03C4"}</th>
-                                <th className="py-1 px-2 text-right font-medium">n</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {combinedRows.length > 0 && (
-                                <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">Combined PW</td></tr>
-                              )}
-                              {combinedRows.map(row => (
-                                <tr key={`c-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
-                                  <td className="py-1 px-2 font-medium">{row.label}</td>
-                                  <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
-                                  <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
-                                  <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.n}</td>
-                                </tr>
-                              ))}
-                              {withinRows.length > 0 && (
-                                <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">
-                                  {mData.label.split(" ")[0]}-only PW
-                                  {wmData?.n_matches ? <span className="ml-1 font-normal">({wmData.n_matches.toLocaleString()} matches)</span> : ""}
-                                </td></tr>
-                              )}
-                              {withinRows.map(row => (
-                                <tr key={`w-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
-                                  <td className="py-1 px-2 font-medium">{row.label}</td>
-                                  <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
-                                  <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
-                                  <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.n}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {["claude", "gpt", "gemini"].map(mk => {
+                  const mData = data.pw_vs_si.per_model[mk];
+                  if (!mData) return null;
+                  const wmData = data.pw_vs_si.within_model?.[mk];
+                  const combinedRows = (mData.rows || []).filter(r => r.method !== "raw_wr");
+                  const withinRows = (wmData?.rows || []).filter(r => r.method !== "raw_wr");
+                  const allRhos = [...combinedRows, ...withinRows].map(r => r.spearman_rho);
+                  const bestRho = allRhos.length > 0 ? Math.max(...allRhos) : null;
+                  return (
+                    <div key={mk} className="border border-border rounded-lg overflow-hidden" data-testid={`pw-vs-si-${mk}`}>
+                      <div className="px-3 py-1.5 bg-secondary/10 border-b border-border">
+                        <span className="text-[10px] font-semibold">{mData.label} SI</span>
+                      </div>
+                      <table className="w-full text-[10px]">
+                        <thead>
+                          <tr className="border-b border-border/50 text-muted-foreground">
+                            <th className="py-1 px-2 text-left font-medium">PW Method</th>
+                            <th className="py-1 px-2 text-right font-medium">{"\u03C1"}</th>
+                            <th className="py-1 px-2 text-right font-medium">{"\u03C4"}</th>
+                            <th className="py-1 px-2 text-right font-medium">n</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {combinedRows.length > 0 && (
+                            <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">Combined PW</td></tr>
+                          )}
+                          {combinedRows.map(row => (
+                            <tr key={`c-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
+                              <td className="py-1 px-2 font-medium">{row.label}</td>
+                              <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
+                              <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
+                              <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.n}</td>
+                            </tr>
+                          ))}
+                          {withinRows.length > 0 && (
+                            <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">
+                              {mData.label.split(" ")[0]}-only PW
+                              {wmData?.n_matches ? <span className="ml-1 font-normal">({wmData.n_matches.toLocaleString()} matches)</span> : ""}
+                            </td></tr>
+                          )}
+                          {withinRows.map(row => (
+                            <tr key={`w-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
+                              <td className="py-1 px-2 font-medium">{row.label}</td>
+                              <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
+                              <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
+                              <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.n}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
