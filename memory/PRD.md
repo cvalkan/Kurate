@@ -15,11 +15,13 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 **Model Analysis Dashboard Overhaul:**
 - Replaced single `bt_vs_si` correlation box with multi-method PW-vs-SI comparison table
-- Backend computes all 3 PW methods (Win-Rate, BT, TrueSkill) vs averaged SI scores and per-model SI scores
-- TrueSkill confirmed as best PW estimator: ρ=0.7002 overall, ρ=0.8518 vs Claude SI
-- Per-model breakdown shows PW correlation against each model's individual SI ratings (Claude, GPT, Gemini)
-- "SI Rating Calibration" section replaces old "Cross-Model Rating Behavior" with calibration gap narrative
-- Backward compatibility: `bt_vs_si` field still returned for any consumers
+- Backend computes all 4 PW methods (Raw WR, Reg WR, BT, TrueSkill) vs averaged SI scores and per-model SI scores
+- Added within-model PW vs SI correlations (Claude-only PW matches vs Claude SI, etc.)
+- Added `pw_vs_claude_si` table: 8 rows comparing within-model and combined PW against Claude SI across all methods
+- Added Inter-Model Agreement section with 3 side-by-side tables: PW Inter-Model, SI Inter-Model, PW vs Claude SI
+- PW Inter-Model table shows per-model-pair correlations using all 4 scoring methods
+- Removed SI Rating Calibration table from SiRatingSection
+- TrueSkill confirmed as best PW estimator: Combined TrueSkill ρ=0.852 vs Claude SI
 
 **Multi-Scoring Method Toggle (AI Ranking Quality):**
 - Added scoring method toggle to AI Ranking Quality page: Normalized Win-Rate (default), Bradley-Terry, and TrueSkill
@@ -93,7 +95,8 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - `/app/backend/services/precompute.py` — Precompute all experiment/validation/analysis caches
 - `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Scoring method toggle, 6-tier overlap table
 - `/app/frontend/src/pages/HumanAIBenchmarkSection.jsx` — Per-column tie fractions, updated footnotes
-- `/app/frontend/src/components/SiRatingSection.jsx` — PW-vs-SI multi-method comparison, SI calibration analysis
+- `/app/frontend/src/components/SiRatingSection.jsx` — PW-vs-SI multi-method comparison, per-model breakdown
+- `/app/frontend/src/components/InterModelSection.jsx` — PW Inter-Model, SI Inter-Model, PW vs Claude SI tables
 
 ## Prioritized Backlog
 
