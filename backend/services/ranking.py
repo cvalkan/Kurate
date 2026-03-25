@@ -633,11 +633,48 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
             )
 
 
-async def rerank_category(db, category: str):
-    """Recompute rank numbers AND verify win/loss counts for all papers in a category.
+async def rerank_category_light(db, category: str):
+    """Lightweight rank re-sort. Only updates rank numbers based on current scores.
     
-    After each comparison round, this ensures rankings are fully consistent with
-    the matches collection — catching any missed incremental updates.
+    Called after every comparison round. Does NOT verify win/loss counts (the
+    incremental update_rankings_for_match handles that per-match). This avoids
+    the expensive $facet aggregation over all matches.
+    """
+    import hashlib
+    from core.memlog import log_mem
+    import time as _time
+
+    _t0 = _time.perf_counter()
+
+    entries = []
+    async for doc in db.rankings.find(
+        {"category": category},
+        {"_id": 0, "paper_id": 1, "score": 1, "title": 1},
+    ):
+        title_hash = hashlib.md5(doc.get("title", doc["paper_id"]).encode()).hexdigest()
+        entries.append((doc["paper_id"], doc["score"], title_hash))
+
+    entries.sort(key=lambda e: (e[1], e[2]), reverse=True)
+
+    from pymongo import UpdateOne
+    ops = [
+        UpdateOne({"paper_id": pid, "category": category}, {"$set": {"rank": rank}})
+        for rank, (pid, _, _) in enumerate(entries, 1)
+    ]
+    if ops:
+        await db.rankings.bulk_write(ops, ordered=False)
+
+    await _refresh_derived_fields(db, category)
+
+    _elapsed = _time.perf_counter() - _t0
+    log_mem(f"rerank_category({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
+
+
+async def rerank_category(db, category: str):
+    """Full rank recompute with win/loss count verification.
+    
+    Expensive: runs $facet aggregation over ALL matches. Only use for
+    admin-triggered reconciliation, not after every comparison round.
     """
     import hashlib
     from core.memlog import log_mem

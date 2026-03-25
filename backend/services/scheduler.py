@@ -1153,8 +1153,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 await _store_ranking_snapshot(category)
                 # Update DB-backed rankings incrementally
                 try:
-                    from services.ranking import rerank_category
-                    await rerank_category(db, category)
+                    from services.ranking import rerank_category_light
+                    await rerank_category_light(db, category)
                 except Exception as e:
                     logger.warning(f"[{category}] Rankings rerank failed: {e}")
                 # Signal leaderboard cache to refresh
