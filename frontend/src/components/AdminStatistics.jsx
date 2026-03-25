@@ -383,7 +383,8 @@ export function AdminStatistics({ categories }) {
                   }}
                   tick={{ fontSize: 10 }}
                   stroke="hsl(var(--muted-foreground))"
-                  tickCount={memHours <= 12 ? 8 : memHours <= 24 ? 10 : 8}
+                  tickCount={memHours <= 12 ? 6 : memHours <= 24 ? 8 : 6}
+                  minTickGap={60}
                 />
                 <YAxis domain={[0, 2048]} ticks={[0, 512, 1024, 1536, 2048]} tickFormatter={v => `${v}MB`} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={55} />
                 <RechartsTooltip

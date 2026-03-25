@@ -691,7 +691,7 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         "losses": doc.get("losses", 0),
         "comparisons": doc.get("comparisons", 0),
         **({"ai_rating": doc["ai_rating"]} if doc.get("ai_rating") else {}),
-        **({"gap_score": doc["gap_score"]} if doc.get("gap_score") else {}),
+        **({"gap_score": doc["gap_score"]} if doc.get("gap_score") is not None else {}),
         **({"community_likes": doc["community_likes"]} if doc.get("community_likes") is not None else {}),
     }
 
