@@ -2046,7 +2046,7 @@ async def reconcile_rankings_endpoint(category: str = None):
 
 @router.get("/system-logs", dependencies=[Depends(verify_admin)])
 async def get_system_logs(
-    level: str = None, label: str = None, hours: int = 24, limit: int = 200,
+    level: str = None, label: str = None, hours: int = 24, limit: int = 2000,
 ):
     """Query persisted system logs (memory tracking, events). Stored 7 days."""
     from datetime import datetime, timezone, timedelta
@@ -2057,7 +2057,7 @@ async def get_system_logs(
         query["label"] = {"$regex": label, "$options": "i"}
     logs = await db.system_logs.find(
         query, {"_id": 0}
-    ).sort("ts", -1).limit(limit).to_list(limit)
+    ).sort("ts", -1).limit(min(limit, 5000)).to_list(min(limit, 5000))
     # Convert datetime to ISO string for JSON serialization
     for log in logs:
         if "ts" in log:

@@ -114,7 +114,7 @@ export function AdminStatistics({ categories }) {
       const [tsRes, statsRes, memRes] = await Promise.all([
         axios.get(`${API}/api/admin/timeseries`, { headers: getAdminHeaders() }),
         axios.get(`${API}/api/admin/stats`, { headers: getAdminHeaders() }),
-        axios.get(`${API}/api/admin/system-logs?hours=${memHours}`, { headers: getAdminHeaders() }),
+        axios.get(`${API}/api/admin/system-logs?hours=${memHours}&limit=${memHours <= 12 ? 500 : memHours <= 24 ? 1000 : 3000}`, { headers: getAdminHeaders() }),
       ]);
       setTimeseries(tsRes.data);
       setSummaryStats(statsRes.data.summaries || null);
