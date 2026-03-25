@@ -11,6 +11,23 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 ## What's Been Implemented
 
+### Session: Mar 25, 2026
+
+**Multi-Scoring Method Toggle (AI Ranking Quality):**
+- Added scoring method toggle to AI Ranking Quality page: Normalized Win-Rate (default), Bradley-Terry, and TrueSkill
+- Backend computes rankings with all 3 methods during precompute, stores in `by_method` field
+- Frontend toggle switches all correlation metrics, summary cards, per-dataset table, and overlap table
+- Bradley-Terry: MLE with regularization prior (prior_strength=2.0)
+- TrueSkill: Microsoft TrueSkill Bayesian rating with 3-pass convergence, draw_probability=0
+
+**Extended K% Overlap Tiers:**
+- Added 40% and 50% tiers to the Top/Bottom K% Overlap table (previously 5%, 10%, 20%, 30%)
+- Both AI Ranking Quality (filtered) and AI Ranking Quality (unfiltered) pages updated
+
+**New Backend Functions:**
+- `compute_bt_ranking_scores()` in `ranking.py` — thin wrapper around `calculate_bradley_terry`
+- `compute_trueskill_ranking_scores()` in `ranking.py` — TrueSkill implementation with trueskill library
+
 ### Session: Mar 23, 2026
 
 **Performance & Observability:**
@@ -20,7 +37,7 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Slow query threshold lowered from 1.0s to 200ms with per-column metadata
 - End-of-cycle logging for fetch cycles, comparison rounds, archive/reconciliation
 - Better error messages for failed fetch cycles (exception type shown)
-- Fixed false-positive error logs (INFO with "FAILED" → WARNING level)
+- Fixed false-positive error logs (INFO with "FAILED" -> WARNING level)
 
 **Memory Leak Fix:**
 - Root cause: `_generate_paper_summaries` loaded every paper's full_text (~55-80KB) just to check if summaries exist
@@ -33,16 +50,17 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Per-column tie fractions displayed in every table cell with footnote explaining 3 tie types
 - Consistent cf_rate computed for all 6 columns (was missing for AI/H vs Committee)
 - Filtered page correctly shows 0% tier ties (no same-tier pairs by design)
-- "Ties excluded" row shows "0% ties" everywhere for debugging clarity
-- Updated all page descriptions explaining controlled pairs vs full data, and why ρ values differ between pages
+- Updated all page descriptions explaining controlled pairs vs full data, and why rho values differ between pages
 - Fixed hardcoded numbers in footnotes (PeerRead rho, ICLR range, tie rates)
 - Added Pooled/Total aggregate row to AI Ranking Quality per-dataset table
 
 **Data Integrity:**
-- `rerank_category` now verifies win/loss counts via aggregation after every comparison round (catches silently failed incremental updates)
+- `rerank_category` now verifies win/loss counts via aggregation after every comparison round
 - Paper detail endpoint auto-corrects stale rankings when viewed
 - Fixed `collect_all` import in validation.py (was causing precompute failures)
 - Fixed `async_track_mem` import in ranking.py
+- Retry-and-repair-queue for incremental ranking updates
+- Lightweight rank re-sorting after each comparison round
 
 ### Prior Sessions
 - DB-Backed Rankings (all 4 phases), production stability overhaul
@@ -51,22 +69,22 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 ## Key Files
 - `/app/backend/routers/leaderboard.py` — Parallelized queries, match count cache, paper detail with auto-correction
-- `/app/backend/routers/human_ai_benchmark.py` — Tie handling, coin-flip extended controlled set, per-column tie fractions
-- `/app/backend/services/ranking.py` — rerank_category with drift detection, compute_paper_score
+- `/app/backend/routers/human_ai_benchmark.py` — Tie handling, multi-scoring methods, overlap tables, per-column tie fractions
+- `/app/backend/services/ranking.py` — BT scores, TrueSkill scores, rerank_category with drift detection
 - `/app/backend/services/scheduler.py` — Memory-optimized summary generation, end-of-cycle logging
-- `/app/backend/core/memlog.py` — WARNING level for FAILED events
+- `/app/backend/services/precompute.py` — Precompute all experiment/validation/analysis caches
+- `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Scoring method toggle, 6-tier overlap table
 - `/app/frontend/src/pages/HumanAIBenchmarkSection.jsx` — Per-column tie fractions, updated footnotes
-- `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Aggregate row, updated descriptions
 
 ## Prioritized Backlog
 
 ### P0
-- Deploy rankings drift fix + paper detail auto-correct
-- Trigger precompute after deploy
+- Monitor production memory with new architecture (repair queue + lightweight rank sorting)
 
 ### P1
 - Phase 3: Notification System (Resend email integration)
 - Update Summarizer Report Section 2
+- Run AI summarization pipeline on UAI
 
 ### P2
 - Server-side sorting (sort_by/sort_dir params) for leaderboard API
@@ -74,3 +92,10 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Hybrid page loading (200-row initial + background fetch)
 - Convert admin scraper sync requests to async httpx
 - Mobile Twitter/X unfurling (BLOCKED on Cloudflare config)
+
+### Backlog
+- New validation datasets from OpenReview (NeurIPS, etc.)
+- HTTP security headers
+- UI for tracking summary generation failures
+- Refactor monolithic leaderboard.py
+- Explore Typesense integration
