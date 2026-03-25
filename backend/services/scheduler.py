@@ -353,6 +353,11 @@ async def _compare_loop():
                         # GC between batches to release match/paper data from completed rounds
                         import gc
                         gc.collect()
+                        # Process any queued repairs from failed incremental updates
+                        from services.ranking import process_repair_queue
+                        repaired = await process_repair_queue(db)
+                        if repaired:
+                            logger.info(f"Repair queue: fixed {repaired} papers")
                         await asyncio.sleep(2)
                     # After a round completes, loop immediately to check if more work needed
                     continue
@@ -1112,13 +1117,10 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 await db.matches.insert_one(match_doc)
                 # Incrementally update DB-backed rankings for this match
                 if match_doc.get("completed") and match_doc.get("winner_id"):
-                    try:
-                        from services.ranking import update_rankings_for_match
-                        w_id = match_doc["winner_id"]
-                        l_id = p2_id if w_id == p1_id else p1_id
-                        await update_rankings_for_match(db, category, w_id, l_id)
-                    except Exception as e:
-                        logger.warning(f"[{category}] Rankings update failed for match {match_doc['id']}: {e}")
+                    from services.ranking import update_rankings_for_match
+                    w_id = match_doc["winner_id"]
+                    l_id = p2_id if w_id == p1_id else p1_id
+                    await update_rankings_for_match(db, category, w_id, l_id)
                 cat_status["matches_count"] = total_matches + completed + failed
                 cat_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
 

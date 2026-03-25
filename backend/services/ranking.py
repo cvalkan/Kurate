@@ -600,9 +600,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
     """Incrementally update rankings after a single match completes.
     
     Updates only the 2 affected papers' scores. O(1) per match.
-    Uses optimistic concurrency: the score write is conditional on the comparisons
-    count not having changed since the atomic increment. If a concurrent update
-    raced, the conditional write is a no-op and rerank_category corrects it.
+    Retries once on failure. If retry fails, queues for background repair.
     """
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -614,23 +612,86 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
         else:
             inc_fields["losses"] = 1
 
-        # Step 1: Atomic increment + fetch updated stats
-        doc = await db.rankings.find_one_and_update(
-            {"paper_id": paper_id, "category": category},
-            {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
-            return_document=True,
-            projection={"_id": 0, "wins": 1, "comparisons": 1},
-        )
-
-        if doc:
-            # Step 2: Conditional score write — only applies if comparisons
-            # hasn't changed since step 1 (prevents race with concurrent matches)
-            new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
-            await db.rankings.update_one(
-                {"paper_id": paper_id, "category": category,
-                 "comparisons": doc["comparisons"]},  # Optimistic concurrency guard
-                {"$set": new_stats},
+        try:
+            doc = await db.rankings.find_one_and_update(
+                {"paper_id": paper_id, "category": category},
+                {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
+                return_document=True,
+                projection={"_id": 0, "wins": 1, "comparisons": 1},
             )
+            if doc:
+                new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
+                await db.rankings.update_one(
+                    {"paper_id": paper_id, "category": category,
+                     "comparisons": doc["comparisons"]},
+                    {"$set": new_stats},
+                )
+        except Exception:
+            # Retry once
+            try:
+                await asyncio.sleep(0.5)
+                doc = await db.rankings.find_one_and_update(
+                    {"paper_id": paper_id, "category": category},
+                    {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
+                    return_document=True,
+                    projection={"_id": 0, "wins": 1, "comparisons": 1},
+                )
+                if doc:
+                    new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
+                    await db.rankings.update_one(
+                        {"paper_id": paper_id, "category": category,
+                         "comparisons": doc["comparisons"]},
+                        {"$set": new_stats},
+                    )
+            except Exception:
+                # Queue for background repair
+                await _queue_repair(db, category, paper_id)
+
+
+async def _queue_repair(db, category: str, paper_id: str):
+    """Queue a paper for background ranking repair."""
+    from datetime import datetime, timezone
+    await db.rankings_repair_queue.update_one(
+        {"paper_id": paper_id, "category": category},
+        {"$set": {"paper_id": paper_id, "category": category,
+                  "queued_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+
+
+async def process_repair_queue(db):
+    """Process queued ranking repairs. Verifies and fixes only the specific papers
+    that had failed incremental updates. O(queue_size), not O(total_papers).
+    
+    Returns number of papers repaired.
+    """
+    from core.config import logger
+    repaired = 0
+    async for item in db.rankings_repair_queue.find({}, {"_id": 0}):
+        pid = item["paper_id"]
+        cat = item["category"]
+        try:
+            # Count actual wins/comparisons from matches
+            comparisons = await db.matches.count_documents({
+                "completed": True, "failed": {"$ne": True}, "primary_category": cat,
+                "mode": {"$exists": False},
+                "$or": [{"paper1_id": pid}, {"paper2_id": pid}],
+            })
+            wins = await db.matches.count_documents({
+                "completed": True, "failed": {"$ne": True}, "primary_category": cat,
+                "mode": {"$exists": False}, "winner_id": pid,
+            })
+            new_stats = compute_paper_score(wins, comparisons)
+            await db.rankings.update_one(
+                {"paper_id": pid, "category": cat},
+                {"$set": {"wins": wins, "losses": comparisons - wins,
+                          "comparisons": comparisons, **new_stats}},
+            )
+            await db.rankings_repair_queue.delete_one({"paper_id": pid, "category": cat})
+            repaired += 1
+        except Exception as e:
+            logger.warning(f"Repair failed for {pid} in {cat}: {e}")
+    return repaired
 
 
 async def rerank_category_light(db, category: str):

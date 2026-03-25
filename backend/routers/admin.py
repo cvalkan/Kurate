@@ -2044,6 +2044,24 @@ async def reconcile_rankings_endpoint(category: str = None):
     return {"status": "ok", "results": results}
 
 
+@router.get("/repair-queue", dependencies=[Depends(verify_admin)])
+async def get_repair_queue():
+    """Check the rankings repair queue size."""
+    count = await db.rankings_repair_queue.count_documents({})
+    items = []
+    async for item in db.rankings_repair_queue.find({}, {"_id": 0}).limit(20):
+        items.append(item)
+    return {"count": count, "items": items}
+
+@router.post("/process-repair-queue", dependencies=[Depends(verify_admin)])
+async def process_repair_queue_endpoint():
+    """Manually process the rankings repair queue."""
+    from services.ranking import process_repair_queue
+    repaired = await process_repair_queue(db)
+    return {"status": "ok", "repaired": repaired}
+
+
+
 @router.get("/system-logs", dependencies=[Depends(verify_admin)])
 async def get_system_logs(
     level: str = None, label: str = None, hours: int = 24, limit: int = 2000,
