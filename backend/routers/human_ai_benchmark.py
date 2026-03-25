@@ -2508,14 +2508,74 @@ async def _compute_ranking_quality(gt_type: str = "comp", include_within_tier: b
             row[f] = safe_round(float(np.mean(vals))) if vals else None
         pooled_ot_rows.append(row)
 
+    # Pool per scoring method
+    _SCORING_METHODS = ["win_rate", "bt", "trueskill"]
+    by_method_response = {}
+    for method in _SCORING_METHODS:
+        m_rhos = {"indiv": [], "maj": [], "tier": [], "avg_rating": []}
+        m_top10 = {}
+        m_ot = {}
+        for result in per_dataset:
+            md = result.get("by_method", {}).get(method)
+            if not md:
+                continue
+            for rk in m_rhos:
+                val = md.get("bt", {}).get(rk, {})
+                rho = val.get("spearman_rho") if isinstance(val, dict) else val
+                if rho is not None:
+                    m_rhos[rk].append(rho)
+            for k, v in md.get("top_overlap", {}).items():
+                m_top10.setdefault(k, {"actual": [], "expected": []})
+                if v.get("actual") is not None:
+                    m_top10[k]["actual"].append(v["actual"])
+                if v.get("expected") is not None:
+                    m_top10[k]["expected"].append(v["expected"])
+            for row in md.get("overlap_table", []):
+                otkey = (row["gt"], row["pct"])
+                m_ot.setdefault(otkey, {"gt_name": row["gt_name"], "pct": row["pct"],
+                    "top_actual": [], "top_expected": [], "bottom_actual": [], "bottom_expected": []})
+                for f in ["top_actual", "top_expected", "bottom_actual", "bottom_expected"]:
+                    if row.get(f) is not None:
+                        m_ot[otkey][f].append(row[f])
+
+        m_pooled_bt = {}
+        for rk, vals in m_rhos.items():
+            if vals:
+                m_pooled_bt[rk] = {"spearman_rho": safe_round(float(np.mean(vals))), "n_datasets": len(vals)}
+        m_pooled_top10 = {}
+        for k, vals in m_top10.items():
+            entry = {}
+            if vals.get("actual"):
+                entry["actual"] = safe_round(float(np.mean(vals["actual"])))
+            if vals.get("expected"):
+                entry["expected"] = safe_round(float(np.mean(vals["expected"])))
+            if entry:
+                m_pooled_top10[k] = entry
+        m_pooled_ot = []
+        for otkey in sorted(m_ot.keys()):
+            entry = m_ot[otkey]
+            row = {"gt": otkey[0], "gt_name": entry["gt_name"], "pct": entry["pct"]}
+            for f in ["top_actual", "top_expected", "bottom_actual", "bottom_expected"]:
+                vals = entry[f]
+                row[f] = safe_round(float(np.mean(vals))) if vals else None
+            m_pooled_ot.append(row)
+
+        by_method_response[method] = {
+            "pooled_bt": m_pooled_bt,
+            "pooled_top10_overlap": m_pooled_top10,
+            "pooled_overlap_table": m_pooled_ot,
+        }
+
     return {
         "status": "ok",
         "gt_type": gt_type,
         "n_datasets": len(per_dataset),
+        "scoring_methods": _SCORING_METHODS,
         "pooled_bt": pooled_bt,
         "pooled_top10_overlap": pooled_top10_avg,
         "pooled_overlap_table": pooled_ot_rows,
         "per_dataset": per_dataset,
+        "by_method": by_method_response,
     }
 
 
@@ -2689,25 +2749,13 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         tau = float(kt) if not np.isnan(kt) else None
         return rho, tau
 
-    bt = {}
-    rho, tau = _correlate(ai_rank, h_indiv_rank)
-    bt["indiv"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
-
-    rho, tau = _correlate(ai_rank, h_maj_rank)
-    bt["maj"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
-
-    # AI vs tier decisions
+    # Ground truth maps (used by _build_method_results as closures)
     tier_score_map = {}
     for p in papers:
         t = norm_tier(p.get("decision"))
         if t and t in TIER_ORDER:
             tier_score_map[p["id"]] = TIER_ORDER[t]
-    if len(tier_score_map) >= 5:
-        # Invert so higher tier = higher score
-        rho, tau = _correlate(ai_rank, {pid: -s for pid, s in tier_score_map.items()})
-        bt["tier"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
 
-    # AI vs average rating
     avg_rating_map = {}
     for p in papers:
         r = p.get("h1_avg_rating")
@@ -2717,9 +2765,6 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
             r = sum(vals) / len(vals) if vals else None
         if r is not None:
             avg_rating_map[p["id"]] = r
-    if len(avg_rating_map) >= 5:
-        rho, _ = _correlate(ai_rank, avg_rating_map)
-        bt["avg_rating"] = safe_round(rho)
 
     # Count AI pair overlap with expert pairs
     ai_pairs = set()
@@ -2759,32 +2804,58 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         return actual, float(np.mean(exps))
 
     # Build the full overlap table
-    overlap_table = []
-    gt_methods = [("indiv", "Aggregate", h_indiv_rank), ("maj", "Majority", h_maj_rank), ("avg_rating", "Avg Rating", avg_rating_map)]
-    fracs = [0.05, 0.10, 0.20, 0.30]
+    fracs = [0.05, 0.10, 0.20, 0.30, 0.40, 0.50]
 
-    for gt_key, gt_name, gt_rank in gt_methods:
-        for frac in fracs:
-            pct = int(frac * 100)
-            # Top K%
-            actual_t, expected_t = _compute_overlap(ai_rank, gt_rank, frac, bottom=False)
-            # Bottom K%
-            actual_b, expected_b = _compute_overlap(ai_rank, gt_rank, frac, bottom=True)
-            overlap_table.append({
-                "gt": gt_key, "gt_name": gt_name, "pct": pct,
-                "top_actual": safe_round(actual_t) if actual_t is not None else None,
-                "top_expected": safe_round(expected_t) if expected_t is not None else None,
-                "bottom_actual": safe_round(actual_b) if actual_b is not None else None,
-                "bottom_expected": safe_round(expected_b) if expected_b is not None else None,
-            })
+    def _build_method_results(ai_r, h_indiv_r, h_maj_r):
+        """Compute correlations and overlap tables for one scoring method."""
+        m_bt = {}
+        rho, tau = _correlate(ai_r, h_indiv_r)
+        m_bt["indiv"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+        rho, tau = _correlate(ai_r, h_maj_r)
+        m_bt["maj"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+        if len(tier_score_map) >= 5:
+            rho, tau = _correlate(ai_r, {pid: -s for pid, s in tier_score_map.items()})
+            m_bt["tier"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+        if len(avg_rating_map) >= 5:
+            rho, _ = _correlate(ai_r, avg_rating_map)
+            m_bt["avg_rating"] = safe_round(rho)
 
-    # Also keep the simple top_overlap for summary cards
-    top_overlap = {}
-    for gt_key, gt_name, gt_rank in gt_methods:
-        for pct_label, frac in [("10", 0.10), ("20", 0.20)]:
-            actual, expected = _compute_overlap(ai_rank, gt_rank, frac, bottom=False)
-            if actual is not None:
-                top_overlap[f"{gt_key}_top{pct_label}"] = {"actual": safe_round(actual), "expected": safe_round(expected) if expected else None}
+        m_gt_methods = [("indiv", "Aggregate", h_indiv_r), ("maj", "Majority", h_maj_r), ("avg_rating", "Avg Rating", avg_rating_map)]
+        m_ot = []
+        for gt_key, gt_name, gt_rank in m_gt_methods:
+            for frac in fracs:
+                pct = int(frac * 100)
+                actual_t, expected_t = _compute_overlap(ai_r, gt_rank, frac, bottom=False)
+                actual_b, expected_b = _compute_overlap(ai_r, gt_rank, frac, bottom=True)
+                m_ot.append({
+                    "gt": gt_key, "gt_name": gt_name, "pct": pct,
+                    "top_actual": safe_round(actual_t) if actual_t is not None else None,
+                    "top_expected": safe_round(expected_t) if expected_t is not None else None,
+                    "bottom_actual": safe_round(actual_b) if actual_b is not None else None,
+                    "bottom_expected": safe_round(expected_b) if expected_b is not None else None,
+                })
+
+        m_to = {}
+        for gt_key, gt_name, gt_rank in m_gt_methods:
+            for pct_label, frac in [("10", 0.10), ("20", 0.20)]:
+                actual, expected = _compute_overlap(ai_r, gt_rank, frac, bottom=False)
+                if actual is not None:
+                    m_to[f"{gt_key}_top{pct_label}"] = {"actual": safe_round(actual), "expected": safe_round(expected) if expected else None}
+
+        return {"bt": m_bt, "top_overlap": m_to, "overlap_table": m_ot}
+
+    # Default method results (win_rate) — used for backward compat top-level fields
+    default_results = _build_method_results(ai_rank, h_indiv_rank, h_maj_rank)
+
+    # Compute alternative scoring methods
+    from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores
+    _paper_ids = [p["id"] for p in all_papers]
+    by_method = {"win_rate": default_results}
+    for method_key, score_fn in [("bt", compute_bt_ranking_scores), ("trueskill", compute_trueskill_ranking_scores)]:
+        _ai_r = score_fn(ai_bt_matches, _paper_ids)
+        _hi_r = score_fn(human_indiv_matches, _paper_ids)
+        _hm_r = score_fn(human_maj_matches, _paper_ids) if human_maj_matches else {}
+        by_method[method_key] = _build_method_results(_ai_r, _hi_r, _hm_r)
 
     return {
         "dataset_id": dataset_id,
@@ -2795,7 +2866,8 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         "n_expert_pairs_incl_ties": len(all_rated_pairs_incl_ties),
         "pair_overlap": overlap,
         "pair_overlap_incl_ties": overlap_incl_ties,
-        "bt": bt,
-        "top_overlap": top_overlap,
-        "overlap_table": overlap_table,
+        "bt": default_results["bt"],
+        "top_overlap": default_results["top_overlap"],
+        "overlap_table": default_results["overlap_table"],
+        "by_method": by_method,
     }

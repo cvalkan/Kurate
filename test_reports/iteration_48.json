@@ -1,0 +1,83 @@
+{
+  "summary": "AI Ranking Quality Scoring Methods Feature - All tests pass. Backend: 12/12 tests pass (100%). Frontend: Scoring method toggle works correctly, overlap table shows all 6 K% tiers (5-50%).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "All Pages", "issues": ["CSP warnings for Cloudflare beacon script - minor, non-blocking"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ai_ranking_quality_scoring_methods.py",
+    "/app/test_reports/pytest/ai_ranking_scoring_methods_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_ai_ranking_quality_scoring_methods.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin password: papersumo2025 (x-admin-token header)",
+  "seed_data_creation": "None - uses precomputed cache data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "AI Ranking Quality scoring methods feature fully tested. All 3 scoring methods (win_rate, bt, trueskill) work correctly. Overlap table shows all 6 K% tiers (5%, 10%, 20%, 30%, 40%, 50%). The page is accessed via Validation > VALIDATION group > AI Ranking Quality (not Legacy).",
+  "verified_features": {
+    "backend_endpoints": {
+      "GET /api/validation/ai-ranking-quality?gt_type=comp": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns scoring_methods=['win_rate','bt','trueskill']",
+          "Returns by_method with all 3 scoring methods",
+          "pooled_overlap_table has 18 rows (3 GT × 6 K%)",
+          "pooled_overlap_table has K% tiers: 5,10,20,30,40,50",
+          "by_method.bt differs from by_method.win_rate",
+          "by_method.trueskill differs from by_method.win_rate",
+          "per_dataset[0].by_method contains all 3 methods"
+        ]
+      },
+      "GET /api/validation/ai-ranking-quality-unfiltered?gt_type=comp": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns scoring_methods=['win_rate','bt','trueskill']",
+          "Returns by_method with all 3 scoring methods",
+          "pooled_overlap_table has 18 rows",
+          "pooled_overlap_table has K% tiers: 5,10,20,30,40,50"
+        ]
+      }
+    },
+    "frontend_components": {
+      "ScoringMethodToggle": {
+        "status": "PASS",
+        "test_cases": [
+          "Toggle visible at data-testid='scoring-method-toggle'",
+          "Win-Rate button visible at data-testid='scoring-method-win_rate'",
+          "Bradley-Terry button visible at data-testid='scoring-method-bt'",
+          "TrueSkill button visible at data-testid='scoring-method-trueskill'",
+          "Clicking BT changes correlation values in summary cards",
+          "Clicking TrueSkill changes correlation values",
+          "Clicking Win-Rate returns to original values"
+        ]
+      },
+      "OverlapTable": {
+        "status": "PASS",
+        "test_cases": [
+          "Table shows 18 rows (3 GT methods × 6 K% tiers)",
+          "5% tier visible",
+          "10% tier visible",
+          "20% tier visible",
+          "30% tier visible",
+          "40% tier visible (NEW)",
+          "50% tier visible (NEW)"
+        ]
+      }
+    }
+  },
+  "correlation_values_verified": {
+    "win_rate": {"vs_aggregate": 0.664, "vs_majority": 0.670, "vs_committee": 0.647, "vs_avg_rating": 0.664},
+    "bt": {"vs_aggregate": 0.661, "vs_majority": 0.660, "vs_committee": 0.643, "vs_avg_rating": 0.652},
+    "trueskill": {"vs_aggregate": 0.655, "vs_majority": 0.665, "vs_committee": 0.643, "vs_avg_rating": 0.651}
+  }
+}

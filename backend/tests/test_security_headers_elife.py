@@ -8,7 +8,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scale-fix.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://memory-optimized.preview.emergentagent.com').rstrip('/')
 
 class TestSecurityHeaders:
     """Test that security headers are present on API responses"""

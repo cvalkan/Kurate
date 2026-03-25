@@ -164,10 +164,17 @@ function renderWeightedTable(title, rows, description) {
   );
 }
 
+const SCORING_METHODS = [
+  { key: "win_rate", label: "Normalized Win-Rate", desc: "Regularized win-rate with Jeffreys prior (default)" },
+  { key: "bt", label: "Bradley-Terry", desc: "Maximum likelihood BT model with regularization prior" },
+  { key: "trueskill", label: "TrueSkill", desc: "Microsoft TrueSkill Bayesian rating (3-pass convergence)" },
+];
+
 function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [scoringMethod, setScoringMethod] = useState("win_rate");
 
   useEffect(() => {
     axios.get(`${API}${apiUrl}`, { timeout: 60000 })
@@ -185,7 +192,13 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
   if (!data) return <div className="text-sm text-muted-foreground">No data available.</div>;
 
   const f = v => v?.toFixed(3) ?? "\u2014";
-  const pb = data.pooled_bt;
+
+  // Use method-specific data if available, fallback to top-level (backward compat)
+  const methodData = data.by_method?.[scoringMethod];
+  const pb = methodData?.pooled_bt || data.pooled_bt;
+  const methodTop10 = methodData?.pooled_top10_overlap || data.pooled_top10_overlap;
+  const methodOverlapTable = methodData?.pooled_overlap_table || data.pooled_overlap_table;
+  const hasMethods = data.scoring_methods && data.by_method;
 
   return (
     <div className="space-y-6" data-testid={testId}>
@@ -213,6 +226,33 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
         </div>
       )}
 
+      {/* Scoring method toggle */}
+      {hasMethods && (
+        <div className="flex items-center gap-2 flex-wrap" data-testid="scoring-method-toggle">
+          <span className="text-[11px] text-muted-foreground font-medium">Scoring method:</span>
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            {SCORING_METHODS.map(m => (
+              <button
+                key={m.key}
+                onClick={() => setScoringMethod(m.key)}
+                data-testid={`scoring-method-${m.key}`}
+                className={`px-3 py-1.5 text-[11px] font-medium transition-colors border-r border-border last:border-r-0 ${
+                  scoringMethod === m.key
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-background text-muted-foreground hover:bg-secondary/50"
+                }`}
+                title={m.desc}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-[9px] text-muted-foreground/60 italic">
+            {SCORING_METHODS.find(m => m.key === scoringMethod)?.desc}
+          </span>
+        </div>
+      )}
+
       {/* Pooled summary */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         {[
@@ -220,8 +260,8 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
           { label: "vs Majority Vote", rho: pb.maj?.spearman_rho, n: pb.maj?.n_datasets },
           { label: "vs Committee (Tier)", rho: pb.tier?.spearman_rho, n: pb.tier?.n_datasets },
           { label: "vs Avg Rating", rho: pb.avg_rating?.spearman_rho, n: pb.avg_rating?.n_datasets },
-          { label: "Top 10% Overlap", rho: data.pooled_top10_overlap?.indiv_top10?.actual, expected: data.pooled_top10_overlap?.indiv_top10?.expected, n: null, pct: true },
-          { label: "Top 20% Overlap", rho: data.pooled_top10_overlap?.indiv_top20?.actual, expected: data.pooled_top10_overlap?.indiv_top20?.expected, n: null, pct: true },
+          { label: "Top 10% Overlap", rho: methodTop10?.indiv_top10?.actual, expected: methodTop10?.indiv_top10?.expected, n: null, pct: true },
+          { label: "Top 20% Overlap", rho: methodTop10?.indiv_top20?.actual, expected: methodTop10?.indiv_top20?.expected, n: null, pct: true },
         ].map((m, i) => (
           <div key={i} className="border border-border rounded-lg p-3 bg-background text-center">
             <div className={`text-lg font-bold font-mono ${i === 0 ? "text-accent" : "text-foreground"}`}>
@@ -258,7 +298,9 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
             </thead>
             <tbody>
               {data.per_dataset.map(d => {
-                const bt = d.bt || {};
+                const dMethod = d.by_method?.[scoringMethod] || {};
+                const bt = dMethod.bt || d.bt || {};
+                const dTopOverlap = dMethod.top_overlap || d.top_overlap || {};
                 const overlapPct = d.n_expert_pairs > 0 ? Math.round(100 * d.pair_overlap / d.n_expert_pairs) : 0;
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
@@ -272,12 +314,12 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{d.n_expert_pairs}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">{overlapPct}%</td>
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">
-                      {d.top_overlap?.indiv_top10?.actual != null ? `${Math.round(d.top_overlap.indiv_top10.actual)}%` : "\u2014"}
-                      {d.top_overlap?.indiv_top10?.expected != null && <span className="text-[9px] text-muted-foreground/50 ml-0.5">({Math.round(d.top_overlap.indiv_top10.expected)}%)</span>}
+                      {dTopOverlap?.indiv_top10?.actual != null ? `${Math.round(dTopOverlap.indiv_top10.actual)}%` : "\u2014"}
+                      {dTopOverlap?.indiv_top10?.expected != null && <span className="text-[9px] text-muted-foreground/50 ml-0.5">({Math.round(dTopOverlap.indiv_top10.expected)}%)</span>}
                     </td>
                     <td className="py-1.5 px-2 text-right font-mono text-foreground/50">
-                      {d.top_overlap?.indiv_top20?.actual != null ? `${Math.round(d.top_overlap.indiv_top20.actual)}%` : "\u2014"}
-                      {d.top_overlap?.indiv_top20?.expected != null && <span className="text-[9px] text-muted-foreground/50 ml-0.5">({Math.round(d.top_overlap.indiv_top20.expected)}%)</span>}
+                      {dTopOverlap?.indiv_top20?.actual != null ? `${Math.round(dTopOverlap.indiv_top20.actual)}%` : "\u2014"}
+                      {dTopOverlap?.indiv_top20?.expected != null && <span className="text-[9px] text-muted-foreground/50 ml-0.5">({Math.round(dTopOverlap.indiv_top20.expected)}%)</span>}
                     </td>
                   </tr>
                 );
@@ -285,26 +327,26 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
               {/* Aggregate row */}
               {(() => {
                 const ds = data.per_dataset || [];
-                const pb = data.pooled_bt || {};
+                const aggPb = pb;
                 const sumAiPairs = ds.reduce((s, d) => s + (d.n_ai_pairs || 0), 0);
                 const sumAiMatches = ds.reduce((s, d) => s + (d.n_ai_matches || 0), 0);
                 const sumPapers = ds.reduce((s, d) => s + (d.n_papers || 0), 0);
                 const sumExpertPairs = ds.reduce((s, d) => s + (d.n_expert_pairs || 0), 0);
                 const sumOverlap = ds.reduce((s, d) => s + (d.pair_overlap || 0), 0);
                 const overlapPct = sumExpertPairs > 0 ? Math.round(100 * sumOverlap / sumExpertPairs) : 0;
-                // Average top overlaps
-                const top10vals = ds.map(d => d.top_overlap?.indiv_top10?.actual).filter(v => v != null);
-                const top10exp = ds.map(d => d.top_overlap?.indiv_top10?.expected).filter(v => v != null);
-                const top20vals = ds.map(d => d.top_overlap?.indiv_top20?.actual).filter(v => v != null);
-                const top20exp = ds.map(d => d.top_overlap?.indiv_top20?.expected).filter(v => v != null);
+                // Average top overlaps from method-specific per-dataset data
+                const top10vals = ds.map(d => (d.by_method?.[scoringMethod]?.top_overlap || d.top_overlap)?.indiv_top10?.actual).filter(v => v != null);
+                const top10exp = ds.map(d => (d.by_method?.[scoringMethod]?.top_overlap || d.top_overlap)?.indiv_top10?.expected).filter(v => v != null);
+                const top20vals = ds.map(d => (d.by_method?.[scoringMethod]?.top_overlap || d.top_overlap)?.indiv_top20?.actual).filter(v => v != null);
+                const top20exp = ds.map(d => (d.by_method?.[scoringMethod]?.top_overlap || d.top_overlap)?.indiv_top20?.expected).filter(v => v != null);
                 const avg = (arr) => arr.length > 0 ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
                 return (
                   <tr className="border-t-2 border-border bg-accent/10 font-semibold">
                     <td className="py-2 px-2 text-left">Pooled / Total</td>
-                    <td className="py-2 px-2 text-right font-mono bg-sky-500/[0.06]">{f(pb.indiv?.spearman_rho)}</td>
-                    <td className="py-2 px-2 text-right font-mono bg-amber-500/[0.06]">{f(pb.maj?.spearman_rho)}</td>
-                    <td className="py-2 px-2 text-right font-mono bg-rose-500/[0.06]">{f(pb.tier?.spearman_rho)}</td>
-                    <td className="py-2 px-2 text-right font-mono">{f(pb.avg_rating?.spearman_rho)}</td>
+                    <td className="py-2 px-2 text-right font-mono bg-sky-500/[0.06]">{f(aggPb.indiv?.spearman_rho)}</td>
+                    <td className="py-2 px-2 text-right font-mono bg-amber-500/[0.06]">{f(aggPb.maj?.spearman_rho)}</td>
+                    <td className="py-2 px-2 text-right font-mono bg-rose-500/[0.06]">{f(aggPb.tier?.spearman_rho)}</td>
+                    <td className="py-2 px-2 text-right font-mono">{f(aggPb.avg_rating?.spearman_rho)}</td>
                     <td className="py-2 px-2 text-right font-mono text-foreground/50">{sumAiPairs.toLocaleString()}</td>
                     <td className="py-2 px-2 text-right font-mono text-foreground/50">{sumPapers > 0 ? (sumAiMatches * 2 / sumPapers).toFixed(1) : "\u2014"}</td>
                     <td className="py-2 px-2 text-right font-mono text-foreground/50">{sumExpertPairs.toLocaleString()}</td>
@@ -345,7 +387,7 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
       </div>
 
       {/* Pooled Top/Bottom K% Overlap Table */}
-      {data.pooled_overlap_table && data.pooled_overlap_table.length > 0 && (
+      {methodOverlapTable && methodOverlapTable.length > 0 && (
         <div className="mt-6 border border-border rounded-lg overflow-hidden">
           <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
             <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -364,10 +406,10 @@ function AIRankingQualityPage({ apiUrl, testId, isUnfiltered }) {
                 </tr>
               </thead>
               <tbody>
-                {data.pooled_overlap_table.map((r, i) => {
+                {methodOverlapTable.map((r, i) => {
                   const topDiff = r.top_actual != null && r.top_expected != null ? r.top_actual - r.top_expected : null;
                   const botDiff = r.bottom_actual != null && r.bottom_expected != null ? r.bottom_actual - r.bottom_expected : null;
-                  const isFirst = i === 0 || data.pooled_overlap_table[i-1]?.gt !== r.gt;
+                  const isFirst = i === 0 || methodOverlapTable[i-1]?.gt !== r.gt;
                   return (
                     <tr key={i} className={`border-b border-border/20 ${isFirst ? "border-t border-border/40" : ""}`}>
                       <td className="py-1 px-2 text-left font-medium">{isFirst ? r.gt_name : ""}</td>

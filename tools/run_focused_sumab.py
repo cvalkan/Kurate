@@ -2,7 +2,7 @@
 """Focused run: finish GPT codegen, then Gemini for llm + codegen only."""
 import requests, time
 
-API = "https://scale-fix.preview.emergentagent.com"
+API = "https://memory-optimized.preview.emergentagent.com"
 TOKEN = "adm_PwgAikZRN0yUbPwU72rgzilv_OTqJYv5pMFHYptbW98"
 H = {"Content-Type": "application/json", "X-Admin-Token": TOKEN}
 

@@ -424,6 +424,50 @@ async def compute_leaderboard_async(papers: List[dict], matches: List[dict]) -> 
     return await loop.run_in_executor(_compute_pool, compute_leaderboard, papers, matches)
 
 
+def compute_bt_ranking_scores(matches: List[dict], paper_ids: List[str]) -> Dict[str, float]:
+    """Compute Bradley-Terry MLE strengths for ranking correlation analysis.
+
+    Returns {paper_id: bt_strength}. Higher = better.
+    Uses prior_strength=2.0 (same as the main BT implementation).
+    """
+    return calculate_bradley_terry(matches, paper_ids, prior_strength=2.0)
+
+
+def compute_trueskill_ranking_scores(matches: List[dict], paper_ids: List[str]) -> Dict[str, float]:
+    """Compute TrueSkill mu scores from pairwise matches.
+
+    Uses 3 passes through shuffled matches for convergence (TrueSkill is order-sensitive).
+    Returns {paper_id: mu}. Higher = better.
+    Initialization: mu=25.0, sigma=25/3 (TrueSkill defaults), draw_probability=0.
+    """
+    import trueskill
+    import random as _rng
+
+    env = trueskill.TrueSkill(draw_probability=0.0)
+    ratings = {pid: env.create_rating() for pid in paper_ids}
+    pid_set = set(paper_ids)
+
+    valid = [m for m in matches
+             if m.get("completed") and m.get("winner_id") and not m.get("failed")
+             and m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
+
+    if not valid:
+        return {pid: ratings[pid].mu for pid in paper_ids}
+
+    _rng.seed(42)
+    for _ in range(3):
+        _rng.shuffle(valid)
+        for m in valid:
+            winner = m["winner_id"]
+            loser = m["paper2_id"] if winner == m["paper1_id"] else m["paper1_id"]
+            if winner in ratings and loser in ratings:
+                new_w, new_l = trueskill.rate_1vs1(ratings[winner], ratings[loser])
+                ratings[winner] = new_w
+                ratings[loser] = new_l
+
+    return {pid: ratings[pid].mu for pid in paper_ids}
+
+
 # Pre-compute the z-value (constant) to avoid repeated scipy calls
 _WILSON_Z = scipy_stats.norm.ppf(0.975)
 

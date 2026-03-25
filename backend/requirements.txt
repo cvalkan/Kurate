@@ -203,6 +203,7 @@ tqdm==4.67.1
 trio==0.33.0
 trio-typing==0.10.0
 trio-websocket==0.12.2
+trueskill==0.4.5
 typer==0.21.0
 typer-slim==0.21.1
 types-certifi==2021.10.8.3
