@@ -419,20 +419,23 @@ export function SiRatingSection({ category }) {
                 </table>
               </div>
 
-              {/* Per-model PW vs SI */}
+              {/* Per-model PW vs SI — combined + within-model */}
               {Object.keys(data.pw_vs_si.per_model || {}).length > 0 && (
                 <div>
                   <h4 className="text-xs font-medium text-muted-foreground mb-2">Per-Model Breakdown</h4>
                   <p className="text-[10px] text-muted-foreground mb-3 max-w-2xl">
                     PW ranking correlated against each model's individual SI scores.
-                    Differences reveal which models' direct ratings best agree with the tournament consensus.
+                    "Combined" uses all models' matches; "Within" uses only that model's own matches.
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {["claude", "gpt", "gemini"].map(mk => {
                       const mData = data.pw_vs_si.per_model[mk];
                       if (!mData) return null;
-                      const bestRow = mData.rows.reduce((best, r) =>
-                        r.spearman_rho > (best?.spearman_rho || -1) ? r : best, null);
+                      const wmData = data.pw_vs_si.within_model?.[mk];
+                      const combinedRows = mData.rows || [];
+                      const withinRows = wmData?.rows || [];
+                      const allRhos = [...combinedRows, ...withinRows].map(r => r.spearman_rho);
+                      const bestRho = allRhos.length > 0 ? Math.max(...allRhos) : null;
                       return (
                         <div key={mk} className="border border-border rounded-lg overflow-hidden" data-testid={`pw-vs-si-${mk}`}>
                           <div className="px-3 py-1.5 bg-secondary/10 border-b border-border">
@@ -448,10 +451,27 @@ export function SiRatingSection({ category }) {
                               </tr>
                             </thead>
                             <tbody>
-                              {mData.rows.map(row => (
-                                <tr key={row.method} className={`border-b border-border/10 ${row.method === bestRow?.method ? "bg-emerald-500/[0.04]" : ""}`}>
-                                  <td className="py-1 px-2 font-medium">{row.label.replace("Normalized ", "")}</td>
-                                  <td className="py-1 px-2 text-right font-mono font-semibold">{row.spearman_rho.toFixed(3)}</td>
+                              {combinedRows.length > 0 && (
+                                <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">Combined PW</td></tr>
+                              )}
+                              {combinedRows.map(row => (
+                                <tr key={`c-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
+                                  <td className="py-1 px-2 font-medium">{row.label}</td>
+                                  <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
+                                  <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
+                                  <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.n}</td>
+                                </tr>
+                              ))}
+                              {withinRows.length > 0 && (
+                                <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">
+                                  {mData.label.split(" ")[0]}-only PW
+                                  {wmData?.n_matches ? <span className="ml-1 font-normal">({wmData.n_matches.toLocaleString()} matches)</span> : ""}
+                                </td></tr>
+                              )}
+                              {withinRows.map(row => (
+                                <tr key={`w-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
+                                  <td className="py-1 px-2 font-medium">{row.label}</td>
+                                  <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
                                   <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
                                   <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.n}</td>
                                 </tr>

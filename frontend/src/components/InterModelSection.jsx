@@ -18,9 +18,8 @@ export function InterModelSection({ pwData, siData }) {
   const pwRows = pwData?.pw_inter_model || [];
   const methodLabels = pwData?.method_labels || {};
   const siCorr = siData?.inter_model_si || {};
-  const pwVsClaudeSi = siData?.pw_vs_claude_si || [];
 
-  if (pwRows.length === 0 && Object.keys(siCorr).length === 0 && pwVsClaudeSi.length === 0) return null;
+  if (pwRows.length === 0 && Object.keys(siCorr).length === 0) return null;
 
   // Build SI rows from inter_model_si dict
   const siRows = [];
@@ -55,7 +54,7 @@ export function InterModelSection({ pwData, siData }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* PW Inter-Model */}
         {pwRows.length > 0 && (
           <div className="border border-border rounded-lg overflow-hidden" data-testid="pw-inter-model-table">
@@ -126,52 +125,6 @@ export function InterModelSection({ pwData, siData }) {
                     <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.n}</td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* PW vs Claude SI */}
-        {pwVsClaudeSi.length > 0 && (
-          <div className="border border-border rounded-lg overflow-hidden" data-testid="pw-vs-claude-si-table">
-            <div className="px-3 py-2 bg-emerald-500/5 border-b border-border">
-              <span className="text-xs font-semibold">PW vs Claude SI</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">
-                (combined &amp; within-model PW vs Claude's direct scores)
-              </span>
-            </div>
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground bg-secondary/5">
-                  <th className="py-1.5 px-3 text-left font-medium">Comparison</th>
-                  <th className="py-1.5 px-2 text-right font-medium">{"\u03C1"}</th>
-                  <th className="py-1.5 px-2 text-right font-medium">n</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const withinRows = pwVsClaudeSi.filter(r => r.type === "within");
-                  const combinedRows = pwVsClaudeSi.filter(r => r.type === "combined");
-                  const bestRho = Math.max(...pwVsClaudeSi.map(r => r.rho));
-                  const renderRow = (row, i) => (
-                    <tr key={`${row.type}-${i}`} className={`border-b border-border/20 ${row.rho === bestRho ? "bg-emerald-500/[0.06]" : ""}`}>
-                      <td className="py-1.5 px-3 font-medium">{row.comparison}</td>
-                      <td className={`py-1.5 px-2 text-right font-mono ${row.rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>
-                        {row.rho.toFixed(3)}
-                      </td>
-                      <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{row.n}</td>
-                    </tr>
-                  );
-                  return (
-                    <>
-                      {withinRows.map(renderRow)}
-                      {withinRows.length > 0 && combinedRows.length > 0 && (
-                        <tr><td colSpan={3} className="py-0.5 bg-border/20" /></tr>
-                      )}
-                      {combinedRows.map(renderRow)}
-                    </>
-                  );
-                })()}
               </tbody>
             </table>
           </div>
