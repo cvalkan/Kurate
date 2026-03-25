@@ -318,7 +318,9 @@ async def _compare_loop():
                 for cat in all_tournament_cats:
                     cat_status = _get_cat_status(cat)
                     cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
+                    cat_total_count = await db.papers.count_documents({"categories.0": cat})
                     cat_status["papers_count"] = cat_paper_count
+                    cat_status["papers_total"] = cat_total_count
                     cat_match_count = await db.matches.count_documents(
                         {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
                     )
@@ -334,7 +336,11 @@ async def _compare_loop():
                 for cat in active_cats:
                     paper_count = _get_cat_status(cat).get("papers_count", 0)
                     if paper_count < min_papers:
-                        _get_cat_status(cat)["current_activity"] = f"Insufficient papers ({paper_count}/{min_papers})"
+                        total = _get_cat_status(cat).get("papers_total", 0)
+                        if total > paper_count:
+                            _get_cat_status(cat)["current_activity"] = f"Generating summaries ({paper_count}/{total} ready, need {min_papers})"
+                        else:
+                            _get_cat_status(cat)["current_activity"] = f"Insufficient papers ({paper_count}/{min_papers})"
                         continue
                     tid = f"cat={cat}|mode=standard"
                     t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "compare_paused": 1})

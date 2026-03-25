@@ -463,6 +463,7 @@ async def get_admin_status(category: str = "cs.RO"):
     cat_scheduler = _get_cat_status(category)
     total_papers = await db.rankings.count_documents({"category": category})
     sched_papers = cat_scheduler.get("papers_count", 0)
+    sched_papers_total = cat_scheduler.get("papers_total", 0)
     if not total_papers:
         total_papers = sched_papers
     total_matches = await db.matches.count_documents(
@@ -515,6 +516,7 @@ async def get_admin_status(category: str = "cs.RO"):
 
     result = {
         "total_papers": total_papers,
+        "papers_total_fetched": sched_papers_total,
         "total_matches": total_matches,
         "failed_matches": failed_matches,
         "unranked_papers": unranked,

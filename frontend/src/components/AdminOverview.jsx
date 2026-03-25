@@ -26,7 +26,7 @@ function timeAgo(iso) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function StatCard({ label, value, icon: Icon }) {
+function StatCard({ label, value, sub, icon: Icon }) {
   return (
     <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid={`stat-${label.toLowerCase()}`}>
       <div className="flex items-center gap-2 mb-1">
@@ -34,6 +34,7 @@ function StatCard({ label, value, icon: Icon }) {
         <span className="text-xs text-muted-foreground">{label}</span>
       </div>
       <div className="font-mono text-2xl font-bold">{typeof value === "number" ? value.toLocaleString() : value}</div>
+      {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -133,7 +134,8 @@ export function AdminOverview({
   const activity = scheduler.current_activity || "";
 
   const totalPapers = progress?.total_papers || status.total_papers || 0;
-  const totalInDb = progress?.total_in_db || progress?.papers_with_pdf || totalPapers;
+  const totalFetched = status.papers_total_fetched || totalPapers;
+  const totalInDb = progress?.total_in_db || progress?.papers_with_pdf || totalFetched;
   const papersWithPdf = progress?.papers_with_pdf || 0;
   const summariesCount = progress?.summary_coverage?.with_summaries || 0;
 
@@ -163,7 +165,7 @@ export function AdminOverview({
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Papers (Leaderboard)" value={totalPapers} icon={FileText} />
+        <StatCard label="Papers (Leaderboard)" value={totalPapers} sub={totalFetched > totalPapers ? `${totalFetched} fetched` : undefined} icon={FileText} />
         <StatCard label="Matches" value={status.total_matches} icon={Swords} />
         <StatCard label="Failed" value={status.failed_matches} icon={XCircle} />
         <StatCard label="Unranked" value={status.unranked_papers} icon={Activity} />
