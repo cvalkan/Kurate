@@ -13,6 +13,14 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 ### Session: Mar 25, 2026
 
+**Model Analysis Dashboard Overhaul:**
+- Replaced single `bt_vs_si` correlation box with multi-method PW-vs-SI comparison table
+- Backend computes all 3 PW methods (Win-Rate, BT, TrueSkill) vs averaged SI scores and per-model SI scores
+- TrueSkill confirmed as best PW estimator: ρ=0.7002 overall, ρ=0.8518 vs Claude SI
+- Per-model breakdown shows PW correlation against each model's individual SI ratings (Claude, GPT, Gemini)
+- "SI Rating Calibration" section replaces old "Cross-Model Rating Behavior" with calibration gap narrative
+- Backward compatibility: `bt_vs_si` field still returned for any consumers
+
 **Multi-Scoring Method Toggle (AI Ranking Quality):**
 - Added scoring method toggle to AI Ranking Quality page: Normalized Win-Rate (default), Bradley-Terry, and TrueSkill
 - Backend computes rankings with all 3 methods during precompute, stores in `by_method` field
@@ -78,13 +86,14 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Dataset curation, benchmark refinements, methodology pages
 
 ## Key Files
-- `/app/backend/routers/leaderboard.py` — Parallelized queries, match count cache, paper detail with auto-correction
+- `/app/backend/routers/leaderboard.py` — Parallelized queries, match count cache, paper detail with auto-correction, PW-vs-SI multi-method correlations
 - `/app/backend/routers/human_ai_benchmark.py` — Tie handling, multi-scoring methods, overlap tables, per-column tie fractions
 - `/app/backend/services/ranking.py` — BT scores, TrueSkill scores, rerank_category with drift detection
 - `/app/backend/services/scheduler.py` — Memory-optimized summary generation, end-of-cycle logging
 - `/app/backend/services/precompute.py` — Precompute all experiment/validation/analysis caches
 - `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Scoring method toggle, 6-tier overlap table
 - `/app/frontend/src/pages/HumanAIBenchmarkSection.jsx` — Per-column tie fractions, updated footnotes
+- `/app/frontend/src/components/SiRatingSection.jsx` — PW-vs-SI multi-method comparison, SI calibration analysis
 
 ## Prioritized Backlog
 
