@@ -6,11 +6,13 @@ import { CorrelationSection } from "@/components/CorrelationSection";
 import { LeaderboardConvergence } from "@/components/ConvergenceSection";
 import { SiRatingSection } from "@/components/SiRatingSection";
 import { ScoringMethodSection } from "@/components/ScoringMethodSection";
+import { InterModelSection } from "@/components/InterModelSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function CorrelationPage() {
   const [data, setData] = useState(null);
+  const [siData, setSiData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
   const [category, setCategory] = useState("");
@@ -32,6 +34,7 @@ export default function CorrelationPage() {
   }, []);
 
   const dataCache = useRef({});
+  const siCache = useRef({});
 
   const fetchData = useCallback(async () => {
     // Use client-side cache for instant category switching
@@ -40,11 +43,21 @@ export default function CorrelationPage() {
       setData(dataCache.current[cacheKey]);
       setLoading(false);
     }
+    if (siCache.current[cacheKey]) {
+      setSiData(siCache.current[cacheKey]);
+    }
     try {
       const params = category ? { category } : {};
-      const res = await axios.get(`${API}/api/model-correlation`, { params });
-      dataCache.current[cacheKey] = res.data;
-      setData(res.data);
+      const [corrRes, siRes] = await Promise.all([
+        axios.get(`${API}/api/model-correlation`, { params }),
+        axios.get(`${API}/api/si-rating-stats`, { params, timeout: 60000 }).catch(() => null),
+      ]);
+      dataCache.current[cacheKey] = corrRes.data;
+      setData(corrRes.data);
+      if (siRes?.data?.status === "ok") {
+        siCache.current[cacheKey] = siRes.data;
+        setSiData(siRes.data);
+      }
     } catch (err) {
       console.error("Failed to fetch correlation data:", err);
     } finally {
@@ -141,6 +154,8 @@ export default function CorrelationPage() {
       </div>
 
       <ScoringMethodSection category={category || null} />
+
+      <InterModelSection pwData={data} siData={siData} />
 
       <SiRatingSection category={category || null} />
 

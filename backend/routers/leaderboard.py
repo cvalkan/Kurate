@@ -1564,7 +1564,11 @@ async def _compute_model_correlation(category, mode):
         }
 
     # Short name mapping for merged models
-    _SHORT_NAMES = {"anthropic/claude-opus": "Claude Opus"}
+    _SHORT_NAMES = {
+        "anthropic/claude-opus": "Claude Opus",
+        "gemini/gemini-3-pro-preview": "Gemini 3 Pro",
+        "openai/gpt-5.2": "GPT-5.2",
+    }
 
     def _short(mk):
         return _SHORT_NAMES.get(mk, mk.split("/")[-1])
@@ -1600,6 +1604,94 @@ async def _compute_model_correlation(category, mode):
     sorted_agree_keys = sorted(agreement.keys())
     sorted_agreement = {k: agreement[k] for k in sorted_agree_keys}
 
+    # ── PW Inter-Model by Scoring Method ──────────────────────────────────
+    # For each model, compute rankings using raw win%, regularized WR, BT, TrueSkill
+    # Then correlate across model pairs to show which scoring method yields most agreement
+    pw_inter_model = []
+    try:
+        from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores
+
+        # Group matches by model
+        model_matches = {mk: [] for mk in model_keys}
+        for m in matches:
+            mu = m.get("model_used", {})
+            key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+            model_matches[key].append(m)
+
+        # Compute per-model rankings by each method
+        model_rankings = {}  # {model_key: {method: {paper_id: score}}}
+        for mk in model_keys:
+            mk_matches = model_matches[mk]
+            if len(mk_matches) < 20:
+                continue
+
+            bt_fmt = [
+                {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                 "winner_id": m.get("winner_id"), "completed": True, "failed": False}
+                for m in mk_matches
+            ]
+            mk_paper_ids = list(set(
+                [m["paper1_id"] for m in mk_matches] + [m["paper2_id"] for m in mk_matches]
+            ))
+
+            # Raw win% (already computed)
+            raw_wr = {pid: model_win_rates[mk].get(pid) for pid in mk_paper_ids
+                      if model_win_rates[mk].get(pid) is not None}
+
+            # Regularized WR (Jeffreys prior)
+            reg_wr = {}
+            for pid in mk_paper_ids:
+                s = model_paper_stats[mk].get(pid)
+                if s and s["total"] >= 1:
+                    reg_wr[pid] = (s["wins"] + 0.5) / (s["total"] + 1.0)
+
+            # BT
+            bt_scores = compute_bt_ranking_scores(bt_fmt, mk_paper_ids)
+
+            # TrueSkill
+            ts_scores = compute_trueskill_ranking_scores(bt_fmt, mk_paper_ids)
+
+            model_rankings[mk] = {
+                "raw_wr": raw_wr,
+                "reg_wr": reg_wr,
+                "bt": bt_scores,
+                "trueskill": ts_scores,
+            }
+
+        # For each model pair, compute Spearman ρ per method
+        method_labels = {
+            "raw_wr": "Dashboard (raw win%)",
+            "reg_wr": "Regularized WR",
+            "bt": "Bradley-Terry",
+            "trueskill": "TrueSkill",
+        }
+        method_order = ["raw_wr", "reg_wr", "bt", "trueskill"]
+
+        for i, m1 in enumerate(model_keys):
+            for j, m2 in enumerate(model_keys):
+                if i >= j:
+                    continue
+                if m1 not in model_rankings or m2 not in model_rankings:
+                    continue
+                row = {"pair": f"{_short(m1)} vs {_short(m2)}", "methods": {}}
+                for method in method_order:
+                    r1 = model_rankings[m1].get(method, {})
+                    r2 = model_rankings[m2].get(method, {})
+                    common = sorted(set(r1.keys()) & set(r2.keys()))
+                    if len(common) >= 10:
+                        v1 = [r1[p] for p in common]
+                        v2 = [r2[p] for p in common]
+                        rho, _ = scipy_stats.spearmanr(v1, v2)
+                        if not np.isnan(rho):
+                            row["methods"][method] = {
+                                "rho": round(float(rho), 3),
+                                "n": len(common),
+                            }
+                if row["methods"]:
+                    pw_inter_model.append(row)
+    except Exception as e:
+        logger.warning(f"PW inter-model by method failed: {e}")
+
     return {
         "models": [{"key": mk, "short": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
         "correlations": sorted_correlations,
@@ -1608,6 +1700,13 @@ async def _compute_model_correlation(category, mode):
         "n_common_papers": len(common_papers),
         "category": category,
         "mode": mode,
+        "pw_inter_model": pw_inter_model,
+        "method_labels": {
+            "raw_wr": "Dashboard (raw win%)",
+            "reg_wr": "Regularized WR",
+            "bt": "Bradley-Terry",
+            "trueskill": "TrueSkill",
+        },
     }
 
 
