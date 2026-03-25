@@ -1440,7 +1440,8 @@ async def _compute_model_correlation(category, mode):
         for pid in paper_ids:
             s = model_paper_stats[mk].get(pid)
             if s and s["total"] >= MIN_MATCHES_PER_MODEL:
-                model_win_rates[mk][pid] = s["wins"] / s["total"]
+                # Regularized win-rate (Jeffreys prior) — matches the live leaderboard scoring
+                model_win_rates[mk][pid] = (s["wins"] + 0.5) / (s["total"] + 1.0)
 
     # Compute correlations PER MODEL PAIR (not requiring all models to have data)
     correlations = {}

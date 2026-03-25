@@ -59,7 +59,8 @@ export function CorrelationSection({ sectionData, title, description }) {
     );
   }
 
-  const { models, agreement, scatter_data, n_common_papers } = sectionData;
+  const { models, correlations, agreement, scatter_data, n_common_papers } = sectionData;
+  const corrEntries = Object.entries(correlations);
   const agreeEntries = Object.entries(agreement);
   const scatterPairs = [];
   for (let i = 0; i < models.length; i++) {
@@ -101,6 +102,32 @@ export function CorrelationSection({ sectionData, title, description }) {
           );
         })}
       </div>
+
+      {corrEntries.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-medium mb-2">Rank Correlations (Regularized WR)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {corrEntries.map(([pair, stats]) => (
+              <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
+                <div className="text-[11px] text-muted-foreground mb-2">{pair.replace(" vs ", " \u2194 ")}</div>
+                <div className="flex items-center gap-3">
+                  <div>
+                    <div className={`font-mono text-xl font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
+                      {stats.spearman_r.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">Spearman</div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-sm text-muted-foreground">{stats.pearson_r.toFixed(2)}</div>
+                    <div className="text-[10px] text-muted-foreground">Pearson</div>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">n={stats.n_papers}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {agreeEntries.length > 0 && (
         <div className="mb-6">
