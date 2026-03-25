@@ -2069,12 +2069,12 @@ async def _compute_si_rating_stats(category, model):
     try:
         from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores
 
-        # Fetch all standard-mode matches
+        # Fetch all standard-mode matches (including model_used for within-model filtering)
         match_query = {"completed": True, "winner_id": {"$exists": True}, "failed": {"$ne": True}, "mode": {"$exists": False}}
         if category:
             match_query["primary_category"] = category
         matches_raw = await collect_all(db.matches.find(
-            match_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+            match_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}
         ))
 
         if len(matches_raw) >= 20:
@@ -2087,14 +2087,34 @@ async def _compute_si_rating_stats(category, model):
                 [m["paper1_id"] for m in matches_raw] + [m["paper2_id"] for m in matches_raw]
             ))
 
-            # Compute all 3 PW scoring methods
-            pw_papers = [{"id": pid, "title": ""} for pid in pw_paper_ids]
-            wr_lb = compute_leaderboard(pw_papers, bt_matches)
-            wr_scores = {e["id"]: e["score"] for e in wr_lb}
-            bt_scores = compute_bt_ranking_scores(bt_matches, pw_paper_ids)
-            ts_scores = compute_trueskill_ranking_scores(bt_matches, pw_paper_ids)
-            pw_methods = {"win_rate": wr_scores, "bt": bt_scores, "trueskill": ts_scores}
-            pw_labels = {"win_rate": "Normalized Win-Rate", "bt": "Bradley-Terry", "trueskill": "TrueSkill"}
+            # Helper to compute all 4 PW scoring methods from a set of matches
+            def _compute_all_methods(bt_fmt, pids):
+                papers_stub = [{"id": pid, "title": ""} for pid in pids]
+                wr_lb = compute_leaderboard(papers_stub, bt_fmt)
+                wr_sc = {e["id"]: e["score"] for e in wr_lb}
+                paper_stats = {}
+                for m in bt_fmt:
+                    for pid in (m["paper1_id"], m["paper2_id"]):
+                        if pid not in paper_stats:
+                            paper_stats[pid] = {"wins": 0, "total": 0}
+                        paper_stats[pid]["total"] += 1
+                    w = m.get("winner_id")
+                    if w and w in paper_stats:
+                        paper_stats[w]["wins"] += 1
+                reg_wr_sc = {}
+                for pid in pids:
+                    s = paper_stats.get(pid)
+                    if s and s["total"] >= 1:
+                        reg_wr_sc[pid] = (s["wins"] + 0.5) / (s["total"] + 1.0)
+                return {
+                    "raw_wr": wr_sc,
+                    "reg_wr": reg_wr_sc,
+                    "bt": compute_bt_ranking_scores(bt_fmt, pids),
+                    "trueskill": compute_trueskill_ranking_scores(bt_fmt, pids),
+                }
+
+            # Combined PW rankings (all models)
+            combined_methods = _compute_all_methods(bt_matches, pw_paper_ids)
 
             # Build SI score maps per model + averaged
             si_maps = {}  # key -> {paper_id: score}
@@ -2133,31 +2153,104 @@ async def _compute_si_rating_stats(category, model):
                     "n": len(common),
                 }
 
-            # Overall: each PW method vs averaged SI
+            pw_labels = {"raw_wr": "Raw WR", "reg_wr": "Reg WR", "bt": "BT", "trueskill": "TrueSkill"}
+            method_order = ["raw_wr", "reg_wr", "bt", "trueskill"]
+
+            # Overall: each combined PW method vs averaged SI
             overall = []
-            for mk in ("win_rate", "bt", "trueskill"):
+            for mk in method_order:
                 if "avg" in si_maps:
-                    c = _corr(pw_methods[mk], si_maps["avg"])
+                    c = _corr(combined_methods[mk], si_maps["avg"])
                     if c:
                         overall.append({"method": mk, "label": pw_labels[mk], **c})
 
-            # Per-model: each PW method vs each model's SI
+            # Per-model: each combined PW method vs each model's SI
             per_model = {}
             model_labels_map = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3 Pro"}
             for si_key in ("claude", "gpt", "gemini"):
                 if si_key not in si_maps:
                     continue
                 rows = []
-                for mk in ("win_rate", "bt", "trueskill"):
-                    c = _corr(pw_methods[mk], si_maps[si_key])
+                for mk in method_order:
+                    c = _corr(combined_methods[mk], si_maps[si_key])
                     if c:
                         rows.append({"method": mk, "label": pw_labels[mk], **c})
                 if rows:
                     per_model[si_key] = {"label": model_labels_map[si_key], "rows": rows}
 
+            # ── Within-model PW vs SI (model's own matches only) ───────────
+            _OPUS_MERGE = {
+                "anthropic/claude-opus-4-5-20251101": "claude",
+                "anthropic/claude-opus-4-6": "claude",
+                "anthropic/claude-opus": "claude",
+            }
+            _SI_MODEL_MAP = {
+                "openai/gpt-5.2": "gpt",
+                "gemini/gemini-3-pro-preview": "gemini",
+            }
+            _SI_MODEL_MAP.update(_OPUS_MERGE)
+
+            model_match_groups = {"claude": [], "gpt": [], "gemini": []}
+            for m in matches_raw:
+                mu = m.get("model_used", {})
+                raw_key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+                short_key = _SI_MODEL_MAP.get(raw_key)
+                if short_key and short_key in model_match_groups:
+                    model_match_groups[short_key].append(m)
+
+            within_model = {}
+            for mk_si in ("claude", "gpt", "gemini"):
+                mk_matches = model_match_groups.get(mk_si, [])
+                if len(mk_matches) < 20 or mk_si not in si_maps:
+                    continue
+                mk_bt = [
+                    {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                     "winner_id": m["winner_id"], "completed": True, "failed": False}
+                    for m in mk_matches
+                ]
+                mk_pids = list(set(
+                    [m["paper1_id"] for m in mk_matches] + [m["paper2_id"] for m in mk_matches]
+                ))
+                mk_methods = _compute_all_methods(mk_bt, mk_pids)
+                rows = []
+                for method_key in method_order:
+                    c = _corr(mk_methods[method_key], si_maps[mk_si])
+                    if c:
+                        rows.append({"method": method_key, "label": pw_labels[method_key], **c})
+                if rows:
+                    within_model[mk_si] = {
+                        "label": model_labels_map[mk_si],
+                        "rows": rows,
+                        "n_matches": len(mk_matches),
+                    }
+
+            # ── Build PW vs Claude SI table (within-model + combined) ─────
+            pw_vs_claude_si = []
+            if "claude" in si_maps:
+                wm_claude = within_model.get("claude", {}).get("rows", [])
+                for r in wm_claude:
+                    pw_vs_claude_si.append({
+                        "comparison": f"Claude-only PW ({r['label']}) vs Claude SI",
+                        "type": "within",
+                        "method": r["method"],
+                        "rho": r["spearman_rho"],
+                        "n": r["n"],
+                    })
+                combined_claude = per_model.get("claude", {}).get("rows", [])
+                for r in combined_claude:
+                    pw_vs_claude_si.append({
+                        "comparison": f"Combined PW ({r['label']}) vs Claude SI",
+                        "type": "combined",
+                        "method": r["method"],
+                        "rho": r["spearman_rho"],
+                        "n": r["n"],
+                    })
+
             pw_vs_si = {
                 "overall": overall,
                 "per_model": per_model,
+                "within_model": within_model,
+                "pw_vs_claude_si": pw_vs_claude_si,
                 "n_matches": len(matches_raw),
             }
     except Exception as e:
@@ -2175,6 +2268,7 @@ async def _compute_si_rating_stats(category, model):
         "model_comparison": model_comparison,
         "bt_vs_si": pw_vs_si.get("overall", [{}])[0] if pw_vs_si and pw_vs_si.get("overall") else None,
         "pw_vs_si": pw_vs_si,
+        "pw_vs_claude_si": pw_vs_si.get("pw_vs_claude_si", []) if pw_vs_si else [],
     }
 
 

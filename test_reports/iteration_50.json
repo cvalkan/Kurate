@@ -1,0 +1,97 @@
+{
+  "summary": "PW vs Claude SI Table Feature - All tests pass. Backend: 11/11 tests pass (100%). Frontend: All UI elements verified - PW vs Claude SI table with 8 rows (4 within + 4 combined), SI Rating Calibration table correctly removed, Inter-Model Agreement section shows 3 tables side by side.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pw_vs_claude_si.py",
+    "/app/test_reports/pytest/pw_vs_claude_si_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_pw_vs_claude_si.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin password: papersumo2025 (x-admin-token header)",
+  "seed_data_creation": "None - uses precomputed cache data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "PW vs Claude SI table feature fully tested. The /api/si-rating-stats endpoint returns pw_vs_claude_si array with 8 rows (4 within-model + 4 combined), pw_vs_si.within_model with claude/gpt/gemini keys, and pw_vs_si.overall with 4 methods (raw_wr, reg_wr, bt, trueskill). The /api/model-correlation endpoint returns pw_inter_model with 3 rows and 4 methods each including TrueSkill. Frontend renders at /correlation route with data-testid='inter-model-section' containing 3 tables side by side: pw-inter-model-table, si-inter-model-table, pw-vs-claude-si-table. The SI Rating Calibration table (data-testid='si-model-comparison') has been correctly REMOVED from SiRatingSection.jsx.",
+  "verified_features": {
+    "backend_endpoints": {
+      "GET /api/si-rating-stats": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns pw_vs_claude_si array with 8 rows",
+          "pw_vs_claude_si entries have comparison, type (within/combined), method, rho, n fields",
+          "4 within rows (Claude-only PW with Raw WR, Reg WR, BT, TrueSkill)",
+          "4 combined rows (Combined PW with Raw WR, Reg WR, BT, TrueSkill)",
+          "Methods appear in correct order: raw_wr, reg_wr, bt, trueskill",
+          "pw_vs_si.within_model has claude, gpt, gemini keys",
+          "pw_vs_si.overall has 4 methods"
+        ]
+      },
+      "GET /api/model-correlation": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns pw_inter_model array with 3 rows",
+          "Each row has pair and methods object",
+          "Each methods object has raw_wr, reg_wr, bt, trueskill",
+          "TrueSkill column has valid rho values"
+        ]
+      }
+    },
+    "frontend_components": {
+      "Inter-Model Agreement Section": {
+        "status": "PASS",
+        "test_cases": [
+          "Section visible at data-testid='inter-model-section'",
+          "Contains 3 tables in grid layout (side by side)",
+          "PW Inter-Model table at data-testid='pw-inter-model-table'",
+          "SI Inter-Model table at data-testid='si-inter-model-table'",
+          "PW vs Claude SI table at data-testid='pw-vs-claude-si-table'"
+        ]
+      },
+      "PW vs Claude SI Table": {
+        "status": "PASS",
+        "test_cases": [
+          "Table has 8 data rows (4 within + 4 combined)",
+          "Separator row between within and combined sections",
+          "Contains 'Claude-only' (within) rows",
+          "Contains 'Combined PW' rows",
+          "Best rho (0.852 for Combined PW TrueSkill) is highlighted"
+        ]
+      },
+      "PW Inter-Model Table": {
+        "status": "PASS",
+        "test_cases": [
+          "Table has 3 rows (one per model pair)",
+          "Shows Raw WR, Reg WR, BT, TrueSkill columns"
+        ]
+      },
+      "SI Rating Calibration Table REMOVED": {
+        "status": "PASS",
+        "test_cases": [
+          "data-testid='si-model-comparison' does NOT exist on page",
+          "Table correctly removed from SiRatingSection.jsx"
+        ]
+      }
+    }
+  },
+  "correlation_values_verified": {
+    "pw_vs_claude_si": {
+      "within_trueskill": {"rho": 0.8374, "n": 339},
+      "combined_trueskill": {"rho": 0.8969, "n": 349}
+    },
+    "pw_inter_model": {
+      "claude_vs_gemini_trueskill": {"rho": 0.847, "n": 933},
+      "claude_vs_gpt_trueskill": {"rho": 0.835, "n": 935},
+      "gemini_vs_gpt_trueskill": {"rho": 0.875, "n": 933}
+    }
+  }
+}
