@@ -155,9 +155,9 @@ export function LeaderboardTable({
   const visibleList = sorted.slice(0, renderCount);
   const hasMoreToShow = hasMore || sorted.length > renderCount;
 
-  const scoreLabel = isGlobal ? "Score (G)" : "Score";
-  const winLabel = isGlobal ? "Win % (G)" : "Win %";
-  const matchLabel = isGlobal ? "Mtch (G)" : "Match";
+  const scoreLabel = "Score";
+  const winLabel = "Win %";
+  const matchLabel = "Match";
 
   if (loading) {
     return (

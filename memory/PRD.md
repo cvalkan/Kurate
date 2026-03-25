@@ -28,6 +28,16 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - `compute_bt_ranking_scores()` in `ranking.py` — thin wrapper around `calculate_bradley_terry`
 - `compute_trueskill_ranking_scores()` in `ranking.py` — TrueSkill implementation with trueskill library
 
+**Scoring Method Correlation (Model Analysis):**
+- New `/api/scoring-method-correlation` endpoint computes Win-Rate vs BT vs TrueSkill on live tournament data
+- Shows Spearman ρ and Kendall τ correlations, plus Top/Bottom K% agreement
+- New `ScoringMethodSection` component on the Model Analysis page with loading spinner
+
+**Global/Local Toggle Fix:**
+- Fixed the global/local stats toggle on the tag-filtered leaderboard (was a no-op)
+- Local mode now recomputes scores from only matches between papers in the filtered set
+- Removed "(G)" suffix from column headers in global mode
+
 ### Session: Mar 23, 2026
 
 **Performance & Observability:**

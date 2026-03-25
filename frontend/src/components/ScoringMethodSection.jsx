@@ -24,9 +24,15 @@ export function ScoringMethodSection({ category }) {
   }, [category]);
 
   if (loading) return (
-    <div className="space-y-2 animate-pulse my-6">
-      <div className="h-5 w-48 bg-secondary/30 rounded" />
-      <div className="h-32 bg-secondary/30 rounded-lg" />
+    <div className="my-6" data-testid="scoring-method-section-loading">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+        <span className="text-xs text-muted-foreground">Computing scoring method correlations&hellip;</span>
+      </div>
+      <div className="space-y-2 animate-pulse">
+        <div className="h-5 w-48 bg-secondary/30 rounded" />
+        <div className="h-32 bg-secondary/30 rounded-lg" />
+      </div>
     </div>
   );
 

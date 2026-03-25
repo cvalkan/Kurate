@@ -1086,6 +1086,36 @@ async def _db_tag_leaderboard_impl(
         entries.append(entry)
         last_doc = doc
 
+    # Local mode: recompute stats from only matches between papers in the filtered set
+    if not global_stats and entries:
+        paper_id_set = [e["id"] for e in entries]
+        local_matches = await collect_all(db.matches.find(
+            {"completed": True, "winner_id": {"$exists": True}, "failed": {"$ne": True},
+             "paper1_id": {"$in": paper_id_set}, "paper2_id": {"$in": paper_id_set},
+             "mode": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+        ))
+        if local_matches:
+            bt_matches = [
+                {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                 "winner_id": m["winner_id"], "completed": True, "failed": False}
+                for m in local_matches
+            ]
+            papers_stub = [{"id": pid, "title": ""} for pid in paper_id_set]
+            local_lb = compute_leaderboard(papers_stub, bt_matches)
+            local_map = {e["id"]: e for e in local_lb}
+            for entry in entries:
+                loc = local_map.get(entry["id"])
+                if loc:
+                    entry["score"] = loc["score"]
+                    entry["win_rate"] = loc["win_rate"]
+                    entry["wins"] = loc["wins"]
+                    entry["losses"] = loc["losses"]
+                    entry["comparisons"] = loc["comparisons"]
+            entries.sort(key=lambda e: (-e["score"], e["id"]))
+            for i, e in enumerate(entries):
+                e["rank"] = i + 1
+
     next_cursor = None
     if entries and last_doc and len(entries) == limit:
         next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
