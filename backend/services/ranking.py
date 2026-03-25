@@ -739,18 +739,71 @@ async def process_repair_queue(db):
 
 
 async def rerank_category_light(db, category: str):
-    """Lightweight rank re-sort. Only updates rank numbers based on current scores.
+    """Lightweight rank re-sort. Updates scores based on the configured ranking method,
+    then re-sorts rank numbers.
     
-    Called after every comparison round. Does NOT verify win/loss counts (the
-    incremental update_rankings_for_match handles that per-match). This avoids
-    the expensive $facet aggregation over all matches.
+    Called after every comparison round. For reg_wr, just re-sorts existing scores.
+    For bt/trueskill, recomputes all scores from matches (more expensive but still fast).
     """
     import hashlib
     from core.memlog import log_mem
+    from core.auth import get_settings
     import time as _time
 
     _t0 = _time.perf_counter()
 
+    settings = await get_settings()
+    method = settings.get("ranking_method", "reg_wr")
+
+    if method in ("bt", "trueskill"):
+        # Recompute all scores using the model-based method
+        from routers.validation_utils import collect_all
+        match_query = {
+            "completed": True, "failed": {"$ne": True},
+            "primary_category": category, "mode": {"$exists": False},
+        }
+        matches = await collect_all(db.matches.find(
+            match_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+        ))
+        if matches:
+            bt_fmt = [
+                {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                 "winner_id": m["winner_id"], "completed": True, "failed": False}
+                for m in matches
+            ]
+            paper_ids = list(set(
+                [m["paper1_id"] for m in matches] + [m["paper2_id"] for m in matches]
+            ))
+
+            if method == "bt":
+                raw_scores = compute_bt_ranking_scores(bt_fmt, paper_ids)
+            else:
+                raw_scores = compute_trueskill_ranking_scores(bt_fmt, paper_ids)
+
+            # Normalize to Elo-like scale (mean ~1200, sd ~100)
+            vals = list(raw_scores.values())
+            if vals:
+                import numpy as np
+                mu, sigma = np.mean(vals), np.std(vals)
+                if sigma < 1e-9:
+                    sigma = 1.0
+                elo_scores = {
+                    pid: round(100 * (raw_scores[pid] - mu) / sigma + SCORE_BASE_CONST)
+                    for pid in raw_scores
+                }
+
+                from pymongo import UpdateOne
+                ops = [
+                    UpdateOne(
+                        {"paper_id": pid, "category": category},
+                        {"$set": {"score": elo_scores[pid]}},
+                    )
+                    for pid in elo_scores
+                ]
+                if ops:
+                    await db.rankings.bulk_write(ops, ordered=False)
+
+    # Sort by score and assign ranks
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
@@ -772,7 +825,7 @@ async def rerank_category_light(db, category: str):
     await _refresh_derived_fields(db, category)
 
     _elapsed = _time.perf_counter() - _t0
-    log_mem(f"rerank_category({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
+    log_mem(f"rerank_category_light({category}, method={method}) done ({len(entries)} papers, {_elapsed:.1f}s)")
 
 
 async def rerank_category(db, category: str):

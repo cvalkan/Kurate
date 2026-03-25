@@ -63,7 +63,7 @@ class SettingsUpdate(BaseModel):
     max_papers_per_fetch: Optional[int] = None
     parallel_agents: Optional[int] = None
     parallel_categories: Optional[int] = None
-    top_k_focus: Optional[int] = None
+    ranking_method: Optional[str] = None  # reg_wr, bt, trueskill
     max_new_matches_per_round: Optional[int] = None
     ci_target: Optional[int] = None
     ci_target_general: Optional[int] = None
@@ -2042,6 +2042,28 @@ async def reconcile_rankings_endpoint(category: str = None):
     from services.ranking import reconcile_rankings
     results = await reconcile_rankings(db, category=category)
     return {"status": "ok", "results": results}
+
+
+@router.post("/rerank-all", dependencies=[Depends(verify_admin)])
+async def rerank_all_endpoint():
+    """Trigger an immediate rerank of all categories using the current ranking method.
+    Called after switching ranking_method in settings."""
+    from services.ranking import rerank_category_light
+    from core.auth import get_settings
+    settings = await get_settings()
+    method = settings.get("ranking_method", "reg_wr")
+    cats = settings.get("active_categories", list(CATEGORIES.keys()))
+    results = {}
+    for cat in cats:
+        try:
+            await rerank_category_light(db, cat)
+            results[cat] = "ok"
+        except Exception as e:
+            results[cat] = f"error: {e}"
+    # Invalidate leaderboard cache
+    from routers.leaderboard import notify_data_changed
+    notify_data_changed()
+    return {"status": "ok", "method": method, "categories": results}
 
 
 @router.get("/repair-queue", dependencies=[Depends(verify_admin)])

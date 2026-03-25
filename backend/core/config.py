@@ -141,4 +141,5 @@ DEFAULT_SETTINGS = {
     "summary_parallel": 10,
     "show_rating_column": True,
     "show_gap_column": True,
+    "ranking_method": "reg_wr",
 }

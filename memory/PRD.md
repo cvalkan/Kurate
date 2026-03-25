@@ -23,6 +23,13 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Removed SI Rating Calibration table from SiRatingSection
 - TrueSkill confirmed as best PW estimator: Combined TrueSkill ρ=0.852 vs Claude SI
 
+**Admin Ranking Method Switch:**
+- Added `ranking_method` setting (reg_wr, bt, trueskill) to admin config
+- Admin dropdown in Settings tab with tooltip
+- Saving a new method triggers immediate full rerank of all categories via `/api/admin/rerank-all`
+- `rerank_category_light` now checks the setting: reg_wr just re-sorts, bt/trueskill recomputes from all matches
+- BT/TrueSkill scores normalized to Elo-like scale (mean 1200, sd 100) for consistent UI display
+
 **Multi-Scoring Method Toggle (AI Ranking Quality):**
 - Added scoring method toggle to AI Ranking Quality page: Normalized Win-Rate (default), Bradley-Terry, and TrueSkill
 - Backend computes rankings with all 3 methods during precompute, stores in `by_method` field
@@ -96,7 +103,8 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Scoring method toggle, 6-tier overlap table
 - `/app/frontend/src/pages/HumanAIBenchmarkSection.jsx` — Per-column tie fractions, updated footnotes
 - `/app/frontend/src/components/SiRatingSection.jsx` — PW-vs-SI multi-method comparison, per-model breakdown
-- `/app/frontend/src/components/InterModelSection.jsx` — PW Inter-Model, SI Inter-Model, PW vs Claude SI tables
+- `/app/frontend/src/components/InterModelSection.jsx` — PW Inter-Model, SI Inter-Model tables
+- `/app/frontend/src/pages/AdminPage.jsx` — Ranking Method dropdown, rerank-on-save
 
 ## Prioritized Backlog
 

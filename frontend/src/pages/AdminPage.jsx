@@ -204,6 +204,9 @@ export default function AdminPage() {
       if (editSettings.summary_source && editSettings.summary_source !== settings.summary_source) {
         updates.summary_source = editSettings.summary_source;
       }
+      if (editSettings.ranking_method && editSettings.ranking_method !== settings.ranking_method) {
+        updates.ranking_method = editSettings.ranking_method;
+      }
       if (editSettings.paused !== settings.paused) updates.paused = editSettings.paused;
       if (editSettings.show_rating_column !== settings.show_rating_column) updates.show_rating_column = editSettings.show_rating_column;
       if (editSettings.show_gap_column !== settings.show_gap_column) updates.show_gap_column = editSettings.show_gap_column;
@@ -211,7 +214,18 @@ export default function AdminPage() {
       if (Object.keys(updates).length === 0) { toast.info("No changes to save"); return; }
       await axios.put(`${API}/api/admin/settings`, updates, { headers: getAdminHeaders() });
       if (updates.admin_password) sessionStorage.setItem("admin_token", updates.admin_password);
-      toast.success("Settings saved");
+      // If ranking method changed, trigger an immediate rerank of all categories
+      if (updates.ranking_method) {
+        toast.info(`Reranking all categories with ${updates.ranking_method}...`);
+        try {
+          const res = await axios.post(`${API}/api/admin/rerank-all`, {}, { headers: getAdminHeaders(), timeout: 120000 });
+          toast.success(`Reranked ${Object.keys(res.data.categories || {}).length} categories with ${res.data.method}`);
+        } catch (e) {
+          toast.error("Rerank failed: " + (e.response?.data?.detail || e.message));
+        }
+      } else {
+        toast.success("Settings saved");
+      }
       fetchAll();
     } catch (err) { toast.error("Save failed: " + (err.response?.data?.detail || err.message)); }
     finally { setLoading(l => ({ ...l, settings: false })); }
@@ -337,6 +351,23 @@ export default function AdminPage() {
                 <option value="claude">Claude</option>
                 <option value="gemini">Gemini</option>
                 <option value="gpt">GPT</option>
+              </select>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs">Ranking Method</Label>
+                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent side="right"><p className="max-w-52 text-xs">Which scoring method to use for live leaderboard rankings. Switching triggers a full rerank of all categories.</p></TooltipContent></Tooltip>
+              </div>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                value={editSettings.ranking_method || "reg_wr"}
+                onChange={(e) => setEditSettings({ ...editSettings, ranking_method: e.target.value })}
+                data-testid="setting-ranking-method"
+              >
+                <option value="reg_wr">Regularized Win-Rate</option>
+                <option value="bt">Bradley-Terry</option>
+                <option value="trueskill">TrueSkill</option>
               </select>
             </div>
             <div className="flex items-center gap-2">
