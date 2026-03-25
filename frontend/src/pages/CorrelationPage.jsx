@@ -5,6 +5,7 @@ import { BarChart3, ChevronDown } from "lucide-react";
 import { CorrelationSection } from "@/components/CorrelationSection";
 import { LeaderboardConvergence } from "@/components/ConvergenceSection";
 import { SiRatingSection } from "@/components/SiRatingSection";
+import { ScoringMethodSection } from "@/components/ScoringMethodSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -137,6 +138,8 @@ export default function CorrelationPage() {
       <div className="mb-6">
         <LeaderboardConvergence category={category || null} />
       </div>
+
+      <ScoringMethodSection category={category || null} />
 
       <SiRatingSection category={category || null} />
 

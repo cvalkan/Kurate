@@ -1582,6 +1582,111 @@ async def _compute_model_correlation(category, mode):
 
 
 
+@router.get("/scoring-method-correlation")
+async def get_scoring_method_correlation(
+    category: Optional[str] = Query(None, description="Filter by category (None = all)"),
+):
+    """Compare Win-Rate, Bradley-Terry, and TrueSkill ranking methods on live tournament data."""
+    cached = _get_analysis_cached("scoring-method-correlation", category, "")
+    if cached:
+        return cached
+    result = await _compute_scoring_method_correlation(category)
+    _set_analysis_cached("scoring-method-correlation", category, "", result)
+    return result
+
+
+async def _compute_scoring_method_correlation(category):
+    import numpy as np
+    from scipy import stats as scipy_stats
+    from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores
+    t_start = time.perf_counter()
+
+    match_query = {"completed": True, "winner_id": {"$exists": True}, "failed": {"$ne": True}}
+    if category:
+        match_query["primary_category"] = category
+    # Standard mode only (exclude prediction modes)
+    match_query["mode"] = {"$exists": False}
+
+    matches_raw = await collect_all(db.matches.find(
+        match_query,
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+    ))
+    if len(matches_raw) < 20:
+        return {"status": "insufficient_data", "n_matches": len(matches_raw)}
+
+    bt_matches = [
+        {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+         "winner_id": m["winner_id"], "completed": True, "failed": False}
+        for m in matches_raw
+    ]
+    paper_ids = list(set(
+        [m["paper1_id"] for m in matches_raw] + [m["paper2_id"] for m in matches_raw]
+    ))
+
+    # Compute all three scoring methods
+    papers = [{"id": pid, "title": ""} for pid in paper_ids]
+    lb = compute_leaderboard(papers, bt_matches)
+    wr_scores = {e["id"]: e["score"] for e in lb}
+
+    bt_scores = compute_bt_ranking_scores(bt_matches, paper_ids)
+    ts_scores = compute_trueskill_ranking_scores(bt_matches, paper_ids)
+
+    t_compute = time.perf_counter() - t_start
+
+    # Pairwise correlations
+    shared = sorted(set(wr_scores.keys()) & set(bt_scores.keys()) & set(ts_scores.keys()))
+    methods = {"win_rate": wr_scores, "bt": bt_scores, "trueskill": ts_scores}
+    method_labels = {"win_rate": "Normalized Win-Rate", "bt": "Bradley-Terry", "trueskill": "TrueSkill"}
+    method_keys = ["win_rate", "bt", "trueskill"]
+
+    correlations = []
+    for i in range(len(method_keys)):
+        for j in range(i + 1, len(method_keys)):
+            m1, m2 = method_keys[i], method_keys[j]
+            arr1 = [methods[m1][p] for p in shared]
+            arr2 = [methods[m2][p] for p in shared]
+            sp_r, sp_p = scipy_stats.spearmanr(arr1, arr2)
+            kt_r, kt_p = scipy_stats.kendalltau(arr1, arr2)
+            correlations.append({
+                "method1": m1, "method2": m2,
+                "label": f"{method_labels[m1]} vs {method_labels[m2]}",
+                "spearman_rho": round(float(sp_r), 6),
+                "spearman_p": float(sp_p),
+                "kendall_tau": round(float(kt_r), 6),
+                "kendall_p": float(kt_p),
+            })
+
+    # Rank agreement at extremes (top/bottom 5%, 10%)
+    rank_agreement = []
+    for frac in [0.05, 0.10, 0.20]:
+        k = max(1, int(len(shared) * frac))
+        pct = int(frac * 100)
+        for i in range(len(method_keys)):
+            for j in range(i + 1, len(method_keys)):
+                m1, m2 = method_keys[i], method_keys[j]
+                top1 = set(sorted(shared, key=lambda p: methods[m1][p], reverse=True)[:k])
+                top2 = set(sorted(shared, key=lambda p: methods[m2][p], reverse=True)[:k])
+                bot1 = set(sorted(shared, key=lambda p: methods[m1][p])[:k])
+                bot2 = set(sorted(shared, key=lambda p: methods[m2][p])[:k])
+                rank_agreement.append({
+                    "method1": m1, "method2": m2,
+                    "pct": pct,
+                    "top_overlap": round(len(top1 & top2) / k * 100, 1),
+                    "bottom_overlap": round(len(bot1 & bot2) / k * 100, 1),
+                })
+
+    return {
+        "status": "ok",
+        "n_papers": len(shared),
+        "n_matches": len(matches_raw),
+        "compute_time_s": round(t_compute, 2),
+        "category": category,
+        "methods": [{"key": k, "label": method_labels[k]} for k in method_keys],
+        "correlations": correlations,
+        "rank_agreement": rank_agreement,
+    }
+
+
 @router.get("/si-rating-stats")
 async def get_si_rating_stats(
     category: Optional[str] = Query(None, description="Filter by primary category"),
