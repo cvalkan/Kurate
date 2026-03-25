@@ -64,8 +64,9 @@ export default function CorrelationPage() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 md:px-6 max-w-5xl py-10">
-        <div className="space-y-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-secondary/30 rounded-lg animate-pulse" />)}
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="h-8 w-8 border-[3px] border-muted-foreground/20 border-t-muted-foreground rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading model analysis&hellip;</p>
         </div>
       </div>
     );
