@@ -23,6 +23,28 @@ function getAdminHeaders() {
   return { "X-Admin-Token": sessionStorage.getItem("admin_token") || "" };
 }
 
+function RepairQueueBadge() {
+  const [count, setCount] = useState(null);
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await axios.get(`${API}/api/admin/repair-queue`, { headers: getAdminHeaders() });
+        setCount(res.data.count);
+      } catch { setCount(null); }
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
+  }, []);
+  if (count === null) return null;
+  return (
+    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${count === 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700 font-bold"}`}>
+      Queue: {count}
+    </span>
+  );
+}
+
+
 export default function AdminPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState(null);
@@ -350,7 +372,29 @@ export default function AdminPage() {
           {/* System Actions */}
           <div className="border-t border-border pt-6 mt-6">
             <h3 className="text-sm font-medium mb-3">System Actions</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <Button
+                variant="outline" size="sm" className="text-xs gap-1.5"
+                data-testid="btn-repair-queue"
+                disabled={loading.repair}
+                onClick={async () => {
+                  setLoading(l => ({ ...l, repair: true }));
+                  try {
+                    const res = await axios.get(`${API}/api/admin/repair-queue`, { headers: getAdminHeaders() });
+                    const count = res.data.count;
+                    if (count === 0) {
+                      toast.success("Repair queue empty — no drift detected");
+                    } else {
+                      const procRes = await axios.post(`${API}/api/admin/process-repair-queue`, {}, { headers: getAdminHeaders() });
+                      toast.success(`Repaired ${procRes.data.repaired} papers`);
+                    }
+                  } catch (e) { toast.error("Repair failed: " + (e.response?.data?.detail || e.message)); }
+                  finally { setLoading(l => ({ ...l, repair: false })); }
+                }}
+              >
+                {loading.repair ? "Processing..." : "Process Repair Queue"}
+              </Button>
+              <RepairQueueBadge />
               <Button
                 variant="outline" size="sm" className="text-xs gap-1.5"
                 data-testid="btn-reconcile"
@@ -368,7 +412,7 @@ export default function AdminPage() {
                   finally { setLoading(l => ({ ...l, reconcile: false })); }
                 }}
               >
-                {loading.reconcile ? "Running..." : "Reconcile Rankings"}
+                {loading.reconcile ? "Running..." : "Full Reconcile"}
               </Button>
               <Button
                 variant="outline" size="sm" className="text-xs gap-1.5"
