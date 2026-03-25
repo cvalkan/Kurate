@@ -346,6 +346,50 @@ export default function AdminPage() {
             <Save className="h-4 w-4" />
             {loading.settings ? "Saving..." : "Save Settings"}
           </Button>
+
+          {/* System Actions */}
+          <div className="border-t border-border pt-6 mt-6">
+            <h3 className="text-sm font-medium mb-3">System Actions</h3>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline" size="sm" className="text-xs gap-1.5"
+                data-testid="btn-reconcile"
+                disabled={loading.reconcile}
+                onClick={async () => {
+                  setLoading(l => ({ ...l, reconcile: true }));
+                  try {
+                    const res = await axios.post(`${API}/api/admin/reconcile-rankings`, {}, { headers: getAdminHeaders() });
+                    const data = res.data;
+                    const drifted = Object.values(data).filter(v => v.drifted).length;
+                    toast.success(drifted > 0
+                      ? `Reconciled: ${drifted} categories had drift`
+                      : "All rankings consistent — no drift detected");
+                  } catch (e) { toast.error("Reconciliation failed: " + (e.response?.data?.detail || e.message)); }
+                  finally { setLoading(l => ({ ...l, reconcile: false })); }
+                }}
+              >
+                {loading.reconcile ? "Running..." : "Reconcile Rankings"}
+              </Button>
+              <Button
+                variant="outline" size="sm" className="text-xs gap-1.5"
+                data-testid="btn-precompute"
+                disabled={loading.precompute}
+                onClick={async () => {
+                  setLoading(l => ({ ...l, precompute: true }));
+                  try {
+                    await axios.post(`${API}/api/admin/precompute-experiments`, {}, { headers: getAdminHeaders(), timeout: 600000 });
+                    toast.success("Precompute complete");
+                  } catch (e) {
+                    if (e.code === "ECONNABORTED") toast.info("Precompute running in background (request timed out but server continues)");
+                    else toast.error("Precompute failed: " + (e.response?.data?.detail || e.message));
+                  }
+                  finally { setLoading(l => ({ ...l, precompute: false })); }
+                }}
+              >
+                {loading.precompute ? "Running..." : "Precompute Experiments"}
+              </Button>
+            </div>
+          </div>
         </div>
         </TooltipProvider>
       )}
