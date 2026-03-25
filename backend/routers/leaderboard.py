@@ -1725,10 +1725,10 @@ async def get_si_rating_stats(
     """Single-item rating distributions and inter-metric correlations from live leaderboard data."""
     cache_key = f"{model or 'all'}"
     cached = _get_analysis_cached("si-rating-stats", category, cache_key)
-    if cached and cached.get("bt_vs_si") is not None:
+    if cached and cached.get("pw_vs_si") is not None:
         return cached
     result = await _compute_si_rating_stats(category, model)
-    if result.get("bt_vs_si") is not None:
+    if result.get("pw_vs_si") is not None:
         _set_analysis_cached("si-rating-stats", category, cache_key, result)
     return result
 
@@ -1965,45 +1965,104 @@ async def _compute_si_rating_stats(category, model):
             "avg_inter_metric_rho": round(float(np.mean(pair_rhos)), 3) if pair_rhos else None,
         }
 
-    # BT Pairwise Ranking vs Claude Opus 4.6 Thinking Single-Item Score Correlation
-    bt_vs_si = None
+    # PW vs SI: correlate all 3 pairwise estimators against SI scores (overall + per-model)
+    pw_vs_si = None
     try:
-        # Collect BT scores from rankings DB
-        bt_ranks = {}
-        rank_query = {"category": category} if category else {}
-        async for r in db.rankings.find(rank_query, {"_id": 0, "paper_id": 1, "score": 1}):
-            bt_ranks[r["paper_id"]] = r.get("score", 0)
+        from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores
 
-        # Use ONLY Claude SI scores (from ai_rating or ai_ratings_by_model.claude)
-        si_map = {}
-        for p in papers:
-            claude_score = None
-            by_model = p.get("ai_ratings_by_model", {})
-            if isinstance(by_model, dict) and isinstance(by_model.get("claude"), dict):
-                claude_score = by_model["claude"].get("score")
-            if not claude_score:
-                ai_r = p.get("ai_rating")
-                if isinstance(ai_r, dict):
-                    claude_score = ai_r.get("score")
-            if claude_score and p["id"] in bt_ranks:
-                si_map[p["id"]] = claude_score
+        # Fetch all standard-mode matches
+        match_query = {"completed": True, "winner_id": {"$exists": True}, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        if category:
+            match_query["primary_category"] = category
+        matches_raw = await collect_all(db.matches.find(
+            match_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+        ))
 
-        if len(si_map) >= 10:
-            shared = sorted(si_map.keys())
-            bt_vals = [bt_ranks[pid] for pid in shared]
-            si_vals = [si_map[pid] for pid in shared]
-            rho, p_val = scipy_stats.spearmanr(bt_vals, si_vals)
-            kt, kt_p = scipy_stats.kendalltau(bt_vals, si_vals)
-            pr, pr_p = scipy_stats.pearsonr(bt_vals, si_vals)
-            if not np.isnan(rho):
-                bt_vs_si = {
+        if len(matches_raw) >= 20:
+            bt_matches = [
+                {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                 "winner_id": m["winner_id"], "completed": True, "failed": False}
+                for m in matches_raw
+            ]
+            pw_paper_ids = list(set(
+                [m["paper1_id"] for m in matches_raw] + [m["paper2_id"] for m in matches_raw]
+            ))
+
+            # Compute all 3 PW scoring methods
+            pw_papers = [{"id": pid, "title": ""} for pid in pw_paper_ids]
+            wr_lb = compute_leaderboard(pw_papers, bt_matches)
+            wr_scores = {e["id"]: e["score"] for e in wr_lb}
+            bt_scores = compute_bt_ranking_scores(bt_matches, pw_paper_ids)
+            ts_scores = compute_trueskill_ranking_scores(bt_matches, pw_paper_ids)
+            pw_methods = {"win_rate": wr_scores, "bt": bt_scores, "trueskill": ts_scores}
+            pw_labels = {"win_rate": "Normalized Win-Rate", "bt": "Bradley-Terry", "trueskill": "TrueSkill"}
+
+            # Build SI score maps per model + averaged
+            si_maps = {}  # key -> {paper_id: score}
+            for mk in ("claude", "gpt", "gemini"):
+                sm = {}
+                for p in papers:
+                    r = _get_paper_si_rating(p, mk)
+                    if r and isinstance(r, dict) and r.get("score"):
+                        sm[p["id"]] = r["score"]
+                if len(sm) >= 10:
+                    si_maps[mk] = sm
+            # Averaged SI
+            avg_si = {}
+            for p in papers:
+                r = _get_paper_si_rating(p, None)
+                if r and isinstance(r, dict) and r.get("score"):
+                    avg_si[p["id"]] = r["score"]
+            if len(avg_si) >= 10:
+                si_maps["avg"] = avg_si
+
+            def _corr(pw_dict, si_dict):
+                common = sorted(set(pw_dict.keys()) & set(si_dict.keys()))
+                if len(common) < 10:
+                    return None
+                pw_vals = [pw_dict[pid] for pid in common]
+                si_vals = [si_dict[pid] for pid in common]
+                rho, _ = scipy_stats.spearmanr(pw_vals, si_vals)
+                kt, _ = scipy_stats.kendalltau(pw_vals, si_vals)
+                pr, _ = scipy_stats.pearsonr(pw_vals, si_vals)
+                if np.isnan(rho):
+                    return None
+                return {
                     "spearman_rho": round(float(rho), 4),
                     "kendall_tau": round(float(kt), 4),
                     "pearson_r": round(float(pr), 4),
-                    "n": len(shared),
+                    "n": len(common),
                 }
+
+            # Overall: each PW method vs averaged SI
+            overall = []
+            for mk in ("win_rate", "bt", "trueskill"):
+                if "avg" in si_maps:
+                    c = _corr(pw_methods[mk], si_maps["avg"])
+                    if c:
+                        overall.append({"method": mk, "label": pw_labels[mk], **c})
+
+            # Per-model: each PW method vs each model's SI
+            per_model = {}
+            model_labels_map = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3 Pro"}
+            for si_key in ("claude", "gpt", "gemini"):
+                if si_key not in si_maps:
+                    continue
+                rows = []
+                for mk in ("win_rate", "bt", "trueskill"):
+                    c = _corr(pw_methods[mk], si_maps[si_key])
+                    if c:
+                        rows.append({"method": mk, "label": pw_labels[mk], **c})
+                if rows:
+                    per_model[si_key] = {"label": model_labels_map[si_key], "rows": rows}
+
+            pw_vs_si = {
+                "overall": overall,
+                "per_model": per_model,
+                "n_matches": len(matches_raw),
+            }
     except Exception as e:
-        logger.warning(f"BT vs SI correlation failed: {e}")
+        logger.warning(f"PW vs SI correlation failed: {e}")
 
     return {
         "status": "ok",
@@ -2015,7 +2074,8 @@ async def _compute_si_rating_stats(category, model):
         "by_category": by_category,
         "inter_model_si": inter_model_si,
         "model_comparison": model_comparison,
-        "bt_vs_si": bt_vs_si,
+        "bt_vs_si": pw_vs_si.get("overall", [{}])[0] if pw_vs_si and pw_vs_si.get("overall") else None,
+        "pw_vs_si": pw_vs_si,
     }
 
 

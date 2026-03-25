@@ -368,12 +368,13 @@ export function SiRatingSection({ category }) {
             )}
           </div>
 
-          {/* Model comparison: variance vs correlation */}
+          {/* Model comparison: SI Rating Calibration */}
           {data.model_comparison && Object.keys(data.model_comparison).length >= 2 && (
             <div className="mt-4 p-3 border border-border rounded-lg" data-testid="si-model-comparison">
-              <h3 className="text-sm font-medium mb-1">Cross-Model Rating Behavior</h3>
+              <h3 className="text-sm font-medium mb-1">SI Rating Calibration</h3>
               <p className="text-[10px] text-muted-foreground mb-3">
-                How do the 3 models differ in their rating patterns? Models that use a wider score range (higher {"\u03C3"}) produce more discriminative rankings.
+                Each model uses a different scale for its 1–10 ratings — different means, spreads, and ranges.
+                This miscalibration means raw SI scores are <em>not comparable across models</em>. Pairwise tournament rankings avoid this problem entirely.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-[10px]" style={{ tableLayout: "fixed" }}>
@@ -423,28 +424,128 @@ export function SiRatingSection({ category }) {
                 const labels = { claude: "Claude", gpt: "GPT-5.2", gemini: "Gemini" };
                 const wName = labels[widest[0]] || widest[0];
                 const nName = labels[narrowest[0]] || narrowest[0];
-                const wRho = widest[1].avg_inter_metric_rho;
-                const nRho = narrowest[1].avg_inter_metric_rho;
                 return (
-                  <p className="mt-2 text-[10px] text-muted-foreground border-t border-border/30 pt-2">
-                    <strong>Observation:</strong> {wName} uses the widest score range ({"\u03C3"}={widest[1].std}, range {widest[1].min}-{widest[1].max}) yet also has the
-                    {wRho && nRho && wRho > nRho ? " highest " : " high "}
-                    inter-metric correlation (avg {"\u03C1"}={wRho ?? "—"}). This suggests {wName} applies a consistent "quality multiplier" across all dimensions — when it thinks a paper is good, all sub-scores rise together. {nName} ({"\u03C3"}={narrowest[1].std}) compresses scores into a narrow band
-                    {nRho ? ` with lower inter-metric correlation (${"\u03C1"}=${nRho})` : ""},
-                    {" "}suggesting more independent (but less discriminative) dimension scoring.
-                  </p>
+                  <div className="mt-2 text-[10px] text-muted-foreground border-t border-border/30 pt-2 space-y-1">
+                    <p>
+                      <strong>Calibration gap:</strong> {wName} scores have a mean of {widest[1].mean} ({"\u03C3"}={widest[1].std}),
+                      while {nName} averages {narrowest[1].mean} ({"\u03C3"}={narrowest[1].std}).
+                      {Math.abs(widest[1].mean - narrowest[1].mean) >= 0.1 && ` The ${Math.abs(widest[1].mean - narrowest[1].mean).toFixed(1)}-point mean difference alone would shift rankings if raw SI scores were pooled.`}
+                    </p>
+                    <p>
+                      <strong>Implication:</strong> Averaging SI scores across models without normalizing conflates model biases with paper quality.
+                      The pairwise tournament bypasses this entirely — each comparison is model-internal, so calibration differences are irrelevant.
+                    </p>
+                  </div>
                 );
               })()}
             </div>
           )}
 
-          {/* Pairwise Ranking vs SI Score Correlation */}
-          {data.bt_vs_si && (
+          {/* Pairwise Ranking vs SI Score — multi-method comparison */}
+          {data.pw_vs_si && data.pw_vs_si.overall?.length > 0 && (
+            <div className="mt-6 space-y-4" data-testid="pw-vs-si-section">
+              <div className="pb-2 border-b border-border">
+                <h3 className="text-sm font-semibold">Pairwise Tournament vs Single-Item Ranking</h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5 max-w-2xl">
+                  How well does the pairwise tournament ranking (from {data.pw_vs_si.n_matches?.toLocaleString()} head-to-head matches) agree
+                  with averaged single-item scores? TrueSkill is the most robust PW estimator — it produces the most stable rankings from sparse match data.
+                </p>
+              </div>
+
+              {/* Overall comparison table */}
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="px-3 py-1.5 bg-emerald-500/5 border-b border-border">
+                  <span className="text-[10px] font-semibold text-muted-foreground">
+                    PW Method vs Averaged SI Score
+                  </span>
+                </div>
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground bg-secondary/5">
+                      <th className="py-1.5 px-3 text-left font-medium">PW Estimator</th>
+                      <th className="py-1.5 px-3 text-right font-medium">Spearman {"\u03C1"}</th>
+                      <th className="py-1.5 px-3 text-right font-medium">Kendall {"\u03C4"}</th>
+                      <th className="py-1.5 px-3 text-right font-medium">Pearson r</th>
+                      <th className="py-1.5 px-3 text-right font-medium">n</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.pw_vs_si.overall.map((row, i) => {
+                      const isBest = data.pw_vs_si.overall.length > 1 &&
+                        row.spearman_rho === Math.max(...data.pw_vs_si.overall.map(r => r.spearman_rho));
+                      return (
+                        <tr key={row.method} className={`border-b border-border/20 ${isBest ? "bg-emerald-500/[0.06]" : ""}`}>
+                          <td className="py-1.5 px-3 font-medium">
+                            {row.label}
+                            {isBest && <span className="ml-1.5 text-[9px] text-emerald-600 font-semibold">BEST</span>}
+                          </td>
+                          <td className={`py-1.5 px-3 text-right font-mono font-semibold ${isBest ? "text-emerald-700" : ""}`}>
+                            {row.spearman_rho.toFixed(4)}
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono">{row.kendall_tau.toFixed(4)}</td>
+                          <td className="py-1.5 px-3 text-right font-mono">{row.pearson_r.toFixed(4)}</td>
+                          <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.n}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Per-model PW vs SI */}
+              {Object.keys(data.pw_vs_si.per_model || {}).length > 0 && (
+                <div>
+                  <h4 className="text-xs font-medium text-muted-foreground mb-2">Per-Model Breakdown</h4>
+                  <p className="text-[10px] text-muted-foreground mb-3 max-w-2xl">
+                    PW ranking correlated against each model's individual SI scores.
+                    Differences reveal which models' direct ratings best agree with the tournament consensus.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {["claude", "gpt", "gemini"].map(mk => {
+                      const mData = data.pw_vs_si.per_model[mk];
+                      if (!mData) return null;
+                      const bestRow = mData.rows.reduce((best, r) =>
+                        r.spearman_rho > (best?.spearman_rho || -1) ? r : best, null);
+                      return (
+                        <div key={mk} className="border border-border rounded-lg overflow-hidden" data-testid={`pw-vs-si-${mk}`}>
+                          <div className="px-3 py-1.5 bg-secondary/10 border-b border-border">
+                            <span className="text-[10px] font-semibold">{mData.label} SI</span>
+                          </div>
+                          <table className="w-full text-[10px]">
+                            <thead>
+                              <tr className="border-b border-border/50 text-muted-foreground">
+                                <th className="py-1 px-2 text-left font-medium">PW Method</th>
+                                <th className="py-1 px-2 text-right font-medium">{"\u03C1"}</th>
+                                <th className="py-1 px-2 text-right font-medium">{"\u03C4"}</th>
+                                <th className="py-1 px-2 text-right font-medium">n</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {mData.rows.map(row => (
+                                <tr key={row.method} className={`border-b border-border/10 ${row.method === bestRow?.method ? "bg-emerald-500/[0.04]" : ""}`}>
+                                  <td className="py-1 px-2 font-medium">{row.label.replace("Normalized ", "")}</td>
+                                  <td className="py-1 px-2 text-right font-mono font-semibold">{row.spearman_rho.toFixed(3)}</td>
+                                  <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
+                                  <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.n}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Legacy fallback for old bt_vs_si data */}
+          {!data.pw_vs_si && data.bt_vs_si && (
             <div className="mt-4 p-3 border border-emerald-200 bg-emerald-500/5 rounded-lg" data-testid="bt-vs-si-section">
               <h3 className="text-sm font-medium mb-1">Pairwise Tournament vs Single-Item Ranking</h3>
               <p className="text-[10px] text-muted-foreground mb-3">
-                Correlation between the ranking ranking from pairwise tournament matches (round-robin judges reading Opus 4.6 Thinking summaries)
-                and the ranking from Claude Opus 4.6 Thinking single-item scores (direct paper scoring without comparison).
+                Correlation between the ranking from pairwise tournament matches and the ranking from single-item scores.
               </p>
               <div className="flex items-center gap-4">
                 <div className="text-center">
