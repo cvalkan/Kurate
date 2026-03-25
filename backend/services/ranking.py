@@ -803,6 +803,25 @@ async def rerank_category_light(db, category: str):
                 if ops:
                     await db.rankings.bulk_write(ops, ordered=False)
 
+    else:
+        # reg_wr: recompute scores from win/loss counts using the standard Elo-from-WR formula
+        from pymongo import UpdateOne
+        ops = []
+        async for doc in db.rankings.find(
+            {"category": category},
+            {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1},
+        ):
+            wins = doc.get("wins", 0)
+            comparisons = doc.get("comparisons", 0)
+            if comparisons > 0:
+                new_stats = compute_paper_score(wins, comparisons)
+                ops.append(UpdateOne(
+                    {"paper_id": doc["paper_id"], "category": category},
+                    {"$set": {"score": new_stats["score"]}},
+                ))
+        if ops:
+            await db.rankings.bulk_write(ops, ordered=False)
+
     # Sort by score and assign ranks
     entries = []
     async for doc in db.rankings.find(
