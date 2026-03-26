@@ -314,6 +314,14 @@ async def _deferred_startup():
         await db.rankings.create_index([("category", 1), ("added_at", -1)])
         await db.rankings.create_index([("added_at", -1)], name="added_at_-1")  # For unscoped "recent" (all-papers view)
         await db.rankings.create_index([("categories", 1), ("score", -1)], name="categories_score")  # For tag-filtered views
+        # Analysis store (pre-aggregated Model Analysis results)
+        try:
+            await db.analysis_store.drop_indexes()
+        except Exception:
+            pass
+        await db.analysis_store.create_index([("_type", 1), ("key", 1)], unique=True)
+        # Convergence cache
+        await db.convergence_cache.create_index("category", unique=True)
         logger.info("MongoDB indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")

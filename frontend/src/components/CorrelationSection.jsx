@@ -139,7 +139,7 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
             <p className="text-[10px] text-muted-foreground mb-2">
               {viewMode === "average"
                 ? "Size-weighted average of per-category correlations. Each category contributes proportionally."
-                : "Pooled correlation across all papers. Large categories dominate."}
+                : "Pooled correlation across all papers."}
             </p>
           )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
