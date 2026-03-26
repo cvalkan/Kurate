@@ -35,7 +35,6 @@ export default function CorrelationPage() {
   }, []);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
     try {
       const params = category ? { category } : {};
       const [corrRes, siRes] = await Promise.all([
@@ -44,6 +43,7 @@ export default function CorrelationPage() {
       ]);
       setData(corrRes.data);
       if (siRes?.data?.status === "ok") setSiData(siRes.data);
+      else setSiData(null);
     } catch (err) {
       console.error("Failed to fetch correlation data:", err);
     } finally {
@@ -52,11 +52,12 @@ export default function CorrelationPage() {
   }, [category]);
 
   useEffect(() => {
-    setLoading(true);
+    // Only show full-page spinner on very first load (no data yet)
+    if (!data) setLoading(true);
     fetchData();
-  }, [fetchData]);
+  }, [fetchData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="container mx-auto px-4 md:px-6 max-w-5xl py-10">
         <div className="flex flex-col items-center justify-center py-24 gap-4">

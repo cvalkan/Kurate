@@ -2436,10 +2436,10 @@ async def _compute_convergence(category, steps):
         _cum_avg[i + 1] = _total_match_sum / n_papers
 
     # Generate sample indices from avg-per-paper targets
-    # 0.5 step per category, 2.0 for "All Categories" (aggregates many more matches)
+    # Uniform 0.5 step for all categories
     sample_indices = set()
     avg_targets = []
-    step = 0.5 if category else 2.0
+    step = 0.5
     t = step
     while t <= max_avg + step:
         avg_targets.append(round(t, 1))
