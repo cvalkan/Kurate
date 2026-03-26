@@ -34,36 +34,19 @@ export default function CorrelationPage() {
     }).catch(() => setCategory(""));
   }, []);
 
-  const dataCache = useRef({});
-  const siCache = useRef({});
-
   const fetchData = useCallback(async () => {
-    const cacheKey = category || "__all__";
-    if (dataCache.current[cacheKey]) {
-      setData(dataCache.current[cacheKey]);
-      setLoading(false);
-    }
-    if (siCache.current[cacheKey]) {
-      setSiData(siCache.current[cacheKey]);
-    }
+    setLoading(true);
     try {
       const params = category ? { category } : {};
-      // Load model-correlation first (fast — reads stored data)
-      const corrRes = await axios.get(`${API}/api/model-correlation`, { params });
-      dataCache.current[cacheKey] = corrRes.data;
+      const [corrRes, siRes] = await Promise.all([
+        axios.get(`${API}/api/model-correlation`, { params }),
+        axios.get(`${API}/api/si-rating-stats`, { params }).catch(() => null),
+      ]);
       setData(corrRes.data);
-      setLoading(false);
-      // Load si-rating-stats in background (can be slow on cold cache)
-      axios.get(`${API}/api/si-rating-stats`, { params, timeout: 120000 })
-        .then(siRes => {
-          if (siRes?.data?.status === "ok") {
-            siCache.current[cacheKey] = siRes.data;
-            setSiData(siRes.data);
-          }
-        })
-        .catch(() => {});
+      if (siRes?.data?.status === "ok") setSiData(siRes.data);
     } catch (err) {
       console.error("Failed to fetch correlation data:", err);
+    } finally {
       setLoading(false);
     }
   }, [category]);
