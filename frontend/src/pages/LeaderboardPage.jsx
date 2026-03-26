@@ -297,21 +297,26 @@ export default function LeaderboardPage() {
         }}
         activeArchiveLabel={activeArchive?.label}
         scoringToggle={
-          <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md shrink-0" data-testid="scoring-method-toggle">
-            {[["wr", "WR"], ["ts", "TS"]].map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setScoringMethod(key)}
-                className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${
-                  scoringMethod === key
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                data-testid={`scoring-method-${key}`}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 shrink-0" data-testid="scoring-method-toggle">
+            <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
+              {[["wr", "Win Rate"], ["ts", "TrueSkill"]].map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setScoringMethod(key)}
+                  className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                    scoringMethod === key
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  data-testid={`scoring-method-${key}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="text-[10px] text-muted-foreground hidden sm:inline">
+              {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : "Regularized win-rate (default)"}
+            </span>
           </div>
         }
       />

@@ -2234,7 +2234,7 @@ async def _compute_si_rating_stats(category, model):
     try:
         pw_papers = [p for p in filtered if p.get("comparisons", 0) >= 3]
         if len(pw_papers) >= 20:
-            # Build SI score maps
+            # Build SI score maps per model
             si_maps = {}
             for mk in ("claude", "gpt", "gemini"):
                 sm = {}
@@ -2244,6 +2244,7 @@ async def _compute_si_rating_stats(category, model):
                         sm[p["paper_id"]] = si["score"]
                 if len(sm) >= 10:
                     si_maps[mk] = sm
+            # Averaged SI
             avg_si = {}
             for p in pw_papers:
                 r = _get_si(p)
@@ -2252,43 +2253,74 @@ async def _compute_si_rating_stats(category, model):
             if len(avg_si) >= 10:
                 si_maps["avg"] = avg_si
 
-            # PW methods from stored scores
-            combined_methods = {
-                "reg_wr": {p["paper_id"]: p["score"] for p in pw_papers if p.get("score")},
-                "trueskill": {p["paper_id"]: p["ts_score"] for p in pw_papers if p.get("ts_score")},
+            # Combined PW methods from stored scores
+            combined_pw = {
+                "reg_wr": ("Reg WR", {p["paper_id"]: p["score"] for p in pw_papers if p.get("score")}),
+                "trueskill": ("TrueSkill", {p["paper_id"]: p["ts_score"] for p in pw_papers if p.get("ts_score")}),
             }
-            # Per-model WR from stored model_stats
-            for mk_label, mk_key in [("claude_pw", "anthropic/claude-opus"), ("gpt_pw", "openai/gpt-5.2"), ("gemini_pw", "gemini/gemini-3-pro-preview")]:
+
+            # Per-model PW (within-model) from stored model_stats
+            within_pw = {}
+            _MODEL_KEY_MAP = {"claude": "anthropic/claude-opus", "gpt": "openai/gpt-5.2", "gemini": "gemini/gemini-3-pro-preview"}
+            for mk, mk_key in _MODEL_KEY_MAP.items():
                 mk_wr = {}
+                mk_match_count = 0
                 for p in pw_papers:
                     ms = p.get("model_stats", {}).get(mk_key, {})
                     if ms.get("total", 0) >= 3:
                         mk_wr[p["paper_id"]] = (ms["wins"] + 0.5) / (ms["total"] + 1.0)
+                        mk_match_count += ms["total"]
                 if len(mk_wr) >= 10:
-                    combined_methods[mk_label] = mk_wr
+                    within_pw[mk] = (mk_wr, mk_match_count // 2)
 
-            pw_labels = {"reg_wr": "Reg WR", "trueskill": "TrueSkill",
-                         "claude_pw": "Claude PW", "gpt_pw": "GPT PW", "gemini_pw": "Gemini PW"}
-            rows = []
-            for pw_key, pw_scores in combined_methods.items():
-                for si_key, si_scores in si_maps.items():
-                    common = sorted(set(pw_scores.keys()) & set(si_scores.keys()))
-                    if len(common) < 10:
-                        continue
-                    v1 = [pw_scores[pid] for pid in common]
-                    v2 = [si_scores[pid] for pid in common]
-                    rho, _ = scipy_stats.spearmanr(v1, v2)
-                    tau, _ = scipy_stats.kendalltau(v1, v2)
-                    if not np.isnan(rho):
-                        rows.append({
-                            "pw_method": pw_labels.get(pw_key, pw_key),
-                            "si_model": si_key,
-                            "spearman": round(float(rho), 3),
-                            "kendall": round(float(tau), 3),
-                            "n": len(common),
-                        })
-            if rows:
-                pw_vs_si = rows
+            # Build the structured pw_vs_si output
+            _SI_LABELS = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3 Pro"}
+            per_model = {}
+            within_model = {}
+            total_matches = sum(p.get("comparisons", 0) for p in pw_papers) // 2
+
+            def _corr_row(method_key, method_label, pw_scores, si_scores):
+                common = sorted(set(pw_scores.keys()) & set(si_scores.keys()))
+                if len(common) < 10:
+                    return None
+                v1 = [pw_scores[pid] for pid in common]
+                v2 = [si_scores[pid] for pid in common]
+                rho, _ = scipy_stats.spearmanr(v1, v2)
+                tau, _ = scipy_stats.kendalltau(v1, v2)
+                if np.isnan(rho):
+                    return None
+                return {"method": method_key, "label": method_label,
+                        "spearman_rho": round(float(rho), 3), "kendall_tau": round(float(tau), 3),
+                        "n": len(common)}
+
+            for si_mk in ("claude", "gpt", "gemini"):
+                if si_mk not in si_maps:
+                    continue
+                # Combined PW vs this model's SI
+                rows = []
+                for pw_key, (pw_label, pw_scores) in combined_pw.items():
+                    row = _corr_row(pw_key, pw_label, pw_scores, si_maps[si_mk])
+                    if row:
+                        rows.append(row)
+                if rows:
+                    per_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": rows}
+
+                # Within-model PW vs this model's SI
+                if si_mk in within_pw:
+                    wm_scores, wm_matches = within_pw[si_mk]
+                    wm_rows = []
+                    wm_row = _corr_row("within_wr", "Within-model WR", wm_scores, si_maps[si_mk])
+                    if wm_row:
+                        wm_rows.append(wm_row)
+                    if wm_rows:
+                        within_model[si_mk] = {"n_matches": wm_matches, "rows": wm_rows}
+
+            if per_model:
+                pw_vs_si = {
+                    "n_matches": total_matches,
+                    "per_model": per_model,
+                    "within_model": within_model,
+                }
     except Exception:
         pass
 
