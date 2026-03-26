@@ -315,11 +315,22 @@ async def _deferred_startup():
         await db.rankings.create_index([("added_at", -1)], name="added_at_-1")  # For unscoped "recent" (all-papers view)
         await db.rankings.create_index([("categories", 1), ("score", -1)], name="categories_score")  # For tag-filtered views
         # Analysis store (pre-aggregated Model Analysis results)
+        # Version check: clear stale docs when schema changes
+        _ANALYSIS_STORE_VERSION = 3  # Bump when pw_vs_si format changes
         try:
             await db.analysis_store.drop_indexes()
         except Exception:
             pass
         await db.analysis_store.create_index([("_type", 1), ("key", 1)], unique=True)
+        version_doc = await db.analysis_store.find_one({"_type": "__version__"})
+        if not version_doc or version_doc.get("v") != _ANALYSIS_STORE_VERSION:
+            await db.analysis_store.delete_many({"_type": {"$ne": "__version__"}})
+            await db.analysis_store.update_one(
+                {"_type": "__version__"},
+                {"$set": {"_type": "__version__", "key": "__version__", "v": _ANALYSIS_STORE_VERSION}},
+                upsert=True,
+            )
+            logger.info(f"Analysis store cleared (schema version {_ANALYSIS_STORE_VERSION})")
         # Convergence cache
         await db.convergence_cache.create_index("category", unique=True)
         logger.info("MongoDB indexes created")
@@ -546,29 +557,6 @@ async def _prewarm_all_experiment_caches():
 
     await asyncio.sleep(8)  # Wait for leaderboard cache to be ready
     try:
-        from routers.leaderboard import _compute_model_correlation, _compute_convergence, _set_analysis_cached, _compute_si_rating_stats
-        from core.auth import get_settings
-        settings = await get_settings()
-        cats = settings.get("active_categories", [])
-        for cat in cats:
-            try:
-                result = await _compute_model_correlation(cat, None)
-                _set_analysis_cached("model-correlation", cat, "", result)
-            except Exception:
-                pass
-            try:
-                result = await _compute_convergence(cat, 20)
-                _set_analysis_cached("convergence", cat, "20", result)
-            except Exception:
-                pass
-            try:
-                result = await _compute_si_rating_stats(cat, None)
-                if result.get("bt_vs_si") is not None:
-                    _set_analysis_cached("si-rating-stats", cat, "all", result)
-            except Exception:
-                pass
-        logger.info(f"Analysis cache pre-warmed: {len(cats)} categories")
-
         # Also prewarm summary bias caches
         from routers.summary_bias import _compute_results, _compute_sb_convergence, _sb_cache
         sb_cats = set()
