@@ -2414,10 +2414,10 @@ async def _compute_convergence(category, steps):
         _cum_avg[i + 1] = _total_match_sum / n_papers
 
     # Generate sample indices from avg-per-paper targets
-    # Uniform 0.5 step for all categories — computation runs in background, user reads from MongoDB
+    # 0.5 step per category, 2.0 for "All Categories" (aggregates many more matches)
     sample_indices = set()
     avg_targets = []
-    step = 0.5
+    step = 0.5 if category else 2.0
     t = step
     while t <= max_avg + step:
         avg_targets.append(round(t, 1))
@@ -2484,7 +2484,7 @@ async def _compute_convergence(category, steps):
 
     return {
         "status": "ok",
-        "category": category,
+        "category": category or "__all__",
         "total_matches": total,
         "total_papers": n_papers,
         "top_k_values": top_k_values,
