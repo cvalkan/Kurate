@@ -2414,21 +2414,14 @@ async def _compute_convergence(category, steps):
         _cum_avg[i + 1] = _total_match_sum / n_papers
 
     # Generate sample indices from avg-per-paper targets
-    # Step size adapts to dataset size: 0.25 for small, larger for big datasets
+    # Uniform 0.5 step for all categories — computation runs in background, user reads from MongoDB
     sample_indices = set()
     avg_targets = []
-    # For large datasets (>200 papers), use coarser steps to keep computation <10s
-    fine_step = 0.5 if n_papers <= 200 else 1.0 if n_papers <= 500 else 2.0
-    coarse_step = 2.0 if n_papers <= 200 else 4.0 if n_papers <= 500 else 8.0
-    fine_limit = min(10.0, max_avg)
-    t = fine_step
-    while t <= fine_limit:
-        avg_targets.append(round(t, 2))
-        t += fine_step
-    t = fine_limit + coarse_step
-    while t <= max_avg + coarse_step:
+    step = 0.5
+    t = step
+    while t <= max_avg + step:
         avg_targets.append(round(t, 1))
-        t += coarse_step
+        t += step
     if avg_targets and avg_targets[-1] < max_avg * 0.95:
         avg_targets.append(max_avg)
 
