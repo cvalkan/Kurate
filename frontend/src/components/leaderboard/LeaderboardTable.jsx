@@ -98,8 +98,8 @@ export function LeaderboardTable({
       ranked = [...leaderboard].sort((a, b) => (b.global_score || 0) - (a.global_score || 0));
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
     } else if (isTS) {
-      // TrueSkill: re-sort by TS rank, assign sequential display ranks
-      ranked = [...leaderboard].sort((a, b) => (a.rank_ts || a.rank || 9999) - (b.rank_ts || b.rank || 9999));
+      // TrueSkill: re-sort by ts_score descending, assign sequential display ranks
+      ranked = [...leaderboard].sort((a, b) => (b.ts_score || 0) - (a.ts_score || 0));
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
     } else {
       // Win Rate (default): use the sequential rank already assigned by the backend/page
@@ -166,7 +166,7 @@ export function LeaderboardTable({
   const visibleList = sorted.slice(0, renderCount);
   const hasMoreToShow = hasMore || sorted.length > renderCount;
 
-  const scoreLabel = isTS ? "TS Score" : "Score";
+  const scoreLabel = "Score";
   const scoreTip = isTS
     ? "TrueSkill score from pairwise comparisons. Bayesian rating updated incrementally per match."
     : (isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score);
