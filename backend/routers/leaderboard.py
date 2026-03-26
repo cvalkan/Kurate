@@ -2100,7 +2100,7 @@ async def _compute_si_rating_stats(category, model):
     async for doc in db.rankings.find(
         query,
         {"_id": 0, "paper_id": 1, "si_ratings": 1, "category": 1, "score": 1, "ts_score": 1,
-         "model_stats": 1, "comparisons": 1},
+         "model_stats": 1, "model_ts": 1, "comparisons": 1},
     ):
         papers.append(doc)
 
@@ -2356,31 +2356,40 @@ async def _compute_si_rating_stats(category, model):
                         mpps.append(ms["total"])
                 within_mpp[mk] = round(np.mean(mpps), 1) if mpps else 0
 
-            # Controlled: subsample combined WR to match single-model match density
-            # For each paper, randomly drop matches until avg_mpp matches within_mpp
+            # Controlled: subsample to match single-model match density
             import random as _rng
             _rng.seed(42)
             target_mpp = round(np.mean(list(within_mpp.values())), 1) if within_mpp else 10
             controlled_pw = {}
-            for pw_key, (pw_label, pw_scores) in combined_pw.items():
-                if pw_key == "reg_wr":
-                    # Subsample: for each paper, scale WR toward 0.5 to simulate fewer matches
-                    # More principled: use stored model_stats to build a subsampled WR
-                    # Take only one model's worth of matches per paper
-                    sub_wr = {}
-                    for p in pw_papers:
-                        # Pick matches from ~1/3 of models (random)
-                        ms_all = p.get("model_stats", {})
-                        wins_sub = 0
-                        total_sub = 0
-                        for mk_key_inner in list(_MODEL_KEY_MAP.values()):
-                            ms = ms_all.get(mk_key_inner, {})
-                            if ms.get("total", 0) > 0 and _rng.random() < 0.34:  # ~1/3 chance to include each model
-                                wins_sub += ms.get("wins", 0)
-                                total_sub += ms.get("total", 0)
-                        if total_sub >= 3:
-                            sub_wr[p["paper_id"]] = (wins_sub + 0.5) / (total_sub + 1.0)
-                    controlled_pw[pw_key] = (f"{pw_label} (controlled)", sub_wr)
+
+            # Controlled WR: take ~1/3 of models' matches per paper
+            sub_wr = {}
+            for p in pw_papers:
+                ms_all = p.get("model_stats", {})
+                wins_sub = 0
+                total_sub = 0
+                for mk_key_inner in list(_MODEL_KEY_MAP.values()):
+                    ms = ms_all.get(mk_key_inner, {})
+                    if ms.get("total", 0) > 0 and _rng.random() < 0.34:
+                        wins_sub += ms.get("wins", 0)
+                        total_sub += ms.get("total", 0)
+                if total_sub >= 3:
+                    sub_wr[p["paper_id"]] = (wins_sub + 0.5) / (total_sub + 1.0)
+            controlled_pw["reg_wr"] = ("Reg WR (controlled)", sub_wr)
+
+            # Controlled TrueSkill: use a single random model's TrueSkill per paper
+            sub_ts = {}
+            mk_keys_list = list(_MODEL_KEY_MAP.values())
+            for p in pw_papers:
+                mts = p.get("model_ts", {})
+                # Pick one random model's TS rating
+                _rng.shuffle(mk_keys_list)
+                for mk_key_inner in mk_keys_list:
+                    ts_data = mts.get(mk_key_inner)
+                    if isinstance(ts_data, dict) and ts_data.get("mu"):
+                        sub_ts[p["paper_id"]] = ts_data["mu"]
+                        break
+            controlled_pw["trueskill"] = ("TrueSkill (controlled)", sub_ts)
 
             for si_mk in ("claude", "gpt", "gemini"):
                 if si_mk not in si_maps:
