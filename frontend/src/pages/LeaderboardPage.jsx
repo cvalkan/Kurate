@@ -144,7 +144,7 @@ export default function LeaderboardPage() {
           return;
         }
         setWarmingUp(false);
-        setLeaderboard(res.data.leaderboard || []);
+        setLeaderboard((res.data.leaderboard || []).map((e, i) => ({ ...e, rank: i + 1 })));
         setNextCursor(res.data.next_cursor || null);
         setTotalPapers(res.data.total_papers || 0);
         setTotalMatches(res.data.total_matches || 0);

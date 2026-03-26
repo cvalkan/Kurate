@@ -97,12 +97,13 @@ export function LeaderboardTable({
     if (isGlobal) {
       ranked = [...leaderboard].sort((a, b) => (b.global_score || 0) - (a.global_score || 0));
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
+    } else if (isTS) {
+      // TrueSkill: re-sort by TS rank, assign sequential display ranks
+      ranked = [...leaderboard].sort((a, b) => (a.rank_ts || a.rank || 9999) - (b.rank_ts || b.rank || 9999));
+      ranked.forEach((p, i) => { p._displayRank = i + 1; });
     } else {
-      ranked = leaderboard.map(p => ({ ...p, _displayRank: getRank(p) }));
-      // Re-sort by the selected method's rank
-      if (isTS) {
-        ranked.sort((a, b) => (a._displayRank || 9999) - (b._displayRank || 9999));
-      }
+      // Win Rate (default): use the sequential rank already assigned by the backend/page
+      ranked = leaderboard.map((p, i) => ({ ...p, _displayRank: p.rank || (i + 1) }));
     }
 
     // Step 2: Apply user sort (if not default rank)
