@@ -1057,20 +1057,7 @@ async def rerank_category(db, category: str):
 
 
 async def _refresh_derived_fields(db, category: str):
-    """Refresh gap_score and community_likes for a category after reranking."""
-    from routers.validation_utils import collect_all
-
-    # Load ai_ratings for this category
-    ai_ratings = {}
-    async for p in db.papers.find(
-        {"categories.0": category},
-        {"_id": 0, "id": 1, "ai_rating": 1}
-    ):
-        r = p.get("ai_rating")
-        if r and isinstance(r, dict) and r.get("score"):
-            ai_ratings[p["id"]] = round(r["score"], 1)
-        elif r and isinstance(r, (int, float)):
-            ai_ratings[p["id"]] = round(r, 1)
+    """Refresh gap_score, gap_score_ts, and community_likes for a category after reranking."""
 
     # Load community likes
     community_likes = {}
@@ -1078,13 +1065,26 @@ async def _refresh_derived_fields(db, category: str):
         if doc.get("likes") is not None:
             community_likes[doc["id"]] = doc["likes"]
 
-    # Compute gap scores from current rankings (WR-based and TS-based)
+    # Load rankings with stored SI ratings (no papers collection needed)
     rankings = []
+    ai_ratings = {}
     async for r in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "score": 1, "ts_score": 1, "comparisons": 1}
+        {"_id": 0, "paper_id": 1, "score": 1, "ts_score": 1, "comparisons": 1, "si_ratings": 1, "ai_rating": 1}
     ):
         rankings.append(r)
+        # Get SI score: prefer si_ratings (averaged), fall back to ai_rating
+        si = r.get("si_ratings", {})
+        if isinstance(si, dict) and si:
+            scores = [v.get("score") for v in si.values() if isinstance(v, dict) and v.get("score")]
+            if scores:
+                ai_ratings[r["paper_id"]] = round(sum(scores) / len(scores), 1)
+        if r["paper_id"] not in ai_ratings:
+            ar = r.get("ai_rating")
+            if ar and isinstance(ar, dict) and ar.get("score"):
+                ai_ratings[r["paper_id"]] = round(ar["score"], 1)
+            elif ar and isinstance(ar, (int, float)):
+                ai_ratings[r["paper_id"]] = round(ar, 1)
 
     gap_scores = {}
     gap_scores_ts = {}
