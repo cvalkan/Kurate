@@ -14,7 +14,7 @@ const PERIODS = [
   { key: "all", label: "All Time", icon: Infinity },
 ];
 
-export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedIn, requireAuth, archives = [], onArchiveSelect, activeArchiveLabel }) {
+export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedIn, requireAuth, archives = [], onArchiveSelect, activeArchiveLabel, scoringToggle }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const archiveRef = useRef(null);
 
@@ -116,14 +116,17 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
           </div>
         )}
       </div>
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-        <Input placeholder="Search papers..." value={keyword} onChange={e => setKeyword(e.target.value)} className="h-8 text-xs pl-8 w-full sm:w-48" data-testid="keyword-search" />
-        {keyword && (
-          <button onClick={() => setKeyword("")} className="absolute right-2 top-1/2 -translate-y-1/2">
-            <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-          </button>
-        )}
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Search papers..." value={keyword} onChange={e => setKeyword(e.target.value)} className="h-8 text-xs pl-8 w-full sm:w-48" data-testid="keyword-search" />
+          {keyword && (
+            <button onClick={() => setKeyword("")} className="absolute right-2 top-1/2 -translate-y-1/2">
+              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+            </button>
+          )}
+        </div>
+        {scoringToggle}
       </div>
     </div>
   );

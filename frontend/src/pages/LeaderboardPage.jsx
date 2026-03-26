@@ -280,28 +280,6 @@ export default function LeaderboardPage() {
 
       {hasSelectedTags && <StatsToggle globalStats={globalStats} setGlobalStats={setGlobalStats} />}
 
-      <div className="flex items-center gap-3 mb-2">
-        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md" data-testid="scoring-method-toggle">
-          {[["wr", "Win Rate"], ["ts", "TrueSkill"]].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setScoringMethod(key)}
-              className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
-                scoringMethod === key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid={`scoring-method-${key}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="text-[10px] text-muted-foreground">
-          {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : "Regularized win-rate score (default)"}
-        </span>
-      </div>
-
       <PeriodFilter
         period={activeArchive ? null : period} setPeriod={setPeriod} keyword={keyword} setKeyword={setKeyword}
         isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={isTagMode ? [] : archives}
@@ -318,6 +296,24 @@ export default function LeaderboardPage() {
           if (data) setLoading(false);
         }}
         activeArchiveLabel={activeArchive?.label}
+        scoringToggle={
+          <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md shrink-0" data-testid="scoring-method-toggle">
+            {[["wr", "WR"], ["ts", "TS"]].map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setScoringMethod(key)}
+                className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${
+                  scoringMethod === key
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid={`scoring-method-${key}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
       />
 
       {warmingUp && (

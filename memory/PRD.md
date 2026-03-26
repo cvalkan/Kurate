@@ -107,10 +107,11 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Replaced BT-dependent scoring with incremental TrueSkill + Win Rate dual-score system
 - Each match now updates WR (O(1)), TrueSkill (O(1)), and per-model stats (O(1)) — no match history loading
 - Rankings doc stores: `ts_mu`, `ts_sigma`, `ts_score`, `rank_wr`, `rank_ts`, `model_stats`
-- All 3 Model Analysis endpoints now read from stored scores — zero match loading:
+- All 3 Model Analysis endpoints now read from stored scores — zero match loading, <0.3s cold:
   - `scoring-method-correlation`: reads `score` + `ts_score` from rankings
-  - `model-correlation`: reads `model_stats` from rankings (per-model win rates)
-  - `si-rating-stats`: reads paper metadata (already lightweight)
+  - `model-correlation`: reads `model_stats` + `model_ts` from rankings (single query)
+  - `si-rating-stats`: reads `si_ratings` from rankings (moved from papers collection)
+- Removed background analysis cache loop — endpoints fast enough without caching
 - All endpoints pre-warmed by background refresh loop
 - `rerank_category_light` simplified: just re-sorts from stored scores — no match loading
 - Frontend WR/TrueSkill toggle on leaderboard (instant switch, no backend call)

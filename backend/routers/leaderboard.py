@@ -504,85 +504,7 @@ def start_cache_bg():
     global _bg_task_started
     if not _bg_task_started:
         asyncio.create_task(_bg_cache_loop())
-        asyncio.create_task(_bg_analysis_cache_loop())
         asyncio.create_task(_bg_archive_loop())
-
-
-async def _bg_analysis_cache_loop():
-    """Background loop that refreshes model-correlation and convergence when data changes.
-    
-    Debounced at 120s to batch rapid changes (comparison rounds complete every 5-15min).
-    GC between categories to prevent memory accumulation.
-    Initial delay: 120s to avoid running concurrently with startup tasks.
-    """
-    await asyncio.sleep(120)  # Wait for ALL startup tasks to complete before first run
-
-    async def _refresh_analysis():
-        try:
-            import gc
-            from core.auth import get_settings
-            from core.memlog import log_mem
-            settings = await get_settings()
-            cats = settings.get("active_categories", [])
-            log_mem(f"analysis_refresh start ({len(cats)} categories)")
-
-            # Pre-warm "All Categories" first (most commonly visited)
-            try:
-                result = await _compute_model_correlation(None, None)
-                _set_analysis_cached("model-correlation", None, "", result)
-            except Exception:
-                pass
-            try:
-                result = await _compute_scoring_method_correlation(None)
-                _set_analysis_cached("scoring-method-correlation", None, "", result)
-            except Exception:
-                pass
-            try:
-                result = await _compute_si_rating_stats(None, None)
-                if result.get("pw_vs_si") is not None:
-                    _set_analysis_cached("si-rating-stats", None, "all", result)
-            except Exception:
-                pass
-            gc.collect()
-
-            # Then per-category
-            for cat in cats:
-                try:
-                    result = await _compute_model_correlation(cat, None)
-                    _set_analysis_cached("model-correlation", cat, "", result)
-                except Exception:
-                    pass
-                try:
-                    result = await _compute_convergence(cat, 20)
-                    _set_analysis_cached("convergence", cat, "20", result)
-                except Exception:
-                    pass
-                try:
-                    result = await _compute_scoring_method_correlation(cat)
-                    _set_analysis_cached("scoring-method-correlation", cat, "", result)
-                except Exception:
-                    pass
-                try:
-                    result = await _compute_si_rating_stats(cat, None)
-                    if result.get("pw_vs_si") is not None:
-                        _set_analysis_cached("si-rating-stats", cat, "all", result)
-                except Exception:
-                    pass
-                gc.collect()
-                await asyncio.sleep(2)  # Cooldown between categories
-            log_mem(f"analysis_refresh done ({len(cats)} categories)")
-            logger.info(f"Analysis cache refreshed: {len(cats)} categories")
-        except Exception as e:
-            logger.warning(f"Analysis cache refresh failed: {e}")
-
-    await _refresh_analysis()
-
-    while True:
-        await _cache_dirty.wait()
-        _cache_dirty.clear()
-        await asyncio.sleep(120)  # 120s debounce — batch rapid comparison rounds
-        _cache_dirty.clear()
-        await _refresh_analysis()
 
 
 
@@ -1398,13 +1320,8 @@ async def get_model_correlation(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
     mode: Optional[str] = Query(None, description="Match mode: None=standard, 'prediction', 'prediction-fulltext'"),
 ):
-    """Correlation analysis between the 3 LLMs used for rankings."""
-    cached = _get_analysis_cached("model-correlation", category, mode)
-    if cached:
-        return cached
-    result = await _compute_model_correlation(category, mode)
-    _set_analysis_cached("model-correlation", category, mode, result)
-    return result
+    """Correlation analysis between the 3 LLMs used for rankings. Reads from stored data (<0.3s)."""
+    return await _compute_model_correlation(category, mode)
 
 
 async def _compute_model_correlation(category, mode):
@@ -1983,13 +1900,8 @@ async def _compute_model_correlation_from_matches(category, mode):
 async def get_scoring_method_correlation(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
 ):
-    """Compare Win-Rate, Bradley-Terry, and TrueSkill ranking methods on live tournament data."""
-    cached = _get_analysis_cached("scoring-method-correlation", category, "")
-    if cached:
-        return cached
-    result = await _compute_scoring_method_correlation(category)
-    _set_analysis_cached("scoring-method-correlation", category, "", result)
-    return result
+    """Compare Win-Rate and TrueSkill ranking methods. Reads from stored data (<0.3s)."""
+    return await _compute_scoring_method_correlation(category)
 
 
 async def _compute_scoring_method_correlation(category):
@@ -2084,15 +1996,8 @@ async def get_si_rating_stats(
     category: Optional[str] = Query(None, description="Filter by primary category"),
     model: Optional[str] = Query(None, description="Filter by model: claude, gpt, gemini, or None for all"),
 ):
-    """Single-item rating distributions and inter-metric correlations from live leaderboard data."""
-    cache_key = f"{model or 'all'}"
-    cached = _get_analysis_cached("si-rating-stats", category, cache_key)
-    if cached and cached.get("pw_vs_si") is not None:
-        return cached
-    result = await _compute_si_rating_stats(category, model)
-    if result.get("pw_vs_si") is not None:
-        _set_analysis_cached("si-rating-stats", category, cache_key, result)
-    return result
+    """Single-item rating distributions. Reads from stored data (<0.3s)."""
+    return await _compute_si_rating_stats(category, model)
 
 
 _SI_MODEL_KEYS = {
