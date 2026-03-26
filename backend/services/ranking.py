@@ -745,6 +745,34 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
     except Exception:
         pass  # TS update is best-effort; WR is the primary score
 
+    # --- Step 3: Incremental per-model TrueSkill update ---
+    if model_key:
+        try:
+            env = trueskill.TrueSkill(draw_probability=0.0)
+            w_doc = await db.rankings.find_one(
+                {"paper_id": winner_id, "category": category},
+                {"_id": 0, f"model_ts.{model_key}": 1},
+            )
+            l_doc = await db.rankings.find_one(
+                {"paper_id": loser_id, "category": category},
+                {"_id": 0, f"model_ts.{model_key}": 1},
+            )
+            w_ts = (w_doc or {}).get("model_ts", {}).get(model_key, {})
+            l_ts = (l_doc or {}).get("model_ts", {}).get(model_key, {})
+            w_rating = env.create_rating(mu=w_ts.get("mu", 25.0), sigma=w_ts.get("sigma", 25.0/3))
+            l_rating = env.create_rating(mu=l_ts.get("mu", 25.0), sigma=l_ts.get("sigma", 25.0/3))
+            new_w, new_l = trueskill.rate_1vs1(w_rating, l_rating)
+            await db.rankings.update_one(
+                {"paper_id": winner_id, "category": category},
+                {"$set": {f"model_ts.{model_key}.mu": new_w.mu, f"model_ts.{model_key}.sigma": new_w.sigma}},
+            )
+            await db.rankings.update_one(
+                {"paper_id": loser_id, "category": category},
+                {"$set": {f"model_ts.{model_key}.mu": new_l.mu, f"model_ts.{model_key}.sigma": new_l.sigma}},
+            )
+        except Exception:
+            pass
+
 
 async def _queue_repair(db, category: str, paper_id: str):
     """Queue a paper for background ranking repair."""
@@ -1275,9 +1303,9 @@ async def backfill_model_stats(db, category: str = None):
     log_mem(f"backfill_model_stats start ({len(cats)} categories)")
 
     for cat in cats:
-        # Accumulate per-paper per-model stats using streaming cursor
-        # Structure: {paper_id: {model_key: {wins: N, total: M}}}
+        # Accumulate per-paper per-model stats AND per-model match lists for TrueSkill
         paper_model_stats = defaultdict(lambda: defaultdict(lambda: {"wins": 0, "total": 0}))
+        model_match_lists = defaultdict(list)  # {model_key: [match_dicts]}
         match_count = 0
 
         async for m in db.matches.find(
@@ -1299,23 +1327,50 @@ async def backfill_model_stats(db, category: str = None):
                 paper_model_stats[p1][model_key]["wins"] += 1
             elif winner == p2:
                 paper_model_stats[p2][model_key]["wins"] += 1
+
+            model_match_lists[model_key].append(m)
             match_count += 1
 
-        # Bulk write model_stats to rankings
+        # Compute per-model TrueSkill ratings
+        import trueskill
+        paper_model_ts = defaultdict(dict)  # {paper_id: {model_key: {mu, sigma}}}
+        for mk, mk_matches in model_match_lists.items():
+            if len(mk_matches) < 20:
+                continue
+            env = trueskill.TrueSkill(draw_probability=0.0)
+            mk_pids = set()
+            for m in mk_matches:
+                mk_pids.add(m["paper1_id"])
+                mk_pids.add(m["paper2_id"])
+            ratings = {pid: env.create_rating() for pid in mk_pids}
+            for m in mk_matches:
+                w = m.get("winner_id")
+                l = m["paper2_id"] if w == m["paper1_id"] else m["paper1_id"]
+                if w in ratings and l in ratings:
+                    new_w, new_l = trueskill.rate_1vs1(ratings[w], ratings[l])
+                    ratings[w] = new_w
+                    ratings[l] = new_l
+            for pid, r in ratings.items():
+                paper_model_ts[pid][mk] = {"mu": r.mu, "sigma": r.sigma}
+        del model_match_lists
+
+        # Bulk write model_stats + model_ts to rankings
         ops = []
         for pid, mstats in paper_model_stats.items():
-            # Convert defaultdict to regular dict for MongoDB
             model_stats = {mk: dict(v) for mk, v in mstats.items()}
+            update = {"model_stats": model_stats}
+            if pid in paper_model_ts:
+                update["model_ts"] = paper_model_ts[pid]
             ops.append(UpdateOne(
                 {"paper_id": pid, "category": cat},
-                {"$set": {"model_stats": model_stats}},
+                {"$set": update},
             ))
         if ops:
             await db.rankings.bulk_write(ops, ordered=False)
 
-        logger.info(f"[{cat}] Backfilled model_stats for {len(paper_model_stats)} papers from {match_count} matches")
+        logger.info(f"[{cat}] Backfilled model_stats + model_ts for {len(paper_model_stats)} papers from {match_count} matches")
 
-        del paper_model_stats
+        del paper_model_stats, paper_model_ts
         import gc
         gc.collect()
 

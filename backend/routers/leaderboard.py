@@ -1423,27 +1423,34 @@ async def _compute_model_correlation(category, mode):
     if mode:
         return await _compute_model_correlation_from_matches(category, mode)
 
-    # Standard mode: read from stored model_stats
+    # Standard mode: read from stored model_stats + model_ts in ONE query
     query = {"category": category} if category else {}
     paper_titles = {}
     model_paper_stats = {}  # {model_key: {paper_id: {wins, total}}}
+    model_paper_ts = {}     # {model_key: {paper_id: mu}}
     paper_ids = set()
 
     async for doc in db.rankings.find(
         query,
-        {"_id": 0, "paper_id": 1, "title": 1, "model_stats": 1},
+        {"_id": 0, "paper_id": 1, "title": 1, "model_stats": 1, "model_ts": 1},
     ):
         paper_titles[doc["paper_id"]] = doc.get("title", "?")
         ms = doc.get("model_stats")
-        if not ms or not isinstance(ms, dict):
-            continue
-        paper_ids.add(doc["paper_id"])
-        for mk, stats in ms.items():
-            if not isinstance(stats, dict):
-                continue
-            if mk not in model_paper_stats:
-                model_paper_stats[mk] = {}
-            model_paper_stats[mk][doc["paper_id"]] = stats
+        if ms and isinstance(ms, dict):
+            paper_ids.add(doc["paper_id"])
+            for mk, stats in ms.items():
+                if isinstance(stats, dict):
+                    if mk not in model_paper_stats:
+                        model_paper_stats[mk] = {}
+                    model_paper_stats[mk][doc["paper_id"]] = stats
+        # Also collect per-model TrueSkill
+        mts = doc.get("model_ts")
+        if mts and isinstance(mts, dict):
+            for mk, ts_data in mts.items():
+                if isinstance(ts_data, dict) and ts_data.get("mu"):
+                    if mk not in model_paper_ts:
+                        model_paper_ts[mk] = {}
+                    model_paper_ts[mk][doc["paper_id"]] = ts_data["mu"]
 
     model_keys = sorted(model_paper_stats.keys())
     paper_ids = sorted(paper_ids)
@@ -1549,7 +1556,7 @@ async def _compute_model_correlation(category, mode):
     sorted_agree_keys = sorted(agreement.keys())
     sorted_agreement = {k: agreement[k] for k in sorted_agree_keys}
 
-    # PW Inter-Model by Scoring Method — uses stored WR and TS scores from rankings
+    # PW Inter-Model by Scoring Method — reads stored model_stats + model_ts (single query above)
     pw_inter_model = []
     try:
         model_rankings = {}
@@ -1557,13 +1564,13 @@ async def _compute_model_correlation(category, mode):
             mk_papers = [pid for pid, s in model_paper_stats[mk].items() if s.get("total", 0) >= MIN_MATCHES_PER_MODEL]
             if len(mk_papers) < 20:
                 continue
-            # Win rate ranking per model
-            raw_wr = {pid: model_win_rates[mk][pid] for pid in mk_papers if pid in model_win_rates[mk]}
-            reg_wr = raw_wr  # Already regularized
-            model_rankings[mk] = {"raw_wr": raw_wr, "reg_wr": reg_wr}
+            reg_wr = {pid: model_win_rates[mk][pid] for pid in mk_papers if pid in model_win_rates[mk]}
+            model_rankings[mk] = {"reg_wr": reg_wr}
+            # Add per-model TrueSkill from pre-loaded data
+            if mk in model_paper_ts:
+                model_rankings[mk]["trueskill"] = model_paper_ts[mk]
 
-        method_labels = {"raw_wr": "Dashboard (raw win%)", "reg_wr": "Regularized WR"}
-        method_order = ["raw_wr", "reg_wr"]
+        method_order = ["reg_wr", "trueskill"]
 
         for i, m1 in enumerate(model_keys):
             for j, m2 in enumerate(model_keys):
@@ -1583,8 +1590,9 @@ async def _compute_model_correlation(category, mode):
                         }
                 if row["methods"]:
                     pw_inter_model.append(row)
-    except Exception:
-        pass
+    except Exception as e:
+        from core.config import logger
+        logger.warning(f"PW inter-model failed: {e}")
 
     # Total match count (approximated from stored stats)
     total_matches_approx = sum(
@@ -1596,7 +1604,7 @@ async def _compute_model_correlation(category, mode):
         "models": [{"key": mk, "label": _short(mk), "short": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
         "correlations": sorted_correlations,
         "agreement": sorted_agreement,
-        "method_labels": {"raw_wr": "Raw WR", "reg_wr": "Reg WR"},
+        "method_labels": {"reg_wr": "Reg WR", "trueskill": "TrueSkill"},
         "n_common_papers": len(common_papers),
         "category": category,
         "mode": mode,

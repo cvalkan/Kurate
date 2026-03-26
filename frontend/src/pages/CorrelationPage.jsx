@@ -37,7 +37,6 @@ export default function CorrelationPage() {
   const siCache = useRef({});
 
   const fetchData = useCallback(async () => {
-    // Use client-side cache for instant category switching
     const cacheKey = category || "__all__";
     if (dataCache.current[cacheKey]) {
       setData(dataCache.current[cacheKey]);
@@ -48,19 +47,22 @@ export default function CorrelationPage() {
     }
     try {
       const params = category ? { category } : {};
-      const [corrRes, siRes] = await Promise.all([
-        axios.get(`${API}/api/model-correlation`, { params }),
-        axios.get(`${API}/api/si-rating-stats`, { params, timeout: 60000 }).catch(() => null),
-      ]);
+      // Load model-correlation first (fast — reads stored data)
+      const corrRes = await axios.get(`${API}/api/model-correlation`, { params });
       dataCache.current[cacheKey] = corrRes.data;
       setData(corrRes.data);
-      if (siRes?.data?.status === "ok") {
-        siCache.current[cacheKey] = siRes.data;
-        setSiData(siRes.data);
-      }
+      setLoading(false);
+      // Load si-rating-stats in background (can be slow on cold cache)
+      axios.get(`${API}/api/si-rating-stats`, { params, timeout: 120000 })
+        .then(siRes => {
+          if (siRes?.data?.status === "ok") {
+            siCache.current[cacheKey] = siRes.data;
+            setSiData(siRes.data);
+          }
+        })
+        .catch(() => {});
     } catch (err) {
       console.error("Failed to fetch correlation data:", err);
-    } finally {
       setLoading(false);
     }
   }, [category]);

@@ -1,6 +1,6 @@
 import { GitCompare } from "lucide-react";
 
-const METHOD_ORDER = ["raw_wr", "reg_wr"];
+const METHOD_ORDER = ["reg_wr", "trueskill"];
 
 function bestInRow(methods) {
   let best = null;

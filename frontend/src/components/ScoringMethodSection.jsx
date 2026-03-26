@@ -5,9 +5,7 @@ import { Activity } from "lucide-react";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const METHOD_COLORS = {
-  "win_rate vs bt": "bg-sky-500/10",
   "win_rate vs trueskill": "bg-violet-500/10",
-  "bt vs trueskill": "bg-amber-500/10",
 };
 
 export function ScoringMethodSection({ category }) {
@@ -120,7 +118,7 @@ export function ScoringMethodSection({ category }) {
       <p className="text-[9px] text-muted-foreground/50 mt-2">
         Computed from {data.n_matches.toLocaleString()} standard-mode matches
         across {data.n_papers.toLocaleString()} papers in {data.compute_time_s}s.
-        Win-Rate = Jeffreys-prior regularized; BT = MLE with prior 2.0; TrueSkill = 3-pass Bayesian (mu=25, sigma=8.33).
+        Win-Rate = Jeffreys-prior regularized; TrueSkill = incremental Bayesian rating (mu=25, sigma=8.33).
       </p>
     </div>
   );
