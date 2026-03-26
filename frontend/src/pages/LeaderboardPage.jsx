@@ -298,7 +298,7 @@ export default function LeaderboardPage() {
           ))}
         </div>
         <span className="text-[10px] text-muted-foreground">
-          {scoringMethod === "ts" ? "Bayesian TrueSkill rating (incremental)" : "Regularized win-rate score (default)"}
+          {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : "Regularized win-rate score (default)"}
         </span>
       </div>
 
