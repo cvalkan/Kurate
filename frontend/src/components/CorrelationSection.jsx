@@ -116,12 +116,16 @@ export function CorrelationSection({ sectionData, title, description }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {corrEntries.map(([pair, stats]) => {
               const tsStats = (ts_correlations || {})[pair];
+              const shortPair = pair.split(" vs ").map(k => {
+                const m = models.find(mo => mo.key === k);
+                return m ? m.short : k.split("/").pop();
+              }).join(" \u2194 ");
               return (
                 <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
-                  <div className="text-[11px] text-muted-foreground mb-2">{pair.replace(" vs ", " \u2194 ")}</div>
+                  <div className="text-[11px] text-muted-foreground mb-2">{shortPair}</div>
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-3">
-                      <div className="text-[9px] text-muted-foreground w-8 shrink-0">WR</div>
+                      <div className="text-[9px] text-muted-foreground w-16 shrink-0">Win Rate</div>
                       <div className={`font-mono text-lg font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
                         {stats.spearman_r.toFixed(2)}
                       </div>
@@ -130,7 +134,7 @@ export function CorrelationSection({ sectionData, title, description }) {
                     </div>
                     {tsStats && (
                       <div className="flex items-center gap-3">
-                        <div className="text-[9px] text-muted-foreground w-8 shrink-0">TS</div>
+                        <div className="text-[9px] text-muted-foreground w-16 shrink-0">TrueSkill</div>
                         <div className={`font-mono text-lg font-bold ${tsStats.spearman_r > 0.7 ? "text-green-600" : tsStats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
                           {tsStats.spearman_r.toFixed(2)}
                         </div>
@@ -139,7 +143,7 @@ export function CorrelationSection({ sectionData, title, description }) {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-6 mt-1 text-[9px] text-muted-foreground">
+                  <div className="flex items-center gap-6 mt-1 text-[9px] text-muted-foreground ml-16">
                     <span>Spearman</span><span>Pearson</span>
                   </div>
                 </div>
