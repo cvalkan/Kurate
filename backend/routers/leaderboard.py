@@ -2412,7 +2412,7 @@ async def _compute_si_rating_stats(category, model):
                 if rows:
                     per_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": rows, "controlled_rows": controlled_rows}
 
-                # Within-model PW vs this model's SI
+                # Within-model PW vs this model's SI (both WR and TrueSkill)
                 if si_mk in within_pw:
                     wm_scores, wm_matches = within_pw[si_mk]
                     wm_rows = []
@@ -2420,6 +2420,19 @@ async def _compute_si_rating_stats(category, model):
                     if wm_row:
                         wm_row["avg_mpp"] = within_mpp.get(si_mk, 0)
                         wm_rows.append(wm_row)
+                    # Per-model TrueSkill
+                    mk_key = _MODEL_KEY_MAP.get(si_mk)
+                    if mk_key:
+                        wm_ts = {}
+                        for p in pw_papers:
+                            mts = p.get("model_ts", {})
+                            ts_data = mts.get(mk_key)
+                            if isinstance(ts_data, dict) and ts_data.get("mu"):
+                                wm_ts[p["paper_id"]] = ts_data["mu"]
+                        wm_ts_row = _corr_row("within_ts", "TrueSkill", wm_ts, si_maps[si_mk])
+                        if wm_ts_row:
+                            wm_ts_row["avg_mpp"] = within_mpp.get(si_mk, 0)
+                            wm_rows.append(wm_ts_row)
                     if wm_rows:
                         within_model[si_mk] = {"n_matches": wm_matches, "avg_mpp": within_mpp.get(si_mk, 0), "rows": wm_rows}
 
