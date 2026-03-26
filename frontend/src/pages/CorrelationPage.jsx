@@ -52,11 +52,7 @@ export default function CorrelationPage() {
   }, [category]);
 
   useEffect(() => {
-    // Only show loading spinner if no cached data for this category
-    const cacheKey = category || "__all__";
-    if (!dataCache.current[cacheKey]) {
-      setLoading(true);
-    }
+    setLoading(true);
     fetchData();
   }, [fetchData]);
 
