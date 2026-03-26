@@ -505,6 +505,7 @@ async def _staggered_startup_tasks():
     _heavy_tasks = [
         "_startup_dedup",
         "_startup_seed_rankings",
+        "_startup_backfill_trueskill",
         "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab",
         "_startup_check_interrupted_tasks",
@@ -726,6 +727,45 @@ async def _startup_seed_rankings():
 
     except Exception as e:
         logger.warning(f"Rankings seed failed: {e}")
+
+
+
+async def _startup_backfill_trueskill():
+    """One-time migration: backfill TrueSkill ratings from historical matches.
+    
+    Gated by a DB flag so it only runs once. After this, TrueSkill is updated
+    incrementally per-match by update_rankings_for_match().
+    """
+    try:
+        flag = await db.settings.find_one({"key": "backfill_trueskill_v1"}, {"_id": 0})
+        if flag and flag.get("done"):
+            logger.info("TrueSkill backfill already done, skipping")
+            return
+
+        # Check if any rankings already have ts_mu
+        has_ts = await db.rankings.count_documents({"ts_mu": {"$exists": True, "$ne": None}})
+        total = await db.rankings.count_documents({})
+        if has_ts >= total * 0.9 and total > 0:
+            logger.info(f"TrueSkill already backfilled ({has_ts}/{total}), marking done")
+            await db.settings.update_one(
+                {"key": "backfill_trueskill_v1"},
+                {"$set": {"key": "backfill_trueskill_v1", "done": True}},
+                upsert=True,
+            )
+            return
+
+        logger.info(f"Backfilling TrueSkill ratings ({has_ts}/{total} already have ts_mu)...")
+        from services.ranking import backfill_trueskill
+        await backfill_trueskill(db)
+
+        await db.settings.update_one(
+            {"key": "backfill_trueskill_v1"},
+            {"$set": {"key": "backfill_trueskill_v1", "done": True}},
+            upsert=True,
+        )
+        logger.info("TrueSkill backfill complete")
+    except Exception as e:
+        logger.warning(f"TrueSkill backfill failed: {e}")
 
 
 async def _startup_regen_truncated_summaries():

@@ -46,6 +46,7 @@ export function LeaderboardTable({
   debouncedKeyword, keyword, onLoadMore, hasMore, loadingMore,
   sortKey, sortDir, onSort, showRatingCol = true, showGapCol = true,
   bookmarksMode = false, onRemoveBookmark, selectedPapers, onToggleSelect,
+  scoringMethod = "wr",
 }) {
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
@@ -79,10 +80,15 @@ export function LeaderboardTable({
   }, [leaderboard, renderCount, onLoadMore, hasMore, loadingMore]);
 
   const isGlobal = hasSelectedTags && globalStats;
-  const getScore = (p) => isGlobal && p.global_score !== undefined ? p.global_score : p.score;
+  const isTS = scoringMethod === "ts";
+  const getScore = (p) => {
+    if (isGlobal && p.global_score !== undefined) return p.global_score;
+    return isTS ? (p.ts_score || p.score) : p.score;
+  };
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
   const getWilsonMargin = (p) => isGlobal ? null : p.wilson_margin;
+  const getRank = (p) => isTS ? (p.rank_ts || p.rank) : (p.rank_wr || p.rank);
 
   // Re-rank by global score when Global toggle is active, then apply user sort
   const sorted = useMemo(() => {
@@ -92,7 +98,11 @@ export function LeaderboardTable({
       ranked = [...leaderboard].sort((a, b) => (b.global_score || 0) - (a.global_score || 0));
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
     } else {
-      ranked = leaderboard.map(p => ({ ...p, _displayRank: p.rank }));
+      ranked = leaderboard.map(p => ({ ...p, _displayRank: getRank(p) }));
+      // Re-sort by the selected method's rank
+      if (isTS) {
+        ranked.sort((a, b) => (a._displayRank || 9999) - (b._displayRank || 9999));
+      }
     }
 
     // Step 2: Apply user sort (if not default rank)
@@ -119,7 +129,7 @@ export function LeaderboardTable({
       if (va > vb) return 1 * dir;
       return 0;
     });
-  }, [leaderboard, sortKey, sortDir, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leaderboard, sortKey, sortDir, isGlobal, scoringMethod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build grid template based on visible columns and screen size
   // Mobile: #, Paper, Score only. Tablet: +Win%, Match. Desktop: all columns.
@@ -155,7 +165,10 @@ export function LeaderboardTable({
   const visibleList = sorted.slice(0, renderCount);
   const hasMoreToShow = hasMore || sorted.length > renderCount;
 
-  const scoreLabel = "Score";
+  const scoreLabel = isTS ? "TS Score" : "Score";
+  const scoreTip = isTS
+    ? "TrueSkill score from pairwise comparisons. Bayesian rating updated incrementally per match."
+    : (isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score);
   const winLabel = "Win %";
   const matchLabel = "Match";
 
@@ -190,7 +203,7 @@ export function LeaderboardTable({
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
-          <SortHeader label={isMobile ? "Score" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score} />
+          <SortHeader label={isMobile ? "Score" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={scoreTip} />
           {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
           {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.wilson_margin} />}
           {!isMobile && <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />}

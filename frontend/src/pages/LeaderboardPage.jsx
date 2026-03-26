@@ -46,6 +46,7 @@ export default function LeaderboardPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [sortKey, setSortKey] = useState(searchParams.get("sort") || "rank");
   const [sortDir, setSortDir] = useState(searchParams.get("dir") || "asc");
+  const [scoringMethod, setScoringMethod] = useState(searchParams.get("method") || "wr");
 
   const { user } = useAuth();
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -279,6 +280,28 @@ export default function LeaderboardPage() {
 
       {hasSelectedTags && <StatsToggle globalStats={globalStats} setGlobalStats={setGlobalStats} />}
 
+      <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md" data-testid="scoring-method-toggle">
+          {[["wr", "Win Rate"], ["ts", "TrueSkill"]].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setScoringMethod(key)}
+              className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                scoringMethod === key
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid={`scoring-method-${key}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-[10px] text-muted-foreground">
+          {scoringMethod === "ts" ? "Bayesian TrueSkill rating (incremental)" : "Regularized win-rate score (default)"}
+        </span>
+      </div>
+
       <PeriodFilter
         period={activeArchive ? null : period} setPeriod={setPeriod} keyword={keyword} setKeyword={setKeyword}
         isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={isTagMode ? [] : archives}
@@ -317,6 +340,7 @@ export default function LeaderboardPage() {
             loadingMore={loadingMore}
             sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
             showRatingCol={showRatingCol} showGapCol={showGapCol}
+            scoringMethod={scoringMethod}
           />
 
       <div className="mt-6 text-center text-xs text-muted-foreground">

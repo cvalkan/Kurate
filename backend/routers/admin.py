@@ -2048,12 +2048,11 @@ async def reconcile_rankings_endpoint(category: str = None):
 
 @router.post("/rerank-all", dependencies=[Depends(verify_admin)])
 async def rerank_all_endpoint():
-    """Trigger an immediate rerank of all categories using the current ranking method.
-    Called after switching ranking_method in settings."""
+    """Trigger an immediate rerank of all categories.
+    Re-sorts ranks from pre-computed WR + TrueSkill scores. No match loading."""
     from services.ranking import rerank_category_light
     from core.auth import get_settings
     settings = await get_settings()
-    method = settings.get("ranking_method", "reg_wr")
     cats = settings.get("active_categories", list(CATEGORIES.keys()))
     results = {}
     for cat in cats:
@@ -2062,10 +2061,26 @@ async def rerank_all_endpoint():
             results[cat] = "ok"
         except Exception as e:
             results[cat] = f"error: {e}"
-    # Invalidate leaderboard cache
     from routers.leaderboard import notify_data_changed
     notify_data_changed()
-    return {"status": "ok", "method": method, "categories": results}
+    return {"status": "ok", "categories": results}
+
+
+@router.post("/backfill-trueskill", dependencies=[Depends(verify_admin)])
+async def backfill_trueskill_endpoint(category: str = None):
+    """One-time: replay historical matches through TrueSkill for all or one category.
+    Stores ts_mu, ts_sigma, ts_score on each ranking doc."""
+    from services.ranking import backfill_trueskill, rerank_category_light
+    from core.auth import get_settings
+    await backfill_trueskill(db, category=category)
+    # Re-sort ranks after backfill
+    settings = await get_settings()
+    cats = [category] if category else settings.get("active_categories", list(CATEGORIES.keys()))
+    for cat in cats:
+        await rerank_category_light(db, cat)
+    from routers.leaderboard import notify_data_changed
+    notify_data_changed()
+    return {"status": "ok", "categories": cats}
 
 
 @router.get("/repair-queue", dependencies=[Depends(verify_admin)])

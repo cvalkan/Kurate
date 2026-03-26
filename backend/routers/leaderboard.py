@@ -648,7 +648,8 @@ def _apply_search(data: list, search: str) -> list:
 # ─── DB-Backed Leaderboard Serving (Phase 2) ────────────────────────────────
 
 # Projection for rankings queries — exclude MongoDB _id, include all serving fields
-_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "score": 1,
+_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "rank_ts": 1,
+              "score": 1, "ts_score": 1,
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
               "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1,
@@ -678,12 +679,15 @@ def _rank_doc_to_entry(doc: dict) -> dict:
     return {
         "id": doc["paper_id"],
         "rank": doc.get("rank", 0),
+        "rank_wr": doc.get("rank_wr", doc.get("rank", 0)),
+        "rank_ts": doc.get("rank_ts", doc.get("rank", 0)),
         "title": doc.get("title", ""),
         "authors": doc.get("authors", []),
         "arxiv_id": doc.get("arxiv_id", ""),
         "link": doc.get("link", ""),
         "published": doc.get("published", ""),
         "score": doc.get("score", 1200),
+        "ts_score": doc.get("ts_score", 1200),
         "ci": doc.get("ci", 0),
         "wilson_margin": doc.get("wilson_margin", 100.0),
         "win_rate": doc.get("win_rate", 0.0),
@@ -1752,48 +1756,44 @@ async def get_scoring_method_correlation(
 
 
 async def _compute_scoring_method_correlation(category):
+    """Compute WR vs TrueSkill correlation from pre-stored scores on rankings docs.
+    
+    No match loading — reads directly from the rankings collection.
+    O(P) memory, O(P) time.
+    """
     import numpy as np
     from scipy import stats as scipy_stats
-    from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores
     t_start = time.perf_counter()
 
-    match_query = {"completed": True, "winner_id": {"$exists": True}, "failed": {"$ne": True}}
+    # Read pre-computed scores from rankings docs
+    query = {"category": category, "comparisons": {"$gte": 3}} if category else {"comparisons": {"$gte": 3}}
+    rankings = []
+    async for doc in db.rankings.find(
+        query,
+        {"_id": 0, "paper_id": 1, "score": 1, "ts_score": 1, "comparisons": 1},
+    ):
+        if doc.get("score") is not None and doc.get("ts_score") is not None:
+            rankings.append(doc)
+
+    n_matches = 0
     if category:
-        match_query["primary_category"] = category
-    # Standard mode only (exclude prediction modes)
-    match_query["mode"] = {"$exists": False}
+        n_matches = await db.matches.count_documents({
+            "completed": True, "failed": {"$ne": True},
+            "primary_category": category, "mode": {"$exists": False},
+        })
 
-    matches_raw = await collect_all(db.matches.find(
-        match_query,
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ))
-    if len(matches_raw) < 20:
-        return {"status": "insufficient_data", "n_matches": len(matches_raw)}
+    if len(rankings) < 10:
+        return {"status": "insufficient_data", "n_papers": len(rankings), "n_matches": n_matches}
 
-    bt_matches = [
-        {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
-         "winner_id": m["winner_id"], "completed": True, "failed": False}
-        for m in matches_raw
-    ]
-    paper_ids = list(set(
-        [m["paper1_id"] for m in matches_raw] + [m["paper2_id"] for m in matches_raw]
-    ))
-
-    # Compute all three scoring methods
-    papers = [{"id": pid, "title": ""} for pid in paper_ids]
-    lb = compute_leaderboard(papers, bt_matches)
-    wr_scores = {e["id"]: e["score"] for e in lb}
-
-    bt_scores = compute_bt_ranking_scores(bt_matches, paper_ids)
-    ts_scores = compute_trueskill_ranking_scores(bt_matches, paper_ids)
+    wr_scores = {r["paper_id"]: r["score"] for r in rankings}
+    ts_scores = {r["paper_id"]: r["ts_score"] for r in rankings}
 
     t_compute = time.perf_counter() - t_start
 
-    # Pairwise correlations
-    shared = sorted(set(wr_scores.keys()) & set(bt_scores.keys()) & set(ts_scores.keys()))
-    methods = {"win_rate": wr_scores, "bt": bt_scores, "trueskill": ts_scores}
-    method_labels = {"win_rate": "Normalized Win-Rate", "bt": "Bradley-Terry", "trueskill": "TrueSkill"}
-    method_keys = ["win_rate", "bt", "trueskill"]
+    shared = sorted(wr_scores.keys())
+    methods = {"win_rate": wr_scores, "trueskill": ts_scores}
+    method_labels = {"win_rate": "Normalized Win-Rate", "trueskill": "TrueSkill"}
+    method_keys = ["win_rate", "trueskill"]
 
     correlations = []
     for i in range(len(method_keys)):
@@ -1812,7 +1812,6 @@ async def _compute_scoring_method_correlation(category):
                 "kendall_p": float(kt_p),
             })
 
-    # Rank agreement at extremes (top/bottom 5%, 10%)
     rank_agreement = []
     for frac in [0.05, 0.10, 0.20]:
         k = max(1, int(len(shared) * frac))
@@ -1834,7 +1833,7 @@ async def _compute_scoring_method_correlation(category):
     return {
         "status": "ok",
         "n_papers": len(shared),
-        "n_matches": len(matches_raw),
+        "n_matches": n_matches,
         "compute_time_s": round(t_compute, 2),
         "category": category,
         "methods": [{"key": k, "label": method_labels[k]} for k in method_keys],

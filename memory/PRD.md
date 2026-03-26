@@ -103,6 +103,17 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Report: `/app/memory/OPUS46_ACCEPT_REJECT_REPORT.md`, data: `/app/tools/opus46_accept_reject_results.json`
 - Script: `/app/tools/test_opus46_accept_reject.py`
 
+**Dual-Score Incremental Architecture (Mar 25-26, 2026):**
+- Replaced BT-dependent scoring with incremental TrueSkill + Win Rate dual-score system
+- Each match now updates both WR (O(1) counter increment) and TrueSkill (O(1) rate_1vs1) — no match history loading
+- Rankings doc stores: `ts_mu`, `ts_sigma`, `ts_score`, `rank_wr`, `rank_ts`
+- `rerank_category_light` simplified: just re-sorts from stored scores, normalizes TS to Elo scale — no match loading ever
+- Added one-time `backfill_trueskill` migration + admin endpoint `/api/admin/backfill-trueskill`
+- Added frontend WR/TS toggle on leaderboard page (instant switch, no backend call)
+- `scoring-method-correlation` endpoint reads from stored scores instead of recomputing from matches
+- BT preserved in validation/experiment pages only (untouched)
+- Scaling: O(1) memory per match, O(P) per rerank, instant method switch at any scale
+
 **Memory & Chart Fixes (Mar 25, 2026 continued):**
 - Fixed gap_score=0 showing as "-" in leaderboard (falsy check bug in `leaderboard.py:694`)
 - Fixed memory chart resolution switching: 7d/3d views now downsample via MongoDB `$dateTrunc` aggregation (30min/60min buckets) instead of truncating to most recent 3000 entries

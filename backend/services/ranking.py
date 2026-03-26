@@ -606,7 +606,12 @@ async def seed_rankings(db, category: str = None):
                 "paper_id": entry["id"],
                 "category": cat,
                 "rank": entry["rank"],
+                "rank_wr": entry["rank"],
+                "rank_ts": entry["rank"],
                 "score": entry["score"],
+                "ts_mu": 25.0,
+                "ts_sigma": 25.0 / 3,
+                "ts_score": SCORE_BASE_CONST,
                 "ci": entry["ci"],
                 "wilson_margin": entry.get("wilson_margin", 100.0),
                 "win_rate": entry.get("win_rate", 0.0),
@@ -643,12 +648,15 @@ async def seed_rankings(db, category: str = None):
 async def update_rankings_for_match(db, category: str, winner_id: str, loser_id: str):
     """Incrementally update rankings after a single match completes.
     
-    Updates only the 2 affected papers' scores. O(1) per match.
+    Updates both WR scores and TrueSkill ratings for the 2 affected papers.
+    O(1) per match — no match history loading.
     Retries once on failure. If retry fails, queues for background repair.
     """
+    import trueskill
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).isoformat()
 
+    # --- Step 1: Update WR counts + scores for both papers ---
     for paper_id, is_winner in [(winner_id, True), (loser_id, False)]:
         inc_fields = {"comparisons": 1}
         if is_winner:
@@ -671,7 +679,6 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                     {"$set": new_stats},
                 )
         except Exception:
-            # Retry once
             try:
                 await asyncio.sleep(0.5)
                 doc = await db.rankings.find_one_and_update(
@@ -688,8 +695,40 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                         {"$set": new_stats},
                     )
             except Exception:
-                # Queue for background repair
                 await _queue_repair(db, category, paper_id)
+
+    # --- Step 2: Incremental TrueSkill update for both papers ---
+    try:
+        env = trueskill.TrueSkill(draw_probability=0.0)
+        # Load current TS ratings
+        w_doc = await db.rankings.find_one(
+            {"paper_id": winner_id, "category": category},
+            {"_id": 0, "ts_mu": 1, "ts_sigma": 1},
+        )
+        l_doc = await db.rankings.find_one(
+            {"paper_id": loser_id, "category": category},
+            {"_id": 0, "ts_mu": 1, "ts_sigma": 1},
+        )
+        if w_doc and l_doc:
+            w_rating = env.create_rating(
+                mu=w_doc.get("ts_mu", 25.0),
+                sigma=w_doc.get("ts_sigma", 25.0 / 3),
+            )
+            l_rating = env.create_rating(
+                mu=l_doc.get("ts_mu", 25.0),
+                sigma=l_doc.get("ts_sigma", 25.0 / 3),
+            )
+            new_w, new_l = trueskill.rate_1vs1(w_rating, l_rating)
+            await db.rankings.update_one(
+                {"paper_id": winner_id, "category": category},
+                {"$set": {"ts_mu": new_w.mu, "ts_sigma": new_w.sigma}},
+            )
+            await db.rankings.update_one(
+                {"paper_id": loser_id, "category": category},
+                {"$set": {"ts_mu": new_l.mu, "ts_sigma": new_l.sigma}},
+            )
+    except Exception:
+        pass  # TS update is best-effort; WR is the primary score
 
 
 async def _queue_repair(db, category: str, paper_id: str):
@@ -739,112 +778,95 @@ async def process_repair_queue(db):
 
 
 async def rerank_category_light(db, category: str):
-    """Lightweight rank re-sort. Updates scores based on the configured ranking method,
-    then re-sorts rank numbers.
+    """Lightweight rank re-sort from pre-computed scores.
     
-    Called after every comparison round. For reg_wr, just re-sorts existing scores.
-    For bt/trueskill, recomputes all scores from matches (more expensive but still fast).
+    Both WR and TrueSkill scores are updated incrementally per-match.
+    This function just re-sorts rank numbers and normalizes TS to Elo scale.
+    No match loading — O(P) reads + O(P) writes.
+    
+    Called after every comparison round.
     """
     import hashlib
     from core.memlog import log_mem
-    from core.auth import get_settings
     import time as _time
 
     _t0 = _time.perf_counter()
 
-    settings = await get_settings()
-    method = settings.get("ranking_method", "reg_wr")
-
-    if method in ("bt", "trueskill"):
-        # Recompute all scores using the model-based method
-        from routers.validation_utils import collect_all
-        match_query = {
-            "completed": True, "failed": {"$ne": True},
-            "primary_category": category, "mode": {"$exists": False},
-        }
-        matches = await collect_all(db.matches.find(
-            match_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
-        ))
-        if matches:
-            bt_fmt = [
-                {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
-                 "winner_id": m["winner_id"], "completed": True, "failed": False}
-                for m in matches
-            ]
-            paper_ids = list(set(
-                [m["paper1_id"] for m in matches] + [m["paper2_id"] for m in matches]
-            ))
-
-            if method == "bt":
-                raw_scores = compute_bt_ranking_scores(bt_fmt, paper_ids)
-            else:
-                raw_scores = compute_trueskill_ranking_scores(bt_fmt, paper_ids)
-
-            # Normalize to Elo-like scale (mean ~1200, sd ~100)
-            vals = list(raw_scores.values())
-            if vals:
-                import numpy as np
-                mu, sigma = np.mean(vals), np.std(vals)
-                if sigma < 1e-9:
-                    sigma = 1.0
-                elo_scores = {
-                    pid: round(100 * (raw_scores[pid] - mu) / sigma + SCORE_BASE_CONST)
-                    for pid in raw_scores
-                }
-
-                from pymongo import UpdateOne
-                ops = [
-                    UpdateOne(
-                        {"paper_id": pid, "category": category},
-                        {"$set": {"score": elo_scores[pid]}},
-                    )
-                    for pid in elo_scores
-                ]
-                if ops:
-                    await db.rankings.bulk_write(ops, ordered=False)
-
-    else:
-        # reg_wr: recompute scores from win/loss counts using the standard Elo-from-WR formula
-        from pymongo import UpdateOne
-        ops = []
-        async for doc in db.rankings.find(
-            {"category": category},
-            {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1},
-        ):
-            wins = doc.get("wins", 0)
-            comparisons = doc.get("comparisons", 0)
-            if comparisons > 0:
-                new_stats = compute_paper_score(wins, comparisons)
-                ops.append(UpdateOne(
-                    {"paper_id": doc["paper_id"], "category": category},
-                    {"$set": {"score": new_stats["score"]}},
-                ))
-        if ops:
-            await db.rankings.bulk_write(ops, ordered=False)
-
-    # Sort by score and assign ranks
+    # Load all rankings for this category (lightweight projection)
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "score": 1, "title": 1},
+        {"_id": 0, "paper_id": 1, "score": 1, "title": 1,
+         "ts_mu": 1, "ts_sigma": 1, "wins": 1, "comparisons": 1},
     ):
-        title_hash = hashlib.md5(doc.get("title", doc["paper_id"]).encode()).hexdigest()
-        entries.append((doc["paper_id"], doc["score"], title_hash))
+        entries.append(doc)
 
-    entries.sort(key=lambda e: (e[1], e[2]), reverse=True)
+    if not entries:
+        return
 
+    # --- Normalize TrueSkill mu values to Elo-like scale ---
+    ts_vals = [e.get("ts_mu", 25.0) for e in entries if e.get("ts_mu") is not None]
+    if len(ts_vals) >= 2:
+        import numpy as np
+        mu_mean = np.mean(ts_vals)
+        mu_std = np.std(ts_vals)
+        if mu_std < 1e-9:
+            mu_std = 1.0
+        ts_elo = {}
+        for e in entries:
+            raw_mu = e.get("ts_mu", 25.0)
+            if raw_mu is not None:
+                ts_elo[e["paper_id"]] = round(100 * (raw_mu - mu_mean) / mu_std + SCORE_BASE_CONST)
+            else:
+                ts_elo[e["paper_id"]] = SCORE_BASE_CONST
+    else:
+        ts_elo = {e["paper_id"]: SCORE_BASE_CONST for e in entries}
+
+    # --- Sort by WR score → assign rank_wr ---
+    wr_sorted = sorted(
+        entries,
+        key=lambda e: (
+            e.get("score", SCORE_BASE_CONST),
+            hashlib.md5(e.get("title", e["paper_id"]).encode()).hexdigest(),
+        ),
+        reverse=True,
+    )
+    rank_wr = {e["paper_id"]: rank for rank, e in enumerate(wr_sorted, 1)}
+
+    # --- Sort by TS Elo → assign rank_ts ---
+    ts_sorted = sorted(
+        entries,
+        key=lambda e: (
+            ts_elo.get(e["paper_id"], SCORE_BASE_CONST),
+            hashlib.md5(e.get("title", e["paper_id"]).encode()).hexdigest(),
+        ),
+        reverse=True,
+    )
+    rank_ts = {e["paper_id"]: rank for rank, e in enumerate(ts_sorted, 1)}
+
+    # --- Bulk write: ts_score, rank (WR-based, default), rank_wr, rank_ts ---
     from pymongo import UpdateOne
-    ops = [
-        UpdateOne({"paper_id": pid, "category": category}, {"$set": {"rank": rank}})
-        for rank, (pid, _, _) in enumerate(entries, 1)
-    ]
+    ops = []
+    for e in entries:
+        pid = e["paper_id"]
+        ops.append(UpdateOne(
+            {"paper_id": pid, "category": category},
+            {"$set": {
+                "ts_score": ts_elo.get(pid, SCORE_BASE_CONST),
+                "rank": rank_wr[pid],          # Default rank = WR-based
+                "rank_wr": rank_wr[pid],
+                "rank_ts": rank_ts[pid],
+            }},
+        ))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
 
+    # Refresh derived fields (gap scores, community likes) less frequently
+    # Only run if enough time has passed since last refresh
     await _refresh_derived_fields(db, category)
 
     _elapsed = _time.perf_counter() - _t0
-    log_mem(f"rerank_category_light({category}, method={method}) done ({len(entries)} papers, {_elapsed:.1f}s)")
+    log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
 
 
 async def rerank_category(db, category: str):
@@ -1024,7 +1046,12 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
             "paper_id": paper_doc["id"],
             "category": cat,
             "rank": next_rank,
+            "rank_wr": next_rank,
+            "rank_ts": next_rank,
             "score": SCORE_BASE_CONST,
+            "ts_mu": 25.0,
+            "ts_sigma": 25.0 / 3,
+            "ts_score": SCORE_BASE_CONST,
             "ci": 0,
             "wilson_margin": 100.0,
             "win_rate": 0.0,
@@ -1123,3 +1150,92 @@ async def reconcile_rankings(db, category: str = None):
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"reconcile_rankings done ({len(cats)} categories, {_elapsed:.1f}s)")
     return results
+
+
+
+async def backfill_trueskill(db, category: str = None):
+    """One-time migration: compute TrueSkill ratings from historical matches.
+    
+    Replays all matches chronologically through TrueSkill for each category.
+    Stores ts_mu, ts_sigma, ts_score on each ranking doc.
+    Processes one category at a time to limit memory usage.
+    """
+    import trueskill
+    import time as _time
+    from core.auth import get_settings
+    from core.config import CATEGORIES, logger
+    from core.memlog import log_mem
+
+    settings = await get_settings()
+    if category:
+        cats = [category]
+    else:
+        cats = settings.get("active_categories", list(CATEGORIES.keys()))
+
+    _t0 = _time.perf_counter()
+    log_mem(f"backfill_trueskill start ({len(cats)} categories)")
+
+    for cat in cats:
+        env = trueskill.TrueSkill(draw_probability=0.0)
+
+        # Load all matches for this category, sorted chronologically
+        matches = []
+        async for m in db.matches.find(
+            {"completed": True, "failed": {"$ne": True},
+             "primary_category": cat, "mode": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1},
+        ).sort("created_at", 1):
+            matches.append(m)
+
+        if not matches:
+            continue
+
+        # Initialize ratings for all papers in this category
+        paper_ids = set()
+        for m in matches:
+            paper_ids.add(m["paper1_id"])
+            paper_ids.add(m["paper2_id"])
+        ratings = {pid: env.create_rating() for pid in paper_ids}
+
+        # Replay matches chronologically (single pass — natural ordering)
+        for m in matches:
+            winner = m.get("winner_id")
+            loser = m["paper2_id"] if winner == m["paper1_id"] else m["paper1_id"]
+            if winner in ratings and loser in ratings:
+                new_w, new_l = trueskill.rate_1vs1(ratings[winner], ratings[loser])
+                ratings[winner] = new_w
+                ratings[loser] = new_l
+
+        # Normalize to Elo scale
+        import numpy as _np
+        mu_vals = [r.mu for r in ratings.values()]
+        mu_mean = _np.mean(mu_vals)
+        mu_std = _np.std(mu_vals)
+        if mu_std < 1e-9:
+            mu_std = 1.0
+
+        # Bulk write TS ratings
+        from pymongo import UpdateOne
+        ops = []
+        for pid, rating in ratings.items():
+            ts_elo = round(100 * (rating.mu - mu_mean) / mu_std + SCORE_BASE_CONST)
+            ops.append(UpdateOne(
+                {"paper_id": pid, "category": cat},
+                {"$set": {
+                    "ts_mu": rating.mu,
+                    "ts_sigma": rating.sigma,
+                    "ts_score": ts_elo,
+                }},
+            ))
+        if ops:
+            await db.rankings.bulk_write(ops, ordered=False)
+
+        logger.info(f"[{cat}] Backfilled TrueSkill for {len(ratings)} papers from {len(matches)} matches")
+
+        # Free memory
+        del matches, ratings
+        import gc
+        gc.collect()
+
+    _elapsed = _time.perf_counter() - _t0
+    log_mem(f"backfill_trueskill done ({len(cats)} categories, {_elapsed:.1f}s)")
