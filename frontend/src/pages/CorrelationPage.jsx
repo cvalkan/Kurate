@@ -52,12 +52,11 @@ export default function CorrelationPage() {
   }, [category]);
 
   useEffect(() => {
-    // Only show full-page spinner on very first load (no data yet)
-    if (!data) setLoading(true);
+    setLoading(true);
     fetchData();
   }, [fetchData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading && !data) {
+  if (loading) {
     return (
       <div className="container mx-auto px-4 md:px-6 max-w-5xl py-10">
         <div className="flex flex-col items-center justify-center py-24 gap-4">
