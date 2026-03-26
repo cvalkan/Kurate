@@ -645,10 +645,10 @@ async def seed_rankings(db, category: str = None):
     return total_seeded
 
 
-async def update_rankings_for_match(db, category: str, winner_id: str, loser_id: str):
+async def update_rankings_for_match(db, category: str, winner_id: str, loser_id: str, model_used: dict = None):
     """Incrementally update rankings after a single match completes.
     
-    Updates both WR scores and TrueSkill ratings for the 2 affected papers.
+    Updates WR scores, TrueSkill ratings, and per-model win stats for the 2 affected papers.
     O(1) per match — no match history loading.
     Retries once on failure. If retry fails, queues for background repair.
     """
@@ -656,13 +656,29 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    # --- Step 1: Update WR counts + scores for both papers ---
+    # Compute model key for per-model stats
+    _OPUS_MERGE = {
+        "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
+        "anthropic/claude-opus-4-6": "anthropic/claude-opus",
+    }
+    model_key = None
+    if model_used and isinstance(model_used, dict):
+        raw_key = f"{model_used.get('provider', 'unknown')}/{model_used.get('model', 'unknown')}"
+        model_key = _OPUS_MERGE.get(raw_key, raw_key)
+
+    # --- Step 1: Update WR counts + scores + per-model stats for both papers ---
     for paper_id, is_winner in [(winner_id, True), (loser_id, False)]:
         inc_fields = {"comparisons": 1}
         if is_winner:
             inc_fields["wins"] = 1
         else:
             inc_fields["losses"] = 1
+
+        # Also increment per-model stats
+        if model_key:
+            inc_fields[f"model_stats.{model_key}.total"] = 1
+            if is_winner:
+                inc_fields[f"model_stats.{model_key}.wins"] = 1
 
         try:
             doc = await db.rankings.find_one_and_update(
@@ -1239,3 +1255,77 @@ async def backfill_trueskill(db, category: str = None):
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"backfill_trueskill done ({len(cats)} categories, {_elapsed:.1f}s)")
+
+
+
+async def backfill_model_stats(db, category: str = None):
+    """One-time migration: compute per-model win stats from historical matches.
+    
+    Stores model_stats = {model_key: {wins: N, total: M}} on each ranking doc.
+    Processes one category at a time. Uses streaming cursor, not bulk load.
+    """
+    import time as _time
+    from collections import defaultdict
+    from core.auth import get_settings
+    from core.config import CATEGORIES, logger
+    from core.memlog import log_mem
+    from pymongo import UpdateOne
+
+    _OPUS_MERGE = {
+        "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
+        "anthropic/claude-opus-4-6": "anthropic/claude-opus",
+    }
+
+    settings = await get_settings()
+    cats = [category] if category else settings.get("active_categories", list(CATEGORIES.keys()))
+
+    _t0 = _time.perf_counter()
+    log_mem(f"backfill_model_stats start ({len(cats)} categories)")
+
+    for cat in cats:
+        # Accumulate per-paper per-model stats using streaming cursor
+        # Structure: {paper_id: {model_key: {wins: N, total: M}}}
+        paper_model_stats = defaultdict(lambda: defaultdict(lambda: {"wins": 0, "total": 0}))
+        match_count = 0
+
+        async for m in db.matches.find(
+            {"completed": True, "failed": {"$ne": True},
+             "primary_category": cat, "mode": {"$exists": False}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+        ):
+            mu = m.get("model_used", {})
+            if not mu:
+                continue
+            raw_key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+            model_key = _OPUS_MERGE.get(raw_key, raw_key)
+            winner = m.get("winner_id")
+            p1, p2 = m["paper1_id"], m["paper2_id"]
+
+            paper_model_stats[p1][model_key]["total"] += 1
+            paper_model_stats[p2][model_key]["total"] += 1
+            if winner == p1:
+                paper_model_stats[p1][model_key]["wins"] += 1
+            elif winner == p2:
+                paper_model_stats[p2][model_key]["wins"] += 1
+            match_count += 1
+
+        # Bulk write model_stats to rankings
+        ops = []
+        for pid, mstats in paper_model_stats.items():
+            # Convert defaultdict to regular dict for MongoDB
+            model_stats = {mk: dict(v) for mk, v in mstats.items()}
+            ops.append(UpdateOne(
+                {"paper_id": pid, "category": cat},
+                {"$set": {"model_stats": model_stats}},
+            ))
+        if ops:
+            await db.rankings.bulk_write(ops, ordered=False)
+
+        logger.info(f"[{cat}] Backfilled model_stats for {len(paper_model_stats)} papers from {match_count} matches")
+
+        del paper_model_stats
+        import gc
+        gc.collect()
+
+    _elapsed = _time.perf_counter() - _t0
+    log_mem(f"backfill_model_stats done ({len(cats)} categories, {_elapsed:.1f}s)")

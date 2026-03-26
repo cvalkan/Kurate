@@ -2068,11 +2068,12 @@ async def rerank_all_endpoint():
 
 @router.post("/backfill-trueskill", dependencies=[Depends(verify_admin)])
 async def backfill_trueskill_endpoint(category: str = None):
-    """One-time: replay historical matches through TrueSkill for all or one category.
-    Stores ts_mu, ts_sigma, ts_score on each ranking doc."""
-    from services.ranking import backfill_trueskill, rerank_category_light
+    """One-time: replay historical matches through TrueSkill + compute per-model stats.
+    Run per-category to avoid OOM: /api/admin/backfill-trueskill?category=cs.RO"""
+    from services.ranking import backfill_trueskill, backfill_model_stats, rerank_category_light
     from core.auth import get_settings
     await backfill_trueskill(db, category=category)
+    await backfill_model_stats(db, category=category)
     # Re-sort ranks after backfill
     settings = await get_settings()
     cats = [category] if category else settings.get("active_categories", list(CATEGORIES.keys()))

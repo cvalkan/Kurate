@@ -1133,7 +1133,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     from services.ranking import update_rankings_for_match
                     w_id = match_doc["winner_id"]
                     l_id = p2_id if w_id == p1_id else p1_id
-                    await update_rankings_for_match(db, category, w_id, l_id)
+                    model_used = match_doc.get("model_used", {})
+                    await update_rankings_for_match(db, category, w_id, l_id, model_used=model_used)
                 cat_status["matches_count"] = total_matches + completed + failed
                 cat_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
 

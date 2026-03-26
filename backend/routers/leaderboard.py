@@ -1387,6 +1387,202 @@ async def get_model_correlation(
 
 
 async def _compute_model_correlation(category, mode):
+    """Compute inter-model correlation from pre-stored model_stats on rankings docs.
+    
+    No match loading — reads directly from the rankings collection.
+    O(P) memory, O(P) time.
+    
+    For prediction/non-standard modes, falls back to match-based computation (cached).
+    """
+    import numpy as np
+    from scipy import stats as scipy_stats
+    from collections import Counter
+
+    # Non-standard modes still need match-based computation (rare, always cached)
+    if mode:
+        return await _compute_model_correlation_from_matches(category, mode)
+
+    # Standard mode: read from stored model_stats
+    query = {"category": category} if category else {}
+    paper_titles = {}
+    model_paper_stats = {}  # {model_key: {paper_id: {wins, total}}}
+    paper_ids = set()
+
+    async for doc in db.rankings.find(
+        query,
+        {"_id": 0, "paper_id": 1, "title": 1, "model_stats": 1},
+    ):
+        paper_titles[doc["paper_id"]] = doc.get("title", "?")
+        ms = doc.get("model_stats")
+        if not ms or not isinstance(ms, dict):
+            continue
+        paper_ids.add(doc["paper_id"])
+        for mk, stats in ms.items():
+            if not isinstance(stats, dict):
+                continue
+            if mk not in model_paper_stats:
+                model_paper_stats[mk] = {}
+            model_paper_stats[mk][doc["paper_id"]] = stats
+
+    model_keys = sorted(model_paper_stats.keys())
+    paper_ids = sorted(paper_ids)
+
+    if not model_keys or not paper_ids:
+        return {"models": [], "correlations": {}, "agreement": {}, "n_common_papers": 0, "category": category, "mode": mode}
+
+    MIN_MATCHES_PER_MODEL = 5
+    model_win_rates = {}
+    for mk in model_keys:
+        model_win_rates[mk] = {}
+        for pid, stats in model_paper_stats[mk].items():
+            if stats.get("total", 0) >= MIN_MATCHES_PER_MODEL:
+                model_win_rates[mk][pid] = (stats.get("wins", 0) + 0.5) / (stats.get("total", 0) + 1.0)
+
+    # Pairwise correlations
+    correlations = {}
+    for i, m1 in enumerate(model_keys):
+        for j, m2 in enumerate(model_keys):
+            if i >= j:
+                continue
+            pair_papers = sorted(set(model_win_rates[m1].keys()) & set(model_win_rates[m2].keys()))
+            if len(pair_papers) >= 5:
+                rates1 = [model_win_rates[m1][pid] for pid in pair_papers]
+                rates2 = [model_win_rates[m2][pid] for pid in pair_papers]
+                spearman_r, spearman_p = scipy_stats.spearmanr(rates1, rates2)
+                pearson_r, pearson_p = scipy_stats.pearsonr(rates1, rates2)
+                correlations[f"{m1} vs {m2}"] = {
+                    "spearman_r": round(float(spearman_r), 3),
+                    "spearman_p": round(float(spearman_p), 4),
+                    "pearson_r": round(float(pearson_r), 3),
+                    "pearson_p": round(float(pearson_p), 4),
+                    "n_papers": len(pair_papers),
+                }
+
+    # Agreement: compute from win rate agreement
+    # If both models rank a paper similarly (within the same quartile), they "agree"
+    agreement = {}
+    for i, m1 in enumerate(model_keys):
+        for j, m2 in enumerate(model_keys):
+            if i >= j:
+                continue
+            pair_key = f"{m1} vs {m2}"
+            pair_papers = sorted(set(model_win_rates[m1].keys()) & set(model_win_rates[m2].keys()))
+            if len(pair_papers) < 5:
+                continue
+            # Agreement: both models rank paper above/below median → agree
+            rates1 = {pid: model_win_rates[m1][pid] for pid in pair_papers}
+            rates2 = {pid: model_win_rates[m2][pid] for pid in pair_papers}
+            median1 = np.median(list(rates1.values()))
+            median2 = np.median(list(rates2.values()))
+            agree = sum(1 for pid in pair_papers
+                       if (rates1[pid] >= median1) == (rates2[pid] >= median2))
+            total = len(pair_papers)
+            agreement[pair_key] = {
+                "agree": agree, "disagree": total - agree, "total": total,
+                "rate": round(agree / total * 100, 1),
+            }
+
+    # Model summaries
+    model_summaries = {}
+    for mk in model_keys:
+        total_matches = sum(s.get("total", 0) for s in model_paper_stats[mk].values())
+        model_summaries[mk] = {
+            "total_matches": total_matches,
+            "papers_judged": len(model_paper_stats[mk]),
+        }
+
+    _SHORT_NAMES = {
+        "anthropic/claude-opus": "Claude Opus",
+        "gemini/gemini-3-pro-preview": "Gemini 3 Pro",
+        "openai/gpt-5.2": "GPT-5.2",
+    }
+    def _short(mk):
+        return _SHORT_NAMES.get(mk, mk.split("/")[-1])
+
+    # Scatter data per model pair
+    scatter_data = {}
+    for i, m1 in enumerate(model_keys):
+        for j, m2 in enumerate(model_keys):
+            if i >= j:
+                continue
+            pair_key = f"{m1} vs {m2}"
+            pair_papers = sorted(set(model_win_rates[m1].keys()) & set(model_win_rates[m2].keys()))
+            short1, short2 = _short(m1), _short(m2)
+            scatter_data[pair_key] = [
+                {"title": paper_titles.get(pid, "?")[:40],
+                 short1: round(model_win_rates[m1][pid] * 100, 1),
+                 short2: round(model_win_rates[m2][pid] * 100, 1)}
+                for pid in pair_papers
+            ]
+
+    common_papers = set(paper_ids)
+    for mk in model_keys:
+        common_papers &= set(model_win_rates[mk].keys())
+
+    sorted_corr_keys = sorted(correlations.keys())
+    sorted_correlations = {k: correlations[k] for k in sorted_corr_keys}
+    sorted_agree_keys = sorted(agreement.keys())
+    sorted_agreement = {k: agreement[k] for k in sorted_agree_keys}
+
+    # PW Inter-Model by Scoring Method — uses stored WR and TS scores from rankings
+    pw_inter_model = []
+    try:
+        model_rankings = {}
+        for mk in model_keys:
+            mk_papers = [pid for pid, s in model_paper_stats[mk].items() if s.get("total", 0) >= MIN_MATCHES_PER_MODEL]
+            if len(mk_papers) < 20:
+                continue
+            # Win rate ranking per model
+            raw_wr = {pid: model_win_rates[mk][pid] for pid in mk_papers if pid in model_win_rates[mk]}
+            reg_wr = raw_wr  # Already regularized
+            model_rankings[mk] = {"raw_wr": raw_wr, "reg_wr": reg_wr}
+
+        method_labels = {"raw_wr": "Dashboard (raw win%)", "reg_wr": "Regularized WR"}
+        method_order = ["raw_wr", "reg_wr"]
+
+        for i, m1 in enumerate(model_keys):
+            for j, m2 in enumerate(model_keys):
+                if i >= j or m1 not in model_rankings or m2 not in model_rankings:
+                    continue
+                row = {"pair": f"{_short(m1)} vs {_short(m2)}", "methods": {}}
+                for method in method_order:
+                    r1 = model_rankings[m1].get(method, {})
+                    r2 = model_rankings[m2].get(method, {})
+                    common = sorted(set(r1.keys()) & set(r2.keys()))
+                    if len(common) >= 10:
+                        v1 = [r1[p] for p in common]
+                        v2 = [r2[p] for p in common]
+                        rho, _ = scipy_stats.spearmanr(v1, v2)
+                        row["methods"][method_labels[method]] = {
+                            "rho": round(float(rho), 3), "n": len(common),
+                        }
+                if row["methods"]:
+                    pw_inter_model.append(row)
+    except Exception:
+        pass
+
+    # Total match count (approximated from stored stats)
+    total_matches_approx = sum(
+        sum(s.get("total", 0) for s in model_paper_stats[mk].values())
+        for mk in model_keys
+    ) // 2  # Each match counted twice (once per paper)
+
+    return {
+        "models": [{"key": mk, "label": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
+        "correlations": sorted_correlations,
+        "agreement": sorted_agreement,
+        "n_common_papers": len(common_papers),
+        "category": category,
+        "mode": mode,
+        "scatter_data": scatter_data,
+        "pw_inter_model": pw_inter_model,
+        "n_total_matches": total_matches_approx,
+    }
+
+
+async def _compute_model_correlation_from_matches(category, mode):
+    """Legacy match-based computation for non-standard modes (prediction, etc.).
+    Only called for mode != None, which is always served from cache."""
     import numpy as np
     from scipy import stats as scipy_stats
 
