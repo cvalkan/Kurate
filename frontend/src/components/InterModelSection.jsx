@@ -74,11 +74,13 @@ export function InterModelSection({ pwData, siData }) {
                         {(methodLabels[m] || m).replace("Dashboard (raw win%)", "Raw WR").replace("Regularized WR", "Reg WR").replace("Bradley-Terry", "BT")}
                       </th>
                     ))}
+                    <th className="py-1.5 px-1.5 text-right font-medium whitespace-nowrap text-[10px]">m/paper</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pwRows.map((row, i) => {
                     const best = bestInRow(row.methods);
+                    const mpp = Object.values(row.methods).find(v => v?.avg_mpp)?.avg_mpp;
                     return (
                       <tr key={i} className="border-b border-border/20">
                         <td className="py-1.5 px-3 font-medium">{row.pair}</td>
@@ -91,6 +93,7 @@ export function InterModelSection({ pwData, siData }) {
                             </td>
                           );
                         })}
+                        <td className="py-1.5 px-1.5 text-right font-mono text-[10px] text-muted-foreground">{mpp || "\u2014"}</td>
                       </tr>
                     );
                   })}

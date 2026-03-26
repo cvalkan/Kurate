@@ -1488,15 +1488,18 @@ async def _compute_model_correlation(category, mode):
     pw_inter_model = []
     try:
         model_rankings = {}
+        model_avg_mpp = {}  # avg matches/paper per model
         for mk in model_keys:
             mk_papers = [pid for pid, s in model_paper_stats[mk].items() if s.get("total", 0) >= MIN_MATCHES_PER_MODEL]
             if len(mk_papers) < 20:
                 continue
             reg_wr = {pid: model_win_rates[mk][pid] for pid in mk_papers if pid in model_win_rates[mk]}
             model_rankings[mk] = {"reg_wr": reg_wr}
-            # Add per-model TrueSkill from pre-loaded data
             if mk in model_paper_ts:
                 model_rankings[mk]["trueskill"] = model_paper_ts[mk]
+            # Compute avg matches/paper for this model
+            mpps = [model_paper_stats[mk][pid].get("total", 0) for pid in mk_papers]
+            model_avg_mpp[mk] = round(float(np.mean(mpps)), 1) if mpps else 0
 
         method_order = ["reg_wr", "trueskill"]
 
@@ -1504,6 +1507,7 @@ async def _compute_model_correlation(category, mode):
             for j, m2 in enumerate(model_keys):
                 if i >= j or m1 not in model_rankings or m2 not in model_rankings:
                     continue
+                avg_mpp = round((model_avg_mpp.get(m1, 0) + model_avg_mpp.get(m2, 0)) / 2, 1)
                 row = {"pair": f"{_short(m1)} vs {_short(m2)}", "methods": {}}
                 for method in method_order:
                     r1 = model_rankings[m1].get(method, {})
@@ -1515,6 +1519,7 @@ async def _compute_model_correlation(category, mode):
                         rho, _ = scipy_stats.spearmanr(v1, v2)
                         row["methods"][method] = {
                             "rho": round(float(rho), 3), "n": len(common),
+                            "avg_mpp": avg_mpp,
                         }
                 if row["methods"]:
                     pw_inter_model.append(row)
