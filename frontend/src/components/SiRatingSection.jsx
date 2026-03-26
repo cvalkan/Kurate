@@ -222,7 +222,7 @@ function CategoryBreakdown({ categories }) {
   );
 }
 
-export function SiRatingSection({ category }) {
+export function SiRatingSection({ category, hidePwVsSi = false }) {
   const [data, setData] = useState(null);
   const [showRawDist, setShowRawDist] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -369,7 +369,7 @@ export function SiRatingSection({ category }) {
           </div>
 
           {/* Pairwise Tournament vs Single-Item Ranking */}
-          {data.pw_vs_si && Object.keys(data.pw_vs_si.per_model || {}).length > 0 && (
+          {!hidePwVsSi && data.pw_vs_si && Object.keys(data.pw_vs_si.per_model || {}).length > 0 && (
             <div className="mt-6 space-y-4" data-testid="pw-vs-si-section">
               <div className="pb-2 border-b border-border">
                 <h3 className="text-sm font-semibold">Pairwise Tournament vs Single-Item Ranking</h3>

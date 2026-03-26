@@ -6,6 +6,7 @@ import { CorrelationSection } from "@/components/CorrelationSection";
 import { LeaderboardConvergence } from "@/components/ConvergenceSection";
 import { SiRatingSection } from "@/components/SiRatingSection";
 import { ScoringMethodSection } from "@/components/ScoringMethodSection";
+import { PwVsSiSection } from "@/components/PwVsSiSection";
 import { InterModelSection } from "@/components/InterModelSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -157,9 +158,11 @@ export default function CorrelationPage() {
 
       <ScoringMethodSection category={category || null} />
 
+      <PwVsSiSection category={category || null} />
+
       <InterModelSection pwData={data} siData={siData} />
 
-      <SiRatingSection category={category || null} />
+      <SiRatingSection category={category || null} hidePwVsSi />
 
     </div>
   );
