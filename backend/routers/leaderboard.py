@@ -2158,9 +2158,17 @@ async def get_si_rating_stats(
     store_key = f"{cat_key}:{model or 'all'}"
     doc = await db.analysis_store.find_one({"_type": "si-rating", "key": store_key}, {"_id": 0})
     if doc:
-        doc.pop("_type", None)
-        doc.pop("key", None)
-        return doc
+        # Staleness check: ensure doc has current schema fields
+        pw = doc.get("pw_vs_si") or {}
+        pm = pw.get("per_model", {})
+        any_model = next(iter(pm.values()), {}) if pm else {}
+        has_controlled = len(any_model.get("controlled_rows", [])) > 0
+        has_mpp = any(r.get("avg_mpp") for r in any_model.get("rows", []))
+        if has_controlled or not pm:
+            doc.pop("_type", None)
+            doc.pop("key", None)
+            return doc
+        # Stale — fall through to recompute
     result = await _compute_si_rating_stats(category, model)
     await db.analysis_store.update_one(
         {"_type": "si-rating", "key": store_key},
