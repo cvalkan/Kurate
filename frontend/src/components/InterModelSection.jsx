@@ -14,8 +14,9 @@ function bestInRow(methods) {
   return best;
 }
 
-export function InterModelSection({ pwData, siData }) {
-  const pwRows = pwData?.pw_inter_model || [];
+export function InterModelSection({ pwData, siData, viewMode = "aggregate" }) {
+  const isAvg = viewMode === "average";
+  const pwRows = (isAvg && pwData?.avg_pw_inter_model?.length ? pwData.avg_pw_inter_model : pwData?.pw_inter_model) || [];
   const methodLabels = pwData?.method_labels || {};
   const siCorr = siData?.inter_model_si || {};
 

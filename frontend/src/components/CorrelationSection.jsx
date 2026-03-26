@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Bot, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -50,9 +49,7 @@ export function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
   );
 }
 
-export function CorrelationSection({ sectionData, title, description }) {
-  const [viewMode, setViewMode] = useState("aggregate");
-
+export function CorrelationSection({ sectionData, title, description, viewMode, setViewMode }) {
   if (!sectionData || !sectionData.models?.length) {
     return (
       <div className="mb-10 p-6 border border-border rounded-lg text-center text-muted-foreground">

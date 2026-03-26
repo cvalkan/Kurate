@@ -15,6 +15,7 @@ export default function CorrelationPage() {
   const [data, setData] = useState(null);
   const [siData, setSiData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("aggregate");
   const [categories, setCategories] = useState([]);
   const [category, setCategory] = useState("");
   const moreCatsRef = useRef(null);
@@ -129,6 +130,7 @@ export default function CorrelationPage() {
         sectionData={data}
         title="Standard Tournament"
         description='Full-text evaluation: "Which paper has higher scientific impact?"'
+        viewMode={viewMode} setViewMode={setViewMode}
       />
 
       <div className="mb-6">
@@ -137,9 +139,9 @@ export default function CorrelationPage() {
 
       <ScoringMethodSection category={category || null} />
 
-      <PwVsSiSection category={category || null} />
+      <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} />
 
-      <InterModelSection pwData={data} siData={siData} />
+      <InterModelSection pwData={data} siData={siData} viewMode={viewMode} />
 
       <SiRatingSection category={category || null} hidePwVsSi />
 

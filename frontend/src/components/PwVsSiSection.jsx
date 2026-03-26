@@ -4,16 +4,20 @@ import { TrendingUp } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-export function PwVsSiSection({ category }) {
+export function PwVsSiSection({ category, siData: externalSiData, viewMode = "aggregate" }) {
   const [data, setData] = useState(null);
   const [controlled, setControlled] = useState(false);
 
   useEffect(() => {
+    if (externalSiData?.pw_vs_si) {
+      setData(externalSiData.pw_vs_si);
+      return;
+    }
     const params = category ? { category } : {};
     axios.get(`${API}/api/si-rating-stats`, { params, timeout: 60000 })
       .then(r => { if (r.data?.pw_vs_si) setData(r.data.pw_vs_si); })
       .catch(() => {});
-  }, [category]);
+  }, [category, externalSiData]);
 
   if (!data || !data.per_model || Object.keys(data.per_model).length === 0) return null;
 
@@ -52,9 +56,12 @@ export function PwVsSiSection({ category }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {["claude", "gpt", "gemini"].map(mk => {
-          const mData = data.per_model[mk];
+          const isAvg = viewMode === "average";
+          const perModelSource = isAvg && data.avg_per_model ? data.avg_per_model : data.per_model;
+          const withinSource = isAvg && data.avg_within_model ? data.avg_within_model : data.within_model;
+          const mData = perModelSource?.[mk];
           if (!mData) return null;
-          const wmData = data.within_model?.[mk];
+          const wmData = withinSource?.[mk];
           const combinedRows = controlled
             ? (mData.controlled_rows || [])
             : (mData.rows || []);
