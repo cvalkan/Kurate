@@ -88,6 +88,7 @@ export function AdminOverview({
   };
 
   const [backfilling, setBackfilling] = useState(false);
+  const [tsBackfilling, setTsBackfilling] = useState(false);
 
   const summaryGenProgress = progress?.summary_gen_progress;
   const isSummaryGenRunning = !!summaryGenProgress?.running;
@@ -117,6 +118,25 @@ export function AdminOverview({
       toast.error("Failed to trigger summary generation");
     } finally {
       setBackfilling(false);
+    }
+  };
+
+  const triggerTsBackfill = async () => {
+    setTsBackfilling(true);
+    try {
+      const res = await axios.post(
+        `${API}/api/admin/backfill-trueskill?category=${adminCat}`,
+        {},
+        { headers: getAdminHeaders() },
+      );
+      if (res.data.status === "ok") {
+        toast.success(`TrueSkill & model stats backfilled for ${adminCat}`);
+      }
+      if (onRefresh) setTimeout(onRefresh, 2000);
+    } catch (e) {
+      toast.error("Backfill failed: " + (e.response?.data?.detail || e.message));
+    } finally {
+      setTsBackfilling(false);
     }
   };
 
@@ -332,13 +352,26 @@ export function AdminOverview({
                 <>~<span className="font-mono text-foreground font-medium">{progress.estimated_matches_remaining}</span> matches remaining</>
               )}
             </span>
-            <span>
-              {progress.goals_met ? (
-                <span className="text-green-600 font-medium">Converged</span>
-              ) : !progress.compare_paused && !progress.global_paused ? (
-                <span className="text-accent font-medium">Running</span>
-              ) : null}
-            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={triggerTsBackfill}
+                disabled={tsBackfilling}
+                variant="outline"
+                size="sm"
+                className="gap-1 text-[10px] h-6 px-2"
+                data-testid="backfill-trueskill-btn"
+              >
+                <Sparkles className={`h-3 w-3 ${tsBackfilling ? "animate-spin" : ""}`} />
+                {tsBackfilling ? "Backfilling..." : "Backfill TS + Model Stats"}
+              </Button>
+              <span>
+                {progress.goals_met ? (
+                  <span className="text-green-600 font-medium">Converged</span>
+                ) : !progress.compare_paused && !progress.global_paused ? (
+                  <span className="text-accent font-medium">Running</span>
+                ) : null}
+              </span>
+            </div>
           </div>
         </div>
       )}
