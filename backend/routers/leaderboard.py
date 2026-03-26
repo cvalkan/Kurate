@@ -534,6 +534,17 @@ async def _bg_analysis_cache_loop():
                     _set_analysis_cached("convergence", cat, "20", result)
                 except Exception:
                     pass
+                try:
+                    result = await _compute_scoring_method_correlation(cat)
+                    _set_analysis_cached("scoring-method-correlation", cat, "", result)
+                except Exception:
+                    pass
+                try:
+                    result = await _compute_si_rating_stats(cat, None)
+                    if result.get("pw_vs_si") is not None:
+                        _set_analysis_cached("si-rating-stats", cat, "all", result)
+                except Exception:
+                    pass
                 gc.collect()
                 await asyncio.sleep(2)  # Cooldown between categories
             log_mem(f"analysis_refresh done ({len(cats)} categories)")
