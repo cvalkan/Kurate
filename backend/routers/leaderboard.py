@@ -1340,15 +1340,17 @@ async def _compute_model_correlation(category, mode):
     # Standard mode: read from stored model_stats + model_ts in ONE query
     query = {"category": category} if category else {}
     paper_titles = {}
+    paper_categories = {}   # {paper_id: category}
     model_paper_stats = {}  # {model_key: {paper_id: {wins, total}}}
     model_paper_ts = {}     # {model_key: {paper_id: mu}}
     paper_ids = set()
 
     async for doc in db.rankings.find(
         query,
-        {"_id": 0, "paper_id": 1, "title": 1, "model_stats": 1, "model_ts": 1},
+        {"_id": 0, "paper_id": 1, "title": 1, "model_stats": 1, "model_ts": 1, "category": 1},
     ):
         paper_titles[doc["paper_id"]] = doc.get("title", "?")
+        paper_categories[doc["paper_id"]] = doc.get("category")
         ms = doc.get("model_stats")
         if ms and isinstance(ms, dict):
             paper_ids.add(doc["paper_id"])
@@ -1533,11 +1535,95 @@ async def _compute_model_correlation(category, mode):
         for mk in model_keys
     ) // 2  # Each match counted twice (once per paper)
 
+    # Per-category averaged correlations (for "All Categories" view)
+    avg_correlations = {}
+    avg_ts_correlations = {}
+    avg_agreement = {}
+    if not category and paper_categories:
+        # Group papers by category
+        cats_in_data = set(paper_categories.values())
+        cat_corr_data = {}  # {pair: [(rho, n), ...]}
+        cat_ts_corr_data = {}
+        cat_agree_data = {}
+
+        for cat in cats_in_data:
+            if not cat:
+                continue
+            cat_pids = {pid for pid, c in paper_categories.items() if c == cat}
+
+            for i, m1 in enumerate(model_keys):
+                for j, m2 in enumerate(model_keys):
+                    if i >= j:
+                        continue
+                    pair = f"{m1} vs {m2}"
+
+                    # WR correlation for this category
+                    common = sorted(set(model_win_rates.get(m1, {}).keys()) & set(model_win_rates.get(m2, {}).keys()) & cat_pids)
+                    if len(common) >= 10:
+                        v1 = [model_win_rates[m1][p] for p in common]
+                        v2 = [model_win_rates[m2][p] for p in common]
+                        rho, _ = scipy_stats.spearmanr(v1, v2)
+                        pe, _ = scipy_stats.pearsonr(v1, v2)
+                        if not np.isnan(rho):
+                            cat_corr_data.setdefault(pair, []).append((float(rho), float(pe), len(common)))
+
+                    # TS correlation for this category
+                    ts1 = model_paper_ts.get(m1, {})
+                    ts2 = model_paper_ts.get(m2, {})
+                    common_ts = sorted(set(ts1.keys()) & set(ts2.keys()) & cat_pids)
+                    if len(common_ts) >= 10:
+                        v1 = [ts1[p] for p in common_ts]
+                        v2 = [ts2[p] for p in common_ts]
+                        rho, _ = scipy_stats.spearmanr(v1, v2)
+                        pe, _ = scipy_stats.pearsonr(v1, v2)
+                        if not np.isnan(rho):
+                            cat_ts_corr_data.setdefault(pair, []).append((float(rho), float(pe), len(common_ts)))
+
+                    # Agreement for this category
+                    common_wr = sorted(set(model_win_rates.get(m1, {}).keys()) & set(model_win_rates.get(m2, {}).keys()) & cat_pids)
+                    if len(common_wr) >= 10:
+                        r1 = {p: model_win_rates[m1][p] for p in common_wr}
+                        r2 = {p: model_win_rates[m2][p] for p in common_wr}
+                        med1 = np.median(list(r1.values()))
+                        med2 = np.median(list(r2.values()))
+                        agree = sum(1 for p in common_wr if (r1[p] >= med1) == (r2[p] >= med2))
+                        cat_agree_data.setdefault(pair, []).append((agree, len(common_wr)))
+
+        # Size-weighted averages
+        for pair, data in cat_corr_data.items():
+            weights = [n for _, _, n in data]
+            avg_rho = float(np.average([r for r, _, n in data], weights=weights))
+            avg_pe = float(np.average([p for _, p, n in data], weights=weights))
+            total_n = sum(weights)
+            avg_correlations[pair] = {
+                "spearman_r": round(avg_rho, 3), "pearson_r": round(avg_pe, 3),
+                "n_papers": total_n, "n_categories": len(data),
+            }
+        for pair, data in cat_ts_corr_data.items():
+            weights = [n for _, _, n in data]
+            avg_rho = float(np.average([r for r, _, n in data], weights=weights))
+            avg_pe = float(np.average([p for _, p, n in data], weights=weights))
+            total_n = sum(weights)
+            avg_ts_correlations[pair] = {
+                "spearman_r": round(avg_rho, 3), "pearson_r": round(avg_pe, 3),
+                "n_papers": total_n, "n_categories": len(data),
+            }
+        for pair, data in cat_agree_data.items():
+            total_agree = sum(a for a, _ in data)
+            total_n = sum(n for _, n in data)
+            avg_agreement[pair] = {
+                "agree": total_agree, "disagree": total_n - total_agree, "total": total_n,
+                "rate": round(total_agree / total_n * 100, 1) if total_n else 0,
+            }
+
     return {
         "models": [{"key": mk, "label": _short(mk), "short": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
         "correlations": sorted_correlations,
         "ts_correlations": dict(sorted(ts_correlations.items())),
+        "avg_correlations": dict(sorted(avg_correlations.items())),
+        "avg_ts_correlations": dict(sorted(avg_ts_correlations.items())),
         "agreement": sorted_agreement,
+        "avg_agreement": dict(sorted(avg_agreement.items())),
         "method_labels": {"reg_wr": "Reg WR", "trueskill": "TrueSkill"},
         "n_common_papers": len(common_papers),
         "category": category,

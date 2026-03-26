@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Bot, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -50,6 +51,8 @@ export function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
 }
 
 export function CorrelationSection({ sectionData, title, description }) {
+  const [viewMode, setViewMode] = useState("aggregate");
+
   if (!sectionData || !sectionData.models?.length) {
     return (
       <div className="mb-10 p-6 border border-border rounded-lg text-center text-muted-foreground">
@@ -59,10 +62,13 @@ export function CorrelationSection({ sectionData, title, description }) {
     );
   }
 
-  const { models, correlations, agreement, scatter_data, n_common_papers, ts_correlations } = sectionData;
-  const corrEntries = Object.entries(correlations);
-  const tsCorrEntries = Object.entries(ts_correlations || {});
-  const agreeEntries = Object.entries(agreement);
+  const { models, correlations, agreement, scatter_data, n_common_papers, ts_correlations,
+          avg_correlations, avg_ts_correlations, avg_agreement } = sectionData;
+  const hasAvg = avg_correlations && Object.keys(avg_correlations).length > 0;
+
+  const activeCorrEntries = Object.entries(viewMode === "average" && hasAvg ? avg_correlations : correlations);
+  const activeTsCorrEntries = Object.entries(viewMode === "average" && hasAvg ? (avg_ts_correlations || {}) : (ts_correlations || {}));
+  const activeAgreeEntries = Object.entries(viewMode === "average" && hasAvg ? (avg_agreement || {}) : agreement);
   const scatterPairs = [];
   for (let i = 0; i < models.length; i++) {
     for (let j = i + 1; j < models.length; j++) {
@@ -110,12 +116,38 @@ export function CorrelationSection({ sectionData, title, description }) {
         })}
       </div>
 
-      {corrEntries.length > 0 && (
+      {activeCorrEntries.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-sm font-medium mb-2">Rank Correlations</h3>
+          <div className="flex items-center gap-3 mb-2">
+            <h3 className="text-sm font-medium">Rank Correlations</h3>
+            {hasAvg && (
+              <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md" data-testid="corr-view-toggle">
+                {[["aggregate", "Aggregate"], ["average", "Average"]].map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setViewMode(key)}
+                    className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                      viewMode === key
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {hasAvg && (
+            <p className="text-[10px] text-muted-foreground mb-2">
+              {viewMode === "average"
+                ? "Size-weighted average of per-category correlations. Each category contributes proportionally."
+                : "Pooled correlation across all papers. Large categories dominate."}
+            </p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {corrEntries.map(([pair, stats]) => {
-              const tsStats = (ts_correlations || {})[pair];
+            {activeCorrEntries.map(([pair, stats]) => {
+              const tsStats = activeTsCorrEntries.find(([p]) => p === pair)?.[1];
               const shortPair = pair.split(" vs ").map(k => {
                 const m = models.find(mo => mo.key === k);
                 return m ? m.short : k.split("/").pop();
@@ -153,11 +185,11 @@ export function CorrelationSection({ sectionData, title, description }) {
         </div>
       )}
 
-      {agreeEntries.length > 0 && (
+      {activeAgreeEntries.length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-medium mb-2">Pairwise Agreement</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {agreeEntries.map(([pair, stats]) => {
+            {activeAgreeEntries.map(([pair, stats]) => {
               const clear = stats.clear_cut || {};
               const contested = stats.contested || {};
               return (
