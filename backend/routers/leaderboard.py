@@ -477,6 +477,8 @@ async def _bg_cache_loop():
     """Background loop that refreshes cache ONLY when data changes."""
     global _bg_task_started
     _bg_task_started = True
+    # Delay initial cache warm to let health checks respond first
+    await asyncio.sleep(5)
     # Initial warm
     try:
         await _refresh_cache()

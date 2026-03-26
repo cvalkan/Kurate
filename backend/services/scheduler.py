@@ -238,7 +238,7 @@ async def _fetch_loop():
             interval_hours = settings.get("fetch_interval_hours", 6)
             now = datetime.now(timezone.utc)
 
-            fetch_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
+            fetch_cats = set(c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip())
             for cat in fetch_cats:
                 cat_status = _get_cat_status(cat)
 
@@ -511,6 +511,9 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
 
 async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
     from core.memlog import log_mem
+    if not category or not category.strip():
+        logger.warning("run_fetch_cycle called with empty category, skipping")
+        return {"status": "error", "error": "empty category"}
     if category in _fetching_cats:
         return {"status": "already_fetching"}
 
