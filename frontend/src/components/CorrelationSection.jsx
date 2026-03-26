@@ -39,8 +39,8 @@ export function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
           const cx = pad + (d.x / 100) * (w - 2 * pad);
           const cy = h - pad - (d.y / 100) * (h - 2 * pad);
           return (
-            <circle key={i} cx={cx} cy={cy} r={3.5} fill="#3b82f6" fillOpacity={0.5} stroke="#3b82f6" strokeWidth={0.5}>
-              <title>{d.title}: {d.x}% vs {d.y}%</title>
+            <circle key={i} cx={cx} cy={cy} r={2.5} fill="#3b82f6" fillOpacity={0.4} stroke="#3b82f6" strokeWidth={0.3}>
+              <title>{d.x}% vs {d.y}%</title>
             </circle>
           );
         })}
@@ -68,10 +68,16 @@ export function CorrelationSection({ sectionData, title, description }) {
       const m1 = models[i].short;
       const m2 = models[j].short;
       const pairKey = `${models[i].key} vs ${models[j].key}`;
-      // scatter_data is per-pair dict or legacy flat array
-      const pairData = scatter_data?.[pairKey] || (Array.isArray(scatter_data) ? scatter_data : []);
-      const points = pairData.map(d => ({ x: d[m1] ?? 50, y: d[m2] ?? 50, title: d.title }));
-      const nPapers = scatter_data?.[pairKey]?.length ?? n_common_papers;
+      const raw = scatter_data?.[pairKey];
+      let points = [];
+      if (raw && raw.x && raw.y) {
+        // Compact format: {x: [...], y: [...]}
+        points = raw.x.map((xv, k) => ({ x: xv, y: raw.y[k] }));
+      } else if (Array.isArray(raw)) {
+        // Legacy format: [{modelA: val, modelB: val, title}, ...]
+        points = raw.map(d => ({ x: d[m1] ?? 50, y: d[m2] ?? 50 }));
+      }
+      const nPapers = raw?.n || points.length || n_common_papers;
       scatterPairs.push({ m1, m2, points, nPapers, c1: getColor(m1).dot, c2: getColor(m2).dot });
     }
   }

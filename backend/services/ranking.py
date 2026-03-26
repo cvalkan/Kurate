@@ -1376,3 +1376,59 @@ async def backfill_model_stats(db, category: str = None):
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"backfill_model_stats done ({len(cats)} categories, {_elapsed:.1f}s)")
+
+
+
+async def backfill_si_ratings(db, category: str = None):
+    """Copy SI ratings from papers to rankings docs for fast Model Analysis queries.
+    
+    Stores si_ratings = {claude: {score,significance,rigor,novelty,clarity}, gpt: {...}, gemini: {...}}
+    on each ranking doc. After this, si-rating-stats reads from rankings (not papers).
+    """
+    import time as _time
+    from core.auth import get_settings
+    from core.config import CATEGORIES, logger
+    from core.memlog import log_mem
+    from pymongo import UpdateOne
+
+    settings = await get_settings()
+    cats = [category] if category else settings.get("active_categories", list(CATEGORIES.keys()))
+
+    _t0 = _time.perf_counter()
+    log_mem(f"backfill_si_ratings start ({len(cats)} categories)")
+
+    for cat in cats:
+        ops = []
+        async for p in db.papers.find(
+            {"categories.0": cat},
+            {"_id": 0, "id": 1, "ai_rating": 1, "ai_ratings_by_model": 1},
+        ):
+            si = {}
+            by_model = p.get("ai_ratings_by_model", {})
+            if isinstance(by_model, dict):
+                for mk in ("claude", "gpt", "gemini"):
+                    r = by_model.get(mk)
+                    if isinstance(r, dict) and r.get("score"):
+                        si[mk] = {k: r[k] for k in ("score", "significance", "rigor", "novelty", "clarity") if r.get(k)}
+
+            # Fallback: ai_rating → claude
+            if "claude" not in si:
+                ai_r = p.get("ai_rating")
+                if isinstance(ai_r, dict) and ai_r.get("score"):
+                    si["claude"] = {k: ai_r[k] for k in ("score", "significance", "rigor", "novelty", "clarity") if ai_r.get(k)}
+
+            if si:
+                ops.append(UpdateOne(
+                    {"paper_id": p["id"], "category": cat},
+                    {"$set": {"si_ratings": si}},
+                ))
+
+        if ops:
+            await db.rankings.bulk_write(ops, ordered=False)
+        logger.info(f"[{cat}] Backfilled si_ratings for {len(ops)} papers")
+
+        import gc
+        gc.collect()
+
+    _elapsed = _time.perf_counter() - _t0
+    log_mem(f"backfill_si_ratings done ({len(cats)} categories, {_elapsed:.1f}s)")

@@ -1527,9 +1527,7 @@ async def _compute_model_correlation(category, mode):
     def _short(mk):
         return _SHORT_NAMES.get(mk, mk.split("/")[-1])
 
-    # Scatter data per model pair (subsample to 200 points max for performance)
-    import random as _rng
-    _rng.seed(42)
+    # Scatter data per model pair — compact format: {x: [...], y: [...]} for all points
     scatter_data = {}
     for i, m1 in enumerate(model_keys):
         for j, m2 in enumerate(model_keys):
@@ -1537,15 +1535,11 @@ async def _compute_model_correlation(category, mode):
                 continue
             pair_key = f"{m1} vs {m2}"
             pair_papers = sorted(set(model_win_rates[m1].keys()) & set(model_win_rates[m2].keys()))
-            if len(pair_papers) > 200:
-                pair_papers = _rng.sample(pair_papers, 200)
-            short1, short2 = _short(m1), _short(m2)
-            scatter_data[pair_key] = [
-                {"title": paper_titles.get(pid, "?")[:40],
-                 short1: round(model_win_rates[m1][pid] * 100, 1),
-                 short2: round(model_win_rates[m2][pid] * 100, 1)}
-                for pid in pair_papers
-            ]
+            scatter_data[pair_key] = {
+                "x": [round(model_win_rates[m1][pid] * 100, 1) for pid in pair_papers],
+                "y": [round(model_win_rates[m2][pid] * 100, 1) for pid in pair_papers],
+                "n": len(pair_papers),
+            }
 
     common_papers = set(paper_ids)
     for mk in model_keys:
@@ -2135,58 +2129,64 @@ def _get_paper_si_rating(paper, model=None):
 
 
 async def _compute_si_rating_stats(category, model):
+    """Compute SI rating stats from pre-stored si_ratings on rankings docs.
+    
+    No papers collection scan — reads directly from rankings.
+    O(P) memory, O(P) time.
+    """
     import numpy as np
     from scipy import stats as scipy_stats
     from collections import Counter
 
-    # Build query: papers with any SI rating data
-    query = {"$or": [
-        {"ai_rating": {"$exists": True}, "ai_rating.score": {"$gt": 0}},
-        {"ai_ratings_by_model": {"$exists": True}},
-    ]}
+    query = {"si_ratings": {"$exists": True, "$ne": {}}}
     if category:
-        query["categories.0"] = category
+        query["category"] = category
 
-    papers = await collect_all(db.papers.find(
+    # Single query: read si_ratings + PW scores from rankings
+    papers = []
+    async for doc in db.rankings.find(
         query,
-        {"_id": 0, "id": 1, "ai_rating": 1, "ai_ratings_by_model": 1, "categories": 1}
-    ))
+        {"_id": 0, "paper_id": 1, "si_ratings": 1, "category": 1, "score": 1, "ts_score": 1,
+         "model_stats": 1, "comparisons": 1},
+    ):
+        papers.append(doc)
 
-    # Determine which models have data (avoid double-counting)
-    available_models = []
+    if not papers:
+        return {"status": "insufficient_data", "total_papers": 0, "model": model, "available_models": []}
+
+    # Determine which models have data
     model_counts = {"claude": 0, "gpt": 0, "gemini": 0}
     for p in papers:
-        by_model = p.get("ai_ratings_by_model", {})
-        has_by_model_claude = isinstance(by_model, dict) and isinstance(by_model.get("claude"), dict) and by_model["claude"].get("score")
-        # Count claude from ai_ratings_by_model first, fall back to ai_rating
-        ai_r = p.get("ai_rating")
-        if has_by_model_claude:
-            model_counts["claude"] += 1
-        elif isinstance(ai_r, dict) and ai_r.get("score"):
-            model_counts["claude"] += 1
-        if isinstance(by_model, dict):
-            for mk in ("gpt", "gemini"):
-                r = by_model.get(mk)
-                if isinstance(r, dict) and r.get("score"):
-                    model_counts[mk] += 1
-    for mk, count in model_counts.items():
-        if count >= 5:
-            available_models.append({"id": mk, "count": count})
+        si = p.get("si_ratings", {})
+        for mk in ("claude", "gpt", "gemini"):
+            if isinstance(si.get(mk), dict) and si[mk].get("score"):
+                model_counts[mk] += 1
+    available_models = [{"id": mk, "count": c} for mk, c in model_counts.items() if c >= 5]
 
-    # Filter papers by model
+    def _get_si(p, mk=None):
+        si = p.get("si_ratings", {})
+        if mk:
+            r = si.get(mk)
+            return r if isinstance(r, dict) and r.get("score") else None
+        # Average across models
+        ratings = [r for r in si.values() if isinstance(r, dict) and r.get("score")]
+        if not ratings:
+            return None
+        FIELDS = ["score", "significance", "rigor", "novelty", "clarity"]
+        avg = {}
+        for f in FIELDS:
+            vals = [r[f] for r in ratings if r.get(f)]
+            avg[f] = round(sum(vals) / len(vals), 1) if vals else 0
+        return avg if avg.get("score") else None
+
     filtered = []
     for p in papers:
-        rating = _get_paper_si_rating(p, model)
-        if rating and isinstance(rating, dict) and rating.get("score"):
-            filtered.append({"id": p["id"], "rating": rating, "categories": p.get("categories", [])})
+        rating = _get_si(p, model)
+        if rating:
+            filtered.append({**p, "rating": rating})
 
     if len(filtered) < 5:
-        return {
-            "status": "insufficient_data",
-            "total_papers": len(filtered),
-            "model": model,
-            "available_models": available_models,
-        }
+        return {"status": "insufficient_data", "total_papers": len(filtered), "model": model, "available_models": available_models}
 
     METRICS = ["score", "significance", "rigor", "novelty", "clarity"]
     SUB_METRICS = ["significance", "rigor", "novelty", "clarity"]
@@ -2195,7 +2195,6 @@ async def _compute_si_rating_stats(category, model):
     for m in METRICS:
         arrays[m] = [p["rating"].get(m, 0) for p in filtered if p["rating"].get(m)]
 
-    # Compute per-paper average of subscores
     subscore_avgs = []
     for p in filtered:
         subs = [p["rating"].get(m) for m in SUB_METRICS if p["rating"].get(m)]
@@ -2254,7 +2253,7 @@ async def _compute_si_rating_stats(category, model):
     if not category:
         cat_groups = {}
         for p in filtered:
-            cat = p["categories"][0] if p.get("categories") else "unknown"
+            cat = p.get("category", "unknown")
             if cat not in cat_groups:
                 cat_groups[cat] = []
             cat_groups[cat].append(p["rating"])
@@ -2264,55 +2263,47 @@ async def _compute_si_rating_stats(category, model):
             scores = [r.get("score", 0) for r in ratings if r.get("score")]
             if scores:
                 by_category.append({
-                    "category": cat,
-                    "count": len(ratings),
+                    "category": cat, "count": len(ratings),
                     "mean_score": round(float(np.mean(scores)), 2),
                     "median_score": round(float(np.median(scores)), 1),
                     "std_score": round(float(np.std(scores, ddof=1)), 2) if len(scores) > 1 else 0,
                 })
 
-    # Inter-model SI correlation: rank papers by each model's score, compute Spearman
+    # Inter-model SI correlation from stored si_ratings
     inter_model_si = {}
     model_scores = {}
     for mk in ("claude", "gpt", "gemini"):
         scores = {}
         for p in papers:
-            r = _get_paper_si_rating(p, mk)
-            if r and isinstance(r, dict) and r.get("score"):
-                scores[p["id"]] = r["score"]
+            si = p.get("si_ratings", {}).get(mk)
+            if isinstance(si, dict) and si.get("score"):
+                scores[p["paper_id"]] = si["score"]
         if len(scores) >= 10:
             model_scores[mk] = scores
-
-    model_keys = sorted(model_scores.keys())
-    for i, m1 in enumerate(model_keys):
-        for j, m2 in enumerate(model_keys):
+    si_model_keys = sorted(model_scores.keys())
+    for i, m1 in enumerate(si_model_keys):
+        for j, m2 in enumerate(si_model_keys):
             if j <= i:
                 continue
             common = sorted(set(model_scores[m1].keys()) & set(model_scores[m2].keys()))
-            if len(common) < 10:
-                continue
-            v1 = [model_scores[m1][pid] for pid in common]
-            v2 = [model_scores[m2][pid] for pid in common]
-            rho, p_val = scipy_stats.spearmanr(v1, v2)
-            if not np.isnan(rho):
-                inter_model_si[f"{m1} vs {m2}"] = {
-                    "spearman": round(float(rho), 3),
-                    "n": len(common),
-                }
+            if len(common) >= 10:
+                v1 = [model_scores[m1][pid] for pid in common]
+                v2 = [model_scores[m2][pid] for pid in common]
+                rho, _ = scipy_stats.spearmanr(v1, v2)
+                if not np.isnan(rho):
+                    inter_model_si[f"{m1} vs {m2}"] = {"spearman": round(float(rho), 3), "n": len(common)}
 
-    # Per-model comparison: variance, mean, inter-metric correlation
+    # Per-model comparison
     model_comparison = {}
-    METRICS = ["score", "significance", "rigor", "novelty", "clarity"]
     for mk in ("claude", "gpt", "gemini"):
         mk_ratings = []
         for p in papers:
-            r = _get_paper_si_rating(p, mk)
-            if r and isinstance(r, dict) and r.get("score"):
-                mk_ratings.append(r)
+            si = p.get("si_ratings", {}).get(mk)
+            if isinstance(si, dict) and si.get("score"):
+                mk_ratings.append(si)
         if len(mk_ratings) < 10:
             continue
         mk_scores = [r["score"] for r in mk_ratings]
-        # Average inter-metric correlation (all pairs of sub-scores)
         pair_rhos = []
         for mi in range(len(METRICS)):
             for mj in range(mi + 1, len(METRICS)):
@@ -2333,197 +2324,68 @@ async def _compute_si_rating_stats(category, model):
             "avg_inter_metric_rho": round(float(np.mean(pair_rhos)), 3) if pair_rhos else None,
         }
 
-    # PW vs SI: correlate all 3 pairwise estimators against SI scores (overall + per-model)
+    # PW vs SI: read PW scores from stored fields (score, ts_score) on rankings
     pw_vs_si = None
     try:
-        from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores
-
-        # Fetch all standard-mode matches (including model_used for within-model filtering)
-        match_query = {"completed": True, "winner_id": {"$exists": True}, "failed": {"$ne": True}, "mode": {"$exists": False}}
-        if category:
-            match_query["primary_category"] = category
-        matches_raw = await collect_all(db.matches.find(
-            match_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}
-        ))
-
-        if len(matches_raw) >= 20:
-            bt_matches = [
-                {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
-                 "winner_id": m["winner_id"], "completed": True, "failed": False}
-                for m in matches_raw
-            ]
-            pw_paper_ids = list(set(
-                [m["paper1_id"] for m in matches_raw] + [m["paper2_id"] for m in matches_raw]
-            ))
-
-            # Helper to compute all 4 PW scoring methods from a set of matches
-            def _compute_all_methods(bt_fmt, pids):
-                papers_stub = [{"id": pid, "title": ""} for pid in pids]
-                wr_lb = compute_leaderboard(papers_stub, bt_fmt)
-                wr_sc = {e["id"]: e["score"] for e in wr_lb}
-                paper_stats = {}
-                for m in bt_fmt:
-                    for pid in (m["paper1_id"], m["paper2_id"]):
-                        if pid not in paper_stats:
-                            paper_stats[pid] = {"wins": 0, "total": 0}
-                        paper_stats[pid]["total"] += 1
-                    w = m.get("winner_id")
-                    if w and w in paper_stats:
-                        paper_stats[w]["wins"] += 1
-                reg_wr_sc = {}
-                for pid in pids:
-                    s = paper_stats.get(pid)
-                    if s and s["total"] >= 1:
-                        reg_wr_sc[pid] = (s["wins"] + 0.5) / (s["total"] + 1.0)
-                return {
-                    "raw_wr": wr_sc,
-                    "reg_wr": reg_wr_sc,
-                    "bt": compute_bt_ranking_scores(bt_fmt, pids),
-                    "trueskill": compute_trueskill_ranking_scores(bt_fmt, pids),
-                }
-
-            # Combined PW rankings (all models)
-            combined_methods = _compute_all_methods(bt_matches, pw_paper_ids)
-
-            # Build SI score maps per model + averaged
-            si_maps = {}  # key -> {paper_id: score}
+        pw_papers = [p for p in filtered if p.get("comparisons", 0) >= 3]
+        if len(pw_papers) >= 20:
+            # Build SI score maps
+            si_maps = {}
             for mk in ("claude", "gpt", "gemini"):
                 sm = {}
-                for p in papers:
-                    r = _get_paper_si_rating(p, mk)
-                    if r and isinstance(r, dict) and r.get("score"):
-                        sm[p["id"]] = r["score"]
+                for p in pw_papers:
+                    si = p.get("si_ratings", {}).get(mk)
+                    if isinstance(si, dict) and si.get("score"):
+                        sm[p["paper_id"]] = si["score"]
                 if len(sm) >= 10:
                     si_maps[mk] = sm
-            # Averaged SI
             avg_si = {}
-            for p in papers:
-                r = _get_paper_si_rating(p, None)
-                if r and isinstance(r, dict) and r.get("score"):
-                    avg_si[p["id"]] = r["score"]
+            for p in pw_papers:
+                r = _get_si(p)
+                if r and r.get("score"):
+                    avg_si[p["paper_id"]] = r["score"]
             if len(avg_si) >= 10:
                 si_maps["avg"] = avg_si
 
-            def _corr(pw_dict, si_dict):
-                common = sorted(set(pw_dict.keys()) & set(si_dict.keys()))
-                if len(common) < 10:
-                    return None
-                pw_vals = [pw_dict[pid] for pid in common]
-                si_vals = [si_dict[pid] for pid in common]
-                rho, _ = scipy_stats.spearmanr(pw_vals, si_vals)
-                kt, _ = scipy_stats.kendalltau(pw_vals, si_vals)
-                pr, _ = scipy_stats.pearsonr(pw_vals, si_vals)
-                if np.isnan(rho):
-                    return None
-                return {
-                    "spearman_rho": round(float(rho), 4),
-                    "kendall_tau": round(float(kt), 4),
-                    "pearson_r": round(float(pr), 4),
-                    "n": len(common),
-                }
-
-            pw_labels = {"raw_wr": "Raw WR", "reg_wr": "Reg WR", "bt": "BT", "trueskill": "TrueSkill"}
-            method_order = ["raw_wr", "reg_wr", "bt", "trueskill"]
-
-            # Overall: each combined PW method vs averaged SI
-            overall = []
-            for mk in method_order:
-                if "avg" in si_maps:
-                    c = _corr(combined_methods[mk], si_maps["avg"])
-                    if c:
-                        overall.append({"method": mk, "label": pw_labels[mk], **c})
-
-            # Per-model: each combined PW method vs each model's SI
-            per_model = {}
-            model_labels_map = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3 Pro"}
-            for si_key in ("claude", "gpt", "gemini"):
-                if si_key not in si_maps:
-                    continue
-                rows = []
-                for mk in method_order:
-                    c = _corr(combined_methods[mk], si_maps[si_key])
-                    if c:
-                        rows.append({"method": mk, "label": pw_labels[mk], **c})
-                if rows:
-                    per_model[si_key] = {"label": model_labels_map[si_key], "rows": rows}
-
-            # ── Within-model PW vs SI (model's own matches only) ───────────
-            _OPUS_MERGE = {
-                "anthropic/claude-opus-4-5-20251101": "claude",
-                "anthropic/claude-opus-4-6": "claude",
-                "anthropic/claude-opus": "claude",
+            # PW methods from stored scores
+            combined_methods = {
+                "reg_wr": {p["paper_id"]: p["score"] for p in pw_papers if p.get("score")},
+                "trueskill": {p["paper_id"]: p["ts_score"] for p in pw_papers if p.get("ts_score")},
             }
-            _SI_MODEL_MAP = {
-                "openai/gpt-5.2": "gpt",
-                "gemini/gemini-3-pro-preview": "gemini",
-            }
-            _SI_MODEL_MAP.update(_OPUS_MERGE)
+            # Per-model WR from stored model_stats
+            for mk_label, mk_key in [("claude_pw", "anthropic/claude-opus"), ("gpt_pw", "openai/gpt-5.2"), ("gemini_pw", "gemini/gemini-3-pro-preview")]:
+                mk_wr = {}
+                for p in pw_papers:
+                    ms = p.get("model_stats", {}).get(mk_key, {})
+                    if ms.get("total", 0) >= 3:
+                        mk_wr[p["paper_id"]] = (ms["wins"] + 0.5) / (ms["total"] + 1.0)
+                if len(mk_wr) >= 10:
+                    combined_methods[mk_label] = mk_wr
 
-            model_match_groups = {"claude": [], "gpt": [], "gemini": []}
-            for m in matches_raw:
-                mu = m.get("model_used", {})
-                raw_key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
-                short_key = _SI_MODEL_MAP.get(raw_key)
-                if short_key and short_key in model_match_groups:
-                    model_match_groups[short_key].append(m)
-
-            within_model = {}
-            for mk_si in ("claude", "gpt", "gemini"):
-                mk_matches = model_match_groups.get(mk_si, [])
-                if len(mk_matches) < 20 or mk_si not in si_maps:
-                    continue
-                mk_bt = [
-                    {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
-                     "winner_id": m["winner_id"], "completed": True, "failed": False}
-                    for m in mk_matches
-                ]
-                mk_pids = list(set(
-                    [m["paper1_id"] for m in mk_matches] + [m["paper2_id"] for m in mk_matches]
-                ))
-                mk_methods = _compute_all_methods(mk_bt, mk_pids)
-                rows = []
-                for method_key in method_order:
-                    c = _corr(mk_methods[method_key], si_maps[mk_si])
-                    if c:
-                        rows.append({"method": method_key, "label": pw_labels[method_key], **c})
-                if rows:
-                    within_model[mk_si] = {
-                        "label": model_labels_map[mk_si],
-                        "rows": rows,
-                        "n_matches": len(mk_matches),
-                    }
-
-            # ── Build PW vs Claude SI table (within-model + combined) ─────
-            pw_vs_claude_si = []
-            if "claude" in si_maps:
-                wm_claude = within_model.get("claude", {}).get("rows", [])
-                for r in wm_claude:
-                    pw_vs_claude_si.append({
-                        "comparison": f"Claude-only PW ({r['label']}) vs Claude SI",
-                        "type": "within",
-                        "method": r["method"],
-                        "rho": r["spearman_rho"],
-                        "n": r["n"],
-                    })
-                combined_claude = per_model.get("claude", {}).get("rows", [])
-                for r in combined_claude:
-                    pw_vs_claude_si.append({
-                        "comparison": f"Combined PW ({r['label']}) vs Claude SI",
-                        "type": "combined",
-                        "method": r["method"],
-                        "rho": r["spearman_rho"],
-                        "n": r["n"],
-                    })
-
-            pw_vs_si = {
-                "overall": overall,
-                "per_model": per_model,
-                "within_model": within_model,
-                "pw_vs_claude_si": pw_vs_claude_si,
-                "n_matches": len(matches_raw),
-            }
-    except Exception as e:
-        logger.warning(f"PW vs SI correlation failed: {e}")
+            pw_labels = {"reg_wr": "Reg WR", "trueskill": "TrueSkill",
+                         "claude_pw": "Claude PW", "gpt_pw": "GPT PW", "gemini_pw": "Gemini PW"}
+            rows = []
+            for pw_key, pw_scores in combined_methods.items():
+                for si_key, si_scores in si_maps.items():
+                    common = sorted(set(pw_scores.keys()) & set(si_scores.keys()))
+                    if len(common) < 10:
+                        continue
+                    v1 = [pw_scores[pid] for pid in common]
+                    v2 = [si_scores[pid] for pid in common]
+                    rho, _ = scipy_stats.spearmanr(v1, v2)
+                    tau, _ = scipy_stats.kendalltau(v1, v2)
+                    if not np.isnan(rho):
+                        rows.append({
+                            "pw_method": pw_labels.get(pw_key, pw_key),
+                            "si_model": si_key,
+                            "spearman": round(float(rho), 3),
+                            "kendall": round(float(tau), 3),
+                            "n": len(common),
+                        })
+            if rows:
+                pw_vs_si = rows
+    except Exception:
+        pass
 
     return {
         "status": "ok",
@@ -2535,9 +2397,7 @@ async def _compute_si_rating_stats(category, model):
         "by_category": by_category,
         "inter_model_si": inter_model_si,
         "model_comparison": model_comparison,
-        "bt_vs_si": pw_vs_si.get("overall", [{}])[0] if pw_vs_si and pw_vs_si.get("overall") else None,
         "pw_vs_si": pw_vs_si,
-        "pw_vs_claude_si": pw_vs_si.get("pw_vs_claude_si", []) if pw_vs_si else [],
     }
 
 
