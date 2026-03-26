@@ -116,13 +116,25 @@ export function LeaderboardConvergence({ category }) {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer = null;
     const params = { steps: 20 };
     if (category) params.category = category;
-    axios.get(`${API}/api/convergence`, { params }).then(r => {
-      if (!cancelled && r.data.status === "ok") setCurve(r.data);
-      if (!cancelled) setLoading(false);
-    }).catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    const fetchConvergence = () => {
+      axios.get(`${API}/api/convergence`, { params }).then(r => {
+        if (cancelled) return;
+        if (r.data.status === "ok") {
+          setCurve(r.data);
+          setLoading(false);
+        } else if (r.data.status === "computing") {
+          // Retry in 3 seconds — background computation in progress
+          retryTimer = setTimeout(fetchConvergence, 3000);
+        } else {
+          setLoading(false);
+        }
+      }).catch(() => { if (!cancelled) setLoading(false); });
+    };
+    fetchConvergence();
+    return () => { cancelled = true; if (retryTimer) clearTimeout(retryTimer); };
   }, [category]);
 
   if (!curve) return loading ? <div className="h-64 bg-secondary/20 rounded-lg animate-pulse" /> : null;

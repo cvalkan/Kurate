@@ -2355,15 +2355,25 @@ async def get_convergence(
     )
     if doc and doc.get("curve"):
         return doc
-    # Fall back to computing (first visit only, before any recomputation)
-    result = await _compute_convergence(category, steps)
-    if result.get("curve"):
-        await db.convergence_cache.update_one(
-            {"category": cat_key},
-            {"$set": result},
-            upsert=True,
-        )
-    return result
+    # No cached data yet — trigger background computation, return immediately
+    asyncio.create_task(_compute_and_store_convergence(category, steps))
+    return {"status": "computing", "category": cat_key, "curve": [],
+            "message": "Convergence chart is being computed. Reload in a few seconds."}
+
+
+async def _compute_and_store_convergence(category, steps):
+    """Background task: compute convergence and store in MongoDB."""
+    try:
+        cat_key = category or "__all__"
+        result = await _compute_convergence(category, steps)
+        if result.get("curve"):
+            await db.convergence_cache.update_one(
+                {"category": cat_key},
+                {"$set": result},
+                upsert=True,
+            )
+    except Exception as e:
+        logger.warning(f"Convergence computation failed for {category}: {e}")
 
 
 async def _compute_convergence(category, steps):
