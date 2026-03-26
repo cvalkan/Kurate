@@ -2375,7 +2375,7 @@ async def _compute_si_rating_stats(category, model):
                         total_sub += ms.get("total", 0)
                 if total_sub >= 3:
                     sub_wr[p["paper_id"]] = (wins_sub + 0.5) / (total_sub + 1.0)
-            controlled_pw["reg_wr"] = ("Reg WR (controlled)", sub_wr)
+            controlled_pw["reg_wr"] = ("Reg WR", sub_wr)
 
             # Controlled TrueSkill: use a single random model's TrueSkill per paper
             sub_ts = {}
@@ -2389,7 +2389,7 @@ async def _compute_si_rating_stats(category, model):
                     if isinstance(ts_data, dict) and ts_data.get("mu"):
                         sub_ts[p["paper_id"]] = ts_data["mu"]
                         break
-            controlled_pw["trueskill"] = ("TrueSkill (controlled)", sub_ts)
+            controlled_pw["trueskill"] = ("TrueSkill", sub_ts)
 
             for si_mk in ("claude", "gpt", "gemini"):
                 if si_mk not in si_maps:
