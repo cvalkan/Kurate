@@ -608,7 +608,7 @@ _RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "
               "score": 1, "ts_score": 1,
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
-              "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1,
+              "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1, "gap_score_ts": 1,
               "community_likes": 1, "categories": 1}
 
 
@@ -652,6 +652,7 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         "comparisons": doc.get("comparisons", 0),
         **({"ai_rating": doc["ai_rating"]} if doc.get("ai_rating") else {}),
         **({"gap_score": doc["gap_score"]} if doc.get("gap_score") is not None else {}),
+        **({"gap_score_ts": doc["gap_score_ts"]} if doc.get("gap_score_ts") is not None else {}),
         **({"community_likes": doc["community_likes"]} if doc.get("community_likes") is not None else {}),
     }
 
@@ -1365,7 +1366,7 @@ async def _compute_model_correlation(category, mode):
             if stats.get("total", 0) >= MIN_MATCHES_PER_MODEL:
                 model_win_rates[mk][pid] = (stats.get("wins", 0) + 0.5) / (stats.get("total", 0) + 1.0)
 
-    # Pairwise correlations
+    # Pairwise correlations (WR-based)
     correlations = {}
     for i, m1 in enumerate(model_keys):
         for j, m2 in enumerate(model_keys):
@@ -1382,6 +1383,26 @@ async def _compute_model_correlation(category, mode):
                     "spearman_p": round(float(spearman_p), 4),
                     "pearson_r": round(float(pearson_r), 3),
                     "pearson_p": round(float(pearson_p), 4),
+                    "n_papers": len(pair_papers),
+                }
+
+    # Pairwise correlations (TrueSkill-based)
+    ts_correlations = {}
+    for i, m1 in enumerate(model_keys):
+        for j, m2 in enumerate(model_keys):
+            if i >= j:
+                continue
+            ts1 = model_paper_ts.get(m1, {})
+            ts2 = model_paper_ts.get(m2, {})
+            pair_papers = sorted(set(ts1.keys()) & set(ts2.keys()))
+            if len(pair_papers) >= 5:
+                v1 = [ts1[pid] for pid in pair_papers]
+                v2 = [ts2[pid] for pid in pair_papers]
+                sp_r, _ = scipy_stats.spearmanr(v1, v2)
+                pe_r, _ = scipy_stats.pearsonr(v1, v2)
+                ts_correlations[f"{m1} vs {m2}"] = {
+                    "spearman_r": round(float(sp_r), 3),
+                    "pearson_r": round(float(pe_r), 3),
                     "n_papers": len(pair_papers),
                 }
 
@@ -1496,6 +1517,7 @@ async def _compute_model_correlation(category, mode):
     return {
         "models": [{"key": mk, "label": _short(mk), "short": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
         "correlations": sorted_correlations,
+        "ts_correlations": dict(sorted(ts_correlations.items())),
         "agreement": sorted_agreement,
         "method_labels": {"reg_wr": "Reg WR", "trueskill": "TrueSkill"},
         "n_common_papers": len(common_papers),

@@ -59,8 +59,9 @@ export function CorrelationSection({ sectionData, title, description }) {
     );
   }
 
-  const { models, correlations, agreement, scatter_data, n_common_papers } = sectionData;
+  const { models, correlations, agreement, scatter_data, n_common_papers, ts_correlations } = sectionData;
   const corrEntries = Object.entries(correlations);
+  const tsCorrEntries = Object.entries(ts_correlations || {});
   const agreeEntries = Object.entries(agreement);
   const scatterPairs = [];
   for (let i = 0; i < models.length; i++) {
@@ -111,26 +112,39 @@ export function CorrelationSection({ sectionData, title, description }) {
 
       {corrEntries.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-sm font-medium mb-2">Rank Correlations (Regularized WR)</h3>
+          <h3 className="text-sm font-medium mb-2">Rank Correlations</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {corrEntries.map(([pair, stats]) => (
-              <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
-                <div className="text-[11px] text-muted-foreground mb-2">{pair.replace(" vs ", " \u2194 ")}</div>
-                <div className="flex items-center gap-3">
-                  <div>
-                    <div className={`font-mono text-xl font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
-                      {stats.spearman_r.toFixed(2)}
+            {corrEntries.map(([pair, stats]) => {
+              const tsStats = (ts_correlations || {})[pair];
+              return (
+                <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
+                  <div className="text-[11px] text-muted-foreground mb-2">{pair.replace(" vs ", " \u2194 ")}</div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <div className="text-[9px] text-muted-foreground w-8 shrink-0">WR</div>
+                      <div className={`font-mono text-lg font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
+                        {stats.spearman_r.toFixed(2)}
+                      </div>
+                      <div className="font-mono text-xs text-muted-foreground">{stats.pearson_r.toFixed(2)}</div>
+                      <div className="text-[10px] text-muted-foreground">n={stats.n_papers}</div>
                     </div>
-                    <div className="text-[10px] text-muted-foreground">Spearman</div>
+                    {tsStats && (
+                      <div className="flex items-center gap-3">
+                        <div className="text-[9px] text-muted-foreground w-8 shrink-0">TS</div>
+                        <div className={`font-mono text-lg font-bold ${tsStats.spearman_r > 0.7 ? "text-green-600" : tsStats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
+                          {tsStats.spearman_r.toFixed(2)}
+                        </div>
+                        <div className="font-mono text-xs text-muted-foreground">{tsStats.pearson_r.toFixed(2)}</div>
+                        <div className="text-[10px] text-muted-foreground">n={tsStats.n_papers}</div>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <div className="font-mono text-sm text-muted-foreground">{stats.pearson_r.toFixed(2)}</div>
-                    <div className="text-[10px] text-muted-foreground">Pearson</div>
+                  <div className="flex items-center gap-6 mt-1 text-[9px] text-muted-foreground">
+                    <span>Spearman</span><span>Pearson</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground">n={stats.n_papers}</div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

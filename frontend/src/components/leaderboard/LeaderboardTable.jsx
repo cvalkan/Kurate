@@ -117,7 +117,7 @@ export function LeaderboardTable({
         case "comparisons": return getComparisons(p) || 0;
         case "community_likes": return p.community_likes || 0;
         case "ai_rating": { const r = p.ai_rating; return (typeof r === "object" && r ? r.score : r) || 0; }
-        case "gap_score": return p.gap_score || 0;
+        case "gap_score": return (isTS ? p.gap_score_ts : p.gap_score) || 0;
         case "published": return p.published || "";
         case "bookmarked_at": return p.bookmarked_at || "";
         default: return 0;
@@ -252,7 +252,7 @@ export function LeaderboardTable({
             </div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
             {showRatingCol && !isMobile && !isTablet && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{(typeof paper.ai_rating === "object" && paper.ai_rating ? paper.ai_rating.score : paper.ai_rating) || "—"}</div>}
-            {showGapCol && !isMobile && !isTablet && <div className={`text-right font-mono text-[10px] sm:text-xs ${paper.gap_score > 0 ? "text-emerald-600" : paper.gap_score < 0 ? "text-red-400" : "text-muted-foreground"}`}>{paper.gap_score != null ? (paper.gap_score > 0 ? "+" : "") + paper.gap_score : "—"}</div>}
+            {showGapCol && !isMobile && !isTablet && (() => { const gap = isTS ? paper.gap_score_ts : paper.gap_score; return <div className={`text-right font-mono text-[10px] sm:text-xs ${gap > 0 ? "text-emerald-600" : gap < 0 ? "text-red-400" : "text-muted-foreground"}`}>{gap != null ? (gap > 0 ? "+" : "") + gap : "\u2014"}</div>; })()}
             {!isMobile && <div className="text-right text-xs text-muted-foreground">
               {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "--"}
             </div>}

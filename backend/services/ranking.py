@@ -1023,15 +1023,16 @@ async def _refresh_derived_fields(db, category: str):
         if doc.get("likes") is not None:
             community_likes[doc["id"]] = doc["likes"]
 
-    # Compute gap scores from current rankings
+    # Compute gap scores from current rankings (WR-based and TS-based)
     rankings = []
     async for r in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "score": 1, "comparisons": 1}
+        {"_id": 0, "paper_id": 1, "score": 1, "ts_score": 1, "comparisons": 1}
     ):
         rankings.append(r)
 
     gap_scores = {}
+    gap_scores_ts = {}
     entries_with_both = [
         e for e in rankings
         if ai_ratings.get(e["paper_id"]) and e.get("comparisons", 0) >= 3
@@ -1039,13 +1040,20 @@ async def _refresh_derived_fields(db, category: str):
     if len(entries_with_both) >= 2:
         from scipy import stats as _sp_stats
         import numpy as _np
-        _bt_vals = _np.array([e["score"] for e in entries_with_both])
+        _wr_vals = _np.array([e["score"] for e in entries_with_both])
         _si_vals = _np.array([ai_ratings[e["paper_id"]] for e in entries_with_both])
-        _bt_pct = _sp_stats.rankdata(_bt_vals) / len(entries_with_both) * 100
+        _wr_pct = _sp_stats.rankdata(_wr_vals) / len(entries_with_both) * 100
         _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
-        _gap_raw = _bt_pct - _si_pct
+        _gap_wr = _wr_pct - _si_pct
         for i, entry in enumerate(entries_with_both):
-            gap_scores[entry["paper_id"]] = round(float(_gap_raw[i]), 1)
+            gap_scores[entry["paper_id"]] = round(float(_gap_wr[i]), 1)
+
+        # TS-based gap
+        _ts_vals = _np.array([e.get("ts_score", e["score"]) for e in entries_with_both])
+        _ts_pct = _sp_stats.rankdata(_ts_vals) / len(entries_with_both) * 100
+        _gap_ts = _ts_pct - _si_pct
+        for i, entry in enumerate(entries_with_both):
+            gap_scores_ts[entry["paper_id"]] = round(float(_gap_ts[i]), 1)
 
     # Bulk update
     from pymongo import UpdateOne
@@ -1055,6 +1063,8 @@ async def _refresh_derived_fields(db, category: str):
         update = {}
         if pid in gap_scores:
             update["gap_score"] = gap_scores[pid]
+        if pid in gap_scores_ts:
+            update["gap_score_ts"] = gap_scores_ts[pid]
         if pid in community_likes:
             update["community_likes"] = community_likes[pid]
         if update:
