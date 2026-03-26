@@ -726,21 +726,20 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
             {"_id": 0, "ts_mu": 1, "ts_sigma": 1},
         )
         if w_doc and l_doc:
-            w_rating = env.create_rating(
-                mu=w_doc.get("ts_mu", 25.0),
-                sigma=w_doc.get("ts_sigma", 25.0 / 3),
-            )
-            l_rating = env.create_rating(
-                mu=l_doc.get("ts_mu", 25.0),
-                sigma=l_doc.get("ts_sigma", 25.0 / 3),
-            )
+            w_mu = w_doc.get("ts_mu", 25.0)
+            w_sigma = w_doc.get("ts_sigma", 25.0 / 3)
+            l_mu = l_doc.get("ts_mu", 25.0)
+            l_sigma = l_doc.get("ts_sigma", 25.0 / 3)
+            w_rating = env.create_rating(mu=w_mu, sigma=w_sigma)
+            l_rating = env.create_rating(mu=l_mu, sigma=l_sigma)
             new_w, new_l = trueskill.rate_1vs1(w_rating, l_rating)
+            # CAS: only write if ts_mu hasn't changed since we read (prevents race condition)
             await db.rankings.update_one(
-                {"paper_id": winner_id, "category": category},
+                {"paper_id": winner_id, "category": category, "ts_mu": w_mu},
                 {"$set": {"ts_mu": new_w.mu, "ts_sigma": new_w.sigma}},
             )
             await db.rankings.update_one(
-                {"paper_id": loser_id, "category": category},
+                {"paper_id": loser_id, "category": category, "ts_mu": l_mu},
                 {"$set": {"ts_mu": new_l.mu, "ts_sigma": new_l.sigma}},
             )
     except Exception:
@@ -820,23 +819,22 @@ async def rerank_category_light(db, category: str):
     if not entries:
         return
 
-    # --- Normalize TrueSkill mu values to Elo-like scale ---
-    ts_vals = [e.get("ts_mu", 25.0) for e in entries if e.get("ts_mu") is not None]
-    if len(ts_vals) >= 2:
-        import numpy as np
-        mu_mean = np.mean(ts_vals)
-        mu_std = np.std(ts_vals)
-        if mu_std < 1e-9:
-            mu_std = 1.0
-        ts_elo = {}
-        for e in entries:
-            raw_mu = e.get("ts_mu", 25.0)
-            if raw_mu is not None:
-                ts_elo[e["paper_id"]] = round(100 * (raw_mu - mu_mean) / mu_std + SCORE_BASE_CONST)
-            else:
-                ts_elo[e["paper_id"]] = SCORE_BASE_CONST
-    else:
-        ts_elo = {e["paper_id"]: SCORE_BASE_CONST for e in entries}
+    # --- Normalize TrueSkill to Elo-like scale using conservative score ---
+    # Uses mu - 3*sigma (standard TrueSkill ranking approach, used by Xbox/chess).
+    # Fixed scale factor (no population dependency) → stable under new paper additions.
+    # Default: mu=25, sigma=25/3≈8.33 → conservative=0 → ts_score=1200
+    # Strong paper: mu=40, sigma=2 → conservative=34 → ts_score=1540
+    # Weak paper: mu=15, sigma=2 → conservative=9 → ts_score=1090
+    TS_SCALE = 10.0  # Elo points per conservative-score unit
+    ts_elo = {}
+    for e in entries:
+        raw_mu = e.get("ts_mu", 25.0)
+        raw_sigma = e.get("ts_sigma", 25.0 / 3)
+        if raw_mu is not None:
+            conservative = raw_mu - 3 * raw_sigma
+            ts_elo[e["paper_id"]] = round(conservative * TS_SCALE + SCORE_BASE_CONST)
+        else:
+            ts_elo[e["paper_id"]] = SCORE_BASE_CONST
 
     # --- Sort by WR score → assign rank_wr ---
     wr_sorted = sorted(
@@ -1222,19 +1220,13 @@ async def backfill_trueskill(db, category: str = None):
                 ratings[winner] = new_w
                 ratings[loser] = new_l
 
-        # Normalize to Elo scale
-        import numpy as _np
-        mu_vals = [r.mu for r in ratings.values()]
-        mu_mean = _np.mean(mu_vals)
-        mu_std = _np.std(mu_vals)
-        if mu_std < 1e-9:
-            mu_std = 1.0
-
-        # Bulk write TS ratings
+        # Normalize to Elo scale using conservative score (mu - 3*sigma, fixed scale)
+        TS_SCALE = 10.0
         from pymongo import UpdateOne
         ops = []
         for pid, rating in ratings.items():
-            ts_elo = round(100 * (rating.mu - mu_mean) / mu_std + SCORE_BASE_CONST)
+            conservative = rating.mu - 3 * rating.sigma
+            ts_elo = round(conservative * TS_SCALE + SCORE_BASE_CONST)
             ops.append(UpdateOne(
                 {"paper_id": pid, "category": cat},
                 {"$set": {
