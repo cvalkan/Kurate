@@ -1294,25 +1294,7 @@ async def get_public_prompts():
 
 
 # Cache for model-correlation and convergence endpoints (keyed by category+mode)
-_analysis_cache = {}  # (endpoint, category, mode) -> {"data": ..., "ts": float}
-_ANALYSIS_CACHE_TTL = 3600  # 1 hour — data only changes when new matches are added
-_ANALYSIS_CACHE_MAX = 500   # ~50MB max; evict oldest when exceeded
 
-
-def _get_analysis_cached(endpoint: str, category: str, mode: str = ""):
-    key = (endpoint, category or "__all__", mode or "")
-    entry = _analysis_cache.get(key)
-    if entry and time.time() - entry["ts"] < _ANALYSIS_CACHE_TTL:
-        return entry["data"]
-    return None
-
-
-def _set_analysis_cached(endpoint: str, category: str, mode: str, data):
-    key = (endpoint, category or "__all__", mode or "")
-    if len(_analysis_cache) >= _ANALYSIS_CACHE_MAX:
-        oldest = min(_analysis_cache, key=lambda k: _analysis_cache[k]["ts"])
-        del _analysis_cache[oldest]
-    _analysis_cache[key] = {"data": data, "ts": time.time()}
 
 
 @router.get("/model-correlation")
@@ -2343,12 +2325,22 @@ async def get_convergence(
     category: Optional[str] = Query(None),
     steps: int = Query(20),
 ):
-    """Convergence analysis: how ranking stability improves as matches accumulate."""
-    cached = _get_analysis_cached("convergence", category, str(steps))
-    if cached:
-        return cached
+    """Convergence analysis. Reads from pre-computed MongoDB document (<10ms).
+    Recomputed in background after comparison rounds — never blocks user requests."""
+    cat_key = category or "__all__"
+    doc = await db.convergence_cache.find_one(
+        {"category": cat_key}, {"_id": 0}
+    )
+    if doc and doc.get("curve"):
+        return doc
+    # Fall back to computing (first visit only, before any recomputation)
     result = await _compute_convergence(category, steps)
-    _set_analysis_cached("convergence", category, str(steps), result)
+    if result.get("curve"):
+        await db.convergence_cache.update_one(
+            {"category": cat_key},
+            {"$set": result},
+            upsert=True,
+        )
     return result
 
 

@@ -24,8 +24,9 @@ export function PwVsSiSection({ category }) {
           Pairwise Tournament vs Single-Item Ranking
         </h2>
         <p className="text-muted-foreground text-xs mt-1 max-w-2xl">
-          PW ranking correlated against each model's individual SI scores.
-          "Combined" uses all models' matches ({data.n_matches?.toLocaleString()}); "Within" uses only that model's own matches.
+          How well does the tournament ranking correlate with each model's direct 1-10 quality scores?
+          "All judges" uses matches from all 3 models ({data.n_matches?.toLocaleString()} total);
+          "single judge" isolates each model's own matches.
         </p>
       </div>
 
@@ -38,15 +39,16 @@ export function PwVsSiSection({ category }) {
           const withinRows = (wmData?.rows || []).filter(r => r.method !== "raw_wr");
           const allRhos = [...combinedRows, ...withinRows].map(r => r.spearman_rho);
           const bestRho = allRhos.length > 0 ? Math.max(...allRhos) : null;
+          const shortName = mData.label.split(" ")[0];
           return (
             <div key={mk} className="border border-border rounded-lg overflow-hidden" data-testid={`pw-vs-si-${mk}`}>
               <div className="px-3 py-1.5 bg-secondary/10 border-b border-border">
-                <span className="text-[10px] font-semibold">{mData.label} SI</span>
+                <span className="text-[10px] font-semibold">vs {mData.label} Scores</span>
               </div>
               <table className="w-full text-[10px]">
                 <thead>
                   <tr className="border-b border-border/50 text-muted-foreground">
-                    <th className="py-1 px-2 text-left font-medium">PW Method</th>
+                    <th className="py-1 px-2 text-left font-medium">Ranking Method</th>
                     <th className="py-1 px-2 text-right font-medium">{"\u03C1"}</th>
                     <th className="py-1 px-2 text-right font-medium">{"\u03C4"}</th>
                     <th className="py-1 px-2 text-right font-medium">n</th>
@@ -54,7 +56,7 @@ export function PwVsSiSection({ category }) {
                 </thead>
                 <tbody>
                   {combinedRows.length > 0 && (
-                    <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">Combined PW</td></tr>
+                    <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">All judges combined</td></tr>
                   )}
                   {combinedRows.map(row => (
                     <tr key={`c-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
@@ -66,13 +68,13 @@ export function PwVsSiSection({ category }) {
                   ))}
                   {withinRows.length > 0 && (
                     <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">
-                      {mData.label.split(" ")[0]}-only PW
+                      {shortName} only
                       {wmData?.n_matches ? <span className="ml-1 font-normal">({wmData.n_matches.toLocaleString()} matches)</span> : ""}
                     </td></tr>
                   )}
                   {withinRows.map(row => (
                     <tr key={`w-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
-                      <td className="py-1 px-2 font-medium">{row.label}</td>
+                      <td className="py-1 px-2 font-medium">{row.label === "Within-model WR" ? "Win Rate" : row.label}</td>
                       <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
                       <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
                       <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.n}</td>

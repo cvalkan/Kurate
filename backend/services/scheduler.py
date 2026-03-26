@@ -1176,6 +1176,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 # Signal leaderboard cache to refresh
                 from routers.leaderboard import notify_data_changed
                 notify_data_changed()
+                # Recompute convergence in background (non-blocking)
+                asyncio.create_task(_recompute_convergence_bg(category))
 
             return {"status": "ok", "completed": completed, "failed": failed}
 
@@ -1186,6 +1188,22 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             return {"status": "error", "error": str(e)}
         finally:
             cat_status["is_processing"] = False
+
+
+
+async def _recompute_convergence_bg(category: str):
+    """Recompute convergence curve for a category and store in MongoDB. Non-blocking."""
+    try:
+        from routers.leaderboard import _compute_convergence
+        result = await _compute_convergence(category, 20)
+        if result.get("curve"):
+            await db.convergence_cache.update_one(
+                {"category": category or "__all__"},
+                {"$set": result},
+                upsert=True,
+            )
+    except Exception as e:
+        logger.debug(f"Convergence recompute for {category}: {e}")
 
 
 async def _generate_pending_summaries(category: str = None):
