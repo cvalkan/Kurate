@@ -1303,8 +1303,21 @@ async def get_model_correlation(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
     mode: Optional[str] = Query(None, description="Match mode: None=standard, 'prediction', 'prediction-fulltext'"),
 ):
-    """Correlation analysis between the 3 LLMs used for rankings. Reads from stored data (<0.3s)."""
-    return await _compute_model_correlation(category, mode)
+    """Correlation analysis. Reads from pre-aggregated MongoDB document (~50ms on Atlas)."""
+    if mode:
+        return await _compute_model_correlation_from_matches(category, mode)
+    cat_key = category or "__all__"
+    doc = await db.analysis_store.find_one({"_type": "model-correlation", "category": cat_key}, {"_id": 0})
+    if doc:
+        doc.pop("_type", None)
+        return doc
+    result = await _compute_model_correlation(category, mode)
+    await db.analysis_store.update_one(
+        {"_type": "model-correlation", "category": cat_key},
+        {"$set": {**result, "_type": "model-correlation", "category": cat_key}},
+        upsert=True,
+    )
+    return result
 
 
 async def _compute_model_correlation(category, mode):
@@ -1904,8 +1917,19 @@ async def _compute_model_correlation_from_matches(category, mode):
 async def get_scoring_method_correlation(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
 ):
-    """Compare Win-Rate and TrueSkill ranking methods. Reads from stored data (<0.3s)."""
-    return await _compute_scoring_method_correlation(category)
+    """Compare Win-Rate and TrueSkill. Reads from pre-aggregated MongoDB document."""
+    cat_key = category or "__all__"
+    doc = await db.analysis_store.find_one({"_type": "scoring-method", "category": cat_key}, {"_id": 0})
+    if doc:
+        doc.pop("_type", None)
+        return doc
+    result = await _compute_scoring_method_correlation(category)
+    await db.analysis_store.update_one(
+        {"_type": "scoring-method", "category": cat_key},
+        {"$set": {**result, "_type": "scoring-method", "category": cat_key}},
+        upsert=True,
+    )
+    return result
 
 
 async def _compute_scoring_method_correlation(category):
@@ -2000,8 +2024,21 @@ async def get_si_rating_stats(
     category: Optional[str] = Query(None, description="Filter by primary category"),
     model: Optional[str] = Query(None, description="Filter by model: claude, gpt, gemini, or None for all"),
 ):
-    """Single-item rating distributions. Reads from stored data (<0.3s)."""
-    return await _compute_si_rating_stats(category, model)
+    """Single-item rating distributions. Reads from pre-aggregated MongoDB document."""
+    cat_key = category or "__all__"
+    store_key = f"{cat_key}:{model or 'all'}"
+    doc = await db.analysis_store.find_one({"_type": "si-rating", "key": store_key}, {"_id": 0})
+    if doc:
+        doc.pop("_type", None)
+        doc.pop("key", None)
+        return doc
+    result = await _compute_si_rating_stats(category, model)
+    await db.analysis_store.update_one(
+        {"_type": "si-rating", "key": store_key},
+        {"$set": {**result, "_type": "si-rating", "key": store_key}},
+        upsert=True,
+    )
+    return result
 
 
 _SI_MODEL_KEYS = {

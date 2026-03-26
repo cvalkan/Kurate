@@ -903,12 +903,67 @@ async def rerank_category_light(db, category: str):
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
 
-    # Refresh derived fields (gap scores, community likes) less frequently
-    # Only run if enough time has passed since last refresh
+    # Refresh derived fields (gap scores, community likes)
     await _refresh_derived_fields(db, category)
+
+    # Refresh pre-aggregated analysis store in background
+    asyncio.create_task(_refresh_analysis_store(db, category))
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
+
+
+async def _refresh_analysis_store(db, category: str):
+    """Refresh pre-aggregated analysis documents for a category. Runs in background after rerank."""
+    try:
+        from routers.leaderboard import _compute_model_correlation, _compute_scoring_method_correlation, _compute_si_rating_stats
+        cat_key = category or "__all__"
+
+        result = await _compute_model_correlation(category, None)
+        await db.analysis_store.update_one(
+            {"_type": "model-correlation", "category": cat_key},
+            {"$set": {**result, "_type": "model-correlation", "category": cat_key}},
+            upsert=True,
+        )
+
+        result = await _compute_scoring_method_correlation(category)
+        await db.analysis_store.update_one(
+            {"_type": "scoring-method", "category": cat_key},
+            {"$set": {**result, "_type": "scoring-method", "category": cat_key}},
+            upsert=True,
+        )
+
+        result = await _compute_si_rating_stats(category, None)
+        await db.analysis_store.update_one(
+            {"_type": "si-rating", "key": f"{cat_key}:all"},
+            {"$set": {**result, "_type": "si-rating", "key": f"{cat_key}:all"}},
+            upsert=True,
+        )
+
+        # Also refresh "All Categories" aggregation
+        if category:
+            all_mc = await _compute_model_correlation(None, None)
+            await db.analysis_store.update_one(
+                {"_type": "model-correlation", "category": "__all__"},
+                {"$set": {**all_mc, "_type": "model-correlation", "category": "__all__"}},
+                upsert=True,
+            )
+            all_sm = await _compute_scoring_method_correlation(None)
+            await db.analysis_store.update_one(
+                {"_type": "scoring-method", "category": "__all__"},
+                {"$set": {**all_sm, "_type": "scoring-method", "category": "__all__"}},
+                upsert=True,
+            )
+            all_si = await _compute_si_rating_stats(None, None)
+            await db.analysis_store.update_one(
+                {"_type": "si-rating", "key": "__all__:all"},
+                {"$set": {**all_si, "_type": "si-rating", "key": "__all__:all"}},
+                upsert=True,
+            )
+    except Exception as e:
+        from core.config import logger
+        logger.debug(f"Analysis store refresh for {category}: {e}")
+
 
 
 async def rerank_category(db, category: str):
