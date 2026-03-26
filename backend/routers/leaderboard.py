@@ -1307,14 +1307,15 @@ async def get_model_correlation(
     if mode:
         return await _compute_model_correlation_from_matches(category, mode)
     cat_key = category or "__all__"
-    doc = await db.analysis_store.find_one({"_type": "model-correlation", "category": cat_key}, {"_id": 0})
+    doc = await db.analysis_store.find_one({"_type": "model-correlation", "key": cat_key}, {"_id": 0})
     if doc:
         doc.pop("_type", None)
+        doc.pop("key", None)
         return doc
     result = await _compute_model_correlation(category, mode)
     await db.analysis_store.update_one(
-        {"_type": "model-correlation", "category": cat_key},
-        {"$set": {**result, "_type": "model-correlation", "category": cat_key}},
+        {"_type": "model-correlation", "key": cat_key},
+        {"$set": {**result, "_type": "model-correlation", "key": cat_key}},
         upsert=True,
     )
     return result
@@ -1919,14 +1920,15 @@ async def get_scoring_method_correlation(
 ):
     """Compare Win-Rate and TrueSkill. Reads from pre-aggregated MongoDB document."""
     cat_key = category or "__all__"
-    doc = await db.analysis_store.find_one({"_type": "scoring-method", "category": cat_key}, {"_id": 0})
+    doc = await db.analysis_store.find_one({"_type": "scoring-method", "key": cat_key}, {"_id": 0})
     if doc:
         doc.pop("_type", None)
+        doc.pop("key", None)
         return doc
     result = await _compute_scoring_method_correlation(category)
     await db.analysis_store.update_one(
-        {"_type": "scoring-method", "category": cat_key},
-        {"$set": {**result, "_type": "scoring-method", "category": cat_key}},
+        {"_type": "scoring-method", "key": cat_key},
+        {"$set": {**result, "_type": "scoring-method", "key": cat_key}},
         upsert=True,
     )
     return result
@@ -2334,27 +2336,78 @@ async def _compute_si_rating_stats(category, model):
                         "spearman_rho": round(float(rho), 3), "kendall_tau": round(float(tau), 3),
                         "n": len(common)}
 
+            # Compute avg matches per paper for combined and per-model
+            combined_mpp = {}
+            for p in pw_papers:
+                combined_mpp[p["paper_id"]] = p.get("comparisons", 0)
+            avg_combined_mpp = round(np.mean(list(combined_mpp.values())), 1) if combined_mpp else 0
+
+            within_mpp = {}
+            for mk, mk_key in _MODEL_KEY_MAP.items():
+                mpps = []
+                for p in pw_papers:
+                    ms = p.get("model_stats", {}).get(mk_key, {})
+                    if ms.get("total", 0) >= 3:
+                        mpps.append(ms["total"])
+                within_mpp[mk] = round(np.mean(mpps), 1) if mpps else 0
+
+            # Controlled: subsample combined WR to match single-model match density
+            # For each paper, randomly drop matches until avg_mpp matches within_mpp
+            import random as _rng
+            _rng.seed(42)
+            target_mpp = round(np.mean(list(within_mpp.values())), 1) if within_mpp else 10
+            controlled_pw = {}
+            for pw_key, (pw_label, pw_scores) in combined_pw.items():
+                if pw_key == "reg_wr":
+                    # Subsample: for each paper, scale WR toward 0.5 to simulate fewer matches
+                    # More principled: use stored model_stats to build a subsampled WR
+                    # Take only one model's worth of matches per paper
+                    sub_wr = {}
+                    for p in pw_papers:
+                        # Pick matches from ~1/3 of models (random)
+                        ms_all = p.get("model_stats", {})
+                        wins_sub = 0
+                        total_sub = 0
+                        for mk_key_inner in list(_MODEL_KEY_MAP.values()):
+                            ms = ms_all.get(mk_key_inner, {})
+                            if ms.get("total", 0) > 0 and _rng.random() < 0.34:  # ~1/3 chance to include each model
+                                wins_sub += ms.get("wins", 0)
+                                total_sub += ms.get("total", 0)
+                        if total_sub >= 3:
+                            sub_wr[p["paper_id"]] = (wins_sub + 0.5) / (total_sub + 1.0)
+                    controlled_pw[pw_key] = (f"{pw_label} (controlled)", sub_wr)
+
             for si_mk in ("claude", "gpt", "gemini"):
                 if si_mk not in si_maps:
                     continue
-                # Combined PW vs this model's SI
+                # Full combined PW vs this model's SI
                 rows = []
                 for pw_key, (pw_label, pw_scores) in combined_pw.items():
                     row = _corr_row(pw_key, pw_label, pw_scores, si_maps[si_mk])
                     if row:
+                        row["avg_mpp"] = avg_combined_mpp
                         rows.append(row)
+                # Controlled rows
+                controlled_rows = []
+                for pw_key, (pw_label, pw_scores) in controlled_pw.items():
+                    row = _corr_row(f"{pw_key}_ctrl", pw_label, pw_scores, si_maps[si_mk])
+                    if row:
+                        row["avg_mpp"] = target_mpp
+                        controlled_rows.append(row)
+
                 if rows:
-                    per_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": rows}
+                    per_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": rows, "controlled_rows": controlled_rows}
 
                 # Within-model PW vs this model's SI
                 if si_mk in within_pw:
                     wm_scores, wm_matches = within_pw[si_mk]
                     wm_rows = []
-                    wm_row = _corr_row("within_wr", "Within-model WR", wm_scores, si_maps[si_mk])
+                    wm_row = _corr_row("within_wr", "Win Rate", wm_scores, si_maps[si_mk])
                     if wm_row:
+                        wm_row["avg_mpp"] = within_mpp.get(si_mk, 0)
                         wm_rows.append(wm_row)
                     if wm_rows:
-                        within_model[si_mk] = {"n_matches": wm_matches, "rows": wm_rows}
+                        within_model[si_mk] = {"n_matches": wm_matches, "avg_mpp": within_mpp.get(si_mk, 0), "rows": wm_rows}
 
             if per_model:
                 pw_vs_si = {

@@ -921,15 +921,15 @@ async def _refresh_analysis_store(db, category: str):
 
         result = await _compute_model_correlation(category, None)
         await db.analysis_store.update_one(
-            {"_type": "model-correlation", "category": cat_key},
-            {"$set": {**result, "_type": "model-correlation", "category": cat_key}},
+            {"_type": "model-correlation", "key": cat_key},
+            {"$set": {**result, "_type": "model-correlation", "key": cat_key}},
             upsert=True,
         )
 
         result = await _compute_scoring_method_correlation(category)
         await db.analysis_store.update_one(
-            {"_type": "scoring-method", "category": cat_key},
-            {"$set": {**result, "_type": "scoring-method", "category": cat_key}},
+            {"_type": "scoring-method", "key": cat_key},
+            {"$set": {**result, "_type": "scoring-method", "key": cat_key}},
             upsert=True,
         )
 
@@ -944,14 +944,14 @@ async def _refresh_analysis_store(db, category: str):
         if category:
             all_mc = await _compute_model_correlation(None, None)
             await db.analysis_store.update_one(
-                {"_type": "model-correlation", "category": "__all__"},
-                {"$set": {**all_mc, "_type": "model-correlation", "category": "__all__"}},
+                {"_type": "model-correlation", "key": "__all__"},
+                {"$set": {**all_mc, "_type": "model-correlation", "key": "__all__"}},
                 upsert=True,
             )
             all_sm = await _compute_scoring_method_correlation(None)
             await db.analysis_store.update_one(
-                {"_type": "scoring-method", "category": "__all__"},
-                {"$set": {**all_sm, "_type": "scoring-method", "category": "__all__"}},
+                {"_type": "scoring-method", "key": "__all__"},
+                {"$set": {**all_sm, "_type": "scoring-method", "key": "__all__"}},
                 upsert=True,
             )
             all_si = await _compute_si_rating_stats(None, None)
@@ -960,6 +960,9 @@ async def _refresh_analysis_store(db, category: str):
                 {"$set": {**all_si, "_type": "si-rating", "key": "__all__:all"}},
                 upsert=True,
             )
+    except Exception as e:
+        from core.config import logger
+        logger.debug(f"Analysis store refresh for {category}: {e}")
     except Exception as e:
         from core.config import logger
         logger.debug(f"Analysis store refresh for {category}: {e}")
