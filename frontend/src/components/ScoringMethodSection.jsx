@@ -77,44 +77,6 @@ export function ScoringMethodSection({ category }) {
         </table>
       </div>
 
-      {/* Rank agreement at extremes */}
-      {data.rank_agreement?.length > 0 && (
-        <div className="mt-3 border border-border rounded-lg overflow-hidden">
-          <div className="px-3 py-1.5 bg-secondary/10 border-b border-border">
-            <span className="text-[10px] font-semibold text-muted-foreground">
-              Top/Bottom K% Agreement Between Methods
-            </span>
-          </div>
-          <table className="w-full text-[11px]">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground">
-                <th className="py-1.5 px-3 text-left font-medium">Pair</th>
-                <th className="py-1.5 px-3 text-right font-medium">K%</th>
-                <th className="py-1.5 px-3 text-right font-medium bg-emerald-500/[0.06]">Top K%</th>
-                <th className="py-1.5 px-3 text-right font-medium bg-rose-500/[0.06]">Bottom K%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rank_agreement.map((r, i) => {
-                const label = data.correlations.find(
-                  c => c.method1 === r.method1 && c.method2 === r.method2
-                )?.label || `${r.method1} vs ${r.method2}`;
-                const isFirst = i === 0 || data.rank_agreement[i - 1].method1 !== r.method1 ||
-                  data.rank_agreement[i - 1].method2 !== r.method2;
-                return (
-                  <tr key={i} className={`border-b border-border/20 ${isFirst ? "border-t border-border/40" : ""}`}>
-                    <td className="py-1 px-3 font-medium">{isFirst ? label : ""}</td>
-                    <td className="py-1 px-3 text-right font-mono">{r.pct}%</td>
-                    <td className="py-1 px-3 text-right font-mono bg-emerald-500/[0.06]">{r.top_overlap}%</td>
-                    <td className="py-1 px-3 text-right font-mono bg-rose-500/[0.06]">{r.bottom_overlap}%</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
       <p className="text-[9px] text-muted-foreground/50 mt-2">
         Computed from {data.n_matches.toLocaleString()} standard-mode matches
         across {data.n_papers.toLocaleString()} papers in {data.compute_time_s}s.
