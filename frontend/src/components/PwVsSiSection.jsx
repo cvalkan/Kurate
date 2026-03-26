@@ -62,8 +62,10 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
           const mData = perModelSource?.[mk];
           if (!mData) return null;
           const wmData = withinSource?.[mk];
+          // Controlled rows always from aggregate (controlled subsampling is independent of averaging)
+          const mDataAgg = data.per_model?.[mk];
           const combinedRows = controlled
-            ? (mData.controlled_rows || [])
+            ? (mDataAgg?.controlled_rows || [])
             : (mData.rows || []);
           const withinRows = (wmData?.rows || []);
           const allRhos = [...combinedRows, ...withinRows].map(r => r.spearman_rho);
