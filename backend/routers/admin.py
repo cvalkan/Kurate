@@ -2090,20 +2090,58 @@ async def process_repair_queue_endpoint():
 async def get_system_logs(
     level: str = None, label: str = None, hours: int = 24, limit: int = 2000,
 ):
-    """Query persisted system logs (memory tracking, events). Stored 7 days."""
+    """Query persisted system logs (memory tracking, events). Stored 7 days.
+    
+    For time ranges > 24h, downsamples mem logs to one entry per time bucket
+    (max RSS per bucket) to ensure the full range is visible on charts.
+    """
     from datetime import datetime, timezone, timedelta
     query = {"ts": {"$gte": datetime.now(timezone.utc) - timedelta(hours=hours)}}
     if level:
         query["level"] = level
     if label:
         query["label"] = {"$regex": label, "$options": "i"}
-    logs = await db.system_logs.find(
-        query, {"_id": 0}
-    ).sort("ts", -1).limit(min(limit, 5000)).to_list(min(limit, 5000))
+
+    # For longer ranges, use aggregation to downsample mem logs
+    if hours > 24 and not level:
+        # Fetch mem logs downsampled + all non-mem logs
+        bucket_minutes = 30 if hours <= 72 else 60  # 30min for 3d, 60min for 7d
+
+        # Downsample mem logs via aggregation
+        pipeline = [
+            {"$match": {**query, "level": "mem", "rss_mb": {"$exists": True}}},
+            {"$sort": {"ts": 1}},
+            {"$group": {
+                "_id": {
+                    "$dateTrunc": {"date": "$ts", "unit": "minute", "binSize": bucket_minutes}
+                },
+                "ts": {"$last": "$ts"},
+                "rss_mb": {"$max": "$rss_mb"},
+                "label": {"$last": "$label"},
+                "level": {"$first": "$level"},
+            }},
+            {"$sort": {"ts": 1}},
+            {"$limit": 500},
+        ]
+        mem_logs = await db.system_logs.aggregate(pipeline).to_list(500)
+
+        # Non-mem logs (repair_queue, slow_query) — just get recent
+        non_mem_query = {**query, "level": {"$ne": "mem"}}
+        non_mem_logs = await db.system_logs.find(
+            non_mem_query, {"_id": 0}
+        ).sort("ts", -1).limit(500).to_list(500)
+
+        logs = mem_logs + non_mem_logs
+    else:
+        logs = await db.system_logs.find(
+            query, {"_id": 0}
+        ).sort("ts", -1).limit(min(limit, 5000)).to_list(min(limit, 5000))
+
     # Convert datetime to ISO string for JSON serialization
     for log in logs:
         if "ts" in log:
             log["ts"] = log["ts"].isoformat()
+        log.pop("_id", None)
     return {"logs": logs, "count": len(logs)}
 
 

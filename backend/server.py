@@ -661,14 +661,14 @@ async def _startup_dedup():
 async def _startup_seed_rankings():
     """Seed the DB-backed rankings collection if empty or stale.
     
-    One-time migration from in-memory cache to DB-backed leaderboard.
-    Runs on every startup but is fast (~1s) if rankings already exist
-    and match the current paper count.
+    Memory-optimized: only reseeds categories that actually have unranked papers,
+    rather than all categories. Processes one category at a time with GC between.
     """
     try:
         from services.ranking import seed_rankings
         from core.auth import get_settings
         from core.config import CATEGORIES
+        import gc
 
         settings = await get_settings()
         cats = settings.get("active_categories", list(CATEGORIES.keys()))
@@ -682,24 +682,28 @@ async def _startup_seed_rankings():
             seeded = await seed_rankings(db)
             logger.info(f"Rankings seeded: {seeded} entries across {len(cats)} categories")
         elif rankings_count > 0:
-            # Check for new papers not yet in rankings
-            ranked_ids = set()
-            async for doc in db.rankings.find({}, {"_id": 0, "paper_id": 1}):
-                ranked_ids.add(doc["paper_id"])
+            # Find which specific categories have unranked papers
+            cats_needing_seed = []
+            for cat in cats:
+                # Count papers with summaries for this category
+                cat_papers = await db.papers.count_documents(
+                    {"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}}
+                )
+                cat_rankings = await db.rankings.count_documents({"category": cat})
+                if cat_papers > cat_rankings:
+                    cats_needing_seed.append(cat)
+                    logger.info(f"[{cat}] {cat_papers} papers, {cat_rankings} rankings — needs reseeding")
 
-            unranked = 0
-            async for p in db.papers.find(
-                {"summaries": {"$exists": True, "$ne": {}}, "id": {"$nin": list(ranked_ids)}},
-                {"_id": 0, "id": 1}
-            ).limit(10):
-                unranked += 1
-
-            if unranked > 0:
-                logger.info(f"Found {unranked}+ unranked papers, reseeding rankings...")
-                seeded = await seed_rankings(db)
-                logger.info(f"Rankings reseeded: {seeded} entries")
+            if cats_needing_seed:
+                logger.info(f"Reseeding {len(cats_needing_seed)}/{len(cats)} categories with new papers...")
+                total_seeded = 0
+                for cat in cats_needing_seed:
+                    seeded = await seed_rankings(db, category=cat)
+                    total_seeded += (seeded or 0)
+                    gc.collect()
+                logger.info(f"Rankings reseeded: {total_seeded} entries in {len(cats_needing_seed)} categories")
             else:
-                # Backfill added_at if empty/null (one-time migration after seed_rankings fix)
+                # Backfill added_at if empty/null (one-time migration)
                 empty_added = await db.rankings.count_documents(
                     {"$or": [{"added_at": ""}, {"added_at": None}, {"added_at": {"$exists": False}}]}
                 )

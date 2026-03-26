@@ -103,6 +103,14 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Report: `/app/memory/OPUS46_ACCEPT_REJECT_REPORT.md`, data: `/app/tools/opus46_accept_reject_results.json`
 - Script: `/app/tools/test_opus46_accept_reject.py`
 
+**Memory & Chart Fixes (Mar 25, 2026 continued):**
+- Fixed gap_score=0 showing as "-" in leaderboard (falsy check bug in `leaderboard.py:694`)
+- Fixed memory chart resolution switching: 7d/3d views now downsample via MongoDB `$dateTrunc` aggregation (30min/60min buckets) instead of truncating to most recent 3000 entries
+- Optimized `_startup_seed_rankings`: now only reseeds categories with unranked papers instead of all 11 categories, saving ~200MB+ on restart
+- Added `papers_total` tracking in scheduler to show "X fetched" vs "Y ready" in admin dashboard
+- Improved admin status message: "Generating summaries (X/Y ready)" instead of "Insufficient papers"
+- Added `minTickGap` to memory chart x-axis to prevent label overlap
+
 ### Prior Sessions
 - DB-Backed Rankings (all 4 phases), production stability overhaul
 - Dark mode, infinite scroll, GZip compression
