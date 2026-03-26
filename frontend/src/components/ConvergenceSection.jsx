@@ -239,7 +239,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, lo
           </h2>
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {isLeaderboard
-              ? "How many matches for stable rankings? Convergence measured against final ranking at all matches."
+              ? "How many matches for stable rankings? Rankings typically stabilize at ~15\u201320 matches/paper. Drops indicate new paper batches entering the tournament."
               : "How many matches for stable rankings? Ground truth = human ranking from reviewer scores. For multi-dimension datasets (e.g., eLife), the aggregate is the average of per-dimension Spearman correlations (significance + strength)."}
           </p>
         </div>

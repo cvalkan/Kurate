@@ -179,6 +179,12 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
               );
             })}
           </div>
+          <p className="text-[10px] text-muted-foreground mt-2 italic">
+            Note: Low Win Rate correlations (~0.6) reflect sampling noise, not genuine model disagreement.
+            Split-half tests show each model's self-correlation is equally low (~0.63), confirming models agree
+            but per-paper win rates are noisy at ~20 matches/paper. TrueSkill recovers the shared signal
+            by adjusting for opponent strength.
+          </p>
         </div>
       )}
 
