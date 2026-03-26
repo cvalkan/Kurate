@@ -525,6 +525,27 @@ async def _bg_analysis_cache_loop():
             settings = await get_settings()
             cats = settings.get("active_categories", [])
             log_mem(f"analysis_refresh start ({len(cats)} categories)")
+
+            # Pre-warm "All Categories" first (most commonly visited)
+            try:
+                result = await _compute_model_correlation(None, None)
+                _set_analysis_cached("model-correlation", None, "", result)
+            except Exception:
+                pass
+            try:
+                result = await _compute_scoring_method_correlation(None)
+                _set_analysis_cached("scoring-method-correlation", None, "", result)
+            except Exception:
+                pass
+            try:
+                result = await _compute_si_rating_stats(None, None)
+                if result.get("pw_vs_si") is not None:
+                    _set_analysis_cached("si-rating-stats", None, "all", result)
+            except Exception:
+                pass
+            gc.collect()
+
+            # Then per-category
             for cat in cats:
                 try:
                     result = await _compute_model_correlation(cat, None)
@@ -1499,7 +1520,9 @@ async def _compute_model_correlation(category, mode):
     def _short(mk):
         return _SHORT_NAMES.get(mk, mk.split("/")[-1])
 
-    # Scatter data per model pair
+    # Scatter data per model pair (subsample to 200 points max for performance)
+    import random as _rng
+    _rng.seed(42)
     scatter_data = {}
     for i, m1 in enumerate(model_keys):
         for j, m2 in enumerate(model_keys):
@@ -1507,6 +1530,8 @@ async def _compute_model_correlation(category, mode):
                 continue
             pair_key = f"{m1} vs {m2}"
             pair_papers = sorted(set(model_win_rates[m1].keys()) & set(model_win_rates[m2].keys()))
+            if len(pair_papers) > 200:
+                pair_papers = _rng.sample(pair_papers, 200)
             short1, short2 = _short(m1), _short(m2)
             scatter_data[pair_key] = [
                 {"title": paper_titles.get(pid, "?")[:40],
@@ -1553,7 +1578,7 @@ async def _compute_model_correlation(category, mode):
                         v1 = [r1[p] for p in common]
                         v2 = [r2[p] for p in common]
                         rho, _ = scipy_stats.spearmanr(v1, v2)
-                        row["methods"][method_labels[method]] = {
+                        row["methods"][method] = {
                             "rho": round(float(rho), 3), "n": len(common),
                         }
                 if row["methods"]:
@@ -1568,9 +1593,10 @@ async def _compute_model_correlation(category, mode):
     ) // 2  # Each match counted twice (once per paper)
 
     return {
-        "models": [{"key": mk, "label": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
+        "models": [{"key": mk, "label": _short(mk), "short": _short(mk), **model_summaries.get(mk, {})} for mk in model_keys],
         "correlations": sorted_correlations,
         "agreement": sorted_agreement,
+        "method_labels": {"raw_wr": "Raw WR", "reg_wr": "Reg WR"},
         "n_common_papers": len(common_papers),
         "category": category,
         "mode": mode,
