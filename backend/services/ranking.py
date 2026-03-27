@@ -906,18 +906,9 @@ async def rerank_category_light(db, category: str):
     # Refresh derived fields (gap scores, community likes)
     await _refresh_derived_fields(db, category)
 
-    # Refresh pre-aggregated analysis store periodically (not every round)
-    # Only refresh if >30 min since last refresh for this category
-    import time as _t2
-    _last_analysis_refresh = getattr(rerank_category_light, "_last_refresh", {})
-    _now = _t2.time()
-    if _now - _last_analysis_refresh.get(category, 0) > 1800:  # 30 minutes
-        _last_analysis_refresh[category] = _now
-        # Also refresh "All Categories" on the same cadence
-        _last_analysis_refresh["__all__"] = _now
-        rerank_category_light._last_refresh = _last_analysis_refresh
-        asyncio.create_task(_refresh_analysis_store(db, category))
-        asyncio.create_task(_refresh_analysis_store(db, None))
+    # Refresh pre-aggregated analysis store in background (guarded against concurrent runs)
+    asyncio.create_task(_refresh_analysis_store(db, category))
+    asyncio.create_task(_refresh_analysis_store(db, None))
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
