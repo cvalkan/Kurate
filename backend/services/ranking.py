@@ -906,8 +906,15 @@ async def rerank_category_light(db, category: str):
     # Refresh derived fields (gap scores, community likes)
     await _refresh_derived_fields(db, category)
 
-    # Refresh pre-aggregated analysis store in background
-    asyncio.create_task(_refresh_analysis_store(db, category))
+    # Refresh pre-aggregated analysis store periodically (not every round)
+    # Only refresh if >30 min since last refresh for this category
+    import time as _t2
+    _last_analysis_refresh = getattr(rerank_category_light, "_last_refresh", {})
+    _now = _t2.time()
+    if _now - _last_analysis_refresh.get(category, 0) > 1800:  # 30 minutes
+        _last_analysis_refresh[category] = _now
+        rerank_category_light._last_refresh = _last_analysis_refresh
+        asyncio.create_task(_refresh_analysis_store(db, category))
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
@@ -939,30 +946,6 @@ async def _refresh_analysis_store(db, category: str):
             {"$set": {**result, "_type": "si-rating", "key": f"{cat_key}:all"}},
             upsert=True,
         )
-
-        # Also refresh "All Categories" aggregation
-        if category:
-            all_mc = await _compute_model_correlation(None, None)
-            await db.analysis_store.update_one(
-                {"_type": "model-correlation", "key": "__all__"},
-                {"$set": {**all_mc, "_type": "model-correlation", "key": "__all__"}},
-                upsert=True,
-            )
-            all_sm = await _compute_scoring_method_correlation(None)
-            await db.analysis_store.update_one(
-                {"_type": "scoring-method", "key": "__all__"},
-                {"$set": {**all_sm, "_type": "scoring-method", "key": "__all__"}},
-                upsert=True,
-            )
-            all_si = await _compute_si_rating_stats(None, None)
-            await db.analysis_store.update_one(
-                {"_type": "si-rating", "key": "__all__:all"},
-                {"$set": {**all_si, "_type": "si-rating", "key": "__all__:all"}},
-                upsert=True,
-            )
-    except Exception as e:
-        from core.config import logger
-        logger.debug(f"Analysis store refresh for {category}: {e}")
     except Exception as e:
         from core.config import logger
         logger.debug(f"Analysis store refresh for {category}: {e}")
