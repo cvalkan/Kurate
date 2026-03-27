@@ -913,8 +913,11 @@ async def rerank_category_light(db, category: str):
     _now = _t2.time()
     if _now - _last_analysis_refresh.get(category, 0) > 1800:  # 30 minutes
         _last_analysis_refresh[category] = _now
+        # Also refresh "All Categories" on the same cadence
+        _last_analysis_refresh["__all__"] = _now
         rerank_category_light._last_refresh = _last_analysis_refresh
         asyncio.create_task(_refresh_analysis_store(db, category))
+        asyncio.create_task(_refresh_analysis_store(db, None))
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
