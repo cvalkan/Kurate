@@ -923,35 +923,40 @@ async def rerank_category_light(db, category: str):
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
 
 
+_analysis_refresh_lock = asyncio.Lock()
+
 async def _refresh_analysis_store(db, category: str):
     """Refresh pre-aggregated analysis documents for a category. Runs in background after rerank."""
-    try:
-        from routers.leaderboard import _compute_model_correlation, _compute_scoring_method_correlation, _compute_si_rating_stats
-        cat_key = category or "__all__"
+    if _analysis_refresh_lock.locked():
+        return  # Skip if another refresh is already running
+    async with _analysis_refresh_lock:
+        try:
+            from routers.leaderboard import _compute_model_correlation, _compute_scoring_method_correlation, _compute_si_rating_stats
+            cat_key = category or "__all__"
 
-        result = await _compute_model_correlation(category, None)
-        await db.analysis_store.update_one(
-            {"_type": "model-correlation", "key": cat_key},
-            {"$set": {**result, "_type": "model-correlation", "key": cat_key}},
-            upsert=True,
-        )
+            result = await _compute_model_correlation(category, None)
+            await db.analysis_store.update_one(
+                {"_type": "model-correlation", "key": cat_key},
+                {"$set": {**result, "_type": "model-correlation", "key": cat_key}},
+                upsert=True,
+            )
 
-        result = await _compute_scoring_method_correlation(category)
-        await db.analysis_store.update_one(
-            {"_type": "scoring-method", "key": cat_key},
-            {"$set": {**result, "_type": "scoring-method", "key": cat_key}},
-            upsert=True,
-        )
+            result = await _compute_scoring_method_correlation(category)
+            await db.analysis_store.update_one(
+                {"_type": "scoring-method", "key": cat_key},
+                {"$set": {**result, "_type": "scoring-method", "key": cat_key}},
+                upsert=True,
+            )
 
-        result = await _compute_si_rating_stats(category, None)
-        await db.analysis_store.update_one(
-            {"_type": "si-rating", "key": f"{cat_key}:all"},
-            {"$set": {**result, "_type": "si-rating", "key": f"{cat_key}:all"}},
-            upsert=True,
-        )
-    except Exception as e:
-        from core.config import logger
-        logger.debug(f"Analysis store refresh for {category}: {e}")
+            result = await _compute_si_rating_stats(category, None)
+            await db.analysis_store.update_one(
+                {"_type": "si-rating", "key": f"{cat_key}:all"},
+                {"$set": {**result, "_type": "si-rating", "key": f"{cat_key}:all"}},
+                upsert=True,
+            )
+        except Exception as e:
+            from core.config import logger
+            logger.debug(f"Analysis store refresh for {category}: {e}")
 
 
 
