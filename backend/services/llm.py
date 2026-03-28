@@ -13,7 +13,7 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_PROMPT, logger
 
 # Dedicated thread pool for LLM calls — default pool (8 threads) bottlenecks parallel evals
-_llm_executor = ThreadPoolExecutor(max_workers=100, thread_name_prefix="llm")
+_llm_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="llm")
 
 _TOKEN_LIMIT_KEYWORDS = ("token", "context_length", "context length", "too long", "too many tokens",
                          "maximum context", "max_tokens", "content_too_large", "request too large",

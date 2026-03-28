@@ -1188,6 +1188,14 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             return {"status": "error", "error": str(e)}
         finally:
             cat_status["is_processing"] = False
+            # P1: Free large data structures to reduce arena fragmentation
+            for _var in ("all_papers", "all_matches", "paper_lookup", "paper_stats", "compared_pairs"):
+                try:
+                    del locals()[_var]  # noqa
+                except (KeyError, NameError):
+                    pass
+            import gc
+            gc.collect()
 
 
 
