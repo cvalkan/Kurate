@@ -3,6 +3,8 @@
 Logs to both stdout and MongoDB (system_logs collection with 7-day TTL).
 """
 import os
+import gc
+import ctypes
 import time
 import psutil
 import logging
@@ -12,6 +14,12 @@ logger = logging.getLogger("papersumo")
 
 _process = psutil.Process(os.getpid())
 _db = None
+
+# Load libc for malloc_trim — forces glibc to return freed arenas to OS
+try:
+    _libc = ctypes.CDLL("libc.so.6")
+except OSError:
+    _libc = None
 
 
 def _get_db():
@@ -25,6 +33,17 @@ def _get_db():
 def get_mem_mb() -> float:
     """Current RSS in MB."""
     return _process.memory_info().rss / 1024 / 1024
+
+
+def force_gc():
+    """GC + malloc_trim to actually return freed memory to the OS.
+    
+    Python's gc.collect() frees Python objects but glibc's arena allocator
+    holds onto the pages. malloc_trim(0) forces glibc to release them.
+    """
+    gc.collect()
+    if _libc:
+        _libc.malloc_trim(0)
 
 
 def log_mem(label: str):

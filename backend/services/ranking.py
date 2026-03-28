@@ -447,8 +447,8 @@ async def seed_rankings(db, category: str = None):
 
         # Free raw data
         del papers, matches
-        import gc
-        gc.collect()
+        from core.memlog import force_gc
+        force_gc()
 
         # Bulk upsert into rankings
         from pymongo import UpdateOne
@@ -1111,9 +1111,8 @@ async def reconcile_rankings(db, category: str = None):
             logger.warning(f"Rankings drift in {cat}: {drifted_papers} papers corrected")
             await rerank_category(db, cat)
 
-        # GC between categories to prevent arena accumulation
-        import gc
-        gc.collect()
+        from core.memlog import force_gc
+        force_gc()
         await asyncio.sleep(0)
 
     _elapsed = _time.perf_counter() - _t0
@@ -1197,8 +1196,8 @@ async def backfill_trueskill(db, category: str = None):
 
         # Free memory
         del matches, ratings
-        import gc
-        gc.collect()
+        from core.memlog import force_gc
+        force_gc()
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"backfill_trueskill done ({len(cats)} categories, {_elapsed:.1f}s)")
@@ -1298,8 +1297,8 @@ async def backfill_model_stats(db, category: str = None):
         logger.info(f"[{cat}] Backfilled model_stats + model_ts for {len(paper_model_stats)} papers from {match_count} matches")
 
         del paper_model_stats, paper_model_ts
-        import gc
-        gc.collect()
+        from core.memlog import force_gc
+        force_gc()
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"backfill_model_stats done ({len(cats)} categories, {_elapsed:.1f}s)")
@@ -1354,8 +1353,8 @@ async def backfill_si_ratings(db, category: str = None):
             await db.rankings.bulk_write(ops, ordered=False)
         logger.info(f"[{cat}] Backfilled si_ratings for {len(ops)} papers")
 
-        import gc
-        gc.collect()
+        from core.memlog import force_gc
+        force_gc()
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"backfill_si_ratings done ({len(cats)} categories, {_elapsed:.1f}s)")

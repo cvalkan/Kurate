@@ -134,21 +134,22 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
   - WR mode: Wilson margin percentage (`±X%`) — unchanged
   - TS mode: TrueSkill Elo-point CI (`±Y`) computed as `1.96 × sigma × TS_SCALE`
 - Added `ts_sigma` to leaderboard API response via `_RANK_PROJ` and `_rank_doc_to_entry`
-- Updated CI column tooltip to explain TrueSkill CI semantics when in TS mode
-- Analyzed matchmaking algorithm: exclusively WR-optimized (Wilson margin urgency + WR-Elo proximity), but indirectly benefits TrueSkill convergence since both metrics correlate
 
 **WR vs TrueSkill Convergence Simulation:**
-- Built and ran simulation replaying 46K matches across 5 categories
-- Key finding: TrueSkill converges 1.6x faster (37% fewer matches) at rho≥0.9
-- WR CI and TS CI diverge at high match counts (Pearson r = -0.56 at 100+ matches) — they measure fundamentally different things
-- Simulation scripts: `/app/tools/wr_vs_ts_convergence_sim.py`, `/app/tools/wr_vs_ts_multi_cat_sim.py`
+- Replayed 46K matches across 5 categories: TrueSkill converges 1.6x faster (37% fewer matches at rho≥0.9)
+- Scripts: `/app/tools/wr_vs_ts_convergence_sim.py`, `/app/tools/wr_vs_ts_multi_cat_sim.py`
 
-**Dead Code Audit:**
-- Comprehensive audit of write-only collections, unused functions, legacy BT code, and unreferenced endpoints
-- Found ~1.1 GB of eliminable transient memory allocations per cycle from 3 operations
-- Thread pool reduction (100→10) was negligible for memory (~450KB savings vs 700MB RSS)
-- Actual memory consumers: per-round bulk match loading in `_store_ranking_snapshot` (dead code), `_check_goals_met`, and `_recompute_convergence_bg`
-- Report: `/app/memory/DEAD_CODE_AUDIT.md`
+**Dead Code Audit & Removal:**
+- Area 1: Removed write-only `ranking_snapshots` collection + `_store_ranking_snapshot` function (loaded ALL matches + ran BT every round for data nobody read)
+- Area 2: Removed 8 dead functions (313 lines): `_apply_period_filter`, `_apply_search`, `_get_paper_si_rating`, `calculate_bt_confidence_intervals`, `compute_weighted_bt_async`, `get_extraction_stats`, `_iter_cursor_batches`, `_re_escape`
+- Verified report: found 1 false positive (`qeios_pairwise_extract` reads via variable reference) and 18 false positive endpoints (parameterized URLs, external crawlers)
+- Full report: `/app/memory/DEAD_CODE_AUDIT.md`
+
+**Memory Optimizations (Area 3 from audit):**
+- Added `malloc_trim(0)` via ctypes after every `gc.collect()` — forces glibc to return freed arenas to OS. Replaces all `gc.collect()` calls in scheduler.py, ranking.py, server.py with `force_gc()` from `core/memlog.py`
+- Rewrote `_check_goals_met` to read from `rankings` collection instead of loading ALL matches. Goals 1-2 use stored wins/comparisons; Goal 3 uses targeted pair queries (≤45 count queries vs 22K doc bulk load)
+- Rate-limited `_recompute_convergence_bg` to only fire when match count grows ≥5% (was firing after every single comparison round)
+- Optimized `run_comparison_round` match loading: reads paper_stats from rankings collection; match scan reduced to 2-field projection (paper1_id + paper2_id only, no winner_id needed for pair dedup)
 
 ### Prior Sessions
 - DB-Backed Rankings (all 4 phases), production stability overhaul

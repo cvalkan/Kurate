@@ -484,8 +484,7 @@ async def _staggered_startup_tasks():
     Previous approach launched all 8 tasks simultaneously, causing memory to
     spike to 2-3x normal levels. Sequential execution keeps peak memory ~40% lower.
     """
-    import gc
-    from core.memlog import log_mem
+    from core.memlog import log_mem, force_gc
     _g = globals()
 
     log_mem("Staggered startup begin")
@@ -513,7 +512,7 @@ async def _staggered_startup_tasks():
                 await _fn()
             except Exception as e:
                 logger.warning(f"Startup task {_name} failed: {e}")
-            gc.collect()
+            force_gc()
             log_mem(f"After {_name}")
             await asyncio.sleep(1)
 
@@ -641,7 +640,7 @@ async def _startup_seed_rankings():
         from services.ranking import seed_rankings
         from core.auth import get_settings
         from core.config import CATEGORIES
-        import gc
+        from core.memlog import force_gc
 
         settings = await get_settings()
         cats = settings.get("active_categories", list(CATEGORIES.keys()))
@@ -673,7 +672,7 @@ async def _startup_seed_rankings():
                 for cat in cats_needing_seed:
                     seeded = await seed_rankings(db, category=cat)
                     total_seeded += (seeded or 0)
-                    gc.collect()
+                    force_gc()
                 logger.info(f"Rankings reseeded: {total_seeded} entries in {len(cats_needing_seed)} categories")
             else:
                 # Backfill added_at if empty/null (one-time migration)

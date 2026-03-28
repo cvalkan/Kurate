@@ -259,9 +259,8 @@ async def _fetch_loop():
                     cat_status["last_fetch_at"] = now_iso
                     cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
                     # Cooldown between categories: GC + sleep to release memory before next category
-                    import gc
-                    gc.collect()
-                    await asyncio.sleep(15)
+                    from core.memlog import force_gc
+                    force_gc()
                     # Re-read settings in case pause was toggled during fetch
                     settings = await get_settings()
 
@@ -339,8 +338,8 @@ async def _compare_loop():
                         tasks = [run_comparison_round(category=cat) for cat in batch]
                         await asyncio.gather(*tasks, return_exceptions=True)
                         # GC between batches to release match/paper data from completed rounds
-                        import gc
-                        gc.collect()
+                        from core.memlog import force_gc
+                        force_gc()
                         # Process any queued repairs from failed incremental updates
                         from services.ranking import process_repair_queue
                         repaired = await process_repair_queue(db)
@@ -376,6 +375,9 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     1. General papers: CI margin ≤ ci_target_general (default 15%)
     2. Top-K papers: CI margin ≤ ci_target (default 10%)
     3. Top-K cross-matching: all top-K pairs compared
+    
+    Reads wins/comparisons from the rankings collection (O(P) lightweight docs)
+    instead of loading ALL matches. Goal 3 uses targeted pair queries.
     """
     from services.ranking import wilson_margin_pct
 
@@ -384,64 +386,49 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
 
-    papers = await _collect_cursor_docs(
-        db.papers.find(
-            {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
-            {"_id": 0, "id": 1}
-        ),
-        batch_size=1000,
-    )
-    paper_ids = [p["id"] for p in papers]
-    if len(paper_ids) < 2:
+    # Read wins/comparisons directly from rankings (no match loading)
+    entries = []
+    async for doc in db.rankings.find(
+        {"category": category},
+        {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1},
+    ):
+        entries.append(doc)
+
+    if len(entries) < 2:
         return True
 
-    pid_set = set(paper_ids)
-    paper_match_count = {pid: 0 for pid in paper_ids}
-    paper_wins = {pid: 0 for pid in paper_ids}
-    compared_pairs = set()
-
-    all_matches = await collect_all(db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ))
-
-    for m in all_matches:
-        if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set:
-            paper_match_count[m["paper1_id"]] += 1
-            paper_match_count[m["paper2_id"]] += 1
-            compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
-            w = m.get("winner_id")
-            if w and w in paper_wins:
-                paper_wins[w] += 1
-
-    # Identify top-K
-    sorted_papers = sorted(
-        paper_ids,
-        key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
-        reverse=True,
-    )
-    top_k_ids = set(sorted_papers[:min(top_k, len(sorted_papers))])
-    top_k_list = sorted_papers[:min(top_k, len(sorted_papers))]
+    # Sort by score descending to identify top-K
+    entries.sort(key=lambda e: e.get("score", 0), reverse=True)
+    top_k_list = [e["paper_id"] for e in entries[:min(top_k, len(entries))]]
+    top_k_ids = set(top_k_list)
 
     # Goal 1: General papers CI ≤ ci_target_general
-    for pid in paper_ids:
-        if pid in top_k_ids:
+    for e in entries:
+        if e["paper_id"] in top_k_ids:
             continue
-        margin = wilson_margin_pct(paper_wins.get(pid, 0), paper_match_count.get(pid, 0))
+        margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
         if margin > ci_target_general:
             return False
 
     # Goal 2: Top-K papers CI ≤ ci_target
-    for pid in top_k_list:
-        margin = wilson_margin_pct(paper_wins.get(pid, 0), paper_match_count.get(pid, 0))
+    for e in entries[:min(top_k, len(entries))]:
+        margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
         if margin > ci_target:
             return False
 
-    # Goal 3: Top-K cross-matching
+    # Goal 3: Top-K cross-matching — targeted pair queries (at most C(10,2)=45 queries)
     for i in range(len(top_k_list)):
         for j in range(i + 1, len(top_k_list)):
-            pair = tuple(sorted([top_k_list[i], top_k_list[j]]))
-            if pair not in compared_pairs:
+            p1, p2 = top_k_list[i], top_k_list[j]
+            has_match = await db.matches.count_documents({
+                "completed": True, "failed": {"$ne": True}, "primary_category": category,
+                "mode": {"$exists": False},
+                "$or": [
+                    {"paper1_id": p1, "paper2_id": p2},
+                    {"paper1_id": p2, "paper2_id": p1},
+                ],
+            }) > 0
+            if not has_match:
                 return False
 
     return True
@@ -541,8 +528,8 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         await _generate_paper_summaries(category=category, force=force)
 
         # Explicit GC after heavy operations to release memory before next steps
-        import gc
-        gc.collect()
+        from core.memlog import force_gc
+        force_gc()
 
         # Final paper count (with summaries — for compare loop eligibility)
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
@@ -960,26 +947,29 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                         papers_with_summary_2.add(doc["id"])
                     all_papers = [p for p in refetched if p["id"] in papers_with_summary_2]
 
-            # Only load standard matches for this category (exclude experiments)
+            # Read paper_stats from rankings collection (O(P) lightweight reads)
+            # instead of computing from all_matches (which would load 20K+ docs)
+            paper_stats = {}
+            async for rdoc in db.rankings.find(
+                {"category": category},
+                {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1},
+            ):
+                pid = rdoc["paper_id"]
+                paper_stats[pid] = {
+                    "wins": rdoc.get("wins", 0),
+                    "losses": rdoc.get("losses", 0),
+                    "comparisons": rdoc.get("comparisons", 0),
+                }
+            # Ensure all papers have an entry (new papers may not be in rankings yet)
+            for p in all_papers:
+                if p["id"] not in paper_stats:
+                    paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0}
+
+            # Load match pairs for dedup (only paper1_id + paper2_id — minimal projection)
             all_matches = await collect_all(db.matches.find(
                 {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-                {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1},
             ))
-
-            paper_stats = {}
-            for p in all_papers:
-                paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0}
-            for m in all_matches:
-                p1, p2, w = m["paper1_id"], m["paper2_id"], m.get("winner_id")
-                if p1 in paper_stats:
-                    paper_stats[p1]["comparisons"] += 1
-                if p2 in paper_stats:
-                    paper_stats[p2]["comparisons"] += 1
-                if w and w in paper_stats:
-                    paper_stats[w]["wins"] += 1
-                loser = p2 if w == p1 else p1
-                if loser in paper_stats:
-                    paper_stats[loser]["losses"] += 1
 
             compared_pairs = set()
             for m in all_matches:
@@ -1130,14 +1120,31 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     del locals()[_var]  # noqa
                 except (KeyError, NameError):
                     pass
-            import gc
-            gc.collect()
+            from core.memlog import force_gc
+            force_gc()
 
+
+# Track last convergence recompute per category (match count at last recompute)
+_convergence_last_recomputed: Dict[str, int] = {}
+_CONVERGENCE_RECOMPUTE_THRESHOLD = 0.05  # 5% match growth triggers recompute
 
 
 async def _recompute_convergence_bg(category: str):
-    """Recompute convergence curve for a category and store in MongoDB. Non-blocking."""
+    """Recompute convergence curve for a category and store in MongoDB.
+    
+    Rate-limited: only recomputes when match count has grown by ≥5% since last
+    recompute. Convergence curves barely change with 20-100 new matches.
+    """
     try:
+        # Check if enough new matches to justify recompute
+        current_count = await db.matches.count_documents({
+            "completed": True, "failed": {"$ne": True},
+            "primary_category": category, "mode": {"$exists": False},
+        })
+        last_count = _convergence_last_recomputed.get(category, 0)
+        if last_count > 0 and current_count < last_count * (1 + _CONVERGENCE_RECOMPUTE_THRESHOLD):
+            return  # Skip — not enough new matches
+
         from routers.leaderboard import _compute_convergence
         result = await _compute_convergence(category, 20)
         if result.get("curve"):
@@ -1146,6 +1153,7 @@ async def _recompute_convergence_bg(category: str):
                 {"$set": result},
                 upsert=True,
             )
+            _convergence_last_recomputed[category] = current_count
     except Exception as e:
         logger.debug(f"Convergence recompute for {category}: {e}")
 
