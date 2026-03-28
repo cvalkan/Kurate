@@ -126,6 +126,17 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Improved admin status message: "Generating summaries (X/Y ready)" instead of "Insufficient papers"
 - Added `minTickGap` to memory chart x-axis to prevent label overlap
 
+### Session: Mar 28, 2026
+
+**Model Analysis & Leaderboard CI Fixes:**
+- Removed empty "gpt-5" model card (0 matches) from Model Correlation page by filtering models with 0 total_matches in `_compute_model_correlation`
+- Fixed 95% CI column to show metric-appropriate confidence when switching WR/TrueSkill:
+  - WR mode: Wilson margin percentage (`±X%`) — unchanged
+  - TS mode: TrueSkill Elo-point CI (`±Y`) computed as `1.96 × sigma × TS_SCALE`
+- Added `ts_sigma` to leaderboard API response via `_RANK_PROJ` and `_rank_doc_to_entry`
+- Updated CI column tooltip to explain TrueSkill CI semantics when in TS mode
+- Analyzed matchmaking algorithm: exclusively WR-optimized (Wilson margin urgency + WR-Elo proximity), but indirectly benefits TrueSkill convergence since both metrics correlate
+
 ### Prior Sessions
 - DB-Backed Rankings (all 4 phases), production stability overhaul
 - Dark mode, infinite scroll, GZip compression
@@ -146,12 +157,14 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 ## Prioritized Backlog
 
 ### P0
+- Implement Multiple AI Reviewer Personas from ReviewerToo paper (arXiv:2510.08867)
 - Monitor production memory with new architecture (repair queue + lightweight rank sorting)
 
 ### P1
 - Phase 3: Notification System (Resend email integration)
 - Update Summarizer Report Section 2
 - Run AI summarization pipeline on UAI
+- Optional: Blended WR+TS urgency signal in matchmaking for edge cases
 
 ### P2
 - Server-side sorting (sort_by/sort_dir params) for leaderboard API
