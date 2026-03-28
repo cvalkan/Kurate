@@ -81,13 +81,23 @@ export function LeaderboardTable({
 
   const isGlobal = hasSelectedTags && globalStats;
   const isTS = scoringMethod === "ts";
+  const TS_SCALE = 10.0; // Must match backend TS_SCALE in ranking.py
   const getScore = (p) => {
     if (isGlobal && p.global_score !== undefined) return p.global_score;
     return isTS ? (p.ts_score || p.score) : p.score;
   };
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
-  const getWilsonMargin = (p) => isGlobal ? null : p.wilson_margin;
+  const getWilsonMargin = (p) => {
+    if (isGlobal) return null;
+    if (isTS) {
+      // TrueSkill 95% CI in Elo points: ±1.96 * sigma * TS_SCALE
+      const sigma = p.ts_sigma;
+      if (sigma != null && sigma > 0) return Math.round(1.96 * sigma * TS_SCALE);
+      return null;
+    }
+    return p.wilson_margin;
+  };
   const getRank = (p) => isTS ? (p.rank_ts || p.rank) : (p.rank_wr || p.rank);
 
   // Re-rank by global score when Global toggle is active, then apply user sort
@@ -206,7 +216,7 @@ export function LeaderboardTable({
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
           <SortHeader label={isMobile ? "Score" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={scoreTip} />
           {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
-          {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.wilson_margin} />}
+          {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isTS ? "95% TrueSkill confidence interval in Elo points. Lower = more certain rating. Based on Bayesian sigma parameter." : COLUMN_TIPS.wilson_margin} />}
           {!isMobile && <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />}
           {showRatingCol && !isMobile && !isTablet && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
           {showGapCol && !isMobile && !isTablet && <SortHeader label="Gap" sortKey="gap_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Tournament rank minus standalone rating rank. Positive = does better in competition." />}
@@ -248,7 +258,7 @@ export function LeaderboardTable({
             <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper) || "—"}</div>
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) != null ? `${getWinRate(paper)}%` : "—"}</div>}
             {!isMobile && !isTablet && <div className="text-right font-mono text-xs text-muted-foreground">
-              {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}%` : "—"; })()}
+              {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}${isTS ? "" : "%"}` : "—"; })()}
             </div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
             {showRatingCol && !isMobile && !isTablet && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{(typeof paper.ai_rating === "object" && paper.ai_rating ? paper.ai_rating.score : paper.ai_rating) || "—"}</div>}

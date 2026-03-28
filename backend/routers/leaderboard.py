@@ -605,7 +605,7 @@ def _apply_search(data: list, search: str) -> list:
 
 # Projection for rankings queries — exclude MongoDB _id, include all serving fields
 _RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "rank_ts": 1,
-              "score": 1, "ts_score": 1,
+              "score": 1, "ts_score": 1, "ts_mu": 1, "ts_sigma": 1,
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
               "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1, "gap_score_ts": 1,
@@ -644,6 +644,7 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         "published": doc.get("published", ""),
         "score": doc.get("score", 1200),
         "ts_score": doc.get("ts_score", 1200),
+        "ts_sigma": doc.get("ts_sigma"),
         "ci": doc.get("ci", 0),
         "wilson_margin": doc.get("wilson_margin", 100.0),
         "win_rate": doc.get("win_rate", 0.0),
@@ -1368,7 +1369,11 @@ async def _compute_model_correlation(category, mode):
                         model_paper_ts[mk] = {}
                     model_paper_ts[mk][doc["paper_id"]] = ts_data["mu"]
 
-    model_keys = sorted(model_paper_stats.keys())
+    # Filter out models with 0 total matches (e.g. deprecated "gpt-5" that was replaced)
+    model_keys = sorted(
+        mk for mk in model_paper_stats.keys()
+        if sum(s.get("total", 0) for s in model_paper_stats[mk].values()) > 0
+    )
     paper_ids = sorted(paper_ids)
 
     if not model_keys or not paper_ids:
