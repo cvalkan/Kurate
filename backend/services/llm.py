@@ -501,37 +501,6 @@ def extract_key_sections(full_text: str, category: str = None, char_limit: int =
     return sections
 
 
-def get_extraction_stats(full_text: str, category: str = None) -> Dict:
-    """
-    Get detailed extraction statistics for a single paper.
-    Used for the admin extraction stats page.
-    """
-    sections = extract_key_sections(full_text, category)
-    
-    stats = {
-        "total_chars": len(full_text),
-        "total_tokens_est": len(full_text) // 4,
-        "sections": {},
-        "sections_found": 0,
-        "total_extracted_chars": 0,
-    }
-    
-    for name, text in sections.items():
-        found = len(text) > 0
-        chars = len(text)
-        stats["sections"][name] = {
-            "found": found,
-            "chars": chars,
-            "tokens_est": chars // 4,
-        }
-        if found:
-            stats["sections_found"] += 1
-        stats["total_extracted_chars"] += chars
-    
-    stats["extraction_ratio"] = stats["total_extracted_chars"] / max(stats["total_chars"], 1)
-    
-    return stats
-
 
 async def _get_section_char_limit() -> int:
     """Get the section char limit from settings, with fallback to default."""

@@ -3,21 +3,15 @@ import uuid
 import random
 import math
 import hashlib
-import re as _re_mod
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict
 from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
 from core.auth import get_settings
 from services.arxiv import fetch_arxiv_papers
 from services.llm import download_and_extract_pdf, compare_papers, generate_precomparison_impact_summary
-from services.ranking import compute_leaderboard, compute_leaderboard_async
 
 
 from routers.validation_utils import collect_all
-
-def _re_escape(s: str) -> str:
-    """Escape a string for use in MongoDB regex."""
-    return _re_mod.escape(s)
 
 _scheduler_running = False
 _processing_locks = {}  # Per-category locks
@@ -81,18 +75,6 @@ async def _collect_cursor_docs(cursor, batch_size: int = 500):
             break
         await asyncio.sleep(0)
     return docs
-
-
-async def _iter_cursor_batches(cursor, batch_size: int = 100):
-    """Yield cursor results in batches so large categories do not get truncated."""
-    while True:
-        batch = await cursor.to_list(length=batch_size)
-        if not batch:
-            break
-        yield batch
-        if len(batch) < batch_size:
-            break
-        await asyncio.sleep(0)
 
 
 def get_scheduler_status(category: str = None) -> dict:
@@ -385,50 +367,6 @@ async def _compare_loop():
         # Sleep until explicitly woken by wake_scheduler() — no polling
         _wake_event.clear()
         await _wake_event.wait()
-
-
-async def _store_ranking_snapshot(category: str):
-    """Store a ranking snapshot after a comparison round.
-    
-    Each snapshot records the current BT ranking so we can compare
-    rankings across rounds to detect convergence.
-    """
-    papers = await _collect_cursor_docs(
-        db.papers.find(
-            {"categories.0": category}, {"_id": 0, "id": 1, "title": 1}
-        ),
-        batch_size=1000,
-    )
-    if len(papers) < 2:
-        return
-
-    all_matches = await collect_all(db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1},
-    ))
-
-    pid_set = {p["id"] for p in papers}
-    filtered = [m for m in all_matches if m["paper1_id"] in pid_set and m["paper2_id"] in pid_set]
-    if not filtered:
-        return
-
-    lb = await compute_leaderboard_async(papers, filtered)
-    rankings = {e["id"]: e["rank"] for e in lb}
-
-    # Get next round number for this category
-    last = await db.ranking_snapshots.find_one(
-        {"category": category}, sort=[("round", -1)], projection={"_id": 0, "round": 1}
-    )
-    next_round = (last["round"] + 1) if last else 1
-
-    await db.ranking_snapshots.insert_one({
-        "category": category,
-        "round": next_round,
-        "rankings": rankings,
-        "total_matches": len(filtered),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-    logger.debug(f"[{category}] Stored ranking snapshot round {next_round}")
 
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
@@ -1164,9 +1102,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             logger.info(f"[{category}] Comparison round: {completed} ok, {failed} failed")
             log_mem(f"comparison_round({category}) done (ok={completed}, fail={failed}, total={total_matches + completed})")
 
-            # Store ranking snapshot for convergence tracking
             if completed > 0:
-                await _store_ranking_snapshot(category)
                 # Update DB-backed rankings incrementally
                 try:
                     from services.ranking import rerank_category_light

@@ -295,8 +295,6 @@ async def _deferred_startup():
         await db.summary_bias_matches.create_index("id", unique=True)
         await db.summary_bias_matches.create_index([("category", 1), ("completed", 1)])
         await db.summary_bias_matches.create_index([("original_match_id", 1), ("judge_key", 1), ("summary_key", 1)])
-        # Ranking snapshots for convergence tracking
-        await db.ranking_snapshots.create_index([("category", 1), ("round", -1)])
         # Leaderboard archives (weekly/monthly frozen snapshots)
         await db.leaderboard_archives.create_index([("category", 1), ("year", -1), ("week", -1)])
         await db.leaderboard_archives.create_index([("category", 1), ("year", -1), ("month", -1)])
@@ -414,27 +412,6 @@ async def _deferred_startup():
                 logger.info(f"Migrated settings: {list(migration_updates.keys())}")
     except Exception as e:
         logger.warning(f"Settings migration warning: {e}")
-
-    # Migration: seed initial ranking snapshots from existing match data
-    try:
-        from services.scheduler import _store_ranking_snapshot
-        snapshot_count = await db.ranking_snapshots.count_documents({})
-        if snapshot_count == 0:
-            from core.auth import get_settings as _gs
-            _s = await _gs()
-            _active = _s.get("active_categories", list(CATEGORIES.keys()))
-            for _cat in _active:
-                paper_count = await db.papers.count_documents({"categories.0": _cat})
-                match_count = await db.matches.count_documents({
-                    "completed": True, "failed": {"$ne": True},
-                    "primary_category": _cat, "mode": {"$exists": False}
-                })
-                if paper_count >= 2 and match_count >= 10:
-                    await _store_ranking_snapshot(_cat)
-                    logger.info(f"Seeded ranking snapshot for {_cat}")
-            logger.info("Ranking snapshot seeding complete")
-    except Exception as e:
-        logger.warning(f"Ranking snapshot seeding warning: {e}")
 
     # Initialize tournament registry from CATEGORIES
     try:
