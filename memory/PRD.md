@@ -137,6 +137,19 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Updated CI column tooltip to explain TrueSkill CI semantics when in TS mode
 - Analyzed matchmaking algorithm: exclusively WR-optimized (Wilson margin urgency + WR-Elo proximity), but indirectly benefits TrueSkill convergence since both metrics correlate
 
+**WR vs TrueSkill Convergence Simulation:**
+- Built and ran simulation replaying 46K matches across 5 categories
+- Key finding: TrueSkill converges 1.6x faster (37% fewer matches) at rho≥0.9
+- WR CI and TS CI diverge at high match counts (Pearson r = -0.56 at 100+ matches) — they measure fundamentally different things
+- Simulation scripts: `/app/tools/wr_vs_ts_convergence_sim.py`, `/app/tools/wr_vs_ts_multi_cat_sim.py`
+
+**Dead Code Audit:**
+- Comprehensive audit of write-only collections, unused functions, legacy BT code, and unreferenced endpoints
+- Found ~1.1 GB of eliminable transient memory allocations per cycle from 3 operations
+- Thread pool reduction (100→10) was negligible for memory (~450KB savings vs 700MB RSS)
+- Actual memory consumers: per-round bulk match loading in `_store_ranking_snapshot` (dead code), `_check_goals_met`, and `_recompute_convergence_bg`
+- Report: `/app/memory/DEAD_CODE_AUDIT.md`
+
 ### Prior Sessions
 - DB-Backed Rankings (all 4 phases), production stability overhaul
 - Dark mode, infinite scroll, GZip compression
