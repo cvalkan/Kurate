@@ -1,212 +1,244 @@
-# Dead Code Audit — Kurate.org Backend
+# Dead Code Audit — Kurate.org Backend (VERIFIED)
 Generated: 2026-03-28
 Codebase: ~37K lines across 90 Python files
+
+Each item has been manually verified against the codebase. False positives
+from the automated scan are marked and explained.
 
 ---
 
 ## 1. Write-Only MongoDB Collections
 
-Collections written to but never read by any API endpoint.
-
 ### `ranking_snapshots` — CONFIRMED DEAD
 
 - **744 documents, 2.4 MB storage**
-- Written after every comparison round by `_store_ranking_snapshot` (loads ALL matches + runs BT)
-- The ONLY read is `find_one` to get the last round number for auto-increment — self-referential
-- No API endpoint, no frontend component, no router reads from it
-- **Original intent**: track ranking stability round-over-round
-- **What replaced it**: the convergence chart (`/api/convergence`) replays match history directly
-- **Memory cost**: ~73 MB transient per round for cs.RO (22K match load + BT compute)
-- **Action**: Remove `_store_ranking_snapshot` and stop writing. Collection can be dropped.
+- Written after every comparison round by `_store_ranking_snapshot` (loads ALL matches + BT)
+- The ONLY read is `find_one` to get the last round number for auto-increment (self-referential)
+- No endpoint, no router, no frontend reads from it
+- **Original intent**: round-over-round convergence tracking
+- **What replaced it**: convergence chart (`/api/convergence`) replays match history directly
+- **Memory cost per round**: ~17 MB match load + ~7 MB BT compute = ~24 MB × 6 cats = **~144 MB/cycle**
+- **Action**: Remove `_store_ranking_snapshot` and caller at scheduler.py:1169. Drop collection.
 
-### `qeios_pairwise_extract` — POSSIBLY DEAD
+### ~~`qeios_pairwise_extract`~~ — FALSE POSITIVE
 
-- Written to by `qeios.py:588` (`insert_one`)
-- Zero reads anywhere in the codebase
-- Referenced in `qeios.py` router but only for writing
-- Low priority: Qeios scraper runs rarely, minimal memory impact
-- **Action**: Verify if this collection is consumed by an external tool. If not, remove writes.
-
-### `gmail_oauth_states` — LOW RISK
-
-- Written by `congrats.py:133`, read by `server.py:176`
-- Part of Gmail OAuth flow for congrats emails
-- Functional (OAuth state management) but the Gmail congrats flow may be underused
+- **Audit claimed**: no reads found
+- **Reality**: IS read via `_get_ctx("extract")` → `ctx["collection"].find(...)` (qeios.py:220). The collection reference is passed through a variable, not used as `db.collection.find()` directly. The automated regex missed this.
 - **Action**: Keep. Functional.
+
+### `gmail_oauth_states` — FUNCTIONAL (not dead)
+
+- Part of Gmail OAuth flow for congrats emails
+- Write: congrats.py:133, Read: server.py:176, Delete: server.py:179
+- **Action**: Keep.
 
 ---
 
 ## 2. Unused Functions in Hot-Path Files
 
-Functions with zero call sites across the entire backend (excluding framework-invoked handlers).
+All items manually verified — zero call sites across entire backend.
 
-### `leaderboard.py` (3 dead functions)
+### `leaderboard.py` (3 dead functions, ~50 lines)
 
-| Function | Line | Size | Purpose | Notes |
-|---|---|---|---|---|
-| `_apply_period_filter` | 54 | ~15 lines | Legacy period filter | Replaced by `_build_period_filter` which returns MongoDB query directly |
-| `_apply_search` | 593 | ~10 lines | Legacy search filter | Search is now done via MongoDB `$regex` in the query, not post-filter |
-| `_get_paper_si_rating` | 2192 | ~25 lines | Extract SI rating from paper | Inlined wherever needed; standalone function unused |
+| Function | Line | Notes |
+|---|---|---|
+| `_apply_period_filter` | 54 | Replaced by `_build_period_filter` which returns MongoDB query |
+| `_apply_search` | 593 | Search now done via MongoDB `$regex` in query, not post-filter |
+| `_get_paper_si_rating` | 2192 | Inlined wherever needed; standalone function unused |
 
-### `ranking.py` (2 dead functions)
+### `ranking.py` (2 dead functions, ~120 lines)
 
-| Function | Line | Size | Purpose | Notes |
-|---|---|---|---|---|
-| `calculate_bt_confidence_intervals` | 135 | ~115 lines | BT Fisher-information CIs | Legacy BT code. Not used after switch to incremental WR/TS |
-| `compute_weighted_bt_async` | 128 | ~5 lines | Async wrapper for weighted BT | Only caller is `_compute_model_correlation_from_matches` which itself is only for non-standard modes |
+| Function | Line | Notes |
+|---|---|---|
+| `calculate_bt_confidence_intervals` | 135 | Legacy BT Fisher-information CIs. Not used after WR/TS switch |
+| `compute_weighted_bt_async` | 128 | Async wrapper never called (the sync version `compute_weighted_bt` is used directly via `run_in_executor` in human_ai_benchmark) |
 
-### `llm.py` (1 dead function)
+### `llm.py` (1 dead function, ~30 lines)
 
-| Function | Line | Size | Purpose | Notes |
-|---|---|---|---|---|
-| `get_extraction_stats` | 504 | ~30 lines | Extraction stats for admin page | Was used by an admin endpoint that was removed |
+| Function | Line | Notes |
+|---|---|---|
+| `get_extraction_stats` | 504 | Admin uses `_compute_extraction_stats_impl` (admin.py:1787) which calls `extract_key_sections` directly, not this wrapper |
 
-### `scheduler.py` (2 dead functions)
+### `scheduler.py` (2 dead functions, ~13 lines)
 
-| Function | Line | Size | Purpose | Notes |
-|---|---|---|---|---|
-| `_iter_cursor_batches` | 86 | ~10 lines | Batch cursor iteration | Defined but `_collect_cursor_docs` is used everywhere instead |
-| `_re_escape` | 18 | ~3 lines | Regex escape for MongoDB | Never called |
+| Function | Line | Notes |
+|---|---|---|
+| `_iter_cursor_batches` | 86 | Defined but `_collect_cursor_docs` used everywhere instead |
+| `_re_escape` | 18 | Defined but never called |
 
-**Total dead code in hot-path files: ~210 lines**
+**Total verified dead code: 8 functions, ~213 lines**
 
 ---
 
-## 3. Legacy BT/Match-Loading Code Still Executing in Production Paths
+## 3. Legacy BT/Match-Loading Code in Production Hot Path
 
-The architecture moved to incremental TrueSkill + Win Rate with pre-stored scores in `rankings`. 
-These are the **production hot-path** functions that still load full match history.
+### CORRECTED memory estimates
 
-### Per-Round Match Loading (fires after every comparison round)
+The original audit overstated memory costs by using full-document sizes.
+Actual costs use projected documents (~600 bytes/doc, not ~2.2 KB):
 
-| Caller | What it loads | Memory cost (cs.RO) | Still needed? |
+| Operation | Projection size | cs.RO actual | Was claimed |
 |---|---|---|---|
-| `_check_goals_met` (scheduler.py:434) | ALL matches for category | ~48 MB | **NO** — Wilson margins are stored in `rankings` |
-| `run_comparison_round` (scheduler.py:1026) | ALL matches for pair selection | ~53 MB | **YES** — needs match pairs to avoid repeats |
-| `_store_ranking_snapshot` (scheduler.py:390) | ALL matches + BT compute | ~73 MB | **NO** — dead code (see Area 1) |
-| `_compute_convergence` (leaderboard.py:2736) | ALL matches + BT × 40 steps | ~73 MB | **YES** but should be rate-limited (not per-round) |
+| `_check_goals_met` match load | 3 fields | **~13 MB** | ~~48 MB~~ |
+| `run_comparison_round` match load | 3 fields | **~13 MB** | ~~53 MB~~ |
+| `_store_ranking_snapshot` match load + BT | 5 fields + numpy | **~24 MB** | ~~73 MB~~ |
+| `_compute_convergence` match load + 40×BT | 6 fields + numpy | **~29 MB** | ~~73 MB~~ |
 
-### BT/Leaderboard Compute Calls by Category
+### Per-round match loading (fires after every comparison round)
 
-| Context | File | Calls | Still needed? |
+| Caller | Actual cost (cs.RO) | Needed? | Notes |
 |---|---|---|---|
-| **Convergence chart** | leaderboard.py:2776,2845 | `compute_leaderboard_async` ×40/call | YES — but rate-limit to every 10th round |
-| **Tag-filtered local stats** | leaderboard.py:1067 | `compute_leaderboard` | YES — on-demand for tag filter with local mode |
-| **Inter-model PW correlation** | leaderboard.py:1958,1961 | `compute_bt_ranking_scores`, `compute_trueskill_ranking_scores` | YES — but only for non-standard modes (legacy match-based path) |
-| **Seed rankings** | ranking.py:558 | `compute_leaderboard` | YES — one-time at startup |
-| **Ranking snapshot** | scheduler.py:415 | `compute_leaderboard_async` | **NO** — dead code |
-| **Validation/benchmark pages** | validation.py, human_ai_benchmark.py, etc. | ~45 calls | YES — validation datasets use BT for human-vs-AI ranking comparison. These are **cached via precomputed JSON** and don't run in production hot path |
-| **Summary bias analysis** | summary_bias.py | ~11 calls | YES — experimental analysis pages. Not hot path |
+| `_check_goals_met` | ~13 MB | **PARTIALLY** | Goals 1-2 (Wilson margins) → available from `rankings`. Goal 3 (pair existence) still needs match data, but could use 45 targeted queries instead of bulk load |
+| `run_comparison_round` | ~13 MB | **PARTIALLY** | `paper_stats` → available from `rankings`. `compared_pairs` requires match scan (but only pair columns) |
+| `_store_ranking_snapshot` | ~24 MB | **NO** | Dead code (see Area 1). Remove entirely |
+| `_recompute_convergence_bg` | ~29 MB | **YES but over-frequent** | Fires after every round; convergence curve barely changes with 20-100 new matches. Rate-limit to every 10th round or 5% match growth |
 
-### Summary of Unnecessary Per-Round Match Loading
+### BT/leaderboard calls by context
 
-| Operation | Per-round cost | Can eliminate? |
+| Context | Still needed? | Notes |
 |---|---|---|
-| `_check_goals_met` | ~48 MB × 6 cats = 288 MB | YES → read from `rankings` collection |
-| `_store_ranking_snapshot` | ~73 MB × 6 cats = 438 MB | YES → remove entirely (dead code) |
-| `_recompute_convergence_bg` | ~73 MB × 6 cats = 438 MB | PARTIALLY → rate-limit to every 10th round |
-| **Total eliminable** | **~1,100 MB transient allocs/cycle** | |
+| Convergence chart | YES | Replays match history to show ranking stability curve |
+| Tag-filtered local stats | YES | On-demand for tag filter with local recompute mode |
+| Inter-model PW correlation (non-standard modes) | YES | Legacy match-based path for prediction/non-standard modes |
+| Seed rankings (startup) | YES | One-time bootstrap |
+| Ranking snapshot | **NO** | Dead code |
+| Validation/benchmark pages | YES | But served from precomputed JSON, not computed live |
+| Summary bias analysis | YES | Experimental analysis, not hot path |
+
+### Corrected total eliminable memory per cycle
+
+| Change | Savings per cycle (6 cats) |
+|---|---|
+| Remove `_store_ranking_snapshot` | ~144 MB |
+| Rewrite `_check_goals_met` (use rankings + targeted pair queries) | ~78 MB |
+| Rate-limit convergence to every 10th round | ~157 MB (90% reduction) |
+| **Total** | **~379 MB transient allocs eliminated** |
+
+(Down from the original inflated estimate of ~1.1 GB — still significant.)
 
 ---
 
-## 4. Unused/Unreferenced API Endpoints
+## 4. Unused/Unreferenced API Endpoints (VERIFIED)
 
-### Likely Dead (no frontend reference, no known external caller)
+### FALSE POSITIVES from automated scan
 
-These endpoints have no frontend reference and appear to be one-time admin tools
-that were used during initial setup/migration and are no longer needed:
+The automated scan had major blind spots with:
+1. **Parameterized URLs**: Frontend uses `${slug}`, `${paperId}` — literal string matching fails
+2. **External callers**: Badge share pages, sitemap, OG images — called by crawlers, not SPA
+3. **Dynamic routing**: React Router `:slug` param handles both `w5` and `m3` formats
 
-| Path | Purpose | Lines |
-|---|---|---|
-| `POST /api/admin/generate-summaries` | Manual summary generation trigger | admin.py:296 |
-| `GET /api/admin/summary-gen-progress` | Summary gen progress polling | admin.py:432 |
-| `POST /api/admin/dedup-papers` | Manual dedup trigger (automated at startup now) | admin.py:2166 |
-| `POST /api/admin/regen-summaries` | Regenerate truncated summaries | admin.py:2335 |
-| `GET /api/admin/regen-summaries/status` | Regen progress | admin.py:2329 |
-| `GET /api/admin/background-tasks` | List background tasks | admin.py:2432 |
-| `POST /api/admin/archive/snapshot` | Manual archive snapshot | admin.py:2457 |
-| `POST /api/admin/archive/snapshot-all` | Snapshot all categories | admin.py:2472 |
-| `POST /api/admin/archive/backfill` | Backfill historical archives | admin.py:2518 |
-| `GET /api/badge/.../exists` | Badge existence check | badges.py:447 |
-| `POST /api/pairwise/fetch-pairs` | Manual pairwise data fetch | pairwise.py:305 |
-| `POST /api/pairwise/run-tournament` | Manual pairwise tournament | pairwise.py:613 |
-| `POST /api/pairwise/reset` | Reset pairwise data | pairwise.py:837 |
-| `POST /api/summarizer-ab/queue-batch` | Queue summarizer A/B test | validation_experiments.py:2287 |
+**These were incorrectly flagged and are NOT dead:**
 
-### One-Time Import Endpoints (run once, never again)
-
-These were used to import validation datasets. Data is already imported.
-They remain functional but are never called in production:
-
-| Path | Dataset | Lines |
-|---|---|---|
-| `POST /api/validation/import-iclr` | ICLR 2025 | validation_imports.py:39 |
-| `POST /api/validation/import-elife` | eLife | validation_imports.py:191 |
-| `POST /api/validation/import-midl` | MIDL | validation_imports.py:379 |
-| `POST /api/validation/import-uai` | UAI | validation_imports.py:624 |
-| `POST /api/validation/import-peerread` | PeerRead | validation_imports.py:869 |
-| `POST /api/validation/import-f1000` | F1000Research | validation_imports.py:1004 |
-| `POST /api/validation/seed` | Seed validation data | validation.py:4131 |
-| `POST /api/validation/replay-tournament` | Replay tournament | validation.py:3831 |
-| `POST /api/validation/run-cross-mode-fill` | Cross-mode fill | validation.py:4081 |
-
-### F1000/ACMI Scraper Endpoints (one-time use)
-
-| Path | Purpose | Lines |
-|---|---|---|
-| `POST /api/validation/scrape-f1000` | Scrape F1000 reviews | validation.py:4171 |
-| `GET /api/validation/scrape-f1000/status` | Scrape status | validation.py:4183 |
-| `POST /api/validation/enrich-f1000` | Enrich with PDFs | validation.py:4190 |
-| `POST /api/validation/expand-f1000` | Expand dataset | validation.py:4201 |
-| `POST /api/validation/rescrape-f1000-evals` | Rescrape evaluations | validation.py:4212 |
-| `POST /api/validation/acmi/scrape` | ACMI scrape | validation.py:4920 |
-| `GET /api/validation/acmi/scrape/status` | ACMI status | validation.py:4942 |
-| `GET /api/validation/acmi/stats` | ACMI stats | validation.py:4948 |
-
-### Qeios/SciPost Admin Endpoints (rarely used)
-
-| Path | Purpose |
+| Endpoint | Actual caller |
 |---|---|
-| `POST /api/qeios/pairwise-extract/stop` | Stop extraction |
-| `GET /api/qeios/paper-data/stats` | Paper data stats |
-| `POST /api/scipost/reset` | Reset SciPost data |
+| `GET /api/papers/{paper_id}` | PaperPage.jsx:196 |
+| `DELETE /api/bookmarks/{paper_id}` | BookmarkContext.jsx:40 |
+| `GET /api/lists/public/{list_id}` | ReadingListPage.jsx:32 |
+| `POST /api/lists/{list_id}/papers` | BookmarksPage.jsx:103 |
+| `DELETE /api/lists/{list_id}/papers/{paper_id}` | (via same ReadingListPage flow) |
+| `POST /api/lists/{list_id}/fork` | ReadingListPage.jsx:97 |
+| `POST /api/lists/{list_id}/import-bookmarks` | ReadingListPage.jsx:75 |
+| `POST /api/lists/{list_id}/import-to-list` | ReadingListPage.jsx:86 |
+| `GET /api/lists/{list_id}/share` | ReadingListPage.jsx:51 (OG share page) |
+| `GET /api/lists/{list_id}/image.png` | ReadingListPage.jsx:155 (download) |
+| `GET /api/badge/.../share` | BadgePage.jsx:63 + social crawlers |
+| `GET /api/badge/.../image.png` | BadgePage.jsx:65 + social crawlers |
+| `GET /api/badge/paper/{paper_id}/badges` | PaperPage.jsx:206 |
+| `GET /api/badge/{cat}/{year}/m{month}/{paper_id}` | BadgePage.jsx via `:slug` param |
+| `GET /api/badge/{cat}/{year}/m{month}/{paper_id}/image.png` | Same dynamic routing |
+| `GET /api/badge/{cat}/{year}/m{month}/{paper_id}/share` | Same dynamic routing |
+| `GET /api/archive/{cat}/{year}/w{week}` | LeaderboardPage.jsx:233, ArchivePage.jsx:29 |
+| `GET /api/archive/{cat}/{year}/m{month}` | LeaderboardPage.jsx:233, ArchivePage.jsx:30 |
+| `GET /api/archive/{cat}/older` | LeaderboardPage.jsx:232 |
+| `GET /api/archive/list` | ArchiveList.jsx:17 |
+| `GET /api/sitemap.xml` | Search engine crawlers (expected) |
+| `GET /api/congrats/gmail/auth-url` | Comment in BadgePage suggests planned use |
+| `GET /api/validation/dataset-rankings/{dataset_id}` | Referenced in validation frontend flows |
+| `POST /api/claim/{paper_id}` | AuthorClaimSection.jsx:55 (component exists but is never rendered — see note below) |
 
-### Claim System Endpoints (feature built but incomplete frontend)
+### CONFIRMED unused endpoints
 
-The claim/ORCID verification system has backend endpoints but several are
-not wired to the frontend:
+**Admin escape hatches (functional but never triggered from UI):**
 
-| Path | Purpose |
+| Endpoint | Purpose | Risk to remove |
+|---|---|---|
+| `POST /api/admin/generate-summaries` | Manual summary trigger | LOW — automated in scheduler |
+| `GET /api/admin/summary-gen-progress` | Polling for above | LOW |
+| `POST /api/admin/dedup-papers` | Manual dedup | LOW — automated at startup |
+| `POST /api/admin/regen-summaries` | Regen truncated summaries | LOW — one-time migration, auto-runs at startup |
+| `GET /api/admin/regen-summaries/status` | Status for above | LOW |
+| `GET /api/admin/background-tasks` | List bg tasks | MEDIUM — useful for debugging |
+| `POST /api/admin/archive/snapshot` | Manual archive creation | MEDIUM — useful escape hatch |
+| `POST /api/admin/archive/snapshot-all` | Snapshot all cats | MEDIUM |
+| `POST /api/admin/archive/backfill` | Backfill historical archives | LOW — one-time use |
+
+**Pairwise router endpoints (superseded by validation router):**
+
+| Endpoint | Notes |
 |---|---|
-| `GET /api/claim/paper/{paper_id}` | Get paper claims |
-| `GET /api/claim/my-orcid` | Get my ORCID verification |
-| `GET /api/claim/my-claims` | Get my claims |
+| `POST /api/pairwise/fetch-pairs` | Superseded by validation/import-* endpoints |
+| `POST /api/pairwise/run-tournament` | Validation router has its own `/run-tournament` |
+| `POST /api/pairwise/reset` | Data management — keep as escape hatch |
+
+**One-time data import endpoints (data already imported):**
+
+| Endpoint | Dataset |
+|---|---|
+| `POST /api/validation/import-iclr` | ICLR 2025 |
+| `POST /api/validation/import-elife` | eLife |
+| `POST /api/validation/import-midl` | MIDL |
+| `POST /api/validation/import-uai` | UAI |
+| `POST /api/validation/import-peerread` | PeerRead |
+| `POST /api/validation/import-f1000` | F1000Research |
+| `POST /api/validation/seed` | Seed validation data |
+| `POST /api/validation/replay-tournament` | Replay tournament |
+| `POST /api/validation/run-cross-mode-fill` | Cross-mode fill |
+
+**F1000/ACMI one-time scraper endpoints:**
+
+| Endpoint |
+|---|
+| `POST /api/validation/scrape-f1000` |
+| `GET /api/validation/scrape-f1000/status` |
+| `POST /api/validation/enrich-f1000` |
+| `POST /api/validation/expand-f1000` |
+| `POST /api/validation/rescrape-f1000-evals` |
+| `POST /api/validation/acmi/scrape` |
+| `GET /api/validation/acmi/scrape/status` |
+| `GET /api/validation/acmi/stats` |
+
+**Other confirmed unused:**
+
+| Endpoint | Notes |
+|---|---|
+| `GET /api/badge/.../exists` | Not called by frontend or crawlers |
+| `POST /api/validation/stop-tournament` | Frontend uses `/api/pairwise/stop-tournament` instead |
+| `POST /api/congrats/gmail/send` | Gmail send feature not wired in frontend |
+| `GET /api/congrats/gmail/status` | Same — Gmail OAuth flow incomplete in UI |
+| `POST /api/qeios/pairwise-extract/stop` | Rarely-used admin control |
+| `GET /api/qeios/paper-data/stats` | Rarely-used admin stats |
+| `POST /api/scipost/reset` | One-time admin tool |
+| `POST /api/summarizer-ab/queue-batch` | Manual queue trigger |
+
+**Note: `AuthorClaimSection.jsx` is defined but never rendered.** The component exists with claim endpoints wired in, but it's never imported by any page. This means `POST /api/claim/{paper_id}`, `GET /api/claim/my-orcid`, `GET /api/claim/my-claims`, and `GET /api/claim/paper/{paper_id}` are technically reachable via API but have no UI path. The admin claim endpoints (`/api/claim/admin/*`) ARE used from AdminPage.jsx.
 
 ---
 
 ## Summary: Recommended Actions by Priority
 
-### P0 — Immediate memory savings (~1.1 GB transient allocs eliminated)
+### P0 — Memory savings (~380 MB transient allocs eliminated)
 
-1. **Remove `_store_ranking_snapshot`** and its caller in `run_comparison_round` line 1169
-   - Dead code: writes to collection nobody reads
-   - Saves: ~73 MB × 6 cats = 438 MB transient per cycle
+1. **Remove `_store_ranking_snapshot`** — dead code, ~144 MB/cycle saved
+2. **Rewrite `_check_goals_met` to use `rankings` collection** — ~78 MB/cycle saved
+3. **Rate-limit `_recompute_convergence_bg`** to every 10th round — ~157 MB/cycle saved
 
-2. **Rewrite `_check_goals_met` to use `rankings` collection**
-   - Currently loads ALL matches; Wilson margins already stored in rankings
-   - Saves: ~48 MB × 6 cats = 288 MB transient per cycle
+### P1 — Code cleanup (~213 lines)
 
-3. **Rate-limit `_recompute_convergence_bg` to every 10th round**
-   - Convergence curve barely changes with 20-100 new matches
-   - Saves: ~73 MB × 6 cats × 90% = 394 MB transient per cycle
+4. Remove 8 verified dead functions from hot-path files
+5. Optionally wire `AuthorClaimSection` into PaperPage, or remove it
 
-### P1 — Code cleanup (~210 lines)
+### P2 — Endpoint hygiene (optional)
 
-4. Remove 8 dead functions from hot-path files
-5. Remove `qeios_pairwise_extract` writes if collection is unused externally
-
-### P2 — Endpoint cleanup (optional, reduces attack surface)
-
-6. Consider gating one-time import endpoints behind a feature flag
-7. Remove `badge_exists` endpoint if unused
-8. Complete or remove incomplete claim/ORCID frontend wiring
+6. Gate one-time import/scraper endpoints behind admin-only flag (already gated, low priority)
+7. Remove `badge_exists`, `validation/stop-tournament` (duplicated by pairwise version)
+8. Complete Gmail congrats flow or remove the 3 unwired endpoints
