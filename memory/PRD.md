@@ -164,7 +164,7 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Phase 3: Notification System (Resend email integration)
 - Update Summarizer Report Section 2
 - Run AI summarization pipeline on UAI
-- Optional: Blended WR+TS urgency signal in matchmaking for edge cases
+- **TrueSkill-first matchmaking**: Switch primary metric to TS sigma for convergence targets. Simulation shows 35-40% fewer matches needed for equivalent ranking stability (rho≥0.9: WR needs ~35 m/p vs TS ~22 m/p across 5 categories). Would save ~35% LLM costs at scale.
 
 ### P2
 - Server-side sorting (sort_by/sort_dir params) for leaderboard API
