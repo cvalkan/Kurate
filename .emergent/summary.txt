@@ -1,122 +1,140 @@
 <analysis>**original_problem_statement**:
-The user requested an analysis of the uploaded academic paper (ReviewerToo: Should AI Join The Program Committee?) to propose and design a feature utilizing multiple AI reviewer personas. This is built on top of recent dashboard overhauls (adding PW vs SI correlations for TrueSkill, BT, and Regularized WR) and a live leaderboard admin switch.
+The user initially requested the implementation of multiple AI reviewer personas based on an academic paper (ReviewerToo). However, the session pivoted into a massive architectural overhaul to redesign dynamic leaderboards and Model Analysis pages for massive scale (10k-100k papers). The core requirement was to remove heavy memory-loading calculations (Bradley-Terry) and replace them with an O(1) incremental TrueSkill and Win-Rate approach, alongside ensuring the Model Analysis page loads instantly without triggering memory-crashing (OOM) recomputations.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in the user's preferred language only: English)
 
 **what currently exists?** 
-A full-stack AI paper-judging platform. The system currently features dynamic live leaderboards that can be switched between Regularized WR, Bradley-Terry (BT), and TrueSkill scoring methods via the Admin panel. Data integrity systems (repair queue, lightweight sorting) are fully operational. The Model Analysis dashboard provides advanced comparative tables for these estimators.
+A highly optimized, full-stack AI paper-judging platform capable of scaling to 100k+ papers. The system uses incremental TrueSkill and Win-Rate updates (calculated per-match) rather than loading historical match data into memory. The Model Analysis dashboard is fully pre-aggregated into a MongoDB , making page loads instant (<0.3s). Memory leaks and OOM crashes during fetch/comparison rounds have been mitigated by restricting LLM thread pools and adding explicit garbage collection.
 
 **Last working item**:
-- **Last item agent was working**: The agent successfully analyzed the extracted text from the user-provided PDF (ReviewerToo: Should AI Join The Program Committee?). Based on the paper's thesis about utilizing AI reviewers effectively, the agent formulated an architectural plan to introduce multiple AI reviewer personas into the platform and submitted this plan via the  tool.
-- **Status**: IN PROGRESS (Waiting for user response to )
-- **Agent Testing Done**: N/A
-- **Which testing method agent to use?**: NA (Currently in the conceptual/planning phase)
-- **User Testing Done**: N
+    - Last item agent was working: Investigating and fixing a severe memory leak/OOM issue on production (peaking at 2.4GB). The agent identified that the  for LLM calls had 100 workers, causing massive memory spikes during PDF fetch/summary generation. The agent reduced the workers to 10 and added explicit  after comparison rounds.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y
+    - Which testing method agent to use? manual testing by curl/logs (Agent reviewed backend memory logs extensively).
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-*No pending technical issues or bugs at this moment. All prior performance and memory issues were resolved in previous sessions.*
+  Issue 1: Mobile Unfurling on Twitter/X Fails (P2)
+     - Attempted fixes: Investigated in a previous session; blocked by Cloudflare bot protection.
+     - Next debug checklist: User needs to configure Cloudflare settings manually. Reference .
+     - Why fix this issue and what will be achieved with the fix? Required for social sharing and platform growth.
+     - Status: BLOCKED
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? Frontend
+     - Blocked on other issue: Cloudflare configuration (external)
 
 **In progress Task List**:
-Task 1: Analyze ReviewerToo Paper & Implement Multiple Reviewer Personas (P0)
-- **Where to resume**: The previous agent submitted a proposed feature plan via . The immediate next step is to read the user's incoming response, refine the plan if necessary, and begin implementation of the multiple AI personas architecture.
-- **What will be achieved with this?**: Enhances the system's pairwise ranking accuracy and correlation with human judgments by utilizing varied AI prompt personas (mimicking different reviewer behaviors).
-- **Status**: IN PROGRESS
-- **Should Test frontend/backend/both after fix?**: Both
-- **Blocked on something**: Waiting for user's response to the pending  message.
+  Task 1: Analyze ReviewerToo Paper & Implement Multiple Reviewer Personas (P0)
+     - Where to resume: This was the original prompt of the previous fork but was paused to address the massive architectural scaling overhaul. Resume by reading the ReviewerToo paper concepts and planning the prompt architecture for diverse AI judges.
+     - What will be achieved with this? Enhances pairwise ranking accuracy and correlation with human judgments by utilizing varied AI prompt personas.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on something: NA
 
 **Upcoming and Future Tasks**
-Upcoming Tasks:
-- (P0) Phase 3: Notification System: Implement an email notification system for registered users using the Resend integration.
-- (P1) Update Summarizer Report (Section 2): Update logic for the Which Summarizer is Best? table.
-- (P1) Run AI summarization pipeline on UAI: Execute the script .
-- (P2) Implement Server-Side Sorting: Add  and  to the leaderboard API.
-- (P2) Implement Virtual Scrolling: Replace leaderboard table with  to improve frontend performance.
+  Upcoming Tasks:
+  - (P1) Implement an email notification system for registered users using the Resend integration.
+  - (P1) Periodic TrueSkill recalibration logic (optional monthly replay for true-up).
+  - (P2) Update logic for the Which Summarizer is Best? table in the Summarizer Report.
 
-Future Tasks:
-- Add missing HTTP security headers.
-- Improve the UI for tracking summary generation failures.
-- Refactor the monolithic .
-- Convert admin scraper sync  calls to async .
-- Explore Typesense integration.
-- Explore adding new validation datasets from OpenReview (NeurIPS, etc.).
+  Future Tasks:
+  - Add missing HTTP security headers.
+  - Server-side sorting and virtual scrolling for the leaderboard table.
+  - Refactor the monolithic .
 
 **Completed work in this session**
-- Read and parsed .
-- Retrieved assets and extracted text from the provided academic paper 2510.08867v1.pdf.
-- Formulated an architectural plan based on the paper and prompted the user for approval.
+- Conducted Opus 4.6 Thinking Accept/Reject Accuracy Test against ICLR dataset (generated ).
+- Fixed admin dashboard stats (summary-filtered counts overwriting total fetched counts).
+- Fixed memory chart resolution and X-axis label downsampling in the Admin UI.
+- **Architectural Overhaul**: Replaced Bradley-Terry full-history calculations with incremental O(1) TrueSkill. 
+- Modified  DB documents to natively embed , , and .
+- Removed all in-memory server caches. Created MongoDB  and  for instant (<0.3s) Model Analysis page loads.
+- Added WR/TS toggle to leaderboard and Model Analysis charts.
+- Added Full vs. Controlled match count toggle to PW vs SI charts.
+- Added Aggregate (pooled) vs. Average (size-weighted) toggle to Correlation pages.
+- Fixed OOM crashes: Reduced  from 100 workers to 10, added background concurrency guards, and enforced explicit garbage collection.
 
 **Earlier issues found/mentioned but not fixed**
-Issue 1: Mobile Unfurling on Twitter/X Fails (P1)
-- **Debug checklist**: Blocked by Cloudflare bot protection settings. User needs to investigate as per .
-- **Why to solve this issue and what will be achieved with this?**: Critical for growth and engagement via mobile social sharing.
-- **Should Test frontend/backend/both after fix**: Frontend (manual test on a mobile device)
-- **Is recurring issue?**: Y
+None found in this specific text block outside of the known Cloudflare unfurling block.
 
 **Known issue recurrence from previous fork**
-- **Issue recurrence in previous fork**: Mobile Unfurling on Twitter/X Fails
-- **Recurrence count**: 4+
-- **Status**: BLOCKED (on external user action regarding Cloudflare)
+  - Issue recurrence in previous fork: Mobile Unfurling on Twitter/X Fails
+  - Recurrence count: 5+
+  - Status: BLOCKED
 
 **Code Architecture**
-
+rankingsanalysis_store
 
 **Key Technical Concepts**
-- **Ranking Estimators**: TrueSkill, Bradley-Terry (BT), and Regularized Win-Rate (Jeffreys prior) are natively supported and dynamically toggled.
-- **Data Subsampling & Correlation**: Platform calculates complex pairwise (PW) vs. strength-instruction (SI) inter-model correlations.
-- **In-Memory & Precomputed Caching**:  and other heavy endpoints rely on  seeding on startup to prevent timeout errors.
+- **Incremental TrueSkill**: Instead of calculating scores by loading all historical  (which caused OOMs), the system updates TrueSkill parameters (, ) incrementally for just two papers at the end of every match. 
+- **Pre-aggregated Analysis**: Complex dashboards (Correlations, SI vs PW) do *not* calculate on the fly. Background tasks populate  in MongoDB. Frontend fetches these lightweight documents.
+- **Controlled vs. Full Analysis**: The frontend can toggle data to show controlled (normalized matches per paper) to prove whether AI diversity actually helps, or if more matches simply reduce noise.
 
 **key DB schema**
-- : Source of truth for pairwise.
-- : Materialized view (Leaderboard). The  field dynamically updates based on the admin  setting.
-- : Stores global app config (e.g., ).
+  - : Source of truth for pairwise. (Rarely queried in bulk now).
+  - : Stores paper metadata,  (Win-Rate),  (TrueSkill), plus embedded , , and .
+  - : Pre-computed JSON-like documents containing heavy statistical correlation data keyed by category.
+  - : Pre-computed tournament convergence arrays.
 
 **changes in tech stack**
--  python package is heavily utilized for ranking metrics.
+  - Removed Bradley-Terry calculation dependency for production endpoints to save memory. 
+  - Eradicated reliance on Python in-memory  caching for global application state, moving entirely to MongoDB document caching.
 
-**All files of reference**
-- 
-- 
--  (Design and requirements truth)
+**All files of reference** 
+-  (Core logic for TrueSkill, incremental updates, and  generation)
+-  (API endpoints modified to exclusively query pre-aggregated collections)
+-  (Modified for strict memory management / concurrency guarding)
+-  (Startup tasks and index creation)
+-  (Generated report)
 
-**Areas that need refactoring**:
--  is highly monolithic. The dense statistical calculation blocks should ideally be moved to a dedicated  or  service.
+**Areas that need refactoring**: 
+-  remains highly monolithic. While performance is fixed, statistical mapping functions are heavily mixed with routing logic.
+-  handles too many responsibilities (fetching, tournament matchmaking, cache invalidation, and garbage collection).
 
 **key api endpoints**
-- : Returns per-model breakdowns, combined PW data, and Regularized WR.
--  (PUT): Saves app configurations like .
--  (POST): Instantly overwrites the  field of all papers based on the currently active ranking method.
+-  & : Now read directly from .
+- : Reads from .
+-  (POST): Admin trigger to retroactively calculate TS and model stats from historical matches.
 
-**Critical Info for New Agent**
-1. **Pending User Response**: The context ends with the agent waiting for the user's approval on the proposed Multiple AI Personas feature design. Your very first action should be to read the user's reply to the  tool and begin step-by-step implementation.
-2. **Caching Quirk**: If you alter correlation logic in , you MUST invalidate the  or delete the specific keys from  and restart the backend. Otherwise, the app will serve stale data.
-3. **Dynamic Leaderboard Scoring**: The backend relies on  to decide how to score papers. If your new Persona features affect scoring, ensure you account for all three methods (, , ).
+**Critical Info for New Agent** 
+1. **MEMORY MANAGEMENT IS PARAMOUNT**: The application runs in a highly restricted memory environment (max 2GB). Never load the full  collection into memory. Always rely on incremental document updates inside  or .
+2. **Concurrency Guarding**: Do not remove  or the  inside  / . Background tasks previously overlapped and crashed the server.
+3. **No In-Memory Caches**: Do not reintroduce python dictionary caching for analytics. Rely strictly on  in MongoDB.
 
-**documents and test reports created in this job**
-- *(No new documents created in this brief session. Previous test reports exist at  and )*
+**documents and test reports created in this job** 
+  - /app/memory/OPUS46_ACCEPT_REJECT_REPORT.md
 
-**Last 10 User Messages and any pending HUMAN messages**
-1. **User**: Provided the Handoff summary and initial problem statement.
-2. **User**: Sent Tool result for viewing .
-3. **User**: Sent Tool result for extracting workspace directory listing and bash env execution.
-4. **User**: Sent Tool result containing the extracted text of the target PDF paper (ReviewerToo: Should AI Join The Program Committee?).
-5. **User (Pending)**: The user is currently typing a response to the agent's  proposal regarding the architectural plan for integrating multiple reviewer personas based on the paper's thesis.
+**Last 10 User Messages and any pending HUMAN messages** 
+1. User asked to check production memory logs because RAM peaked at 2.4GB.
+2. Agent analyzed logs, found it peaked during an old fetch cycle. Traced current memory to a stable ~800MB but acknowledged unaddressed risks.
+3. User asked how agent knew it was old code vs new code.
+4. Agent admitted they couldn't be 100% sure and highlighted that PDF fetches and LLM generation still hold a lot of memory. User instructed to dig deeper and create an action plan.
+5. Agent analyzed  and , found  using 100 workers, suggesting a reduction to 10, plus adding explicit garbage collection.
+6. User asked for the plan in detail.
+7. Agent submitted plan via .
+8. User approved executing P0, P1, and P4 of the plan.
+9. Agent implemented the thread pool reduction and explicit  in .
+10. Agent verified successful server start and declared readiness for deployment. (No pending messages).
 
 **Project Health Check:**
-- **Broken**: Mobile unfurling on Twitter/X (Blocked).
-- **Mocked**: None.
+- Broken: Mobile unfurling on Twitter/X (Blocked by Cloudflare).
+- Mocked: None.
 
-**3rd Party Integrations**
-- TrueSkill (Python)
+**3rd Party Integrations** 
+- OpenAI GPT-5.2 — uses Emergent LLM Key
+- Anthropic Claude — uses Emergent LLM Key
+- Gemini 3 Pro — uses Emergent LLM Key
+- TrueSkill (Python Library)
 - Resend (Pending implementation)
 
 **Testing status**
-- Testing agent used after significant changes: NO (No implementation done yet in this specific session).
-- Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: None
-- Known regressions: None
+  - Testing agent used after significant changes: NO (Agent verified via backend memory logs and  timing scripts).
+  - Troubleshoot agent used after agent stuck in loop: YES (Used to identify race conditions in TrueSkill updates).
+  - Test files created: None
+  - Known regressions: None
 
 **Credentials to test flow:**
-- Admin password: 
+- NA (Use emergent-managed )
 
 **What agent forgot to execute**
-- Nothing was overlooked; the agent correctly gathered context, extracted the PDF, formulated a plan, and paused to await user feedback via .</analysis>
+- The agent heavily optimized the platform and fixed memory issues, but completely bypassed the original prompt directive (implementing the Multiple AI Reviewer Personas from the ReviewerToo paper). This P0 task remains untouched.</analysis>
