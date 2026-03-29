@@ -314,7 +314,7 @@ async def _deferred_startup():
         await db.rankings.create_index([("categories", 1), ("score", -1)], name="categories_score")  # For tag-filtered views
         # Analysis store (pre-aggregated Model Analysis results)
         # Version check: clear stale docs when schema changes
-        _ANALYSIS_STORE_VERSION = 3  # Bump when pw_vs_si format changes
+        _ANALYSIS_STORE_VERSION = 4  # Bump: filter out 0-match models from model cards
         try:
             await db.analysis_store.drop_indexes()
         except Exception:
