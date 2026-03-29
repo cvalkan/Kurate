@@ -44,6 +44,7 @@ export default function LeaderboardPage() {
   const [globalStats, setGlobalStats] = useState(searchParams.get("global") === "1");
   const [nextCursor, setNextCursor] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [sortPending, setSortPending] = useState(false); // Blocks loadMore during sort transition
   const [sortKey, setSortKey] = useState(searchParams.get("sort") || "rank");
   const [sortDir, setSortDir] = useState(searchParams.get("dir") || "asc");
   const [scoringMethod, setScoringMethod] = useState(searchParams.get("method") || "wr");
@@ -60,9 +61,9 @@ export default function LeaderboardPage() {
   const isTagMode = tagFilterOpen || hasSelectedTags;
 
   const handleSort = (key) => {
-    // Clear data immediately to prevent loadMore from firing with stale offset
-    // during the async gap before fetchLeaderboard's response arrives
-    setLeaderboard([]);
+    // Block loadMore during the async gap (prevents race condition)
+    // but keep showing current data (no empty flash)
+    setSortPending(true);
     setNextCursor(null);
     if (sortKey === key) {
       setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -162,6 +163,7 @@ export default function LeaderboardPage() {
         if (res.data.show_rating_column !== undefined) setShowRatingCol(res.data.show_rating_column);
         if (res.data.show_gap_column !== undefined) setShowGapCol(res.data.show_gap_column);
         if (res.data.archives) setArchives(res.data.archives);
+        setSortPending(false);
         setLoading(false);
       }
     } catch (err) {
@@ -174,7 +176,7 @@ export default function LeaderboardPage() {
 
   // Load next page using keyset cursor or offset (infinite scroll)
   const loadMore = useCallback(async () => {
-    if (loadingMore || loading) return; // Skip if main fetch is pending
+    if (loadingMore || loading || sortPending) return; // Skip if main fetch or sort pending
     // For non-default sorts, use offset-based pagination (no keyset cursor)
     const useOffset = sortKey && sortKey !== "rank";
     if (!useOffset && !nextCursor) return;
@@ -215,7 +217,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, loadingMore, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length, sortKey, sortDir]);
+  }, [nextCursor, loadingMore, loading, sortPending, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length, sortKey, sortDir]);
 
   // Fetch on param change (debounce tag mode)
   const initialLoadDone = useRef(false);
@@ -354,6 +356,7 @@ export default function LeaderboardPage() {
             </div>
           )}
 
+          <div className={sortPending ? "opacity-50 pointer-events-none transition-opacity duration-150" : "transition-opacity duration-150"}>
           <LeaderboardTable
             leaderboard={activeArchive ? activeArchive.leaderboard : leaderboard}
             loading={loading && !activeArchive} showCatCol={isTagMode}
@@ -366,6 +369,7 @@ export default function LeaderboardPage() {
             showRatingCol={showRatingCol} showGapCol={showGapCol}
             scoringMethod={scoringMethod}
           />
+          </div>
 
       <div className="mt-6 text-center text-xs text-muted-foreground">
         {hasSelectedTags
