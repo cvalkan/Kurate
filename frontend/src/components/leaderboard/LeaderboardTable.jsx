@@ -110,6 +110,18 @@ export function LeaderboardTable({
   };
   const getRank = (p) => isTS ? (p.rank_ts || p.rank) : (p.rank_wr || p.rank);
 
+  // Compute score-based rank for badges (top 3 by score get gold/silver/bronze)
+  // This is stable regardless of sort order — always based on the score metric.
+  const scoreRankMap = useMemo(() => {
+    const scoreFn = isGlobal ? (p => p.global_score || 0)
+      : isTS ? (p => p.ts_score || 0)
+      : (p => p.score || 0);
+    const byScore = [...leaderboard].sort((a, b) => scoreFn(b) - scoreFn(a));
+    const map = {};
+    byScore.forEach((p, i) => { map[p.id] = i + 1; });
+    return map;
+  }, [leaderboard, isGlobal, isTS]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Re-rank by global score or TrueSkill when those toggles are active.
   // Sorting is done server-side — the table just displays in received order,
   // except for TS/Global which are frontend-only view switches.
@@ -229,7 +241,9 @@ export function LeaderboardTable({
                   className="h-4 w-4 rounded border-border accent-accent pointer-events-none" />
               </div>
             )}
-            <div><RankBadge rank={paper._displayRank ?? paper.rank} /></div>
+            <div>
+              <RankBadge rank={scoreRankMap[paper.id] || paper._displayRank || paper.rank} />
+            </div>
             <div className="min-w-0">
               <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">

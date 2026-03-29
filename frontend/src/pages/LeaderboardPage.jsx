@@ -24,6 +24,7 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [warmingUp, setWarmingUp] = useState(false);
   const [totalPapers, setTotalPapers] = useState(0);
+  const [totalInPeriod, setTotalInPeriod] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
   const [isRanking, setIsRanking] = useState(false);
   const [showRatingCol, setShowRatingCol] = useState(true);
@@ -156,6 +157,7 @@ export default function LeaderboardPage() {
         setLeaderboard((res.data.leaderboard || []).map((e, i) => ({ ...e, rank: i + 1 })));
         setNextCursor(res.data.next_cursor || null);
         setTotalPapers(res.data.total_papers || 0);
+        setTotalInPeriod(res.data.total_in_period || res.data.total_papers || 0);
         setTotalMatches(res.data.total_matches || 0);
         setIsRanking(res.data.is_ranking || false);
         if (res.data.show_rating_column !== undefined) setShowRatingCol(res.data.show_rating_column);
@@ -295,6 +297,7 @@ export default function LeaderboardPage() {
       <StatusBar
         leaderboard={activeArchive ? activeArchive.leaderboard : leaderboard}
         totalPapers={activeArchive ? activeArchive.paper_count : totalPapers}
+        totalInPeriod={activeArchive ? activeArchive.paper_count : totalInPeriod}
         totalMatches={activeArchive ? activeArchive.match_count : totalMatches}
         isRanking={activeArchive ? false : isRanking}
         hasSelectedTags={hasSelectedTags} isTagMode={isTagMode}
@@ -361,7 +364,7 @@ export default function LeaderboardPage() {
             hasSelectedTags={hasSelectedTags} globalStats={globalStats}
             debouncedKeyword={debouncedKeyword} keyword={keyword}
             onLoadMore={activeArchive ? null : loadMore}
-            hasMore={activeArchive ? false : (!!nextCursor || (leaderboard.length > 0 && leaderboard.length < totalPapers && sortKey && sortKey !== "rank"))}
+            hasMore={activeArchive ? false : (!!nextCursor || (leaderboard.length > 0 && leaderboard.length < totalInPeriod && sortKey && sortKey !== "rank"))}
             loadingMore={loadingMore}
             sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
             showRatingCol={showRatingCol} showGapCol={showGapCol}
