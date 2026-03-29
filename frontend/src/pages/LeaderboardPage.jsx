@@ -118,7 +118,7 @@ export default function LeaderboardPage() {
   }, [keyword]);
 
   // Server-side pagination with server-side sorting.
-  const PAGE_SIZE = 1000;
+  const PAGE_SIZE = 200;
 
   const fetchLeaderboard = useCallback(async () => {
     if (!category && !isTagMode) return;

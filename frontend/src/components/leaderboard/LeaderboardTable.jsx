@@ -229,7 +229,7 @@ export function LeaderboardTable({
                   className="h-4 w-4 rounded border-border accent-accent pointer-events-none" />
               </div>
             )}
-            <div><RankBadge rank={paper.rank_wr || paper.rank} /></div>
+            <div><RankBadge rank={paper._displayRank ?? paper.rank} /></div>
             <div className="min-w-0">
               <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
