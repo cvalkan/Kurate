@@ -60,6 +60,10 @@ export default function LeaderboardPage() {
   const isTagMode = tagFilterOpen || hasSelectedTags;
 
   const handleSort = (key) => {
+    // Clear data immediately to prevent loadMore from firing with stale offset
+    // during the async gap before fetchLeaderboard's response arrives
+    setLeaderboard([]);
+    setNextCursor(null);
     if (sortKey === key) {
       setSortDir(d => d === "asc" ? "desc" : "asc");
     } else {
@@ -168,10 +172,11 @@ export default function LeaderboardPage() {
 
   // Load next page using keyset cursor or offset (infinite scroll)
   const loadMore = useCallback(async () => {
-    if (loadingMore) return;
+    if (loadingMore || loading) return; // Skip if main fetch is pending
     // For non-default sorts, use offset-based pagination (no keyset cursor)
     const useOffset = sortKey && sortKey !== "rank";
     if (!useOffset && !nextCursor) return;
+    if (useOffset && leaderboard.length === 0) return; // No data yet — fresh sort pending
     setLoadingMore(true);
     try {
       const params = { period, limit: PAGE_SIZE };
