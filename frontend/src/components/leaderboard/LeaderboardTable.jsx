@@ -51,35 +51,14 @@ export function LeaderboardTable({
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
 
-  // Progressive DOM rendering + server pagination via single sentinel
-  const [renderCount, setRenderCount] = useState(100);
-  const prevLengthRef = useRef(0);
-
-  // Reset progressive render on fresh data; keep all rows visible on append
-  useEffect(() => {
-    if (leaderboard.length > prevLengthRef.current && prevLengthRef.current > 0) {
-      // Append from loadMore — make new data immediately visible
-      setRenderCount(leaderboard.length);
-    } else if (leaderboard.length !== prevLengthRef.current) {
-      // Fresh load (sort change, category switch) — progressive render
-      setRenderCount(100);
-    }
-    prevLengthRef.current = leaderboard.length;
-  }, [leaderboard]);
-
-  // Single unified sentinel: handles both progressive render and server page loads
+  // Sentinel triggers server page loads when user scrolls near bottom
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
-        // If there are loaded entries not yet rendered: expand render window
-        if (leaderboard.length > renderCount) {
-          setRenderCount(prev => prev + 100);
-        }
-        // If all loaded entries are rendered and more pages exist: fetch next page
-        else if (hasMore && onLoadMore && !loadingMore) {
+        if (hasMore && onLoadMore && !loadingMore) {
           onLoadMore();
         }
       },
@@ -87,7 +66,7 @@ export function LeaderboardTable({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [leaderboard, renderCount, onLoadMore, hasMore, loadingMore]);
+  }, [onLoadMore, hasMore, loadingMore]);
 
   const isGlobal = hasSelectedTags && globalStats;
   const isTS = scoringMethod === "ts";
@@ -168,8 +147,8 @@ export function LeaderboardTable({
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
-  const visibleList = sorted.slice(0, renderCount);
-  const hasMoreToShow = hasMore || sorted.length > renderCount;
+  const visibleList = sorted;
+  const hasMoreToShow = hasMore;
 
   const scoreLabel = "Score";
   const scoreTip = isTS
