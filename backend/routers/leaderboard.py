@@ -784,11 +784,11 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
     if entries and last_doc and len(entries) == limit:
         next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
 
-    # is_ranking = tournament goals not yet met (still actively comparing)
+    # is_ranking = actively running pairwise comparisons right now
     from services.scheduler import _get_cat_status
     cat_status = _get_cat_status(category)
     cat_activity = cat_status.get("current_activity", "")
-    is_ranking = cat_activity not in ("Idle", "Goals met — idle", "Tournament paused", "System paused", "Comparisons paused")
+    is_ranking = cat_activity.startswith("Comparing") and cat_status.get("is_processing", False)
 
     return {
         "leaderboard": entries,
