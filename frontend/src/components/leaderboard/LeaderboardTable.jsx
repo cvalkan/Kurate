@@ -130,16 +130,12 @@ export function LeaderboardTable({
     if (isGlobal) {
       ranked = [...leaderboard].sort((a, b) => (b.global_score || 0) - (a.global_score || 0));
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
-    } else if (isTS && (!sortKey || sortKey === "rank")) {
-      // TrueSkill: re-sort by ts_score only when in default rank order
-      ranked = [...leaderboard].sort((a, b) => (b.ts_score || 0) - (a.ts_score || 0));
-      ranked.forEach((p, i) => { p._displayRank = i + 1; });
     } else {
-      // Server-sorted: use the order and rank from the backend
+      // Server-sorted: use the order from the backend (handles both WR and TS)
       ranked = leaderboard.map((p, i) => ({ ...p, _displayRank: p.rank || (i + 1) }));
     }
     return ranked;
-  }, [leaderboard, sortKey, isGlobal, scoringMethod]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leaderboard, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build grid template based on visible columns and screen size
   // Mobile: #, Paper, Score only. Tablet: +Win%, Match. Desktop: all columns.

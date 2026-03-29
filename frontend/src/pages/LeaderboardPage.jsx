@@ -138,10 +138,17 @@ export default function LeaderboardPage() {
       } else {
         params.category = category;
       }
-      // Server-side sorting
-      if (sortKey && sortKey !== "rank") {
-        params.sort_by = sortKey;
+      // Server-side sorting — map sort key based on scoring method
+      const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
+        : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
+        : sortKey;
+      if (effectiveSortKey && effectiveSortKey !== "rank") {
+        params.sort_by = effectiveSortKey;
         params.sort_dir = sortDir;
+      } else if (scoringMethod === "ts") {
+        // Default rank view in TS mode: sort by ts_score
+        params.sort_by = "ts_score";
+        params.sort_dir = "desc";
       }
       const res = await axios.get(`${API}/api/leaderboard`, { params, signal: controller.signal });
       if (!controller.signal.aborted) {
@@ -172,13 +179,14 @@ export default function LeaderboardPage() {
         setLoading(false);
       }
     }
-  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, sortKey, sortDir]);
+  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, sortKey, sortDir, scoringMethod]);
 
   // Load next page using keyset cursor or offset (infinite scroll)
   const loadMore = useCallback(async () => {
     if (loadingMore || loading || sortPending) return; // Skip if main fetch or sort pending
-    // For non-default sorts, use offset-based pagination (no keyset cursor)
-    const useOffset = sortKey && sortKey !== "rank";
+    // For non-default sorts (or TS mode), use offset-based pagination
+    const isNonDefaultSort = (sortKey && sortKey !== "rank") || scoringMethod === "ts";
+    const useOffset = isNonDefaultSort;
     if (!useOffset && !nextCursor) return;
     if (useOffset && leaderboard.length === 0) return; // No data yet — fresh sort pending
     setLoadingMore(true);
@@ -186,8 +194,17 @@ export default function LeaderboardPage() {
       const params = { period, limit: PAGE_SIZE };
       if (useOffset) {
         params.offset = leaderboard.length;
-        params.sort_by = sortKey;
-        params.sort_dir = sortDir;
+        // Map sort key based on scoring method
+        const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
+          : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
+          : sortKey;
+        if (effectiveSortKey && effectiveSortKey !== "rank") {
+          params.sort_by = effectiveSortKey;
+          params.sort_dir = sortDir;
+        } else if (scoringMethod === "ts") {
+          params.sort_by = "ts_score";
+          params.sort_dir = "desc";
+        }
       } else {
         params.cursor = nextCursor;
       }
@@ -217,7 +234,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, loadingMore, loading, sortPending, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length, sortKey, sortDir]);
+  }, [nextCursor, loadingMore, loading, sortPending, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length, sortKey, sortDir, scoringMethod]);
 
   // Fetch on param change (debounce tag mode)
   const initialLoadDone = useRef(false);
@@ -328,7 +345,7 @@ export default function LeaderboardPage() {
               {[["wr", "Win Rate"], ["ts", "TrueSkill"]].map(([key, label]) => (
                 <button
                   key={key}
-                  onClick={() => setScoringMethod(key)}
+                  onClick={() => { setSortPending(true); setNextCursor(null); setScoringMethod(key); }}
                   className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
                     scoringMethod === key
                       ? "bg-background text-foreground shadow-sm"
