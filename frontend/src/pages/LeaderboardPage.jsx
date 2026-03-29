@@ -117,7 +117,9 @@ export default function LeaderboardPage() {
   }, [keyword]);
 
   // Server-side pagination with server-side sorting.
-  const PAGE_SIZE = 200;
+  // Single-category views are small (<1000 papers) — load all at once for instant sorting.
+  // Cross-category (show_all/tags) can be 2000+ papers — paginate for performance.
+  const PAGE_SIZE = isTagMode ? 200 : 2000;
 
   const fetchLeaderboard = useCallback(async () => {
     if (!category && !isTagMode) return;
