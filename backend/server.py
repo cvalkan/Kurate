@@ -312,6 +312,14 @@ async def _deferred_startup():
         await db.rankings.create_index([("category", 1), ("added_at", -1)])
         await db.rankings.create_index([("added_at", -1)], name="added_at_-1")  # For unscoped "recent" (all-papers view)
         await db.rankings.create_index([("categories", 1), ("score", -1)], name="categories_score")  # For tag-filtered views
+        # Server-side sort indexes (all sortable leaderboard columns)
+        await db.rankings.create_index([("category", 1), ("ts_score", -1)], name="category_1_ts_score_-1")
+        await db.rankings.create_index([("category", 1), ("comparisons", -1)], name="category_1_comparisons_-1")
+        await db.rankings.create_index([("category", 1), ("win_rate", -1)], name="category_1_win_rate_-1")
+        await db.rankings.create_index([("category", 1), ("title", 1)], name="category_1_title_1")
+        await db.rankings.create_index([("ts_score", -1)], name="ts_score_-1")  # Cross-category TS sort
+        await db.rankings.create_index([("comparisons", -1)], name="comparisons_-1")
+        await db.rankings.create_index([("title", 1)], name="title_1")
         # Analysis store (pre-aggregated Model Analysis results)
         # Version check: clear stale docs when schema changes
         _ANALYSIS_STORE_VERSION = 4  # Bump: filter out 0-match models from model cards
