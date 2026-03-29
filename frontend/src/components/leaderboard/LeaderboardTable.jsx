@@ -53,9 +53,19 @@ export function LeaderboardTable({
 
   // Progressive DOM rendering + server pagination via single sentinel
   const [renderCount, setRenderCount] = useState(100);
+  const prevLengthRef = useRef(0);
 
-  // Reset on new data
-  useEffect(() => { setRenderCount(100); }, [leaderboard]);
+  // Reset progressive render on fresh data; keep all rows visible on append
+  useEffect(() => {
+    if (leaderboard.length > prevLengthRef.current && prevLengthRef.current > 0) {
+      // Append from loadMore — make new data immediately visible
+      setRenderCount(leaderboard.length);
+    } else if (leaderboard.length !== prevLengthRef.current) {
+      // Fresh load (sort change, category switch) — progressive render
+      setRenderCount(100);
+    }
+    prevLengthRef.current = leaderboard.length;
+  }, [leaderboard]);
 
   // Single unified sentinel: handles both progressive render and server page loads
   useEffect(() => {
