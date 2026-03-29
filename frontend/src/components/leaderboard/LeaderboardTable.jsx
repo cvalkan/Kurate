@@ -100,47 +100,24 @@ export function LeaderboardTable({
   };
   const getRank = (p) => isTS ? (p.rank_ts || p.rank) : (p.rank_wr || p.rank);
 
-  // Re-rank by global score when Global toggle is active, then apply user sort
+  // Re-rank by global score or TrueSkill when those toggles are active.
+  // Sorting is done server-side — the table just displays in received order,
+  // except for TS/Global which are frontend-only view switches.
   const sorted = useMemo(() => {
-    // Step 1: Re-rank by the active score metric
     let ranked;
     if (isGlobal) {
       ranked = [...leaderboard].sort((a, b) => (b.global_score || 0) - (a.global_score || 0));
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
-    } else if (isTS) {
-      // TrueSkill: re-sort by ts_score descending, assign sequential display ranks
+    } else if (isTS && (!sortKey || sortKey === "rank")) {
+      // TrueSkill: re-sort by ts_score only when in default rank order
       ranked = [...leaderboard].sort((a, b) => (b.ts_score || 0) - (a.ts_score || 0));
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
     } else {
-      // Win Rate (default): use the sequential rank already assigned by the backend/page
+      // Server-sorted: use the order and rank from the backend
       ranked = leaderboard.map((p, i) => ({ ...p, _displayRank: p.rank || (i + 1) }));
     }
-
-    // Step 2: Apply user sort (if not default rank)
-    if (!sortKey || sortKey === "rank") return ranked;
-    const getValue = (p) => {
-      switch (sortKey) {
-        case "title": return p.title?.toLowerCase() || "";
-        case "score": return getScore(p) || 0;
-        case "win_rate": return getWinRate(p) || 0;
-        case "wilson_margin": return getWilsonMargin(p) || 999;
-        case "comparisons": return getComparisons(p) || 0;
-        case "community_likes": return p.community_likes || 0;
-        case "ai_rating": { const r = p.ai_rating; return (typeof r === "object" && r ? r.score : r) || 0; }
-        case "gap_score": return (isTS ? p.gap_score_ts : p.gap_score) || 0;
-        case "published": return p.published || "";
-        case "bookmarked_at": return p.bookmarked_at || "";
-        default: return 0;
-      }
-    };
-    const dir = sortDir === "asc" ? 1 : -1;
-    return [...ranked].sort((a, b) => {
-      const va = getValue(a), vb = getValue(b);
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
-    });
-  }, [leaderboard, sortKey, sortDir, isGlobal, scoringMethod]); // eslint-disable-line react-hooks/exhaustive-deps
+    return ranked;
+  }, [leaderboard, sortKey, isGlobal, scoringMethod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build grid template based on visible columns and screen size
   // Mobile: #, Paper, Score only. Tablet: +Win%, Match. Desktop: all columns.

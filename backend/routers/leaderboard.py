@@ -608,6 +608,39 @@ def _rank_doc_to_entry(doc: dict) -> dict:
     }
 
 
+
+# Mapping from frontend sort keys to MongoDB field names + default direction
+_SORT_FIELD_MAP = {
+    "rank": ("rank", 1),
+    "score": ("score", -1),
+    "win_rate": ("win_rate", -1),
+    "comparisons": ("comparisons", -1),
+    "wilson_margin": ("wilson_margin", 1),
+    "published": ("published", -1),
+    "title": ("title", 1),
+    "ts_score": ("ts_score", -1),
+    "ai_rating": ("ai_rating", -1),
+    "gap_score": ("gap_score", -1),
+    "community_likes": ("community_likes", -1),
+}
+
+
+def _resolve_sort(sort_by: str = None, sort_dir: str = None, default_field: str = "score"):
+    """Resolve frontend sort params to MongoDB sort spec.
+    
+    Returns (mongo_sort_list, is_default_sort).
+    is_default_sort=True means score desc (the default ranking) — allows keyset cursor.
+    """
+    if not sort_by or sort_by == "rank":
+        # Default sort: score descending with paper_id tiebreaker
+        return [("score", -1), ("paper_id", -1)], True
+
+    field, default_dir = _SORT_FIELD_MAP.get(sort_by, (sort_by, -1))
+    direction = 1 if sort_dir == "asc" else (-1 if sort_dir == "desc" else default_dir)
+    # Add paper_id as tiebreaker for stable pagination
+    return [(field, direction), ("paper_id", -1 if direction == -1 else 1)], False
+
+
 def _build_period_filter(period: str) -> dict:
     """Build a MongoDB query filter for time periods (non-recent only).
     For 'recent', use _build_recent_filter() which needs async DB access."""
@@ -663,11 +696,11 @@ async def _get_archives_for_category(category: str, settings: dict) -> list:
     return _filter_archives_by_frequency(archives, category, settings)
 
 
-async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None):
+async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):
     """Serve primary category leaderboard from DB rankings collection."""
     _t0 = time.time()
     try:
-        result = await _db_category_leaderboard_impl(category, period, limit, offset, search, cursor)
+        result = await _db_category_leaderboard_impl(category, period, limit, offset, search, cursor, sort_by, sort_dir)
         _elapsed = time.time() - _t0
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
@@ -709,7 +742,7 @@ async def _get_community_correlation(category: str):
     return None
 
 
-async def _db_category_leaderboard_impl(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None):
+async def _db_category_leaderboard_impl(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):
     import asyncio
     from core.auth import get_settings
 
@@ -755,10 +788,10 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
         _get_archives_for_category(category, settings),
     )
 
-    sort_field = "rank" if period == "all" and not search else "score"
+    mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
 
-    # Keyset pagination: O(1) for any page depth (vs O(N) for skip-based)
-    if cursor and not search:
+    # Keyset pagination: O(1) for any page depth — only works with default score sort
+    if cursor and not search and is_default_sort:
         cursor_score, cursor_pid = _decode_cursor(cursor)
         if cursor_score is not None:
             query["$or"] = [
@@ -767,8 +800,7 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
             ]
             offset = 0
 
-    sort_key = [("rank", 1)] if sort_field == "rank" else [("score", -1), ("paper_id", -1)]
-    cursor_obj = db.rankings.find(query, _RANK_PROJ).sort(sort_key).skip(offset).limit(limit)
+    cursor_obj = db.rankings.find(query, _RANK_PROJ).sort(mongo_sort).skip(offset).limit(limit)
     entries = []
     rank_offset = offset + 1
     last_doc = None
@@ -809,11 +841,11 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
     }
 
 
-async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None, cursor: str = None):
+async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):
     """Serve cross-category 'all papers' leaderboard from DB rankings."""
     _t0 = time.time()
     try:
-        result = await _db_all_papers_leaderboard_impl(period, limit, offset, search, cursor)
+        result = await _db_all_papers_leaderboard_impl(period, limit, offset, search, cursor, sort_by, sort_dir)
         _elapsed = time.time() - _t0
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
@@ -831,7 +863,7 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
         }
 
 
-async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, search: str = None, cursor: str = None):
+async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):
     import asyncio
 
     # Phase 1: Build filter + fire independent counts in parallel
@@ -855,8 +887,10 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
 
     total_in_period = await db.rankings.count_documents(query)
 
-    # Keyset pagination
-    if cursor and not search:
+    mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
+
+    # Keyset pagination (only with default score sort)
+    if cursor and not search and is_default_sort:
         cursor_score, cursor_pid = _decode_cursor(cursor)
         if cursor_score is not None:
             query["$or"] = [
@@ -865,7 +899,7 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
             ]
             offset = 0
 
-    cursor_obj = db.rankings.find(query, _RANK_PROJ).sort([("score", -1), ("paper_id", -1)]).skip(offset).limit(limit)
+    cursor_obj = db.rankings.find(query, _RANK_PROJ).sort(mongo_sort).skip(offset).limit(limit)
     entries = []
     rank_num = offset + 1
     last_doc = None
@@ -899,12 +933,12 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
 async def _db_tag_leaderboard(
     tag_list: list, period: str, limit: int, offset: int,
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
-    search: str = None, cursor: str = None,
+    search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None,
 ):
     """Serve tag-filtered leaderboard from DB rankings."""
     _t0 = time.time()
     try:
-        result = await _db_tag_leaderboard_impl(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor)
+        result = await _db_tag_leaderboard_impl(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor, sort_by, sort_dir)
         _elapsed = time.time() - _t0
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
@@ -926,7 +960,7 @@ async def _db_tag_leaderboard(
 async def _db_tag_leaderboard_impl(
     tag_list: list, period: str, limit: int, offset: int,
     tag_mode: str = "or", global_stats: bool = False, show_all: bool = False,
-    search: str = None, cursor: str = None,
+    search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None,
 ):
     import asyncio
     # Query rankings directly by categories (no papers collection round-trip)
@@ -975,8 +1009,10 @@ async def _db_tag_leaderboard_impl(
         async for r in db.rankings.find(tag_filter, {"_id": 0, "paper_id": 1}):
             matching_ids.add(r["paper_id"])
 
-    # Keyset pagination
-    if cursor and not search:
+    mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
+
+    # Keyset pagination (only with default score sort)
+    if cursor and not search and is_default_sort:
         cursor_score, cursor_pid = _decode_cursor(cursor)
         if cursor_score is not None:
             rank_query["$or"] = [
@@ -985,7 +1021,7 @@ async def _db_tag_leaderboard_impl(
             ]
             offset = 0
 
-    cursor_obj = db.rankings.find(rank_query, _RANK_PROJ).sort([("score", -1), ("paper_id", -1)]).skip(offset).limit(limit)
+    cursor_obj = db.rankings.find(rank_query, _RANK_PROJ).sort(mongo_sort).skip(offset).limit(limit)
     entries = []
     rank_num = offset + 1
     last_doc = None
@@ -1059,22 +1095,24 @@ async def get_leaderboard(
     global_stats: bool = Query(False, description="Include global stats (all matches) for each paper"),
     show_all: bool = Query(False, description="Show all papers with matches_tag flag (tag mode only)"),
     search: Optional[str] = Query(None, description="Search papers by title (case-insensitive)", max_length=200),
-    limit: int = Query(10000, description="Max papers to return", ge=1, le=100000),
+    limit: int = Query(200, description="Max papers to return", ge=1, le=10000),
     offset: int = Query(0, description="Offset for pagination", ge=0),
     cursor: Optional[str] = Query(None, description="Keyset pagination cursor (from previous response's next_cursor)"),
+    sort_by: Optional[str] = Query(None, description="Sort field: score, win_rate, comparisons, published, wilson_margin, ts_score, ai_rating, gap_score, title"),
+    sort_dir: Optional[str] = Query(None, description="Sort direction: asc or desc"),
 ):
     # Tag-based filtering
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()][:50]
         if tag_list:
-            return await _db_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor)
+            return await _db_tag_leaderboard(tag_list, period, limit, offset, tag_mode, global_stats, show_all, search, cursor, sort_by, sort_dir)
 
     # All papers cross-category
     if show_all:
-        return await _db_all_papers_leaderboard(period, limit, offset, search, cursor)
+        return await _db_all_papers_leaderboard(period, limit, offset, search, cursor, sort_by, sort_dir)
 
     # Primary category leaderboard — served from DB rankings
-    return await _db_category_leaderboard(category, period, limit, offset, search, cursor)
+    return await _db_category_leaderboard(category, period, limit, offset, search, cursor, sort_by, sort_dir)
 
 
 def _filter_archives_by_frequency(archives, category, settings):

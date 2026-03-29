@@ -112,9 +112,8 @@ export default function LeaderboardPage() {
     return () => clearTimeout(t);
   }, [keyword]);
 
-  // Load all entries in one call at current scale (<5K papers/category).
-  // Server-side cursor pagination exists in the API for future use at 10K+ scale.
-  const PAGE_SIZE = 10000;
+  // Server-side pagination with server-side sorting.
+  const PAGE_SIZE = 200;
 
   const fetchLeaderboard = useCallback(async () => {
     if (!category && !isTagMode) return;
@@ -132,6 +131,11 @@ export default function LeaderboardPage() {
         params.show_all = true;
       } else {
         params.category = category;
+      }
+      // Server-side sorting
+      if (sortKey && sortKey !== "rank") {
+        params.sort_by = sortKey;
+        params.sort_dir = sortDir;
       }
       const res = await axios.get(`${API}/api/leaderboard`, { params, signal: controller.signal });
       if (!controller.signal.aborted) {
@@ -160,14 +164,24 @@ export default function LeaderboardPage() {
         setLoading(false);
       }
     }
-  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword]);
+  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, sortKey, sortDir]);
 
-  // Load next page using keyset cursor (infinite scroll)
+  // Load next page using keyset cursor or offset (infinite scroll)
   const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMore) return;
+    if (loadingMore) return;
+    // For non-default sorts, use offset-based pagination (no keyset cursor)
+    const useOffset = sortKey && sortKey !== "rank";
+    if (!useOffset && !nextCursor) return;
     setLoadingMore(true);
     try {
-      const params = { period, limit: PAGE_SIZE, cursor: nextCursor };
+      const params = { period, limit: PAGE_SIZE };
+      if (useOffset) {
+        params.offset = leaderboard.length;
+        params.sort_by = sortKey;
+        params.sort_dir = sortDir;
+      } else {
+        params.cursor = nextCursor;
+      }
       if (debouncedKeyword) params.search = debouncedKeyword;
       if (hasSelectedTags) {
         params.tags = selectedTags.join(",");
@@ -187,12 +201,14 @@ export default function LeaderboardPage() {
         setLeaderboard(prev => [...prev, ...renumbered]);
       }
       setNextCursor(res.data.next_cursor || null);
+      // If fewer entries returned than requested, no more pages
+      if (newEntries.length < PAGE_SIZE) setNextCursor(null);
     } catch (err) {
       console.error("Failed to load more:", err);
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, loadingMore, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length]);
+  }, [nextCursor, loadingMore, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length, sortKey, sortDir]);
 
   // Fetch on param change (debounce tag mode)
   const initialLoadDone = useRef(false);
@@ -337,7 +353,7 @@ export default function LeaderboardPage() {
             hasSelectedTags={hasSelectedTags} globalStats={globalStats}
             debouncedKeyword={debouncedKeyword} keyword={keyword}
             onLoadMore={activeArchive ? null : loadMore}
-            hasMore={activeArchive ? false : !!nextCursor}
+            hasMore={activeArchive ? false : (!!nextCursor || (leaderboard.length > 0 && leaderboard.length < totalPapers && sortKey && sortKey !== "rank"))}
             loadingMore={loadingMore}
             sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
             showRatingCol={showRatingCol} showGapCol={showGapCol}
