@@ -353,30 +353,9 @@ def _load_validation():
 
 
 def _load_analysis():
-    """Load precomputed analysis caches (model-correlation, convergence, si-rating-stats)."""
-    if not ANALYSIS_FILE.exists():
-        return 0
-    try:
-        with open(ANALYSIS_FILE) as f:
-            results = json.load(f)
-    except Exception as e:
-        logger.warning(f"Failed to load precomputed analysis: {e}")
-        return 0
-
-    from routers.leaderboard import _analysis_cache
-
-    loaded = 0
-    for key, data in results.items():
-        # Parse key format: "endpoint:category:extra"
-        parts = key.split(":", 2)
-        endpoint = parts[0]
-        category = parts[1] if len(parts) > 1 else "__all__"
-        extra = parts[2] if len(parts) > 2 else ""
-
-        cache_key = (endpoint, category, extra)
-        _analysis_cache[cache_key] = {"data": data, "ts": time.time()}
-        loaded += 1
-
-    if loaded:
-        logger.info(f"Loaded {loaded} precomputed analysis caches")
-    return loaded
+    """Load precomputed analysis caches.
+    
+    Analysis endpoints now read from MongoDB analysis_store (not in-memory cache).
+    This function is a no-op but kept for backward compatibility with load_precomputed().
+    """
+    return 0
