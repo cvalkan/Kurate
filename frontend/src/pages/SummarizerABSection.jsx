@@ -49,7 +49,7 @@ export default function SummarizerABSection() {
       const r = await axios.get(`${API}/api/validation/summarizer-ab/status`);
       setStatus(r.data);
       setRunning(r.data?.running || false);
-    } catch { /* ignore */ }
+    } catch(e) { console.warn("Fetch error:", e.message || e); }
     setLoading(false);
   }, []);
 

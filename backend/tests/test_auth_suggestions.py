@@ -9,7 +9,7 @@ import time
 import uuid
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-reviewer-bench.preview.emergentagent.com').rstrip('/')
-ADMIN_PASSWORD = "papersumo2025"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 # Test user credentials - unique for each test run
 TEST_USER_PREFIX = f"test_user_{int(time.time())}"

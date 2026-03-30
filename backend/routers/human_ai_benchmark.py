@@ -1920,7 +1920,7 @@ async def dataset_rankings(dataset_id: str):
     # Build result rows sorted by AI score descending
     import hashlib
     def _title_hash(pid):
-        return hashlib.md5(papers_by_id.get(pid, {}).get("title", pid).encode()).hexdigest()
+        return hashlib.sha256(papers_by_id.get(pid, {}).get("title", pid).encode()).hexdigest()
 
     ranked_ids = sorted(paper_ids, key=lambda pid: (ai_elo[pid]["score"], _title_hash(pid)), reverse=True)
 

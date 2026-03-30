@@ -57,7 +57,7 @@ export default function TieExperimentSection() {
       const r = await axios.get(`${API}/api/validation/tie-experiment/status`);
       setStatus(r.data);
       setRunning(r.data?.running || false);
-    } catch { /* ignore */ }
+    } catch(e) { console.warn("Fetch error:", e.message || e); }
     try {
       const r = await axios.get(`${API}/api/validation/tie-experiment/results`, { timeout: 30000 });
       setResults(r.data);

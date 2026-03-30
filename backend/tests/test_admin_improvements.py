@@ -10,7 +10,7 @@ import requests
 import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-ADMIN_TOKEN = "papersumo2025"
+ADMIN_TOKEN = os.environ.get("ADMIN_PASSWORD", "")
 
 def get_headers():
     return {"X-Admin-Token": ADMIN_TOKEN, "Content-Type": "application/json"}

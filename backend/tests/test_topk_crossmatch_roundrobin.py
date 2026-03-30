@@ -12,7 +12,7 @@ import os
 from collections import Counter
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
-ADMIN_TOKEN = "papersumo2025"
+ADMIN_TOKEN = os.environ.get("ADMIN_PASSWORD", "")
 
 CATEGORIES = ["cs.RO", "cs.DC", "econ.GN", "physics.comp-ph", "q-bio.BM"]
 

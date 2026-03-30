@@ -189,7 +189,7 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
 
     if not paper_ids or not matches:
         import hashlib
-        sorted_papers = sorted(papers, key=lambda p: hashlib.md5(p["title"].encode()).hexdigest(), reverse=True)
+        sorted_papers = sorted(papers, key=lambda p: hashlib.sha256(p["title"].encode()).hexdigest(), reverse=True)
         return [
             {
                 "id": p["id"],
@@ -258,7 +258,7 @@ def compute_leaderboard(papers: List[dict], matches: List[dict]) -> List[dict]:
     import hashlib
     def _title_hash(pid):
         title = paper_lookup.get(pid, {}).get("title", pid)
-        return hashlib.md5(title.encode()).hexdigest()
+        return hashlib.sha256(title.encode()).hexdigest()
     ranked = sorted(paper_ids, key=lambda pid: (wr_scores.get(pid, SCORE_BASE), _title_hash(pid)), reverse=True)
 
     leaderboard = []
@@ -746,7 +746,7 @@ async def rerank_category_light(db, category: str):
         entries,
         key=lambda e: (
             e.get("score", SCORE_BASE_CONST),
-            hashlib.md5(e.get("title", e["paper_id"]).encode()).hexdigest(),
+            hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest(),
         ),
         reverse=True,
     )
@@ -757,7 +757,7 @@ async def rerank_category_light(db, category: str):
         entries,
         key=lambda e: (
             ts_elo.get(e["paper_id"], SCORE_BASE_CONST),
-            hashlib.md5(e.get("title", e["paper_id"]).encode()).hexdigest(),
+            hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest(),
         ),
         reverse=True,
     )
@@ -878,7 +878,7 @@ async def rerank_category(db, category: str):
         {"_id": 0, "paper_id": 1, "score": 1, "title": 1, "wins": 1, "comparisons": 1}
     ):
         pid = doc["paper_id"]
-        title_hash = hashlib.md5(doc.get("title", pid).encode()).hexdigest()
+        title_hash = hashlib.sha256(doc.get("title", pid).encode()).hexdigest()
 
         actual = actual_stats.get(pid, {"wins": 0, "comparisons": 0})
         a_wins = actual["wins"]

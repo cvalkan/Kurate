@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-import random
+import secrets
 import math
 import hashlib
 from datetime import datetime, timezone, timedelta
@@ -1006,7 +1006,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     return
 
                 # Random flip for positional bias
-                if random.random() < 0.5:
+                if secrets.randbelow(2):
                     p1_id, p2_id = p2_orig, p1_orig
                 else:
                     p1_id, p2_id = p1_orig, p2_orig

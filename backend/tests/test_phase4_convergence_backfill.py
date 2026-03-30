@@ -12,7 +12,7 @@ import requests
 import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-ADMIN_PASSWORD = "papersumo2025"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 SAMPLE_PAPER_ID = "1b752605-7045-46f2-8308-a2e0142aa8a7"
 
 
