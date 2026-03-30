@@ -211,6 +211,24 @@ async def gmail_callback(code: str, state: str, request: Request):
 async def startup():
     app.state.prewarm_status = {"done": False, "step": "Loading caches"}
 
+    # Remove --reload from supervisor config if present.
+    # The platform generates the config with --reload (a dev-only feature) which causes
+    # restart storms on deploy and doubled RSS during restarts → OOM kills.
+    # This patch runs on every boot so it survives config resets.
+    try:
+        import subprocess
+        conf_path = "/etc/supervisor/conf.d/supervisord.conf"
+        with open(conf_path) as f:
+            conf = f.read()
+        if "--reload" in conf:
+            with open(conf_path, "w") as f:
+                f.write(conf.replace(" --reload", ""))
+            subprocess.run(["supervisorctl", "reread"], capture_output=True)
+            subprocess.run(["supervisorctl", "update", "backend"], capture_output=True)
+            logger.info("Removed --reload from supervisor config (production fix)")
+    except Exception as e:
+        logger.warning(f"Supervisor config patch failed: {e}")
+
     # Cap MongoDB WiredTiger cache to prevent OOM kills in 2GB container.
     # Default is 50% of system RAM (~3.5GB) which leaves no room for Python.
     try:
