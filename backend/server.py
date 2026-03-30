@@ -210,6 +210,17 @@ async def gmail_callback(code: str, state: str, request: Request):
 @app.on_event("startup")
 async def startup():
     app.state.prewarm_status = {"done": False, "step": "Loading caches"}
+
+    # Cap MongoDB WiredTiger cache to prevent OOM kills in 2GB container.
+    # Default is 50% of system RAM (~3.5GB) which leaves no room for Python.
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        admin_db = db.client.admin
+        await admin_db.command({"setParameter": 1, "wiredTigerEngineRuntimeConfig": "cache_size=512M"})
+        logger.info("MongoDB WiredTiger cache capped to 512MB")
+    except Exception as e:
+        logger.warning(f"Failed to cap MongoDB cache: {e}")
+
     # FAST PATH: Only create essential indexes, then let server accept connections.
     # All migrations, backfills, and cache warming run in background.
     try:
