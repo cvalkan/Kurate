@@ -1348,17 +1348,17 @@ async def _compute_timeseries(category: Optional[str] = None):
             model_stats[model_key]["input_tokens"] += inp
             model_stats[model_key]["output_tokens"] += out
 
-    # --- Summary generation costs (aggregation — count per model per day, estimate tokens) ---
+    # --- Summary generation costs (aggregation — count per model per day) ---
+    # Uses fixed average input size to avoid loading full_text into the pipeline
+    # (full_text is ~40-100KB per paper; loading it in aggregation causes OOM on production)
     summary_daily = defaultdict(lambda: defaultdict(lambda: {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0}))
-    # Use aggregation to get summary counts per day/category/model without loading full_text
+    AVG_INPUT_TOKENS = 10375  # (~40K text + 1K abstract + 500 prompt) / 4
     async for doc in db.papers.aggregate([
         {"$match": {"summaries": {"$exists": True, "$ne": None}}},
         {"$project": {
             "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
             "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
             "summary_keys": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
-            "ft_len": {"$strLenCP": {"$ifNull": ["$full_text", ""]}},
-            "abs_len": {"$strLenCP": {"$ifNull": ["$abstract", ""]}},
         }},
         {"$match": {"day": {"$ne": ""}}},
         {"$unwind": "$summary_keys"},
@@ -1367,13 +1367,11 @@ async def _compute_timeseries(category: Optional[str] = None):
             "day": 1, "cat": 1,
             "mk": "$summary_keys.k",
             "text_len": {"$strLenCP": "$summary_keys.v"},
-            "input_chars": {"$add": [{"$min": ["$ft_len", 40000]}, {"$min": ["$abs_len", 1500]}, 500]},
         }},
         {"$match": {"text_len": {"$gte": 50}}},
         {"$group": {
             "_id": {"day": "$day", "cat": "$cat", "mk": "$mk"},
             "count": {"$sum": 1},
-            "avg_input_chars": {"$avg": "$input_chars"},
             "avg_text_len": {"$avg": "$text_len"},
         }},
     ]):
@@ -1381,7 +1379,7 @@ async def _compute_timeseries(category: Optional[str] = None):
         cat = doc["_id"]["cat"]
         mk = doc["_id"]["mk"]
         count = doc["count"]
-        inp_tok = int(doc["avg_input_chars"] * count) // 4
+        inp_tok = AVG_INPUT_TOKENS * count
         out_tok = int(doc["avg_text_len"] * count) // 4
 
         provider = mk.split(":")[0]
