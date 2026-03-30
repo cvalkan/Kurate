@@ -585,18 +585,18 @@ async def get_progress_estimate(category: str = "cs.RO"):
     parallel_agents = settings.get("parallel_agents", 5)
     parallel_categories = settings.get("parallel_categories", 2)
 
-    direct_papers = await collect_all(db.papers.find(
-        {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
-        {"_id": 0, "id": 1}
-    ))
-    all_paper_ids = [p["id"] for p in direct_papers]
+    # Fallback: compute from rankings DB (only during cold start before leaderboard cache is ready)
+    # Uses rankings collection (pre-computed wins/comparisons) instead of loading all matches
+    from services.ranking import wilson_margin_pct
 
-    raw_matches = await collect_all(db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ))
+    entries = []
+    async for doc in db.rankings.find(
+        {"category": category},
+        {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1},
+    ):
+        entries.append(doc)
 
-    total_papers = len(all_paper_ids)
+    total_papers = len(entries)
     if total_papers == 0:
         result = {
             "total_papers": 0, "goals_met": True, "paused": is_paused,
@@ -607,30 +607,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
         _set_admin_cached("progress", category, result)
         return result
 
-    pid_set = set(all_paper_ids)
-    paper_match_count = {pid: 0 for pid in all_paper_ids}
-    paper_wins = {pid: 0 for pid in all_paper_ids}
-    compared_pairs = set()
-
-    for m in raw_matches:
-        p1, p2 = m["paper1_id"], m["paper2_id"]
-        if p1 in pid_set and p2 in pid_set:
-            paper_match_count[p1] += 1
-            paper_match_count[p2] += 1
-            compared_pairs.add(tuple(sorted([p1, p2])))
-            w = m.get("winner_id")
-            if w and w in paper_wins:
-                paper_wins[w] += 1
-
-    # Identify top-K papers
-    from services.ranking import wilson_margin_pct
-    sorted_papers = sorted(
-        all_paper_ids,
-        key=lambda pid: paper_wins.get(pid, 0) / max(paper_match_count.get(pid, 0), 1),
-        reverse=True,
-    )
-    top_k_ids = set(sorted_papers[:min(top_k, total_papers)])
-    top_k_list = sorted_papers[:min(top_k, total_papers)]
+    entries.sort(key=lambda e: e.get("score", 0), reverse=True)
+    top_k_list = [e["paper_id"] for e in entries[:min(top_k, total_papers)]]
+    top_k_ids = set(top_k_list)
 
     # Goal 1: All non-top-K papers CI ≤ ci_target_general
     general_converged = 0
@@ -638,12 +617,12 @@ async def get_progress_estimate(category: str = "cs.RO"):
     general_additional = 0
     widest_general = 0.0
     general_margins = []
-    for pid in all_paper_ids:
-        if pid in top_k_ids:
+    for e in entries:
+        if e["paper_id"] in top_k_ids:
             continue
         general_total += 1
-        n = paper_match_count.get(pid, 0)
-        w = paper_wins.get(pid, 0)
+        n = e.get("comparisons", 0)
+        w = e.get("wins", 0)
         margin = wilson_margin_pct(w, n)
         general_margins.append(margin)
         if margin <= ci_target_general:
@@ -667,9 +646,12 @@ async def get_progress_estimate(category: str = "cs.RO"):
     topk_additional = 0
     widest_topk = 0.0
     topk_margins = []
+    # Build lookup from entries for top-K
+    entry_map = {e["paper_id"]: e for e in entries}
     for pid in top_k_list:
-        n = paper_match_count.get(pid, 0)
-        w = paper_wins.get(pid, 0)
+        e = entry_map.get(pid, {})
+        n = e.get("comparisons", 0)
+        w = e.get("wins", 0)
         margin = wilson_margin_pct(w, n)
         topk_margins.append(margin)
         if margin <= ci_target:
@@ -687,13 +669,18 @@ async def get_progress_estimate(category: str = "cs.RO"):
     median_topk = sorted(topk_margins)[len(topk_margins) // 2] if topk_margins else 0.0
     matches_for_goal2 = 0 if goal2_met else max(0, int(topk_additional * 0.6))
 
-    # Goal 3: Cross-matches among top-K papers
+    # Goal 3: Cross-matches among top-K papers (targeted queries, not bulk load)
     topk_total_pairs = len(top_k_list) * (len(top_k_list) - 1) // 2
     topk_matched_pairs = 0
     for i in range(len(top_k_list)):
         for j in range(i + 1, len(top_k_list)):
-            pair = tuple(sorted([top_k_list[i], top_k_list[j]]))
-            if pair in compared_pairs:
+            p1, p2 = top_k_list[i], top_k_list[j]
+            has_match = await db.matches.count_documents({
+                "completed": True, "failed": {"$ne": True}, "primary_category": category,
+                "mode": {"$exists": False},
+                "$or": [{"paper1_id": p1, "paper2_id": p2}, {"paper1_id": p2, "paper2_id": p1}],
+            }) > 0
+            if has_match:
                 topk_matched_pairs += 1
     matches_for_goal3 = topk_total_pairs - topk_matched_pairs
     goal3_met = bool(topk_matched_pairs == topk_total_pairs)
@@ -702,7 +689,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
-    cat_matches_done = sum(paper_match_count.values()) // 2
+    cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
     cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
     cat_total_in_db = await db.papers.count_documents({"categories.0": category})
 
@@ -767,22 +754,29 @@ async def get_usage_stats(category: str = None):
 
     lb_cache = _get_lb_cache()
 
-    # Compute model stats from DB matches
+    # Compute model stats from DB matches using aggregation pipeline (no Python iteration)
     match_query = {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}, "mode": {"$exists": False}}
     if category:
         match_query["primary_category"] = category
     model_stats = {}
-    async for m in db.matches.find(match_query, {"_id": 0, "model_used": 1, "tokens": 1}):
-        mu = m.get("model_used", {})
-        if not mu:
+    async for doc in db.matches.aggregate([
+        {"$match": match_query},
+        {"$group": {
+            "_id": {"provider": "$model_used.provider", "model": "$model_used.model"},
+            "matches": {"$sum": 1},
+            "input_tokens": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
+            "output_tokens": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
+        }},
+    ]):
+        mid = doc["_id"]
+        if not mid.get("provider"):
             continue
-        key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
-        if key not in model_stats:
-            model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-        model_stats[key]["matches"] += 1
-        tokens = m.get("tokens", {})
-        model_stats[key]["input_tokens"] += tokens.get("input_est", 0)
-        model_stats[key]["output_tokens"] += tokens.get("output_est", 0)
+        key = f"{mid['provider']}/{mid['model']}"
+        model_stats[key] = {
+            "matches": doc["matches"],
+            "input_tokens": doc["input_tokens"],
+            "output_tokens": doc["output_tokens"],
+        }
 
     # Calculate cost per model
     total_cost = 0.0
@@ -1283,115 +1277,133 @@ async def get_timeseries(category: Optional[str] = None):
 
 
 async def _compute_timeseries(category: Optional[str] = None):
-    """Heavy timeseries computation — separated for caching."""
-    # --- Papers by day ---
-    paper_query = {}
+    """Heavy timeseries computation — uses aggregation pipelines (no Python iteration)."""
+    # --- Papers by day (aggregation) ---
+    paper_match = {}
     if category:
-        paper_query["categories.0"] = category
+        paper_match["categories.0"] = category
     papers_daily = defaultdict(lambda: defaultdict(int))
     total_papers_count = 0
-    async for p in db.papers.find(paper_query, {"_id": 0, "added_at": 1, "published": 1, "categories": 1}):
-        total_papers_count += 1
-        # Prefer added_at, fall back to published date
-        added = p.get("added_at") or p.get("published") or ""
-        if not added or len(added) < 10:
-            continue
-        day = added[:10]  # "YYYY-MM-DD"
-        cats = p.get("categories") or []
-        cat = cats[0] if cats else "unknown"
-        papers_daily[day][cat] += 1
-        papers_daily[day]["_total"] += 1
+    async for doc in db.papers.aggregate([
+        {"$match": paper_match} if paper_match else {"$match": {}},
+        {"$project": {
+            "day": {"$substrCP": [{"$ifNull": ["$added_at", {"$ifNull": ["$published", ""]}]}, 0, 10]},
+            "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
+        }},
+        {"$match": {"day": {"$ne": ""}}},
+        {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "count": {"$sum": 1}}},
+    ]):
+        day = doc["_id"]["day"]
+        cat = doc["_id"]["cat"]
+        papers_daily[day][cat] += doc["count"]
+        papers_daily[day]["_total"] += doc["count"]
+        total_papers_count += doc["count"]
 
-    # --- Matches by day + model stats ---
-    match_query = {"completed": True, "failed": {"$ne": True}}
+    # --- Matches by day + model stats (aggregation) ---
+    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
     if category:
         match_query["primary_category"] = category
     matches_daily = defaultdict(lambda: defaultdict(lambda: {
         "count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0
     }))
-    # System-wide model breakdown (not per-category, always total)
     model_stats = {}
 
-    async for m in db.matches.find(
-        match_query,
-        {"_id": 0, "created_at": 1, "primary_category": 1, "tokens": 1, "model_used": 1, "mode": 1},
-    ):
-        if m.get("mode"):
-            continue  # Exclude experiment matches
-        created = m.get("created_at") or ""
-        if not created or len(created) < 10:
-            continue
-        day = created[:10]
-        cat = m.get("primary_category") or "unknown"
-        tokens = m.get("tokens") or {}
-        inp = tokens.get("input_est", 0) or 0
-        out = tokens.get("output_est", 0) or 0
-        mu = m.get("model_used") or {}
-        provider = mu.get("provider", "unknown")
-        model = mu.get("model", "unknown")
-        model_key = f"{provider}/{model}" if provider != "unknown" or model != "unknown" else "unknown"
+    async for doc in db.matches.aggregate([
+        {"$match": match_query},
+        {"$project": {
+            "day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
+            "cat": {"$ifNull": ["$primary_category", "unknown"]},
+            "inp": {"$ifNull": ["$tokens.input_est", 0]},
+            "out": {"$ifNull": ["$tokens.output_est", 0]},
+            "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
+            "model": {"$ifNull": ["$model_used.model", "unknown"]},
+        }},
+        {"$match": {"day": {"$ne": ""}}},
+        {"$group": {
+            "_id": {"day": "$day", "cat": "$cat", "provider": "$provider", "model": "$model"},
+            "count": {"$sum": 1},
+            "input_tokens": {"$sum": "$inp"},
+            "output_tokens": {"$sum": "$out"},
+        }},
+    ]):
+        day = doc["_id"]["day"]
+        cat = doc["_id"]["cat"]
+        inp = doc["input_tokens"]
+        out = doc["output_tokens"]
+        model_key = f"{doc['_id']['provider']}/{doc['_id']['model']}"
         pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
         cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
 
         for key in [cat, "_total"]:
             bucket = matches_daily[day][key]
-            bucket["count"] += 1
+            bucket["count"] += doc["count"]
             bucket["input_tokens"] += inp
             bucket["output_tokens"] += out
             bucket["cost"] += cost
 
-        # Accumulate per-model stats (system-wide, always unfiltered by category)
-        if model_key != "unknown":
+        if model_key != "unknown/unknown":
             if model_key not in model_stats:
                 model_stats[model_key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-            model_stats[model_key]["matches"] += 1
+            model_stats[model_key]["matches"] += doc["count"]
             model_stats[model_key]["input_tokens"] += inp
             model_stats[model_key]["output_tokens"] += out
 
-    # --- Summary generation costs (estimated from paper summaries) ---
+    # --- Summary generation costs (aggregation — count per model per day, estimate tokens) ---
     summary_daily = defaultdict(lambda: defaultdict(lambda: {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0}))
-    async for p in db.papers.find(
-        {"summaries": {"$exists": True, "$ne": None}},
-        {"_id": 0, "summaries": 1, "full_text": 1, "abstract": 1, "added_at": 1, "categories": 1},
-    ):
-        sums = p.get("summaries") or {}
-        if not sums:
-            continue
-        day = (p.get("added_at") or "")[:10]
-        if not day:
-            continue
-        cat = (p.get("categories") or ["unknown"])[0]
-        ft_len = len(p.get("full_text", "") or "")
-        abs_len = len(p.get("abstract", "") or "")
-        input_chars_per_call = min(ft_len, 40000) + min(abs_len, 1500) + 500
+    # Use aggregation to get summary counts per day/category/model without loading full_text
+    async for doc in db.papers.aggregate([
+        {"$match": {"summaries": {"$exists": True, "$ne": None}}},
+        {"$project": {
+            "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
+            "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
+            "summary_keys": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+            "ft_len": {"$strLenCP": {"$ifNull": ["$full_text", ""]}},
+            "abs_len": {"$strLenCP": {"$ifNull": ["$abstract", ""]}},
+        }},
+        {"$match": {"day": {"$ne": ""}}},
+        {"$unwind": "$summary_keys"},
+        {"$match": {"summary_keys.v": {"$type": "string"}}},
+        {"$project": {
+            "day": 1, "cat": 1,
+            "mk": "$summary_keys.k",
+            "text_len": {"$strLenCP": "$summary_keys.v"},
+            "input_chars": {"$add": [{"$min": ["$ft_len", 40000]}, {"$min": ["$abs_len", 1500]}, 500]},
+        }},
+        {"$match": {"text_len": {"$gte": 50}}},
+        {"$group": {
+            "_id": {"day": "$day", "cat": "$cat", "mk": "$mk"},
+            "count": {"$sum": 1},
+            "avg_input_chars": {"$avg": "$input_chars"},
+            "avg_text_len": {"$avg": "$text_len"},
+        }},
+    ]):
+        day = doc["_id"]["day"]
+        cat = doc["_id"]["cat"]
+        mk = doc["_id"]["mk"]
+        count = doc["count"]
+        inp_tok = int(doc["avg_input_chars"] * count) // 4
+        out_tok = int(doc["avg_text_len"] * count) // 4
 
-        for mk, text in sums.items():
-            if not isinstance(text, str) or len(text) < 50:
-                continue
-            provider = mk.split(":")[0]
-            model_name = mk.split(":")[-1].replace("_", ".")
-            if "openai" in provider:
-                pricing_key = "openai/gpt-5.2"
-            elif "anthropic" in provider:
-                pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
-            elif "gemini" in provider:
-                pricing_key = "gemini/gemini-3-pro-preview"
-            else:
-                pricing_key = None
+        provider = mk.split(":")[0]
+        if "openai" in provider:
+            pricing_key = "openai/gpt-5.2"
+        elif "anthropic" in provider:
+            pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
+        elif "gemini" in provider:
+            pricing_key = "gemini/gemini-3-pro-preview"
+        else:
+            pricing_key = None
+        cost = 0.0
+        if pricing_key:
+            pr = MODEL_PRICING.get(pricing_key, {"input": 2.0, "output": 10.0})
+            cost = (inp_tok / 1_000_000) * pr["input"] + (out_tok / 1_000_000) * pr["output"]
 
-            inp_tok = input_chars_per_call // 4
-            out_tok = len(text) // 4
-            cost = 0.0
-            if pricing_key:
-                pr = MODEL_PRICING.get(pricing_key, {"input": 2.0, "output": 10.0})
-                cost = (inp_tok / 1_000_000) * pr["input"] + (out_tok / 1_000_000) * pr["output"]
-
-            for key in [cat, "_total"]:
-                bucket = summary_daily[day][key]
-                bucket["count"] += 1
-                bucket["input_tokens"] += inp_tok
-                bucket["output_tokens"] += out_tok
-                bucket["cost"] += cost
+        for key in [cat, "_total"]:
+            bucket = summary_daily[day][key]
+            bucket["count"] += count
+            bucket["input_tokens"] += inp_tok
+            bucket["output_tokens"] += out_tok
+            bucket["cost"] += cost
 
     # Merge summary dates into all_dates and fill gaps with zeros
     raw_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys()) + list(summary_daily.keys())))
