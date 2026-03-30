@@ -465,6 +465,17 @@ def start_cache_bg():
     if not _bg_task_started:
         asyncio.create_task(_bg_cache_loop())
         asyncio.create_task(_bg_archive_loop())
+        asyncio.create_task(_bg_memory_heartbeat())
+
+
+
+async def _bg_memory_heartbeat():
+    """Log memory every 5 minutes for production visibility."""
+    from core.memlog import log_mem
+    await asyncio.sleep(60)  # Wait for startup to settle
+    while True:
+        log_mem("heartbeat")
+        await asyncio.sleep(300)  # Every 5 min
 
 
 
