@@ -136,11 +136,13 @@ export default function AdminPage() {
   }, [adminCat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll at 15s when tournament is active, 30s when idle/paused (aligns with server cache TTL)
+  // Only poll when Tournaments tab is active to avoid competing requests
   useEffect(() => {
+    if (activeTab !== "overview") return;
     const isActive = progress && !progress.paused && !progress.goals_met;
     const interval = setInterval(fetchLiveData, isActive ? 15000 : 30000);
     return () => clearInterval(interval);
-  }, [fetchLiveData, progress]);
+  }, [fetchLiveData, progress, activeTab]);
 
   const triggerFetch = async () => {
     setLoading(l => ({ ...l, fetch: true }));

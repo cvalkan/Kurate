@@ -110,36 +110,61 @@ export function AdminStatistics({ categories }) {
   const [viewMode, setViewMode] = useState("cumulative"); // "daily" | "cumulative"
   const [scopeMode, setScopeMode] = useState("system"); // "system" | "category"
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (retryCount = 0) => {
+    const headers = getAdminHeaders();
+    const fetchWithRetry = async (url) => {
+      try {
+        return await axios.get(url, { headers });
+      } catch (e) {
+        if (retryCount < 2) throw e; // Let Promise.allSettled handle it
+        return null;
+      }
+    };
     try {
-      const [tsRes, statsRes, memRes] = await Promise.all([
-        axios.get(`${API}/api/admin/timeseries`, { headers: getAdminHeaders() }),
-        axios.get(`${API}/api/admin/stats`, { headers: getAdminHeaders() }),
-        axios.get(`${API}/api/admin/system-logs?hours=${memHours}&limit=${memHours <= 12 ? 500 : memHours <= 24 ? 1000 : 3000}`, { headers: getAdminHeaders() }),
+      const results = await Promise.allSettled([
+        fetchWithRetry(`${API}/api/admin/timeseries`),
+        fetchWithRetry(`${API}/api/admin/stats`),
+        fetchWithRetry(`${API}/api/admin/system-logs?hours=${memHours}&limit=${memHours <= 12 ? 500 : memHours <= 24 ? 1000 : 3000}`),
       ]);
-      setTimeseries(tsRes.data);
-      setSummaryStats(statsRes.data.summaries || null);
-      // Process memory logs into chart data
-      const allLogs = memRes.data?.logs || [];
-      const memLogs = allLogs.filter(l => l.level === "mem" && l.rss_mb);
-      const chartData = memLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
-        ts: l.ts,
-        epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
-        rss: l.rss_mb,
-        label: l.label,
-      }));
-      setMemoryData(chartData);
-      // Process repair queue logs
-      const queueLogs = allLogs.filter(l => l.level === "repair_queue");
-      const queueData = queueLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
-        ts: l.ts,
-        epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
-        size: l.size ?? 0,
-        repaired: l.repaired ?? 0,
-      }));
-      setRepairQueueData(queueData);
+      const [tsResult, statsResult, memResult] = results;
+
+      // Check if critical endpoint (timeseries) failed — retry once
+      if (tsResult.status === "rejected" && retryCount < 2) {
+        setTimeout(() => fetchData(retryCount + 1), 1500);
+        return;
+      }
+
+      if (tsResult.status === "fulfilled" && tsResult.value) {
+        setTimeseries(tsResult.value.data);
+      }
+      if (statsResult.status === "fulfilled" && statsResult.value) {
+        setSummaryStats(statsResult.value.data.summaries || null);
+      }
+      if (memResult.status === "fulfilled" && memResult.value) {
+        const allLogs = memResult.value.data?.logs || [];
+        const memLogs = allLogs.filter(l => l.level === "mem" && l.rss_mb);
+        const chartData = memLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
+          ts: l.ts,
+          epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
+          rss: l.rss_mb,
+          label: l.label,
+        }));
+        setMemoryData(chartData);
+        const queueLogs = allLogs.filter(l => l.level === "repair_queue");
+        const queueData = queueLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
+          ts: l.ts,
+          epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
+          size: l.size ?? 0,
+          repaired: l.repaired ?? 0,
+        }));
+        setRepairQueueData(queueData);
+      }
     } catch (err) {
       console.error("Failed to load stats:", err);
+      if (retryCount < 2) {
+        setTimeout(() => fetchData(retryCount + 1), 1500);
+        return;
+      }
     } finally {
       setLoading(false);
     }
