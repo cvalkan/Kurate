@@ -15,6 +15,7 @@ Layers:
 
 import math
 import asyncio
+import hashlib
 import numpy as np
 from scipy import stats as scipy_stats
 from collections import defaultdict, Counter
@@ -395,7 +396,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         target_within = int(len(cross_adj) * nat_within_frac / max(0.01, 1 - nat_within_frac))
         target_within = min(target_within, len(within))
         if target_within < len(within):
-            _rng.seed(42 + hash(dataset_id))
+            _rng.seed(42 + int(hashlib.sha256(dataset_id.encode()).hexdigest()[:8], 16))
             within = _rng.sample(within, target_within)
 
         ai_raw = cross_adj + within
@@ -2756,7 +2757,7 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
         target_within = int(len(cross_adj_sr) * nat_within_frac / max(0.01, 1 - nat_within_frac))
         target_within = min(target_within, len(within_sr))
         if target_within < len(within_sr):
-            _rng.seed(42 + hash(dataset_id))
+            _rng.seed(42 + int(hashlib.sha256(dataset_id.encode()).hexdigest()[:8], 16))
             within_sr = _rng.sample(within_sr, target_within)
         ai_raw = cross_adj_sr + within_sr
     else:
