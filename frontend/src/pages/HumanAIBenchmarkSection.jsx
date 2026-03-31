@@ -638,3 +638,13 @@ export function HumanAIBenchmarkUnfilteredSection() {
     isUnfiltered
   />;
 }
+
+
+export function HumanAIBenchmarkFixedSection() {
+  return <BenchmarkPage
+    apiUrl="/api/validation/human-ai-benchmark-fixed?gt_type=comp"
+    headerDesc={<><strong>ICLR-only</strong> (no PeerRead), <strong>&ge;1 expert</strong> preference required per pair, <strong>rankable tiers only</strong> (Oral/Spotlight/Poster/Reject — withdrawn &amp; desk-rejected excluded from tier accuracy). Includes within-tier matches. Round-robin across GPT-5.2, Claude Opus, Gemini 3 Pro.</>}
+    testId="human-ai-benchmark-fixed"
+    isUnfiltered
+  />;
+}

@@ -38,6 +38,7 @@ EXPERIMENT_REGISTRY = [
     "unified-benchmark-stan",
     "ai-ranking-quality-comp",
     "human-ai-benchmark-unfiltered-comp",
+    "human-ai-benchmark-fixed-comp",
     "ai-ranking-quality-unfiltered-comp",
     "ai-ranking-gap-analysis-comp",
 ]
@@ -85,6 +86,11 @@ def _get_cache_and_fn(name):
     if name == "human-ai-benchmark-unfiltered-comp":
         from routers.human_ai_benchmark import _benchmark_unfiltered_cache, _compute_benchmark
         return _benchmark_unfiltered_cache.setdefault("comp", {}), lambda: _compute_benchmark("comp", include_within_tier=True)
+    if name == "human-ai-benchmark-fixed-comp":
+        from routers.human_ai_benchmark import _benchmark_fixed_cache, _compute_benchmark
+        return _benchmark_fixed_cache.setdefault("comp", {}), lambda: _compute_benchmark(
+            "comp", include_within_tier=True, min_expert_prefs=1,
+            rankable_tiers_only=True, exclude_datasets={"peerread_acl_2017"})
     if name == "ai-ranking-quality-unfiltered-comp":
         from routers.human_ai_benchmark import _ranking_quality_unfiltered_cache, _compute_ranking_quality
         return _ranking_quality_unfiltered_cache.setdefault("comp", {}), lambda: _compute_ranking_quality("comp", include_within_tier=True)

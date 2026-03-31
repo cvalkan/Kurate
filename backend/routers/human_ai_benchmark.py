@@ -277,8 +277,12 @@ def _classify_difficulty(p1_id, p2_id, papers_by_id):
         return "hard"      # within-tier (e.g., poster vs poster)
 
 
-async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, include_within_tier: bool = False):
-    """Compute all benchmark metrics for a single dataset."""
+async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, include_within_tier: bool = False, min_expert_prefs: int = 2, rankable_tiers_only: bool = False):
+    """Compute all benchmark metrics for a single dataset.
+    
+    min_expert_prefs: minimum non-tie expert preferences per pair (default 2).
+    rankable_tiers_only: if True, exclude withdrawn/desk-rejected from tier accuracy (treat as no-tier).
+    """
     query = {"dataset_id": dataset_id}
     if require_si:
         query["single_item_score"] = {"$exists": True}
@@ -417,8 +421,8 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
 
     # Controlled set: pairs with both human prefs AND AI verdicts
     controlled_pairs = set(expert_pair_prefs.keys()) & set(ai_pair.keys())
-    # Further restrict to pairs with 2+ expert opinions for reliability
-    controlled_pairs = {p for p in controlled_pairs if len(expert_pair_prefs[p]) >= 2}
+    # Restrict to pairs with min_expert_prefs+ expert opinions
+    controlled_pairs = {p for p in controlled_pairs if len(expert_pair_prefs[p]) >= min_expert_prefs}
 
     # Extended controlled set for coin-flip row: includes all-expert-tie pairs.
     # Every paper has ≥4 reviews from dataset-level reviewers, so ≥2 is always satisfied.
@@ -621,6 +625,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
 
     # --- Tier-based accuracy: AI verdict vs actual ICLR committee decisions ---
     # For pairs where papers have different decision tiers, does AI pick the higher-tier paper?
+    RANKABLE = {"oral", "spotlight", "poster", "reject"}
     tier_ai_agree = tier_ai_total = 0
     tier_hh_agree = tier_hh_total = 0
     for pair in controlled_pairs:
@@ -630,6 +635,8 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         ta = norm_tier(pa.get("decision"))
         tb = norm_tier(pb.get("decision"))
         if ta is None or tb is None:
+            continue
+        if rankable_tiers_only and (ta not in RANKABLE or tb not in RANKABLE):
             continue
         sa = TIER_SCORE.get(ta, -1)
         sb = TIER_SCORE.get(tb, -1)
@@ -1123,28 +1130,38 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         ta = norm_tier(pa.get("decision"))
         tb = norm_tier(pb.get("decision"))
         if ta is not None and tb is not None:
-            sa = TIER_SCORE.get(ta, -1)
-            sb = TIER_SCORE.get(tb, -1)
-            if sa != sb:
-                cf_tier_ai_total += 1
-                tier_winner = a if sa > sb else b
-                if ai_pair[pair] == tier_winner:
-                    cf_tier_ai_agree += 1
-                for exp, has_pref in experts_for_pair:
-                    cf_tier_hh_total += 1
-                    if has_pref:
-                        if prefs.get(exp) == tier_winner:
-                            cf_tier_hh_agree += 1
-                    else:
+            if rankable_tiers_only and (ta not in RANKABLE or tb not in RANKABLE):
+                # Treat non-rankable tiers as no-tier → coin flip
+                if include_within_tier:
+                    cf_tier_same_count += 1
+                    cf_tier_ai_total += 1
+                    cf_tier_ai_agree += 0.5
+                    for exp, has_pref in experts_for_pair:
+                        cf_tier_hh_total += 1
                         cf_tier_hh_agree += 0.5
-            elif include_within_tier:
-                # Same tier → committee tie → coin flip (only when within-tier page)
-                cf_tier_same_count += 1
-                cf_tier_ai_total += 1
-                cf_tier_ai_agree += 0.5
-                for exp, has_pref in experts_for_pair:
-                    cf_tier_hh_total += 1
-                    cf_tier_hh_agree += 0.5
+            else:
+                sa = TIER_SCORE.get(ta, -1)
+                sb = TIER_SCORE.get(tb, -1)
+                if sa != sb:
+                    cf_tier_ai_total += 1
+                    tier_winner = a if sa > sb else b
+                    if ai_pair[pair] == tier_winner:
+                        cf_tier_ai_agree += 1
+                    for exp, has_pref in experts_for_pair:
+                        cf_tier_hh_total += 1
+                        if has_pref:
+                            if prefs.get(exp) == tier_winner:
+                                cf_tier_hh_agree += 1
+                        else:
+                            cf_tier_hh_agree += 0.5
+                elif include_within_tier:
+                    # Same tier → committee tie → coin flip (only when within-tier page)
+                    cf_tier_same_count += 1
+                    cf_tier_ai_total += 1
+                    cf_tier_ai_agree += 0.5
+                    for exp, has_pref in experts_for_pair:
+                        cf_tier_hh_total += 1
+                        cf_tier_hh_agree += 0.5
 
     def _cf_rate_ext(agree, total):
         """Coin-flip rate from the extended controlled set."""
@@ -1322,13 +1339,41 @@ async def human_ai_benchmark_unfiltered(gt_type: str = Query("comp")):
     return {"status": "no_data", "message": "Unfiltered benchmark not precomputed."}
 
 
-async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = False):
+_benchmark_fixed_cache = {}
+
+@router.get("/human-ai-benchmark-fixed")
+async def human_ai_benchmark_fixed(gt_type: str = Query("comp")):
+    """Human vs AI benchmark (fixed): ICLR-only, >=1 expert, rankable tiers only, incl. within-tier."""
+    cache = _benchmark_fixed_cache.get(gt_type, {})
+    if cache.get("data"):
+        return cache["data"]
+    # Compute on first request if not precomputed
+    try:
+        result = await _compute_benchmark(
+            gt_type, include_within_tier=True, min_expert_prefs=1,
+            rankable_tiers_only=True, exclude_datasets={"peerread_acl_2017"})
+        if result.get("status") == "ok":
+            _benchmark_fixed_cache[gt_type] = {"data": result}
+            return result
+    except Exception as e:
+        logger.warning(f"Fixed benchmark computation failed: {e}")
+    return {"status": "no_data", "message": "Fixed benchmark computation failed."}
+
+
+async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = False,
+                             min_expert_prefs: int = 2, rankable_tiers_only: bool = False,
+                             exclude_datasets: set = None):
     """Compute the full benchmark across datasets filtered by GT type.
     gt_type='comp': comparative GT (ICLR, PeerRead, eLife Neuro)
     gt_type='stan': standalone GT (eLife bio, MIDL, Qeios, ResearchHub)
     include_within_tier: if True, includes experiment-tagged within-tier matches
+    min_expert_prefs: minimum non-tie expert preferences per pair (default 2)
+    rankable_tiers_only: if True, exclude withdrawn/desk-rejected from tier accuracy
+    exclude_datasets: set of dataset_ids to exclude (e.g. {"peerread_acl_2017"})
     """
     allowed = COMPARATIVE_GT_DATASETS if gt_type == "comp" else STANDALONE_GT_DATASETS
+    if exclude_datasets:
+        allowed = allowed - exclude_datasets
 
     # Discover datasets with evaluations, filtered by GT type
     ds_pipeline = [{"$group": {"_id": "$dataset_id"}}, {"$sort": {"_id": 1}}]
@@ -1375,7 +1420,9 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
     require_si = False
 
     # Compute all datasets in parallel
-    tasks = [_compute_dataset_benchmark(ds_id, require_si=require_si, include_within_tier=include_within_tier) for ds_id in all_ds_ids]
+    tasks = [_compute_dataset_benchmark(ds_id, require_si=require_si, include_within_tier=include_within_tier,
+                                        min_expert_prefs=min_expert_prefs, rankable_tiers_only=rankable_tiers_only)
+             for ds_id in all_ds_ids]
     results_list = await asyncio.gather(*tasks)
 
     for ds_id, result in zip(all_ds_ids, results_list):
