@@ -284,11 +284,11 @@ function DatasetTable({ datasets }) {
           <div className="px-3 py-2 bg-secondary/5 border-t border-border/50">
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               <strong>Note on PeerRead ACL 2017:</strong> This dataset behaves differently from ICLR — AI-H ranking correlation ({(() => {
-                const pr = data.per_dataset?.find(d => d.name?.includes("PeerRead"));
+                const pr = datasets?.find(d => d.name?.includes("PeerRead"));
                 return pr?.bt_correlation?.individual?.spearman_rho?.toFixed(3) ?? "—";
               })()}) is far below
               the ICLR range. Contributing factors: only 2–3 reviewers per paper (vs 4–6), a coarser 1–5 scale with ~{(() => {
-                const pr = data.per_dataset?.find(d => d.name?.includes("PeerRead"));
+                const pr = datasets?.find(d => d.name?.includes("PeerRead"));
                 return pr?.tie_stats?.tie_fraction ? Math.round(pr.tie_stats.tie_fraction * 100) : "?";
               })()}% tie rate,
               no decision tiers (all null), and 2017-era NLP reviewing norms that may not align with modern LLM assessments.
