@@ -275,7 +275,7 @@ function DatasetTable({ datasets }) {
                     <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${bh(apc, hpc)}`}>{hpc != null ? `${hpc}%` : "\u2014"}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${b(abt3, hbt3)}`}>{f3(abt3)}</td>
                     <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${bh(abt3, hbt3)}`}>{f3(hbt3)}</td>
-                    <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.controlled_pairs}</td>
+                    <td className="py-1 px-1.5 text-right font-mono text-foreground/50">{d.controlled_pairs_cf ?? d.controlled_pairs}</td>
                   </tr>
                 );
               })}
