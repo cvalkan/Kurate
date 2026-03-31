@@ -295,6 +295,30 @@ async def _compute_dataset(db, dataset_id: str):
                     else:
                         cf_hc_loo_agree += 0.5
 
+    # --- 4b. Human vs Majority (non-LOO, for completeness) ---
+    hc_agree, hc_total = 0, 0
+    cf_hc_agree, cf_hc_total = 0.0, 0
+
+    for pair in controlled_pairs_cf:
+        prefs = expert_pair_prefs.get(pair, {})
+        rated = expert_pair_rated.get(pair, set())
+        if pair in expert_majority:
+            maj = expert_majority[pair]
+            for exp in rated:
+                cf_hc_total += 1
+                exp_pref = prefs.get(exp)
+                if exp_pref is not None:
+                    hc_total += 1
+                    if exp_pref == maj:
+                        hc_agree += 1
+                        cf_hc_agree += 1
+                else:
+                    cf_hc_agree += 0.5
+        else:
+            for exp in rated:
+                cf_hc_total += 1
+                cf_hc_agree += 0.5
+
     # --- 5. AI vs Committee (tier accuracy, rankable only) ---
     tier_ai_agree, tier_ai_total = 0, 0
     tier_hh_agree, tier_hh_total = 0, 0
@@ -350,56 +374,161 @@ async def _compute_dataset(db, dataset_id: str):
                 cf_tier_hh_total += 1
                 cf_tier_hh_agree += 0.5
 
-    # --- 6. Ranking correlation (BT scores: AI vs human) ---
-    bt_comm_rho, bt_comm_tau = None, None
-    bt_indiv_rho = None
+    # --- 6. Ranking correlation (BT scores: all comparisons) ---
+    bt_results = {}
 
     try:
-        # AI BT scores from controlled pairs
+        all_pids_in_controlled = list({pid for pair in controlled_pairs for pid in pair})
+
+        # AI BT scores (from AI majority votes)
         ai_bt = _simple_bt_scores(
             [(pair, ai_pair[pair]) for pair in controlled_pairs],
-            list({pid for pair in controlled_pairs for pid in pair})
+            all_pids_in_controlled
         )
 
         # Human majority BT scores
         maj_pairs = [(pair, expert_majority[pair]) for pair in controlled_pairs if pair in expert_majority]
-        if len(maj_pairs) >= 10:
-            h_bt = _simple_bt_scores(
-                maj_pairs,
-                list({pid for pair, _ in maj_pairs for pid in pair})
-            )
-            common_pids = sorted(set(ai_bt.keys()) & set(h_bt.keys()))
-            if len(common_pids) >= 5:
-                ai_scores = [ai_bt[p] for p in common_pids]
-                h_scores = [h_bt[p] for p in common_pids]
-                bt_comm_rho = scipy_stats.spearmanr(ai_scores, h_scores).statistic
-                bt_comm_tau = scipy_stats.kendalltau(ai_scores, h_scores).statistic
+        h_maj_bt = _simple_bt_scores(maj_pairs, all_pids_in_controlled) if len(maj_pairs) >= 10 else {}
 
-        # Individual expert average BT correlation
-        expert_rhos = []
+        # Human individual aggregate BT (each expert vote = separate match)
+        indiv_pairs = []
+        for pair in controlled_pairs:
+            prefs = expert_pair_prefs.get(pair, {})
+            for exp, winner in prefs.items():
+                indiv_pairs.append((pair, winner))
+        h_indiv_bt = _simple_bt_scores(indiv_pairs, all_pids_in_controlled) if len(indiv_pairs) >= 10 else {}
+
+        # Average reviewer score per paper
+        avg_rating = {}
+        for pid in all_pids_in_controlled:
+            scores = []
+            for exp, ratings in expert_ratings.items():
+                if pid in ratings:
+                    scores.append(ratings[pid])
+            if scores:
+                avg_rating[pid] = sum(scores) / len(scores)
+
+        # Tier score per paper (for AI vs Committee correlation)
+        tier_scores = {}
+        for pid in all_pids_in_controlled:
+            t = norm_tier(papers_by_id.get(pid, {}).get("decision"))
+            if t in RANKABLE_TIERS:
+                tier_scores[pid] = TIER_SCORE.get(t, 0)
+
+        def _corr(scores_a, scores_b, pids=None):
+            """Compute Spearman and Kendall between two score dicts."""
+            if pids is None:
+                pids = sorted(set(scores_a.keys()) & set(scores_b.keys()))
+            else:
+                pids = [p for p in pids if p in scores_a and p in scores_b]
+            if len(pids) < 5:
+                return None, None
+            a = [scores_a[p] for p in pids]
+            b = [scores_b[p] for p in pids]
+            rho = scipy_stats.spearmanr(a, b).statistic
+            tau = scipy_stats.kendalltau(a, b).statistic
+            rho = None if (isinstance(rho, float) and math.isnan(rho)) else rho
+            tau = None if (isinstance(tau, float) and math.isnan(tau)) else tau
+            return rho, tau
+
+        # AI VS HUMAN comparisons
+        # AI vs Individual aggregate
+        rho, tau = _corr(ai_bt, h_indiv_bt)
+        bt_results["individual"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+
+        # AI vs Avg Rating
+        rho, tau = _corr(ai_bt, avg_rating)
+        bt_results["vs_avg_rating"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+        bt_results["vs_avg_rating_rho"] = safe_round(rho)
+
+        # AI vs Majority
+        rho, tau = _corr(ai_bt, h_maj_bt)
+        bt_results["committee"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+
+        # AI vs Committee (ICLR PC tier)
+        rho, tau = _corr(ai_bt, tier_scores)
+        bt_results["vs_tier_rho"] = safe_round(rho)
+        bt_results["vs_tier_tau"] = safe_round(tau)
+
+        # Indiv vs Comm (consistency check)
+        rho, tau = _corr(h_indiv_bt, h_maj_bt)
+        bt_results["indiv_vs_comm"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+
+        # HUMAN INTERNAL comparisons (LOO-based, averaged across experts)
+        loo_vs_indiv_rhos = []
+        loo_vs_avg_rhos = []
+        loo_vs_maj_rhos = []
+        loo_vs_tier_rhos = []
+        loo_vs_indiv_agg_rhos = []   # LOO individual-aggregate
+
         for exp, ratings in expert_ratings.items():
             if len(ratings) < 5:
                 continue
-            exp_pairs = []
-            for pair in controlled_pairs:
-                if pair in expert_pair_prefs and exp in expert_pair_prefs[pair]:
-                    exp_pairs.append((pair, expert_pair_prefs[pair][exp]))
+            # Expert's own pairwise preferences → BT
+            exp_pairs = [(pair, expert_pair_prefs[pair][exp])
+                         for pair in controlled_pairs
+                         if pair in expert_pair_prefs and exp in expert_pair_prefs[pair]]
             if len(exp_pairs) < 5:
                 continue
-            exp_bt = _simple_bt_scores(
-                exp_pairs,
-                list({pid for pair, _ in exp_pairs for pid in pair})
-            )
-            common = sorted(set(ai_bt.keys()) & set(exp_bt.keys()))
-            if len(common) >= 5:
-                rho = scipy_stats.spearmanr(
-                    [ai_bt[p] for p in common],
-                    [exp_bt[p] for p in common]
-                ).statistic
-                if not math.isnan(rho):
-                    expert_rhos.append(rho)
-        if expert_rhos:
-            bt_indiv_rho = float(np.mean(expert_rhos))
+            exp_bt = _simple_bt_scores(exp_pairs, all_pids_in_controlled)
+
+            # LOO majority (exclude this expert)
+            loo_maj_pairs = []
+            for pair in controlled_pairs:
+                prefs = expert_pair_prefs.get(pair, {})
+                others = {e: v for e, v in prefs.items() if e != exp}
+                if len(others) >= 2:
+                    c = Counter(others.values())
+                    best, n = c.most_common(1)[0]
+                    if n > len(others) / 2:
+                        loo_maj_pairs.append((pair, best))
+            loo_maj_bt = _simple_bt_scores(loo_maj_pairs, all_pids_in_controlled) if len(loo_maj_pairs) >= 5 else {}
+
+            # LOO individual aggregate (all others' votes)
+            loo_indiv_pairs = []
+            for pair in controlled_pairs:
+                prefs = expert_pair_prefs.get(pair, {})
+                for e, v in prefs.items():
+                    if e != exp:
+                        loo_indiv_pairs.append((pair, v))
+            loo_indiv_bt = _simple_bt_scores(loo_indiv_pairs, all_pids_in_controlled) if len(loo_indiv_pairs) >= 5 else {}
+
+            # LOO avg rating
+            loo_avg = {}
+            for pid in all_pids_in_controlled:
+                scores = [ratings[pid] for e, ratings in expert_ratings.items() if e != exp and pid in ratings]
+                if scores:
+                    loo_avg[pid] = sum(scores) / len(scores)
+
+            # Correlations
+            r, _ = _corr(exp_bt, h_indiv_bt)
+            if r is not None:
+                loo_vs_indiv_agg_rhos.append(r)
+
+            r, _ = _corr(exp_bt, loo_avg)
+            if r is not None:
+                loo_vs_avg_rhos.append(r)
+
+            r, _ = _corr(exp_bt, loo_maj_bt)
+            if r is not None:
+                loo_vs_maj_rhos.append(r)
+
+            r, _ = _corr(exp_bt, tier_scores)
+            if r is not None:
+                loo_vs_tier_rhos.append(r)
+
+            r, _ = _corr(exp_bt, loo_indiv_bt)
+            if r is not None:
+                loo_vs_indiv_rhos.append(r)
+
+        bt_results["avg_expert_vs_ai"] = {"spearman_rho": safe_round(float(np.mean([r for r in loo_vs_indiv_rhos]))) if loo_vs_indiv_rhos else None}
+        bt_results["avg_expert_vs_comm"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_maj_rhos))) if loo_vs_maj_rhos else None}
+        bt_results["avg_expert_vs_indiv"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_indiv_agg_rhos))) if loo_vs_indiv_agg_rhos else None}
+        bt_results["avg_expert_vs_loo"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_maj_rhos))) if loo_vs_maj_rhos else None}
+        bt_results["avg_expert_vs_loo_avg"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_avg_rhos))) if loo_vs_avg_rhos else None}
+        bt_results["avg_expert_vs_loo_indiv"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_indiv_rhos))) if loo_vs_indiv_rhos else None}
+        bt_results["avg_expert_vs_tier"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_tier_rhos))) if loo_vs_tier_rhos else None}
+
     except Exception:
         pass
 
@@ -408,8 +537,10 @@ async def _compute_dataset(db, dataset_id: str):
         "ah": round((1 - ah_total / cf_ah_total) * 100, 1) if cf_ah_total else 0,
         "hh": round((1 - hh_total / cf_hh_total) * 100, 1) if cf_hh_total else 0,
         "ac": round((1 - ac_total / cf_ac_total) * 100, 1) if cf_ac_total else 0,
+        "hc": round((1 - hc_total / cf_hc_total) * 100, 1) if cf_hc_total else 0,
         "hc_loo": round((1 - hc_loo_total / cf_hc_loo_total) * 100, 1) if cf_hc_loo_total else 0,
         "tier_ai": round((1 - tier_ai_total / cf_tier_ai_total) * 100, 1) if cf_tier_ai_total else 0,
+        "tier_hh": round((1 - tier_hh_total / cf_tier_hh_total) * 100, 1) if cf_tier_hh_total else 0,
     }
 
     # --- Kappa ---
@@ -440,6 +571,9 @@ async def _compute_dataset(db, dataset_id: str):
                              "kappa": _kappa(ac_agree, ac_total), "ci": _wilson_ci(ac_agree, ac_total),
                              "cf_rate": _cf_rate_ext(cf_ac_agree, cf_ac_total), "cf_total": int(cf_ac_total),
                              "pairs": ac_total},
+            "human_committee": {"agree": hc_agree, "total": hc_total, "rate": _rate(hc_agree, hc_total),
+                                "kappa": _kappa(hc_agree, hc_total), "ci": _wilson_ci(hc_agree, hc_total),
+                                "cf_rate": _cf_rate_ext(cf_hc_agree, cf_hc_total), "cf_total": int(cf_hc_total)},
             "human_committee_loo": {"agree": hc_loo_agree, "total": hc_loo_total, "rate": _rate(hc_loo_agree, hc_loo_total),
                                     "kappa": _kappa(hc_loo_agree, hc_loo_total), "ci": _wilson_ci(hc_loo_agree, hc_loo_total),
                                     "cf_rate": _cf_rate_ext(cf_hc_loo_agree, cf_hc_loo_total), "cf_total": int(cf_hc_loo_total)},
@@ -458,21 +592,22 @@ async def _compute_dataset(db, dataset_id: str):
         "tie_impact": {
             "tie_rates": tie_rates,
             "ah_agree": ah_agree, "ah_total": ah_total, "ah_tie": ah_ties,
-            "ac_agree": ac_agree, "ac_total": ac_total,
-            "hc_loo_agree": hc_loo_agree, "hc_loo_total": hc_loo_total,
             "hh_agree": hh_agree, "hh_total": hh_total,
+            "ac_agree": ac_agree, "ac_total": ac_total,
+            "hc_agree": hc_agree, "hc_total": hc_total,
+            "hc_loo_agree": hc_loo_agree, "hc_loo_total": hc_loo_total,
             "coin_flip": {
                 "ai_human": {"rate": _cf_rate_ext(cf_ah_agree, cf_ah_total), "total": int(cf_ah_total)},
                 "human_human": {"rate": _cf_rate_ext(cf_hh_agree, cf_hh_total), "total": int(cf_hh_total)},
                 "ai_committee": {"rate": _cf_rate_ext(cf_ac_agree, cf_ac_total), "total": int(cf_ac_total)},
+                "human_committee": {"rate": _cf_rate_ext(cf_hc_agree, cf_hc_total), "total": int(cf_hc_total)},
                 "human_committee_loo": {"rate": _cf_rate_ext(cf_hc_loo_agree, cf_hc_loo_total), "total": int(cf_hc_loo_total)},
                 "ai_tier": {"rate": _cf_rate_ext(cf_tier_ai_agree, cf_tier_ai_total), "total": int(cf_tier_ai_total)},
+                "ai_human_kappa": _kappa(int(cf_ah_agree), int(cf_ah_total)),
+                "total_pairs": len(controlled_pairs_cf),
             },
         },
-        "bt_correlation": {
-            "committee": {"spearman_rho": safe_round(bt_comm_rho), "kendall_tau": safe_round(bt_comm_tau)},
-            "individual": {"spearman_rho": safe_round(bt_indiv_rho), "kendall_tau": None},
-        },
+        "bt_correlation": bt_results,
     }
 
 
@@ -494,7 +629,7 @@ def _pool_datasets(per_dataset):
     """Pool metrics across datasets (sum raw counts, then compute rates)."""
 
     # Sum raw pairwise counts
-    pw_keys = ["ai_human", "human_human", "ai_committee", "human_committee_loo"]
+    pw_keys = ["ai_human", "human_human", "ai_committee", "human_committee", "human_committee_loo"]
     pooled_pw = {}
     for key in pw_keys:
         total_agree = sum(d["pairwise"][key]["agree"] for d in per_dataset if key in d["pairwise"])
@@ -543,26 +678,71 @@ def _pool_datasets(per_dataset):
         "tier_same_count": sum(d["tier_accuracy"]["tier_same_count"] for d in per_dataset),
     }
 
-    # Pool tie rates
+    # Pool tie rates (weighted by CF pair count)
     total_cf = sum(d["controlled_pairs_cf"] for d in per_dataset)
     pooled_tie_rates = {}
-    for tr_key in ["ah", "hh", "ac", "hc_loo", "tier_ai"]:
-        # Weighted average by dataset size
+    for tr_key in ["ah", "hh", "ac", "hc", "hc_loo", "tier_ai", "tier_hh"]:
         numerator = sum(d["tie_impact"]["tie_rates"].get(tr_key, 0) * d["controlled_pairs_cf"] for d in per_dataset)
         pooled_tie_rates[tr_key] = round(numerator / total_cf, 1) if total_cf else 0
 
-    # Pool BT correlations (average across datasets)
-    bt_comm_rhos = [d["bt_correlation"]["committee"]["spearman_rho"]
-                    for d in per_dataset if d["bt_correlation"]["committee"]["spearman_rho"] is not None]
-    bt_indiv_rhos = [d["bt_correlation"]["individual"]["spearman_rho"]
-                     for d in per_dataset if d["bt_correlation"]["individual"]["spearman_rho"] is not None]
+    # Pool coin_flip (match old format: plain float rates, not dicts)
+    cf_keys = ["ai_human", "human_human", "ai_committee", "human_committee", "human_committee_loo"]
+    pooled_cf = {}
+    for ck in cf_keys:
+        total_cf_pairs = sum(d["tie_impact"]["coin_flip"].get(ck, {}).get("total", 0) for d in per_dataset)
+        total_cf_agree = sum(
+            d["tie_impact"]["coin_flip"].get(ck, {}).get("rate", 0) * d["tie_impact"]["coin_flip"].get(ck, {}).get("total", 0) / 100
+            for d in per_dataset if d["tie_impact"]["coin_flip"].get(ck, {}).get("rate") is not None
+        )
+        pooled_cf[ck] = round(total_cf_agree / total_cf_pairs * 100, 1) if total_cf_pairs else None
+    # Kappa and total_pairs
+    ah_cf_total_p = sum(d["tie_impact"]["coin_flip"].get("ai_human", {}).get("total", 0) for d in per_dataset)
+    ah_cf_agree_p = (pooled_cf.get("ai_human", 0) or 0) * ah_cf_total_p / 100 if ah_cf_total_p else 0
+    pooled_cf["ai_human_kappa"] = round((ah_cf_agree_p / ah_cf_total_p - 0.5) / 0.5, 4) if ah_cf_total_p else None
+    pooled_cf["total_pairs"] = sum(d["controlled_pairs_cf"] for d in per_dataset)
+
+    # Pool tie_impact raw counts
+    pooled_ti_raw = {}
+    for key in ["ah_agree", "ah_total", "ah_tie", "hh_agree", "hh_total",
+                "ac_agree", "ac_total", "hc_agree", "hc_total", "hc_loo_agree", "hc_loo_total"]:
+        pooled_ti_raw[key] = sum(d["tie_impact"].get(key, 0) for d in per_dataset)
+
+    # Pool BT correlations (average across datasets that have them)
+    bt_pooled = {}
+    for bt_key in ["committee", "individual", "indiv_vs_comm", "vs_avg_rating",
+                    "avg_expert_vs_ai", "avg_expert_vs_comm", "avg_expert_vs_indiv",
+                    "avg_expert_vs_loo", "avg_expert_vs_loo_avg", "avg_expert_vs_loo_indiv",
+                    "avg_expert_vs_tier"]:
+        rhos = [d["bt_correlation"].get(bt_key, {}).get("spearman_rho")
+                for d in per_dataset if d["bt_correlation"].get(bt_key, {}).get("spearman_rho") is not None]
+        taus = [d["bt_correlation"].get(bt_key, {}).get("kendall_tau")
+                for d in per_dataset if d["bt_correlation"].get(bt_key, {}).get("kendall_tau") is not None]
+        bt_pooled[bt_key] = {
+            "spearman_rho": safe_round(float(np.mean(rhos))) if rhos else None,
+            "kendall_tau": safe_round(float(np.mean(taus))) if taus else None,
+        }
+    # Scalar correlations
+    for scalar_key in ["vs_tier_rho", "vs_tier_tau", "vs_avg_rating_rho"]:
+        vals = [d["bt_correlation"].get(scalar_key) for d in per_dataset if d["bt_correlation"].get(scalar_key) is not None]
+        bt_pooled[scalar_key] = safe_round(float(np.mean(vals))) if vals else None
+
+    # Concordance values for header cards
+    ah_agree_total = pooled_pw["ai_human"]["agree"]
+    ah_total_total = pooled_pw["ai_human"]["total"]
+    ah_cf_total = pooled_pw["ai_human"]["cf_total"]
+    ah_cf_agree = (pooled_pw["ai_human"]["cf_rate"] or 0) * ah_cf_total / 100 if ah_cf_total else 0
+    ai_h_concordance = safe_round(ah_agree_total / ah_total_total) if ah_total_total else None
+    ai_h_cf_concordance = safe_round(ah_cf_agree / ah_cf_total) if ah_cf_total else None
 
     return {
         "pairwise": pooled_pw,
         "tier_accuracy": pooled_tier,
-        "tie_impact": {"tie_rates": pooled_tie_rates},
-        "bt_correlation": {
-            "committee": {"spearman_rho": safe_round(float(np.mean(bt_comm_rhos))) if bt_comm_rhos else None},
-            "individual": {"spearman_rho": safe_round(float(np.mean(bt_indiv_rhos))) if bt_indiv_rhos else None},
+        "ai_h_concordance": ai_h_concordance,
+        "ai_h_cf_concordance": ai_h_cf_concordance,
+        "tie_impact": {
+            "tie_rates": pooled_tie_rates,
+            "coin_flip": pooled_cf,
+            **pooled_ti_raw,
         },
+        "bt_correlation": bt_pooled,
     }
