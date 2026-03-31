@@ -558,7 +558,7 @@ async def _compute_dataset(db, dataset_id: str):
         "name": papers[0].get("title", dataset_id).split(":")[0] if False else _dataset_name(dataset_id),
         "n_papers": len(papers),
         "n_experts": len(expert_ratings),
-        "controlled_pairs": len(controlled_pairs),
+        "controlled_pairs": ac_total,  # pairs with clear expert majority (= "ties excluded" denominator)
         "controlled_pairs_cf": len(controlled_pairs_cf),
         "pairwise": {
             "ai_human": {"agree": ah_agree, "total": ah_total, "rate": _rate(ah_agree, ah_total),
