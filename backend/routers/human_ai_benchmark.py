@@ -328,7 +328,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     # Expert majority vote
     expert_majority = {}
     for pair, votes in expert_pair_prefs.items():
-        if len(votes) < 2:
+        if len(votes) < min_expert_prefs:
             continue
         c = Counter(votes.values())
         best, n = c.most_common(1)[0]
