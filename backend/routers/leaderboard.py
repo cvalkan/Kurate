@@ -1311,6 +1311,9 @@ async def get_model_correlation(
     if doc:
         doc.pop("_type", None)
         doc.pop("key", None)
+        # Filter out 0-match models from cached results (gpt-5 cleanup)
+        if "models" in doc:
+            doc["models"] = [m for m in doc["models"] if m.get("total_matches", 0) > 0]
         return doc
     result = await _compute_model_correlation(category, mode)
     await db.analysis_store.update_one(

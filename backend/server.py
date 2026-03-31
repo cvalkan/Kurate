@@ -351,7 +351,7 @@ async def _deferred_startup():
         await db.rankings.create_index([("title", 1)], name="title_1")
         # Analysis store (pre-aggregated Model Analysis results)
         # Version check: clear stale docs when schema changes
-        _ANALYSIS_STORE_VERSION = 4  # Bump: filter out 0-match models from model cards
+        _ANALYSIS_STORE_VERSION = 5  # Bump: clear stale gpt-5 cache from old production code
         try:
             await db.analysis_store.drop_indexes()
         except Exception:
