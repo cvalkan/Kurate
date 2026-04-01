@@ -127,10 +127,14 @@ async def _compute_dataset(db, dataset_id: str):
                     expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
 
     # --- Load AI matches (with within-tier) ---
+    # Prefer thinking mode if available (newer, better prompts).
+    # Use the SAME mode for both base and experiment matches for consistency.
     has_thinking = any(p.get("ai_impact_summary_thinking") for p in papers)
     ai_mode = "abstract_plus_summary:thinking" if has_thinking else "abstract_plus_summary"
-    if await db.validation_matches.count_documents(
-        {"dataset_id": dataset_id, "completed": True, "content_mode": ai_mode}) == 0:
+    # Verify thinking mode has matches; fall back to non-thinking if not
+    thinking_count = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": ai_mode})
+    if thinking_count == 0:
         ai_mode = "abstract_plus_summary"
 
     base_raw = await collect_all(db.validation_matches.find(
