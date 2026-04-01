@@ -523,6 +523,29 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"SI rating backfill warning: {e}")
 
+    # Import within-tier experiment matches if missing from this DB.
+    # These were generated on preview and are needed for the fixed benchmark to
+    # produce correct results (~6,800 pairs) on live recomputation.
+    try:
+        from pathlib import Path
+        exp_file = Path(__file__).parent / "data" / "precomputed" / "within_tier_experiment_matches.json"
+        if exp_file.exists():
+            existing = await db.validation_matches.count_documents({
+                "experiment_tag": {"$exists": True},
+                "content_mode": "abstract_plus_summary:thinking",
+            })
+            if existing == 0:
+                import json as _json
+                with open(exp_file) as f:
+                    exp_matches = _json.load(f)
+                if exp_matches:
+                    await db.validation_matches.insert_many(exp_matches, ordered=False)
+                    logger.info(f"Imported {len(exp_matches)} within-tier experiment matches")
+            else:
+                logger.info(f"Within-tier experiment matches already present ({existing})")
+    except Exception as e:
+        logger.warning(f"Experiment match import warning: {e}")
+
     await start_scheduler()
 
     # Start background cache refresh loop — pre-computes all leaderboard data
