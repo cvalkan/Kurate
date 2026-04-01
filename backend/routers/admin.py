@@ -2127,7 +2127,8 @@ async def get_system_logs(
     if level:
         query["level"] = level
     if label:
-        query["label"] = {"$regex": label, "$options": "i"}
+        import re as _re
+        query["label"] = {"$regex": _re.escape(label), "$options": "i"}
 
     # All timeframes: return raw data points. No downsampling.
     # With 5-min heartbeats: 12h=144, 24h=288, 3d=864, 7d=2016 points.

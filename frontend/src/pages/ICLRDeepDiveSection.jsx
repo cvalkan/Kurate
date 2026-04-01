@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import DOMPurify from "dompurify";
 import { RefreshCw, ChevronDown, ChevronUp, FlaskConical, Sparkles } from "lucide-react";
 import { ValidationConvergence } from "@/components/ConvergenceSection";
 
@@ -342,7 +343,7 @@ function FormattedText({ text }) {
         if (line.match(/^#{1,3}\s/)) return <p key={i} className="font-semibold text-foreground mt-2">{line.replace(/^#+\s*/, "").replace(/\*\*/g, "")}</p>;
         if (line.match(/^\*\*.*\*\*$/)) return <p key={i} className="font-semibold text-foreground mt-2">{line.replace(/\*\*/g, "")}</p>;
         const html = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-        return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+        return <p key={i} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
       })}
     </div>
   );

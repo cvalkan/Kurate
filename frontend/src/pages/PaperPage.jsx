@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
+import DOMPurify from "dompurify";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ModelBadge } from "@/components/ModelBadge";
@@ -82,7 +83,7 @@ function RenderedLine({ text }) {
   // Apply bold markdown first, then LaTeX
   let html = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   html = renderLatex(html);
-  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+  return <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
 }
 
 /** Strip JSON ratings block from end of summary and return [cleanText, ratings] */
@@ -156,12 +157,12 @@ function SummaryText({ text, fallbackRatings }) {
         const bulletMatch = line.match(/^[-*]\s+(.+)$/);
         if (bulletMatch) {
           const html = renderLatex(bulletMatch[1].replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"));
-          return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: html }} />;
+          return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
         }
         // Regular line with inline formatting + LaTeX
         const html = renderLatex(line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"));
         if (html !== line) {
-          return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+          return <p key={i} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
         }
         return <p key={i}>{line}</p>;
       })}
@@ -176,7 +177,7 @@ function AbstractText({ text }) {
   if (!text) return null;
   const html = renderLatex(text);
   if (html !== text) {
-    return <p className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />;
+    return <p className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
   }
   return <p className="text-sm leading-relaxed">{text}</p>;
 }

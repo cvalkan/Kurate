@@ -789,9 +789,11 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
         query.update(_build_period_filter(period))
 
     if search:
+        import re as _re
+        _s = _re.escape(search)
         query["$or"] = [
-            {"title": {"$regex": search, "$options": "i"}},
-            {"authors": {"$regex": search, "$options": "i"}},
+            {"title": {"$regex": _s, "$options": "i"}},
+            {"authors": {"$regex": _s, "$options": "i"}},
         ]
 
     # Phase 2: Query-dependent count + archives in parallel
@@ -892,9 +894,11 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
         query = _build_period_filter(period)
 
     if search:
+        import re as _re
+        _s = _re.escape(search)
         query["$or"] = [
-            {"title": {"$regex": search, "$options": "i"}},
-            {"authors": {"$regex": search, "$options": "i"}},
+            {"title": {"$regex": _s, "$options": "i"}},
+            {"authors": {"$regex": _s, "$options": "i"}},
         ]
 
     total_in_period = await db.rankings.count_documents(query)

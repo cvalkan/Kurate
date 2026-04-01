@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import DOMPurify from "dompurify";
 import { FlaskConical, ArrowUpDown, RefreshCw, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -537,7 +538,7 @@ function FormattedAssessment({ text }) {
           return <p key={i} className="font-semibold text-foreground mt-2">{line.replace(/\*\*/g, "")}</p>;
         }
         const html = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-        return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+        return <p key={i} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
       })}
     </div>
   );
