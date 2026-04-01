@@ -2143,7 +2143,7 @@ async def get_system_logs(
                     "$dateTrunc": {"date": "$ts", "unit": "minute", "binSize": bucket_minutes}
                 },
                 "ts": {"$last": "$ts"},
-                "rss_mb": {"$max": "$rss_mb"},
+                "rss_mb": {"$avg": "$rss_mb"},
                 "label": {"$last": "$label"},
                 "level": {"$first": "$level"},
             }},
