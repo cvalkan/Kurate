@@ -127,20 +127,24 @@ async def _compute_dataset(db, dataset_id: str):
                     expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
 
     # --- Load AI matches (with within-tier) ---
-    # Load BOTH thinking and non-thinking modes to maximize pair coverage.
-    # For pairs with thinking-mode matches, those are preferred (majority vote
-    # naturally favors the mode with more matches). For pairs only covered by
-    # non-thinking, those matches still contribute rather than being lost.
-    ai_modes = ["abstract_plus_summary", "abstract_plus_summary:thinking"]
+    # Use thinking mode if available (newer, better prompts).
+    # Same mode for both base and experiment matches for consistency.
+    has_thinking = any(p.get("ai_impact_summary_thinking") for p in papers)
+    ai_mode = "abstract_plus_summary:thinking" if has_thinking else "abstract_plus_summary"
+    # Verify thinking mode has matches; fall back to non-thinking if not
+    thinking_count = await db.validation_matches.count_documents(
+        {"dataset_id": dataset_id, "completed": True, "content_mode": ai_mode})
+    if thinking_count == 0:
+        ai_mode = "abstract_plus_summary"
 
     base_raw = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": {"$in": ai_modes}, "experiment_tag": {"$exists": False}},
+         "content_mode": ai_mode, "experiment_tag": {"$exists": False}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ))
     exp_raw = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": {"$in": ai_modes}, "experiment_tag": {"$exists": True}},
+         "content_mode": ai_mode, "experiment_tag": {"$exists": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ))
 
