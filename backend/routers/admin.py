@@ -2876,3 +2876,29 @@ async def prune_duplicate_matches(request: Request):
         "recent_papers": len(recent_paper_ids),
         "cutoff": cutoff[:19],
     }
+
+
+@router.post("/clear-experiment-cache")
+async def clear_experiment_cache(request: Request, name: str = Query(None)):
+    """Clear a specific experiment cache (or all) so it recomputes on next request."""
+    from routers.human_ai_benchmark import (
+        _benchmark_fixed_cache, _benchmark_unfiltered_cache,
+        _ranking_quality_cache, _ranking_quality_unfiltered_cache,
+        _gap_analysis_cache,
+    )
+    caches = {
+        "human-ai-benchmark-fixed": _benchmark_fixed_cache,
+        "human-ai-benchmark-unfiltered": _benchmark_unfiltered_cache,
+        "ai-ranking-quality": _ranking_quality_cache,
+        "ai-ranking-quality-unfiltered": _ranking_quality_unfiltered_cache,
+        "ai-ranking-gap-analysis": _gap_analysis_cache,
+    }
+    if name and name in caches:
+        caches[name].clear()
+        return {"status": "ok", "cleared": name}
+    elif name:
+        return {"status": "error", "message": f"Unknown cache: {name}", "available": list(caches.keys())}
+    else:
+        for c in caches.values():
+            c.clear()
+        return {"status": "ok", "cleared": list(caches.keys())}
