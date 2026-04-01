@@ -2761,3 +2761,88 @@ async def backfill_archives():
 
     logger.info(f"Archive backfill complete: {created} snapshots created")
     return {"status": "ok", "created": created}
+
+
+
+@router.post("/prune-duplicate-matches")
+async def prune_duplicate_matches(request: Request):
+    """Admin-triggered: remove duplicate matches (keep 1 per paper pair per category).
+
+    The _select_pairs bug (BT-vs-stored-score top-K disagreement) caused Rule 3 to
+    generate hundreds of repeat matches for the same paper pairs. This endpoint
+    deduplicates them, keeping the earliest match per pair, then reranks affected categories.
+
+    Idempotent: guarded by a flag in the migrations collection.
+    """
+    from core.config import CATEGORIES, db
+    from datetime import datetime, timezone
+
+    flag = await db.migrations.find_one({"_id": "prune_duplicate_matches_v1"})
+    if flag:
+        return {"status": "already_done", "previous_run": flag.get("completed_at"), "total_deleted": flag.get("total_deleted")}
+
+    total_deleted = 0
+    affected_categories = []
+    details = {}
+
+    for category in CATEGORIES:
+        pipeline = [
+            {"$match": {
+                "completed": True, "failed": {"$ne": True},
+                "primary_category": category, "mode": {"$exists": False},
+            }},
+            {"$sort": {"created_at": 1}},
+            {"$group": {
+                "_id": {
+                    "pair": {"$cond": {
+                        "if": {"$lt": ["$paper1_id", "$paper2_id"]},
+                        "then": {"a": "$paper1_id", "b": "$paper2_id"},
+                        "else": {"a": "$paper2_id", "b": "$paper1_id"},
+                    }},
+                },
+                "match_ids": {"$push": "$id"},
+                "count": {"$sum": 1},
+            }},
+            {"$match": {"count": {"$gt": 1}}},
+        ]
+
+        to_delete = []
+        async for doc in db.matches.aggregate(pipeline):
+            ids_to_remove = doc["match_ids"][1:]
+            to_delete.extend(ids_to_remove)
+
+        if to_delete:
+            import asyncio
+            batch_size = 500
+            cat_deleted = 0
+            for i in range(0, len(to_delete), batch_size):
+                batch = to_delete[i:i + batch_size]
+                result = await db.matches.delete_many({"id": {"$in": batch}})
+                cat_deleted += result.deleted_count
+                await asyncio.sleep(0)
+
+            total_deleted += cat_deleted
+            affected_categories.append(category)
+            details[category] = cat_deleted
+            logger.info(f"[prune] [{category}] Pruned {cat_deleted} duplicate matches")
+
+    if affected_categories:
+        from services.ranking import rerank_category
+        from core.memlog import force_gc
+        for category in affected_categories:
+            try:
+                await rerank_category(db, category)
+                logger.info(f"[prune] [{category}] Reranked after pruning")
+            except Exception as e:
+                logger.warning(f"[prune] [{category}] Rerank failed: {e}")
+            force_gc()
+
+    await db.migrations.insert_one({
+        "_id": "prune_duplicate_matches_v1",
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "total_deleted": total_deleted,
+        "categories": affected_categories,
+    })
+
+    logger.info(f"[prune] Complete: {total_deleted} matches removed across {len(affected_categories)} categories")
+    return {"status": "ok", "total_deleted": total_deleted, "details": details}
