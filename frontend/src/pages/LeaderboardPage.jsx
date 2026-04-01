@@ -141,6 +141,7 @@ export default function LeaderboardPage() {
       // Server-side sorting — map sort key based on scoring method
       const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
         : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
+        : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
         : sortKey;
       if (effectiveSortKey && effectiveSortKey !== "rank") {
         params.sort_by = effectiveSortKey;

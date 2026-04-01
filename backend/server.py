@@ -351,6 +351,10 @@ async def _deferred_startup():
         await db.rankings.create_index([("ts_score", -1)], name="ts_score_-1")  # Cross-category TS sort
         await db.rankings.create_index([("comparisons", -1)], name="comparisons_-1")
         await db.rankings.create_index([("title", 1)], name="title_1")
+        await db.rankings.create_index([("category", 1), ("ts_sigma", 1)], name="category_1_ts_sigma_1")
+        await db.rankings.create_index([("category", 1), ("wilson_margin", 1)], name="category_1_wilson_margin_1")
+        await db.rankings.create_index([("ts_sigma", 1)], name="ts_sigma_1")
+        await db.rankings.create_index([("wilson_margin", 1)], name="wilson_margin_1")
         # Analysis store (pre-aggregated Model Analysis results)
         # Version check: clear stale docs when schema changes
         _ANALYSIS_STORE_VERSION = 5  # Bump: clear stale gpt-5 cache from old production code

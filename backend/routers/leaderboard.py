@@ -630,6 +630,7 @@ _SORT_FIELD_MAP = {
     "published": ("published", -1),
     "title": ("title", 1),
     "ts_score": ("ts_score", -1),
+    "ts_sigma": ("ts_sigma", 1),  # Lower sigma = more confident = default ascending
     "ai_rating": ("ai_rating", -1),
     "gap_score": ("gap_score", -1),
     "community_likes": ("community_likes", -1),
