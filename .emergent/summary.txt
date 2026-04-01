@@ -1,140 +1,143 @@
-<analysis>**original_problem_statement**:
-The user initially requested the implementation of multiple AI reviewer personas based on an academic paper (ReviewerToo). However, the session pivoted into a massive architectural overhaul to redesign dynamic leaderboards and Model Analysis pages for massive scale (10k-100k papers). The core requirement was to remove heavy memory-loading calculations (Bradley-Terry) and replace them with an O(1) incremental TrueSkill and Win-Rate approach, alongside ensuring the Model Analysis page loads instantly without triggering memory-crashing (OOM) recomputations.
+<analysis>Here is the handover summary based on the provided LLM message history:
 
-**User's preferred language**: English (INSTRUCT next agent to respond in the user's preferred language only: English)
+**original_problem_statement**: Build and maintain a sophisticated Validation Hub for an AI paper-judging system at kurate.org. The application evaluates scientific papers using an incremental TrueSkill & Win-Rate approach. The primary unresolved product requirement is to implement Multiple AI Reviewer Personas based on the ReviewerToo academic paper to enhance pairwise ranking accuracy.
+
+**User's preferred language**: English
+*(INSTRUCT next agent to respond in the user's preferred language only)*
 
 **what currently exists?** 
-A highly optimized, full-stack AI paper-judging platform capable of scaling to 100k+ papers. The system uses incremental TrueSkill and Win-Rate updates (calculated per-match) rather than loading historical match data into memory. The Model Analysis dashboard is fully pre-aggregated into a MongoDB , making page loads instant (<0.3s). Memory leaks and OOM crashes during fetch/comparison rounds have been mitigated by restricting LLM thread pools and adding explicit garbage collection.
+A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) capable of scaling to 100k+ papers. Memory leaks and OOM crashes have been resolved by capping MongoDB's WiredTiger cache and patching out the  flag. Leaderboard data uses server-side sorting and pagination (200 items per page). Complex analytical admin endpoints are fully converted to MongoDB aggregation pipelines. The app features rigorous Human vs AI Benchmarks that exactly replicate external baseline statistics via deterministic seeding.
 
-**Last working item**:
-    - Last item agent was working: Investigating and fixing a severe memory leak/OOM issue on production (peaking at 2.4GB). The agent identified that the  for LLM calls had 100 workers, causing massive memory spikes during PDF fetch/summary generation. The agent reduced the workers to 10 and added explicit  after comparison rounds.
+**Last working item**: 
+    - Last item agent was working: Redesigning the multi-day memory charting logic. The agent removed  and  downsampling from the  endpoint. All timeframes (12h, 24h, 3d, 7d) now return raw, unrounded integer data points directly from MongoDB to ensure visual consistency across all chart views.
     - Status: USER VERIFICATION PENDING
     - Agent Testing Done: Y
-    - Which testing method agent to use? manual testing by curl/logs (Agent reviewed backend memory logs extensively).
+    - Which testing method agent to use? manual testing by curl/logs / frontend screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
   Issue 1: Mobile Unfurling on Twitter/X Fails (P2)
-     - Attempted fixes: Investigated in a previous session; blocked by Cloudflare bot protection.
-     - Next debug checklist: User needs to configure Cloudflare settings manually. Reference .
-     - Why fix this issue and what will be achieved with the fix? Required for social sharing and platform growth.
+     - Attempted fixes: Investigated in previous sessions.
+     - Next debug checklist: Cloudflare configuration.
+     - Why fix this issue and what will be achieved with the fix? Required for social sharing.
      - Status: BLOCKED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on other issue: Cloudflare configuration (external)
+     - Blocked on other issue: External Cloudflare Bot Protection
 
 **In progress Task List**:
   Task 1: Analyze ReviewerToo Paper & Implement Multiple Reviewer Personas (P0)
-     - Where to resume: This was the original prompt of the previous fork but was paused to address the massive architectural scaling overhaul. Resume by reading the ReviewerToo paper concepts and planning the prompt architecture for diverse AI judges.
-     - What will be achieved with this? Enhances pairwise ranking accuracy and correlation with human judgments by utilizing varied AI prompt personas.
-     - Status: NOT STARTED
+     - Where to resume: Read the ReviewerToo paper concepts and implement the prompt architecture for diverse AI judges.
+     - What will be achieved with this? Enhances pairwise ranking accuracy and correlation with human judgments by utilizing varied AI prompt personas instead of a single prompt.
+     - Status: NOT STARTED (Continually deferred due to urgent memory/scaling architecture fixes).
      - Should Test frontend/backend/both after fix? Both
      - Blocked on something: NA
 
 **Upcoming and Future Tasks**
-  Upcoming Tasks:
-  - (P1) Implement an email notification system for registered users using the Resend integration.
-  - (P1) Periodic TrueSkill recalibration logic (optional monthly replay for true-up).
-  - (P2) Update logic for the Which Summarizer is Best? table in the Summarizer Report.
+    Upcoming Tasks:
+    - (P1) TrueSkill-first matchmaking: Update the matchmaking algorithm to utilize TrueSkill  (uncertainty) instead of Win-Rate confidence. Simulation proves this will save ~35% on LLM costs by requiring fewer matches for convergence.
+    - (P1) Implement an email notification system for registered users using the Resend integration.
+    - (P1) Code Quality: Resolve circular import chain ( ->  -> ). Extract auth utilities.
+    - (P1) Code Quality: Migrate from  to  cookies for auth tokens to prevent XSS vulnerabilities.
 
-  Future Tasks:
-  - Add missing HTTP security headers.
-  - Server-side sorting and virtual scrolling for the leaderboard table.
-  - Refactor the monolithic .
+    Future Tasks:
+    - (P2) Wire up the  to the PaperPage, or remove the orphaned component entirely.
+    - (P2) Complete the Gmail congrats flow or remove the 3 currently unwired endpoints.
+    - (P2) Refactor monolithic  and .
 
 **Completed work in this session**
-- Conducted Opus 4.6 Thinking Accept/Reject Accuracy Test against ICLR dataset (generated ).
-- Fixed admin dashboard stats (summary-filtered counts overwriting total fetched counts).
-- Fixed memory chart resolution and X-axis label downsampling in the Admin UI.
-- **Architectural Overhaul**: Replaced Bradley-Terry full-history calculations with incremental O(1) TrueSkill. 
-- Modified  DB documents to natively embed , , and .
-- Removed all in-memory server caches. Created MongoDB  and  for instant (<0.3s) Model Analysis page loads.
-- Added WR/TS toggle to leaderboard and Model Analysis charts.
-- Added Full vs. Controlled match count toggle to PW vs SI charts.
-- Added Aggregate (pooled) vs. Average (size-weighted) toggle to Correlation pages.
-- Fixed OOM crashes: Reduced  from 100 workers to 10, added background concurrency guards, and enforced explicit garbage collection.
+- Memory Fixes: Capped MongoDB WiredTiger cache to 384MB. Added a self-healing patch to  to strip out  to prevent duplicate-process OOM crashes. (DONE)
+- Server-side sorting & pagination: Replaced slow 10k in-memory frontend sorting with DB-indexed queries and 200 PAGE_SIZE. (DONE)
+- Dead Code: Removed 8 unused functions and 1 write-only MongoDB collection (). (DONE)
+- Benchmarking Replication: Created  matching external (SE) metrics exactly. Exported full 99k row . (DONE)
+- Admin Optimizations: Converted heavy admin stats, timeseries, and progress endpoints to native MongoDB  aggregations. (DONE)
+- Security/Linting: Addressed Code Quality Report. Replaced  with  for non-crypto hashing, removed hardcoded secrets from test files. (DONE)
+- UI Fixes: Fixed Leaderboard CI metrics (showing Elo points for TrueSkill, % for WinRate). Fixed rank badges to show exact score-based ranks instead of display index. Fixed Admin Stats tab going blank upon re-mounting. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-None found in this specific text block outside of the known Cloudflare unfurling block.
+  - None (All recent user reports were addressed).
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Mobile Unfurling on Twitter/X Fails
-  - Recurrence count: 5+
+  - Recurrence count: 6+
   - Status: BLOCKED
 
 **Code Architecture**
-rankingsanalysis_store
+
 
 **Key Technical Concepts**
-- **Incremental TrueSkill**: Instead of calculating scores by loading all historical  (which caused OOMs), the system updates TrueSkill parameters (, ) incrementally for just two papers at the end of every match. 
-- **Pre-aggregated Analysis**: Complex dashboards (Correlations, SI vs PW) do *not* calculate on the fly. Background tasks populate  in MongoDB. Frontend fetches these lightweight documents.
-- **Controlled vs. Full Analysis**: The frontend can toggle data to show controlled (normalized matches per paper) to prove whether AI diversity actually helps, or if more matches simply reduce noise.
+- **Incremental TrueSkill**: Evaluates papers incrementally.
+- **Server-Side Pagination & Sorting**: Leaderboard relies completely on MongoDB indexes (, , , etc.) for instant sorting.
+- **Deterministic Benchmarking**: The benchmarking code uses fixed random seeds and strictly matched filtering ( expert pref) to ensure reproducibility with human datasets.
+- **Memory Budgeting**: The container has a strict 2GB limit. WiredTiger is capped at 384MB.  uses  to physically return arenas to the OS.
 
 **key DB schema**
-  - : Source of truth for pairwise. (Rarely queried in bulk now).
-  - : Stores paper metadata,  (Win-Rate),  (TrueSkill), plus embedded , , and .
-  - : Pre-computed JSON-like documents containing heavy statistical correlation data keyed by category.
-  - : Pre-computed tournament convergence arrays.
+  - : Stores head-to-head comparison results.
+  - : Master materialized view. Includes , ,  (all indexed).
+  - : Time-series logging of process RSS memory.
+  - : Pre-computed JSON-like documents for correlation caching.
 
 **changes in tech stack**
-  - Removed Bradley-Terry calculation dependency for production endpoints to save memory. 
-  - Eradicated reliance on Python in-memory  caching for global application state, moving entirely to MongoDB document caching.
+  - Removed client-side progressive rendering for the leaderboard.
 
-**All files of reference** 
--  (Core logic for TrueSkill, incremental updates, and  generation)
--  (API endpoints modified to exclusively query pre-aggregated collections)
--  (Modified for strict memory management / concurrency guarding)
--  (Startup tasks and index creation)
--  (Generated report)
+**All files of reference**
+  1.  (Contains the  self-healing patch and MongoDB cache configurations).
+  2.  (New file created for pristine, filter-free benchmark generation).
+  3.  (Explains exactly how the benchmark stats are calculated and where variance comes from).
+  4.  (Report of removed functions).
 
-**Areas that need refactoring**: 
--  remains highly monolithic. While performance is fixed, statistical mapping functions are heavily mixed with routing logic.
--  handles too many responsibilities (fetching, tournament matchmaking, cache invalidation, and garbage collection).
+**Areas that need refactoring**:
+  -  ->  ->  (Circular dependency ring).
+  - Monolithic .
 
 **key api endpoints**
--  & : Now read directly from .
-- : Reads from .
--  (POST): Admin trigger to retroactively calculate TS and model stats from historical matches.
+  - : Returns . Accepts , .
+  - : Returns memory logs (now raw integer points without MongoDB downsampling).
 
-**Critical Info for New Agent** 
-1. **MEMORY MANAGEMENT IS PARAMOUNT**: The application runs in a highly restricted memory environment (max 2GB). Never load the full  collection into memory. Always rely on incremental document updates inside  or .
-2. **Concurrency Guarding**: Do not remove  or the  inside  / . Background tasks previously overlapped and crashed the server.
-3. **No In-Memory Caches**: Do not reintroduce python dictionary caching for analytics. Rely strictly on  in MongoDB.
+**Critical Info for New Agent**
+1. **DO NOT RESTORE **: The production environment injects it, but  explicitly patches the supervisor config to remove it at runtime. It causes dual-process OOM crashes.
+2. **DO NOT USE **: Always import and use  from  which invokes  to prevent arena fragmentation in glibc.
+3. **DO NOT USE  on large fields**: Do not aggregate over  or  in MongoDB—it will blow up the container memory.
+4. **Benchmarking Seed**: The random seed for within-tier subsampling in  is deterministic. Altering this logic will break the exact reproduction of the user's external baseline.
 
-**documents and test reports created in this job** 
-  - /app/memory/OPUS46_ACCEPT_REJECT_REPORT.md
+**documents and test reports created in this job**
+  - 
+  - 
+  -  (10 principles to avoid regressions based on past mistakes).
+  - Generated CSVs: ,  (and  variants).
 
-**Last 10 User Messages and any pending HUMAN messages** 
-1. User asked to check production memory logs because RAM peaked at 2.4GB.
-2. Agent analyzed logs, found it peaked during an old fetch cycle. Traced current memory to a stable ~800MB but acknowledged unaddressed risks.
-3. User asked how agent knew it was old code vs new code.
-4. Agent admitted they couldn't be 100% sure and highlighted that PDF fetches and LLM generation still hold a lot of memory. User instructed to dig deeper and create an action plan.
-5. Agent analyzed  and , found  using 100 workers, suggesting a reduction to 10, plus adding explicit garbage collection.
-6. User asked for the plan in detail.
-7. Agent submitted plan via .
-8. User approved executing P0, P1, and P4 of the plan.
-9. Agent implemented the thread pool reduction and explicit  in .
-10. Agent verified successful server start and declared readiness for deployment. (No pending messages).
+**Last 10 User Messages and any pending HUMAN messages**
+- User: Check all memory views (time frames) on production. 7 days don't match data.
+- Agent: Realized the  MongoDB downsampling in 3d/7d buckets made spikes look permanent. Replaced with .
+- User: Results on  aren't the same as on preview.
+- Agent: Fixed issue where production base matches used  while experiment matches used .
+- User: Call Deployer agent and check health.
+- Agent: Confirmed healthy.
+- User: Production unresponsive. 7d chart still inconsistent.
+- Agent: Fixed the 7d chart inconsistency by removing all MongoDB downsampling—it now returns raw integer points. Found the unresponsiveness was caused by  killing the active process during the  patch. Replaced with a clean .
+- User: Sorting by CI isn't working when TrueSkill is selected. Slow sorting.
+- Agent: Mapped  to  for TrueSkill mode. Added MongoDB indexes for , .
+- User: Redesign charting logic for memory charts to ensure consistency.
+- Agent: Removed all aggregation; frontend now plots raw integer coordinates for all timeframes.
 
 **Project Health Check:**
-- Broken: Mobile unfurling on Twitter/X (Blocked by Cloudflare).
-- Mocked: None.
+  - Broken: Mobile Twitter/X Unfurling (Cloudflare block).
+  - Mocked: None.
 
-**3rd Party Integrations** 
-- OpenAI GPT-5.2 — uses Emergent LLM Key
-- Anthropic Claude — uses Emergent LLM Key
-- Gemini 3 Pro — uses Emergent LLM Key
-- TrueSkill (Python Library)
-- Resend (Pending implementation)
+**3rd Party Integrations**
+  - OpenAI GPT-5.2 — uses Emergent LLM Key
+  - Anthropic Claude — uses Emergent LLM Key
+  - Gemini 3 Pro — uses Emergent LLM Key
+  - Resend (Pending implementation for email notifications)
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Agent verified via backend memory logs and  timing scripts).
-  - Troubleshoot agent used after agent stuck in loop: YES (Used to identify race conditions in TrueSkill updates).
-  - Test files created: None
-  - Known regressions: None
+  - Testing agent used after significant changes: NO (Heavy reliance on manual bash/python validations and screenshot verification due to complex data structures).
+  - Troubleshoot agent used after agent stuck in loop: YES (Diagnosed a stale  import).
+  - Test files created: , , .
+  - Known regressions: None.
 
 **Credentials to test flow:**
-- NA (Use emergent-managed )
+  - NA (Use emergent-managed . Admin password for manual auth testing defaults to  — refer to tests or  if required).
 
 **What agent forgot to execute**
-- The agent heavily optimized the platform and fixed memory issues, but completely bypassed the original prompt directive (implementing the Multiple AI Reviewer Personas from the ReviewerToo paper). This P0 task remains untouched.</analysis>
+  - The P0 Task: **ReviewerToo Multiple Reviewer Personas**. The entire session was consumed by UX fixes, memory architecture stabilization, and exact statistical benchmarking reproduction. The core prompt task remains completely untouched.</analysis>
