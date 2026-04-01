@@ -272,6 +272,90 @@ async def startup():
     logger.info("Kurate.org Leaderboard started")
 
 
+async def _prune_duplicate_matches():
+    """One-time migration: remove duplicate matches (keep 1 per paper pair per category).
+
+    The _select_pairs bug (BT-vs-stored-score top-K disagreement) caused Rule 3 to
+    generate hundreds of repeat matches for the same paper pairs. This function
+    deduplicates them, keeping the earliest match per pair, then triggers a full
+    rerank for affected categories.
+
+    Idempotent: guarded by a flag in the migrations collection.
+    """
+    flag = await db.migrations.find_one({"_id": "prune_duplicate_matches_v1"})
+    if flag:
+        return
+
+    logger.info("Pruning duplicate matches (one-time migration)...")
+    from core.config import CATEGORIES
+
+    total_deleted = 0
+    affected_categories = []
+
+    for category in CATEGORIES:
+        # Aggregation: group matches by sorted paper pair, collect match IDs
+        pipeline = [
+            {"$match": {
+                "completed": True, "failed": {"$ne": True},
+                "primary_category": category, "mode": {"$exists": False},
+            }},
+            {"$sort": {"created_at": 1}},  # oldest first
+            {"$group": {
+                "_id": {
+                    "pair": {"$cond": {
+                        "if": {"$lt": ["$paper1_id", "$paper2_id"]},
+                        "then": {"a": "$paper1_id", "b": "$paper2_id"},
+                        "else": {"a": "$paper2_id", "b": "$paper1_id"},
+                    }},
+                },
+                "match_ids": {"$push": "$id"},
+                "count": {"$sum": 1},
+            }},
+            {"$match": {"count": {"$gt": 1}}},  # only pairs with duplicates
+        ]
+
+        to_delete = []
+        async for doc in db.matches.aggregate(pipeline):
+            # Keep the first (oldest) match, delete the rest
+            ids_to_remove = doc["match_ids"][1:]
+            to_delete.extend(ids_to_remove)
+
+        if to_delete:
+            # Delete in batches to avoid huge operations
+            batch_size = 500
+            cat_deleted = 0
+            for i in range(0, len(to_delete), batch_size):
+                batch = to_delete[i:i + batch_size]
+                result = await db.matches.delete_many({"id": {"$in": batch}})
+                cat_deleted += result.deleted_count
+                await asyncio.sleep(0)  # yield between batches
+
+            total_deleted += cat_deleted
+            affected_categories.append(category)
+            logger.info(f"  [{category}] Pruned {cat_deleted} duplicate matches")
+
+    # Rerank affected categories to reflect corrected win/loss counts
+    if affected_categories:
+        from services.ranking import rerank_category
+        for category in affected_categories:
+            try:
+                await rerank_category(db, category)
+                logger.info(f"  [{category}] Reranked after pruning")
+            except Exception as e:
+                logger.warning(f"  [{category}] Rerank after pruning failed: {e}")
+            from core.memlog import force_gc
+            force_gc()
+
+    # Mark migration as complete
+    await db.migrations.insert_one({
+        "_id": "prune_duplicate_matches_v1",
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "total_deleted": total_deleted,
+        "categories": affected_categories,
+    })
+    logger.info(f"Duplicate match pruning complete: {total_deleted} matches removed across {len(affected_categories)} categories")
+
+
 async def _deferred_startup():
     """Heavy startup work that runs in background after health endpoint is available."""
     await asyncio.sleep(0.1)  # Yield to let server start accepting connections
@@ -503,6 +587,14 @@ async def _deferred_startup():
             logger.info(f"SI rating backfill: {r1.modified_count} claude copied, {_backfill_parsed} parsed from summaries")
     except Exception as e:
         logger.warning(f"SI rating backfill warning: {e}")
+
+    # One-time: prune duplicate matches (keep 1 per paper pair per category).
+    # Bug fix for the _select_pairs / _check_goals_met top-K disagreement that
+    # caused Rule 3 to generate hundreds of repeat matches for Elo-adjacent pairs.
+    try:
+        await _prune_duplicate_matches()
+    except Exception as e:
+        logger.warning(f"Duplicate match pruning warning: {e}")
 
     await start_scheduler()
 
