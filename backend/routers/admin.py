@@ -2880,7 +2880,9 @@ async def prune_duplicate_matches(request: Request):
 
 @router.post("/clear-experiment-cache")
 async def clear_experiment_cache(request: Request, name: str = Query(None)):
-    """Clear a specific experiment cache (or all) so it recomputes on next request."""
+    """Reload a specific experiment cache from precomputed JSON (or all).
+    This restores the precomputed result rather than forcing a live recomputation."""
+    from services.precompute import load_precomputed, _load_experiments
     from routers.human_ai_benchmark import (
         _benchmark_fixed_cache, _benchmark_unfiltered_cache,
         _ranking_quality_cache, _ranking_quality_unfiltered_cache,
@@ -2895,10 +2897,13 @@ async def clear_experiment_cache(request: Request, name: str = Query(None)):
     }
     if name and name in caches:
         caches[name].clear()
-        return {"status": "ok", "cleared": name}
-    elif name:
-        return {"status": "error", "message": f"Unknown cache: {name}", "available": list(caches.keys())}
-    else:
+    elif not name:
         for c in caches.values():
             c.clear()
-        return {"status": "ok", "cleared": list(caches.keys())}
+    else:
+        return {"status": "error", "message": f"Unknown cache: {name}", "available": list(caches.keys())}
+
+    # Reload all experiment caches from precomputed JSON
+    reloaded = _load_experiments()
+    cleared = name if name else list(caches.keys())
+    return {"status": "ok", "cleared": cleared, "reloaded_from_json": reloaded}
