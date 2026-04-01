@@ -2147,6 +2147,7 @@ async def get_system_logs(
                 "label": {"$last": "$label"},
                 "level": {"$first": "$level"},
             }},
+            {"$addFields": {"rss_mb": {"$round": ["$rss_mb", 0]}}},
             {"$sort": {"ts": 1}},
             {"$limit": 500},
         ]
