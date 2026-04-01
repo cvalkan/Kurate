@@ -125,7 +125,7 @@ MULTI_ASPECT_DIMENSIONS = ["novelty", "applications", "rigor", "breadth", "timel
 # Default settings
 DEFAULT_SETTINGS = {
     "key": "global",
-    "admin_password": os.environ.get("ADMIN_PASSWORD", "papersumo2025"),
+    "admin_password": os.environ["ADMIN_PASSWORD"],
     "active_categories": list(CATEGORIES.keys()),
     "fetch_interval_hours": 24,
     "max_papers_per_fetch": 50,

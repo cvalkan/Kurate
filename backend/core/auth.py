@@ -41,9 +41,4 @@ async def verify_admin(x_admin_token: str = Header(None)):
     from routers.admin import _is_valid_session
     if await _is_valid_session(x_admin_token):
         return True
-    # Legacy: accept password directly (timing-safe comparison)
-    settings = await get_settings()
-    stored_pw = settings.get("admin_password", DEFAULT_SETTINGS["admin_password"])
-    if hmac.compare_digest(x_admin_token, stored_pw):
-        return True
     raise HTTPException(status_code=403, detail="Invalid admin credentials")
