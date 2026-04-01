@@ -124,7 +124,7 @@ export function AdminStatistics({ categories }) {
       const results = await Promise.allSettled([
         fetchWithRetry(`${API}/api/admin/timeseries`),
         fetchWithRetry(`${API}/api/admin/stats`),
-        fetchWithRetry(`${API}/api/admin/system-logs?hours=${memHours}&limit=${memHours <= 12 ? 500 : memHours <= 24 ? 1000 : 3000}`),
+        fetchWithRetry(`${API}/api/admin/system-logs?hours=${memHours}&limit=3000`),
       ]);
       const [tsResult, statsResult, memResult] = results;
 

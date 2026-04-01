@@ -2129,46 +2129,19 @@ async def get_system_logs(
     if label:
         query["label"] = {"$regex": label, "$options": "i"}
 
-    # For longer ranges, use aggregation to downsample mem logs
-    if hours > 24 and not level:
-        # Fetch mem logs downsampled + all non-mem logs
-        bucket_minutes = 30 if hours <= 72 else 60  # 30min for 3d, 60min for 7d
+    # All timeframes: return raw data points. No downsampling.
+    # With 5-min heartbeats: 12h=144, 24h=288, 3d=864, 7d=2016 points.
+    # This ensures all views are visually consistent for overlapping periods.
+    logs = await db.system_logs.find(
+        query, {"_id": 0}
+    ).sort("ts", -1).limit(min(limit, 5000)).to_list(min(limit, 5000))
 
-        # Downsample mem logs via aggregation
-        pipeline = [
-            {"$match": {**query, "level": "mem", "rss_mb": {"$exists": True}}},
-            {"$sort": {"ts": 1}},
-            {"$group": {
-                "_id": {
-                    "$dateTrunc": {"date": "$ts", "unit": "minute", "binSize": bucket_minutes}
-                },
-                "ts": {"$last": "$ts"},
-                "rss_mb": {"$avg": "$rss_mb"},
-                "label": {"$last": "$label"},
-                "level": {"$first": "$level"},
-            }},
-            {"$addFields": {"rss_mb": {"$round": ["$rss_mb", 0]}}},
-            {"$sort": {"ts": 1}},
-            {"$limit": 500},
-        ]
-        mem_logs = await db.system_logs.aggregate(pipeline).to_list(500)
-
-        # Non-mem logs (repair_queue, slow_query) — just get recent
-        non_mem_query = {**query, "level": {"$ne": "mem"}}
-        non_mem_logs = await db.system_logs.find(
-            non_mem_query, {"_id": 0}
-        ).sort("ts", -1).limit(500).to_list(500)
-
-        logs = mem_logs + non_mem_logs
-    else:
-        logs = await db.system_logs.find(
-            query, {"_id": 0}
-        ).sort("ts", -1).limit(min(limit, 5000)).to_list(min(limit, 5000))
-
-    # Convert datetime to ISO string for JSON serialization
+    # Convert datetime to ISO string and ensure clean integer rss_mb
     for log in logs:
         if "ts" in log:
             log["ts"] = log["ts"].isoformat()
+        if "rss_mb" in log:
+            log["rss_mb"] = round(log["rss_mb"])
         log.pop("_id", None)
     return {"logs": logs, "count": len(logs)}
 
