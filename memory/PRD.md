@@ -126,6 +126,16 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Improved admin status message: "Generating summaries (X/Y ready)" instead of "Insufficient papers"
 - Added `minTickGap` to memory chart x-axis to prevent label overlap
 
+### Session: Apr 1, 2026
+
+**Critical Bug Fix: Repeat-Match Loop in `_select_pairs` (cs.CR overshoot)**
+- **Root cause**: `_select_pairs` used `_bt_to_score()` (BT-normalized scores) to determine top-K, while `_check_goals_met` used stored `rankings.score` (direct regularized WR). In categories with tight score clustering (cs.CR: 1245-1253), the two methods disagreed on which papers were top-K.
+- **Effect**: When the two functions disagreed, `_check_goals_met` found unmet goals → triggered rounds, but `_select_pairs` saw no needy papers → generated Rule 3 repeat matches between Elo-adjacent papers. "Detecting speculative leaks" accumulated 442 matches (91% repeats, max 78x vs same opponent), SafetyDrift 271 matches (78% repeats).
+- **Fix**: Replaced BT-approximated scoring in `_select_pairs` with stored `rankings.score` — same source as `_check_goals_met`. Both functions now use identical top-K determination.
+- Removed BT as admin ranking method option (was unused in live pipeline)
+- Updated stale BT comments in admin.py and ranking.py
+- BT functions preserved only in validation/benchmark pages (human_ai_benchmark.py, benchmark_fixed.py, leaderboard scoring-method-correlation)
+
 ### Session: Mar 28, 2026
 
 **Model Analysis & Leaderboard CI Fixes:**
@@ -173,6 +183,7 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 ### P0
 - Implement Multiple AI Reviewer Personas from ReviewerToo paper (arXiv:2510.08867)
 - Monitor production memory with new architecture (repair queue + lightweight rank sorting)
+- ~~Fix repeat-match loop in `_select_pairs` (cs.CR/cs.RO overshoot)~~ **DONE Apr 1, 2026**
 
 ### P1
 - Phase 3: Notification System (Resend email integration)

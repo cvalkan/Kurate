@@ -63,7 +63,7 @@ class SettingsUpdate(BaseModel):
     max_papers_per_fetch: Optional[int] = None
     parallel_agents: Optional[int] = None
     parallel_categories: Optional[int] = None
-    ranking_method: Optional[str] = None  # reg_wr, bt, trueskill
+    ranking_method: Optional[str] = None  # reg_wr, trueskill
     max_new_matches_per_round: Optional[int] = None
     ci_target: Optional[int] = None
     ci_target_general: Optional[int] = None
@@ -2588,7 +2588,7 @@ async def backfill_archives():
 
     # --- Helper: compute archive for a set of paper IDs, scoped to matches before cutoff ---
     async def compute_archive(cat_papers, cat_pids, cutoff):
-        """Run BT on cat_papers using only matches created before cutoff. Return ranked list filtered to cat_pids."""
+        """Compute ranked list for cat_papers using only matches created before cutoff."""
         # Find matches involving these papers, created before the cutoff
         cat_matches = [m for m in all_matches
                        if (m["paper1_id"] in cat_pids or m["paper2_id"] in cat_pids)

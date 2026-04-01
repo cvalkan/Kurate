@@ -952,18 +952,19 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             paper_stats = {}
             async for rdoc in db.rankings.find(
                 {"category": category},
-                {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1},
+                {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1},
             ):
                 pid = rdoc["paper_id"]
                 paper_stats[pid] = {
                     "wins": rdoc.get("wins", 0),
                     "losses": rdoc.get("losses", 0),
                     "comparisons": rdoc.get("comparisons", 0),
+                    "score": rdoc.get("score", 1200),
                 }
             # Ensure all papers have an entry (new papers may not be in rankings yet)
             for p in all_papers:
                 if p["id"] not in paper_stats:
-                    paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0}
+                    paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0, "score": 1200}
 
             # Load match pairs for dedup (only paper1_id + paper2_id — minimal projection)
             all_matches = await collect_all(db.matches.find(
@@ -1308,31 +1309,17 @@ def _select_pairs(
         wins[pid] = w
         margins[pid] = wilson_margin_pct(w, c)
 
-    # Compute BT scores for opponent selection (accounts for opponent strength)
-    from services.ranking import calculate_bradley_terry, _bt_to_score
+    # Use stored scores from rankings collection (same source as _check_goals_met)
+    # to ensure consistent top-K determination and avoid repeat-match loops.
     SCORE_BASE = 1200
-    # Build BT from the stats we already have (wins/losses per paper)
-    # Construct pseudo-matches from the stats
-    bt_raw = {}
-    total_w = sum(wins.values())
-    if total_w > 0:
-        # Use the existing match data already loaded by the caller
-        # We have wins[pid] and comparisons[pid], but BT needs full match list
-        # Approximate: use regularized win-rate mapped through BT-to-Elo
-        for pid in paper_ids:
-            w, c = wins[pid], comparisons[pid]
-            if c == 0:
-                bt_raw[pid] = 1.0
-            else:
-                bt_raw[pid] = max(1e-6, (w + 0.5) / (c + 1.0))
-    else:
-        bt_raw = {pid: 1.0 for pid in paper_ids}
-    wr_scores = _bt_to_score(bt_raw, SCORE_BASE)
+    wr_scores = {}
+    for pid in paper_ids:
+        wr_scores[pid] = stats.get(pid, {}).get("score", SCORE_BASE)
 
     elo_vals = sorted(wr_scores.values())
     median_elo = elo_vals[len(elo_vals) // 2]
 
-    # Identify top-K papers using Elo (not raw win-rate)
+    # Top-K uses the same stored scores as _check_goals_met
     all_ranked = sorted(paper_ids, key=lambda pid: wr_scores[pid], reverse=True)
     top_k_ids = set(all_ranked[:min(top_k, len(all_ranked))])
     top_k_list = all_ranked[:min(top_k, len(all_ranked))]

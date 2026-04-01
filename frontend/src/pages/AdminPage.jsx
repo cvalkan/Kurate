@@ -368,7 +368,6 @@ export default function AdminPage() {
                 data-testid="setting-ranking-method"
               >
                 <option value="reg_wr">Regularized Win-Rate</option>
-                <option value="bt">Bradley-Terry</option>
                 <option value="trueskill">TrueSkill</option>
               </select>
             </div>

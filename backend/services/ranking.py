@@ -461,7 +461,7 @@ async def seed_rankings(db, category: str = None):
             if doc.get("likes") is not None:
                 community_likes[doc["id"]] = doc["likes"]
 
-        # Compute gap scores (BT percentile - AI percentile)
+        # Compute gap scores (WR percentile - AI percentile)
         gap_scores = {}
         entries_with_both = [e for e in lb if ai_ratings.get(e["id"]) and e.get("comparisons", 0) >= 3]
         if len(entries_with_both) >= 2:
