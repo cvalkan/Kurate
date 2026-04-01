@@ -218,15 +218,20 @@ async def startup():
     # This patch runs on every boot so it survives config resets.
     try:
         import subprocess, sys as _sys
-        conf_path = "/etc/supervisor/conf.d/supervisord.conf"
-        with open(conf_path) as f:
-            conf = f.read()
-        if "--reload" in conf:
-            with open(conf_path, "w") as f:
-                f.write(conf.replace(" --reload", ""))
-            subprocess.run(["supervisorctl", "reread"], capture_output=True, timeout=5)
-            logger.info("Patched out --reload from supervisor config — exiting for clean restart")
-            _sys.exit(0)  # Let supervisor restart us WITHOUT --reload
+        # Production uses /app/etc/..., preview uses /etc/...
+        for conf_path in ["/app/etc/supervisor/conf.d/supervisord.conf", "/etc/supervisor/conf.d/supervisord.conf"]:
+            try:
+                with open(conf_path) as f:
+                    conf = f.read()
+            except FileNotFoundError:
+                continue
+            if "--reload" in conf:
+                with open(conf_path, "w") as f:
+                    f.write(conf.replace(" --reload", ""))
+                subprocess.run(["supervisorctl", "reread"], capture_output=True, timeout=5)
+                logger.info(f"Patched out --reload from {conf_path} — exiting for clean restart")
+                _sys.exit(0)  # Let supervisor restart us WITHOUT --reload
+            break  # Found config, no need to check other paths
     except SystemExit:
         raise  # Don't catch sys.exit
     except Exception as e:
@@ -361,6 +366,19 @@ async def _deferred_startup():
         _ANALYSIS_STORE_VERSION = 5  # Bump: clear stale gpt-5 cache from old production code
         try:
             await db.analysis_store.drop_indexes()
+        except Exception:
+            pass
+        # Clean up null-key duplicates that prevent unique index creation on Atlas
+        try:
+            async for doc in db.analysis_store.aggregate([
+                {"$match": {"key": None}},
+                {"$group": {"_id": "$_type", "ids": {"$push": "$_id"}, "count": {"$sum": 1}}},
+                {"$match": {"count": {"$gt": 1}}},
+            ]):
+                # Keep first, delete rest
+                to_delete = doc["ids"][1:]
+                if to_delete:
+                    await db.analysis_store.delete_many({"_id": {"$in": to_delete}})
         except Exception:
             pass
         await db.analysis_store.create_index([("_type", 1), ("key", 1)], unique=True)
