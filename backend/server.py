@@ -160,6 +160,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 @app.get("/api/health")
+@app.get("/health")
 async def health():
     return {"status": "ok", "service": "papersumo-leaderboard"}
 
