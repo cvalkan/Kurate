@@ -2766,83 +2766,112 @@ async def backfill_archives():
 
 @router.post("/prune-duplicate-matches")
 async def prune_duplicate_matches(request: Request):
-    """Admin-triggered: remove duplicate matches (keep 1 per paper pair per category).
+    """Admin-triggered: remove duplicate matches for cs.CR 'Most Recent' papers only.
 
-    The _select_pairs bug (BT-vs-stored-score top-K disagreement) caused Rule 3 to
-    generate hundreds of repeat matches for the same paper pairs. This endpoint
-    deduplicates them, keeping the earliest match per pair, then reranks affected categories.
+    Scoped to papers in the rolling 48h window (same as the leaderboard's "Most Recent"
+    filter). Keeps the earliest match per paper pair, deletes the rest, then reranks cs.CR.
 
     Idempotent: guarded by a flag in the migrations collection.
     """
-    from core.config import CATEGORIES, db
-    from datetime import datetime, timezone
+    from core.config import db
+    from datetime import datetime, timezone, timedelta
 
     flag = await db.migrations.find_one({"_id": "prune_duplicate_matches_v1"})
     if flag:
         return {"status": "already_done", "previous_run": flag.get("completed_at"), "total_deleted": flag.get("total_deleted")}
 
+    category = "cs.CR"
+
+    # Find the "Most Recent" paper IDs using the same rolling-48h logic as the leaderboard
+    latest = await db.rankings.find_one(
+        {"category": category, "added_at": {"$nin": ["", None]}},
+        {"_id": 0, "added_at": 1},
+        sort=[("added_at", -1)],
+    )
+    if not latest or not latest.get("added_at"):
+        return {"status": "error", "message": "No papers with added_at found in cs.CR"}
+
+    anchor_dt = datetime.fromisoformat(latest["added_at"].replace("Z", "+00:00"))
+    cutoff = (anchor_dt - timedelta(hours=48)).isoformat()
+
+    recent_paper_ids = set()
+    async for doc in db.rankings.find(
+        {"category": category, "added_at": {"$gte": cutoff}},
+        {"_id": 0, "paper_id": 1},
+    ):
+        recent_paper_ids.add(doc["paper_id"])
+
+    if not recent_paper_ids:
+        return {"status": "error", "message": "No recent papers found"}
+
+    logger.info(f"[prune] cs.CR recent papers: {len(recent_paper_ids)} (added after {cutoff[:19]})")
+
+    # Find duplicate matches involving at least one recent paper
+    pipeline = [
+        {"$match": {
+            "completed": True, "failed": {"$ne": True},
+            "primary_category": category, "mode": {"$exists": False},
+            "$or": [
+                {"paper1_id": {"$in": list(recent_paper_ids)}},
+                {"paper2_id": {"$in": list(recent_paper_ids)}},
+            ],
+        }},
+        {"$sort": {"created_at": 1}},
+        {"$group": {
+            "_id": {
+                "pair": {"$cond": {
+                    "if": {"$lt": ["$paper1_id", "$paper2_id"]},
+                    "then": {"a": "$paper1_id", "b": "$paper2_id"},
+                    "else": {"a": "$paper2_id", "b": "$paper1_id"},
+                }},
+            },
+            "match_ids": {"$push": "$id"},
+            "count": {"$sum": 1},
+        }},
+        {"$match": {"count": {"$gt": 1}}},
+    ]
+
+    to_delete = []
+    async for doc in db.matches.aggregate(pipeline):
+        ids_to_remove = doc["match_ids"][1:]
+        to_delete.extend(ids_to_remove)
+
     total_deleted = 0
-    affected_categories = []
-    details = {}
+    if to_delete:
+        import asyncio
+        batch_size = 500
+        for i in range(0, len(to_delete), batch_size):
+            batch = to_delete[i:i + batch_size]
+            result = await db.matches.delete_many({"id": {"$in": batch}})
+            total_deleted += result.deleted_count
+            await asyncio.sleep(0)
 
-    for category in CATEGORIES:
-        pipeline = [
-            {"$match": {
-                "completed": True, "failed": {"$ne": True},
-                "primary_category": category, "mode": {"$exists": False},
-            }},
-            {"$sort": {"created_at": 1}},
-            {"$group": {
-                "_id": {
-                    "pair": {"$cond": {
-                        "if": {"$lt": ["$paper1_id", "$paper2_id"]},
-                        "then": {"a": "$paper1_id", "b": "$paper2_id"},
-                        "else": {"a": "$paper2_id", "b": "$paper1_id"},
-                    }},
-                },
-                "match_ids": {"$push": "$id"},
-                "count": {"$sum": 1},
-            }},
-            {"$match": {"count": {"$gt": 1}}},
-        ]
+        logger.info(f"[prune] [{category}] Pruned {total_deleted} duplicate matches from {len(recent_paper_ids)} recent papers")
 
-        to_delete = []
-        async for doc in db.matches.aggregate(pipeline):
-            ids_to_remove = doc["match_ids"][1:]
-            to_delete.extend(ids_to_remove)
-
-        if to_delete:
-            import asyncio
-            batch_size = 500
-            cat_deleted = 0
-            for i in range(0, len(to_delete), batch_size):
-                batch = to_delete[i:i + batch_size]
-                result = await db.matches.delete_many({"id": {"$in": batch}})
-                cat_deleted += result.deleted_count
-                await asyncio.sleep(0)
-
-            total_deleted += cat_deleted
-            affected_categories.append(category)
-            details[category] = cat_deleted
-            logger.info(f"[prune] [{category}] Pruned {cat_deleted} duplicate matches")
-
-    if affected_categories:
+        # Rerank cs.CR
         from services.ranking import rerank_category
         from core.memlog import force_gc
-        for category in affected_categories:
-            try:
-                await rerank_category(db, category)
-                logger.info(f"[prune] [{category}] Reranked after pruning")
-            except Exception as e:
-                logger.warning(f"[prune] [{category}] Rerank failed: {e}")
-            force_gc()
+        try:
+            await rerank_category(db, category)
+            logger.info(f"[prune] [{category}] Reranked after pruning")
+        except Exception as e:
+            logger.warning(f"[prune] [{category}] Rerank failed: {e}")
+        force_gc()
 
     await db.migrations.insert_one({
         "_id": "prune_duplicate_matches_v1",
         "completed_at": datetime.now(timezone.utc).isoformat(),
         "total_deleted": total_deleted,
-        "categories": affected_categories,
+        "category": category,
+        "recent_papers": len(recent_paper_ids),
+        "cutoff": cutoff,
     })
 
-    logger.info(f"[prune] Complete: {total_deleted} matches removed across {len(affected_categories)} categories")
-    return {"status": "ok", "total_deleted": total_deleted, "details": details}
+    logger.info(f"[prune] Complete: {total_deleted} duplicate matches removed from cs.CR recent ({len(recent_paper_ids)} papers)")
+    return {
+        "status": "ok",
+        "total_deleted": total_deleted,
+        "category": category,
+        "recent_papers": len(recent_paper_ids),
+        "cutoff": cutoff[:19],
+    }
