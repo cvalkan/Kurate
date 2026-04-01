@@ -3,7 +3,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
+  Tooltip as RechartsTooltip, ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
 import {
   FileText, Swords, Coins, Cpu, TrendingUp, BarChart3,
@@ -366,7 +366,7 @@ export function AdminStatistics({ categories }) {
               <Cpu className="h-4 w-4 text-muted-foreground" />
               <h3 className="text-sm font-medium">Memory Usage (RSS)</h3>
               <span className="text-xs text-muted-foreground">
-                Current: {memoryData[memoryData.length - 1]?.rss}MB / 2048MB
+                Current: {Math.round(memoryData[memoryData.length - 1]?.rss)}MB / 2048MB
               </span>
             </div>
             <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
@@ -421,12 +421,16 @@ export function AdminStatistics({ categories }) {
                         <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " CET" : ""}</div>
                         <div className="text-muted-foreground mt-0.5">{d?.label}</div>
                         <div className="font-mono mt-1" style={{ color: d?.rss > 1536 ? "#ef4444" : d?.rss > 1024 ? "#f59e0b" : "#10b981" }}>
-                          {d?.rss}MB
+                          {Math.round(d?.rss)}MB
                         </div>
                       </div>
                     );
                   }}
                 />
+                {/* Restart markers */}
+                {memoryData.filter(d => d.label === "Server started").map((d, i) => (
+                  <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} opacity={0.7} />
+                ))}
                 {/* Danger zone */}
                 <Area type="monotone" dataKey={() => 2048} stroke="none" fill="#ef4444" fillOpacity={0.05} />
                 <Area type="stepAfter" dataKey="rss" stroke="#ef4444" fill="url(#memGrad)" strokeWidth={1.5} dot={false} />

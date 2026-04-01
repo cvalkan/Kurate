@@ -216,16 +216,18 @@ async def startup():
     # restart storms on deploy and doubled RSS during restarts → OOM kills.
     # This patch runs on every boot so it survives config resets.
     try:
-        import subprocess
+        import subprocess, sys as _sys
         conf_path = "/etc/supervisor/conf.d/supervisord.conf"
         with open(conf_path) as f:
             conf = f.read()
         if "--reload" in conf:
             with open(conf_path, "w") as f:
                 f.write(conf.replace(" --reload", ""))
-            subprocess.run(["supervisorctl", "reread"], capture_output=True)
-            subprocess.run(["supervisorctl", "update", "backend"], capture_output=True)
-            logger.info("Removed --reload from supervisor config (production fix)")
+            subprocess.run(["supervisorctl", "reread"], capture_output=True, timeout=5)
+            logger.info("Patched out --reload from supervisor config — exiting for clean restart")
+            _sys.exit(0)  # Let supervisor restart us WITHOUT --reload
+    except SystemExit:
+        raise  # Don't catch sys.exit
     except Exception as e:
         logger.warning(f"Supervisor config patch failed: {e}")
 
@@ -234,8 +236,8 @@ async def startup():
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
         admin_db = db.client.admin
-        await admin_db.command({"setParameter": 1, "wiredTigerEngineRuntimeConfig": "cache_size=512M"})
-        logger.info("MongoDB WiredTiger cache capped to 512MB")
+        await admin_db.command({"setParameter": 1, "wiredTigerEngineRuntimeConfig": "cache_size=384M"})
+        logger.info("MongoDB WiredTiger cache capped to 384MB")
     except Exception as e:
         logger.warning(f"Failed to cap MongoDB cache: {e}")
 
