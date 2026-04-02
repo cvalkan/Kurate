@@ -349,28 +349,36 @@ def compute_openskill_tm_scores(matches: List[dict], paper_ids: List[str]) -> Di
     """Compute OpenSkill Thurstone-Mosteller Full scores from pairwise matches.
 
     Uses the Weng-Lin closed-form approximation to TrueSkill (same Gaussian model,
-    no iterative EP). Returns {paper_id: mu}. Higher = better.
+    no iterative EP). 3 passes through shuffled matches for convergence parity
+    with TrueSkill. Returns {paper_id: mu}. Higher = better.
     Caller is expected to pre-filter for completed/non-failed matches.
     """
     from openskill.models import ThurstoneMostellerFull
+    import random as _rng
 
     model = ThurstoneMostellerFull()
     ratings = {pid: model.rating() for pid in paper_ids}
     pid_set = set(paper_ids)
 
-    for m in matches:
-        winner = m.get("winner_id")
-        if not winner:
-            continue
-        p1 = m.get("paper1_id", "")
-        p2 = m.get("paper2_id", "")
-        if p1 not in pid_set or p2 not in pid_set:
-            continue
-        loser = p2 if winner == p1 else p1
-        if winner in ratings and loser in ratings:
-            result = model.rate([[ratings[winner]], [ratings[loser]]])
-            ratings[winner] = result[0][0]
-            ratings[loser] = result[1][0]
+    valid = [m for m in matches
+             if m.get("winner_id")
+             and m.get("paper1_id", "") in pid_set
+             and m.get("paper2_id", "") in pid_set]
+
+    if not valid:
+        return {pid: ratings[pid].mu for pid in paper_ids}
+
+    _rng.seed(42)
+    for _ in range(3):
+        _rng.shuffle(valid)
+        for m in valid:
+            winner = m["winner_id"]
+            p1, p2 = m["paper1_id"], m["paper2_id"]
+            loser = p2 if winner == p1 else p1
+            if winner in ratings and loser in ratings:
+                result = model.rate([[ratings[winner]], [ratings[loser]]])
+                ratings[winner] = result[0][0]
+                ratings[loser] = result[1][0]
 
     return {pid: ratings[pid].mu for pid in paper_ids}
 
