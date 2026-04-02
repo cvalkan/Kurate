@@ -335,16 +335,8 @@ async def _compute_dataset(db, dataset_id: str):
         ta = norm_tier(papers_by_id.get(a, {}).get("decision"))
         tb = norm_tier(papers_by_id.get(b, {}).get("decision"))
 
-        # Only rankable tiers
+        # Only rankable tiers — withdrawn/desk-rejected excluded entirely
         if ta not in RANKABLE_TIERS or tb not in RANKABLE_TIERS:
-            # Non-rankable → coin flip in CF
-            cf_tier_ai_total += 1
-            cf_tier_ai_agree += 0.5
-            cf_tier_same_count += 1
-            prefs = expert_pair_prefs.get(pair, {})
-            for exp in expert_pair_rated.get(pair, set()):
-                cf_tier_hh_total += 1
-                cf_tier_hh_agree += 0.5
             continue
 
         sa = TIER_SCORE.get(ta, -1)
