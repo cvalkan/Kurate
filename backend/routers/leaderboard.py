@@ -1504,6 +1504,23 @@ async def _compute_model_correlation(category, mode):
     try:
         model_rankings = {}
         model_avg_mpp = {}  # avg matches/paper per model
+
+        # Load matches for OpenSkill computation (grouped by model, with key merging)
+        from services.ranking import compute_openskill_tm_scores
+        _OPUS_MERGE = {
+            "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
+            "anthropic/claude-opus-4-6": "anthropic/claude-opus",
+        }
+        match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        if category:
+            match_query["primary_category"] = category
+        model_matches_raw = {}
+        async for m in db.matches.find(match_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
+            mu = m.get("model_used", {})
+            raw_key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+            mk = _OPUS_MERGE.get(raw_key, raw_key)
+            model_matches_raw.setdefault(mk, []).append(m)
+
         for mk in model_keys:
             mk_papers = [pid for pid, s in model_paper_stats[mk].items() if s.get("total", 0) >= MIN_MATCHES_PER_MODEL]
             if len(mk_papers) < 20:
@@ -1512,11 +1529,15 @@ async def _compute_model_correlation(category, mode):
             model_rankings[mk] = {"reg_wr": reg_wr}
             if mk in model_paper_ts:
                 model_rankings[mk]["trueskill"] = model_paper_ts[mk]
+            # OpenSkill TM-Full from per-model matches
+            mk_match_list = model_matches_raw.get(mk, [])
+            if mk_match_list:
+                model_rankings[mk]["openskill"] = compute_openskill_tm_scores(mk_match_list, mk_papers)
             # Compute avg matches/paper for this model
             mpps = [model_paper_stats[mk][pid].get("total", 0) for pid in mk_papers]
             model_avg_mpp[mk] = round(float(np.mean(mpps)), 1) if mpps else 0
 
-        method_order = ["reg_wr", "trueskill"]
+        method_order = ["reg_wr", "trueskill", "openskill"]
 
         for i, m1 in enumerate(model_keys):
             for j, m2 in enumerate(model_keys):
@@ -1642,7 +1663,7 @@ async def _compute_model_correlation(category, mode):
                     if i >= j or m1 not in model_rankings or m2 not in model_rankings:
                         continue
                     pair_label = f"{_short(m1)} vs {_short(m2)}"
-                    for method in ["reg_wr", "trueskill"]:
+                    for method in ["reg_wr", "trueskill", "openskill"]:
                         r1 = {p: v for p, v in model_rankings[m1].get(method, {}).items() if p in cat_pids}
                         r2 = {p: v for p, v in model_rankings[m2].get(method, {}).items() if p in cat_pids}
                         common = sorted(set(r1.keys()) & set(r2.keys()))
@@ -1671,7 +1692,7 @@ async def _compute_model_correlation(category, mode):
         "avg_ts_correlations": dict(sorted(avg_ts_correlations.items())),
         "agreement": sorted_agreement,
         "avg_agreement": dict(sorted(avg_agreement.items())),
-        "method_labels": {"reg_wr": "Reg WR", "trueskill": "TrueSkill"},
+        "method_labels": {"reg_wr": "Reg WR", "trueskill": "TrueSkill", "openskill": "OpenSkill TM"},
         "n_common_papers": len(common_papers),
         "category": category,
         "mode": mode,
@@ -1925,7 +1946,7 @@ async def _compute_model_correlation_from_matches(category, mode):
     # Then correlate across model pairs to show which scoring method yields most agreement
     pw_inter_model = []
     try:
-        from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores
+        from services.ranking import compute_bt_ranking_scores, compute_trueskill_ranking_scores, compute_openskill_tm_scores
 
         # Group matches by model
         model_matches = {mk: [] for mk in model_keys}
@@ -1967,11 +1988,15 @@ async def _compute_model_correlation_from_matches(category, mode):
             # TrueSkill
             ts_scores = compute_trueskill_ranking_scores(bt_fmt, mk_paper_ids)
 
+            # OpenSkill Thurstone-Mosteller Full
+            os_scores = compute_openskill_tm_scores(bt_fmt, mk_paper_ids)
+
             model_rankings[mk] = {
                 "raw_wr": raw_wr,
                 "reg_wr": reg_wr,
                 "bt": bt_scores,
                 "trueskill": ts_scores,
+                "openskill": os_scores,
             }
 
         # For each model pair, compute Spearman ρ per method
@@ -1980,8 +2005,9 @@ async def _compute_model_correlation_from_matches(category, mode):
             "reg_wr": "Regularized WR",
             "bt": "Bradley-Terry",
             "trueskill": "TrueSkill",
+            "openskill": "OpenSkill TM",
         }
-        method_order = ["raw_wr", "reg_wr", "bt", "trueskill"]
+        method_order = ["raw_wr", "reg_wr", "bt", "trueskill", "openskill"]
 
         for i, m1 in enumerate(model_keys):
             for j, m2 in enumerate(model_keys):
@@ -2106,12 +2132,31 @@ async def _compute_scoring_method_correlation(category):
     wr_scores = {r["paper_id"]: r["score"] for r in rankings}
     ts_scores = {r["paper_id"]: r["ts_score"] for r in rankings}
 
+    # Compute OpenSkill from matches
+    os_scores = {}
+    try:
+        from services.ranking import compute_openskill_tm_scores
+        os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        if category:
+            os_query["primary_category"] = category
+        os_matches = await collect_all(db.matches.find(
+            os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+        ))
+        os_pids = [r["paper_id"] for r in rankings]
+        os_scores = compute_openskill_tm_scores(os_matches, os_pids)
+    except Exception:
+        pass
+
     t_compute = time.perf_counter() - t_start
 
     shared = sorted(wr_scores.keys())
     methods = {"win_rate": wr_scores, "trueskill": ts_scores}
     method_labels = {"win_rate": "Normalized Win-Rate", "trueskill": "TrueSkill"}
     method_keys = ["win_rate", "trueskill"]
+    if os_scores:
+        methods["openskill"] = os_scores
+        method_labels["openskill"] = "OpenSkill TM"
+        method_keys.append("openskill")
 
     correlations = []
     for i in range(len(method_keys)):
@@ -2422,6 +2467,25 @@ async def _compute_si_rating_stats(category, model):
                 "trueskill": ("TrueSkill", {p["paper_id"]: p["ts_score"] for p in pw_papers if p.get("ts_score")}),
             }
 
+            # Add OpenSkill from match data
+            try:
+                from services.ranking import compute_openskill_tm_scores
+                _OPUS_MERGE_PW = {
+                    "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
+                    "anthropic/claude-opus-4-6": "anthropic/claude-opus",
+                }
+                os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+                if category:
+                    os_query["primary_category"] = category
+                os_matches = await collect_all(db.matches.find(
+                    os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+                ))
+                os_pids = [p["paper_id"] for p in pw_papers]
+                os_scores = compute_openskill_tm_scores(os_matches, os_pids)
+                combined_pw["openskill"] = ("OpenSkill TM", os_scores)
+            except Exception:
+                pass
+
             # Per-model PW (within-model) from stored model_stats
             within_pw = {}
             _MODEL_KEY_MAP = {"claude": "anthropic/claude-opus", "gpt": "openai/gpt-5.2", "gemini": "gemini/gemini-3-pro-preview"}
@@ -2548,6 +2612,29 @@ async def _compute_si_rating_stats(category, model):
                         if wm_ts_row:
                             wm_ts_row["avg_mpp"] = within_mpp.get(si_mk, 0)
                             wm_rows.append(wm_ts_row)
+                        # Per-model OpenSkill
+                        try:
+                            mk_os_matches = model_matches_raw.get(mk_key, []) if 'model_matches_raw' in dir() else []
+                            if not mk_os_matches:
+                                # Load per-model matches
+                                mk_os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+                                if category:
+                                    mk_os_query["primary_category"] = category
+                                raw_key_variants = [k for k, v in _OPUS_MERGE_PW.items() if v == mk_key] + [mk_key]
+                                # Build model_used filter
+                                provider, model_name = mk_key.split("/", 1)
+                                mk_os_query["model_used.provider"] = provider
+                                mk_os_matches = await collect_all(db.matches.find(
+                                    mk_os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+                                ))
+                            wm_os_pids = [p["paper_id"] for p in pw_papers]
+                            wm_os = compute_openskill_tm_scores(mk_os_matches, wm_os_pids)
+                            wm_os_row = _corr_row("within_os", "OpenSkill TM", wm_os, si_maps[si_mk])
+                            if wm_os_row:
+                                wm_os_row["avg_mpp"] = within_mpp.get(si_mk, 0)
+                                wm_rows.append(wm_os_row)
+                        except Exception:
+                            pass
                     if wm_rows:
                         within_model[si_mk] = {"n_matches": wm_matches, "avg_mpp": within_mpp.get(si_mk, 0), "rows": wm_rows}
 
@@ -2626,12 +2713,12 @@ async def _compute_si_rating_stats(category, model):
 
                     # Size-weighted averages
                     avg_rows = []
-                    for pw_key in ["reg_wr", "trueskill"]:
+                    for pw_key in ["reg_wr", "trueskill", "openskill"]:
                         data = combined_cat_rows.get(pw_key, [])
                         if data:
                             w = [n for _, _, n in data]
                             avg_rows.append({
-                                "method": pw_key, "label": "Reg WR" if pw_key == "reg_wr" else "TrueSkill",
+                                "method": pw_key, "label": {"reg_wr": "Reg WR", "trueskill": "TrueSkill", "openskill": "OpenSkill TM"}[pw_key],
                                 "spearman_rho": round(float(np.average([r for r, _, _ in data], weights=w)), 3),
                                 "kendall_tau": round(float(np.average([t for _, t, _ in data], weights=w)), 3),
                                 "n": sum(w), "avg_mpp": avg_combined_mpp,

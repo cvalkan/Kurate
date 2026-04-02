@@ -345,6 +345,37 @@ def compute_trueskill_ranking_scores(matches: List[dict], paper_ids: List[str]) 
     return {pid: ratings[pid].mu for pid in paper_ids}
 
 
+def compute_openskill_tm_scores(matches: List[dict], paper_ids: List[str]) -> Dict[str, float]:
+    """Compute OpenSkill Thurstone-Mosteller Full scores from pairwise matches.
+
+    Uses the Weng-Lin closed-form approximation to TrueSkill (same Gaussian model,
+    no iterative EP). Returns {paper_id: mu}. Higher = better.
+    Caller is expected to pre-filter for completed/non-failed matches.
+    """
+    from openskill.models import ThurstoneMostellerFull
+
+    model = ThurstoneMostellerFull()
+    ratings = {pid: model.rating() for pid in paper_ids}
+    pid_set = set(paper_ids)
+
+    for m in matches:
+        winner = m.get("winner_id")
+        if not winner:
+            continue
+        p1 = m.get("paper1_id", "")
+        p2 = m.get("paper2_id", "")
+        if p1 not in pid_set or p2 not in pid_set:
+            continue
+        loser = p2 if winner == p1 else p1
+        if winner in ratings and loser in ratings:
+            result = model.rate([[ratings[winner]], [ratings[loser]]])
+            ratings[winner] = result[0][0]
+            ratings[loser] = result[1][0]
+
+    return {pid: ratings[pid].mu for pid in paper_ids}
+
+
+
 # Pre-compute the z-value (constant) to avoid repeated scipy calls
 _WILSON_Z = scipy_stats.norm.ppf(0.975)
 
