@@ -2570,6 +2570,25 @@ async def _compute_si_rating_stats(category, model):
                         break
             controlled_pw["trueskill"] = ("TrueSkill", sub_ts)
 
+            # Controlled OpenSkill: compute from a single random model's matches
+            try:
+                _rng.seed(42)
+                sub_os_mk = _rng.choice(mk_keys_list)
+                sub_os_matches = model_matches_raw.get(sub_os_mk, []) if 'model_matches_raw' in dir() else []
+                if not sub_os_matches:
+                    provider = sub_os_mk.split("/")[0]
+                    sub_os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "model_used.provider": provider}
+                    if category:
+                        sub_os_query["primary_category"] = category
+                    sub_os_matches = await collect_all(db.matches.find(
+                        sub_os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+                    ))
+                sub_os_pids = [p["paper_id"] for p in pw_papers]
+                sub_os = compute_openskill_tm_scores(sub_os_matches, sub_os_pids)
+                controlled_pw["openskill"] = ("OpenSkill TM", sub_os)
+            except Exception:
+                pass
+
             for si_mk in ("claude", "gpt", "gemini"):
                 if si_mk not in si_maps:
                     continue
@@ -2668,11 +2687,13 @@ async def _compute_si_rating_stats(category, model):
                             continue
 
                         # Combined PW methods for this category
-                        for pw_key, (pw_label, _) in combined_pw.items():
+                        for pw_key, (pw_label, pw_all_scores) in combined_pw.items():
                             if pw_key == "reg_wr":
                                 cat_pw = {p["paper_id"]: p["score"] for p in cat_papers if p.get("score") and p["paper_id"] in cat_si}
                             elif pw_key == "trueskill":
                                 cat_pw = {p["paper_id"]: p["ts_score"] for p in cat_papers if p.get("ts_score") and p["paper_id"] in cat_si}
+                            elif pw_key == "openskill":
+                                cat_pw = {pid: pw_all_scores[pid] for pid in [p["paper_id"] for p in cat_papers] if pid in pw_all_scores and pid in cat_si}
                             else:
                                 continue
                             common = sorted(set(cat_pw.keys()) & set(cat_si.keys()))
