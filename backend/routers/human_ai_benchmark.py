@@ -1102,6 +1102,8 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
                 cf_hc_agree += 0.5
 
         # Human vs Majority LOO (cf)
+        # Only count cases where a clear LOO majority exists.
+        # Split votes / insufficient data are skipped (not coin-flipped).
         for exp_name, has_pref in experts_for_pair:
             others = {e: prefs[e] for e in prefs if e != exp_name}
             if len(others) >= 2:
@@ -1114,16 +1116,6 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
                             cf_hc_loo_agree += 1
                     else:
                         cf_hc_loo_agree += 0.5
-                else:
-                    # Split among non-tying experts, no clear LOO majority → coin flip
-                    cf_hc_loo_total += 1
-                    cf_hc_loo_agree += 0.5
-            else:
-                # Fewer than 2 others with preferences
-                other_rated = [e for e, _ in experts_for_pair if e != exp_name]
-                if len(other_rated) >= 2:
-                    cf_hc_loo_total += 1
-                    cf_hc_loo_agree += 0.5
 
         # AI vs Committee tier (cf) — includes same-tier as coin flip only when within-tier is included
         pa = papers_by_id.get(a, {})
