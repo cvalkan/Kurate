@@ -2147,7 +2147,7 @@ async def _compute_scoring_method_correlation(category):
             os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
         ))
         os_pids = [r["paper_id"] for r in rankings]
-        os_scores = compute_openskill_tm_scores(os_matches, os_pids)
+        os_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=1)
     except Exception:
         pass
 
@@ -2595,7 +2595,7 @@ async def _compute_si_rating_stats(category, model):
                         sub_os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
                     ))
                 sub_os_pids = [p["paper_id"] for p in pw_papers]
-                sub_os = compute_openskill_tm_scores(sub_os_matches, sub_os_pids)
+                sub_os = compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=1)
                 controlled_pw["openskill"] = ("OpenSkill 1p", sub_os)
                 sub_os3 = compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=3)
                 controlled_pw["openskill3"] = ("OpenSkill 3p", sub_os3)
