@@ -1341,9 +1341,8 @@ async def human_ai_benchmark_fixed(gt_type: str = Query("comp")):
     if cache.get("data"):
         return cache["data"]
     try:
-        result = await _compute_benchmark(
-            "comp", include_within_tier=True, min_expert_prefs=1,
-            rankable_tiers_only=True, exclude_datasets={"peerread_acl_2017"})
+        from services.benchmark_fixed import compute_fixed_benchmark
+        result = await compute_fixed_benchmark(db)
         if result.get("status") == "ok":
             _benchmark_fixed_cache[gt_type] = {"data": result}
             return result
