@@ -345,12 +345,12 @@ def compute_trueskill_ranking_scores(matches: List[dict], paper_ids: List[str]) 
     return {pid: ratings[pid].mu for pid in paper_ids}
 
 
-def compute_openskill_tm_scores(matches: List[dict], paper_ids: List[str]) -> Dict[str, float]:
+def compute_openskill_tm_scores(matches: List[dict], paper_ids: List[str], passes: int = 3) -> Dict[str, float]:
     """Compute OpenSkill Thurstone-Mosteller Full scores from pairwise matches.
 
     Uses the Weng-Lin closed-form approximation to TrueSkill (same Gaussian model,
-    no iterative EP). 3 passes through shuffled matches for convergence parity
-    with TrueSkill. Returns {paper_id: mu}. Higher = better.
+    no iterative EP). Multiple passes through shuffled matches improve convergence.
+    Returns {paper_id: mu}. Higher = better.
     Caller is expected to pre-filter for completed/non-failed matches.
     """
     from openskill.models import ThurstoneMostellerFull
@@ -369,7 +369,7 @@ def compute_openskill_tm_scores(matches: List[dict], paper_ids: List[str]) -> Di
         return {pid: ratings[pid].mu for pid in paper_ids}
 
     _rng.seed(42)
-    for _ in range(3):
+    for _ in range(passes):
         _rng.shuffle(valid)
         for m in valid:
             winner = m["winner_id"]

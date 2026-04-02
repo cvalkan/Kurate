@@ -1532,12 +1532,13 @@ async def _compute_model_correlation(category, mode):
             # OpenSkill TM-Full from per-model matches
             mk_match_list = model_matches_raw.get(mk, [])
             if mk_match_list:
-                model_rankings[mk]["openskill"] = compute_openskill_tm_scores(mk_match_list, mk_papers)
+                model_rankings[mk]["openskill"] = compute_openskill_tm_scores(mk_match_list, mk_papers, passes=1)
+                model_rankings[mk]["openskill3"] = compute_openskill_tm_scores(mk_match_list, mk_papers, passes=3)
             # Compute avg matches/paper for this model
             mpps = [model_paper_stats[mk][pid].get("total", 0) for pid in mk_papers]
             model_avg_mpp[mk] = round(float(np.mean(mpps)), 1) if mpps else 0
 
-        method_order = ["reg_wr", "trueskill", "openskill"]
+        method_order = ["reg_wr", "trueskill", "openskill", "openskill3"]
 
         for i, m1 in enumerate(model_keys):
             for j, m2 in enumerate(model_keys):
@@ -1663,7 +1664,7 @@ async def _compute_model_correlation(category, mode):
                     if i >= j or m1 not in model_rankings or m2 not in model_rankings:
                         continue
                     pair_label = f"{_short(m1)} vs {_short(m2)}"
-                    for method in ["reg_wr", "trueskill", "openskill"]:
+                    for method in ["reg_wr", "trueskill", "openskill", "openskill3"]:
                         r1 = {p: v for p, v in model_rankings[m1].get(method, {}).items() if p in cat_pids}
                         r2 = {p: v for p, v in model_rankings[m2].get(method, {}).items() if p in cat_pids}
                         common = sorted(set(r1.keys()) & set(r2.keys()))
@@ -1692,7 +1693,7 @@ async def _compute_model_correlation(category, mode):
         "avg_ts_correlations": dict(sorted(avg_ts_correlations.items())),
         "agreement": sorted_agreement,
         "avg_agreement": dict(sorted(avg_agreement.items())),
-        "method_labels": {"reg_wr": "Reg WR", "trueskill": "TrueSkill", "openskill": "OpenSkill TM"},
+        "method_labels": {"reg_wr": "Reg WR", "trueskill": "TrueSkill", "openskill": "OpenSkill 1p", "openskill3": "OpenSkill 3p"},
         "n_common_papers": len(common_papers),
         "category": category,
         "mode": mode,
@@ -1988,15 +1989,17 @@ async def _compute_model_correlation_from_matches(category, mode):
             # TrueSkill
             ts_scores = compute_trueskill_ranking_scores(bt_fmt, mk_paper_ids)
 
-            # OpenSkill Thurstone-Mosteller Full
-            os_scores = compute_openskill_tm_scores(bt_fmt, mk_paper_ids)
+            # OpenSkill Thurstone-Mosteller Full (1-pass and 3-pass)
+            os1_scores = compute_openskill_tm_scores(bt_fmt, mk_paper_ids, passes=1)
+            os3_scores = compute_openskill_tm_scores(bt_fmt, mk_paper_ids, passes=3)
 
             model_rankings[mk] = {
                 "raw_wr": raw_wr,
                 "reg_wr": reg_wr,
                 "bt": bt_scores,
                 "trueskill": ts_scores,
-                "openskill": os_scores,
+                "openskill": os1_scores,
+                "openskill3": os3_scores,
             }
 
         # For each model pair, compute Spearman ρ per method
@@ -2005,9 +2008,10 @@ async def _compute_model_correlation_from_matches(category, mode):
             "reg_wr": "Regularized WR",
             "bt": "Bradley-Terry",
             "trueskill": "TrueSkill",
-            "openskill": "OpenSkill TM",
+            "openskill": "OpenSkill 1p",
+            "openskill3": "OpenSkill 3p",
         }
-        method_order = ["raw_wr", "reg_wr", "bt", "trueskill", "openskill"]
+        method_order = ["raw_wr", "reg_wr", "bt", "trueskill", "openskill", "openskill3"]
 
         for i, m1 in enumerate(model_keys):
             for j, m2 in enumerate(model_keys):
@@ -2155,8 +2159,13 @@ async def _compute_scoring_method_correlation(category):
     method_keys = ["win_rate", "trueskill"]
     if os_scores:
         methods["openskill"] = os_scores
-        method_labels["openskill"] = "OpenSkill TM"
+        method_labels["openskill"] = "OpenSkill 1p"
         method_keys.append("openskill")
+        os3_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=3)
+        if os3_scores:
+            methods["openskill3"] = os3_scores
+            method_labels["openskill3"] = "OpenSkill 3p"
+            method_keys.append("openskill3")
 
     correlations = []
     for i in range(len(method_keys)):
@@ -2481,8 +2490,10 @@ async def _compute_si_rating_stats(category, model):
                     os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
                 ))
                 os_pids = [p["paper_id"] for p in pw_papers]
-                os_scores = compute_openskill_tm_scores(os_matches, os_pids)
-                combined_pw["openskill"] = ("OpenSkill TM", os_scores)
+                os_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=1)
+                combined_pw["openskill"] = ("OpenSkill 1p", os_scores)
+                os3_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=3)
+                combined_pw["openskill3"] = ("OpenSkill 3p", os3_scores)
             except Exception:
                 pass
 
@@ -2585,7 +2596,9 @@ async def _compute_si_rating_stats(category, model):
                     ))
                 sub_os_pids = [p["paper_id"] for p in pw_papers]
                 sub_os = compute_openskill_tm_scores(sub_os_matches, sub_os_pids)
-                controlled_pw["openskill"] = ("OpenSkill TM", sub_os)
+                controlled_pw["openskill"] = ("OpenSkill 1p", sub_os)
+                sub_os3 = compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=3)
+                controlled_pw["openskill3"] = ("OpenSkill 3p", sub_os3)
             except Exception:
                 pass
 
@@ -2647,11 +2660,16 @@ async def _compute_si_rating_stats(category, model):
                                     mk_os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
                                 ))
                             wm_os_pids = [p["paper_id"] for p in pw_papers]
-                            wm_os = compute_openskill_tm_scores(mk_os_matches, wm_os_pids)
-                            wm_os_row = _corr_row("within_os", "OpenSkill TM", wm_os, si_maps[si_mk])
+                            wm_os = compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=1)
+                            wm_os_row = _corr_row("within_os", "OpenSkill 1p", wm_os, si_maps[si_mk])
                             if wm_os_row:
                                 wm_os_row["avg_mpp"] = within_mpp.get(si_mk, 0)
                                 wm_rows.append(wm_os_row)
+                            wm_os3 = compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=3)
+                            wm_os3_row = _corr_row("within_os3", "OpenSkill 3p", wm_os3, si_maps[si_mk])
+                            if wm_os3_row:
+                                wm_os3_row["avg_mpp"] = within_mpp.get(si_mk, 0)
+                                wm_rows.append(wm_os3_row)
                         except Exception:
                             pass
                     if wm_rows:
@@ -2692,7 +2710,7 @@ async def _compute_si_rating_stats(category, model):
                                 cat_pw = {p["paper_id"]: p["score"] for p in cat_papers if p.get("score") and p["paper_id"] in cat_si}
                             elif pw_key == "trueskill":
                                 cat_pw = {p["paper_id"]: p["ts_score"] for p in cat_papers if p.get("ts_score") and p["paper_id"] in cat_si}
-                            elif pw_key == "openskill":
+                            elif pw_key in ("openskill", "openskill3"):
                                 cat_pw = {pid: pw_all_scores[pid] for pid in [p["paper_id"] for p in cat_papers] if pid in pw_all_scores and pid in cat_si}
                             else:
                                 continue
@@ -2734,12 +2752,13 @@ async def _compute_si_rating_stats(category, model):
 
                     # Size-weighted averages
                     avg_rows = []
-                    for pw_key in ["reg_wr", "trueskill", "openskill"]:
+                    for pw_key in ["reg_wr", "trueskill", "openskill", "openskill3"]:
                         data = combined_cat_rows.get(pw_key, [])
                         if data:
+                            _label_map = {"reg_wr": "Reg WR", "trueskill": "TrueSkill", "openskill": "OpenSkill 1p", "openskill3": "OpenSkill 3p"}
                             w = [n for _, _, n in data]
                             avg_rows.append({
-                                "method": pw_key, "label": {"reg_wr": "Reg WR", "trueskill": "TrueSkill", "openskill": "OpenSkill TM"}[pw_key],
+                                "method": pw_key, "label": _label_map[pw_key],
                                 "spearman_rho": round(float(np.average([r for r, _, _ in data], weights=w)), 3),
                                 "kendall_tau": round(float(np.average([t for _, t, _ in data], weights=w)), 3),
                                 "n": sum(w), "avg_mpp": avg_combined_mpp,
