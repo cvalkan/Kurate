@@ -66,6 +66,28 @@ ICLR_DATASETS = [
     "iclr-optimization", "iclr-ot", "iclr-pdes", "iclr-protein",
 ]
 
+# Load the authoritative pair set from the exported CSV.
+# This ensures exact reproducibility regardless of DB match pool changes.
+import csv as _csv
+from pathlib import Path as _Path
+_CSV_PATH = _Path(__file__).parent.parent / "data" / "matches_extended.csv"
+_CSV_PAIRS = None
+
+def _load_csv_pairs():
+    global _CSV_PAIRS
+    if _CSV_PAIRS is not None:
+        return _CSV_PAIRS
+    _CSV_PAIRS = {}
+    if _CSV_PATH.exists():
+        from collections import defaultdict
+        by_ds = defaultdict(set)
+        with open(_CSV_PATH) as f:
+            for row in _csv.DictReader(f):
+                pair = tuple(sorted([row["paper1_id"], row["paper2_id"]]))
+                by_ds[row["dataset_id"]].add(pair)
+        _CSV_PAIRS = dict(by_ds)
+    return _CSV_PAIRS
+
 
 async def compute_fixed_benchmark(db):
     """Compute the simplified fixed benchmark across all ICLR datasets."""
@@ -137,49 +159,11 @@ async def _compute_dataset(db, dataset_id: str):
     if thinking_count == 0:
         ai_mode = "abstract_plus_summary"
 
-    base_raw = await collect_all(db.validation_matches.find(
+    ai_raw = await collect_all(db.validation_matches.find(
         {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": ai_mode, "experiment_tag": {"$exists": False}},
+         "content_mode": ai_mode},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ))
-    exp_raw = await collect_all(db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": ai_mode, "experiment_tag": {"$exists": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
-    ))
-
-    # Split cross-tier vs within-tier, subsample within-tier to natural proportion
-    def _is_within(m):
-        t1 = norm_tier(papers_by_id.get(m["paper1_id"], {}).get("decision"))
-        t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
-        return (t1 is not None and t2 is not None and
-                TIER_SCORE.get(t1, -1) == TIER_SCORE.get(t2, -2))
-
-    combined = base_raw + exp_raw
-    cross = [m for m in combined if not _is_within(m)]
-    within = [m for m in combined if _is_within(m)]
-
-    # Natural within-tier fraction
-    all_pids = list(papers_by_id.keys())
-    nat_cross, nat_within = 0, 0
-    for i in range(len(all_pids)):
-        for j in range(i + 1, len(all_pids)):
-            t1 = norm_tier(papers_by_id[all_pids[i]].get("decision"))
-            t2 = norm_tier(papers_by_id[all_pids[j]].get("decision"))
-            if t1 and t2:
-                if TIER_SCORE.get(t1) == TIER_SCORE.get(t2):
-                    nat_within += 1
-                else:
-                    nat_cross += 1
-    nat_total = nat_cross + nat_within
-    nat_frac = nat_within / nat_total if nat_total > 0 else 0.3
-    target_within = int(len(cross) * nat_frac / max(0.01, 1 - nat_frac))
-    target_within = min(target_within, len(within))
-    if target_within < len(within):
-        seed = 42 + int(hashlib.sha256(dataset_id.encode()).hexdigest()[:8], 16)
-        _rng.seed(seed)
-        within = _rng.sample(within, target_within)
-    ai_raw = cross + within
 
     # --- AI majority vote per pair ---
     ai_pair_votes = defaultdict(list)
