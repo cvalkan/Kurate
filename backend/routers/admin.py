@@ -2766,16 +2766,56 @@ async def backfill_archives():
 
 
 @router.post("/prune-duplicate-matches")
-async def prune_duplicate_matches(request: Request, category: str = Query("cs.CR")):
-    """Admin-triggered: remove duplicate matches (keep 1 per pair) for a category's recent papers.
-
-    Scoped to papers in the rolling 48h window (same as the leaderboard's "Most Recent"
-    filter). Keeps the earliest match per paper pair, deletes the rest, then reranks.
-    """
+async def prune_duplicate_matches(request: Request, category: str = Query("cs.CR"), scope: str = Query("recent")):
+    """Remove duplicate matches (keep 1 per pair). 
+    scope=recent: only recent papers (48h window). scope=all: entire category."""
     from core.config import db
     from datetime import datetime, timezone, timedelta
 
-    # Find the "Most Recent" paper IDs using the same rolling-48h logic as the leaderboard
+    if scope == "all":
+        # Full category dedup — no paper filter
+        pipeline = [
+            {"$match": {
+                "completed": True, "failed": {"$ne": True},
+                "primary_category": category, "mode": {"$exists": False},
+            }},
+            {"$sort": {"created_at": 1}},
+            {"$group": {
+                "_id": {"pair": {"$cond": {
+                    "if": {"$lt": ["$paper1_id", "$paper2_id"]},
+                    "then": {"a": "$paper1_id", "b": "$paper2_id"},
+                    "else": {"a": "$paper2_id", "b": "$paper1_id"},
+                }}},
+                "match_ids": {"$push": "$id"},
+                "count": {"$sum": 1},
+            }},
+            {"$match": {"count": {"$gt": 1}}},
+        ]
+
+        to_delete = []
+        async for doc in db.matches.aggregate(pipeline):
+            to_delete.extend(doc["match_ids"][1:])
+
+        total_deleted = 0
+        if to_delete:
+            import asyncio
+            for i in range(0, len(to_delete), 500):
+                batch = to_delete[i:i + 500]
+                result = await db.matches.delete_many({"id": {"$in": batch}})
+                total_deleted += result.deleted_count
+                await asyncio.sleep(0)
+
+        if total_deleted > 0:
+            from services.ranking import rerank_category, backfill_model_stats
+            from core.memlog import force_gc
+            await rerank_category(db, category)
+            await backfill_model_stats(db, category=category)
+            force_gc()
+
+        logger.info(f"[prune-all] {category}: removed {total_deleted} duplicate matches (full category)")
+        return {"status": "ok", "category": category, "scope": "all", "total_deleted": total_deleted}
+
+    # Original recent-only logic
     latest = await db.rankings.find_one(
         {"category": category, "added_at": {"$nin": ["", None]}},
         {"_id": 0, "added_at": 1},
