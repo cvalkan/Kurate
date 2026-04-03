@@ -396,7 +396,7 @@ export function AdminStatistics({ categories }) {
                   dataKey="epoch"
                   type="number"
                   scale="time"
-                  domain={["dataMin", "dataMax"]}
+                  domain={[Date.now() - memHours * 3600000, Date.now()]}
                   tickFormatter={(epoch) => {
                     const d = new Date(epoch);
                     const opts = { timeZone: "Europe/Berlin" };
