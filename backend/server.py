@@ -363,7 +363,7 @@ async def _deferred_startup():
         await db.rankings.create_index([("wilson_margin", 1)], name="wilson_margin_1")
         # Analysis store (pre-aggregated Model Analysis results)
         # Version check: clear stale docs when schema changes
-        _ANALYSIS_STORE_VERSION = 5  # Bump: clear stale gpt-5 cache from old production code
+        _ANALYSIS_STORE_VERSION = 6  # Bump: added OpenSkill 1p/3p/10p columns
         try:
             await db.analysis_store.drop_indexes()
         except Exception:
