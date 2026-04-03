@@ -2135,7 +2135,7 @@ async def get_system_logs(
     # This ensures all views are visually consistent for overlapping periods.
     logs = await db.system_logs.find(
         query, {"_id": 0}
-    ).sort("ts", -1).limit(min(limit, 5000)).to_list(min(limit, 5000))
+    ).sort("ts", -1).to_list(None)
 
     # Convert datetime to ISO string and ensure clean integer rss_mb
     for log in logs:
