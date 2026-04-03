@@ -1506,7 +1506,7 @@ async def _compute_model_correlation(category, mode):
         model_avg_mpp = {}  # avg matches/paper per model
 
         # Load matches for OpenSkill computation (grouped by model, with key merging)
-        from services.ranking import compute_openskill_tm_scores
+        from services.ranking import compute_openskill_tm_scores_async as compute_openskill_tm_scores
         _OPUS_MERGE = {
             "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
             "anthropic/claude-opus-4-6": "anthropic/claude-opus",
@@ -1532,9 +1532,9 @@ async def _compute_model_correlation(category, mode):
             # OpenSkill TM-Full from per-model matches
             mk_match_list = model_matches_raw.get(mk, [])
             if mk_match_list:
-                model_rankings[mk]["openskill"] = compute_openskill_tm_scores(mk_match_list, mk_papers, passes=1)
-                model_rankings[mk]["openskill3"] = compute_openskill_tm_scores(mk_match_list, mk_papers, passes=3)
-                model_rankings[mk]["openskill10"] = compute_openskill_tm_scores(mk_match_list, mk_papers, passes=10)
+                model_rankings[mk]["openskill"] = await compute_openskill_tm_scores(mk_match_list, mk_papers, passes=1)
+                model_rankings[mk]["openskill3"] = await compute_openskill_tm_scores(mk_match_list, mk_papers, passes=3)
+                model_rankings[mk]["openskill10"] = await compute_openskill_tm_scores(mk_match_list, mk_papers, passes=10)
             # Compute avg matches/paper for this model
             mpps = [model_paper_stats[mk][pid].get("total", 0) for pid in mk_papers]
             model_avg_mpp[mk] = round(float(np.mean(mpps)), 1) if mpps else 0
@@ -1991,9 +1991,9 @@ async def _compute_model_correlation_from_matches(category, mode):
             ts_scores = compute_trueskill_ranking_scores(bt_fmt, mk_paper_ids)
 
             # OpenSkill Thurstone-Mosteller Full (1-pass and 3-pass)
-            os1_scores = compute_openskill_tm_scores(bt_fmt, mk_paper_ids, passes=1)
-            os3_scores = compute_openskill_tm_scores(bt_fmt, mk_paper_ids, passes=3)
-            os10_scores = compute_openskill_tm_scores(bt_fmt, mk_paper_ids, passes=10)
+            os1_scores = await compute_openskill_tm_scores(bt_fmt, mk_paper_ids, passes=1)
+            os3_scores = await compute_openskill_tm_scores(bt_fmt, mk_paper_ids, passes=3)
+            os10_scores = await compute_openskill_tm_scores(bt_fmt, mk_paper_ids, passes=10)
 
             model_rankings[mk] = {
                 "raw_wr": raw_wr,
@@ -2143,7 +2143,7 @@ async def _compute_scoring_method_correlation(category):
     # Compute OpenSkill from matches
     os_scores = {}
     try:
-        from services.ranking import compute_openskill_tm_scores
+        from services.ranking import compute_openskill_tm_scores_async as compute_openskill_tm_scores
         os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
         if category:
             os_query["primary_category"] = category
@@ -2151,7 +2151,7 @@ async def _compute_scoring_method_correlation(category):
             os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
         ))
         os_pids = [r["paper_id"] for r in rankings]
-        os_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=1)
+        os_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=1)
     except Exception:
         pass
 
@@ -2165,12 +2165,12 @@ async def _compute_scoring_method_correlation(category):
         methods["openskill"] = os_scores
         method_labels["openskill"] = "OpenSkill 1p"
         method_keys.append("openskill")
-        os3_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=3)
+        os3_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=3)
         if os3_scores:
             methods["openskill3"] = os3_scores
             method_labels["openskill3"] = "OpenSkill 3p"
             method_keys.append("openskill3")
-        os10_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=10)
+        os10_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=10)
         if os10_scores:
             methods["openskill10"] = os10_scores
             method_labels["openskill10"] = "OpenSkill 10p"
@@ -2487,7 +2487,7 @@ async def _compute_si_rating_stats(category, model):
 
             # Add OpenSkill from match data
             try:
-                from services.ranking import compute_openskill_tm_scores
+                from services.ranking import compute_openskill_tm_scores_async as compute_openskill_tm_scores
                 _OPUS_MERGE_PW = {
                     "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
                     "anthropic/claude-opus-4-6": "anthropic/claude-opus",
@@ -2499,9 +2499,9 @@ async def _compute_si_rating_stats(category, model):
                     os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
                 ))
                 os_pids = [p["paper_id"] for p in pw_papers]
-                os_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=1)
+                os_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=1)
                 combined_pw["openskill"] = ("OpenSkill 1p", os_scores)
-                os3_scores = compute_openskill_tm_scores(os_matches, os_pids, passes=3)
+                os3_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=3)
                 combined_pw["openskill3"] = ("OpenSkill 3p", os3_scores)
             except Exception:
                 pass
@@ -2604,11 +2604,11 @@ async def _compute_si_rating_stats(category, model):
                         sub_os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
                     ))
                 sub_os_pids = [p["paper_id"] for p in pw_papers]
-                sub_os = compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=1)
+                sub_os = await compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=1)
                 controlled_pw["openskill"] = ("OpenSkill 1p", sub_os)
-                sub_os3 = compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=3)
+                sub_os3 = await compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=3)
                 controlled_pw["openskill3"] = ("OpenSkill 3p", sub_os3)
-                sub_os10 = compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=10)
+                sub_os10 = await compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=10)
                 controlled_pw["openskill10"] = ("OpenSkill 10p", sub_os10)
             except Exception:
                 pass
@@ -2671,17 +2671,17 @@ async def _compute_si_rating_stats(category, model):
                                     mk_os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
                                 ))
                             wm_os_pids = [p["paper_id"] for p in pw_papers]
-                            wm_os = compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=1)
+                            wm_os = await compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=1)
                             wm_os_row = _corr_row("within_os", "OpenSkill 1p", wm_os, si_maps[si_mk])
                             if wm_os_row:
                                 wm_os_row["avg_mpp"] = within_mpp.get(si_mk, 0)
                                 wm_rows.append(wm_os_row)
-                            wm_os3 = compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=3)
+                            wm_os3 = await compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=3)
                             wm_os3_row = _corr_row("within_os3", "OpenSkill 3p", wm_os3, si_maps[si_mk])
                             if wm_os3_row:
                                 wm_os3_row["avg_mpp"] = within_mpp.get(si_mk, 0)
                                 wm_rows.append(wm_os3_row)
-                            wm_os10 = compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=10)
+                            wm_os10 = await compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=10)
                             wm_os10_row = _corr_row("within_os10", "OpenSkill 10p", wm_os10, si_maps[si_mk])
                             if wm_os10_row:
                                 wm_os10_row["avg_mpp"] = within_mpp.get(si_mk, 0)

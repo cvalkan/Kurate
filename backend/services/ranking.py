@@ -352,6 +352,7 @@ def compute_openskill_tm_scores(matches: List[dict], paper_ids: List[str], passe
     no iterative EP). Multiple passes through shuffled matches improve convergence.
     Returns {paper_id: mu}. Higher = better.
     Caller is expected to pre-filter for completed/non-failed matches.
+    CPU-bound — use compute_openskill_tm_scores_async() from async contexts.
     """
     from openskill.models import ThurstoneMostellerFull
     import random as _rng
@@ -381,6 +382,13 @@ def compute_openskill_tm_scores(matches: List[dict], paper_ids: List[str], passe
                 ratings[loser] = result[1][0]
 
     return {pid: ratings[pid].mu for pid in paper_ids}
+
+
+async def compute_openskill_tm_scores_async(matches: List[dict], paper_ids: List[str], passes: int = 3) -> Dict[str, float]:
+    """Async wrapper — runs compute_openskill_tm_scores in a thread pool to avoid blocking the event loop."""
+    import asyncio
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, compute_openskill_tm_scores, matches, paper_ids, passes)
 
 
 
