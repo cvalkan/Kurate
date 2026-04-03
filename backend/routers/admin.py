@@ -2133,22 +2133,9 @@ async def get_system_logs(
     # All timeframes: return raw data points. No downsampling.
     # With 5-min heartbeats: 12h=144, 24h=288, 3d=864, 7d=2016 points.
     # This ensures all views are visually consistent for overlapping periods.
-    # Downsample for large time ranges to keep the chart responsive.
-    # 5-min heartbeats: 6h=72, 12h=144, 24h=288, 3d=864, 7d=2016 — all fine.
-    # But restart bursts and event logs can inflate the count to 20k+.
-    # Cap at 3000 points per request (enough for any chart resolution).
     logs = await db.system_logs.find(
         query, {"_id": 0}
     ).sort("ts", -1).to_list(None)
-
-    # If too many, keep only mem logs + thin out non-mem logs
-    if len(logs) > 3000:
-        mem_logs = [l for l in logs if l.get("level") == "mem"]
-        other_logs = [l for l in logs if l.get("level") != "mem"]
-        # Keep all mem logs (the chart data), sample the rest
-        step = max(1, len(other_logs) // (3000 - len(mem_logs))) if len(mem_logs) < 3000 else len(other_logs)
-        logs = mem_logs + other_logs[::step]
-        logs.sort(key=lambda l: l.get("ts", ""), reverse=True)
 
     # Convert datetime to ISO string and ensure clean integer rss_mb
     for log in logs:
