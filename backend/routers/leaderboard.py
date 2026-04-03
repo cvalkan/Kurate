@@ -2534,6 +2534,8 @@ async def _compute_si_rating_stats(category, model):
                 combined_pw["openskill"] = ("OpenSkill 1p", os_scores)
                 os3_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=3)
                 combined_pw["openskill3"] = ("OpenSkill 3p", os3_scores)
+                os10_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=10)
+                combined_pw["openskill10"] = ("OpenSkill 10p", os10_scores)
             except Exception:
                 pass
 
