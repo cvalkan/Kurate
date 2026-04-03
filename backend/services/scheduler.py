@@ -363,9 +363,17 @@ async def _compare_loop():
         except Exception as e:
             logger.error(f"Compare loop error: {e}")
 
-        # Sleep until explicitly woken by wake_scheduler() — no polling
+        # If there were unmet goals, loop immediately (don't sleep)
+        if unmet_cats:
+            await asyncio.sleep(2)
+            continue
+
+        # Goals met or paused — wait for wake event OR periodic re-check (60s)
         _wake_event.clear()
-        await _wake_event.wait()
+        try:
+            await asyncio.wait_for(_wake_event.wait(), timeout=60)
+        except asyncio.TimeoutError:
+            pass  # Periodic re-check: goals might have changed (new papers, pruning, etc.)
 
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
