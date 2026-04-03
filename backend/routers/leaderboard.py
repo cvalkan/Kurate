@@ -17,6 +17,7 @@ _cache_dirty = asyncio.Event()  # Set by compare/fetch loops when data changes
 
 # Cached match counts — updated on data change, not per-request.
 # Eliminates a 50-200ms COLLSCAN on the matches collection for every leaderboard request.
+_analysis_prewarm_done = False  # Set to True by server.py after prewarm completes
 _match_count_cache = {}  # category_or_"__all__" -> {"count": int, "ts": float}
 _MATCH_COUNT_TTL = 300  # 5 min TTL (safety net — normally invalidated by data change)
 
@@ -1321,7 +1322,7 @@ async def get_model_correlation(
             doc["models"] = [m for m in doc["models"] if m.get("total_matches", 0) > 0]
         return doc
     # If prewarm is running, don't compete — return a placeholder
-    if not getattr(app.state, "prewarm_analysis_done", False):
+    if not _analysis_prewarm_done:
         return {"status": "warming_up", "message": "Model analysis is being computed. Please refresh in a minute."}
     result = await _compute_model_correlation(category, mode)
     await db.analysis_store.update_one(
@@ -2116,7 +2117,7 @@ async def get_scoring_method_correlation(
         doc.pop("_type", None)
         doc.pop("key", None)
         return doc
-    if not getattr(app.state, "prewarm_analysis_done", False):
+    if not _analysis_prewarm_done:
         return {"status": "warming_up", "message": "Scoring analysis is being computed. Please refresh in a minute."}
     result = await _compute_scoring_method_correlation(category)
     await db.analysis_store.update_one(
@@ -2280,7 +2281,7 @@ async def get_si_rating_stats(
             doc.pop("key", None)
             return doc
         # Stale — fall through to recompute
-    if not getattr(app.state, "prewarm_analysis_done", False):
+    if not _analysis_prewarm_done:
         return {"status": "warming_up", "message": "SI rating analysis is being computed. Please refresh in a minute."}
     result = await _compute_si_rating_stats(category, model)
     await db.analysis_store.update_one(

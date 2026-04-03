@@ -718,7 +718,8 @@ async def _prewarm_model_analysis_caches():
                 logger.warning(f"[prewarm] si-rating-stats failed: {e}")
 
         logger.info("[prewarm] Model analysis caches ready")
-        app.state.prewarm_analysis_done = True
+        import routers.leaderboard as _lb
+        _lb._analysis_prewarm_done = True
     except Exception as e:
         logger.warning(f"[prewarm] Model analysis cache warming failed: {e}")
 
