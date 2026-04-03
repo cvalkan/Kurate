@@ -2516,26 +2516,37 @@ async def _compute_si_rating_stats(category, model):
                 "trueskill": ("TrueSkill", {p["paper_id"]: p["ts_score"] for p in pw_papers if p.get("ts_score")}),
             }
 
-            # Add OpenSkill from match data
+            # Add OpenSkill from match data (per-category to avoid OOM)
             try:
                 from services.ranking import compute_openskill_tm_scores_async as compute_openskill_tm_scores
-                _OPUS_MERGE_PW = {
-                    "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
-                    "anthropic/claude-opus-4-6": "anthropic/claude-opus",
-                }
-                os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-                if category:
-                    os_query["primary_category"] = category
-                os_matches = await collect_all(db.matches.find(
-                    os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
-                ))
+                from core.memlog import force_gc as _os_gc
                 os_pids = [p["paper_id"] for p in pw_papers]
-                os_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=1)
-                combined_pw["openskill"] = ("OpenSkill 1p", os_scores)
-                os3_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=3)
-                combined_pw["openskill3"] = ("OpenSkill 3p", os3_scores)
-                os10_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=10)
-                combined_pw["openskill10"] = ("OpenSkill 10p", os10_scores)
+
+                if category:
+                    os_cats = [category]
+                else:
+                    os_cats = list(set(p.get("category") for p in pw_papers if p.get("category")))
+
+                all_os_matches = []
+                for os_cat in os_cats:
+                    cat_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+                             "primary_category": os_cat}
+                    cat_matches = await collect_all(db.matches.find(
+                        cat_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+                    ))
+                    all_os_matches.extend(cat_matches)
+                    del cat_matches
+                    _os_gc()
+
+                if all_os_matches:
+                    os_scores = await compute_openskill_tm_scores(all_os_matches, os_pids, passes=1)
+                    combined_pw["openskill"] = ("OpenSkill 1p", os_scores)
+                    os3_scores = await compute_openskill_tm_scores(all_os_matches, os_pids, passes=3)
+                    combined_pw["openskill3"] = ("OpenSkill 3p", os3_scores)
+                    os10_scores = await compute_openskill_tm_scores(all_os_matches, os_pids, passes=10)
+                    combined_pw["openskill10"] = ("OpenSkill 10p", os10_scores)
+                    del all_os_matches
+                    _os_gc()
             except Exception:
                 pass
 
@@ -2627,22 +2638,27 @@ async def _compute_si_rating_stats(category, model):
             try:
                 _rng.seed(42)
                 sub_os_mk = _rng.choice(mk_keys_list)
-                sub_os_matches = model_matches_raw.get(sub_os_mk, []) if 'model_matches_raw' in dir() else []
-                if not sub_os_matches:
-                    provider = sub_os_mk.split("/")[0]
-                    sub_os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "model_used.provider": provider}
-                    if category:
-                        sub_os_query["primary_category"] = category
-                    sub_os_matches = await collect_all(db.matches.find(
-                        sub_os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
-                    ))
+                provider = sub_os_mk.split("/")[0]
                 sub_os_pids = [p["paper_id"] for p in pw_papers]
+                # Load per-category to avoid OOM
+                sub_os_matches = []
+                if category:
+                    sub_os_cats = [category]
+                else:
+                    sub_os_cats = list(set(p.get("category") for p in pw_papers if p.get("category")))
+                for _sc in sub_os_cats:
+                    _sq = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+                           "model_used.provider": provider, "primary_category": _sc}
+                    sub_os_matches.extend(await collect_all(db.matches.find(
+                        _sq, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+                    )))
                 sub_os = await compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=1)
                 controlled_pw["openskill"] = ("OpenSkill 1p", sub_os)
                 sub_os3 = await compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=3)
                 controlled_pw["openskill3"] = ("OpenSkill 3p", sub_os3)
                 sub_os10 = await compute_openskill_tm_scores(sub_os_matches, sub_os_pids, passes=10)
                 controlled_pw["openskill10"] = ("OpenSkill 10p", sub_os10)
+                del sub_os_matches
             except Exception:
                 pass
 

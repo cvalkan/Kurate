@@ -701,6 +701,22 @@ async def _prewarm_model_analysis_caches():
             except Exception as e:
                 logger.warning(f"[prewarm] scoring-method-correlation failed: {e}")
 
+        # Warm si-rating-stats (the third endpoint the page calls)
+        from routers.leaderboard import _compute_si_rating_stats
+        si_cached = await db.analysis_store.find_one({"_type": "si-rating", "key": "__all__:all"})
+        if not si_cached:
+            try:
+                logger.info("[prewarm] Computing si-rating-stats...")
+                result = await _compute_si_rating_stats(None, None)
+                await db.analysis_store.update_one(
+                    {"_type": "si-rating", "key": "__all__:all"},
+                    {"$set": {**result, "_type": "si-rating", "key": "__all__:all"}},
+                    upsert=True,
+                )
+                force_gc()
+            except Exception as e:
+                logger.warning(f"[prewarm] si-rating-stats failed: {e}")
+
         logger.info("[prewarm] Model analysis caches ready")
     except Exception as e:
         logger.warning(f"[prewarm] Model analysis cache warming failed: {e}")
