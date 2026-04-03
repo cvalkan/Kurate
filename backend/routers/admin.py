@@ -2906,9 +2906,10 @@ async def clear_analysis_cache(request: Request, type: str = Query(None)):
 
 
 @router.post("/cap-paper-matches", dependencies=[Depends(verify_admin)])
-async def cap_paper_matches(request: Request, category: str = Query(...), cap: int = Query(...)):
+async def cap_paper_matches(request: Request, category: str = Query(...), cap: int = Query(...), dry_run: bool = Query(False)):
     """Cap per-paper match count. For papers exceeding the cap, keeps the oldest
-    matches and deletes the newest. Then reranks and backfills model_stats."""
+    matches and deletes the newest. Then reranks and backfills model_stats.
+    Use dry_run=true to preview without deleting."""
     from core.config import db
     from collections import defaultdict
 
@@ -2931,6 +2932,26 @@ async def cap_paper_matches(request: Request, category: str = Query(...), cap: i
         for mid, _ in sorted_m[cap:]:
             to_delete.add(mid)
 
+    # Count collateral: papers under cap that would lose matches
+    collateral = 0
+    worst_collateral = []
+    for pid, matches in paper_matches.items():
+        if len(matches) <= cap:
+            lost = sum(1 for mid, _ in matches if mid in to_delete)
+            if lost > 0:
+                collateral += 1
+                worst_collateral.append({"before": len(matches), "lost": lost, "after": len(matches) - lost})
+    worst_collateral.sort(key=lambda x: -x["lost"])
+
+    if dry_run:
+        return {
+            "status": "dry_run", "category": category, "cap": cap,
+            "affected_papers": affected_papers,
+            "matches_to_delete": len(to_delete),
+            "collateral_papers": collateral,
+            "worst_collateral": worst_collateral[:5],
+        }
+
     total_deleted = 0
     if to_delete:
         import asyncio
@@ -2941,7 +2962,6 @@ async def cap_paper_matches(request: Request, category: str = Query(...), cap: i
             total_deleted += result.deleted_count
             await asyncio.sleep(0)
 
-    # Rerank and backfill
     if total_deleted > 0:
         from services.ranking import rerank_category, backfill_model_stats
         from core.memlog import force_gc
@@ -2953,4 +2973,5 @@ async def cap_paper_matches(request: Request, category: str = Query(...), cap: i
     return {
         "status": "ok", "category": category, "cap": cap,
         "affected_papers": affected_papers, "deleted": total_deleted,
+        "collateral_papers": collateral,
     }
