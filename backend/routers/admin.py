@@ -2890,3 +2890,16 @@ async def clear_experiment_cache(request: Request, name: str = Query(None)):
     reloaded = _load_experiments()
     cleared = name if name else list(caches.keys())
     return {"status": "ok", "cleared": cleared, "reloaded_from_json": reloaded}
+
+
+@router.post("/clear-analysis-cache", dependencies=[Depends(verify_admin)])
+async def clear_analysis_cache(request: Request, type: str = Query(None)):
+    """Clear cached analysis results from analysis_store (MongoDB).
+    Pass ?type=model-correlation to clear a specific type, or omit to clear all."""
+    from core.config import db
+    if type:
+        result = await db.analysis_store.delete_many({"_type": type})
+        return {"status": "ok", "type": type, "deleted": result.deleted_count}
+    else:
+        result = await db.analysis_store.delete_many({})
+        return {"status": "ok", "type": "all", "deleted": result.deleted_count}
