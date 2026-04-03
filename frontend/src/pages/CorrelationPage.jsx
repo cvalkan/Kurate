@@ -45,7 +45,10 @@ export default function CorrelationPage() {
         return;
       }
       setData(res.data);
-      setSiData(res.data?.si_data || null);
+      // Build siData in the format PwVsSiSection and SiRatingSection expect
+      const si = res.data?.si_data || {};
+      si.pw_vs_si = res.data?.pw_vs_si || null;
+      setSiData(si.status === "ok" || si.pw_vs_si ? si : null);
     } catch (err) {
       console.error("Failed to fetch model analysis data:", err);
     } finally {

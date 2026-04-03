@@ -463,6 +463,25 @@ def _compute_si_stats(papers):
             "std": round(float(np.std(mk_scores, ddof=1)), 2) if len(mk_scores) > 1 else 0,
         }
 
+    # Metric correlations (between SI sub-metrics)
+    metric_correlations = {}
+    for i, m1 in enumerate(METRICS):
+        for j, m2 in enumerate(METRICS):
+            if j <= i:
+                continue
+            v1 = arrays.get(m1, [])
+            v2 = arrays.get(m2, [])
+            n = min(len(v1), len(v2))
+            if n < 5:
+                continue
+            rho, p_val = scipy_stats.spearmanr(v1[:n], v2[:n])
+            if not np.isnan(rho):
+                metric_correlations[f"{m1} vs {m2}"] = {
+                    "spearman": round(float(rho), 3),
+                    "p_value": round(float(p_val), 4) if p_val >= 0.0001 else 0.0,
+                    "n": n,
+                }
+
     # Available models
     model_counts = {"claude": 0, "gpt": 0, "gemini": 0}
     for p in papers:
@@ -475,6 +494,7 @@ def _compute_si_stats(papers):
         "status": "ok",
         "total_papers": len(filtered),
         "distributions": distributions,
+        "metric_correlations": metric_correlations,
         "inter_model_si": inter_model_si,
         "model_comparison": model_comparison,
         "available_models": [{"id": mk, "count": c} for mk, c in model_counts.items() if c >= 5],

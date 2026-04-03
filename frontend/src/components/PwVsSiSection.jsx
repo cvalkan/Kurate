@@ -5,7 +5,7 @@ import { TrendingUp } from "lucide-react";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export function PwVsSiSection({ category, siData: externalSiData, viewMode = "aggregate" }) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(externalSiData?.pw_vs_si || null);
   const [controlled, setControlled] = useState(false);
 
   useEffect(() => {
