@@ -2975,3 +2975,107 @@ async def cap_paper_matches(request: Request, category: str = Query(...), cap: i
         "affected_papers": affected_papers, "deleted": total_deleted,
         "collateral_papers": collateral,
     }
+
+
+@router.post("/prune-storm-matches", dependencies=[Depends(verify_admin)])
+async def prune_storm_matches(request: Request, category: str = Query(...), dry_run: bool = Query(False)):
+    """Remove storm-day matches for over-matched papers.
+
+    1. Finds storm dates: days where any paper received >20 matches
+    2. For papers above median match count, deletes their matches from storm dates
+    3. Papers at/below median are untouched
+    4. Reranks and backfills model_stats
+    """
+    from core.config import db
+    from collections import defaultdict, Counter
+
+    # Load all matches with dates
+    paper_matches = defaultdict(list)  # pid -> [(match_id, date_str, created_at)]
+    async for m in db.matches.find(
+        {"completed": True, "failed": {"$ne": True},
+         "primary_category": category, "mode": {"$exists": False}},
+        {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "created_at": 1},
+    ):
+        ts = m.get("created_at", "")
+        date = ts[:10] if ts else ""
+        paper_matches[m["paper1_id"]].append((m["id"], date, ts))
+        paper_matches[m["paper2_id"]].append((m["id"], date, ts))
+
+    # Find storm dates: days where ANY paper got >20 matches
+    paper_date_counts = defaultdict(Counter)  # pid -> {date: count}
+    for pid, matches in paper_matches.items():
+        for mid, date, ts in matches:
+            paper_date_counts[pid][date] += 1
+
+    storm_dates = set()
+    for pid, date_counts in paper_date_counts.items():
+        for date, count in date_counts.items():
+            if count > 20:
+                storm_dates.add(date)
+
+    if not storm_dates:
+        return {"status": "ok", "message": "No storm dates found", "category": category}
+
+    # Find median match count
+    match_counts = sorted(len(m) for m in paper_matches.values())
+    median = match_counts[len(match_counts) // 2]
+
+    # For papers above median, collect storm-date match IDs for deletion
+    to_delete = set()
+    affected_papers = 0
+    for pid, matches in paper_matches.items():
+        if len(matches) <= median:
+            continue
+        storm_matches = [mid for mid, date, ts in matches if date in storm_dates]
+        if storm_matches:
+            affected_papers += 1
+            to_delete.update(storm_matches)
+
+    # Count collateral
+    collateral = 0
+    worst_collateral = []
+    for pid, matches in paper_matches.items():
+        if len(matches) <= median:
+            lost = sum(1 for mid, date, ts in matches if mid in to_delete)
+            if lost > 0:
+                collateral += 1
+                worst_collateral.append({"before": len(matches), "lost": lost, "after": len(matches) - lost})
+    worst_collateral.sort(key=lambda x: -x["lost"])
+
+    if dry_run:
+        return {
+            "status": "dry_run", "category": category,
+            "storm_dates": sorted(storm_dates),
+            "median_matches": median,
+            "affected_papers": affected_papers,
+            "matches_to_delete": len(to_delete),
+            "collateral_papers": collateral,
+            "worst_collateral": worst_collateral[:5],
+        }
+
+    total_deleted = 0
+    if to_delete:
+        import asyncio
+        id_list = list(to_delete)
+        for i in range(0, len(id_list), 500):
+            batch = id_list[i:i + 500]
+            result = await db.matches.delete_many({"id": {"$in": batch}})
+            total_deleted += result.deleted_count
+            await asyncio.sleep(0)
+
+    if total_deleted > 0:
+        from services.ranking import rerank_category, backfill_model_stats
+        from core.memlog import force_gc
+        await rerank_category(db, category)
+        await backfill_model_stats(db, category=category)
+        force_gc()
+        logger.info(f"[storm-prune] {category}: removed {total_deleted} storm matches from {affected_papers} papers, storm dates: {sorted(storm_dates)}")
+
+    return {
+        "status": "ok", "category": category,
+        "storm_dates": sorted(storm_dates),
+        "median_matches": median,
+        "affected_papers": affected_papers,
+        "deleted": total_deleted,
+        "collateral_papers": collateral,
+    }
