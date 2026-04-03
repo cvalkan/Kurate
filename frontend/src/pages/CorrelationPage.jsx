@@ -42,6 +42,11 @@ export default function CorrelationPage() {
         axios.get(`${API}/api/model-correlation`, { params }),
         axios.get(`${API}/api/si-rating-stats`, { params }).catch(() => null),
       ]);
+      // If server is still warming caches, retry after a delay
+      if (corrRes.data?.status === "warming_up") {
+        setTimeout(() => fetchData(), 10000);
+        return;
+      }
       setData(corrRes.data);
       if (siRes?.data?.status === "ok") setSiData(siRes.data);
       else setSiData(null);
