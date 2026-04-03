@@ -397,6 +397,21 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     if len(entries) < 2:
         return True
 
+    # Exclude unmatchable papers (no summary → can never get matches).
+    # Without this filter, a single summary-less paper keeps goals permanently
+    # unmet (CI=100%), causing infinite repeat-match loops via Rule 3.
+    from core.config import DEFAULT_SETTINGS
+    all_keys = settings.get("content_sources", DEFAULT_SETTINGS.get("content_sources", ["abstract_plus_summary"]))
+    summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
+    summary_filter["categories.0"] = category
+    matchable_ids = set()
+    async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
+        matchable_ids.add(doc["id"])
+    entries = [e for e in entries if e["paper_id"] in matchable_ids]
+
+    if len(entries) < 2:
+        return True
+
     # Sort by score descending to identify top-K
     entries.sort(key=lambda e: e.get("score", 0), reverse=True)
     top_k_list = [e["paper_id"] for e in entries[:min(top_k, len(entries))]]
