@@ -2714,19 +2714,19 @@ async def _compute_si_rating_stats(category, model):
                             wm_rows.append(wm_ts_row)
                         # Per-model OpenSkill
                         try:
-                            mk_os_matches = model_matches_raw.get(mk_key, []) if 'model_matches_raw' in dir() else []
-                            if not mk_os_matches:
-                                # Load per-model matches
-                                mk_os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
-                                if category:
-                                    mk_os_query["primary_category"] = category
-                                raw_key_variants = [k for k, v in _OPUS_MERGE_PW.items() if v == mk_key] + [mk_key]
-                                # Build model_used filter
-                                provider, model_name = mk_key.split("/", 1)
-                                mk_os_query["model_used.provider"] = provider
-                                mk_os_matches = await collect_all(db.matches.find(
-                                    mk_os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
-                                ))
+                            # Load per-category to avoid timeout on "All Categories"
+                            provider, model_name = mk_key.split("/", 1)
+                            mk_os_matches = []
+                            if category:
+                                _wm_cats = [category]
+                            else:
+                                _wm_cats = list(set(p.get("category") for p in pw_papers if p.get("category")))
+                            for _wmc in _wm_cats:
+                                _wmq = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+                                        "model_used.provider": provider, "primary_category": _wmc}
+                                mk_os_matches.extend(await collect_all(db.matches.find(
+                                    _wmq, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+                                )))
                             wm_os_pids = [p["paper_id"] for p in pw_papers]
                             wm_os = await compute_openskill_tm_scores(mk_os_matches, wm_os_pids, passes=1)
                             wm_os_row = _corr_row("within_os", "OpenSkill 1p", wm_os, si_maps[si_mk])
