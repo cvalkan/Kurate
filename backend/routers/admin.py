@@ -2766,22 +2766,14 @@ async def backfill_archives():
 
 
 @router.post("/prune-duplicate-matches")
-async def prune_duplicate_matches(request: Request):
-    """Admin-triggered: remove duplicate matches for cs.CR 'Most Recent' papers only.
+async def prune_duplicate_matches(request: Request, category: str = Query("cs.CR")):
+    """Admin-triggered: remove duplicate matches (keep 1 per pair) for a category's recent papers.
 
     Scoped to papers in the rolling 48h window (same as the leaderboard's "Most Recent"
-    filter). Keeps the earliest match per paper pair, deletes the rest, then reranks cs.CR.
-
-    Idempotent: guarded by a flag in the migrations collection.
+    filter). Keeps the earliest match per paper pair, deletes the rest, then reranks.
     """
     from core.config import db
     from datetime import datetime, timezone, timedelta
-
-    flag = await db.migrations.find_one({"_id": "prune_duplicate_matches_v1"})
-    if flag:
-        return {"status": "already_done", "previous_run": flag.get("completed_at"), "total_deleted": flag.get("total_deleted")}
-
-    category = "cs.CR"
 
     # Find the "Most Recent" paper IDs using the same rolling-48h logic as the leaderboard
     latest = await db.rankings.find_one(
@@ -2790,7 +2782,7 @@ async def prune_duplicate_matches(request: Request):
         sort=[("added_at", -1)],
     )
     if not latest or not latest.get("added_at"):
-        return {"status": "error", "message": "No papers with added_at found in cs.CR"}
+        return {"status": "error", "message": f"No papers with added_at found in {category}"}
 
     anchor_dt = datetime.fromisoformat(latest["added_at"].replace("Z", "+00:00"))
     cutoff = (anchor_dt - timedelta(hours=48)).isoformat()
@@ -2859,16 +2851,7 @@ async def prune_duplicate_matches(request: Request):
             logger.warning(f"[prune] [{category}] Rerank failed: {e}")
         force_gc()
 
-    await db.migrations.insert_one({
-        "_id": "prune_duplicate_matches_v1",
-        "completed_at": datetime.now(timezone.utc).isoformat(),
-        "total_deleted": total_deleted,
-        "category": category,
-        "recent_papers": len(recent_paper_ids),
-        "cutoff": cutoff,
-    })
-
-    logger.info(f"[prune] Complete: {total_deleted} duplicate matches removed from cs.CR recent ({len(recent_paper_ids)} papers)")
+    logger.info(f"[prune] Complete: {total_deleted} duplicate matches removed from {category} recent ({len(recent_paper_ids)} papers)")
     return {
         "status": "ok",
         "total_deleted": total_deleted,
