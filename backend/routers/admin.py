@@ -2903,3 +2903,54 @@ async def clear_analysis_cache(request: Request, type: str = Query(None)):
     else:
         result = await db.analysis_store.delete_many({})
         return {"status": "ok", "type": "all", "deleted": result.deleted_count}
+
+
+@router.post("/cap-paper-matches", dependencies=[Depends(verify_admin)])
+async def cap_paper_matches(request: Request, category: str = Query(...), cap: int = Query(...)):
+    """Cap per-paper match count. For papers exceeding the cap, keeps the oldest
+    matches and deletes the newest. Then reranks and backfills model_stats."""
+    from core.config import db
+    from collections import defaultdict
+
+    paper_matches = defaultdict(list)
+    async for m in db.matches.find(
+        {"completed": True, "failed": {"$ne": True},
+         "primary_category": category, "mode": {"$exists": False}},
+        {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "created_at": 1},
+    ):
+        paper_matches[m["paper1_id"]].append((m["id"], m.get("created_at", "")))
+        paper_matches[m["paper2_id"]].append((m["id"], m.get("created_at", "")))
+
+    to_delete = set()
+    affected_papers = 0
+    for pid, matches in paper_matches.items():
+        if len(matches) <= cap:
+            continue
+        affected_papers += 1
+        sorted_m = sorted(matches, key=lambda x: x[1])
+        for mid, _ in sorted_m[cap:]:
+            to_delete.add(mid)
+
+    total_deleted = 0
+    if to_delete:
+        import asyncio
+        id_list = list(to_delete)
+        for i in range(0, len(id_list), 500):
+            batch = id_list[i:i + 500]
+            result = await db.matches.delete_many({"id": {"$in": batch}})
+            total_deleted += result.deleted_count
+            await asyncio.sleep(0)
+
+    # Rerank and backfill
+    if total_deleted > 0:
+        from services.ranking import rerank_category, backfill_model_stats
+        from core.memlog import force_gc
+        await rerank_category(db, category)
+        await backfill_model_stats(db, category=category)
+        force_gc()
+        logger.info(f"[cap] {category}: capped at {cap}, deleted {total_deleted} matches from {affected_papers} papers, reranked + backfilled")
+
+    return {
+        "status": "ok", "category": category, "cap": cap,
+        "affected_papers": affected_papers, "deleted": total_deleted,
+    }
