@@ -2137,7 +2137,7 @@ async def _compute_scoring_method_correlation(category):
     rankings = []
     async for doc in db.rankings.find(
         query,
-        {"_id": 0, "paper_id": 1, "score": 1, "ts_score": 1, "comparisons": 1},
+        {"_id": 0, "paper_id": 1, "score": 1, "ts_score": 1, "comparisons": 1, "category": 1},
     ):
         if doc.get("score") is not None and doc.get("ts_score") is not None:
             rankings.append(doc)
@@ -2155,49 +2155,38 @@ async def _compute_scoring_method_correlation(category):
     wr_scores = {r["paper_id"]: r["score"] for r in rankings}
     ts_scores = {r["paper_id"]: r["ts_score"] for r in rankings}
 
-    # Read OpenSkill scores from the already-cached model-correlation results
-    # instead of loading all matches (which OOMs on Atlas for "All Categories").
+    # Compute OpenSkill per-category (never load all matches at once)
     os_scores = {}
     os3_scores = {}
     os10_scores = {}
     try:
-        cat_key = category or "__all__"
-        mc_doc = await db.analysis_store.find_one(
-            {"_type": "model-correlation", "key": cat_key}, {"_id": 0})
-        if mc_doc:
-            # model-correlation stores per-model rankings; combine them into global scores
-            # by averaging each paper's OpenSkill scores across models that judged it
-            from collections import defaultdict
-            for method_key, target in [("openskill", os_scores), ("openskill3", os3_scores), ("openskill10", os10_scores)]:
-                paper_vals = defaultdict(list)
-                for row in mc_doc.get("pw_inter_model", []):
-                    for mk, mdata in row.get("methods", {}).items():
-                        if mk == method_key and "scores" in mdata:
-                            for pid, val in mdata["scores"].items():
-                                paper_vals[pid].append(val)
-                # Fallback: if no scores in pw_inter_model, skip
-                if not paper_vals:
-                    continue
-                for pid in paper_vals:
-                    target[pid] = sum(paper_vals[pid]) / len(paper_vals[pid])
+        from services.ranking import compute_openskill_tm_scores_async as compute_openskill_tm_scores
+        from core.memlog import force_gc
+
+        # Get categories to process
+        if category:
+            os_cats = [category]
+        else:
+            os_cats = list(set(r.get("category") for r in rankings if r.get("category")))
+
+        for os_cat in os_cats:
+            cat_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+                         "primary_category": os_cat}
+            cat_matches = await collect_all(db.matches.find(
+                cat_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
+            ))
+            cat_pids = [r["paper_id"] for r in rankings if r.get("category") == os_cat]
+            if cat_matches and cat_pids:
+                cat_os1 = await compute_openskill_tm_scores(cat_matches, cat_pids, passes=1)
+                cat_os3 = await compute_openskill_tm_scores(cat_matches, cat_pids, passes=3)
+                cat_os10 = await compute_openskill_tm_scores(cat_matches, cat_pids, passes=10)
+                os_scores.update(cat_os1)
+                os3_scores.update(cat_os3)
+                os10_scores.update(cat_os10)
+            del cat_matches
+            force_gc()
     except Exception:
         pass
-
-    # If model-correlation didn't have OpenSkill, compute per-category (bounded size)
-    if not os_scores and category:
-        try:
-            from services.ranking import compute_openskill_tm_scores_async as compute_openskill_tm_scores
-            os_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
-                        "primary_category": category}
-            os_matches = await collect_all(db.matches.find(
-                os_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}
-            ))
-            os_pids = [r["paper_id"] for r in rankings]
-            os_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=1)
-            os3_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=3)
-            os10_scores = await compute_openskill_tm_scores(os_matches, os_pids, passes=10)
-        except Exception:
-            pass
 
     t_compute = time.perf_counter() - t_start
 
