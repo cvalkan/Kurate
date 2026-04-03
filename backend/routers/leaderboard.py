@@ -1506,20 +1506,33 @@ async def _compute_model_correlation(category, mode):
         model_avg_mpp = {}  # avg matches/paper per model
 
         # Load matches for OpenSkill computation (grouped by model, with key merging)
+        # Per-CATEGORY loading to avoid OOM on "All Categories" (150k+ matches)
         from services.ranking import compute_openskill_tm_scores_async as compute_openskill_tm_scores
         _OPUS_MERGE = {
             "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
             "anthropic/claude-opus-4-6": "anthropic/claude-opus",
         }
-        match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+
+        # Determine which categories to process
         if category:
-            match_query["primary_category"] = category
+            _os_cats = [category]
+        else:
+            _os_cats = list(set(paper_categories.values()))
+
+        # Accumulate per-model matches category by category
         model_matches_raw = {}
-        async for m in db.matches.find(match_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
-            mu = m.get("model_used", {})
-            raw_key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
-            mk = _OPUS_MERGE.get(raw_key, raw_key)
-            model_matches_raw.setdefault(mk, []).append(m)
+        for _os_cat in _os_cats:
+            cat_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+                         "primary_category": _os_cat}
+            async for m in db.matches.find(cat_query, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
+                mu = m.get("model_used", {})
+                raw_key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+                mk = _OPUS_MERGE.get(raw_key, raw_key)
+                model_matches_raw.setdefault(mk, []).append(m)
+            # GC between categories to prevent arena fragmentation
+            if not category:
+                from core.memlog import force_gc
+                force_gc()
 
         for mk in model_keys:
             mk_papers = [pid for pid, s in model_paper_stats[mk].items() if s.get("total", 0) >= MIN_MATCHES_PER_MODEL]
@@ -1535,6 +1548,8 @@ async def _compute_model_correlation(category, mode):
                 model_rankings[mk]["openskill"] = await compute_openskill_tm_scores(mk_match_list, mk_papers, passes=1)
                 model_rankings[mk]["openskill3"] = await compute_openskill_tm_scores(mk_match_list, mk_papers, passes=3)
                 model_rankings[mk]["openskill10"] = await compute_openskill_tm_scores(mk_match_list, mk_papers, passes=10)
+            # Free match data for this model after computation
+            model_matches_raw.pop(mk, None)
             # Compute avg matches/paper for this model
             mpps = [model_paper_stats[mk][pid].get("total", 0) for pid in mk_papers]
             model_avg_mpp[mk] = round(float(np.mean(mpps)), 1) if mpps else 0

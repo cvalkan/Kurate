@@ -671,7 +671,7 @@ async def _prewarm_model_analysis_caches():
             except Exception as e:
                 logger.warning(f"[prewarm] model-correlation {cat} failed: {e}")
 
-        # Also warm "All Categories" if not cached
+        # "All Categories" — compute after per-category to benefit from GC
         if "__all__" not in cached:
             try:
                 logger.info("[prewarm] Computing model-correlation for All Categories...")
