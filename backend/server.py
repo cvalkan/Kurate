@@ -601,6 +601,10 @@ async def _staggered_startup_tasks():
             log_mem(f"After {_name}")
             await asyncio.sleep(1)
 
+    # Phase 3: Pre-warm model analysis caches in background.
+    # Only computes categories that aren't already cached.
+    asyncio.create_task(_prewarm_model_analysis_caches())
+
 
 
 async def _prewarm_all_experiment_caches():
@@ -615,6 +619,91 @@ async def _prewarm_all_experiment_caches():
     # by load_precomputed() which was called synchronously in startup().
     logger.info("All experiment caches loaded from precomputed JSON (no computation)")
     app.state.prewarm_status = {"done": True, "step": ""}
+
+
+async def _prewarm_model_analysis_caches():
+    """Pre-warm model-correlation and scoring-method caches for all categories.
+
+    Runs after heavy startup tasks. Checks analysis_store for existing caches
+    and only computes missing ones. This ensures the Model Analysis page loads
+    instantly after every deployment.
+    """
+    await asyncio.sleep(15)  # Wait for rankings to be ready
+    from core.memlog import log_mem, force_gc
+    from core.config import CATEGORIES
+
+    try:
+        # Get all active categories from tournaments
+        all_cats = set()
+        async for doc in db.rankings.aggregate([{"$group": {"_id": "$category"}}]):
+            all_cats.add(doc["_id"])
+        if not all_cats:
+            all_cats = set(CATEGORIES.keys())
+
+        # Check which categories already have cached model-correlation
+        cached = set()
+        async for doc in db.analysis_store.find(
+            {"_type": "model-correlation"}, {"_id": 0, "key": 1}
+        ):
+            cached.add(doc.get("key"))
+
+        # Compute missing categories (smallest first for quick wins)
+        from routers.leaderboard import _compute_model_correlation, _compute_scoring_method_correlation
+        cat_sizes = []
+        for cat in all_cats:
+            n = await db.rankings.count_documents({"category": cat})
+            cat_sizes.append((n, cat))
+        cat_sizes.sort()
+
+        for n_papers, cat in cat_sizes:
+            if cat in cached:
+                continue
+            try:
+                logger.info(f"[prewarm] Computing model-correlation for {cat} ({n_papers} papers)...")
+                result = await _compute_model_correlation(cat, None)
+                await db.analysis_store.update_one(
+                    {"_type": "model-correlation", "key": cat},
+                    {"$set": {**result, "_type": "model-correlation", "key": cat}},
+                    upsert=True,
+                )
+                force_gc()
+                await asyncio.sleep(2)
+            except Exception as e:
+                logger.warning(f"[prewarm] model-correlation {cat} failed: {e}")
+
+        # Also warm "All Categories" if not cached
+        if "__all__" not in cached:
+            try:
+                logger.info("[prewarm] Computing model-correlation for All Categories...")
+                result = await _compute_model_correlation(None, None)
+                await db.analysis_store.update_one(
+                    {"_type": "model-correlation", "key": "__all__"},
+                    {"$set": {**result, "_type": "model-correlation", "key": "__all__"}},
+                    upsert=True,
+                )
+                force_gc()
+            except Exception as e:
+                logger.warning(f"[prewarm] model-correlation __all__ failed: {e}")
+
+        # Warm scoring-method-correlation
+        scoring_cached = await db.analysis_store.find_one(
+            {"_type": "scoring-method", "key": "__all__"})
+        if not scoring_cached:
+            try:
+                logger.info("[prewarm] Computing scoring-method-correlation...")
+                result = await _compute_scoring_method_correlation(None)
+                await db.analysis_store.update_one(
+                    {"_type": "scoring-method", "key": "__all__"},
+                    {"$set": {**result, "_type": "scoring-method", "key": "__all__"}},
+                    upsert=True,
+                )
+                force_gc()
+            except Exception as e:
+                logger.warning(f"[prewarm] scoring-method-correlation failed: {e}")
+
+        logger.info("[prewarm] Model analysis caches ready")
+    except Exception as e:
+        logger.warning(f"[prewarm] Model analysis cache warming failed: {e}")
 
     await asyncio.sleep(8)  # Wait for leaderboard cache to be ready
     try:
