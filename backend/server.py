@@ -466,8 +466,11 @@ async def _deferred_startup():
             # Reduce min/max matches per the new architecture
             if _settings_doc.get("min_matches_per_paper", 0) > 5:
                 migration_updates["min_matches_per_paper"] = 3
-            if _settings_doc.get("max_matches_per_paper") is None or _settings_doc.get("max_matches_per_paper", 999) > 50:
-                migration_updates["max_matches_per_paper"] = 20
+            # Remove max_matches_per_paper cap — convergence is controlled by CI targets
+            if _settings_doc.get("max_matches_per_paper") is not None:
+                await db.settings.update_one({"key": "global"}, {"$unset": {"max_matches_per_paper": ""}})
+                _inv_cache()
+                logger.info("Removed max_matches_per_paper cap")
             if migration_updates:
                 await db.settings.update_one({"key": "global"}, {"$set": migration_updates})
                 _inv_cache()

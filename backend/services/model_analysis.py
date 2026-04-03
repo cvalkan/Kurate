@@ -313,6 +313,10 @@ async def compute_model_analysis(category: Optional[str] = None):
                         rho, _ = scipy_stats.spearmanr(v1, v2)
                         if not np.isnan(rho):
                             avg_correlations.setdefault(pair, []).append((float(rho), len(common)))
+                        # Agreement: median split
+                        med1, med2 = np.median(v1), np.median(v2)
+                        agree = sum(1 for p in common if (model_wr[m1][p] >= med1) == (model_wr[m2][p] >= med2))
+                        avg_agreement.setdefault(pair, []).append((agree, len(common)))
                     ts1, ts2 = model_paper_ts.get(m1, {}), model_paper_ts.get(m2, {})
                     common_ts = sorted(set(ts1.keys()) & set(ts2.keys()) & cat_pids)
                     if len(common_ts) >= 10:
@@ -332,6 +336,13 @@ async def compute_model_analysis(category: Optional[str] = None):
             w = [n for _, n in data]
             avg_ts_correlations[key] = {"spearman_r": round(float(np.average([r for r, _ in data], weights=w)), 3),
                                         "n_papers": sum(w), "n_categories": len(data)}
+        for key in list(avg_agreement.keys()):
+            data = avg_agreement[key]
+            total_agree = sum(a for a, _ in data)
+            total_n = sum(n for _, n in data)
+            avg_agreement[key] = {"agree": total_agree, "disagree": total_n - total_agree,
+                                  "total": total_n, "rate": round(total_agree / total_n * 100, 1),
+                                  "n_categories": len(data)}
 
     total_matches = sum(sum(s.get("total", 0) for s in model_paper_stats[mk].values()) for mk in model_keys) // 2
     t_compute = time.perf_counter() - t_start
