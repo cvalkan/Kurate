@@ -38,20 +38,16 @@ export default function CorrelationPage() {
   const fetchData = useCallback(async () => {
     try {
       const params = category ? { category } : {};
-      const [corrRes, siRes] = await Promise.all([
-        axios.get(`${API}/api/model-correlation`, { params }),
-        axios.get(`${API}/api/si-rating-stats`, { params }).catch(() => null),
-      ]);
+      const res = await axios.get(`${API}/api/model-analysis`, { params });
       // If server is still warming caches, retry after a delay
-      if (corrRes.data?.status === "warming_up") {
+      if (res.data?.status === "warming_up") {
         setTimeout(() => fetchData(), 10000);
         return;
       }
-      setData(corrRes.data);
-      if (siRes?.data?.status === "ok") setSiData(siRes.data);
-      else setSiData(null);
+      setData(res.data);
+      setSiData(res.data?.si_data || null);
     } catch (err) {
-      console.error("Failed to fetch correlation data:", err);
+      console.error("Failed to fetch model analysis data:", err);
     } finally {
       setLoading(false);
     }
@@ -142,13 +138,13 @@ export default function CorrelationPage() {
         <LeaderboardConvergence category={category || null} />
       </div>
 
-      <ScoringMethodSection category={category || null} />
+      <ScoringMethodSection category={category || null} scoringData={data?.scoring_method} />
 
       <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} />
 
       <InterModelSection pwData={data} siData={siData} viewMode={viewMode} />
 
-      <SiRatingSection category={category || null} hidePwVsSi />
+      <SiRatingSection category={category || null} hidePwVsSi siData={siData} />
 
     </div>
   );

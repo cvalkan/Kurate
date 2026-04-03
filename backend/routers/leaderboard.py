@@ -1304,6 +1304,34 @@ async def get_public_prompts():
 
 
 
+
+@router.get("/model-analysis")
+async def get_model_analysis(
+    category: Optional[str] = Query(None, description="Filter by category (None = all)"),
+):
+    """Unified model analysis endpoint. Returns ALL tables in one response.
+    Loads matches once, computes OpenSkill once, caches as a single document."""
+    cat_key = category or "__all__"
+    doc = await db.analysis_store.find_one({"_type": "model-analysis", "key": cat_key}, {"_id": 0})
+    if doc:
+        doc.pop("_type", None)
+        doc.pop("key", None)
+        if "models" in doc:
+            doc["models"] = [m for m in doc["models"] if m.get("total_matches", 0) > 0]
+        return doc
+    if not _analysis_prewarm_done:
+        return {"status": "warming_up", "message": "Model analysis is being computed. Please refresh in a minute."}
+    from services.model_analysis import compute_model_analysis
+    result = await compute_model_analysis(category)
+    if result.get("status") == "ok":
+        await db.analysis_store.update_one(
+            {"_type": "model-analysis", "key": cat_key},
+            {"$set": {**result, "_type": "model-analysis", "key": cat_key}},
+            upsert=True,
+        )
+    return result
+
+
 @router.get("/model-correlation")
 async def get_model_correlation(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),

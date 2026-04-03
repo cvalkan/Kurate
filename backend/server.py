@@ -640,15 +640,15 @@ async def _prewarm_model_analysis_caches():
         if not all_cats:
             all_cats = set(CATEGORIES.keys())
 
-        # Check which categories already have cached model-correlation
+        # Check which categories already have cached model-analysis
         cached = set()
         async for doc in db.analysis_store.find(
-            {"_type": "model-correlation"}, {"_id": 0, "key": 1}
+            {"_type": "model-analysis"}, {"_id": 0, "key": 1}
         ):
             cached.add(doc.get("key"))
 
         # Compute missing categories (smallest first for quick wins)
-        from routers.leaderboard import _compute_model_correlation, _compute_scoring_method_correlation
+        from services.model_analysis import compute_model_analysis
         cat_sizes = []
         for cat in all_cats:
             n = await db.rankings.count_documents({"category": cat})
@@ -659,63 +659,33 @@ async def _prewarm_model_analysis_caches():
             if cat in cached:
                 continue
             try:
-                logger.info(f"[prewarm] Computing model-correlation for {cat} ({n_papers} papers)...")
-                result = await _compute_model_correlation(cat, None)
-                await db.analysis_store.update_one(
-                    {"_type": "model-correlation", "key": cat},
-                    {"$set": {**result, "_type": "model-correlation", "key": cat}},
-                    upsert=True,
-                )
+                logger.info(f"[prewarm] Computing model-analysis for {cat} ({n_papers} papers)...")
+                result = await compute_model_analysis(cat)
+                if result.get("status") == "ok":
+                    await db.analysis_store.update_one(
+                        {"_type": "model-analysis", "key": cat},
+                        {"$set": {**result, "_type": "model-analysis", "key": cat}},
+                        upsert=True,
+                    )
                 force_gc()
                 await asyncio.sleep(2)
             except Exception as e:
-                logger.warning(f"[prewarm] model-correlation {cat} failed: {e}")
+                logger.warning(f"[prewarm] model-analysis {cat} failed: {e}")
 
-        # "All Categories" — compute after per-category to benefit from GC
+        # "All Categories"
         if "__all__" not in cached:
             try:
-                logger.info("[prewarm] Computing model-correlation for All Categories...")
-                result = await _compute_model_correlation(None, None)
-                await db.analysis_store.update_one(
-                    {"_type": "model-correlation", "key": "__all__"},
-                    {"$set": {**result, "_type": "model-correlation", "key": "__all__"}},
-                    upsert=True,
-                )
+                logger.info("[prewarm] Computing model-analysis for All Categories...")
+                result = await compute_model_analysis(None)
+                if result.get("status") == "ok":
+                    await db.analysis_store.update_one(
+                        {"_type": "model-analysis", "key": "__all__"},
+                        {"$set": {**result, "_type": "model-analysis", "key": "__all__"}},
+                        upsert=True,
+                    )
                 force_gc()
             except Exception as e:
-                logger.warning(f"[prewarm] model-correlation __all__ failed: {e}")
-
-        # Warm scoring-method-correlation
-        scoring_cached = await db.analysis_store.find_one(
-            {"_type": "scoring-method", "key": "__all__"})
-        if not scoring_cached:
-            try:
-                logger.info("[prewarm] Computing scoring-method-correlation...")
-                result = await _compute_scoring_method_correlation(None)
-                await db.analysis_store.update_one(
-                    {"_type": "scoring-method", "key": "__all__"},
-                    {"$set": {**result, "_type": "scoring-method", "key": "__all__"}},
-                    upsert=True,
-                )
-                force_gc()
-            except Exception as e:
-                logger.warning(f"[prewarm] scoring-method-correlation failed: {e}")
-
-        # Warm si-rating-stats (the third endpoint the page calls)
-        from routers.leaderboard import _compute_si_rating_stats
-        si_cached = await db.analysis_store.find_one({"_type": "si-rating", "key": "__all__:all"})
-        if not si_cached:
-            try:
-                logger.info("[prewarm] Computing si-rating-stats...")
-                result = await _compute_si_rating_stats(None, None)
-                await db.analysis_store.update_one(
-                    {"_type": "si-rating", "key": "__all__:all"},
-                    {"$set": {**result, "_type": "si-rating", "key": "__all__:all"}},
-                    upsert=True,
-                )
-                force_gc()
-            except Exception as e:
-                logger.warning(f"[prewarm] si-rating-stats failed: {e}")
+                logger.warning(f"[prewarm] model-analysis __all__ failed: {e}")
 
         logger.info("[prewarm] Model analysis caches ready")
         import routers.leaderboard as _lb

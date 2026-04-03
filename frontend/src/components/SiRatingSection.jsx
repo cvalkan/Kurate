@@ -222,14 +222,23 @@ function CategoryBreakdown({ categories }) {
   );
 }
 
-export function SiRatingSection({ category, hidePwVsSi = false }) {
-  const [data, setData] = useState(null);
+export function SiRatingSection({ category, hidePwVsSi = false, siData: propData }) {
+  const [data, setData] = useState(propData || null);
   const [showRawDist, setShowRawDist] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!propData);
   const [selectedModel, setSelectedModel] = useState(null);
   const cacheRef = useRef({});
 
+  // Use prop data when available (from unified endpoint), fallback to own fetch
+  useEffect(() => {
+    if (propData) {
+      setData(propData);
+      setLoading(false);
+    }
+  }, [propData]);
+
   const fetchData = useCallback(async () => {
+    if (propData && !selectedModel) return; // Already have data from props
     const cacheKey = `${category || "__all__"}:${selectedModel || "all"}`;
     if (cacheRef.current[cacheKey]) {
       setData(cacheRef.current[cacheKey]);
@@ -247,7 +256,7 @@ export function SiRatingSection({ category, hidePwVsSi = false }) {
     } finally {
       setLoading(false);
     }
-  }, [category, selectedModel]);
+  }, [category, selectedModel, propData]);
 
   useEffect(() => {
     const cacheKey = `${category || "__all__"}:${selectedModel || "all"}`;

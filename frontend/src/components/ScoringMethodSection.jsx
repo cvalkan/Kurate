@@ -1,86 +1,44 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
 import { Activity } from "lucide-react";
-
-const API = process.env.REACT_APP_BACKEND_URL;
 
 const METHOD_COLORS = {
   "win_rate vs trueskill": "bg-violet-500/10",
 };
 
-export function ScoringMethodSection({ category }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+export function ScoringMethodSection({ category, scoringData }) {
+  const data = scoringData;
 
-  useEffect(() => {
-    setLoading(true);
-    const params = category ? { category } : {};
-    axios.get(`${API}/api/scoring-method-correlation`, { params, timeout: 60000 })
-      .then(r => { if (r.data?.status === "ok") setData(r.data); else setData(null); })
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, [category]);
-
-  if (loading) return (
-    <div className="my-6" data-testid="scoring-method-section-loading">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
-        <span className="text-xs text-muted-foreground">Computing scoring method correlations&hellip;</span>
-      </div>
-      <div className="space-y-2 animate-pulse">
-        <div className="h-5 w-48 bg-secondary/30 rounded" />
-        <div className="h-32 bg-secondary/30 rounded-lg" />
-      </div>
-    </div>
-  );
-
-  if (!data) return null;
-
-  const f = v => v?.toFixed(4) ?? "\u2014";
+  if (!data || !data.correlations?.length) return null;
 
   return (
-    <div className="mb-8" data-testid="scoring-method-section">
-      <div className="mb-3">
-        <h2 className="font-heading text-lg font-semibold tracking-tight flex items-center gap-2">
-          <Activity className="h-4 w-4 text-muted-foreground" />
-          Scoring Method Agreement
-        </h2>
-        <p className="text-muted-foreground text-xs mt-1 max-w-2xl">
-          How similarly do different ranking algorithms order {data.n_papers.toLocaleString()} papers
-          from {data.n_matches.toLocaleString()} pairwise matches?
-          High correlations mean the leaderboard is robust to scoring method choice.
-        </p>
-      </div>
-
-      {/* Correlation table */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-[11px]">
+    <div className="my-6" data-testid="scoring-method-section">
+      <h3 className="text-base font-semibold mb-2 flex items-center gap-2">
+        <Activity className="h-4 w-4" /> Scoring Method Agreement
+      </h3>
+      <p className="text-xs text-muted-foreground mb-3">
+        Spearman rank correlation between different scoring methods on the same set of papers ({data.n_papers?.toLocaleString()} papers).
+      </p>
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-sm" data-testid="scoring-method-table">
           <thead>
-            <tr className="border-b border-border bg-secondary/10 text-muted-foreground">
-              <th className="py-2 px-3 text-left font-medium">Pair</th>
-              <th className="py-2 px-3 text-right font-medium">{"Spearman \u03C1"}</th>
-              <th className="py-2 px-3 text-right font-medium">{"Kendall \u03C4"}</th>
+            <tr className="bg-muted/30">
+              <th className="text-left px-3 py-2 text-xs font-medium">Pair</th>
+              <th className="text-right px-3 py-2 text-xs font-medium">Spearman ρ</th>
+              <th className="text-right px-3 py-2 text-xs font-medium">Kendall τ</th>
             </tr>
           </thead>
           <tbody>
-            {data.correlations.map((c, i) => {
-              const pairKey = `${c.method1} vs ${c.method2}`;
-              return (
-                <tr key={i} className={`border-b border-border/20 ${METHOD_COLORS[pairKey] || ""}`}>
-                  <td className="py-2 px-3 font-medium">{c.label}</td>
-                  <td className="py-2 px-3 text-right font-mono font-semibold">{f(c.spearman_rho)}</td>
-                  <td className="py-2 px-3 text-right font-mono">{f(c.kendall_tau)}</td>
-                </tr>
-              );
-            })}
+            {data.correlations.map((c, i) => (
+              <tr key={i} className={`border-t border-border/50 ${METHOD_COLORS[c.label?.toLowerCase()] || ""}`}>
+                <td className="px-3 py-1.5 text-xs">{c.label?.replace("Regularized WR", "Reg WR").replace("Bradley-Terry", "BT").replace("Normalized Win-Rate", "Win Rate")}</td>
+                <td className="px-3 py-1.5 text-xs text-right font-mono tabular-nums">{c.spearman_rho?.toFixed(4)}</td>
+                <td className="px-3 py-1.5 text-xs text-right font-mono tabular-nums">{c.kendall_tau?.toFixed(4)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-
-      <p className="text-[9px] text-muted-foreground/50 mt-2">
-        Computed from {data.n_matches.toLocaleString()} standard-mode matches
-        across {data.n_papers.toLocaleString()} papers in {data.compute_time_s}s.
-        Win-Rate = Jeffreys-prior regularized; TrueSkill = incremental Bayesian rating (mu=25, sigma=8.33).
+      <p className="text-[10px] text-muted-foreground mt-2">
+        TrueSkill uses 3-pass iterative EP on a Gaussian factor graph (μ=25, σ=8.33).
       </p>
     </div>
   );
