@@ -893,7 +893,6 @@ async def get_usage_stats(category: str = None):
             "output_tokens": total_output,
             "total_tokens": total_input + total_output,
             "total_matches": sum(s["matches"] for s in model_stats.values()),
-            "total_matches_by_category": sum(_get_cat_status(cat).get("matches_count", 0) for cat in settings.get("active_categories", [])),
             "total_cost": round(total_cost, 4),
         },
         "storage": {
