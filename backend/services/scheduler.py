@@ -296,17 +296,21 @@ async def _compare_loop():
 
             if not is_paused and active_cats:
                 # Update per-category paper/match counts and tournament stats
+                # Each category is independent — one timeout shouldn't block others
                 for cat in all_tournament_cats:
-                    cat_status = _get_cat_status(cat)
-                    cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
-                    cat_total_count = await db.papers.count_documents({"categories.0": cat})
-                    cat_status["papers_count"] = cat_paper_count
-                    cat_status["papers_total"] = cat_total_count
-                    cat_match_count = await db.matches.count_documents(
-                        {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
-                    )
-                    cat_status["matches_count"] = cat_match_count
-                    await update_tournament_stats(cat)
+                    try:
+                        cat_status = _get_cat_status(cat)
+                        cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
+                        cat_total_count = await db.papers.count_documents({"categories.0": cat})
+                        cat_status["papers_count"] = cat_paper_count
+                        cat_status["papers_total"] = cat_total_count
+                        cat_match_count = await db.matches.count_documents(
+                            {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
+                        )
+                        cat_status["matches_count"] = cat_match_count
+                        await update_tournament_stats(cat)
+                    except Exception:
+                        pass  # Skip this category's stats update on timeout
 
                 # Mark paused categories
                 paused_cats = all_tournament_cats - set(active_cats)
@@ -328,7 +332,11 @@ async def _compare_loop():
                     if t_doc and t_doc.get("compare_paused"):
                         _get_cat_status(cat)["current_activity"] = "Comparisons paused"
                         continue
-                    if not await _check_goals_met(category=cat):
+                    try:
+                        if not await _check_goals_met(category=cat):
+                            unmet_cats.append(cat)
+                    except Exception:
+                        # If goals check fails (Atlas timeout), assume unmet → try to generate matches
                         unmet_cats.append(cat)
 
                 if unmet_cats:
