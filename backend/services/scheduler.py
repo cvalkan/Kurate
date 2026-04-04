@@ -362,6 +362,8 @@ async def _compare_loop():
 
         except Exception as e:
             logger.error(f"Compare loop error: {e}")
+            import traceback
+            log_mem(f"Compare loop error: {traceback.format_exc()[-200:]}")
 
         # If there were unmet goals, loop immediately (don't sleep)
         if unmet_cats:
@@ -408,14 +410,18 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     # Exclude unmatchable papers (no summary → can never get matches).
     # Without this filter, a single summary-less paper keeps goals permanently
     # unmet (CI=100%), causing infinite repeat-match loops via Rule 3.
-    from core.config import DEFAULT_SETTINGS
-    all_keys = settings.get("content_sources", DEFAULT_SETTINGS.get("content_sources", ["abstract_plus_summary"]))
-    summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
-    summary_filter["categories.0"] = category
-    matchable_ids = set()
-    async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
-        matchable_ids.add(doc["id"])
-    entries = [e for e in entries if e["paper_id"] in matchable_ids]
+    try:
+        from core.config import DEFAULT_SETTINGS
+        all_keys = settings.get("content_sources", DEFAULT_SETTINGS.get("content_sources", ["abstract_plus_summary"]))
+        summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
+        summary_filter["categories.0"] = category
+        matchable_ids = set()
+        async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
+            matchable_ids.add(doc["id"])
+        if matchable_ids:
+            entries = [e for e in entries if e["paper_id"] in matchable_ids]
+    except Exception:
+        pass  # If filter fails, use all entries (safe fallback)
 
     if len(entries) < 2:
         return True
