@@ -294,6 +294,8 @@ async def _compare_loop_inner():
             # Use the same active_categories source as the fetch loop
             active_cats = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
 
+            log_mem(f"Compare loop cycle: paused={is_paused}, active_cats={len(active_cats)}")
+
             # Track ALL known categories for stats
             all_tournament_cats = set()
             all_tournaments_raw = await db.tournaments.find({}, {"_id": 0, "category": 1}).to_list(500)
@@ -403,9 +405,10 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     2. Top-K papers: CI margin ≤ ci_target (default 10%)
     3. Top-K cross-matching: all top-K pairs compared
     
-    Reads wins/comparisons from the rankings collection (O(P) lightweight docs)
-    instead of loading ALL matches. Goal 3 uses targeted pair queries.
+    Returns True when all goals met. Only considers matchable papers
+    (those with summaries that can be compared by LLMs).
     """
+    from core.memlog import log_mem
     from services.ranking import wilson_margin_pct
 
     settings = await get_settings()
