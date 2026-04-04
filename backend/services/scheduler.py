@@ -268,7 +268,21 @@ async def _fetch_loop():
 async def _compare_loop():
     """Independent loop for running tournament comparisons. Never waits for fetches."""
     global _wake_event
+    from core.memlog import log_mem
     await asyncio.sleep(5)
+    log_mem("Compare loop: task started")
+    try:
+        await _compare_loop_inner()
+    except Exception as e:
+        import traceback
+        log_mem(f"Compare loop CRASHED: {traceback.format_exc()[-300:]}")
+        logger.error(f"Compare loop CRASHED: {e}")
+
+
+async def _compare_loop_inner():
+    global _wake_event
+    from core.memlog import log_mem, force_gc
+    await asyncio.sleep(0)
 
     while _scheduler_running:
         unmet_cats = []
