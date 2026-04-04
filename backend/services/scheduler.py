@@ -278,6 +278,7 @@ async def _compare_loop():
     await asyncio.sleep(5)
 
     while _scheduler_running:
+        unmet_cats = []
         try:
             settings = await get_settings()
             is_paused = settings.get("paused", False)
