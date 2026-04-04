@@ -164,7 +164,7 @@ async def get_active_tournaments() -> list:
 async def update_tournament_stats(category: str, mode: str = "standard"):
     """Update stats on a tournament document."""
     tid = f"cat={category}|mode={mode}"
-    paper_count = await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}})
+    paper_count = await db.papers.count_documents({"categories.0": category})
     match_count = await db.matches.count_documents(
         {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
     )
@@ -301,10 +301,8 @@ async def _compare_loop():
                 for cat in all_tournament_cats:
                     try:
                         cat_status = _get_cat_status(cat)
-                        cat_paper_count = await db.papers.count_documents({"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}})
-                        cat_total_count = await db.papers.count_documents({"categories.0": cat})
+                        cat_paper_count = await db.papers.count_documents({"categories.0": cat})
                         cat_status["papers_count"] = cat_paper_count
-                        cat_status["papers_total"] = cat_total_count
                         cat_match_count = await db.matches.count_documents(
                             {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
                         )
@@ -320,9 +318,8 @@ async def _compare_loop():
 
                 unmet_cats = []
                 for cat in active_cats:
-                    paper_count = _get_cat_status(cat).get("papers_count")
-                    # If papers_count was never set (stats update timed out), assume enough papers
-                    if paper_count is not None and paper_count < min_papers:
+                    paper_count = _get_cat_status(cat).get("papers_count", 0)
+                    if paper_count < min_papers:
                         total = _get_cat_status(cat).get("papers_total", 0)
                         if total > paper_count:
                             _get_cat_status(cat)["current_activity"] = f"Generating summaries ({paper_count}/{total} ready, need {min_papers})"
