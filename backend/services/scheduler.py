@@ -320,8 +320,9 @@ async def _compare_loop():
 
                 unmet_cats = []
                 for cat in active_cats:
-                    paper_count = _get_cat_status(cat).get("papers_count", 0)
-                    if paper_count < min_papers:
+                    paper_count = _get_cat_status(cat).get("papers_count")
+                    # If papers_count was never set (stats update timed out), assume enough papers
+                    if paper_count is not None and paper_count < min_papers:
                         total = _get_cat_status(cat).get("papers_total", 0)
                         if total > paper_count:
                             _get_cat_status(cat)["current_activity"] = f"Generating summaries ({paper_count}/{total} ready, need {min_papers})"
