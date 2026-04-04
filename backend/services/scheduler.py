@@ -1066,7 +1066,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     if _paused:
                         return
                     try:
-                        result = await compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary")
+                        result = await compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="ai_summary")
                     except Exception as e:
                         result = e
 
@@ -1079,7 +1079,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     "paper1_id": p1_id, "paper2_id": p2_id,
                     "primary_category": category,
                     "shared_categories": shared_cats,
-                    "content_mode": "abstract_plus_summary",
+                    "content_mode": "ai_summary",
                     "prompt_hash": current_prompt_hash,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
