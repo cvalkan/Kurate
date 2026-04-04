@@ -296,6 +296,7 @@ async def _compare_loop():
                 all_tournament_cats = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
             if not is_paused and active_cats:
+                log_mem(f"Compare loop: entering (paused={is_paused}, active={len(active_cats)} cats, tournaments={len(all_tournament_cats)})")
                 # Update per-category paper/match counts and tournament stats
                 # Each category is independent — one timeout shouldn't block others
                 for cat in all_tournament_cats:
@@ -416,6 +417,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     if len(entries) < 2:
         return True
 
+    total_rankings = len(entries)
     # Exclude unmatchable papers (no summary → can never get matches).
     # Without this filter, a single summary-less paper keeps goals permanently
     # unmet (CI=100%), causing infinite repeat-match loops via Rule 3.
@@ -431,8 +433,9 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
             matchable_ids.add(doc["id"])
         if matchable_ids:
             entries = [e for e in entries if e["paper_id"] in matchable_ids]
-    except Exception:
-        pass  # If filter fails, use all entries (safe fallback)
+        log_mem(f"_check_goals({category}): {total_rankings} ranked, {len(matchable_ids)} matchable, {len(entries)} filtered")
+    except Exception as e:
+        log_mem(f"_check_goals({category}): filter FAILED: {e}")
 
     if len(entries) < 2:
         return True
