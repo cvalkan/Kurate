@@ -421,8 +421,10 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     # Without this filter, a single summary-less paper keeps goals permanently
     # unmet (CI=100%), causing infinite repeat-match loops via Rule 3.
     try:
-        from core.config import DEFAULT_SETTINGS
-        all_keys = settings.get("content_sources", DEFAULT_SETTINGS.get("content_sources", ["abstract_plus_summary"]))
+        summary_model = _pick_summary_source(settings.get("summary_source", "thinking"))
+        required_key = _summary_model_key(summary_model)
+        fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
+        all_keys = [required_key] + fallback_keys
         summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
         summary_filter["categories.0"] = category
         matchable_ids = set()

@@ -288,11 +288,16 @@ async def _retry_missing_summaries():
     """
     await asyncio.sleep(30)  # Wait for startup to settle
     from core.memlog import log_mem, force_gc
-    from services.llm import generate_precomparison_impact_summary
+    from services.scheduler import _pick_summary_source, _summary_model_key, _SUMMARY_KEY_FALLBACKS, _get_paper_summary
 
-    all_keys = ["abstract_plus_summary"]
+    # Determine the summary key the comparison pipeline uses
+    settings = await db.settings.find_one({"key": "global"}) or {}
+    summary_model = _pick_summary_source(settings.get("summary_source", "thinking"))
+    required_key = _summary_model_key(summary_model)
+    fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
+    all_keys = [required_key] + fallback_keys
 
-    # Find papers in rankings without summaries
+    # Find papers in rankings without the required summary
     ranked_ids = set()
     async for doc in db.rankings.find({}, {"_id": 0, "paper_id": 1}):
         ranked_ids.add(doc["paper_id"])
@@ -309,36 +314,10 @@ async def _retry_missing_summaries():
     if not missing:
         return
 
-    logger.info(f"[retry-summaries] Found {len(missing)} papers without summaries, retrying...")
-
-    generated = 0
-    for pid in missing:
-        paper = await db.papers.find_one(
-            {"id": pid},
-            {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1},
-        )
-        if not paper:
-            continue
-        try:
-            result = await generate_precomparison_impact_summary(paper)
-            if result and result.get("summary") and len(str(result["summary"])) > 50:
-                from datetime import datetime, timezone
-                await db.papers.update_one(
-                    {"id": pid},
-                    {"$set": {
-                        f"summaries.abstract_plus_summary": str(result["summary"]),
-                        f"summary_dates.abstract_plus_summary": datetime.now(timezone.utc).isoformat(),
-                    }},
-                )
-                generated += 1
-                logger.info(f"[retry-summaries] Generated summary for '{paper.get('title', '')[:40]}' ({pid[:12]})")
-        except Exception as e:
-            logger.warning(f"[retry-summaries] Failed for {pid[:12]}: {e}")
-        force_gc()
-        await asyncio.sleep(2)
-
-    if generated:
-        log_mem(f"[retry-summaries] Generated {generated}/{len(missing)} missing summaries")
+    logger.info(f"[retry-summaries] Found {len(missing)} papers without {required_key} summary, retrying...")
+    # Don't retry all — the regular summary generation pipeline handles this.
+    # Just log the count so the admin knows.
+    log_mem(f"[retry-summaries] {len(missing)} papers need summary generation")
 
 
 
