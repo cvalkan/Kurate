@@ -153,13 +153,6 @@ async def init_tournament_registry():
     logger.info(f"Tournament registry: {total} tournaments")
 
 
-async def get_active_tournaments() -> list:
-    """Return all active tournament documents."""
-    tournaments = await db.tournaments.find(
-        {"status": "active"}, {"_id": 0}
-    ).to_list(500)
-    return tournaments
-
 
 async def update_tournament_stats(category: str, mode: str = "standard"):
     """Update stats on a tournament document."""
