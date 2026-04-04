@@ -332,6 +332,9 @@ async def _compare_loop():
                         unmet_cats.append(cat)
 
                 if unmet_cats:
+                    log_mem(f"Compare loop: {len(unmet_cats)} unmet categories: {unmet_cats}")
+                else:
+                    log_mem(f"Compare loop: all goals met for {len(active_cats)} categories")
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
                     for i in range(0, len(unmet_cats), batch_size):
                         batch = unmet_cats[i:i+batch_size]
