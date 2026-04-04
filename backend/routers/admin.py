@@ -466,11 +466,12 @@ async def get_admin_status(category: str = "cs.RO"):
     sched_papers_total = cat_scheduler.get("papers_total", 0)
     if not total_papers:
         total_papers = sched_papers
-    total_matches = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
-    )
-    sched_matches = cat_scheduler.get("matches_count", 0)
-    total_matches = max(total_matches, sched_matches)
+    total_matches = cat_scheduler.get("matches_count", 0)
+    if total_matches == 0:
+        # Fallback: query DB if scheduler hasn't populated the count yet
+        total_matches = await db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+        )
     failed_matches = lb_cache.get("_failed_by_cat", {}).get(category, 0)
 
     # Unranked from rankings DB
@@ -706,7 +707,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
-    cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
+    cat_matches_done = cat_scheduler.get("matches_count", 0)
+    if cat_matches_done == 0:
+        cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
     cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
     cat_total_in_db = await db.papers.count_documents({"categories.0": category})
 
@@ -890,6 +893,7 @@ async def get_usage_stats(category: str = None):
             "output_tokens": total_output,
             "total_tokens": total_input + total_output,
             "total_matches": sum(s["matches"] for s in model_stats.values()),
+            "total_matches_by_category": sum(_get_cat_status(cat).get("matches_count", 0) for cat in settings.get("active_categories", [])),
             "total_cost": round(total_cost, 4),
         },
         "storage": {
