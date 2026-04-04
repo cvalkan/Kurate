@@ -284,8 +284,8 @@ async def _compare_loop():
             is_paused = settings.get("paused", False)
             min_papers = settings.get("min_papers_for_tournament", 8)
 
-            tournaments = await get_active_tournaments()
-            active_cats = list({t["category"] for t in tournaments})
+            # Use the same active_categories source as the fetch loop
+            active_cats = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
 
             # Track ALL known categories for stats
             all_tournament_cats = set()
