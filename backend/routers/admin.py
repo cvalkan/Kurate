@@ -596,6 +596,21 @@ async def get_progress_estimate(category: str = "cs.RO"):
     ):
         entries.append(doc)
 
+    # Filter to matchable papers only (same logic as _check_goals_met in scheduler.py).
+    # Papers without summaries can never be matched → excluding them prevents
+    # the progress endpoint from reporting goals_met=False for unmatchable papers.
+    try:
+        all_keys = settings.get("content_sources", ["abstract_plus_summary"])
+        summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
+        summary_filter["categories.0"] = category
+        matchable_ids = set()
+        async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
+            matchable_ids.add(doc["id"])
+        if matchable_ids:
+            entries = [e for e in entries if e["paper_id"] in matchable_ids]
+    except Exception:
+        pass  # If filter fails, use all entries
+
     total_papers = len(entries)
     if total_papers == 0:
         result = {

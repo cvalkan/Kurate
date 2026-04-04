@@ -278,6 +278,70 @@ async def startup():
     logger.info("Kurate.org Leaderboard started")
 
 
+
+async def _retry_missing_summaries():
+    """Retry summary generation for papers in rankings that lack summaries.
+
+    These papers exist in rankings (were fetched and seeded) but their summary
+    generation failed. Without summaries, they can't be matched. This task
+    finds them and retries summary generation.
+    """
+    await asyncio.sleep(30)  # Wait for startup to settle
+    from core.memlog import log_mem, force_gc
+    from services.llm import generate_precomparison_impact_summary
+
+    all_keys = ["abstract_plus_summary"]
+
+    # Find papers in rankings without summaries
+    ranked_ids = set()
+    async for doc in db.rankings.find({}, {"_id": 0, "paper_id": 1}):
+        ranked_ids.add(doc["paper_id"])
+
+    missing = []
+    for pid in ranked_ids:
+        paper = await db.papers.find_one({"id": pid}, {"_id": 0, "id": 1, "summaries": 1, "title": 1})
+        if not paper:
+            continue
+        has_summary = any(paper.get("summaries", {}).get(k) for k in all_keys)
+        if not has_summary:
+            missing.append(pid)
+
+    if not missing:
+        return
+
+    logger.info(f"[retry-summaries] Found {len(missing)} papers without summaries, retrying...")
+
+    generated = 0
+    for pid in missing:
+        paper = await db.papers.find_one(
+            {"id": pid},
+            {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1},
+        )
+        if not paper:
+            continue
+        try:
+            result = await generate_precomparison_impact_summary(paper)
+            if result and result.get("summary") and len(str(result["summary"])) > 50:
+                from datetime import datetime, timezone
+                await db.papers.update_one(
+                    {"id": pid},
+                    {"$set": {
+                        f"summaries.abstract_plus_summary": str(result["summary"]),
+                        f"summary_dates.abstract_plus_summary": datetime.now(timezone.utc).isoformat(),
+                    }},
+                )
+                generated += 1
+                logger.info(f"[retry-summaries] Generated summary for '{paper.get('title', '')[:40]}' ({pid[:12]})")
+        except Exception as e:
+            logger.warning(f"[retry-summaries] Failed for {pid[:12]}: {e}")
+        force_gc()
+        await asyncio.sleep(2)
+
+    if generated:
+        log_mem(f"[retry-summaries] Generated {generated}/{len(missing)} missing summaries")
+
+
+
 async def _deferred_startup():
     """Heavy startup work that runs in background after health endpoint is available."""
     await asyncio.sleep(0.1)  # Yield to let server start accepting connections
@@ -550,6 +614,10 @@ async def _deferred_startup():
         logger.warning(f"Experiment match import warning: {e}")
 
     await start_scheduler()
+
+    # Retry summary generation for papers that are in rankings but lack summaries
+    # (these papers can't be matched until they have summaries)
+    asyncio.create_task(_retry_missing_summaries())
 
     # Start background cache refresh loop — pre-computes all leaderboard data
     from routers.leaderboard import start_cache_bg
