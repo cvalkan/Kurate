@@ -197,7 +197,7 @@ export function AdminOverview({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Papers (Leaderboard)" value={totalPapers} sub={totalFetched > totalPapers ? `${totalFetched} fetched` : undefined} icon={FileText} />
         <StatCard label="Matches" value={status.total_matches} icon={Swords} />
-        <StatCard label="Failed" value={status.failed_matches} icon={XCircle} />
+        <StatCard label="Failed" value={progress?.failed_matches_total ?? status.failed_matches} icon={XCircle} />
         <StatCard label="Unranked" value={status.unranked_papers} icon={Activity} />
       </div>
 
@@ -389,9 +389,19 @@ export function AdminOverview({
             <span>
               {progress.goals_met ? (
                 <span className="text-muted-foreground font-medium">Converged</span>
-              ) : !progress.compare_paused && !progress.global_paused ? (
-                <span className="text-muted-foreground font-medium">Running</span>
-              ) : null}
+              ) : (() => {
+                // Determine if stalled: no new matches in 10+ minutes
+                const isStalled = progress.last_match_at && 
+                  (Date.now() - new Date(progress.last_match_at).getTime()) > 10 * 60 * 1000 &&
+                  !progress.compare_paused && !progress.global_paused;
+                if (isStalled) {
+                  return <span className="text-amber-600 font-medium">Stalled</span>;
+                }
+                if (!progress.compare_paused && !progress.global_paused) {
+                  return <span className="text-muted-foreground font-medium">Running</span>;
+                }
+                return null;
+              })()}
             </span>
           </div>
         </div>

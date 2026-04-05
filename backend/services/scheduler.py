@@ -17,6 +17,15 @@ _processing_locks = {}  # Per-category locks
 _fetching_cats = set()  # Categories currently being fetched
 _wake_event: asyncio.Event = None  # Wake scheduler immediately on resume
 
+# Compare loop diagnostics — exposed via get_scheduler_diagnostics()
+_compare_loop_diag = {
+    "last_cycle_at": None,
+    "last_cycle_unmet": [],
+    "last_cycle_results": {},  # cat -> {"status": str, "completed": int, "failed": int}
+    "cycles_since_restart": 0,
+    "loop_alive": False,
+}
+
 
 def _get_lock(category: str) -> asyncio.Lock:
     if category not in _processing_locks:
@@ -87,6 +96,13 @@ def get_scheduler_status(category: str = None) -> dict:
         "current_activity": _get_global_activity(),
         "categories": {k: v.get("current_activity", "Idle") for k, v in _category_status.items()},
     }
+
+
+def get_scheduler_diagnostics() -> dict:
+    """Get compare loop diagnostics — exposes cycle tracking for debugging stalls."""
+    return dict(_compare_loop_diag)
+
+
 
 
 def wake_scheduler():
@@ -282,9 +298,13 @@ async def _compare_loop_inner():
     global _wake_event
     from core.memlog import log_mem, force_gc
     await asyncio.sleep(0)
+    _compare_loop_diag["loop_alive"] = True
 
     while _scheduler_running:
         unmet_cats = []
+        _compare_loop_diag["cycles_since_restart"] += 1
+        _compare_loop_diag["last_cycle_at"] = datetime.now(timezone.utc).isoformat()
+        _compare_loop_diag["last_cycle_results"] = {}
         try:
             settings = await get_settings()
             is_paused = settings.get("paused", False)
@@ -348,12 +368,21 @@ async def _compare_loop_inner():
                         unmet_cats.append(cat)
 
                 if unmet_cats:
+                    _compare_loop_diag["last_cycle_unmet"] = list(unmet_cats)
                     log_mem(f"Compare loop: {len(unmet_cats)} unmet categories: {unmet_cats}")
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
                     for i in range(0, len(unmet_cats), batch_size):
                         batch = unmet_cats[i:i+batch_size]
                         tasks = [run_comparison_round(category=cat) for cat in batch]
-                        await asyncio.gather(*tasks, return_exceptions=True)
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        # Record per-category results for diagnostics
+                        for cat, res in zip(batch, results):
+                            if isinstance(res, Exception):
+                                _compare_loop_diag["last_cycle_results"][cat] = {"status": "error", "error": str(res)[:100]}
+                            elif isinstance(res, dict):
+                                _compare_loop_diag["last_cycle_results"][cat] = res
+                            else:
+                                _compare_loop_diag["last_cycle_results"][cat] = {"status": "unknown"}
                         # GC between batches to release match/paper data from completed rounds
                         from core.memlog import force_gc
                         force_gc()

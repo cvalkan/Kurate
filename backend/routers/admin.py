@@ -694,7 +694,32 @@ async def get_progress_estimate(category: str = "cs.RO"):
             "with_summaries": total_papers,
         },
     }
+
+    # Add live diagnostics: last match time and failed count (direct DB query, not cached)
+    try:
+        last_match = await db.matches.find_one(
+            {"primary_category": category, "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+            {"_id": 0, "created_at": 1},
+            sort=[("created_at", -1)],
+        )
+        result["last_match_at"] = last_match.get("created_at") if last_match else None
+        failed_count = await db.matches.count_documents(
+            {"primary_category": category, "failed": True, "mode": {"$exists": False}}
+        )
+        result["failed_matches_total"] = failed_count
+    except Exception:
+        pass
+
     return result
+
+
+@router.get("/scheduler-diagnostics", dependencies=[Depends(verify_admin)])
+async def scheduler_diagnostics():
+    """Real-time scheduler diagnostics — shows compare loop health and per-category round results."""
+    from services.scheduler import get_scheduler_diagnostics
+    diag = get_scheduler_diagnostics()
+    return diag
+
 
 
 @router.get("/stats", dependencies=[Depends(verify_admin)])
