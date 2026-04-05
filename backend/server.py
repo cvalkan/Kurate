@@ -285,8 +285,7 @@ async def _retry_missing_summaries():
     Queries the papers collection (NOT rankings) for all papers in active
     categories that lack the required summary key. Delegates to
     _generate_paper_summaries — the same function the fetch cycle uses for
-    pre-comparison summaries (NOT _generate_pending_summaries which is for
-    post-tournament impact summaries).
+    pre-comparison summaries used by the comparison pipeline.
 
     Runs once on startup after a short delay. The scheduler's regular fetch
     cycle handles ongoing generation for new papers.
