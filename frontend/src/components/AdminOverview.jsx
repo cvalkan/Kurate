@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   RefreshCw, Swords, FileText, CheckCircle2, XCircle, Search,
-  Clock, Download, Activity, Sparkles,
+  Clock, Download, Activity,
 } from "lucide-react";
 import { ModelBadge } from "@/components/ModelBadge";
 import { toast } from "sonner";
@@ -88,7 +88,6 @@ export function AdminOverview({
   };
 
   const [backfilling, setBackfilling] = useState(false);
-  const [tsBackfilling, setTsBackfilling] = useState(false);
   const [corrRefreshing, setCorrRefreshing] = useState(false);
 
   const refreshCorrelations = async () => {
@@ -136,24 +135,6 @@ export function AdminOverview({
     }
   };
 
-  const triggerTsBackfill = async () => {
-    setTsBackfilling(true);
-    try {
-      const res = await axios.post(
-        `${API}/api/admin/backfill-trueskill?category=${adminCat}`,
-        {},
-        { headers: getAdminHeaders() },
-      );
-      if (res.data.status === "ok") {
-        toast.success(`TrueSkill & model stats backfilled for ${adminCat}`);
-      }
-      if (onRefresh) setTimeout(onRefresh, 2000);
-    } catch (e) {
-      toast.error("Backfill failed: " + (e.response?.data?.detail || e.message));
-    } finally {
-      setTsBackfilling(false);
-    }
-  };
 
   if (!status) return (
     <div className="space-y-4 animate-pulse" data-testid="admin-overview-loading">
@@ -387,17 +368,6 @@ export function AdminOverview({
               )}
             </span>
             <div className="flex items-center gap-2">
-              <Button
-                onClick={triggerTsBackfill}
-                disabled={tsBackfilling}
-                variant="outline"
-                size="sm"
-                className="gap-1 text-[10px] h-6 px-2"
-                data-testid="backfill-trueskill-btn"
-              >
-                <Sparkles className={`h-3 w-3 ${tsBackfilling ? "animate-spin" : ""}`} />
-                {tsBackfilling ? "Backfilling..." : "Backfill TS + Model Stats"}
-              </Button>
               <Button
                 onClick={refreshCorrelations}
                 disabled={corrRefreshing}
