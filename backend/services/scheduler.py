@@ -1252,53 +1252,19 @@ async def _get_compared_opponents(paper_id: str, category: str, candidates: list
     return already
 
 
-# Cache for whether dedup_pair migration is complete
-_dedup_pair_ready = None
-
-async def _check_dedup_pair_ready() -> bool:
-    """Check if dedup_pair backfill has completed. Cached after first True."""
-    global _dedup_pair_ready
-    if _dedup_pair_ready:
-        return True
-    flag = await db.settings.find_one({"key": "dedup_pair_backfill_v1"}, {"_id": 0})
-    if flag and flag.get("done"):
-        _dedup_pair_ready = True
-        return True
-    return False
-
-
-async def _load_compared_pairs_legacy(category: str) -> set:
-    """Legacy fallback: load all match pairs into memory for dedup."""
-    compared = set()
-    async for m in db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
-    ):
-        compared.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
-    return compared
-
-
 async def _select_pairs(
     papers: list, stats: dict, category: str,
     max_pairs: int, top_k: int, max_per_round: int, **kwargs,
 ) -> List[tuple]:
     """
     Goal-directed pair selection with 2-tier CI targets.
-    Uses DB queries for dedup when dedup_pair is ready, falls back to in-memory scan otherwise.
+    Uses DB queries via dedup_pair index for O(1) repeat-match checks.
     """
     from services.ranking import wilson_margin_pct
 
     paper_ids = [p["id"] for p in papers]
     if len(paper_ids) < 2:
         return []
-
-    # Check if we can use fast DB dedup or need legacy in-memory scan
-    use_db_dedup = await _check_dedup_pair_ready()
-    legacy_compared = None
-    if not use_db_dedup:
-        from core.memlog import log_mem
-        log_mem(f"_select_pairs({category}): dedup_pair not ready, using legacy in-memory scan")
-        legacy_compared = await _load_compared_pairs_legacy(category)
 
     ci_target = kwargs.get("ci_target", 10)
     ci_target_general = kwargs.get("ci_target_general", 15)
@@ -1360,10 +1326,7 @@ async def _select_pairs(
 
         # Get all already-compared opponents for p1
         all_candidates = [p for p in paper_ids if p != p1 and can_pair(p)]
-        if use_db_dedup:
-            already_compared = await _get_compared_opponents(p1, category, all_candidates)
-        else:
-            already_compared = {c for c in all_candidates if tuple(sorted([p1, c])) in legacy_compared}
+        already_compared = await _get_compared_opponents(p1, category, all_candidates)
         # Also exclude pairs selected this round
         already_compared |= {opp for pair_key in selected_this_round for opp in [pair_key.split("|")[0], pair_key.split("|")[1]] if _make_dedup_pair(p1, opp) == pair_key}
 
@@ -1418,18 +1381,13 @@ async def _select_pairs(
             topk_pair_map[pk] = (top_k_list[i], top_k_list[j])
 
     existing_topk = set()
-    if use_db_dedup and topk_pair_keys:
+    if topk_pair_keys:
         async for m in db.matches.find(
             {"primary_category": category, "dedup_pair": {"$in": topk_pair_keys},
              "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
             {"_id": 0, "dedup_pair": 1},
         ):
             existing_topk.add(m["dedup_pair"])
-    elif legacy_compared:
-        for pk in topk_pair_keys:
-            p1, p2 = topk_pair_map[pk]
-            if tuple(sorted([p1, p2])) in legacy_compared:
-                existing_topk.add(pk)
 
     for pk in topk_pair_keys:
         if len(pairs) >= max_pairs:
