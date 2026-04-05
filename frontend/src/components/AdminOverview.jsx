@@ -380,40 +380,50 @@ export function AdminOverview({
                 <>~<span className="font-mono text-foreground font-medium">{progress.estimated_matches_remaining}</span> matches remaining</>
               )}
             </span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                onClick={refreshCorrelationsCategory}
-                disabled={corrRefreshing}
-                variant="outline"
-                size="sm"
-                className="gap-1 text-[10px] h-6 px-2"
-                data-testid="refresh-correlations-btn"
-              >
-                <RefreshCw className={`h-3 w-3 ${corrRefreshing ? "animate-spin" : ""}`} />
-                {corrRefreshing ? "Refreshing..." : "Refresh Category"}
-              </Button>
-              <Button
-                onClick={refreshCorrelationsAll}
-                disabled={corrAllRefreshing}
-                variant="outline"
-                size="sm"
-                className="gap-1 text-[10px] h-6 px-2"
-                data-testid="refresh-correlations-all-btn"
-              >
-                <RefreshCw className={`h-3 w-3 ${corrAllRefreshing ? "animate-spin" : ""}`} />
-                {corrAllRefreshing ? "Refreshing..." : "Refresh All"}
-              </Button>
-              <span>
-                {progress.goals_met ? (
-                  <span className="text-green-600 font-medium">Converged</span>
-                ) : !progress.compare_paused && !progress.global_paused ? (
-                  <span className="text-accent font-medium">Running</span>
-                ) : null}
-              </span>
-            </div>
+            <span>
+              {progress.goals_met ? (
+                <span className="text-green-600 font-medium">Converged</span>
+              ) : !progress.compare_paused && !progress.global_paused ? (
+                <span className="text-accent font-medium">Running</span>
+              ) : null}
+            </span>
           </div>
         </div>
       )}
+
+      {/* Model Analysis Refresh */}
+      <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="model-analysis-refresh">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium flex items-center gap-1.5">
+            <RefreshCw className="h-3.5 w-3.5" />
+            Model Analysis Cache
+          </h3>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={refreshCorrelationsCategory}
+              disabled={corrRefreshing}
+              variant="outline"
+              size="sm"
+              className="gap-1 text-[10px] h-6 px-2"
+              data-testid="refresh-correlations-btn"
+            >
+              <RefreshCw className={`h-3 w-3 ${corrRefreshing ? "animate-spin" : ""}`} />
+              {corrRefreshing ? "Refreshing..." : "Refresh Category"}
+            </Button>
+            <Button
+              onClick={refreshCorrelationsAll}
+              disabled={corrAllRefreshing}
+              variant="outline"
+              size="sm"
+              className="gap-1 text-[10px] h-6 px-2"
+              data-testid="refresh-correlations-all-btn"
+            >
+              <RefreshCw className={`h-3 w-3 ${corrAllRefreshing ? "animate-spin" : ""}`} />
+              {corrAllRefreshing ? "Refreshing..." : "Refresh All (10-15 min)"}
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* Usage Statistics */}
       {usageStats && (
