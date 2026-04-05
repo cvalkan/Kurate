@@ -650,8 +650,10 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
     }
     # Controlled WR from single model's stats
     sub_wr = {}
+    sub_mk_dot = sub_mk.replace("_", ".")  # check both variants
     for p in pw_papers:
-        ms = p.get("model_stats", {}).get(sub_mk)
+        ms_data = p.get("model_stats", {})
+        ms = ms_data.get(sub_mk) or ms_data.get(sub_mk_dot)
         if isinstance(ms, dict) and ms.get("total", 0) >= MIN_MATCHES:
             sub_wr[p["paper_id"]] = (ms.get("wins", 0) + 0.5) / (ms.get("total", 0) + 1.0)
     controlled_pw["reg_wr"] = ("Reg WR", sub_wr)
@@ -662,7 +664,8 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
         mts = p.get("model_ts", {})
         _rng.shuffle(mk_keys)
         for mk_inner in mk_keys:
-            ts_data = mts.get(mk_inner)
+            mk_inner_dot = mk_inner.replace("_", ".")
+            ts_data = mts.get(mk_inner) or mts.get(mk_inner_dot)
             if isinstance(ts_data, dict) and ts_data.get("mu"):
                 sub_ts[p["paper_id"]] = ts_data["mu"]
                 break
