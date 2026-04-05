@@ -1034,22 +1034,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 if p["id"] not in paper_stats:
                     paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0, "score": 1200}
 
-            # Load match pairs for dedup (only paper1_id + paper2_id — minimal projection)
-            all_matches = await collect_all(db.matches.find(
-                {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-                {"_id": 0, "paper1_id": 1, "paper2_id": 1},
-            ))
-
-            compared_pairs = set()
-            for m in all_matches:
-                compared_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
-
             if max_pairs_override:
                 max_pairs = min(max_pairs_override, 500)
             else:
                 max_pairs = min(100, len(all_papers) * 2)
-            pairs = _select_pairs(
-                all_papers, paper_stats, compared_pairs,
+            pairs = await _select_pairs(
+                all_papers, paper_stats, category,
                 max_pairs, top_k_focus, max_new_per_round,
                 ci_target=settings.get("ci_target", 10),
                 ci_target_general=settings.get("ci_target_general", 15),
@@ -1063,7 +1053,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             paper_lookup = {p["id"]: p for p in all_papers}
             completed = 0
             failed = 0
-            total_matches = len(all_matches)
+            total_matches = cat_status.get("matches_count", 0)
 
             # Semaphore-based pipeline: results saved as each completes
             sem = asyncio.Semaphore(parallel_agents)
@@ -1103,6 +1093,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 match_doc = {
                     "id": str(uuid.uuid4()),
                     "paper1_id": p1_id, "paper2_id": p2_id,
+                    "dedup_pair": _make_dedup_pair(p1_id, p2_id),
                     "primary_category": category,
                     "shared_categories": shared_cats,
                     "content_mode": "abstract_plus_summary",
@@ -1187,7 +1178,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
         finally:
             cat_status["is_processing"] = False
             # P1: Free large data structures to reduce arena fragmentation
-            for _var in ("all_papers", "all_matches", "paper_lookup", "paper_stats", "compared_pairs"):
+            for _var in ("all_papers", "paper_lookup", "paper_stats"):
                 try:
                     del locals()[_var]  # noqa
                 except (KeyError, NameError):
@@ -1230,17 +1221,41 @@ async def _recompute_convergence_bg(category: str):
         logger.debug(f"Convergence recompute for {category}: {e}")
 
 
-def _select_pairs(
-    papers: list, stats: dict, compared_pairs: set,
+def _make_dedup_pair(p1: str, p2: str) -> str:
+    """Normalized pair key — always sorted for consistent dedup."""
+    a, b = (p1, p2) if p1 < p2 else (p2, p1)
+    return f"{a}|{b}"
+
+
+async def _get_compared_opponents(paper_id: str, category: str, candidates: list) -> set:
+    """Query DB for which candidates have already been compared with paper_id.
+    
+    Uses the dedup_pair index — O(1) per batch regardless of total match count.
+    """
+    if not candidates:
+        return set()
+    # Build all possible dedup_pair values
+    pair_keys = [_make_dedup_pair(paper_id, c) for c in candidates]
+    already = set()
+    async for m in db.matches.find(
+        {"primary_category": category, "dedup_pair": {"$in": pair_keys},
+         "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    ):
+        # Return the opponent ID (the one that isn't paper_id)
+        opp = m["paper2_id"] if m["paper1_id"] == paper_id else m["paper1_id"]
+        already.add(opp)
+    return already
+
+
+async def _select_pairs(
+    papers: list, stats: dict, category: str,
     max_pairs: int, top_k: int, max_per_round: int, **kwargs,
 ) -> List[tuple]:
     """
     Goal-directed pair selection with 2-tier CI targets.
-    1. Match neediest papers first (widest margin vs their tier's target)
-       - Established opponents selected by Elo proximity (not arbitrary)
-       - Needy-vs-needy matches preserved for efficiency (both papers benefit)
-    2. Top-K cross-matches after rankings stabilize
-    Never generates repeat pairs — if no novel pair exists, the paper is skipped.
+    Uses DB queries for dedup instead of loading all matches into memory.
+    Scales to 100K+ papers — memory is O(candidates_per_round).
     """
     from services.ranking import wilson_margin_pct
 
@@ -1279,6 +1294,8 @@ def _select_pairs(
 
     pairs = []
     round_count = {pid: 0 for pid in paper_ids}
+    # Track pairs selected THIS round (to avoid selecting the same pair twice)
+    selected_this_round = set()
 
     def can_pair(p):
         return round_count[p] < max_per_round
@@ -1304,16 +1321,18 @@ def _select_pairs(
         prefer_established = len(established) > 0 and ((pair_idx * calibration_pct) % 100 < calibration_pct)
         pair_idx += 1
 
+        # Get all already-compared opponents for p1 in one batch query
+        all_candidates = [p for p in paper_ids if p != p1 and can_pair(p)]
+        already_compared = await _get_compared_opponents(p1, category, all_candidates)
+        already_compared |= {opp for pair_key in selected_this_round for opp in [pair_key.split("|")[0], pair_key.split("|")[1]] if _make_dedup_pair(p1, opp) == pair_key}
+
         best = None
 
         if prefer_established:
             target = median_elo if comparisons[p1] == 0 else wr_scores[p1]
             best_dist = float('inf')
             for p2 in established:
-                if p2 == p1 or not can_pair(p2):
-                    continue
-                pair_key = tuple(sorted([p1, p2]))
-                if pair_key in compared_pairs:
+                if p2 == p1 or not can_pair(p2) or p2 in already_compared:
                     continue
                 dist = abs(wr_scores[p2] - target)
                 if dist < best_dist:
@@ -1324,11 +1343,8 @@ def _select_pairs(
         if best is None:
             best_score = -1
             for p2 in needy:
-                if p2 == p1 or not can_pair(p2):
+                if p2 == p1 or not can_pair(p2) or p2 in already_compared:
                     continue
-                pair_key = tuple(sorted([p1, p2]))
-                if pair_key in compared_pairs:
-                    continue  # Skip repeats entirely
                 score = urgency(p2)
                 if score > best_score:
                     best_score = score
@@ -1337,17 +1353,14 @@ def _select_pairs(
         # Fallback: any paper with novel pair
         if best is None:
             for p2 in paper_ids:
-                if p2 != p1 and can_pair(p2):
-                    pair_key = tuple(sorted([p1, p2]))
-                    if pair_key not in compared_pairs:
-                        best = p2
-                        break
+                if p2 != p1 and can_pair(p2) and p2 not in already_compared:
+                    best = p2
+                    break
 
         # No novel pair found → skip this paper (never generate repeats)
         if best:
-            pair_key = tuple(sorted([p1, best]))
             pairs.append((p1, best))
-            compared_pairs.add(pair_key)
+            selected_this_round.add(_make_dedup_pair(p1, best))
             round_count[p1] += 1
             round_count[best] += 1
 
@@ -1355,18 +1368,33 @@ def _select_pairs(
         return pairs[:max_pairs]
 
     # --- Rule 2: Top-K cross-matches ---
+    # Batch query all top-K pairs at once
+    topk_pair_keys = []
+    topk_pair_map = {}
     for i in range(len(top_k_list)):
         for j in range(i + 1, len(top_k_list)):
-            if len(pairs) >= max_pairs:
-                break
-            pair_key = tuple(sorted([top_k_list[i], top_k_list[j]]))
-            if pair_key not in compared_pairs:
-                pairs.append((top_k_list[i], top_k_list[j]))
-                compared_pairs.add(pair_key)
-                round_count[top_k_list[i]] += 1
-                round_count[top_k_list[j]] += 1
+            pk = _make_dedup_pair(top_k_list[i], top_k_list[j])
+            topk_pair_keys.append(pk)
+            topk_pair_map[pk] = (top_k_list[i], top_k_list[j])
+    # Query which top-K pairs already exist
+    existing_topk = set()
+    if topk_pair_keys:
+        async for m in db.matches.find(
+            {"primary_category": category, "dedup_pair": {"$in": topk_pair_keys},
+             "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+            {"_id": 0, "dedup_pair": 1},
+        ):
+            existing_topk.add(m["dedup_pair"])
+
+    for pk in topk_pair_keys:
         if len(pairs) >= max_pairs:
             break
+        if pk not in existing_topk and pk not in selected_this_round:
+            p1, p2 = topk_pair_map[pk]
+            pairs.append((p1, p2))
+            selected_this_round.add(pk)
+            round_count[p1] += 1
+            round_count[p2] += 1
 
     return pairs[:max_pairs]
 

@@ -359,6 +359,10 @@ async def _deferred_startup():
         await db.matches.create_index([
             ("primary_category", 1), ("completed", 1), ("failed", 1), ("mode", 1)
         ])
+        # Pair dedup index — used by _select_pairs for O(1) repeat-match checks
+        await db.matches.create_index([
+            ("primary_category", 1), ("dedup_pair", 1)
+        ], name="pair_dedup_idx")
         await db.user_sessions.create_index("user_id")
         await db.suggestions.create_index("created_at")
         # Tournament indexes — drop stale ones first to avoid conflicts
@@ -654,6 +658,7 @@ async def _staggered_startup_tasks():
     # Phase 2: Memory-heavy startup tasks (run SEQUENTIALLY with GC between each)
     _heavy_tasks = [
         "_startup_dedup",
+        "_startup_backfill_dedup_pair",
         "_startup_seed_rankings",
         "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab",
@@ -859,6 +864,47 @@ async def _startup_dedup():
     )
     if backfilled or merged:
         logger.info(f"Dedup hash backfill: {backfilled} hashed, {merged} duplicates merged")
+
+
+
+
+async def _startup_backfill_dedup_pair():
+    """One-time migration: add dedup_pair field to existing matches for O(1) repeat-match checks."""
+    flag = await db.settings.find_one({"key": "dedup_pair_backfill_v1"}, {"_id": 0})
+    if flag and flag.get("done"):
+        return
+
+    missing = await db.matches.count_documents({"dedup_pair": {"$exists": False}})
+    if missing == 0:
+        await db.settings.update_one(
+            {"key": "dedup_pair_backfill_v1"},
+            {"$set": {"key": "dedup_pair_backfill_v1", "done": True, "backfilled": 0}},
+            upsert=True,
+        )
+        return
+
+    logger.info(f"Backfilling dedup_pair for {missing} matches...")
+    backfilled = 0
+    async for m in db.matches.find(
+        {"dedup_pair": {"$exists": False}},
+        {"_id": 1, "paper1_id": 1, "paper2_id": 1},
+    ):
+        p1, p2 = m["paper1_id"], m["paper2_id"]
+        a, b = (p1, p2) if p1 < p2 else (p2, p1)
+        await db.matches.update_one(
+            {"_id": m["_id"]},
+            {"$set": {"dedup_pair": f"{a}|{b}"}},
+        )
+        backfilled += 1
+        if backfilled % 5000 == 0:
+            logger.info(f"  dedup_pair backfill: {backfilled}/{missing}")
+
+    await db.settings.update_one(
+        {"key": "dedup_pair_backfill_v1"},
+        {"$set": {"key": "dedup_pair_backfill_v1", "done": True, "backfilled": backfilled}},
+        upsert=True,
+    )
+    logger.info(f"Backfilled dedup_pair for {backfilled} matches")
 
 
 
