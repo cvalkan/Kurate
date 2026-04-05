@@ -453,10 +453,6 @@ async def get_summary_generation_progress(category: str = "cs.RO"):
 
 @router.get("/status", dependencies=[Depends(verify_admin)])
 async def get_admin_status(category: str = "cs.RO"):
-    cached = _get_admin_cached("status", category)
-    if cached:
-        return cached
-
     lb_cache = _get_lb_cache()
 
     # All counts — from DB rankings + scheduler
@@ -525,7 +521,6 @@ async def get_admin_status(category: str = "cs.RO"):
         "scheduler": cat_scheduler,
         "recent_matches": enriched_recent,
     }
-    _set_admin_cached("status", category, result)
     return result
 
 
@@ -536,11 +531,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
     from services.scheduler import get_summary_gen_progress
     summary_gen = get_summary_gen_progress(category)
     is_gen_running = summary_gen.get("running", False)
-
-    if not is_gen_running:
-        cached = _get_admin_cached("progress", category)
-        if cached:
-            return cached
 
     settings = await get_settings()
     global_paused = settings.get("paused", False)
@@ -575,8 +565,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
             },
             "summary_gen_progress": summary_gen if is_gen_running else None,
         }
-        if not is_gen_running:
-            _set_admin_cached("progress", category, result)
         return result
 
     # Fallback: compute from DB (only during cold start before leaderboard cache is ready)
@@ -622,7 +610,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
             "fetch_paused": fetch_paused, "compare_paused": compare_paused,
             "category": category,
         }
-        _set_admin_cached("progress", category, result)
         return result
 
     entries.sort(key=lambda e: e.get("score", 0), reverse=True)
@@ -751,7 +738,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
             "with_summaries": total_papers,
         },
     }
-    _set_admin_cached("progress", category, result)
     return result
 
 
