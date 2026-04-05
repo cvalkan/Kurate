@@ -1156,6 +1156,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 # Signal leaderboard cache to refresh
                 from routers.leaderboard import notify_data_changed
                 notify_data_changed()
+                # Invalidate admin progress cache for this category
+                from routers.admin import _invalidate_admin_cache
+                _invalidate_admin_cache(category)
                 # Recompute convergence in background (non-blocking)
                 asyncio.create_task(_recompute_convergence_bg(category))
 
