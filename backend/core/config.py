@@ -136,6 +136,11 @@ DEFAULT_SETTINGS = {
     "ci_target_general": 15,      # Wilson CI margin target for remaining papers (%)
     "calibration_ratio": 50,       # % of needy-paper matches paired with established papers (0-100)
     "min_papers_for_tournament": 8,
+    "parallel_categories": 2,
+    "compare_loop_interval": 60,   # Seconds between compare loop cycles
+    "llm_request_timeout": 120,    # Seconds before an LLM comparison call times out
+    "max_pairs_per_round": 100,    # Hard cap on pairs generated per category per round
+    "summary_batch_size": 50,      # Papers per summary generation batch
     "paused": False,
     "summary_source": "claude",
     "summary_parallel": 10,

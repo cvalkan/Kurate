@@ -391,7 +391,8 @@ async def _compare_loop_inner():
         # Goals met or paused — wait for wake event OR periodic re-check (60s)
         _wake_event.clear()
         try:
-            await asyncio.wait_for(_wake_event.wait(), timeout=60)
+            loop_interval = settings.get("compare_loop_interval", 60)
+            await asyncio.wait_for(_wake_event.wait(), timeout=loop_interval)
         except asyncio.TimeoutError:
             pass  # Periodic re-check: goals might have changed (new papers, pruning, etc.)
 
@@ -909,7 +910,8 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                 _sync_progress()
 
     # Process papers needing generation in small batches
-    batch_size = max(10, min(parallel * 5, 50))
+    batch_size = settings.get("summary_batch_size", 50)
+    batch_size = max(10, min(batch_size, parallel * 5))
     for i in range(0, len(papers_needing_gen), batch_size):
         batch = papers_needing_gen[i:i+batch_size]
         tasks = []
@@ -1040,7 +1042,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             if max_pairs_override:
                 max_pairs = min(max_pairs_override, 500)
             else:
-                max_pairs = min(100, len(all_papers) * 2)
+                max_pairs_cap = settings.get("max_pairs_per_round", 100)
+                max_pairs = min(max_pairs_cap, len(all_papers) * 2)
             pairs = await _select_pairs(
                 all_papers, paper_stats, category,
                 max_pairs, top_k_focus, max_new_per_round,
@@ -1085,7 +1088,13 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     if _paused:
                         return
                     try:
-                        result = await compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary")
+                        llm_timeout = settings.get("llm_request_timeout", 120)
+                        result = await asyncio.wait_for(
+                            compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary"),
+                            timeout=llm_timeout,
+                        )
+                    except asyncio.TimeoutError:
+                        result = TimeoutError(f"LLM comparison timed out after {llm_timeout}s")
                     except Exception as e:
                         result = e
 
