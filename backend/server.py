@@ -651,6 +651,7 @@ async def _staggered_startup_tasks():
     _heavy_tasks = [
         "_startup_dedup",
         "_startup_backfill_dedup_pair",
+        "_startup_fix_dotted_model_keys",
         "_startup_seed_rankings",
         "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab",
@@ -891,6 +892,80 @@ async def _startup_backfill_dedup_pair():
         upsert=True,
     )
     logger.info(f"Backfilled dedup_pair for {backfilled} matches")
+
+
+
+async def _startup_fix_dotted_model_keys():
+    """One-time migration: replace dots in model_stats/model_ts keys in rankings.
+    
+    MongoDB interprets dots in $inc paths as nested objects. Old incremental writes
+    created broken nested keys like {"openai/gpt-5": {"2": {"total": N}}}.
+    This migration flattens everything to underscore keys: "openai/gpt-5_2".
+    After this, no normalizer code is needed when reading model_stats/model_ts.
+    """
+    flag = await db.settings.find_one({"key": "fix_dotted_model_keys_v1"}, {"_id": 0})
+    if flag and flag.get("done"):
+        return
+
+    fixed = 0
+    async for doc in db.rankings.find(
+        {"model_stats": {"$exists": True}},
+        {"_id": 1, "model_stats": 1, "model_ts": 1},
+    ):
+        new_ms = {}
+        changed = False
+        for mk, stats in (doc.get("model_stats") or {}).items():
+            if isinstance(stats, dict) and stats.get("total") is not None:
+                # Flat key — just normalize dots
+                safe = mk.replace(".", "_")
+                if safe in new_ms:
+                    new_ms[safe] = {"total": new_ms[safe]["total"] + stats.get("total", 0),
+                                    "wins": new_ms[safe]["wins"] + stats.get("wins", 0)}
+                else:
+                    new_ms[safe] = {"total": stats.get("total", 0), "wins": stats.get("wins", 0)}
+                if safe != mk:
+                    changed = True
+            elif isinstance(stats, dict):
+                # Broken nested key — reconstruct and flatten
+                for sub_key, sub_val in stats.items():
+                    if isinstance(sub_val, dict) and sub_val.get("total") is not None:
+                        safe = f"{mk}.{sub_key}".replace(".", "_")
+                        if safe in new_ms:
+                            new_ms[safe] = {"total": new_ms[safe]["total"] + sub_val.get("total", 0),
+                                            "wins": new_ms[safe]["wins"] + sub_val.get("wins", 0)}
+                        else:
+                            new_ms[safe] = {"total": sub_val.get("total", 0), "wins": sub_val.get("wins", 0)}
+                        changed = True
+
+        new_mts = {}
+        for mk, ts in (doc.get("model_ts") or {}).items():
+            if isinstance(ts, dict) and ts.get("mu") is not None:
+                safe = mk.replace(".", "_")
+                new_mts[safe] = ts
+                if safe != mk:
+                    changed = True
+            elif isinstance(ts, dict):
+                for sub_key, sub_val in ts.items():
+                    if isinstance(sub_val, dict) and sub_val.get("mu") is not None:
+                        safe = f"{mk}.{sub_key}".replace(".", "_")
+                        new_mts[safe] = sub_val
+                        changed = True
+
+        if changed:
+            update = {"model_stats": new_ms}
+            if new_mts:
+                update["model_ts"] = new_mts
+            await db.rankings.update_one({"_id": doc["_id"]}, {"$set": update})
+            fixed += 1
+
+    await db.settings.update_one(
+        {"key": "fix_dotted_model_keys_v1"},
+        {"$set": {"key": "fix_dotted_model_keys_v1", "done": True, "fixed": fixed}},
+        upsert=True,
+    )
+    if fixed:
+        logger.info(f"Fixed dotted model keys in {fixed} ranking documents")
+
 
 
 

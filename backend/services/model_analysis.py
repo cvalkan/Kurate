@@ -20,7 +20,6 @@ _OPUS_MERGE = {
 _SHORT_NAMES = {
     "anthropic/claude-opus": "Claude Opus",
     "gemini/gemini-3-pro-preview": "Gemini 3 Pro",
-    "openai/gpt-5.2": "GPT-5.2",
     "openai/gpt-5_2": "GPT-5.2",
 }
 _MODEL_KEY_MAP = {
@@ -78,65 +77,8 @@ async def compute_model_analysis(category: Optional[str] = None):
     {p["paper_id"]: p for p in papers}
     paper_categories = {p["paper_id"]: p.get("category") for p in papers}
 
-    # Extract per-model stats
-    model_paper_stats = {}
-    model_paper_ts = {}
-    for p in papers:
-        ms = p.get("model_stats")
-        if ms and isinstance(ms, dict):
-            # MongoDB stores dotted keys (e.g. "openai/gpt-5.2") as nested paths:
-            #   {"openai/gpt-5": {"2": {"total": N, "wins": M}}}
-            # Detect and flatten these broken entries back to the correct key.
-            # MERGE (not overwrite) when both flat and nested keys exist for the same model.
-            normalized = {}
-            for mk, stats in ms.items():
-                safe_mk = mk.replace(".", "_")
-                if isinstance(stats, dict) and stats.get("total") is not None:
-                    # Normal flat key — has {total, wins} directly
-                    if safe_mk in normalized:
-                        normalized[safe_mk] = {
-                            "total": normalized[safe_mk].get("total", 0) + stats.get("total", 0),
-                            "wins": normalized[safe_mk].get("wins", 0) + stats.get("wins", 0),
-                        }
-                    else:
-                        normalized[safe_mk] = stats
-                elif isinstance(stats, dict):
-                    # Broken nested key (e.g. "openai/gpt-5" -> {"2": {"total":...}})
-                    for sub_key, sub_val in stats.items():
-                        if isinstance(sub_val, dict) and sub_val.get("total") is not None:
-                            safe_key = f"{mk}.{sub_key}".replace(".", "_")
-                            if safe_key in normalized:
-                                normalized[safe_key] = {
-                                    "total": normalized[safe_key].get("total", 0) + sub_val.get("total", 0),
-                                    "wins": normalized[safe_key].get("wins", 0) + sub_val.get("wins", 0),
-                                }
-                            else:
-                                normalized[safe_key] = sub_val
-            for mk, stats in normalized.items():
-                model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
-        mts = p.get("model_ts")
-        if mts and isinstance(mts, dict):
-            for mk, ts_data in mts.items():
-                safe_mk = mk.replace(".", "_")
-                if isinstance(ts_data, dict) and ts_data.get("mu"):
-                    model_paper_ts.setdefault(safe_mk, {})[p["paper_id"]] = ts_data["mu"]
-                elif isinstance(ts_data, dict):
-                    # Handle broken nested TrueSkill keys too
-                    for sub_key, sub_val in ts_data.items():
-                        if isinstance(sub_val, dict) and sub_val.get("mu"):
-                            safe_key = f"{mk}.{sub_key}".replace(".", "_")
-                            model_paper_ts.setdefault(safe_key, {})[p["paper_id"]] = sub_val["mu"]
-
-    model_keys = sorted(mk for mk in model_paper_stats
-                        if sum(s.get("total", 0) for s in model_paper_stats[mk].values()) > 0)
-
-    # Per-model win rates
-    model_wr = {}
-    for mk in model_keys:
-        model_wr[mk] = {}
-        for pid, s in model_paper_stats[mk].items():
-            if s.get("total", 0) >= MIN_MATCHES:
-                model_wr[mk][pid] = (s.get("wins", 0) + 0.5) / (s.get("total", 0) + 1.0)
+    # Extract per-model stats (clean keys after fix_dotted_model_keys migration)
+    model_paper_stats, model_paper_ts, model_keys, model_wr = _extract_model_data(papers)
 
     # Global WR/TS scores
     wr_scores = {p["paper_id"]: p["score"] for p in papers if p.get("score") is not None}
@@ -417,50 +359,23 @@ async def compute_model_analysis(category: Optional[str] = None):
     }
 
 
-def _normalize_model_stats(papers):
-    """Extract and normalize per-model stats from rankings docs.
-    Handles MongoDB dot-in-key bug (flat, nested, and mixed keys with merge).
+def _extract_model_data(papers):
+    """Extract per-model stats from rankings docs.
+    After the fix_dotted_model_keys migration, all keys are clean (no dots).
     Returns (model_paper_stats, model_paper_ts, model_keys, model_wr)."""
     model_paper_stats = {}
     model_paper_ts = {}
     for p in papers:
         ms = p.get("model_stats")
         if ms and isinstance(ms, dict):
-            normalized = {}
             for mk, stats in ms.items():
-                safe_mk = mk.replace(".", "_")
                 if isinstance(stats, dict) and stats.get("total") is not None:
-                    if safe_mk in normalized:
-                        normalized[safe_mk] = {
-                            "total": normalized[safe_mk].get("total", 0) + stats.get("total", 0),
-                            "wins": normalized[safe_mk].get("wins", 0) + stats.get("wins", 0),
-                        }
-                    else:
-                        normalized[safe_mk] = stats
-                elif isinstance(stats, dict):
-                    for sub_key, sub_val in stats.items():
-                        if isinstance(sub_val, dict) and sub_val.get("total") is not None:
-                            safe_key = f"{mk}.{sub_key}".replace(".", "_")
-                            if safe_key in normalized:
-                                normalized[safe_key] = {
-                                    "total": normalized[safe_key].get("total", 0) + sub_val.get("total", 0),
-                                    "wins": normalized[safe_key].get("wins", 0) + sub_val.get("wins", 0),
-                                }
-                            else:
-                                normalized[safe_key] = sub_val
-            for mk, stats in normalized.items():
-                model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
+                    model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
         mts = p.get("model_ts")
         if mts and isinstance(mts, dict):
             for mk, ts_data in mts.items():
-                safe_mk = mk.replace(".", "_")
                 if isinstance(ts_data, dict) and ts_data.get("mu"):
-                    model_paper_ts.setdefault(safe_mk, {})[p["paper_id"]] = ts_data["mu"]
-                elif isinstance(ts_data, dict):
-                    for sub_key, sub_val in ts_data.items():
-                        if isinstance(sub_val, dict) and sub_val.get("mu"):
-                            safe_key = f"{mk}.{sub_key}".replace(".", "_")
-                            model_paper_ts.setdefault(safe_key, {})[p["paper_id"]] = sub_val["mu"]
+                    model_paper_ts.setdefault(mk, {})[p["paper_id"]] = ts_data["mu"]
 
     model_keys = sorted(mk for mk in model_paper_stats
                         if sum(s.get("total", 0) for s in model_paper_stats[mk].values()) > 0)
@@ -493,7 +408,7 @@ async def compute_live_analysis(category: Optional[str] = None):
         return {"status": "insufficient_data", "n_papers": len(papers)}
 
     paper_categories = {p["paper_id"]: p.get("category") for p in papers}
-    model_paper_stats, model_paper_ts, model_keys, model_wr = _normalize_model_stats(papers)
+    model_paper_stats, model_paper_ts, model_keys, model_wr = _extract_model_data(papers)
 
     wr_scores = {p["paper_id"]: p["score"] for p in papers if p.get("score") is not None}
     ts_scores = {p["paper_id"]: p["ts_score"] for p in papers if p.get("ts_score") is not None}
@@ -705,7 +620,7 @@ async def compute_openskill_cache(category: Optional[str] = None):
         return {"status": "insufficient_data"}
 
     paper_categories = {p["paper_id"]: p.get("category") for p in papers}
-    model_paper_stats, _, model_keys, _ = _normalize_model_stats(papers)
+    model_paper_stats, _, model_keys, _ = _extract_model_data(papers)
     wr_scores = {p["paper_id"]: p["score"] for p in papers if p.get("score") is not None}
 
     cats = [category] if category else list(set(c for c in paper_categories.values() if c))
@@ -778,9 +693,9 @@ def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
         pair_parts = row["pair"].split(" vs ")
         if len(pair_parts) != 2:
             continue
-        # Find model keys from short names (normalize to underscore for OS cache lookup)
-        m1_key = next((k.replace(".", "_") for k, v in _SHORT_NAMES.items() if v == pair_parts[0]), None)
-        m2_key = next((k.replace(".", "_") for k, v in _SHORT_NAMES.items() if v == pair_parts[1]), None)
+        # Find model keys from short names
+        m1_key = next((k for k, v in _SHORT_NAMES.items() if v == pair_parts[0]), None)
+        m2_key = next((k for k, v in _SHORT_NAMES.items() if v == pair_parts[1]), None)
         if not m1_key or not m2_key:
             continue
         for os_key, os_data in [("openskill", "os1"), ("openskill3", "os3"), ("openskill10", "os10")]:
