@@ -11,197 +11,69 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 ## What's Been Implemented
 
-### Session: Mar 25, 2026
+### Session: Apr 5, 2026
 
-**Model Analysis Dashboard Overhaul:**
-- Replaced single `bt_vs_si` correlation box with multi-method PW-vs-SI comparison table
-- Backend computes all 4 PW methods (Raw WR, Reg WR, BT, TrueSkill) vs averaged SI scores and per-model SI scores
-- Added within-model PW vs SI correlations (Claude-only PW matches vs Claude SI, etc.)
-- Added `pw_vs_claude_si` table: 8 rows comparing within-model and combined PW against Claude SI across all methods
-- Added Inter-Model Agreement section with 3 side-by-side tables: PW Inter-Model, SI Inter-Model, PW vs Claude SI
-- PW Inter-Model table shows per-model-pair correlations using all 4 scoring methods
-- Removed SI Rating Calibration table from SiRatingSection
-- TrueSkill confirmed as best PW estimator: Combined TrueSkill ρ=0.852 vs Claude SI
-
-**Admin Ranking Method Switch:**
-- Added `ranking_method` setting (reg_wr, bt, trueskill) to admin config
-- Admin dropdown in Settings tab with tooltip
-- Saving a new method triggers immediate full rerank of all categories via `/api/admin/rerank-all`
-- `rerank_category_light` now checks the setting: reg_wr just re-sorts, bt/trueskill recomputes from all matches
-- BT/TrueSkill scores normalized to Elo-like scale (mean 1200, sd 100) for consistent UI display
-
-**Multi-Scoring Method Toggle (AI Ranking Quality):**
-- Added scoring method toggle to AI Ranking Quality page: Normalized Win-Rate (default), Bradley-Terry, and TrueSkill
-- Backend computes rankings with all 3 methods during precompute, stores in `by_method` field
-- Frontend toggle switches all correlation metrics, summary cards, per-dataset table, and overlap table
-- Bradley-Terry: MLE with regularization prior (prior_strength=2.0)
-- TrueSkill: Microsoft TrueSkill Bayesian rating with 3-pass convergence, draw_probability=0
-
-**Extended K% Overlap Tiers:**
-- Added 40% and 50% tiers to the Top/Bottom K% Overlap table (previously 5%, 10%, 20%, 30%)
-- Both AI Ranking Quality (filtered) and AI Ranking Quality (unfiltered) pages updated
-
-**New Backend Functions:**
-- `compute_bt_ranking_scores()` in `ranking.py` — thin wrapper around `calculate_bradley_terry`
-- `compute_trueskill_ranking_scores()` in `ranking.py` — TrueSkill implementation with trueskill library
-
-**Scoring Method Correlation (Model Analysis):**
-- New `/api/scoring-method-correlation` endpoint computes Win-Rate vs BT vs TrueSkill on live tournament data
-- Shows Spearman ρ and Kendall τ correlations, plus Top/Bottom K% agreement
-- New `ScoringMethodSection` component on the Model Analysis page with loading spinner
-
-**Global/Local Toggle Fix:**
-- Fixed the global/local stats toggle on the tag-filtered leaderboard (was a no-op)
-- Local mode now recomputes scores from only matches between papers in the filtered set
-- Removed "(G)" suffix from column headers in global mode
-
-### Session: Mar 23, 2026
-
-**Performance & Observability:**
-- Parallelized all 3 leaderboard endpoints (category, all-papers, tag-filtered) with asyncio.gather
-- Match count cache with 5-min TTL, invalidated on data change
-- New indexes: `rankings.added_at_-1`, `rankings.categories_score`
-- Slow query threshold lowered from 1.0s to 200ms with per-column metadata
-- End-of-cycle logging for fetch cycles, comparison rounds, archive/reconciliation
-- Better error messages for failed fetch cycles (exception type shown)
-- Fixed false-positive error logs (INFO with "FAILED" -> WARNING level)
-
-**Memory Leak Fix:**
-- Root cause: `_generate_paper_summaries` loaded every paper's full_text (~55-80KB) just to check if summaries exist
-- Fix: Two-phase scan — lightweight projection first, on-demand full load for papers needing generation
-- Result: Fetch rotation growth dropped from +651MB to +57MB. No more OOM crashes.
-
-**Tie Handling Overhaul (Human vs AI Benchmark):**
-- All-expert-tie pairs now included in coin-flip extended controlled set (+917 pairs on unfiltered)
-- Committee tier ties (same-tier pairs like Poster-Poster) treated as coin flips in unfiltered benchmark
-- Per-column tie fractions displayed in every table cell with footnote explaining 3 tie types
-- Consistent cf_rate computed for all 6 columns (was missing for AI/H vs Committee)
-- Filtered page correctly shows 0% tier ties (no same-tier pairs by design)
-- Updated all page descriptions explaining controlled pairs vs full data, and why rho values differ between pages
-- Fixed hardcoded numbers in footnotes (PeerRead rho, ICLR range, tie rates)
-- Added Pooled/Total aggregate row to AI Ranking Quality per-dataset table
-
-**Data Integrity:**
-- `rerank_category` now verifies win/loss counts via aggregation after every comparison round
-- Paper detail endpoint auto-corrects stale rankings when viewed
-- Fixed `collect_all` import in validation.py (was causing precompute failures)
-- Fixed `async_track_mem` import in ranking.py
-- Retry-and-repair-queue for incremental ranking updates
-- Lightweight rank re-sorting after each comparison round
-
-### Session: Mar 25, 2026 (continued)
-
-**Opus 4.6 Thinking Accept/Reject Accuracy Test:**
-- Built and ran single-item accept/reject prediction experiment following ReviewerToo (arXiv:2510.08867) methodology
-- 100 ICLR 2025 papers (50 accept, 50 reject), 5-way categorical decisions grounded in ICLR 2025 Reviewer Guide
-- Input: abstract + Opus 4.6 summary, Model: claude-opus-4-6 with thinking (budget_tokens=8000)
-- **Binary accuracy: 76.0%** (96 papers completed, 4 budget-limited). Precision 72.5%, Recall 80.4%, F1 0.763
-- **5-way accuracy: 62.5%** — model never predicts Oral/Spotlight, clusters to Poster/Reject
-- Compared to paper's META agent (81.8%), human avg (83.9%), human top-1% (92.4%)
-- Also computed pairwise cross-tier accuracy from existing data: **87.2%** (beats individual human reviewers at 82.9%)
-- Key finding: pairwise comparison (87.2%) significantly easier than single-item absolute judgment (76.0%)
-- Report: `/app/memory/OPUS46_ACCEPT_REJECT_REPORT.md`, data: `/app/tools/opus46_accept_reject_results.json`
-- Script: `/app/tools/test_opus46_accept_reject.py`
-
-**Dual-Score Incremental Architecture (Mar 25-26, 2026):**
-- Replaced BT-dependent scoring with incremental TrueSkill + Win Rate dual-score system
-- Each match now updates WR (O(1)), TrueSkill (O(1)), and per-model stats (O(1)) — no match history loading
-- Rankings doc stores: `ts_mu`, `ts_sigma`, `ts_score`, `rank_wr`, `rank_ts`, `model_stats`
-- All 3 Model Analysis endpoints now read from stored scores — zero match loading, <0.3s cold:
-  - `scoring-method-correlation`: reads `score` + `ts_score` from rankings
-  - `model-correlation`: reads `model_stats` + `model_ts` from rankings (single query)
-  - `si-rating-stats`: reads `si_ratings` from rankings (moved from papers collection)
-- Removed background analysis cache loop — endpoints fast enough without caching
-- All endpoints pre-warmed by background refresh loop
-- `rerank_category_light` simplified: just re-sorts from stored scores — no match loading
-- Frontend WR/TrueSkill toggle on leaderboard (instant switch, no backend call)
-- TrueSkill backfill removed from startup (admin triggers per-category via `/api/admin/backfill-trueskill`)
-- BT preserved in validation/experiment pages only (untouched)
-
-**Memory & Chart Fixes (Mar 25, 2026 continued):**
-- Fixed gap_score=0 showing as "-" in leaderboard (falsy check bug in `leaderboard.py:694`)
-- Fixed memory chart resolution switching: 7d/3d views now downsample via MongoDB `$dateTrunc` aggregation (30min/60min buckets) instead of truncating to most recent 3000 entries
-- Optimized `_startup_seed_rankings`: now only reseeds categories with unranked papers instead of all 11 categories, saving ~200MB+ on restart
-- Added `papers_total` tracking in scheduler to show "X fetched" vs "Y ready" in admin dashboard
-- Improved admin status message: "Generating summaries (X/Y ready)" instead of "Insufficient papers"
-- Added `minTickGap` to memory chart x-axis to prevent label overlap
+**Bug Fix: Admin Dashboard Wrong Numbers for New Categories:**
+- Fixed `_check_goals_met` in scheduler.py returning True when rankings empty but papers exist (new categories in summary phase)
+- Fixed progress endpoint (`/api/admin/progress`) returning `total_papers: 0, goals_met: true` during summary phase. Now falls back to papers collection with `phase: "summaries"` indicator
+- Fixed status endpoint `papers_total_fetched` always showing `0` — now falls back to `db.papers.count_documents`
+- Added frontend "Generating summaries — X/Y papers ready" indicator for categories in summary phase
 
 ### Session: Apr 1, 2026
 
-**Critical Bug Fix: Repeat-Match Loop in `_select_pairs` (cs.CR overshoot)**
-- **Root cause**: `_select_pairs` used `_bt_to_score()` (BT-normalized scores) to determine top-K, while `_check_goals_met` used stored `rankings.score` (direct regularized WR). In categories with tight score clustering (cs.CR: 1245-1253), the two methods disagreed on which papers were top-K.
-- **Effect**: When the two functions disagreed, `_check_goals_met` found unmet goals → triggered rounds, but `_select_pairs` saw no needy papers → generated Rule 3 repeat matches between Elo-adjacent papers. "Detecting speculative leaks" accumulated 442 matches (91% repeats, max 78x vs same opponent), SafetyDrift 271 matches (78% repeats).
-- **Fix**: Replaced BT-approximated scoring in `_select_pairs` with stored `rankings.score` — same source as `_check_goals_met`. Both functions now use identical top-K determination.
-- Added one-time startup migration `_prune_duplicate_matches` (server.py): on next deploy, deduplicates all repeat matches (keeps 1 per paper pair per category), then reranks affected categories. Guarded by `migrations.prune_duplicate_matches_v1` flag. Preview run pruned 17,889 matches across 6 categories.
-- Removed BT as admin ranking method option (was unused in live pipeline)
-- Updated stale BT comments in admin.py and ranking.py
-- BT functions preserved only in validation/benchmark pages (human_ai_benchmark.py, benchmark_fixed.py, leaderboard scoring-method-correlation)
+**Scheduler Storm Bug Fix & Match Pruning:**
+- Removed "Rule 3" from `_select_pairs` which caused infinite repeat-match generation storms
+- Built admin endpoints to prune same-pair duplicates and cap per-paper matches
+- Added `/health` endpoint, fixed `analysis_store` DuplicateKey index issue
+- Human vs AI SE Benchmark alignment (6,833 pairs, 42.9% tie rate)
+- OpenSkill Integration (Thurstone-Mosteller 1-pass, 3-pass, 10-pass)
+- Unified `/api/model-analysis` endpoint (consolidated 3 heavy endpoints)
+- Admin cache removal, 10s/15s auto-polling on React Admin components
+- Dead code cleanup (~1,576 lines of deprecated endpoints)
 
-### Session: Mar 28, 2026
+### Session: Mar 25-28, 2026
 
-**Model Analysis & Leaderboard CI Fixes:**
-- Removed empty "gpt-5" model card (0 matches) from Model Correlation page by filtering models with 0 total_matches in `_compute_model_correlation`
-- Fixed 95% CI column to show metric-appropriate confidence when switching WR/TrueSkill:
-  - WR mode: Wilson margin percentage (`±X%`) — unchanged
-  - TS mode: TrueSkill Elo-point CI (`±Y`) computed as `1.96 × sigma × TS_SCALE`
-- Added `ts_sigma` to leaderboard API response via `_RANK_PROJ` and `_rank_doc_to_entry`
-
-**WR vs TrueSkill Convergence Simulation:**
-- Replayed 46K matches across 5 categories: TrueSkill converges 1.6x faster (37% fewer matches at rho≥0.9)
-- Scripts: `/app/tools/wr_vs_ts_convergence_sim.py`, `/app/tools/wr_vs_ts_multi_cat_sim.py`
-
-**Dead Code Audit & Removal:**
-- Area 1: Removed write-only `ranking_snapshots` collection + `_store_ranking_snapshot` function (loaded ALL matches + ran BT every round for data nobody read)
-- Area 2: Removed 8 dead functions (313 lines): `_apply_period_filter`, `_apply_search`, `_get_paper_si_rating`, `calculate_bt_confidence_intervals`, `compute_weighted_bt_async`, `get_extraction_stats`, `_iter_cursor_batches`, `_re_escape`
-- Verified report: found 1 false positive (`qeios_pairwise_extract` reads via variable reference) and 18 false positive endpoints (parameterized URLs, external crawlers)
-- Full report: `/app/memory/DEAD_CODE_AUDIT.md`
-
-**Memory Optimizations (Area 3 from audit):**
-- Added `malloc_trim(0)` via ctypes after every `gc.collect()` — forces glibc to return freed arenas to OS. Replaces all `gc.collect()` calls in scheduler.py, ranking.py, server.py with `force_gc()` from `core/memlog.py`
-- Rewrote `_check_goals_met` to read from `rankings` collection instead of loading ALL matches. Goals 1-2 use stored wins/comparisons; Goal 3 uses targeted pair queries (≤45 count queries vs 22K doc bulk load)
-- Rate-limited `_recompute_convergence_bg` to only fire when match count grows ≥5% (was firing after every single comparison round)
-- Optimized `run_comparison_round` match loading: reads paper_stats from rankings collection; match scan reduced to 2-field projection (paper1_id + paper2_id only, no winner_id needed for pair dedup)
+**Model Analysis & Dual-Score Architecture:**
+- Multi-method PW-vs-SI comparison tables
+- Incremental TrueSkill + Win Rate dual-score system
+- BT/TrueSkill scores normalized to Elo-like scale
+- Memory chart resolution fixes
+- Dead code audit & removal (8 functions, 313 lines)
+- `malloc_trim(0)` force_gc optimization
 
 ### Prior Sessions
 - DB-Backed Rankings (all 4 phases), production stability overhaul
 - Dark mode, infinite scroll, GZip compression
 - Dataset curation, benchmark refinements, methodology pages
+- Opus 4.6 accept/reject experiment (76% binary accuracy)
 
 ## Key Files
-- `/app/backend/routers/leaderboard.py` — Parallelized queries, match count cache, paper detail with auto-correction, PW-vs-SI multi-method correlations
-- `/app/backend/routers/human_ai_benchmark.py` — Tie handling, multi-scoring methods, overlap tables, per-column tie fractions
-- `/app/backend/services/ranking.py` — BT scores, TrueSkill scores, rerank_category with drift detection
-- `/app/backend/services/scheduler.py` — Memory-optimized summary generation, end-of-cycle logging
-- `/app/backend/services/precompute.py` — Precompute all experiment/validation/analysis caches
-- `/app/frontend/src/pages/AIRankingQualitySection.jsx` — Scoring method toggle, 6-tier overlap table
-- `/app/frontend/src/pages/HumanAIBenchmarkSection.jsx` — Per-column tie fractions, updated footnotes
-- `/app/frontend/src/components/SiRatingSection.jsx` — PW-vs-SI multi-method comparison, per-model breakdown
-- `/app/frontend/src/components/InterModelSection.jsx` — PW Inter-Model, SI Inter-Model tables
-- `/app/frontend/src/pages/AdminPage.jsx` — Ranking Method dropdown, rerank-on-save
+- `/app/backend/routers/admin.py` — Admin dashboard endpoints, progress/status
+- `/app/backend/routers/leaderboard.py` — Parallelized queries, paper detail
+- `/app/backend/services/scheduler.py` — Core tournament loop, summary generation
+- `/app/backend/services/ranking.py` — TrueSkill & OpenSkill scoring
+- `/app/backend/services/model_analysis.py` — Unified analysis computation
+- `/app/frontend/src/components/AdminOverview.jsx` — Per-category admin dashboard
 
 ## Prioritized Backlog
 
 ### P0
 - Implement Multiple AI Reviewer Personas from ReviewerToo paper (arXiv:2510.08867)
-- Monitor production memory with new architecture (repair queue + lightweight rank sorting)
-- ~~Fix repeat-match loop in `_select_pairs` (cs.CR/cs.RO overshoot)~~ **DONE Apr 1, 2026**
 
 ### P1
-- Phase 3: Notification System (Resend email integration)
-- Update Summarizer Report Section 2
-- Run AI summarization pipeline on UAI
-- **TrueSkill-first matchmaking**: Switch primary metric to TS sigma for convergence targets. Simulation shows 35-40% fewer matches needed for equivalent ranking stability (rho≥0.9: WR needs ~35 m/p vs TS ~22 m/p across 5 categories). Would save ~35% LLM costs at scale.
+- TrueSkill-first matchmaking (save ~35% LLM costs)
+- Email notification system (Resend integration)
+- Resolve circular import chain (`core/auth.py` → `admin.py` → `precompute.py`)
+- Migrate from `localStorage` to `httpOnly` cookies for auth tokens
 
 ### P2
-- Server-side sorting (sort_by/sort_dir params) for leaderboard API
-- Virtual scrolling (react-window) for mobile performance
-- Hybrid page loading (200-row initial + background fetch)
-- Convert admin scraper sync requests to async httpx
+- Wire up `AuthorClaimSection` or remove orphaned component
+- Complete Gmail congrats flow or remove unwired endpoints
+- Refactor monolithic `leaderboard.py` and `scheduler.py`
 - Mobile Twitter/X unfurling (BLOCKED on Cloudflare config)
 
 ### Backlog
-- New validation datasets from OpenReview (NeurIPS, etc.)
+- New validation datasets from OpenReview
 - HTTP security headers
 - UI for tracking summary generation failures
-- Refactor monolithic leaderboard.py
 - Explore Typesense integration
