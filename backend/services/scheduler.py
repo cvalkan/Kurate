@@ -432,18 +432,8 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
 
     total_rankings = len(entries)
     # Exclude unmatchable papers (no summary → can never get matches).
-    # Without this filter, a single summary-less paper keeps goals permanently
-    # unmet (CI=100%), causing infinite repeat-match loops.
     try:
-        summary_model = _pick_summary_source(settings.get("summary_source", "thinking"))
-        required_key = _summary_model_key(summary_model)
-        fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
-        all_keys = [required_key] + fallback_keys
-        summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
-        summary_filter["categories.0"] = category
-        matchable_ids = set()
-        async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
-            matchable_ids.add(doc["id"])
+        matchable_ids = await get_matchable_paper_ids(category, settings.get("summary_source", "thinking"))
         if matchable_ids:
             entries = [e for e in entries if e["paper_id"] in matchable_ids]
         log_mem(f"_check_goals({category}): {total_rankings} ranked, {len(matchable_ids)} matchable, {len(entries)} filtered")
@@ -735,6 +725,23 @@ _SUMMARY_KEY_FALLBACKS = {
     ],
     "anthropic:claude-opus-4-6": ["anthropic:claude-opus-4-5-20251101"],
 }
+
+
+async def get_matchable_paper_ids(category: str, summary_source: str = "claude") -> set:
+    """Single source of truth: which papers have the required summary key for matching.
+    
+    Used by: _check_goals_met, progress endpoint, run_comparison_round.
+    """
+    summary_model = _pick_summary_source(summary_source)
+    required_key = _summary_model_key(summary_model)
+    fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
+    all_keys = [required_key] + fallback_keys
+    summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
+    summary_filter["categories.0"] = category
+    matchable_ids = set()
+    async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
+        matchable_ids.add(doc["id"])
+    return matchable_ids
 
 
 def _get_paper_summary(paper: dict, model_key: str) -> str:

@@ -5,7 +5,6 @@ from collections import defaultdict
 from datetime import datetime, timezone
 import asyncio
 import hmac
-import math
 import uuid
 import random
 import time as _time
@@ -83,14 +82,6 @@ class PromptUpdate(BaseModel):
 
 
 # Admin session tokens - stored in MongoDB for persistence across restarts/pods
-async def _get_admin_sessions():
-    """Get all valid admin session tokens from DB."""
-    doc = await db.admin_sessions.find_one({"key": "sessions"})
-    if not doc:
-        return set()
-    return set(doc.get("tokens", []))
-
-
 async def _add_admin_session(token: str):
     """Add a new admin session token to DB."""
     await db.admin_sessions.update_one(
@@ -381,18 +372,13 @@ async def get_admin_status(category: str = "cs.RO"):
     cat_scheduler = _get_cat_status(category)
     total_papers = await db.rankings.count_documents({"category": category})
     sched_papers = cat_scheduler.get("papers_count", 0)
-    sched_papers_total = cat_scheduler.get("papers_total", 0)
     if not total_papers:
         total_papers = sched_papers
-    # Fallback papers_total_fetched to actual DB count when scheduler counter is 0
-    if not sched_papers_total:
-        sched_papers_total = await db.papers.count_documents({"categories.0": category})
-    total_matches = cat_scheduler.get("matches_count", 0)
-    if total_matches == 0:
-        # Fallback: query DB if scheduler hasn't populated the count yet
-        total_matches = await db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
-        )
+    # Always use DB for accurate counts (scheduler counters can be stale)
+    sched_papers_total = await db.papers.count_documents({"categories.0": category})
+    total_matches = await db.matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+    )
     failed_matches = lb_cache.get("_failed_by_cat", {}).get(category, 0)
 
     # Unranked from rankings DB
@@ -484,18 +470,10 @@ async def get_progress_estimate(category: str = "cs.RO"):
     ):
         entries.append(doc)
 
-    # Filter to matchable papers only (same logic as _check_goals_met in scheduler.py).
+    # Filter to matchable papers only (shared function — single source of truth)
     try:
-        from services.scheduler import _pick_summary_source, _summary_model_key, _SUMMARY_KEY_FALLBACKS
-        summary_model = _pick_summary_source(settings.get("summary_source", "thinking"))
-        required_key = _summary_model_key(summary_model)
-        fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
-        all_keys = [required_key] + fallback_keys
-        summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
-        summary_filter["categories.0"] = category
-        matchable_ids = set()
-        async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
-            matchable_ids.add(doc["id"])
+        from services.scheduler import get_matchable_paper_ids
+        matchable_ids = await get_matchable_paper_ids(category, settings.get("summary_source", "thinking"))
         if matchable_ids:
             entries = [e for e in entries if e["paper_id"] in matchable_ids]
     except Exception:
@@ -681,15 +659,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
         },
     }
     return result
-
-
-def _elo_ci(wins, comparisons):
-    if comparisons < 2:
-        return 999
-    p = max(0.02, min(0.98, (wins + 0.5) / (comparisons + 1.0)))
-    se_logit = 1.0 / math.sqrt((comparisons + 1.0) * p * (1 - p))
-    se_elo = (400 / math.log(10)) * se_logit
-    return 1.96 * se_elo
 
 
 @router.get("/stats", dependencies=[Depends(verify_admin)])
@@ -2210,28 +2179,6 @@ async def _set_regen_progress(**fields):
         {"$set": {**fields, "key": _REGEN_PROGRESS_KEY}},
         upsert=True,
     )
-
-
-def _find_truncated_summaries_sync(papers_cursor) -> list:
-    """Shared logic: find papers whose summaries mention truncation (excluding false positives)."""
-    import re as _re
-    FALSE_POS = _re.compile(r'truncated (normal|distribution|gaussian|Gaussian|power|series)', _re.IGNORECASE)
-    results = []
-    for p in papers_cursor:
-        ft = p.get("full_text") or ""
-        if not ft:
-            continue
-        keys_to_regen = []
-        for key, summary in p.get("summaries", {}).items():
-            text = summary if isinstance(summary, str) else summary.get("text", "") if isinstance(summary, dict) else str(summary)
-            if "truncat" in text.lower():
-                cleaned = FALSE_POS.sub("", text)
-                if "truncat" not in cleaned.lower():
-                    continue
-                keys_to_regen.append(key)
-        if keys_to_regen:
-            results.append({"paper": p, "keys": keys_to_regen})
-    return results
 
 
 async def _scan_truncated_papers() -> list:
