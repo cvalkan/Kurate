@@ -828,7 +828,10 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
     _sync_progress()
     if cat_status:
-        cat_status["current_activity"] = f"Generating summaries for {len(papers_needing_gen)} papers..."
+        if len(papers_needing_gen) > 0:
+            cat_status["current_activity"] = f"Generating summaries for {len(papers_needing_gen)} papers..."
+        else:
+            cat_status["current_activity"] = "Idle"
 
     # Phase 2: Load full paper data ONLY for papers that need generation
     async def gen_one(paper_id, model_info):
