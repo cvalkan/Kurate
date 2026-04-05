@@ -405,7 +405,7 @@ async def get_admin_status(category: str = "cs.RO"):
         {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "reasoning": 1, "created_at": 1, "model_used": 1}
     ).sort("created_at", -1).limit(10).to_list(10)
 
-    # Paper titles from rankings DB
+    # Paper titles from rankings DB, fallback to papers collection
     paper_ids_needed = set()
     for m in cat_matches_sorted:
         paper_ids_needed.update([m["paper1_id"], m["paper2_id"], m.get("winner_id", "")])
@@ -413,6 +413,11 @@ async def get_admin_status(category: str = "cs.RO"):
     paper_titles = {}
     async for r in db.rankings.find({"paper_id": {"$in": list(paper_ids_needed)}}, {"_id": 0, "paper_id": 1, "title": 1}):
         paper_titles[r["paper_id"]] = r["title"]
+    # Fallback for any missing titles
+    missing = paper_ids_needed - set(paper_titles.keys())
+    if missing:
+        async for p in db.papers.find({"id": {"$in": list(missing)}}, {"_id": 0, "id": 1, "title": 1}):
+            paper_titles[p["id"]] = p["title"]
 
     enriched_recent = []
     for m in cat_matches_sorted:
