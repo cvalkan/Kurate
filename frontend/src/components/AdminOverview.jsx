@@ -449,6 +449,7 @@ export function AdminOverview({
                 <span className="text-xs text-muted-foreground shrink-0">beat</span>
                 <span className="text-sm truncate flex-1 text-muted-foreground">{m.loser_title || "Unknown"}</span>
                 {m.model_used && <ModelBadge model={m.model_used} />}
+                {m.created_at && <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{new Date(m.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} {new Date(m.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>}
               </div>
             ))}
           </div>
