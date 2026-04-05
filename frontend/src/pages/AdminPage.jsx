@@ -307,27 +307,29 @@ export default function AdminPage() {
           <div className="border-t border-border pt-6 space-y-4">
             <h3 className="text-sm font-medium">System Parameters</h3>
             {[
-              { key: "fetch_interval_hours", label: "Fetch Interval (hours)", dflt: 24, help: "How often to check arXiv for new papers. Safe range: 6-168. Default: 24.", min: 1, max: 168 },
-              { key: "max_papers_per_fetch", label: "Max Papers Per Fetch", dflt: 50, help: "New papers to fetch per arXiv query cycle. Higher = more LLM costs for summaries. Safe range: 10-200. Default: 50.", min: 10, max: 200 },
-              { key: "min_papers_for_tournament", label: "Min Papers for Tournament", dflt: 8, help: "Minimum papers needed before a category starts matching. Safe range: 2-50. Default: 8.", min: 2, max: 50 },
-              { key: "parallel_agents", label: "Parallel LLM Agents", dflt: 5, help: "Concurrent LLM comparison calls per batch. Higher = faster but more API cost/sec. Safe range: 1-20. Default: 5.", min: 1, max: 20 },
-              { key: "parallel_categories", label: "Parallel Categories", dflt: 2, help: "Categories processed concurrently per compare cycle. Higher = faster convergence but more memory. Safe range: 1-10. Default: 2.", min: 1, max: 10 },
-              { key: "top_k_focus", label: "Top-K Focus", dflt: 10, help: "Top papers that get tighter CI target and cross-matching. Safe range: 3-50. Default: 10.", min: 3, max: 50 },
-              { key: "max_new_matches_per_round", label: "Max Matches Per Paper Per Round", dflt: 3, help: "New matches a single paper can participate in per round. Higher = faster convergence for individual papers. Safe range: 1-10. Default: 3.", min: 1, max: 10 },
-              { key: "max_pairs_per_round", label: "Max Pairs Per Round", dflt: 100, help: "Hard cap on total pairs generated per category per round. Increase for large categories (5K+ papers). Safe range: 10-500. Default: 100.", min: 10, max: 500 },
-              { key: "ci_target", label: "Top-K CI Target (%)", dflt: 10, help: "Wilson CI margin target for top-K papers. Lower = more matches needed. Safe range: 3-30. Default: 10%.", min: 3, max: 30 },
-              { key: "ci_target_general", label: "General CI Target (%)", dflt: 15, help: "Wilson CI margin target for non-top-K papers. Should be >= Top-K target. Safe range: 5-50. Default: 15%.", min: 5, max: 50 },
-              { key: "calibration_ratio", label: "Calibration Ratio (%)", dflt: 50, help: "% of new-paper matches paired against established (converged) papers. 0=all needy-vs-needy, 100=all needy-vs-established. Safe range: 0-100. Default: 50%.", min: 0, max: 100 },
-              { key: "compare_loop_interval", label: "Compare Loop Interval (sec)", dflt: 60, help: "Seconds between compare loop cycles. Increase for 100+ categories to reduce DB pressure. Safe range: 10-300. Default: 60.", min: 10, max: 300 },
-              { key: "llm_request_timeout", label: "LLM Request Timeout (sec)", dflt: 120, help: "Max seconds to wait for an LLM comparison response. Increase for slower models. Safe range: 30-300. Default: 120.", min: 30, max: 300 },
-              { key: "summary_parallel", label: "Summary Parallel", dflt: 10, help: "Concurrent LLM calls for summary generation. Safe range: 1-20. Default: 10.", min: 1, max: 20 },
-              { key: "summary_batch_size", label: "Summary Batch Size", dflt: 50, help: "Papers per summary generation batch. Lower = less memory, more batches. Safe range: 10-200. Default: 50.", min: 10, max: 200 },
-            ].map(({ key, label, help, min, max, step, dflt }) => (
+              { key: "fetch_interval_hours", label: "Fetch Interval (hours)", dflt: 2, help: "How often to check arXiv for new papers. Safe range: 1-168.", min: 1, max: 168 },
+              { key: "max_papers_per_fetch", label: "Max Papers Per Fetch", dflt: 50, help: "New papers to fetch per arXiv query cycle. Higher = more LLM costs for summaries. Safe range: 10-200.", min: 10, max: 200 },
+              { key: "min_papers_for_tournament", label: "Min Papers for Tournament", dflt: 8, help: "Minimum papers needed before a category starts matching. Safe range: 2-50.", min: 2, max: 50 },
+              { key: "parallel_agents", label: "Parallel LLM Agents", dflt: 20, help: "Concurrent LLM comparison calls per batch. Higher = faster but more API cost/sec. Safe range: 1-20.", min: 1, max: 20 },
+              { key: "parallel_categories", label: "Parallel Categories", dflt: 10, help: "Categories processed concurrently per compare cycle. Higher = faster convergence but more memory. Safe range: 1-10.", min: 1, max: 10 },
+              { key: "top_k_focus", label: "Top-K Focus", dflt: 10, help: "Top papers that get tighter CI target and cross-matching. Safe range: 3-50.", min: 3, max: 50 },
+              { key: "max_new_matches_per_round", label: "Max Matches Per Paper Per Round", dflt: 3, help: "New matches a single paper can participate in per round. Higher = faster convergence for individual papers. Safe range: 1-10.", min: 1, max: 10 },
+              { key: "max_pairs_per_round", label: "Max Pairs Per Round", dflt: 100, help: "Hard cap on total pairs generated per category per round. Increase for large categories (5K+ papers). Safe range: 10-500.", min: 10, max: 500 },
+              { key: "ci_target", label: "Top-K CI Target (%)", dflt: 10, help: "Wilson CI margin target for top-K papers. Lower = more matches needed. Safe range: 3-30.", min: 3, max: 30 },
+              { key: "ci_target_general", label: "General CI Target (%)", dflt: 15, help: "Wilson CI margin target for non-top-K papers. Should be >= Top-K target. Safe range: 5-50.", min: 5, max: 50 },
+              { key: "calibration_ratio", label: "Calibration Ratio (%)", dflt: 50, help: "% of new-paper matches paired against established (converged) papers. 0=all needy-vs-needy, 100=all needy-vs-established. Safe range: 0-100.", min: 0, max: 100 },
+              { key: "compare_loop_interval", label: "Compare Loop Interval (sec)", dflt: 60, help: "Seconds between compare loop cycles. Increase for 100+ categories to reduce DB pressure. Safe range: 10-300.", min: 10, max: 300 },
+              { key: "llm_request_timeout", label: "LLM Request Timeout (sec)", dflt: 120, help: "Max seconds to wait for an LLM comparison response. Increase for slower models. Safe range: 30-300.", min: 30, max: 300 },
+              { key: "summary_parallel", label: "Summary Parallel", dflt: 10, help: "Concurrent LLM calls for summary generation. Safe range: 1-20.", min: 1, max: 20 },
+              { key: "summary_batch_size", label: "Summary Batch Size", dflt: 50, help: "Papers per summary generation batch. Lower = less memory, more batches. Safe range: 10-200.", min: 10, max: 200 },
+            ].map(({ key, label, help, min, max, step, dflt }) => {
+              const currentVal = settings[key] ?? dflt;
+              return (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <Label className="text-xs">{label}</Label>
                   <Tooltip><TooltipTrigger asChild><HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
-                  <TooltipContent side="right"><p className="max-w-52 text-xs">{help}</p></TooltipContent></Tooltip>
+                  <TooltipContent side="right"><p className="max-w-52 text-xs">{help} Current: {currentVal}.</p></TooltipContent></Tooltip>
                 </div>
                 <Input
                   type="number" min={min} max={max} step={step}
@@ -343,7 +345,7 @@ export default function AdminPage() {
                   data-testid={`setting-${key}`}
                 />
               </div>
-            ))}
+            )})}
             <div>
               <div className="flex items-center gap-1.5 mb-1">
                 <Label className="text-xs">Summary Source</Label>
