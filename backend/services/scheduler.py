@@ -985,6 +985,10 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
         prog.update({"running": False, "generated": generated, "failed": failed, "skipped": skipped, "scanned": scanned,
                       "finished_at": datetime.now(timezone.utc).isoformat()})
 
+    # Clear activity status (was stuck on "Generating summaries..." after completion)
+    if cat_status:
+        cat_status["current_activity"] = "Idle"
+
     return generated
 
 
