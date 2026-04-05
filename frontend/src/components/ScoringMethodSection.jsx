@@ -4,8 +4,9 @@ const METHOD_COLORS = {
   "win_rate vs trueskill": "bg-violet-500/10",
 };
 
-export function ScoringMethodSection({ category, scoringData }) {
+export function ScoringMethodSection({ category, scoringData, osUpdatedAt }) {
   const data = scoringData;
+  const hasOs = data?.correlations?.some(c => c.method1?.startsWith("openskill") || c.method2?.startsWith("openskill"));
 
   if (!data || !data.correlations?.length) return null;
 
@@ -16,6 +17,7 @@ export function ScoringMethodSection({ category, scoringData }) {
       </h3>
       <p className="text-xs text-muted-foreground mb-3">
         Spearman rank correlation between different scoring methods on the same set of papers ({data.n_papers?.toLocaleString()} papers).
+        {hasOs && osUpdatedAt && <span className="ml-1 text-muted-foreground/60">OpenSkill data from {new Date(osUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}.</span>}
       </p>
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm" data-testid="scoring-method-table">

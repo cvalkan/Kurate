@@ -14,11 +14,12 @@ function bestInRow(methods) {
   return best;
 }
 
-export function InterModelSection({ pwData, siData, viewMode = "aggregate" }) {
+export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUpdatedAt }) {
   const isAvg = viewMode === "average";
   const pwRows = (isAvg && pwData?.avg_pw_inter_model?.length ? pwData.avg_pw_inter_model : pwData?.pw_inter_model) || [];
   const methodLabels = pwData?.method_labels || {};
   const siCorr = siData?.inter_model_si || {};
+  const hasOs = pwRows.some(r => Object.keys(r.methods || {}).some(k => k.startsWith("openskill")));
 
   if (pwRows.length === 0 && Object.keys(siCorr).length === 0) return null;
 
@@ -64,6 +65,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate" }) {
               <span className="text-[10px] text-muted-foreground ml-1.5">
                 (how similarly do models rank papers from their pairwise matches)
               </span>
+              {hasOs && osUpdatedAt && <span className="text-[9px] text-muted-foreground/50 ml-1">· OS updated {new Date(osUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">

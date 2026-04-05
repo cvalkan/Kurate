@@ -115,85 +115,6 @@ function CorrelationMatrix({ correlations }) {
   );
 }
 
-function InterModelSiHeatmap({ interModelSi }) {
-  if (!interModelSi || Object.keys(interModelSi).length === 0) {
-    return (
-      <div className="text-center py-4 text-muted-foreground">
-        <p className="text-[10px]">Per-model SI ratings needed.</p>
-        <p className="text-[9px] mt-1">Generate ratings from all 3 models to see inter-model correlation.</p>
-      </div>
-    );
-  }
-
-  const modelOrder = ["claude", "gpt", "gemini"];
-  const modelLabels = { claude: "Claude", gpt: "GPT-5.2", gemini: "Gemini" };
-  const present = modelOrder.filter(mk =>
-    Object.keys(interModelSi).some(k => k.includes(mk))
-  );
-  if (present.length < 2) present.push(...modelOrder.filter(m => !present.includes(m)).slice(0, 2 - present.length));
-  const names = present.map(m => modelLabels[m] || m);
-  const n = names.length;
-
-  const matrix = Array.from({ length: n }, () => Array(n).fill(1));
-  for (const [pair, stats] of Object.entries(interModelSi)) {
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        if (pair.includes(present[i]) && pair.includes(present[j])) {
-          matrix[i][j] = stats.spearman;
-          matrix[j][i] = stats.spearman;
-        }
-      }
-    }
-  }
-
-  const cellSize = 56;
-  const labelW = 60;
-  const labelH = 20;
-  const w = labelW + n * cellSize;
-  const h = labelH + n * cellSize;
-  const heatColor = (v) => {
-    if (v >= 1) return "#dbeafe";
-    if (v >= 0.8) return "#22c55e";
-    if (v >= 0.7) return "#86efac";
-    if (v >= 0.6) return "#fde68a";
-    if (v >= 0.5) return "#fbbf24";
-    return "#f87171";
-  };
-
-  return (
-    <div data-testid="inter-model-si-heatmap">
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-xs">
-        {names.map((name, j) => (
-          <text key={`col-${j}`} x={labelW + j * cellSize + cellSize / 2} y={labelH - 4}
-            textAnchor="middle" className="text-[9px] fill-muted-foreground font-medium">{name}</text>
-        ))}
-        {names.map((name, i) => (
-          <g key={`row-${i}`}>
-            <text x={labelW - 4} y={labelH + i * cellSize + cellSize / 2 + 3}
-              textAnchor="end" className="text-[9px] fill-muted-foreground font-medium">{name}</text>
-            {names.map((_, j) => {
-              const val = matrix[i][j];
-              const isdiag = i === j;
-              return (
-                <g key={`cell-${i}-${j}`}>
-                  <rect x={labelW + j * cellSize + 1} y={labelH + i * cellSize + 1}
-                    width={cellSize - 2} height={cellSize - 2} rx={4}
-                    fill={isdiag ? "#f1f5f9" : heatColor(val)} fillOpacity={isdiag ? 1 : 0.8} />
-                  <text x={labelW + j * cellSize + cellSize / 2} y={labelH + i * cellSize + cellSize / 2 + 4}
-                    textAnchor="middle"
-                    className={`font-mono font-bold ${isdiag ? "text-[9px] fill-muted-foreground" : "text-[11px] fill-foreground"}`}>
-                    {isdiag ? "1.00" : val.toFixed(2)}
-                  </text>
-                </g>
-              );
-            })}
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
 function CategoryBreakdown({ categories }) {
   if (!categories?.length) return null;
   const maxScore = Math.max(...categories.map(c => c.mean_score));
@@ -341,15 +262,7 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
                 <CorrelationMatrix correlations={data.metric_correlations} />
               </div>
             )}
-
-            <div className="p-3 border border-border rounded-lg">
-              <h3 className="text-sm font-medium mb-2">Inter-Model SI Correlation</h3>
-              <p className="text-[10px] text-muted-foreground mb-2">
-                Spearman rank correlation between the single-item rated ranked lists of the 3 models.
-              </p>
-              <InterModelSiHeatmap interModelSi={data.inter_model_si} />
-            </div>
-
+            
             {data.by_category?.length > 0 && (
               <div className="p-3 border border-border rounded-lg">
                 <h3 className="text-sm font-medium mb-2">Mean Score by Category</h3>

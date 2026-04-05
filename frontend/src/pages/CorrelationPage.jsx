@@ -157,15 +157,15 @@ export default function CorrelationPage() {
       </SectionBoundary>
 
       <SectionBoundary>
-        <ScoringMethodSection category={category || null} scoringData={data?.scoring_method} />
+        <ScoringMethodSection category={category || null} scoringData={data?.scoring_method} osUpdatedAt={data?.openskill_updated_at} />
       </SectionBoundary>
 
       <SectionBoundary>
-        <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} />
+        <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} />
       </SectionBoundary>
 
       <SectionBoundary>
-        <InterModelSection pwData={data} siData={siData} viewMode={viewMode} />
+        <InterModelSection pwData={data} siData={siData} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} />
       </SectionBoundary>
 
       <SectionBoundary>

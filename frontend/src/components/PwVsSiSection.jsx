@@ -4,7 +4,7 @@ import { TrendingUp } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-export function PwVsSiSection({ category, siData: externalSiData, viewMode = "aggregate" }) {
+export function PwVsSiSection({ category, siData: externalSiData, viewMode = "aggregate", osUpdatedAt }) {
   const [data, setData] = useState(externalSiData?.pw_vs_si || null);
   const [controlled, setControlled] = useState(false);
 
@@ -51,6 +51,7 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
             ? "Controlled: combined PW subsampled to same matches/paper as single judge. Shows whether multi-judge diversity adds signal beyond match count."
             : `How well does the tournament ranking correlate with each model's direct 1-10 quality scores? "All judges" uses all models' matches (${data.n_matches?.toLocaleString()} total); "single judge" isolates each model's own matches.`
           }
+          {osUpdatedAt && <span className="text-muted-foreground/50 ml-1">OpenSkill rows from {new Date(osUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}.</span>}
         </p>
       </div>
 
