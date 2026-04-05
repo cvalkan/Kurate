@@ -456,12 +456,7 @@ async def get_admin_status(category: str = "cs.RO"):
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate(category: str = "cs.RO"):
-    """Triple-goal progress — served from pre-computed leaderboard cache."""
-    # Check if summary generation is running — skip cache if so for real-time updates
-    from services.scheduler import get_summary_gen_progress
-    summary_gen = get_summary_gen_progress(category)
-    is_gen_running = summary_gen.get("running", False)
-
+    """Triple-goal progress — always computed from rankings DB (single source of truth)."""
     settings = await get_settings()
     global_paused = settings.get("paused", False)
 
@@ -473,68 +468,13 @@ async def get_progress_estimate(category: str = "cs.RO"):
     compare_paused = bool(tournament_doc.get("compare_paused")) if tournament_doc else False
     is_paused = global_paused or tournament_paused
 
-    # Use pre-computed progress from leaderboard background cache
-    lb_cache = _get_lb_cache()
-    precomputed = lb_cache.get("_progress", {}).get(category)
-    if precomputed:
-        realtime_summaries = precomputed.get("total_papers", 0)  # from rankings count
-        # If summary gen is running, get fresh count from DB
-        if is_gen_running:
-            realtime_summaries = await db.papers.count_documents(
-                {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}}
-            )
-        # Detect pair exhaustion from precomputed data
-        pair_exhausted = False
-        exhausted_papers = 0
-        pre_goals_met = precomputed.get("goals_met", True)
-        pre_total = precomputed.get("total_papers", 0)
-        if not pre_goals_met and pre_total > 1:
-            from services.ranking import wilson_margin_pct
-            ci_target_val = settings.get("ci_target", 10)
-            ci_target_gen = settings.get("ci_target_general", 15)
-            top_k_val = settings.get("top_k_focus", 10)
-            # Load rankings sorted by score to identify top-K
-            rank_docs = []
-            async for doc in db.rankings.find(
-                {"category": category},
-                {"_id": 0, "wins": 1, "comparisons": 1, "score": 1},
-            ).sort("score", -1):
-                rank_docs.append(doc)
-            for idx, doc in enumerate(rank_docs):
-                comp = doc.get("comparisons", 0)
-                if comp >= pre_total - 1:
-                    target = ci_target_val if idx < top_k_val else ci_target_gen
-                    margin = wilson_margin_pct(doc.get("wins", 0), comp)
-                    if margin > target:
-                        exhausted_papers += 1
-            if exhausted_papers > 0:
-                pair_exhausted = True
-
-        result = {
-            **precomputed,
-            "paused": is_paused,
-            "global_paused": global_paused,
-            "tournament_paused": bool(tournament_paused),
-            "fetch_paused": fetch_paused,
-            "compare_paused": compare_paused,
-            "pair_exhausted": pair_exhausted,
-            "exhausted_papers": exhausted_papers,
-            "summary_coverage": {
-                "with_summaries": realtime_summaries,
-            },
-            "summary_gen_progress": summary_gen if is_gen_running else None,
-        }
-        return result
-
-    # Fallback: compute from DB (only during cold start before leaderboard cache is ready)
+    # Compute progress from rankings DB — single source of truth
+    # Uses indexed rankings collection (pre-computed wins/comparisons), fast enough without caching
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
     parallel_agents = settings.get("parallel_agents", 5)
-    settings.get("parallel_categories", 2)
 
-    # Fallback: compute from rankings DB (only during cold start before leaderboard cache is ready)
-    # Uses rankings collection (pre-computed wins/comparisons) instead of loading all matches
     from services.ranking import wilson_margin_pct
 
     entries = []
