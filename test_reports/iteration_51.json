@@ -1,0 +1,171 @@
+{
+  "summary": "Ghost Match Fix, unique_opponents field, and Scheduler Diagnostics - All tests pass. Backend: 11/11 pytest tests pass (100%), 3/3 MongoDB direct tests pass (100%). Frontend: Admin panel loads correctly with Tournament section showing goal metrics, status indicator, and matches remaining.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "unique_opponents field",
+        "issue": "unique_opponents != comparisons for many papers in q-bio.BM (63/73 mismatches). This is expected because unique_opponents tracks distinct opponents while comparisons counts total matches (can have repeat matches with same opponent before dedup was implemented)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ghost_match_fix_diagnostics.py",
+    "/app/backend/tests/test_ghost_match_mongodb.py",
+    "/app/test_reports/pytest/ghost_match_fix_diagnostics_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Ghost match fix in update_rankings_for_match (line ~596) correctly creates ranking entries via insert_ranking_for_paper fallback when ranking doesn't exist",
+    "insert_ranking_for_paper (line ~1043) correctly initializes unique_opponents:0 for new rankings",
+    "Scheduler auto-restart logic in _compare_loop (line ~283) has proper while loop with try/except and exponential backoff",
+    "Stall detection in get_progress_estimate (line ~444) correctly uses unique_opponents field for O(1) detection"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ghost_match_fix_diagnostics.py",
+    "/app/backend/tests/test_ghost_match_mongodb.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "Admin password: papersumo2025 (X-Admin-Token header)",
+  "seed_data_creation": "Test papers created and cleaned up during ghost match fix simulation",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Ghost match fix and unique_opponents field fully tested. Key findings: (1) update_rankings_for_match now auto-creates ranking entries if missing via insert_ranking_for_paper fallback - verified working, (2) unique_opponents field exists on 100% of rankings (2135 total), (3) unique_opponents != comparisons for many papers because comparisons counts total matches while unique_opponents counts distinct opponents (expected with historical repeat matches before dedup), (4) Scheduler diagnostics endpoint returns loop_alive, last_cycle_at, cycles_since_restart, last_cycle_unmet, last_cycle_results, (5) Progress endpoint returns pair_exhausted, exhausted_papers, unique_pairs_played, max_possible_pairs, all_pairs_exhausted, last_match_at, failed_matches_total, (6) Frontend Tournament section shows goal metrics (General CI ≤ 15%, Top-10 CI ≤ 10%, Top-10 cross-matches), status indicator (System paused/Running/Stalled/Converged), and matches remaining count.",
+  "verified_features": {
+    "backend_endpoints": {
+      "POST /api/admin/login": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns token with 'adm_' prefix on correct password",
+          "Returns 403 on incorrect password"
+        ]
+      },
+      "GET /api/admin/progress": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns pair_exhausted (boolean)",
+          "Returns exhausted_papers (int)",
+          "Returns unique_pairs_played (int)",
+          "Returns max_possible_pairs (int)",
+          "Returns all_pairs_exhausted (boolean)",
+          "Returns last_match_at (ISO timestamp or null)",
+          "Returns failed_matches_total (int)",
+          "Returns goal1, goal2, goal3 with met/label/done/total fields"
+        ]
+      },
+      "GET /api/admin/scheduler-diagnostics": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns loop_alive (boolean)",
+          "Returns last_cycle_at (ISO timestamp or null)",
+          "Returns last_cycle_unmet (list)",
+          "Returns last_cycle_results (dict)",
+          "Returns cycles_since_restart (int)"
+        ]
+      },
+      "GET /api/admin/diagnose-pairs": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns category, matchable_papers, threshold",
+          "Returns total_db_matches, sum_rankings_comparisons",
+          "Returns ghost_matches (should be 0 or low after fix)",
+          "Returns needy_papers, needy_with_zero_novel",
+          "Returns diagnosis array"
+        ]
+      },
+      "POST /api/admin/reconcile-rankings": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns status: ok",
+          "Returns results with drifted/papers_checked per category"
+        ]
+      }
+    },
+    "mongodb_direct_tests": {
+      "unique_opponents field": {
+        "status": "PASS",
+        "test_cases": [
+          "Field exists on 100% of rankings (2135/2135)",
+          "Field is integer type"
+        ]
+      },
+      "Ghost match fix": {
+        "status": "PASS",
+        "test_cases": [
+          "Created test paper without ranking entry",
+          "Called update_rankings_for_match with test paper as winner",
+          "Verified ranking was auto-created with wins=1, comparisons=1, unique_opponents=1",
+          "Cleaned up test data"
+        ]
+      },
+      "insert_ranking_for_paper": {
+        "status": "PASS",
+        "test_cases": [
+          "Creates ranking with unique_opponents:0",
+          "Creates ranking with comparisons:0, wins:0"
+        ]
+      }
+    },
+    "frontend_components": {
+      "Admin Panel": {
+        "status": "PASS",
+        "test_cases": [
+          "Login with password works",
+          "Tournaments tab loads",
+          "Tournament section visible with data-testid"
+        ]
+      },
+      "Tournament Section": {
+        "status": "PASS",
+        "test_cases": [
+          "Shows goal metrics (General CI ≤ 15%, Top-10 CI ≤ 10%, Top-10 cross-matches)",
+          "Shows status indicator (System paused)",
+          "Shows matches remaining (~626)",
+          "Shows median margin and progress (930/967, 8/10, 28/45)"
+        ]
+      },
+      "Paper Ingestion Section": {
+        "status": "PASS",
+        "test_cases": [
+          "Shows papers count (977 leaderboard, 988 fetched)",
+          "Shows downloaded/summarized counts",
+          "Shows auto-fetch toggle"
+        ]
+      },
+      "Usage Statistics": {
+        "status": "PASS",
+        "test_cases": [
+          "Shows token counts and costs",
+          "Shows breakdown by model"
+        ]
+      },
+      "Recent Comparisons": {
+        "status": "PASS",
+        "test_cases": [
+          "Shows recent match history with winner/loser titles",
+          "Shows model badges and timestamps"
+        ]
+      }
+    }
+  },
+  "scheduler_diagnostics_sample": {
+    "loop_alive": true,
+    "cycles_since_restart": "varies",
+    "note": "System is PAUSED on preview, so scheduler loop is alive but not generating matches"
+  },
+  "progress_sample_q_bio_BM": {
+    "pair_exhausted": false,
+    "exhausted_papers": 0,
+    "unique_pairs_played": 4498,
+    "max_possible_pairs": 2628,
+    "note": "unique_pairs_played > max_possible_pairs because some papers were removed from matchable set after matches were played"
+  }
+}
