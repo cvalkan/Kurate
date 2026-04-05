@@ -536,10 +536,14 @@ async def get_progress_estimate(category: str = "cs.RO"):
     if total_papers == 0:
         # Check if papers exist but haven't been ranked yet (summary phase)
         actual_papers = await db.papers.count_documents({"categories.0": category})
-        # Count papers with summaries to show progress
+        # Count papers with PDFs and summaries to show progress
+        papers_with_pdf = 0
         papers_with_summaries = 0
         if actual_papers > 0:
             try:
+                papers_with_pdf = await db.papers.count_documents(
+                    {"categories.0": category, "full_text": {"$ne": None}}
+                )
                 papers_with_summaries = await db.papers.count_documents(
                     {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}}
                 )
@@ -547,6 +551,8 @@ async def get_progress_estimate(category: str = "cs.RO"):
                 pass
         result = {
             "total_papers": actual_papers,
+            "total_in_db": actual_papers,
+            "papers_with_pdf": papers_with_pdf,
             "goals_met": actual_papers == 0,  # Only truly met if no papers exist at all
             "phase": "summaries" if actual_papers > 0 else None,
             "summary_coverage": {

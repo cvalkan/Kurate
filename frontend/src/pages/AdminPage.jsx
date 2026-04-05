@@ -52,7 +52,7 @@ export default function AdminPage() {
   const [prompt, setPrompt] = useState(null);
   const [editSettings, setEditSettings] = useState({});
   const [editPrompt, setEditPrompt] = useState({});
-  const [loading, setLoading] = useState({ fetch: false, compare: false, settings: false, prompt: false });
+  const [loading, setLoading] = useState({ fetch: false, fetchCat: null, compare: false, settings: false, prompt: false });
   const [activeTab, setActiveTab] = useState("statistics");
   const [progress, setProgress] = useState(null);
   const [usageStats, setUsageStats] = useState(null);
@@ -145,12 +145,12 @@ export default function AdminPage() {
   }, [fetchLiveData, progress, activeTab]);
 
   const triggerFetch = async () => {
-    setLoading(l => ({ ...l, fetch: true }));
+    setLoading(l => ({ ...l, fetch: true, fetchCat: adminCat }));
     try {
       const res = await axios.post(`${API}/api/admin/fetch`, { category: adminCat }, { headers: getAdminHeaders() });
       if (res.data.status === "already_running") {
         toast.info(`Fetch already running for ${adminCat} (started ${new Date(res.data.started_at).toLocaleTimeString()})`);
-        setLoading(l => ({ ...l, fetch: false }));
+        setLoading(l => ({ ...l, fetch: false, fetchCat: null }));
         return;
       }
       toast.info(`Fetch & generate task started for ${adminCat}. Polling for completion...`);
@@ -162,18 +162,18 @@ export default function AdminPage() {
           if (s.status === "completed") {
             clearInterval(pollInterval);
             toast.success(`Fetch complete: ${s.result?.new_papers || 0} new ${adminCat} papers`);
-            setLoading(l => ({ ...l, fetch: false }));
+            setLoading(l => ({ ...l, fetch: false, fetchCat: null }));
             fetchAll();
           } else if (s.status === "failed") {
             clearInterval(pollInterval);
             toast.error(`Fetch failed: ${s.error}`);
-            setLoading(l => ({ ...l, fetch: false }));
+            setLoading(l => ({ ...l, fetch: false, fetchCat: null }));
           }
         } catch { /* keep polling */ }
       }, 5000);
     } catch (err) {
       toast.error("Fetch failed: " + (err.response?.data?.detail || err.message));
-      setLoading(l => ({ ...l, fetch: false }));
+      setLoading(l => ({ ...l, fetch: false, fetchCat: null }));
     }
   };
 
