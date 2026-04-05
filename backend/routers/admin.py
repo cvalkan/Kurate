@@ -695,6 +695,82 @@ async def scheduler_diagnostics():
     return diag
 
 
+@router.get("/diagnose-pairs", dependencies=[Depends(verify_admin)])
+async def diagnose_pair_selection(category: str = "cs.SI"):
+    """Diagnose why _select_pairs returns empty for a category.
+    
+    Shows per-paper: rankings comparisons vs actual DB matches vs actual unique opponents.
+    Identifies the gap between what rankings thinks and what the matches DB has.
+    """
+    from services.ranking import wilson_margin_pct
+    from services.scheduler import get_matchable_paper_ids, _get_compared_opponents, _make_dedup_pair
+    settings = await get_settings()
+    ci_target = settings.get("ci_target", 10)
+    ci_target_general = settings.get("ci_target_general", 15)
+    top_k = settings.get("top_k_focus", 10)
+
+    # Get rankings entries
+    entries = []
+    async for doc in db.rankings.find(
+        {"category": category},
+        {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1},
+    ):
+        entries.append(doc)
+
+    # Filter matchable
+    matchable_ids = await get_matchable_paper_ids(category, settings.get("summary_source", "thinking"))
+    if matchable_ids:
+        entries = [e for e in entries if e["paper_id"] in matchable_ids]
+
+    matchable_count = len(entries)
+    entries.sort(key=lambda e: e.get("score", 0), reverse=True)
+    top_k_ids = set(e["paper_id"] for e in entries[:top_k])
+    paper_ids = [e["paper_id"] for e in entries]
+
+    # For each needy paper, check actual opponents from matches DB
+    needy_diagnosis = []
+    for e in entries:
+        pid = e["paper_id"]
+        target = ci_target if pid in top_k_ids else ci_target_general
+        margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
+        if margin <= target:
+            continue
+        # Count actual unique opponents from matches DB (what _get_compared_opponents sees)
+        candidates = [p for p in paper_ids if p != pid]
+        already_compared = await _get_compared_opponents(pid, category, candidates)
+        novel_count = len(candidates) - len(already_compared)
+
+        needy_diagnosis.append({
+            "paper_id": pid[:30],
+            "rankings_comparisons": e.get("comparisons", 0),
+            "db_unique_opponents": len(already_compared),
+            "novel_opponents_available": novel_count,
+            "margin": margin,
+            "target": target,
+            "is_top_k": pid in top_k_ids,
+        })
+
+    # Count total matches in DB vs sum of rankings comparisons
+    total_db_matches = await db.matches.count_documents(
+        {"primary_category": category, "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    )
+    sum_rankings_comps = sum(e.get("comparisons", 0) for e in entries)
+
+    return {
+        "category": category,
+        "matchable_papers": matchable_count,
+        "threshold": matchable_count - 1,
+        "total_db_matches": total_db_matches,
+        "sum_rankings_comparisons": sum_rankings_comps,
+        "rankings_implied_matches": sum_rankings_comps // 2,
+        "ghost_matches": total_db_matches - sum_rankings_comps // 2,
+        "needy_papers": len(needy_diagnosis),
+        "needy_with_zero_novel": sum(1 for d in needy_diagnosis if d["novel_opponents_available"] == 0),
+        "diagnosis": sorted(needy_diagnosis, key=lambda d: d["novel_opponents_available"]),
+    }
+
+
+
 
 @router.get("/stats", dependencies=[Depends(verify_admin)])
 async def get_usage_stats(category: str = None):
