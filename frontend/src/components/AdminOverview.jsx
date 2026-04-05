@@ -105,12 +105,12 @@ export function AdminOverview({
   };
 
   const refreshCorrelationsAll = async () => {
-    if (!window.confirm("This clears ALL model analysis caches (13 categories). Recomputation takes 10-15 min. Continue?")) return;
     setCorrAllRefreshing(true);
     try {
-      await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis`, {}, { headers: getAdminHeaders() });
-      toast.info("Refreshing Model Analysis for all categories... (10-15 min in background)");
-      axios.get(`${API}/api/model-analysis?category=${adminCat}`).catch(() => {});
+      // Only clear the "All Categories" aggregate — leave per-category caches intact
+      await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis&key=__all__`, {}, { headers: getAdminHeaders() });
+      toast.info("Refreshing 'All Categories' Model Analysis... (2-3 min)");
+      axios.get(`${API}/api/model-analysis`).catch(() => {});
     } catch {
       toast.error("Failed to refresh");
     } finally {
@@ -419,7 +419,7 @@ export function AdminOverview({
               data-testid="refresh-correlations-all-btn"
             >
               <RefreshCw className={`h-3 w-3 ${corrAllRefreshing ? "animate-spin" : ""}`} />
-              {corrAllRefreshing ? "Refreshing..." : "Refresh All Categories (10-15 min)"}
+              {corrAllRefreshing ? "Refreshing..." : "Refresh 'All Categories'"}
             </Button>
           </div>
         </div>
