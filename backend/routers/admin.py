@@ -45,9 +45,10 @@ def _set_admin_cached(key: str, category: str, data):
 
 
 def _invalidate_admin_cache(category: str = None):
-    """Invalidate admin cache for a category (or all if None)."""
+    """Invalidate admin cache for a category (or all if None).
+    Always also invalidates __all__ aggregates since any category change affects totals."""
     if category:
-        keys_to_remove = [k for k in _admin_cache if k[1] == category]
+        keys_to_remove = [k for k in _admin_cache if k[1] == category or k[1] in ("__all__", None)]
     else:
         keys_to_remove = list(_admin_cache.keys())
     for k in keys_to_remove:
