@@ -612,7 +612,7 @@ async def compute_openskill_cache(category: Optional[str] = None):
     papers = []
     async for doc in db.rankings.find(query, {
         "_id": 0, "paper_id": 1, "category": 1, "score": 1, "ts_score": 1,
-        "model_stats": 1,
+        "comparisons": 1, "model_stats": 1, "si_ratings": 1,
     }):
         papers.append(doc)
 
@@ -693,11 +693,60 @@ async def compute_openskill_cache(category: Optional[str] = None):
                         "kendall_tau": round(float(kt_r), 6),
                     })
 
+    # Pre-compute PW vs SI OpenSkill rows (combined + per-model)
+    # These get injected into the live pw_vs_si tables by the merge function
+    pw_papers = [p for p in papers if p.get("comparisons", 0) >= 3]
+    def _get_si_score(p, mk=None):
+        si = p.get("si_ratings", {})
+        if mk:
+            r = si.get(mk)
+            return r.get("score") if isinstance(r, dict) and r.get("score") else None
+        ratings = [r for r in si.values() if isinstance(r, dict) and r.get("score")]
+        return round(sum(r["score"] for r in ratings) / len(ratings), 1) if ratings else None
+
+    pw_vs_si_os_rows = {}  # {si_mk: [rows]}
+    si_map_keys = ["claude", "gpt", "gemini", "avg"]
+    for si_mk in si_map_keys:
+        si_scores = {}
+        for p in pw_papers:
+            s = _get_si_score(p, si_mk if si_mk != "avg" else None)
+            if s:
+                si_scores[p["paper_id"]] = s
+        if len(si_scores) < 10:
+            continue
+        rows = []
+        combined_mpp = round(float(np.mean([p.get("comparisons", 0) for p in pw_papers])), 1) if pw_papers else 0
+        for os_key, os_scores, os_label in [("openskill", os1_global, "OpenSkill 1p"),
+                                             ("openskill3", os3_global, "OpenSkill 3p"),
+                                             ("openskill10", os10_global, "OpenSkill 10p")]:
+            if not os_scores:
+                continue
+            row = _corr_row(f"combined_{os_key}", os_label, os_scores, si_scores)
+            if row:
+                row["avg_mpp"] = combined_mpp
+                rows.append(row)
+        pw_vs_si_os_rows[si_mk] = {"combined": rows}
+
+        # Within-model OS rows
+        mk_key = _MODEL_KEY_MAP.get(si_mk)
+        if mk_key and mk_key in model_os:
+            within_rows = []
+            within_mpp_vals = [model_paper_stats.get(mk_key, {}).get(p["paper_id"], {}).get("total", 0) for p in pw_papers]
+            within_mpp = round(float(np.mean([m for m in within_mpp_vals if m > 0])), 1) if any(m > 0 for m in within_mpp_vals) else 0
+            for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
+                os_scores_mk = model_os[mk_key].get(os_key, {})
+                row = _corr_row(f"within_{os_key}", os_label, os_scores_mk, si_scores)
+                if row:
+                    row["avg_mpp"] = within_mpp
+                    within_rows.append(row)
+            pw_vs_si_os_rows[si_mk]["within"] = within_rows
+
     return {
         "status": "ok",
         "os_global": {"os1": os1_global, "os3": os3_global, "os10": os10_global},
         "os_per_model": model_os,
         "scoring_os_correlations": scoring_os_correlations,
+        "pw_vs_si_os_rows": pw_vs_si_os_rows,
         "computed_at": datetime.now(timezone.utc).isoformat(),
         "compute_time_s": round(time.perf_counter() - t_start, 2),
     }
@@ -736,6 +785,24 @@ def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
     sm_corrs = sm.get("correlations", [])
     for row in os_cache.get("scoring_os_correlations", []):
         sm_corrs.append(row)
+
+    # Inject OS rows into pw_vs_si (pre-computed in cache)
+    pw_vs_si = live.get("pw_vs_si")
+    pw_vs_si_os = os_cache.get("pw_vs_si_os_rows", {})
+    if pw_vs_si and pw_vs_si_os:
+        for si_mk, os_data in pw_vs_si_os.items():
+            pm = pw_vs_si.get("per_model", {}).get(si_mk)
+            if pm:
+                # Add combined OS rows to per_model rows
+                for row in os_data.get("combined", []):
+                    pm["rows"].append(row)
+                # Add combined OS rows to controlled_rows too
+                for row in os_data.get("combined", []):
+                    pm["controlled_rows"].append(row)
+            wm = pw_vs_si.get("within_model", {}).get(si_mk)
+            if wm:
+                for row in os_data.get("within", []):
+                    wm["rows"].append(row)
 
     live["openskill_updated_at"] = os_cache.get("computed_at")
     return live
