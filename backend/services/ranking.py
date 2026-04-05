@@ -1,8 +1,7 @@
 import math
 import asyncio
 import concurrent.futures
-import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 from scipy import stats as scipy_stats
 
 # Shared thread pool for CPU-bound leaderboard computations.

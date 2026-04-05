@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from collections import Counter
@@ -6,7 +6,7 @@ import asyncio
 import time
 from core.config import db, logger, CATEGORIES
 from routers.validation_utils import collect_all
-from services.ranking import compute_leaderboard, compute_leaderboard_async, calculate_confidence_interval, wilson_margin_pct, compute_paper_score
+from services.ranking import compute_leaderboard, compute_leaderboard_async, calculate_confidence_interval, wilson_margin_pct
 
 router = APIRouter(prefix="/api")
 
@@ -159,7 +159,7 @@ async def _compute_summary_stats_agg():
 
     # Assemble into the same structure the admin endpoint expects
     all_cats = set(c for c, _ in model_counts) | set(cat_paper_counts.keys())
-    all_models = set(m for _, m in model_counts)
+    set(m for _, m in model_counts)
 
     result = {"__all__": {"models": {}, "papers_with_summaries": 0, "papers_with_all_3": 0}}
     for cat in all_cats:
@@ -1316,7 +1316,7 @@ async def get_public_prompts():
     }
 
 
-# Cache for model-correlation and convergence endpoints (keyed by category+mode)
+# Cache for convergence endpoints (keyed by category+mode). Model analysis uses analysis_store.
 
 
 
@@ -1391,7 +1391,6 @@ async def _compute_convergence(category, steps):
     top_k_focus = settings.get("top_k_focus", 10)
 
     # Always query DB (no in-memory cache dependency)
-    paper_query = {"categories.0": category} if category else {}
     papers = []
     async for p in db.rankings.find(
         {"category": category} if category else {},
@@ -1701,7 +1700,6 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     try:
         from routers.badges import _get_badge_data, _render_badge_image
         from core.image_store import store_image
-        slug = f"w{week}" if period_type == "weekly" else f"m{month}"
         period_key_letter = "w" if period_type == "weekly" else "m"
         period_num = week if period_type == "weekly" else month
         for entry in frozen_entries[:3]:

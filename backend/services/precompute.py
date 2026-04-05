@@ -10,7 +10,6 @@ Two files:
 """
 import json
 import asyncio
-import os
 import time
 from pathlib import Path
 from core.config import db, logger

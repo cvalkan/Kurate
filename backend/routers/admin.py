@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from collections import defaultdict
 from datetime import datetime, timezone
 import asyncio
@@ -12,7 +12,7 @@ import time as _time
 import secrets as _secrets
 from core.config import db, logger, DEFAULT_SETTINGS, DEFAULT_EVALUATION_PROMPT, CATEGORIES
 from core.auth import verify_admin, get_settings, invalidate_settings_cache
-from services.scheduler import run_fetch_cycle, run_comparison_round, get_scheduler_status, _get_cat_status, wake_scheduler
+from services.scheduler import run_fetch_cycle, run_comparison_round, _get_cat_status, wake_scheduler
 from services.arxiv import fetch_arxiv_papers
 import routers.leaderboard as _lb_mod
 
@@ -573,7 +573,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     ci_target = settings.get("ci_target", 10)
     ci_target_general = settings.get("ci_target_general", 15)
     parallel_agents = settings.get("parallel_agents", 5)
-    parallel_categories = settings.get("parallel_categories", 2)
+    settings.get("parallel_categories", 2)
 
     # Fallback: compute from rankings DB (only during cold start before leaderboard cache is ready)
     # Uses rankings collection (pre-computed wins/comparisons) instead of loading all matches
@@ -695,6 +695,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
+    cat_scheduler = _get_cat_status(category)
     cat_matches_done = cat_scheduler.get("matches_count", 0)
     if cat_matches_done == 0:
         cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
@@ -1498,7 +1499,7 @@ async def _compute_timeseries(category: Optional[str] = None):
         total_model_cost += cost_in + cost_out
 
     # Compute total summary tokens/cost for the totals
-    total_summary_tokens = sum(
+    sum(
         summary_daily[day]["_total"]["input_tokens"] + summary_daily[day]["_total"]["output_tokens"]
         for day in summary_daily
     )
@@ -2722,7 +2723,7 @@ async def backfill_archives():
     # --- "OLDER" catch-all: papers published before the first weekly/monthly archive ---
     for cat in active_cats:
         all_cat_papers = [p for p in all_papers if paper_cat.get(p["id"]) == cat and p["id"] in paper_dates]
-        all_cat_pids = {p["id"] for p in all_cat_papers}
+        {p["id"] for p in all_cat_papers}
         if not all_cat_papers:
             continue
 
@@ -2777,7 +2778,7 @@ async def prune_duplicate_matches(request: Request, category: str = Query("cs.CR
     """Remove duplicate matches (keep 1 per pair). 
     scope=recent: only recent papers (48h window). scope=all: entire category."""
     from core.config import db
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta
 
     if scope == "all":
         # Full category dedup — no paper filter
@@ -2912,7 +2913,7 @@ async def prune_duplicate_matches(request: Request, category: str = Query("cs.CR
 async def clear_experiment_cache(request: Request, name: str = Query(None)):
     """Reload a specific experiment cache from precomputed JSON (or all).
     This restores the precomputed result rather than forcing a live recomputation."""
-    from services.precompute import load_precomputed, _load_experiments
+    from services.precompute import _load_experiments
     from routers.human_ai_benchmark import (
         _benchmark_fixed_cache, _benchmark_unfiltered_cache,
         _ranking_quality_cache, _ranking_quality_unfiltered_cache,

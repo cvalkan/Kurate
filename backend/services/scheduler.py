@@ -1,11 +1,10 @@
 import asyncio
 import uuid
 import secrets
-import math
 import hashlib
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict
-from core.config import db, logger, DEFAULT_SETTINGS, CATEGORIES
+from typing import List, Dict
+from core.config import db, logger, CATEGORIES
 from core.auth import get_settings
 from services.arxiv import fetch_arxiv_papers
 from services.llm import download_and_extract_pdf, compare_papers, generate_precomparison_impact_summary
@@ -430,7 +429,7 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     total_rankings = len(entries)
     # Exclude unmatchable papers (no summary → can never get matches).
     # Without this filter, a single summary-less paper keeps goals permanently
-    # unmet (CI=100%), causing infinite repeat-match loops via Rule 3.
+    # unmet (CI=100%), causing infinite repeat-match loops.
     try:
         summary_model = _pick_summary_source(settings.get("summary_source", "thinking"))
         required_key = _summary_model_key(summary_model)
@@ -787,7 +786,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             prog.update({"generated": generated, "failed": failed, "skipped": skipped, "scanned": scanned})
 
     # All model keys we need to check
-    all_model_keys = [_summary_model_key(m) for m in _SUMMARY_GENERATION_MODELS]
+    [_summary_model_key(m) for m in _SUMMARY_GENERATION_MODELS]
 
     # Phase 1: Lightweight scan — only load IDs and summary keys (NOT full_text)
     # This avoids loading ~100MB of full_text for papers that already have summaries.

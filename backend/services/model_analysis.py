@@ -7,10 +7,10 @@ shares across all tables. Cached as one document per category.
 import numpy as np
 import time
 from scipy import stats as scipy_stats
-from collections import Counter, defaultdict
+from collections import Counter
 from typing import Optional
 
-from core.config import db, logger
+from core.config import db
 
 
 _OPUS_MERGE = {
@@ -74,7 +74,7 @@ async def compute_model_analysis(category: Optional[str] = None):
     if len(papers) < 10:
         return {"status": "insufficient_data", "n_papers": len(papers)}
 
-    paper_by_id = {p["paper_id"]: p for p in papers}
+    {p["paper_id"]: p for p in papers}
     paper_categories = {p["paper_id"]: p.get("category") for p in papers}
 
     # Extract per-model stats
@@ -571,7 +571,7 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
     _rng.seed(42)
     mk_keys = sorted(_MODEL_KEY_MAP.values())
     sub_mk = _rng.choice(mk_keys)
-    provider = sub_mk.split("/")[0]
+    sub_mk.split("/")[0]
 
     controlled_pw = {
         "reg_wr": ("Reg WR", {}), "trueskill": ("TrueSkill", {}),
