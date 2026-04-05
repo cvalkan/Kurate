@@ -83,7 +83,26 @@ The scheduler has two independent loops sharing the event loop:
 - **MongoDB data persists across deployments**. The `papers`, `matches`, `rankings` collections are NOT reset. But `analysis_store` is cleared by version bumps.
 - **Test the full startup sequence** on preview before deploying. The startup runs: index creation → settings migration → staggered tasks → scheduler start → prewarm.
 
-### 10. Communication With the User
+### 10. Preview vs. Production — Never Assume
+Preview (the Emergent sandbox) and production (kurate.org) are completely separate environments with different databases, different deployment states, and different data. Confusion between them has caused repeated miscommunication and wasted debugging.
+
+**Rules**:
+- When the user reports an issue, **ask which environment** if it's not clear from context. Don't assume preview just because you have access to it, or production just because it's the "real" app.
+- When the user shares a screenshot, check the URL bar or any identifying details before assuming which environment it's from.
+- When testing a fix, **explicitly state which environment** you're testing on: "Testing on preview..." or "Checking production via curl..."
+- When the user says "it's not working" after a deploy, they mean **production**. Your preview might show different results because the data differs.
+- When you run `curl` commands, be explicit about whether you're hitting the preview URL (`REACT_APP_BACKEND_URL` from `.env`) or production (`kurate.org`).
+- **Never say "it works" based on preview results when the user is asking about production.** If you can't verify on production, say so.
+- When the user says "deployed" — they mean deployed to production. Your preview code may differ from what's deployed if there are uncommitted changes.
+
+**Key differences between environments**:
+- Preview MongoDB: local `mongodb://localhost:27017`, DB name `test_database` — fast, small dataset
+- Production MongoDB: Atlas cluster — larger dataset, read replica lag, no `setParameter` access
+- Preview has ~2,000 papers. Production has ~4,000+ papers.
+- Preview's `settings` may have `paused: True`. Production has `paused: False`.
+- Preview lacks some collections/data that production has (e.g., certain tournament docs).
+
+### 11. Communication With the User
 - When proposing a plan, be specific about what changes and what stays the same.
 - When a fix doesn't work, admit it immediately and explain WHY it didn't work before proposing the next fix.
 - Don't claim "ready for deployment" until you've verified on preview.
