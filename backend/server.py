@@ -669,9 +669,9 @@ async def _staggered_startup_tasks():
             log_mem(f"After {_name}")
             await asyncio.sleep(1)
 
-    # Phase 3: Pre-warm model analysis caches in background.
-    # Only computes categories that aren't already cached.
-    asyncio.create_task(_prewarm_model_analysis_caches())
+    # OpenSkill caches are only refreshed via admin buttons — no auto-prewarm on startup.
+    # Summary bias caches are lightweight and safe to prewarm.
+    asyncio.create_task(_prewarm_summary_bias_caches())
 
 
 
@@ -689,75 +689,10 @@ async def _prewarm_all_experiment_caches():
     app.state.prewarm_status = {"done": True, "step": ""}
 
 
-async def _prewarm_model_analysis_caches():
-    """Pre-warm OpenSkill caches for categories that don't have them.
-    
-    Live analysis (WR/TS/SI) is always instant from rankings — no caching needed.
-    Only OpenSkill requires match replay and benefits from background pre-computation.
-    """
+async def _prewarm_summary_bias_caches():
+    """Pre-warm summary bias caches (lightweight, no match replay)."""
     await asyncio.sleep(15)
-    from core.memlog import log_mem, force_gc
-    from core.config import CATEGORIES
-
     try:
-        all_cats = set()
-        async for doc in db.rankings.aggregate([{"$group": {"_id": "$category"}}]):
-            all_cats.add(doc["_id"])
-        if not all_cats:
-            all_cats = set(CATEGORIES.keys())
-
-        # Check which categories already have cached OpenSkill
-        cached = set()
-        async for doc in db.analysis_store.find(
-            {"_type": "openskill-cache"}, {"_id": 0, "key": 1}
-        ):
-            cached.add(doc.get("key"))
-
-        from services.model_analysis import compute_openskill_cache
-        cat_sizes = []
-        for cat in all_cats:
-            n = await db.rankings.count_documents({"category": cat})
-            cat_sizes.append((n, cat))
-        cat_sizes.sort()
-
-        for n_papers, cat in cat_sizes:
-            if cat in cached:
-                continue
-            try:
-                logger.info(f"[prewarm] Computing OpenSkill cache for {cat} ({n_papers} papers)...")
-                result = await compute_openskill_cache(cat)
-                if result.get("status") == "ok":
-                    await db.analysis_store.update_one(
-                        {"_type": "openskill-cache", "key": cat},
-                        {"$set": {**result, "_type": "openskill-cache", "key": cat}},
-                        upsert=True,
-                    )
-                force_gc()
-                await asyncio.sleep(2)
-            except Exception as e:
-                logger.warning(f"[prewarm] OpenSkill {cat} failed: {e}")
-
-        if "__all__" not in cached:
-            try:
-                logger.info("[prewarm] Computing OpenSkill cache for All Categories...")
-                result = await compute_openskill_cache(None)
-                if result.get("status") == "ok":
-                    await db.analysis_store.update_one(
-                        {"_type": "openskill-cache", "key": "__all__"},
-                        {"$set": {**result, "_type": "openskill-cache", "key": "__all__"}},
-                        upsert=True,
-                    )
-                force_gc()
-            except Exception as e:
-                logger.warning(f"[prewarm] OpenSkill __all__ failed: {e}")
-
-        logger.info("[prewarm] OpenSkill caches ready")
-    except Exception as e:
-        logger.warning(f"[prewarm] OpenSkill cache warming failed: {e}")
-
-    await asyncio.sleep(8)  # Wait for leaderboard cache to be ready
-    try:
-        # Also prewarm summary bias caches
         from routers.summary_bias import _compute_results, _compute_sb_convergence, _sb_cache
         sb_cats = set()
         async for r in db.summary_bias_matches.aggregate([{"$group": {"_id": "$category"}}]):
@@ -776,7 +711,7 @@ async def _prewarm_model_analysis_caches():
         if sb_cats:
             logger.info(f"Summary bias cache pre-warmed: {len(sb_cats)} categories")
     except Exception as e:
-        logger.warning(f"Analysis cache prewarm failed: {e}")
+        logger.warning(f"Summary bias cache prewarm failed: {e}")
 
 
 async def _startup_dedup():
