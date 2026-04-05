@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Component } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { BarChart3, ChevronDown } from "lucide-react";
@@ -10,6 +10,17 @@ import { PwVsSiSection } from "@/components/PwVsSiSection";
 import { InterModelSection } from "@/components/InterModelSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
+
+class SectionBoundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return <div className="p-4 border border-red-200 bg-red-50 rounded-lg text-xs text-red-700">Section failed to render: {this.state.error.message}</div>;
+    }
+    return this.props.children;
+  }
+}
 
 export default function CorrelationPage() {
   const [data, setData] = useState(null);
@@ -130,24 +141,36 @@ export default function CorrelationPage() {
         </div>
       )}
 
-      <CorrelationSection
-        sectionData={data}
-        title="Standard Tournament"
-        description='Full-text evaluation: "Which paper has higher scientific impact?"'
-        viewMode={viewMode} setViewMode={setViewMode}
-      />
+      <SectionBoundary>
+        <CorrelationSection
+          sectionData={data}
+          title="Standard Tournament"
+          description='Full-text evaluation: "Which paper has higher scientific impact?"'
+          viewMode={viewMode} setViewMode={setViewMode}
+        />
+      </SectionBoundary>
 
-      <div className="mb-6">
-        <LeaderboardConvergence category={category || null} />
-      </div>
+      <SectionBoundary>
+        <div className="mb-6">
+          <LeaderboardConvergence category={category || null} />
+        </div>
+      </SectionBoundary>
 
-      <ScoringMethodSection category={category || null} scoringData={data?.scoring_method} />
+      <SectionBoundary>
+        <ScoringMethodSection category={category || null} scoringData={data?.scoring_method} />
+      </SectionBoundary>
 
-      <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} />
+      <SectionBoundary>
+        <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} />
+      </SectionBoundary>
 
-      <InterModelSection pwData={data} siData={siData} viewMode={viewMode} />
+      <SectionBoundary>
+        <InterModelSection pwData={data} siData={siData} viewMode={viewMode} />
+      </SectionBoundary>
 
-      <SiRatingSection category={category || null} hidePwVsSi siData={siData} />
+      <SectionBoundary>
+        <SiRatingSection category={category || null} hidePwVsSi siData={siData} />
+      </SectionBoundary>
 
     </div>
   );

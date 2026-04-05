@@ -588,6 +588,9 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
     if model_used and isinstance(model_used, dict):
         raw_key = f"{model_used.get('provider', 'unknown')}/{model_used.get('model', 'unknown')}"
         model_key = _OPUS_MERGE.get(raw_key, raw_key)
+        # MongoDB interprets dots as nested paths — replace with underscores
+        if model_key:
+            model_key = model_key.replace(".", "_")
 
     # --- Step 1: Update WR counts + scores + per-model stats for both papers ---
     for paper_id, is_winner in [(winner_id, True), (loser_id, False)]:
@@ -1276,6 +1279,8 @@ async def backfill_model_stats(db, category: str = None):
                 continue
             raw_key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
             model_key = _OPUS_MERGE.get(raw_key, raw_key)
+            # MongoDB interprets dots as nested paths — replace with underscores
+            model_key = model_key.replace(".", "_")
             winner = m.get("winner_id")
             p1, p2 = m["paper1_id"], m["paper2_id"]
 

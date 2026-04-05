@@ -1,8 +1,5 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import axios from "axios";
+import { useState, useEffect, useMemo } from "react";
 import { BarChart3, TrendingUp } from "lucide-react";
-
-const API = process.env.REACT_APP_BACKEND_URL;
 
 const METRIC_LABELS = {
   score: "Overall Score",
@@ -227,7 +224,6 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
   const [showRawDist, setShowRawDist] = useState(false);
   const [loading, setLoading] = useState(!propData);
   const [selectedModel, setSelectedModel] = useState(null);
-  const cacheRef = useRef({});
 
   // Use prop data when available (from unified endpoint), fallback to own fetch
   useEffect(() => {
@@ -237,32 +233,20 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
     }
   }, [propData]);
 
-  const fetchData = useCallback(async () => {
-    if (propData && !selectedModel) return; // Already have data from props
-    const cacheKey = `${category || "__all__"}:${selectedModel || "all"}`;
-    if (cacheRef.current[cacheKey]) {
-      setData(cacheRef.current[cacheKey]);
-      setLoading(false);
-    }
-    try {
-      const params = {};
-      if (category) params.category = category;
-      if (selectedModel) params.model = selectedModel;
-      const res = await axios.get(`${API}/api/si-rating-stats`, { params });
-      cacheRef.current[cacheKey] = res.data;
-      setData(res.data);
-    } catch (err) {
-      console.error("SI rating stats error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [category, selectedModel, propData]);
-
+  // When model tab changes, use per_model_distributions from unified data
   useEffect(() => {
-    const cacheKey = `${category || "__all__"}:${selectedModel || "all"}`;
-    if (!cacheRef.current[cacheKey]) setLoading(true);
-    fetchData();
-  }, [fetchData]);
+    if (!propData) return;
+    if (!selectedModel) {
+      // "All Models" — use the original propData distributions
+      setData(propData);
+    } else {
+      // Per-model — use per_model_distributions if available
+      const perModel = propData.per_model_distributions?.[selectedModel];
+      if (perModel) {
+        setData({ ...propData, distributions: perModel, total_papers: perModel[Object.keys(perModel)[0]]?.n || 0 });
+      }
+    }
+  }, [selectedModel, propData]);
 
   const metrics = useMemo(() => ["score", "subscore_avg", "significance", "rigor", "novelty", "clarity"], []);
 

@@ -94,8 +94,8 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
                   {combinedRows.map(row => (
                     <tr key={`c-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
                       <td className="py-1 px-2 font-medium">{row.label}</td>
-                      <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
-                      <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
+                      <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho?.toFixed(3) ?? "—"}</td>
+                      <td className="py-1 px-2 text-right font-mono">{row.kendall_tau?.toFixed(3) ?? "—"}</td>
                       <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.avg_mpp || "—"}</td>
                     </tr>
                   ))}
@@ -108,8 +108,8 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
                   {withinRows.map(row => (
                     <tr key={`w-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
                       <td className="py-1 px-2 font-medium">{row.label}</td>
-                      <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho.toFixed(3)}</td>
-                      <td className="py-1 px-2 text-right font-mono">{row.kendall_tau.toFixed(3)}</td>
+                      <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho?.toFixed(3) ?? "—"}</td>
+                      <td className="py-1 px-2 text-right font-mono">{row.kendall_tau?.toFixed(3) ?? "—"}</td>
                       <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.avg_mpp || wmData?.avg_mpp || "—"}</td>
                     </tr>
                   ))}

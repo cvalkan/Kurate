@@ -90,7 +90,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate" }) {
                           const isBest = m === best;
                           return (
                             <td key={m} className={`py-1.5 px-1.5 text-right font-mono text-[10px] ${isBest ? "font-bold text-sky-700" : ""}`}>
-                              {v ? v.rho.toFixed(3) : "\u2014"}
+                              {v ? v.rho?.toFixed(3) ?? "—" : "\u2014"}
                             </td>
                           );
                         })}
@@ -125,7 +125,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate" }) {
                 {siRows.map((row, i) => (
                   <tr key={i} className="border-b border-border/20">
                     <td className="py-1.5 px-3 font-medium">{row.pair}</td>
-                    <td className="py-1.5 px-3 text-right font-mono font-semibold">{row.rho.toFixed(3)}</td>
+                    <td className="py-1.5 px-3 text-right font-mono font-semibold">{row.rho?.toFixed(3) ?? "—"}</td>
                     <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.n}</td>
                   </tr>
                 ))}

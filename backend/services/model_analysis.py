@@ -21,10 +21,11 @@ _SHORT_NAMES = {
     "anthropic/claude-opus": "Claude Opus",
     "gemini/gemini-3-pro-preview": "Gemini 3 Pro",
     "openai/gpt-5.2": "GPT-5.2",
+    "openai/gpt-5_2": "GPT-5.2",
 }
 _MODEL_KEY_MAP = {
     "claude": "anthropic/claude-opus",
-    "gpt": "openai/gpt-5.2",
+    "gpt": "openai/gpt-5_2",
     "gemini": "gemini/gemini-3-pro-preview",
 }
 MIN_MATCHES = 5
@@ -83,14 +84,36 @@ async def compute_model_analysis(category: Optional[str] = None):
     for p in papers:
         ms = p.get("model_stats")
         if ms and isinstance(ms, dict):
+            # MongoDB stores dotted keys (e.g. "openai/gpt-5.2") as nested paths:
+            #   {"openai/gpt-5": {"2": {"total": N, "wins": M}}}
+            # Detect and flatten these broken entries back to the correct key.
+            normalized = {}
             for mk, stats in ms.items():
-                if isinstance(stats, dict):
-                    model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
+                if isinstance(stats, dict) and stats.get("total") is not None:
+                    # Normal flat key — has {total, wins} directly
+                    normalized[mk] = stats
+                elif isinstance(stats, dict):
+                    # Check if this is a broken nested key (e.g. "openai/gpt-5" -> {"2": {"total":...}})
+                    for sub_key, sub_val in stats.items():
+                        if isinstance(sub_val, dict) and sub_val.get("total") is not None:
+                            # Reconstruct: "openai/gpt-5" + "." + "2" -> "openai/gpt-5.2"
+                            full_key = f"{mk}.{sub_key}"
+                            # Also store with underscore for consistency
+                            safe_key = full_key.replace(".", "_")
+                            normalized[safe_key] = sub_val
+            for mk, stats in normalized.items():
+                model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
         mts = p.get("model_ts")
         if mts and isinstance(mts, dict):
             for mk, ts_data in mts.items():
                 if isinstance(ts_data, dict) and ts_data.get("mu"):
                     model_paper_ts.setdefault(mk, {})[p["paper_id"]] = ts_data["mu"]
+                elif isinstance(ts_data, dict):
+                    # Handle broken nested TrueSkill keys too
+                    for sub_key, sub_val in ts_data.items():
+                        if isinstance(sub_val, dict) and sub_val.get("mu"):
+                            safe_key = f"{mk}.{sub_key}".replace(".", "_")
+                            model_paper_ts.setdefault(safe_key, {})[p["paper_id"]] = sub_val["mu"]
 
     model_keys = sorted(mk for mk in model_paper_stats
                         if sum(s.get("total", 0) for s in model_paper_stats[mk].values()) > 0)
@@ -124,6 +147,8 @@ async def compute_model_analysis(category: Optional[str] = None):
             mu = m.get("model_used", {})
             raw_key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
             mk = _OPUS_MERGE.get(raw_key, raw_key)
+            # MongoDB stores model keys with dots replaced by underscores
+            mk = mk.replace(".", "_")
             per_model_matches.setdefault(mk, []).append(m)
         if not category:
             force_gc()
@@ -501,10 +526,51 @@ def _compute_si_stats(papers):
             if isinstance(si.get(mk), dict) and si[mk].get("score"):
                 model_counts[mk] += 1
 
+    # Per-model distributions (for model tab switching in frontend)
+    per_model_distributions = {}
+    for mk in ("claude", "gpt", "gemini"):
+        mk_papers = [p for p in papers if _get_si(p, mk)]
+        if len(mk_papers) < 5:
+            continue
+        mk_arrays = {}
+        for m in METRICS:
+            mk_arrays[m] = [_get_si(p, mk).get(m, 0) for p in mk_papers if _get_si(p, mk).get(m)]
+        mk_sub_avgs = []
+        for p in mk_papers:
+            r = _get_si(p, mk)
+            subs = [r.get(m) for m in SUB_METRICS if r.get(m)]
+            if len(subs) >= 2:
+                mk_sub_avgs.append(round(sum(subs) / len(subs), 2))
+        mk_arrays["subscore_avg"] = mk_sub_avgs
+
+        mk_dists = {}
+        for m in METRICS + ["subscore_avg"]:
+            vals = mk_arrays.get(m, [])
+            if not vals:
+                continue
+            hist = Counter()
+            raw_hist = Counter()
+            for v in vals:
+                bucket = max(1.0, min(10.0, round(round(v * 2) / 2, 1)))
+                hist[bucket] += 1
+                raw_bucket = round(v, 1)
+                raw_hist[raw_bucket] += 1
+            raw_bins = sorted(set(round(1.0 + i * 0.1, 1) for i in range(91)) | set(raw_hist.keys()))
+            mk_dists[m] = {
+                "histogram": [{"bin": b, "count": hist.get(b, 0)} for b in bins],
+                "raw_histogram": [{"bin": b, "count": raw_hist.get(b, 0)} for b in raw_bins if raw_hist.get(b, 0) > 0],
+                "mean": round(float(np.mean(vals)), 2),
+                "median": round(float(np.median(vals)), 1),
+                "std": round(float(np.std(vals, ddof=1)), 2) if len(vals) > 1 else 0,
+                "n": len(vals),
+            }
+        per_model_distributions[mk] = mk_dists
+
     return {
         "status": "ok",
         "total_papers": len(filtered),
         "distributions": distributions,
+        "per_model_distributions": per_model_distributions,
         "metric_correlations": metric_correlations,
         "inter_model_si": inter_model_si,
         "model_comparison": model_comparison,

@@ -156,18 +156,18 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
                     <div className="flex items-center gap-3">
                       <div className="text-[9px] text-muted-foreground w-16 shrink-0">Win Rate</div>
                       <div className={`font-mono text-lg font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
-                        {stats.spearman_r.toFixed(2)}
+                        {stats.spearman_r?.toFixed(2) ?? "—"}
                       </div>
-                      <div className="font-mono text-xs text-muted-foreground">{stats.pearson_r.toFixed(2)}</div>
+                      {stats.pearson_r != null && <div className="font-mono text-xs text-muted-foreground">{stats.pearson_r.toFixed(2)}</div>}
                       <div className="text-[10px] text-muted-foreground">n={stats.n_papers}</div>
                     </div>
                     {tsStats && (
                       <div className="flex items-center gap-3">
                         <div className="text-[9px] text-muted-foreground w-16 shrink-0">TrueSkill</div>
                         <div className={`font-mono text-lg font-bold ${tsStats.spearman_r > 0.7 ? "text-green-600" : tsStats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
-                          {tsStats.spearman_r.toFixed(2)}
+                          {tsStats.spearman_r?.toFixed(2) ?? "—"}
                         </div>
-                        <div className="font-mono text-xs text-muted-foreground">{tsStats.pearson_r.toFixed(2)}</div>
+                        {tsStats.pearson_r != null && <div className="font-mono text-xs text-muted-foreground">{tsStats.pearson_r.toFixed(2)}</div>}
                         <div className="text-[10px] text-muted-foreground">n={tsStats.n_papers}</div>
                       </div>
                     )}
