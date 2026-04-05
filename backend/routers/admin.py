@@ -2834,12 +2834,15 @@ async def clear_analysis_cache(request: Request, type: str = Query(None), key: s
     from core.config import db
     if type and key:
         result = await db.analysis_store.delete_many({"_type": type, "key": key})
+        logger.info(f"Admin cleared analysis cache: type={type}, key={key}, deleted={result.deleted_count}")
         return {"status": "ok", "type": type, "key": key, "deleted": result.deleted_count}
     elif type:
         result = await db.analysis_store.delete_many({"_type": type})
+        logger.warning(f"Admin cleared ALL analysis cache for type={type}, deleted={result.deleted_count}")
         return {"status": "ok", "type": type, "deleted": result.deleted_count}
     else:
         result = await db.analysis_store.delete_many({})
+        logger.warning(f"Admin cleared ENTIRE analysis_store, deleted={result.deleted_count}")
         return {"status": "ok", "type": "all", "deleted": result.deleted_count}
 
 

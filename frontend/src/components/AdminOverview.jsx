@@ -105,6 +105,7 @@ export function AdminOverview({
   };
 
   const refreshCorrelationsAll = async () => {
+    if (!window.confirm("This clears ALL model analysis caches (13 categories). Recomputation takes 10-15 min. Continue?")) return;
     setCorrAllRefreshing(true);
     try {
       await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis`, {}, { headers: getAdminHeaders() });

@@ -434,24 +434,25 @@ async def _deferred_startup():
         # Recomputing takes 30+ minutes (9 OpenSkill computations per category × 13 categories).
         # Only bump if the cached document SCHEMA changed — not for code logic changes.
         _ANALYSIS_STORE_VERSION = 5
+        # Create index if missing (don't drop — that kills concurrent prewarm tasks)
         try:
-            await db.analysis_store.drop_indexes()
+            existing = [idx["name"] async for idx in db.analysis_store.list_indexes()]
+            if "_type_1_key_1" not in existing:
+                # Clean up null-key duplicates that prevent unique index creation on Atlas
+                try:
+                    async for doc in db.analysis_store.aggregate([
+                        {"$match": {"key": None}},
+                        {"$group": {"_id": "$_type", "ids": {"$push": "$_id"}, "count": {"$sum": 1}}},
+                        {"$match": {"count": {"$gt": 1}}},
+                    ]):
+                        to_delete = doc["ids"][1:]
+                        if to_delete:
+                            await db.analysis_store.delete_many({"_id": {"$in": to_delete}})
+                except Exception:
+                    pass
+                await db.analysis_store.create_index([("_type", 1), ("key", 1)], unique=True)
         except Exception:
             pass
-        # Clean up null-key duplicates that prevent unique index creation on Atlas
-        try:
-            async for doc in db.analysis_store.aggregate([
-                {"$match": {"key": None}},
-                {"$group": {"_id": "$_type", "ids": {"$push": "$_id"}, "count": {"$sum": 1}}},
-                {"$match": {"count": {"$gt": 1}}},
-            ]):
-                # Keep first, delete rest
-                to_delete = doc["ids"][1:]
-                if to_delete:
-                    await db.analysis_store.delete_many({"_id": {"$in": to_delete}})
-        except Exception:
-            pass
-        await db.analysis_store.create_index([("_type", 1), ("key", 1)], unique=True)
         version_doc = await db.analysis_store.find_one({"_type": "__version__"})
         if not version_doc or version_doc.get("v") != _ANALYSIS_STORE_VERSION:
             await db.analysis_store.delete_many({"_type": {"$ne": "__version__"}})
