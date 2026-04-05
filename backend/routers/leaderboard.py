@@ -1321,6 +1321,9 @@ async def get_public_prompts():
 
 
 
+# Sequential lock for model-analysis computation — prevents concurrent heavy computations
+_analysis_compute_lock = asyncio.Lock()
+
 @router.get("/model-analysis")
 async def get_model_analysis(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
@@ -1337,15 +1340,26 @@ async def get_model_analysis(
         return doc
     if not _analysis_prewarm_done:
         return {"status": "warming_up", "message": "Model analysis is being computed. Please refresh in a minute."}
-    from services.model_analysis import compute_model_analysis
-    result = await compute_model_analysis(category)
-    if result.get("status") == "ok":
-        await db.analysis_store.update_one(
-            {"_type": "model-analysis", "key": cat_key},
-            {"$set": {**result, "_type": "model-analysis", "key": cat_key}},
-            upsert=True,
-        )
-    return result
+    if _analysis_compute_lock.locked():
+        return {"status": "warming_up", "message": "Another category is being computed. This one is queued."}
+    async with _analysis_compute_lock:
+        # Re-check cache (another request may have computed it while we waited)
+        doc = await db.analysis_store.find_one({"_type": "model-analysis", "key": cat_key}, {"_id": 0})
+        if doc:
+            doc.pop("_type", None)
+            doc.pop("key", None)
+            if "models" in doc:
+                doc["models"] = [m for m in doc["models"] if m.get("total_matches", 0) > 0]
+            return doc
+        from services.model_analysis import compute_model_analysis
+        result = await compute_model_analysis(category)
+        if result.get("status") == "ok":
+            await db.analysis_store.update_one(
+                {"_type": "model-analysis", "key": cat_key},
+                {"$set": {**result, "_type": "model-analysis", "key": cat_key}},
+                upsert=True,
+            )
+        return result
 
 @router.get("/convergence")
 async def get_convergence(
