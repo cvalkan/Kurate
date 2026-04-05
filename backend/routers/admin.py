@@ -483,6 +483,33 @@ async def get_progress_estimate(category: str = "cs.RO"):
             realtime_summaries = await db.papers.count_documents(
                 {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}}
             )
+        # Detect pair exhaustion from precomputed data
+        pair_exhausted = False
+        exhausted_papers = 0
+        pre_goals_met = precomputed.get("goals_met", True)
+        pre_total = precomputed.get("total_papers", 0)
+        if not pre_goals_met and pre_total > 1:
+            from services.ranking import wilson_margin_pct
+            ci_target_val = settings.get("ci_target", 10)
+            ci_target_gen = settings.get("ci_target_general", 15)
+            top_k_val = settings.get("top_k_focus", 10)
+            # Load rankings sorted by score to identify top-K
+            rank_docs = []
+            async for doc in db.rankings.find(
+                {"category": category},
+                {"_id": 0, "wins": 1, "comparisons": 1, "score": 1},
+            ).sort("score", -1):
+                rank_docs.append(doc)
+            for idx, doc in enumerate(rank_docs):
+                comp = doc.get("comparisons", 0)
+                if comp >= pre_total - 1:
+                    target = ci_target_val if idx < top_k_val else ci_target_gen
+                    margin = wilson_margin_pct(doc.get("wins", 0), comp)
+                    if margin > target:
+                        exhausted_papers += 1
+            if exhausted_papers > 0:
+                pair_exhausted = True
+
         result = {
             **precomputed,
             "paused": is_paused,
@@ -490,6 +517,8 @@ async def get_progress_estimate(category: str = "cs.RO"):
             "tournament_paused": bool(tournament_paused),
             "fetch_paused": fetch_paused,
             "compare_paused": compare_paused,
+            "pair_exhausted": pair_exhausted,
+            "exhausted_papers": exhausted_papers,
             "summary_coverage": {
                 "with_summaries": realtime_summaries,
             },
