@@ -1708,6 +1708,30 @@ async def remove_category(body: CategoryAction):
     return {"status": "ok", "active_categories": active}
 
 
+@router.post("/categories/reorder", dependencies=[Depends(verify_admin)])
+async def reorder_categories(body: dict):
+    """Save a new display order for active categories."""
+    new_order = body.get("category_ids", [])
+    if not new_order or not isinstance(new_order, list):
+        raise HTTPException(400, "category_ids must be a non-empty list")
+
+    settings = await get_settings()
+    active = set(settings.get("active_categories", []))
+
+    # Validate: new_order must contain exactly the same IDs as current active
+    if set(new_order) != active:
+        raise HTTPException(400, "category_ids must contain exactly the current active categories")
+
+    await db.settings.update_one(
+        {"key": "global"},
+        {"$set": {"active_categories": new_order}},
+    )
+    invalidate_settings_cache()
+    _invalidate_admin_cache()
+    return {"status": "ok", "active_categories": new_order}
+
+
+
 @router.get("/category-estimate/{cat_id}", dependencies=[Depends(verify_admin)])
 async def estimate_category(cat_id: str):
     """Estimate weekly paper volume and tournament cost for a category."""

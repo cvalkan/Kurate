@@ -3,7 +3,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Plus, X, Search, Loader2, DollarSign, FileText, Swords, ChevronDown, Save, Undo2,
+  Plus, X, Search, Loader2, DollarSign, FileText, Swords, ChevronDown, Save, Undo2, GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +26,9 @@ export function AdminCategories({ onCategoriesChanged }) {
   const [estimates, setEstimates] = useState({});
   const [archiveFreq, setArchiveFreq] = useState({});
   const dropdownRef = useRef(null);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [reordering, setReordering] = useState(false);
 
   const hasChanges = pendingAdds.size > 0 || pendingRemoves.size > 0;
 
@@ -54,16 +57,17 @@ export function AdminCategories({ onCategoriesChanged }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Effective active list = server active + pending adds - pending removes
+  // Effective active list = server active + pending adds - pending removes (preserves order)
   const effectiveActive = useMemo(() => {
-    const ids = new Set(activeIds);
-    for (const id of pendingAdds) ids.add(id);
-    for (const id of pendingRemoves) ids.delete(id);
-    return [...ids].sort();
+    const result = activeIds.filter(id => !pendingRemoves.has(id));
+    for (const id of pendingAdds) {
+      if (!result.includes(id)) result.push(id);
+    }
+    return result;
   }, [activeIds, pendingAdds, pendingRemoves]);
 
   const activeCats = useMemo(
-    () => allCategories.filter(c => effectiveActive.includes(c.id)),
+    () => effectiveActive.map(id => allCategories.find(c => c.id === id)).filter(Boolean),
     [allCategories, effectiveActive]
   );
 
@@ -108,6 +112,31 @@ export function AdminCategories({ onCategoriesChanged }) {
   const discardChanges = () => {
     setPendingAdds(new Set());
     setPendingRemoves(new Set());
+  };
+
+  // Drag-and-drop reorder
+  const handleDragStart = (idx) => setDragIdx(idx);
+  const handleDragOver = (e, idx) => { e.preventDefault(); setDragOverIdx(idx); };
+  const handleDragEnd = async () => {
+    if (dragIdx !== null && dragOverIdx !== null && dragIdx !== dragOverIdx) {
+      const newOrder = [...activeIds];
+      const [moved] = newOrder.splice(dragIdx, 1);
+      newOrder.splice(dragOverIdx, 0, moved);
+      setActiveIds(newOrder);
+      // Persist to backend
+      setReordering(true);
+      try {
+        await axios.post(`${API}/api/admin/categories/reorder`, { category_ids: newOrder }, { headers: getAdminHeaders() });
+        if (onCategoriesChanged) onCategoriesChanged();
+      } catch (err) {
+        toast.error("Failed to save order");
+        await fetchCategories(); // Revert on failure
+      } finally {
+        setReordering(false);
+      }
+    }
+    setDragIdx(null);
+    setDragOverIdx(null);
   };
 
   const saveChanges = async () => {
@@ -160,20 +189,29 @@ export function AdminCategories({ onCategoriesChanged }) {
 
       {/* Active categories */}
       <div className="space-y-2">
-        {activeCats.map(c => {
+        {activeCats.map((c, idx) => {
           const est = estimates[c.id];
           const isPendingAdd = pendingAdds.has(c.id);
           const isPendingRemove = pendingRemoves.has(c.id);
           return (
             <div
               key={c.id}
-              className={`flex items-center gap-3 p-3 rounded-lg border group transition-colors ${
+              draggable={!hasChanges}
+              onDragStart={() => handleDragStart(idx)}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDragEnd={handleDragEnd}
+              className={`flex items-center gap-2 p-3 rounded-lg border group transition-colors ${
                 isPendingAdd ? "bg-green-50 border-green-200" :
                 isPendingRemove ? "bg-red-50 border-red-200 opacity-60" :
+                dragOverIdx === idx && dragIdx !== null && dragIdx !== idx ? "border-accent bg-accent/5" :
                 "bg-secondary/30 border-border"
               }`}
               data-testid={`active-cat-${c.id}`}
             >
+              {/* Drag handle */}
+              {!hasChanges && (
+                <GripVertical className="h-4 w-4 text-muted-foreground/60 cursor-grab shrink-0 hover:text-foreground" data-testid={`drag-handle-${c.id}`} />
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-accent">{c.id}</span>
