@@ -11,8 +11,16 @@ Allow researchers to claim authorship of their papers on Kurate.org, proving the
 - **Frontend component**: Built but orphaned (not wired to any page).
 - **ORCID credentials**: Configured in production `.env`.
 
-## Key Finding: S2 ORCID Lookup is Unreliable
-Semantic Scholar does not index ORCID IDs for most authors. Tested with well-known researchers (e.g., Yoshua Bengio) — S2 author search by ORCID returns 0 results. S2 profiles show `orcid=none` for most authors. This breaks the current auto-verify pipeline (Signals 1 and 2 in `claims.py`).
+## Key Finding: S2 ORCID Lookup Coverage is ~7%, Not 40-60%
+
+Semantic Scholar stores ORCID in `externalIds` on some author profiles, and the data structure exists for `ORCID:xxx` direct lookup. However, empirical testing (April 2026) shows extremely sparse coverage:
+
+- Tested 15 prominent CS/ML researchers (LeCun, Hinton, Sutskever, Bengio, Manning, Narayanan, Abebe, Gebru, Guestrin, etc.)
+- **Only 1/15 (Manning) had ORCID mapped on S2** (~7%)
+- The `ORCID:xxx` direct lookup endpoint returns 404 for all tested ORCIDs — even Manning's, despite his profile having the ORCID in `externalIds`
+- S2 author search by ORCID ID string also returns 0 results for all tested
+
+**Conclusion:** S2's ORCID→author mapping cannot be relied upon as a primary verification path. It's useful as a fast-track shortcut (check first, skip disambiguation if found), but 90%+ of users will need a fallback.
 
 ---
 
