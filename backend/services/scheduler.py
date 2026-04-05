@@ -424,6 +424,10 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         entries.append(doc)
 
     if len(entries) < 2:
+        # Check if papers exist but haven't been ranked yet (summary phase)
+        actual_papers = await db.papers.count_documents({"categories.0": category})
+        if actual_papers >= 2:
+            return False  # Papers exist but not yet ranked — goals NOT met
         return True
 
     total_rankings = len(entries)
@@ -447,6 +451,11 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
         log_mem(f"_check_goals({category}): filter FAILED: {e}")
 
     if len(entries) < 2:
+        # Not enough matchable papers to compare — but don't claim goals met
+        # if papers exist that need summaries
+        actual_papers = await db.papers.count_documents({"categories.0": category})
+        if actual_papers >= 2:
+            return False  # Papers exist, waiting for summaries
         return True
 
     # Sort by score descending to identify top-K

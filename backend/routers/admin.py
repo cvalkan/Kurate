@@ -384,6 +384,9 @@ async def get_admin_status(category: str = "cs.RO"):
     sched_papers_total = cat_scheduler.get("papers_total", 0)
     if not total_papers:
         total_papers = sched_papers
+    # Fallback papers_total_fetched to actual DB count when scheduler counter is 0
+    if not sched_papers_total:
+        sched_papers_total = await db.papers.count_documents({"categories.0": category})
     total_matches = cat_scheduler.get("matches_count", 0)
     if total_matches == 0:
         # Fallback: query DB if scheduler hasn't populated the count yet
@@ -526,8 +529,26 @@ async def get_progress_estimate(category: str = "cs.RO"):
 
     total_papers = len(entries)
     if total_papers == 0:
+        # Check if papers exist but haven't been ranked yet (summary phase)
+        actual_papers = await db.papers.count_documents({"categories.0": category})
+        # Count papers with summaries to show progress
+        papers_with_summaries = 0
+        if actual_papers > 0:
+            try:
+                papers_with_summaries = await db.papers.count_documents(
+                    {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}}
+                )
+            except Exception:
+                pass
         result = {
-            "total_papers": 0, "goals_met": True, "paused": is_paused,
+            "total_papers": actual_papers,
+            "goals_met": actual_papers == 0,  # Only truly met if no papers exist at all
+            "phase": "summaries" if actual_papers > 0 else None,
+            "summary_coverage": {
+                "with_summaries": papers_with_summaries,
+                "total": actual_papers,
+            } if actual_papers > 0 else None,
+            "paused": is_paused,
             "global_paused": global_paused, "tournament_paused": bool(tournament_paused),
             "fetch_paused": fetch_paused, "compare_paused": compare_paused,
             "category": category,

@@ -308,7 +308,12 @@ export function AdminOverview({
           </div>
 
           {/* Convergence goals */}
-          {progress.goals_met ? (
+          {progress.phase === "summaries" ? (
+            <div className="flex items-center gap-2 text-xs text-amber-600 mb-2" data-testid="summary-phase-indicator">
+              <Clock className="h-3.5 w-3.5" />
+              Generating summaries — {progress.summary_coverage?.with_summaries || 0}/{progress.summary_coverage?.total || progress.total_papers} papers ready
+            </div>
+          ) : progress.goals_met ? (
             <div className="flex items-center gap-2 text-xs text-green-600 mb-2">
               <CheckCircle2 className="h-3.5 w-3.5" />
               All convergence goals met
