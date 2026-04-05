@@ -130,3 +130,43 @@ Semantic Scholar does not index ORCID IDs for most authors. Tested with well-kno
 The ORCID infrastructure is already built. The new work is: Scholar page parser (~30 lines), domain cross-check (~10 lines), title matching against Kurate DB (~30 lines), and the bulk confirm UI.
 
 **Fallback plan**: If Scholar HTML parsing breaks, degrade to Option A (S2 name search with disambiguation picker). The S2 API is stable and free.
+
+
+---
+
+## Option E: ORCID as Both Identity AND Verification
+
+**Flow:**
+1. User connects ORCID (OAuth) → proves identity *(already built)*
+2. User selects a paper on Kurate they want to claim
+3. Kurate shows: "To verify authorship, add this paper to your ORCID profile" with guidance/link to orcid.org
+4. User adds the paper on their ORCID profile (via DOI search, manual entry, or institutional auto-import)
+5. User clicks "I've added it" on Kurate
+6. Backend calls `GET /v3.0/{orcid_id}/works` → checks if the paper appears (matched by DOI or arXiv ID in external identifiers)
+7. Found → auto-verified. Not found → "Paper not detected yet, please check your ORCID profile"
+
+**Pros:**
+- **ORCID is the single source of truth** for both identity and publication ownership — no S2, no Scholar, no scraping
+- Official, free, stable API with read scope already available
+- No name disambiguation, no fuzzy matching, no HTML parsing
+- Zero external service dependencies beyond ORCID itself
+- Encourages researchers to maintain their ORCID (benefit to the community)
+- Simplest backend: one API call to check works list
+
+**Cons:**
+- **No deep link** to pre-fill ORCID's "add work" form — user must manually add the paper on orcid.org (some friction)
+- Many researchers have sparse ORCID profiles — adding a paper is an extra step
+- Slight delay: ORCID API may take a few seconds to reflect newly added works
+- Less familiar UX than "paste your Scholar URL" (more researchers use Scholar than actively manage ORCID)
+
+**Effort:** ~0.5-1 day. ORCID OAuth and API helpers already built. New work: works-check endpoint (~30 lines), UI guidance flow, on-demand verification trigger.
+
+---
+
+## Updated Recommendation
+
+**Option E (ORCID-only)** is the cleanest and most maintainable path if the user base is comfortable with ORCID. No external dependencies, no scraping, no disambiguation.
+
+**Option B (ORCID + Scholar URL)** is better if you want lower friction for researchers who already have Scholar profiles and may not actively maintain ORCID.
+
+Both can coexist: Option E as the primary path, Option B as a "fast track" alternative for users with Scholar profiles. The ORCID identity layer is shared between both.
