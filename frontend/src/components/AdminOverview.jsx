@@ -408,7 +408,7 @@ export function AdminOverview({
               data-testid="refresh-correlations-btn"
             >
               <RefreshCw className={`h-3 w-3 ${corrRefreshing ? "animate-spin" : ""}`} />
-              {corrRefreshing ? "Refreshing..." : "Refresh Category"}
+              {corrRefreshing ? "Refreshing..." : "Refresh This Category"}
             </Button>
             <Button
               onClick={refreshCorrelationsAll}
@@ -419,7 +419,7 @@ export function AdminOverview({
               data-testid="refresh-correlations-all-btn"
             >
               <RefreshCw className={`h-3 w-3 ${corrAllRefreshing ? "animate-spin" : ""}`} />
-              {corrAllRefreshing ? "Refreshing..." : "Refresh All (10-15 min)"}
+              {corrAllRefreshing ? "Refreshing..." : "Refresh All Categories (10-15 min)"}
             </Button>
           </div>
         </div>
