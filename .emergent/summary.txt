@@ -1,22 +1,31 @@
-<analysis>Here is the handover summary based on the provided LLM message history:
+<analysis>### Handover Summary
 
-**original_problem_statement**: Build and maintain a sophisticated Validation Hub for an AI paper-judging system at kurate.org. The application evaluates scientific papers using an incremental TrueSkill & Win-Rate approach. The primary unresolved product requirement is to implement Multiple AI Reviewer Personas based on the ReviewerToo academic paper to enhance pairwise ranking accuracy.
+**original_problem_statement**: Build and maintain a sophisticated Validation Hub for an AI paper-judging system at kurate.org. The application evaluates scientific papers using an incremental TrueSkill & Win-Rate approach. PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the ReviewerToo academic paper to enhance pairwise ranking accuracy.
 
 **User's preferred language**: English
 *(INSTRUCT next agent to respond in the user's preferred language only)*
 
 **what currently exists?** 
-A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) capable of scaling to 100k+ papers. Memory leaks and OOM crashes have been resolved by capping MongoDB's WiredTiger cache and patching out the  flag. Leaderboard data uses server-side sorting and pagination (200 items per page). Complex analytical admin endpoints are fully converted to MongoDB aggregation pipelines. The app features rigorous Human vs AI Benchmarks that exactly replicate external baseline statistics via deterministic seeding.
+A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) capable of scaling to 100k+ papers. The application features a complex background tournament scheduler, real-time Admin Tournament Dashboard, and a Unified Model Analysis endpoint. In this session, the system was upgraded to use DB-backed Pair Deduplication (O(1) memory scaling), and Model Analysis was split into Live (instant WR/TS/SI data) and Cached (OpenSkill data computed on-demand via Admin buttons).
 
-**Last working item**: 
-    - Last item agent was working: Redesigning the multi-day memory charting logic. The agent removed  and  downsampling from the  endpoint. All timeframes (12h, 24h, 3d, 7d) now return raw, unrounded integer data points directly from MongoDB to ensure visual consistency across all chart views.
+**Last working item**:
+    - Last item agent was working: Fixing the Pair Exhaustion stall notice logic (using ), removing font colors from goal metrics, and updating Admin Settings tooltips to show static defaults matching the codebase. The agent committed the code and verified it on preview, but the user reported the changes did not reflect on production after their latest deploy due to a commit/deploy timing mismatch.
     - Status: USER VERIFICATION PENDING
     - Agent Testing Done: Y
-    - Which testing method agent to use? manual testing by curl/logs / frontend screenshot tool
+    - Which testing method agent to use? manual testing by curl / frontend screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Mobile Unfurling on Twitter/X Fails (P2)
+  Issue 1: Production deploy mismatch for final UI tweaks (P1)
+     - Attempted fixes: Code was successfully committed to address pair exhaustion notice strictness, UI metric colors, and tooltip defaults.
+     - Next debug checklist: Inform user to trigger a fresh deployment, as the previous deploy was built from a commit generated just prior to the final frontend adjustments.
+     - Why fix this issue and what will be achieved with the fix? Ensures production UI matches the correct, verified preview state.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Frontend
+     - Blocked on other issue: None
+
+  Issue 2: Mobile Unfurling on Twitter/X Fails (P2)
      - Attempted fixes: Investigated in previous sessions.
      - Next debug checklist: Cloudflare configuration.
      - Why fix this issue and what will be achieved with the fix? Required for social sharing.
@@ -29,13 +38,13 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
   Task 1: Analyze ReviewerToo Paper & Implement Multiple Reviewer Personas (P0)
      - Where to resume: Read the ReviewerToo paper concepts and implement the prompt architecture for diverse AI judges.
      - What will be achieved with this? Enhances pairwise ranking accuracy and correlation with human judgments by utilizing varied AI prompt personas instead of a single prompt.
-     - Status: NOT STARTED (Continually deferred due to urgent memory/scaling architecture fixes).
+     - Status: NOT STARTED (Continually deferred due to critical scheduler crashes, DB scaling, and Model Analysis overhauls).
      - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: NA
+     - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) TrueSkill-first matchmaking: Update the matchmaking algorithm to utilize TrueSkill  (uncertainty) instead of Win-Rate confidence. Simulation proves this will save ~35% on LLM costs by requiring fewer matches for convergence.
+    - (P1) TrueSkill-first matchmaking: Update the matchmaking algorithm to utilize TrueSkill  (uncertainty) instead of Win-Rate confidence.
     - (P1) Implement an email notification system for registered users using the Resend integration.
     - (P1) Code Quality: Resolve circular import chain ( ->  -> ). Extract auth utilities.
     - (P1) Code Quality: Migrate from  to  cookies for auth tokens to prevent XSS vulnerabilities.
@@ -44,18 +53,19 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
     - (P2) Wire up the  to the PaperPage, or remove the orphaned component entirely.
     - (P2) Complete the Gmail congrats flow or remove the 3 currently unwired endpoints.
     - (P2) Refactor monolithic  and .
+    - (P2) Optimize scheduler  to use aggregation instead of loading all matches (documented in ).
 
 **Completed work in this session**
-- Memory Fixes: Capped MongoDB WiredTiger cache to 384MB. Added a self-healing patch to  to strip out  to prevent duplicate-process OOM crashes. (DONE)
-- Server-side sorting & pagination: Replaced slow 10k in-memory frontend sorting with DB-indexed queries and 200 PAGE_SIZE. (DONE)
-- Dead Code: Removed 8 unused functions and 1 write-only MongoDB collection (). (DONE)
-- Benchmarking Replication: Created  matching external (SE) metrics exactly. Exported full 99k row . (DONE)
-- Admin Optimizations: Converted heavy admin stats, timeseries, and progress endpoints to native MongoDB  aggregations. (DONE)
-- Security/Linting: Addressed Code Quality Report. Replaced  with  for non-crypto hashing, removed hardcoded secrets from test files. (DONE)
-- UI Fixes: Fixed Leaderboard CI metrics (showing Elo points for TrueSkill, % for WinRate). Fixed rank badges to show exact score-based ranks instead of display index. Fixed Admin Stats tab going blank upon re-mounting. (DONE)
+- Scheduler Crash Fix: Restored the accidentally deleted  function that was blocking all tournament matches globally. (DONE)
+- DB-Backed Match Deduplication: Replaced O(N) in-memory  array with an O(1) indexed  DB field. Added a one-time DB migration. Documented in . (DONE)
+- MongoDB Dotted Key Fix: GPT-5.2 data was missing from model correlation because the key  broke MongoDB nested paths on . Added a startup migration to sanitize all keys (replacing  with ) and simplified the reader. (DONE)
+- Incremental Model Analysis: Split the heavy  endpoint. WR/TS/SI data is now computed live in <0.1s. Expensive OpenSkill (OS) computations are cached and updated purely on-demand. Documented in . (DONE)
+- Admin UI Overhaul: Fixed paper ingestion denominator (), added 6 new dynamic system settings (timeouts, batch sizes) to the UI, and added Refresh This Category / Refresh All Categories buttons to manually control OpenSkill caches. (DONE)
+- Admin Progress Optimization: Removed duplicate precomputed-cache path for progress endpoint. All progress data now comes directly from the DB. (DONE)
+- UI Enhancements: Added Pair Exhaustion stall notice, OS timestamps, and full resolution (91 bin) SI histograms. Removed dead SVG heatmaps. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-  - None (All recent user reports were addressed).
+  - None (All recent user reports addressed; P0 feature deferred).
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Mobile Unfurling on Twitter/X Fails
@@ -66,59 +76,60 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
 
 
 **Key Technical Concepts**
-- **Incremental TrueSkill**: Evaluates papers incrementally.
-- **Server-Side Pagination & Sorting**: Leaderboard relies completely on MongoDB indexes (, , , etc.) for instant sorting.
-- **Deterministic Benchmarking**: The benchmarking code uses fixed random seeds and strictly matched filtering ( expert pref) to ensure reproducibility with human datasets.
-- **Memory Budgeting**: The container has a strict 2GB limit. WiredTiger is capped at 384MB.  uses  to physically return arenas to the OS.
+- **Incremental Model Analysis**: The  endpoint no longer loads matches. It reads from  and returns instantly. OpenSkill data is pulled from  and merged into the response.
+- **DB-Backed Deduplication**: To scale,  uses the  field (e.g. ) and  queries to check for repeat matches, eliminating Python memory bloat.
+- **Dotted Key Sanitization**: MongoDB corrupts nested fields if keys contain dots (e.g. ). The application now STRICTLY normalizes model keys to use underscores () before writing to the DB.
 
 **key DB schema**
-  - : Stores head-to-head comparison results.
-  - : Master materialized view. Includes , ,  (all indexed).
-  - : Time-series logging of process RSS memory.
-  - : Pre-computed JSON-like documents for correlation caching.
+  - : Stores pairwise comparisons. (NEW FIELD: ).
+  - : Master materialized view. (KEYS: ).
+  - : Now strictly stores ONLY OpenSkill cached data. Prewarm is NO LONGER automatic.
+  - : Master configuration (holds migration flags and dynamic admin settings).
 
 **changes in tech stack**
-  - Removed client-side progressive rendering for the leaderboard.
+  - None.
 
 **All files of reference**
-  1.  (Contains the  self-healing patch and MongoDB cache configurations).
-  2.  (New file created for pristine, filter-free benchmark generation).
-  3.  (Explains exactly how the benchmark stats are calculated and where variance comes from).
-  4.  (Report of removed functions).
+  1.  (DB-backed match generation).
+  2.  (Live + cached merge logic).
+  3.  (Startup migrations for  and ).
+  4.  (Blueprint for future scaling optimizations).
+  5. 
+  6. 
 
 **Areas that need refactoring**:
   -  ->  ->  (Circular dependency ring).
-  - Monolithic .
+  - Optimize scheduler  to use MongoDB aggregations.
 
 **key api endpoints**
-  - : Returns . Accepts , .
-  - : Returns memory logs (now raw integer points without MongoDB downsampling).
+  - : Returns live WR/TS/SI data combined with cached OpenSkill data.
+  - : Sequentially queues and recomputes the expensive OpenSkill cache for a category.
+  - : Real-time tournament progress tracking directly from the DB.
 
 **Critical Info for New Agent**
-1. **DO NOT RESTORE **: The production environment injects it, but  explicitly patches the supervisor config to remove it at runtime. It causes dual-process OOM crashes.
-2. **DO NOT USE **: Always import and use  from  which invokes  to prevent arena fragmentation in glibc.
-3. **DO NOT USE  on large fields**: Do not aggregate over  or  in MongoDB—it will blow up the container memory.
-4. **Benchmarking Seed**: The random seed for within-tier subsampling in  is deterministic. Altering this logic will break the exact reproduction of the user's external baseline.
+1. **Model Analysis Cache is NO LONGER Automatic**:  does NOT prewarm OpenSkill correlations on startup anymore (to prevent OOM/deployment wiping). It is exclusively triggered via Admin UI buttons.
+2. **MongoDB Dotted Keys**: Never write model names with dots (like ) to nested fields in MongoDB. The startup migration () has scrubbed existing data to use .
+3. **Deploy Timing**: Emergent auto-commits on tool calls, but deployments are snapshot builds. If the user complains that a newly implemented UI change isn't on production, politely inform them they just need to click 'Deploy' again to capture the very last commit.
+4. **P0 Task is untouched**: The ReviewerToo feature has been repeatedly shelved to put out fires. Prioritize it if no critical bugs emerge.
 
 **documents and test reports created in this job**
   - 
   - 
-  -  (10 principles to avoid regressions based on past mistakes).
-  - Generated CSVs: ,  (and  variants).
+  - 
+  -  (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages**
-- User: Check all memory views (time frames) on production. 7 days don't match data.
-- Agent: Realized the  MongoDB downsampling in 3d/7d buckets made spikes look permanent. Replaced with .
-- User: Results on  aren't the same as on preview.
-- Agent: Fixed issue where production base matches used  while experiment matches used .
-- User: Call Deployer agent and check health.
-- Agent: Confirmed healthy.
-- User: Production unresponsive. 7d chart still inconsistent.
-- Agent: Fixed the 7d chart inconsistency by removing all MongoDB downsampling—it now returns raw integer points. Found the unresponsiveness was caused by  killing the active process during the  patch. Replaced with a clean .
-- User: Sorting by CI isn't working when TrueSkill is selected. Slow sorting.
-- Agent: Mapped  to  for TrueSkill mode. Added MongoDB indexes for , .
-- User: Redesign charting logic for memory charts to ensure consistency.
-- Agent: Removed all aggregation; frontend now plots raw integer coordinates for all timeframes.
+- User: Asked to check Model Analysis loading times.
+- Agent: Explained payload sizes and compute queue.
+- User: Requested implementation of the DB-backed Match Dedup scaling plan.
+- Agent: Implemented it, added migrations, and verified no repeat matches were generated.
+- User: Asked to check OS correlation progress.
+- Agent: Tracked background tasks. Handled a server timeout issue caused by / OpenSkill float values breaking JSON serialization. Fixed with .
+- User: Asked if correlation pages could be incrementally updated without heavy computation.
+- Agent: Refactored the architecture. Live WR/TS/SI data is now computed in <0.1s from DB. OS is cached and merged.
+- User: Noticed GPT matches still under-reporting on the new UI.
+- Agent: Traced it to MongoDB dotted-key corruption. Built a one-time startup migration to sanitize all keys globally and removed legacy workaround code.
+- User: Pointed out production UI hadn't picked up the final pair exhaustion and tooltips tweaks after deployment. (PENDING: Agent needs to advise user to run one more deploy to capture the final commit).
 
 **Project Health Check:**
   - Broken: Mobile Twitter/X Unfurling (Cloudflare block).
@@ -131,13 +142,13 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
   - Resend (Pending implementation for email notifications)
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Heavy reliance on manual bash/python validations and screenshot verification due to complex data structures).
-  - Troubleshoot agent used after agent stuck in loop: YES (Diagnosed a stale  import).
-  - Test files created: , , .
+  - Testing agent used after significant changes: NO (Heavy reliance on manual bash validation, DB querying, and frontend screenshots).
+  - Troubleshoot agent used after agent stuck in loop: YES (Used to identify technical debt for scaling scheduler).
+  - Test files created: None.
   - Known regressions: None.
 
 **Credentials to test flow:**
   - NA (Use emergent-managed . Admin password for manual auth testing defaults to  — refer to tests or  if required).
 
 **What agent forgot to execute**
-  - The P0 Task: **ReviewerToo Multiple Reviewer Personas**. The entire session was consumed by UX fixes, memory architecture stabilization, and exact statistical benchmarking reproduction. The core prompt task remains completely untouched.</analysis>
+  - The P0 Task: **ReviewerToo Multiple Reviewer Personas**. The entire session was dedicated to stabilizing the scheduler (restoring ), preventing MongoDB schema corruption (dotted keys), migrating Match Dedup logic to the DB for scaling, and optimizing Model Analysis performance.</analysis>
