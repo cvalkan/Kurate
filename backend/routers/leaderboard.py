@@ -244,6 +244,22 @@ async def _refresh_cache():
             {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1}
         ).sort("score", -1).to_list(10000)
 
+        # Filter to matchable papers only (same as _check_goals_met in scheduler.py)
+        try:
+            from services.scheduler import _pick_summary_source, _summary_model_key, _SUMMARY_KEY_FALLBACKS
+            _sm = _pick_summary_source(settings.get("summary_source", "thinking"))
+            _rk = _summary_model_key(_sm)
+            _fk = _SUMMARY_KEY_FALLBACKS.get(_rk, [])
+            _sf = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in [_rk] + _fk]}
+            _sf["categories.0"] = cat_id
+            _mids = set()
+            async for doc in db.papers.find(_sf, {"_id": 0, "id": 1}):
+                _mids.add(doc["id"])
+            if _mids:
+                entries = [e for e in entries if e["paper_id"] in _mids]
+        except Exception:
+            pass
+
         cat_total = len(entries)
         if cat_total == 0:
             progress_by_cat[cat_id] = {"total_papers": 0, "goals_met": True, "category": cat_id}
