@@ -172,7 +172,7 @@ export function AdminOverview({
   // Only show activity indicators when there's actual work remaining AND system is active
   const systemActive = !progress?.global_paused;
   const isDownloading = systemActive && papersWithPdf < totalFetched && (activity.includes("downloading") || activity.includes("Fetching") || activity.includes("Downloading"));
-  const isGenerating = isSummaryGenRunning || (systemActive && summariesCount < totalFetched && activity.includes("Generating summaries"));
+  const isGenerating = isSummaryGenRunning || (systemActive && summariesCount < papersWithPdf && activity.includes("Generating summaries"));
 
   return (
     <div className="space-y-4" data-testid="admin-overview">
@@ -241,7 +241,7 @@ export function AdminOverview({
             {isDownloading && <span className="text-accent animate-pulse ml-1">downloading...</span>}
           </div>
           <div data-testid="summarized-count">
-            <span className="font-mono text-foreground font-medium">{summariesCount}</span>/<span className="font-mono">{totalFetched}</span> summarized
+            <span className="font-mono text-foreground font-medium">{summariesCount}</span>/<span className="font-mono">{papersWithPdf}</span> summarized
             {isGenerating && (
               <span className="text-accent animate-pulse ml-1">
                 generating...
@@ -280,7 +280,7 @@ export function AdminOverview({
             <Download className={`h-3.5 w-3.5 ${loading.fetch && loading.fetchCat === adminCat ? "animate-spin" : ""}`} />
             {loading.fetch && loading.fetchCat === adminCat ? "Fetching..." : "Fetch & generate summaries"}
           </Button>
-          {summariesCount < totalFetched && !isSummaryGenRunning && (
+          {summariesCount < papersWithPdf && !isSummaryGenRunning && (
             <Button
               onClick={triggerBackfill}
               disabled={backfilling}
@@ -289,7 +289,7 @@ export function AdminOverview({
               data-testid="generate-missing-summaries-btn"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${backfilling ? "animate-spin" : ""}`} />
-              {backfilling ? "Starting..." : `Generate ${totalFetched - summariesCount} missing summaries`}
+              {backfilling ? "Starting..." : `Generate ${papersWithPdf - summariesCount} missing summaries`}
             </Button>
           )}
         </div>
