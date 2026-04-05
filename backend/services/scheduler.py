@@ -320,7 +320,7 @@ async def _compare_loop_inner():
         unmet_cats = []
         _compare_loop_diag["cycles_since_restart"] += 1
         _compare_loop_diag["last_cycle_at"] = datetime.now(timezone.utc).isoformat()
-        _compare_loop_diag["last_cycle_results"] = {}
+        _cycle_results = {}  # Build locally, swap atomically at end
         try:
             settings = await get_settings()
             is_paused = settings.get("paused", False)
@@ -394,11 +394,11 @@ async def _compare_loop_inner():
                         # Record per-category results for diagnostics
                         for cat, res in zip(batch, results):
                             if isinstance(res, Exception):
-                                _compare_loop_diag["last_cycle_results"][cat] = {"status": "error", "error": str(res)[:100]}
+                                _cycle_results[cat] = {"status": "error", "error": str(res)[:100]}
                             elif isinstance(res, dict):
-                                _compare_loop_diag["last_cycle_results"][cat] = res
+                                _cycle_results[cat] = res
                             else:
-                                _compare_loop_diag["last_cycle_results"][cat] = {"status": "unknown"}
+                                _cycle_results[cat] = {"status": "unknown"}
                         # GC between batches to release match/paper data from completed rounds
                         from core.memlog import force_gc
                         force_gc()
@@ -412,14 +412,17 @@ async def _compare_loop_inner():
                         from core.memlog import log_event
                         log_event("repair_queue", "repair_queue_size", {"size": queue_size, "repaired": repaired})
                         await asyncio.sleep(2)
+                    _compare_loop_diag["last_cycle_results"] = _cycle_results
                     # After a round completes, loop immediately to check if more work needed
                     continue
                 else:
+                    _compare_loop_diag["last_cycle_results"] = {"_all_goals_met": True}
                     log_mem(f"Compare loop: all goals met for {len(active_cats)} categories")
                     for cat in active_cats:
                         if _get_cat_status(cat).get("papers_count", 0) >= min_papers:
                             _get_cat_status(cat)["current_activity"] = "Goals met — idle"
             elif is_paused:
+                _compare_loop_diag["last_cycle_results"] = {"_system_paused": True}
                 for cat in all_tournament_cats:
                     _get_cat_status(cat)["current_activity"] = "System paused"
 
