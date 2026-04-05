@@ -611,7 +611,7 @@ async def compute_openskill_cache(category: Optional[str] = None):
     query = {"category": category} if category else {}
     papers = []
     async for doc in db.rankings.find(query, {
-        "_id": 0, "paper_id": 1, "category": 1, "score": 1,
+        "_id": 0, "paper_id": 1, "category": 1, "score": 1, "ts_score": 1,
         "model_stats": 1,
     }):
         papers.append(doc)
@@ -622,6 +622,7 @@ async def compute_openskill_cache(category: Optional[str] = None):
     paper_categories = {p["paper_id"]: p.get("category") for p in papers}
     model_paper_stats, _, model_keys, _ = _extract_model_data(papers)
     wr_scores = {p["paper_id"]: p["score"] for p in papers if p.get("score") is not None}
+    ts_scores = {p["paper_id"]: p["ts_score"] for p in papers if p.get("ts_score") is not None}
 
     cats = [category] if category else list(set(c for c in paper_categories.values() if c))
     per_model_matches = {}
@@ -668,10 +669,35 @@ async def compute_openskill_cache(category: Optional[str] = None):
     del per_model_matches, all_matches
     force_gc()
 
+    # Pre-compute OS vs WR/TS scoring method correlations (stored in cache for merge)
+    scoring_os_correlations = []
+    shared_pids = sorted(set(wr_scores.keys()) & set(os1_global.keys()) if os1_global else set())
+    if len(shared_pids) >= 10:
+        for os_key, os_scores, os_label in [("openskill", os1_global, "OpenSkill 1p"),
+                                             ("openskill3", os3_global, "OpenSkill 3p"),
+                                             ("openskill10", os10_global, "OpenSkill 10p")]:
+            if not os_scores:
+                continue
+            for other_key, other_scores, other_label in [("win_rate", wr_scores, "Normalized Win-Rate"),
+                                                          ("trueskill", ts_scores, "TrueSkill")]:
+                common = sorted(set(os_scores.keys()) & set(other_scores.keys()))
+                if len(common) >= 10:
+                    v1 = [os_scores[p] for p in common]
+                    v2 = [other_scores[p] for p in common]
+                    sp_r, _ = scipy_stats.spearmanr(v1, v2)
+                    kt_r, _ = scipy_stats.kendalltau(v1, v2)
+                    scoring_os_correlations.append({
+                        "method1": other_key, "method2": os_key,
+                        "label": f"{other_label} vs {os_label}",
+                        "spearman_rho": round(float(sp_r), 6),
+                        "kendall_tau": round(float(kt_r), 6),
+                    })
+
     return {
         "status": "ok",
         "os_global": {"os1": os1_global, "os3": os3_global, "os10": os10_global},
         "os_per_model": model_os,
+        "scoring_os_correlations": scoring_os_correlations,
         "computed_at": datetime.now(timezone.utc).isoformat(),
         "compute_time_s": round(time.perf_counter() - t_start, 2),
     }
@@ -682,10 +708,6 @@ def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
     if not os_cache or os_cache.get("status") != "ok":
         return live
 
-    os_global = os_cache.get("os_global", {})
-    os1 = os_global.get("os1", {})
-    os3 = os_global.get("os3", {})
-    os10 = os_global.get("os10", {})
     model_os = os_cache.get("os_per_model", {})
 
     # Inject OS columns into pw_inter_model rows
@@ -709,35 +731,11 @@ def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
                 avg_mpp = row["methods"].get("reg_wr", {}).get("avg_mpp", 0)
                 row["methods"][os_key] = {"rho": round(float(rho), 3), "n": len(common), "avg_mpp": avg_mpp}
 
-    # Inject OS into scoring_method correlations
+    # Inject OS into scoring_method correlations (pre-computed in cache)
     sm = live.get("scoring_method", {})
     sm_corrs = sm.get("correlations", [])
-    scoring_methods = {"win_rate": {}, "trueskill": {}}
-    # Rebuild WR/TS from existing correlations context
-    for c in sm_corrs:
-        if c["method1"] == "win_rate":
-            scoring_methods["win_rate"] = True
-        if c["method2"] == "trueskill":
-            scoring_methods["trueskill"] = True
-
-    # Add OS vs WR/TS correlations
-    if os1:
-        # We need wr_scores and ts_scores — extract from live data indirectly
-        # Actually, we can compute these correlations from the OS global scores
-        for os_key, os_scores, os_label in [("openskill", os1, "OpenSkill 1p"),
-                                             ("openskill3", os3, "OpenSkill 3p"),
-                                             ("openskill10", os10, "OpenSkill 10p")]:
-            if not os_scores:
-                continue
-            # Add OS vs each existing method pair
-            for existing in list(sm_corrs):
-                for em_key in [existing["method1"], existing["method2"]]:
-                    # Check if this OS vs method pair already exists
-                    already = any(c for c in sm_corrs if
-                                  (c["method1"] == os_key and c["method2"] == em_key) or
-                                  (c["method1"] == em_key and c["method2"] == os_key))
-                    if already:
-                        continue
+    for row in os_cache.get("scoring_os_correlations", []):
+        sm_corrs.append(row)
 
     live["openskill_updated_at"] = os_cache.get("computed_at")
     return live
