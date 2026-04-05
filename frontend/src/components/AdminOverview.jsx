@@ -89,6 +89,22 @@ export function AdminOverview({
 
   const [backfilling, setBackfilling] = useState(false);
   const [tsBackfilling, setTsBackfilling] = useState(false);
+  const [corrRefreshing, setCorrRefreshing] = useState(false);
+
+  const refreshCorrelations = async () => {
+    setCorrRefreshing(true);
+    try {
+      // Delete cached analysis for this category, then trigger recompute
+      await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis&key=${adminCat || "__all__"}`, {}, { headers: getAdminHeaders() });
+      toast.info(`Refreshing Model Analysis for ${adminCat || "All Categories"}... (1-3 min)`);
+      // Trigger recompute by fetching the endpoint (will compute and cache)
+      axios.get(`${API}/api/model-analysis${adminCat ? `?category=${adminCat}` : ""}`).catch(() => {});
+    } catch {
+      toast.error("Failed to refresh correlations");
+    } finally {
+      setTimeout(() => setCorrRefreshing(false), 3000);
+    }
+  };
 
   const summaryGenProgress = progress?.summary_gen_progress;
   const isSummaryGenRunning = !!summaryGenProgress?.running;
@@ -381,6 +397,17 @@ export function AdminOverview({
               >
                 <Sparkles className={`h-3 w-3 ${tsBackfilling ? "animate-spin" : ""}`} />
                 {tsBackfilling ? "Backfilling..." : "Backfill TS + Model Stats"}
+              </Button>
+              <Button
+                onClick={refreshCorrelations}
+                disabled={corrRefreshing}
+                variant="outline"
+                size="sm"
+                className="gap-1 text-[10px] h-6 px-2"
+                data-testid="refresh-correlations-btn"
+              >
+                <RefreshCw className={`h-3 w-3 ${corrRefreshing ? "animate-spin" : ""}`} />
+                {corrRefreshing ? "Refreshing..." : "Refresh Model Analysis"}
               </Button>
               <span>
                 {progress.goals_met ? (
