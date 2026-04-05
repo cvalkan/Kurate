@@ -1622,7 +1622,8 @@ async def get_arxiv_categories():
     """Return full arXiv taxonomy for searchable category picker."""
     from core.arxiv_categories import ARXIV_TAXONOMY, get_group
     settings = await get_settings()
-    active = set(settings.get("active_categories", list(CATEGORIES.keys())))
+    active_list = settings.get("active_categories", list(CATEGORIES.keys()))
+    active_set = set(active_list)
 
     cats = []
     for cat_id, name in sorted(ARXIV_TAXONOMY.items()):
@@ -1630,9 +1631,9 @@ async def get_arxiv_categories():
             "id": cat_id,
             "name": name,
             "group": get_group(cat_id),
-            "active": cat_id in active,
+            "active": cat_id in active_set,
         })
-    return {"categories": cats, "active": sorted(active)}
+    return {"categories": cats, "active": active_list}
 
 
 class CategoryAction(BaseModel):
