@@ -281,17 +281,33 @@ async def _fetch_loop():
 
 
 async def _compare_loop():
-    """Independent loop for running tournament comparisons. Never waits for fetches."""
+    """Independent loop for running tournament comparisons. Never waits for fetches.
+    Auto-restarts on crash with exponential backoff (max 5 min)."""
     global _wake_event
     from core.memlog import log_mem
     await asyncio.sleep(5)
     log_mem("Compare loop: task started")
-    try:
-        await _compare_loop_inner()
-    except Exception as e:
-        import traceback
-        log_mem(f"Compare loop CRASHED: {traceback.format_exc()[-300:]}")
-        logger.error(f"Compare loop CRASHED: {e}")
+
+    restart_count = 0
+    while _scheduler_running:
+        try:
+            _compare_loop_diag["loop_alive"] = True
+            await _compare_loop_inner()
+            break  # Clean exit (scheduler stopped)
+        except Exception as e:
+            import traceback
+            restart_count += 1
+            _compare_loop_diag["loop_alive"] = False
+            _compare_loop_diag["last_crash"] = {
+                "error": str(e)[:200],
+                "traceback": traceback.format_exc()[-500:],
+                "at": datetime.now(timezone.utc).isoformat(),
+                "restart_count": restart_count,
+            }
+            backoff = min(300, 10 * (2 ** min(restart_count - 1, 5)))  # 10s, 20s, 40s, 80s, 160s, 300s
+            log_mem(f"Compare loop CRASHED (restart #{restart_count} in {backoff}s): {traceback.format_exc()[-300:]}")
+            logger.error(f"Compare loop CRASHED (restart #{restart_count}): {e}")
+            await asyncio.sleep(backoff)
 
 
 async def _compare_loop_inner():
