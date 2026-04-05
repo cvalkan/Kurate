@@ -170,7 +170,11 @@ export function AdminStatistics({ categories }) {
     }
   }, [memHours]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(() => fetchData(), 15000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   if (loading || !timeseries) {
     return (

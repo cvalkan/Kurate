@@ -93,14 +93,13 @@ export function AdminOverview({
   const summaryGenProgress = progress?.summary_gen_progress;
   const isSummaryGenRunning = !!summaryGenProgress?.running;
 
-  // Auto-refresh when summary generation is in progress
+  // Auto-refresh all metrics every 10s
   useEffect(() => {
-    if (!isSummaryGenRunning) return;
     const interval = setInterval(() => {
       if (onRefresh) onRefresh();
-    }, 5000);
+    }, 10000);
     return () => clearInterval(interval);
-  }, [isSummaryGenRunning, onRefresh]);
+  }, [onRefresh]);
 
   const triggerBackfill = async () => {
     setBackfilling(true);
