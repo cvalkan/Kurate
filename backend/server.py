@@ -428,12 +428,7 @@ async def _deferred_startup():
         await db.rankings.create_index([("category", 1), ("wilson_margin", 1)], name="category_1_wilson_margin_1")
         await db.rankings.create_index([("ts_sigma", 1)], name="ts_sigma_1")
         await db.rankings.create_index([("wilson_margin", 1)], name="wilson_margin_1")
-        # Analysis store (pre-aggregated Model Analysis results)
-        # Version check: clear stale docs when schema changes
-        # WARNING: Bumping this version clears ALL cached model analysis results.
-        # Recomputing takes 30+ minutes (9 OpenSkill computations per category × 13 categories).
-        # Only bump if the cached document SCHEMA changed — not for code logic changes.
-        _ANALYSIS_STORE_VERSION = 5
+        # Analysis store index (pre-aggregated Model Analysis results)
         # Create index if missing (don't drop — that kills concurrent prewarm tasks)
         try:
             existing = [idx["name"] async for idx in db.analysis_store.list_indexes()]
@@ -453,15 +448,8 @@ async def _deferred_startup():
                 await db.analysis_store.create_index([("_type", 1), ("key", 1)], unique=True)
         except Exception:
             pass
-        version_doc = await db.analysis_store.find_one({"_type": "__version__"})
-        if not version_doc or version_doc.get("v") != _ANALYSIS_STORE_VERSION:
-            await db.analysis_store.delete_many({"_type": {"$ne": "__version__"}})
-            await db.analysis_store.update_one(
-                {"_type": "__version__"},
-                {"$set": {"_type": "__version__", "key": "__version__", "v": _ANALYSIS_STORE_VERSION}},
-                upsert=True,
-            )
-            logger.info(f"Analysis store cleared (schema version {_ANALYSIS_STORE_VERSION})")
+        # Version check removed — analysis cache is ONLY cleared via admin button.
+        # No startup, deploy, or restart will ever clear cached model analysis.
         # Convergence cache
         await db.convergence_cache.create_index("category", unique=True)
         logger.info("MongoDB indexes created")
