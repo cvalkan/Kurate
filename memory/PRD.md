@@ -11,40 +11,34 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 ## What's Been Implemented
 
-### Session: Apr 5, 2026 (continued)
+### Session: Apr 5, 2026 (this fork)
 
-**Stall Banner Detection Fix:**
-- Replaced unreliable `rankings.comparisons >= matchable_count - 1` check with DB-backed aggregation on `dedup_pair`
-- Old method used rankings field that could be inflated by seeding priors or stale from incomplete `$inc` updates
-- New method: single MongoDB aggregation counts actual unique opponents per paper from completed matches
-- Added `all_pairs_exhausted` flag (true when every possible pair has been compared)
-- Added `unique_pairs_played / max_possible_pairs` to progress response for visibility
-- Frontend shows distinct messages for per-paper exhaustion vs full pair exhaustion
+**Stall Banner Detection — Materialized Counter Approach:**
+- Added `unique_opponents` field to rankings documents (O(1) stall check, no aggregation)
+- Incremented atomically in `update_rankings_for_match` alongside `comparisons`
+- Initialized correctly in both `insert_ranking_for_paper` (0) and `seed_rankings` (computed from matches)
+- Startup backfill migration (`_startup_backfill_unique_opponents`) populates field for existing rankings
+- `reconcile_rankings` now also verifies and fixes `unique_opponents` drift
+- Progress endpoint uses per-paper `unique_opponents >= matchable_count - 1` — exact for stall detection
+- `unique_pairs_played` (display metric) computed as `sum(unique_opponents) // 2` — lower bound, no aggregation
+- `all_pairs_exhausted` flag when all possible pairs have been played
+
+**Scheduler Auto-Restart:**
+- Compare loop now auto-restarts on crash with exponential backoff (10s → 300s max)
+- Crash details stored in diagnostics: error message, traceback, timestamp, restart count
+- Previously: single unhandled exception killed the loop permanently while UI still showed "Running"
 
 **Scheduler Diagnostics:**
-- Added `/api/admin/scheduler-diagnostics` endpoint exposing compare loop health
-- Tracks: last_cycle_at, last_cycle_unmet categories, per-category round results, loop_alive status
-- Added `last_match_at` and `failed_matches_total` (direct DB query) to progress endpoint
-- Frontend "Failed" card now shows actual DB count instead of stale cached value
-- Frontend shows "Stalled" (amber) instead of "Running" when no new matches in 10+ minutes
+- New `/api/admin/scheduler-diagnostics` endpoint: loop_alive, last_cycle_at, last_cycle_unmet, per-category round results, last_crash info
+- Progress endpoint adds: `last_match_at` (timestamp), `failed_matches_total` (direct DB query)
+- Frontend: "Failed" card shows real DB count; status shows "Stalled" (amber) when no matches in 10+ min
 
 **Architecture Decomposition Document:**
-- Created `/app/memory/ARCHITECTURE_DECOMPOSITION.md` analyzing service separation options
-- Recommended Option A (Role-Based Startup) as practical first step
+- Created `/app/memory/ARCHITECTURE_DECOMPOSITION.md`
 
-### Session: Apr 5, 2026 (earlier)
+### Previous Sessions
 
-**Incremental Model Analysis (Major Architecture Change):**
-- Split `compute_model_analysis()` into `compute_live_analysis()` (fast, from rankings) + `compute_openskill_cache()` (heavy, from matches)
-- Model Analysis page now loads in 0.07-0.23s (was 2+ min from cold cache)
-
-**Scaling:**
-- DB-backed pair dedup: `dedup_pair` field + compound index
-- `_select_pairs` async with indexed DB queries — O(100) memory, scales to 100K+ papers
-
-**Critical Fixes:**
-- Restored `_select_pairs` (was accidentally deleted, blocked ALL matches)
-- GPT-5.2 Model Correlation fix (MongoDB dot-in-key merge bug)
+**Incremental Model Analysis, DB-backed dedup, dotted key fix, admin dashboard overhaul** — see CHANGELOG.md
 
 ## Prioritized Backlog
 
@@ -52,7 +46,7 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Implement Multiple AI Reviewer Personas from ReviewerToo paper (arXiv:2510.08867)
 
 ### P1
-- Investigate production scheduler stall: use new `/scheduler-diagnostics` endpoint to identify root cause
+- Investigate production scheduler stall using new diagnostics
 - TrueSkill-first matchmaking (save ~35% LLM costs)
 - Email notification system (Resend integration)
 - Resolve circular import chain
@@ -63,3 +57,4 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Complete Gmail congrats flow or remove
 - Refactor monolithic leaderboard.py and scheduler.py
 - Mobile Twitter/X unfurling (BLOCKED on Cloudflare)
+- Remove unused BT code from `calculate_bradley_terry` if benchmarks no longer need it

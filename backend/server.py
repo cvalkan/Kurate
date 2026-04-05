@@ -653,6 +653,7 @@ async def _staggered_startup_tasks():
         "_startup_backfill_dedup_pair",
         "_startup_fix_dotted_model_keys",
         "_startup_seed_rankings",
+        "_startup_backfill_unique_opponents",
         "_startup_regen_truncated_summaries",
         "_startup_resume_summarizer_ab",
         "_startup_check_interrupted_tasks",
@@ -972,6 +973,91 @@ async def _startup_seed_rankings():
 
     except Exception as e:
         logger.warning(f"Rankings seed failed: {e}")
+
+
+
+async def _startup_backfill_unique_opponents():
+    """One-time migration: populate unique_opponents field on rankings from match data.
+    
+    Counts distinct opponents per paper using dedup_pair aggregation, then sets the field.
+    Gated by a DB flag so it only runs once.
+    """
+    flag = await db.settings.find_one({"key": "backfill_unique_opponents_v1"}, {"_id": 0})
+    if flag and flag.get("done"):
+        return
+
+    # Check if any rankings lack the field
+    missing = await db.rankings.count_documents({"unique_opponents": {"$exists": False}})
+    if missing == 0:
+        await db.settings.update_one(
+            {"key": "backfill_unique_opponents_v1"},
+            {"$set": {"key": "backfill_unique_opponents_v1", "done": True, "backfilled": 0}},
+            upsert=True,
+        )
+        return
+
+    logger.info(f"Backfilling unique_opponents for {missing} rankings...")
+
+    # Aggregate unique opponents per paper across all categories
+    unique_counts = {}
+    pipeline = [
+        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
+        {"$group": {"_id": {"cat": "$primary_category", "pair": "$dedup_pair"}}},
+        {"$project": {"cat": "$_id.cat", "papers": {"$split": ["$_id.pair", "|"]}}},
+        {"$unwind": "$papers"},
+        {"$group": {"_id": {"cat": "$cat", "paper": "$papers"}, "unique_opponents": {"$sum": 1}}},
+    ]
+    try:
+        async for doc in db.matches.aggregate(pipeline, allowDiskUse=True):
+            key = (doc["_id"]["cat"], doc["_id"]["paper"])
+            unique_counts[key] = doc["unique_opponents"]
+    except Exception as e:
+        # Fallback: per-paper counting if aggregation fails (e.g., missing dedup_pair)
+        logger.warning(f"Aggregation failed ({e}), falling back to per-paper counting")
+        async for rdoc in db.rankings.find(
+            {"unique_opponents": {"$exists": False}},
+            {"_id": 0, "paper_id": 1, "category": 1},
+        ):
+            pid, cat = rdoc["paper_id"], rdoc["category"]
+            opps = set()
+            async for m in db.matches.find(
+                {"primary_category": cat, "completed": True, "failed": {"$ne": True},
+                 "mode": {"$exists": False},
+                 "$or": [{"paper1_id": pid}, {"paper2_id": pid}]},
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+            ):
+                opp = m["paper2_id"] if m["paper1_id"] == pid else m["paper1_id"]
+                opps.add(opp)
+            unique_counts[(cat, pid)] = len(opps)
+
+    # Apply to rankings
+    backfilled = 0
+    from pymongo import UpdateOne
+    ops = []
+    async for rdoc in db.rankings.find(
+        {"unique_opponents": {"$exists": False}},
+        {"_id": 0, "paper_id": 1, "category": 1},
+    ):
+        count = unique_counts.get((rdoc["category"], rdoc["paper_id"]), 0)
+        ops.append(UpdateOne(
+            {"paper_id": rdoc["paper_id"], "category": rdoc["category"]},
+            {"$set": {"unique_opponents": count}},
+        ))
+        if len(ops) >= 1000:
+            await db.rankings.bulk_write(ops, ordered=False)
+            backfilled += len(ops)
+            ops = []
+    if ops:
+        await db.rankings.bulk_write(ops, ordered=False)
+        backfilled += len(ops)
+
+    await db.settings.update_one(
+        {"key": "backfill_unique_opponents_v1"},
+        {"$set": {"key": "backfill_unique_opponents_v1", "done": True, "backfilled": backfilled}},
+        upsert=True,
+    )
+    if backfilled:
+        logger.info(f"Backfilled unique_opponents for {backfilled} rankings")
 
 
 

@@ -480,6 +480,16 @@ async def seed_rankings(db, category: str = None):
 
         lb = compute_leaderboard(papers, matches)
 
+        # Compute unique opponents per paper (for stall detection)
+        unique_opps = {}
+        for m in matches:
+            if m.get("completed") and m.get("winner_id") and not m.get("failed"):
+                p1, p2 = m["paper1_id"], m["paper2_id"]
+                unique_opps.setdefault(p1, set()).add(p2)
+                unique_opps.setdefault(p2, set()).add(p1)
+        unique_opp_counts = {pid: len(opps) for pid, opps in unique_opps.items()}
+        del unique_opps
+
         # Build lookups from paper data before freeing
         ai_ratings = {}
         paper_lookup = {}
@@ -541,6 +551,7 @@ async def seed_rankings(db, category: str = None):
                 "wins": entry["wins"],
                 "losses": entry["losses"],
                 "comparisons": entry["comparisons"],
+                "unique_opponents": unique_opp_counts.get(entry["id"], 0),
                 "title": entry["title"],
                 "authors": entry.get("authors", []),
                 "arxiv_id": entry.get("arxiv_id", ""),
@@ -594,7 +605,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
 
     # --- Step 1: Update WR counts + scores + per-model stats for both papers ---
     for paper_id, is_winner in [(winner_id, True), (loser_id, False)]:
-        inc_fields = {"comparisons": 1}
+        inc_fields = {"comparisons": 1, "unique_opponents": 1}
         if is_winner:
             inc_fields["wins"] = 1
         else:
@@ -1036,6 +1047,7 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
             "wins": 0,
             "losses": 0,
             "comparisons": 0,
+            "unique_opponents": 0,
             "title": paper_doc["title"],
             "authors": paper_doc.get("authors", []),
             "arxiv_id": paper_doc.get("arxiv_id", ""),
@@ -1094,8 +1106,22 @@ async def reconcile_rankings(db, category: str = None):
                 "winner_id": pid,
             })
 
+            # Count actual unique opponents (distinct opponent IDs from dedup_pair)
+            actual_unique_opps = 0
+            pair_keys_for_pid = []
+            async for m in db.matches.find(
+                {"completed": True, "failed": {"$ne": True}, "primary_category": cat,
+                 "mode": {"$exists": False}, "dedup_pair": {"$exists": True},
+                 "$or": [{"paper1_id": pid}, {"paper2_id": pid}]},
+                {"_id": 0, "dedup_pair": 1},
+            ):
+                pair_keys_for_pid.append(m["dedup_pair"])
+            actual_unique_opps = len(set(pair_keys_for_pid))
+
             # Check if rankings match reality
-            if r.get("wins", 0) != actual_wins or r.get("comparisons", 0) != actual_comparisons:
+            if (r.get("wins", 0) != actual_wins or
+                r.get("comparisons", 0) != actual_comparisons or
+                r.get("unique_opponents", 0) != actual_unique_opps):
                 drifted_papers += 1
                 # Fix the paper's stats and recompute score
                 new_stats = compute_paper_score(actual_wins, actual_comparisons)
@@ -1105,6 +1131,7 @@ async def reconcile_rankings(db, category: str = None):
                         "wins": actual_wins,
                         "losses": actual_comparisons - actual_wins,
                         "comparisons": actual_comparisons,
+                        "unique_opponents": actual_unique_opps,
                         **new_stats,
                     }},
                 )

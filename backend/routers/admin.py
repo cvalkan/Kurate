@@ -466,7 +466,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1},
+        {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1, "unique_opponents": 1},
     ):
         entries.append(doc)
 
@@ -603,53 +603,27 @@ async def get_progress_estimate(category: str = "cs.RO"):
     cat_total_in_db = await db.papers.count_documents({"categories.0": category})
 
     # Detect pair exhaustion: papers that need more matches but have played all matchable opponents.
-    # Uses actual unique opponents from the matches DB (via dedup_pair aggregation),
-    # NOT rankings.comparisons which can be inflated by seeding priors.
+    # Uses materialized `unique_opponents` field on rankings (O(1) per paper, no aggregation).
     max_possible_pairs = total_papers * (total_papers - 1) // 2
     pair_exhausted = False
     exhausted_papers = 0
     matchable_count = len(entries)
     if not (goal1_met and goal2_met) and matchable_count > 1:
-        # Single aggregation: count unique opponents per paper from actual matches
-        unique_opps_per_paper = {}
-        try:
-            pipeline = [
-                {"$match": {"primary_category": category, "completed": True,
-                             "failed": {"$ne": True}, "mode": {"$exists": False},
-                             "dedup_pair": {"$exists": True}}},
-                {"$group": {"_id": "$dedup_pair"}},
-                {"$project": {"papers": {"$split": ["$_id", "|"]}}},
-                {"$unwind": "$papers"},
-                {"$group": {"_id": "$papers", "unique_opponents": {"$sum": 1}}},
-            ]
-            for doc in await db.matches.aggregate(pipeline).to_list(length=5000):
-                unique_opps_per_paper[doc["_id"]] = doc["unique_opponents"]
-        except Exception:
-            pass
-
         for e in entries:
             pid = e["paper_id"]
             target = ci_target if pid in top_k_ids else ci_target_general
             margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
-            actual_opps = unique_opps_per_paper.get(pid, 0)
+            actual_opps = e.get("unique_opponents", 0)
             if margin > target and actual_opps >= matchable_count - 1:
                 exhausted_papers += 1
         if exhausted_papers > 0:
             pair_exhausted = True
 
-    # Count unique pairs played (for progress display)
-    unique_pairs_played = 0
-    all_pairs_exhausted = False
-    if matchable_count > 1:
-        upc = await db.matches.aggregate([
-            {"$match": {"primary_category": category, "completed": True,
-                         "failed": {"$ne": True}, "mode": {"$exists": False},
-                         "dedup_pair": {"$exists": True}}},
-            {"$group": {"_id": "$dedup_pair"}},
-            {"$count": "total"},
-        ]).to_list(1)
-        unique_pairs_played = upc[0]["total"] if upc else 0
-        all_pairs_exhausted = unique_pairs_played >= max_possible_pairs
+    # Compute unique pairs played from materialized unique_opponents.
+    # Note: sum/2 is a lower bound — undercounts if papers have opponents no longer in rankings.
+    # The per-paper stall check (unique_opponents >= matchable_count - 1) is exact.
+    unique_pairs_played = sum(e.get("unique_opponents", 0) for e in entries) // 2
+    all_pairs_exhausted = unique_pairs_played >= max_possible_pairs if max_possible_pairs > 0 else False
 
     result = {
         "total_papers": total_papers,
