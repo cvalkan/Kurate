@@ -6,54 +6,55 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 ## Core Architecture
 - **Backend**: FastAPI + MongoDB, precomputed JSON cache system, event-driven background tasks
 - **Frontend**: React, served as compiled build
-- **Caching**: Multi-layer (precomputed JSON > MongoDB > in-memory LRU), event-driven refresh
-- **Background**: All loops event-driven (no polling). Compare loop wakes on data change, fetch loop sleeps until due.
+- **Caching**: Multi-layer (precomputed JSON > MongoDB analysis_store > in-memory LRU), event-driven refresh
+- **Background**: Compare loop + fetch loop. Compare loop wakes on data change, fetch loop sleeps until due.
 
 ## What's Been Implemented
 
 ### Session: Apr 5, 2026
 
-**Bug Fix: Admin Dashboard Wrong Numbers for New Categories:**
-- Fixed `_check_goals_met` in scheduler.py returning True when rankings empty but papers exist (new categories in summary phase)
-- Fixed progress endpoint (`/api/admin/progress`) returning `total_papers: 0, goals_met: true` during summary phase. Now falls back to papers collection with `phase: "summaries"` indicator
-- Fixed status endpoint `papers_total_fetched` always showing `0` — now falls back to `db.papers.count_documents`
-- Added frontend "Generating summaries — X/Y papers ready" indicator for categories in summary phase
+**Model Correlation Page Fixes:**
+- Fixed GPT-5.2 missing from Model Correlation — MongoDB dot-in-key bug (gpt-5.2 stored as nested path). Normalized broken nested data on read + escape dots in future writes
+- Fixed SI bar charts stale — `/api/si-rating-stats` endpoint was deleted in previous cleanup. Added per-model distributions + raw_histogram (91 bins, 0.1 steps) to unified `/api/model-analysis` endpoint
+- Fixed "Average" tab crash — pearson_r undefined in avg_correlations → toFixed() crash. Added optional chaining + React error boundaries per section
+- Fixed Full Resolution toggle — raw_histogram was never computed for main distributions. Now included for all views
+- Frontend SI section now filters data client-side instead of fetching deleted endpoint
+
+**Scheduler + Admin Dashboard Fixes:**
+- Restored `_select_pairs` function (accidentally deleted, blocking ALL tournament matches on production)
+- Fixed `_check_goals_met` returning True when rankings empty but papers exist (new categories stuck in idle)
+- Fixed progress endpoint returning `total_papers: 0, goals_met: true` during summary phase
+- Fixed status endpoint `papers_total_fetched` always showing 0
+- Added frontend "Generating summaries — X/Y papers ready" indicator for summary phase
 
 ### Session: Apr 1, 2026
 
 **Scheduler Storm Bug Fix & Match Pruning:**
-- Removed "Rule 3" from `_select_pairs` which caused infinite repeat-match generation storms
-- Built admin endpoints to prune same-pair duplicates and cap per-paper matches
-- Added `/health` endpoint, fixed `analysis_store` DuplicateKey index issue
-- Human vs AI SE Benchmark alignment (6,833 pairs, 42.9% tie rate)
-- OpenSkill Integration (Thurstone-Mosteller 1-pass, 3-pass, 10-pass)
+- Removed "Rule 3" from `_select_pairs`, fixed stored-score misalignment
+- Built admin endpoints for pruning same-pair duplicates
+- OpenSkill Integration (Thurstone-Mosteller 1/3/10-pass)
 - Unified `/api/model-analysis` endpoint (consolidated 3 heavy endpoints)
-- Admin cache removal, 10s/15s auto-polling on React Admin components
-- Dead code cleanup (~1,576 lines of deprecated endpoints)
-
-### Session: Mar 25-28, 2026
-
-**Model Analysis & Dual-Score Architecture:**
-- Multi-method PW-vs-SI comparison tables
-- Incremental TrueSkill + Win Rate dual-score system
-- BT/TrueSkill scores normalized to Elo-like scale
-- Memory chart resolution fixes
-- Dead code audit & removal (8 functions, 313 lines)
-- `malloc_trim(0)` force_gc optimization
+- Dead code cleanup (~1,576 lines)
 
 ### Prior Sessions
-- DB-Backed Rankings (all 4 phases), production stability overhaul
-- Dark mode, infinite scroll, GZip compression
-- Dataset curation, benchmark refinements, methodology pages
-- Opus 4.6 accept/reject experiment (76% binary accuracy)
+- Dual-Score Incremental Architecture (TrueSkill + Win Rate)
+- DB-Backed Rankings, server-side pagination
+- Memory optimizations, WiredTiger cache cap
+- Dark mode, Human vs AI Benchmarks
+- Dataset curation, benchmark refinements
 
 ## Key Files
+- `/app/backend/services/model_analysis.py` — Unified model analysis computation, per-model SI distributions, broken-key normalizer
+- `/app/backend/services/scheduler.py` — Tournament loop, _select_pairs, _check_goals_met
+- `/app/backend/services/ranking.py` — TrueSkill scoring, model_stats dot-escape fix
 - `/app/backend/routers/admin.py` — Admin dashboard endpoints, progress/status
-- `/app/backend/routers/leaderboard.py` — Parallelized queries, paper detail
-- `/app/backend/services/scheduler.py` — Core tournament loop, summary generation
-- `/app/backend/services/ranking.py` — TrueSkill & OpenSkill scoring
-- `/app/backend/services/model_analysis.py` — Unified analysis computation
-- `/app/frontend/src/components/AdminOverview.jsx` — Per-category admin dashboard
+- `/app/frontend/src/pages/CorrelationPage.jsx` — Model Analysis page with error boundaries
+- `/app/frontend/src/components/SiRatingSection.jsx` — SI distributions with client-side model filtering
+- `/app/frontend/src/components/CorrelationSection.jsx` — Rank correlations with null-safe rendering
+
+## Known Issues
+- MongoDB dot-in-key: Existing production data has GPT model_stats stored as nested paths. Read-side normalizer handles this. A backfill would fix the underlying data.
+- Materials Science (cond-mat.mtrl-sci): 4 top-10 papers stuck at ~11% CI because all 49 unique pairs exhausted. Will heal as new papers are added.
 
 ## Prioritized Backlog
 
@@ -71,6 +72,7 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 - Complete Gmail congrats flow or remove unwired endpoints
 - Refactor monolithic `leaderboard.py` and `scheduler.py`
 - Mobile Twitter/X unfurling (BLOCKED on Cloudflare config)
+- Backfill GPT model_stats from nested to flat keys on production
 
 ### Backlog
 - New validation datasets from OpenReview

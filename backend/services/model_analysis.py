@@ -445,17 +445,22 @@ def _compute_si_stats(papers):
     arrays["subscore_avg"] = subscore_avgs
 
     bins = [round(1.0 + i * 0.5, 1) for i in range(19)]
+    raw_bins = [round(1.0 + i * 0.1, 1) for i in range(91)]
     distributions = {}
     for m in METRICS + ["subscore_avg"]:
         vals = arrays.get(m, [])
         if not vals:
             continue
         hist = Counter()
+        raw_hist = Counter()
         for v in vals:
             bucket = max(1.0, min(10.0, round(round(v * 2) / 2, 1)))
             hist[bucket] += 1
+            raw_bucket = max(1.0, min(10.0, round(v, 1)))
+            raw_hist[raw_bucket] += 1
         distributions[m] = {
             "histogram": [{"bin": b, "count": hist.get(b, 0)} for b in bins],
+            "raw_histogram": [{"bin": b, "count": raw_hist.get(b, 0)} for b in raw_bins],
             "mean": round(float(np.mean(vals)), 2),
             "median": round(float(np.median(vals)), 1),
             "std": round(float(np.std(vals, ddof=1)), 2) if len(vals) > 1 else 0,
@@ -553,12 +558,11 @@ def _compute_si_stats(papers):
             for v in vals:
                 bucket = max(1.0, min(10.0, round(round(v * 2) / 2, 1)))
                 hist[bucket] += 1
-                raw_bucket = round(v, 1)
+                raw_bucket = max(1.0, min(10.0, round(v, 1)))
                 raw_hist[raw_bucket] += 1
-            raw_bins = sorted(set(round(1.0 + i * 0.1, 1) for i in range(91)) | set(raw_hist.keys()))
             mk_dists[m] = {
                 "histogram": [{"bin": b, "count": hist.get(b, 0)} for b in bins],
-                "raw_histogram": [{"bin": b, "count": raw_hist.get(b, 0)} for b in raw_bins if raw_hist.get(b, 0) > 0],
+                "raw_histogram": [{"bin": b, "count": raw_hist.get(b, 0)} for b in raw_bins],
                 "mean": round(float(np.mean(vals)), 2),
                 "median": round(float(np.median(vals)), 1),
                 "std": round(float(np.std(vals, ddof=1)), 2) if len(vals) > 1 else 0,
