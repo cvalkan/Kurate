@@ -2827,25 +2827,31 @@ async def clear_experiment_cache(request: Request, name: str = Query(None)):
     return {"status": "ok", "cleared": cleared, "reloaded_from_json": reloaded}
 
 
+_openskill_compute_lock = asyncio.Lock()
+
 @router.post("/refresh-openskill", dependencies=[Depends(verify_admin)])
 async def refresh_openskill(request: Request, category: str = Query(None)):
-    """Recompute OpenSkill cache for a category (or __all__). Runs in background."""
+    """Recompute OpenSkill cache for a category (or __all__). Queued sequentially."""
     cat_key = category or "__all__"
     from services.model_analysis import compute_openskill_cache
 
+    if _openskill_compute_lock.locked():
+        return {"status": "queued", "category": cat_key, "message": "Another OpenSkill computation is running. This will start after it finishes."}
+
     async def _compute():
-        try:
-            logger.info(f"Computing OpenSkill cache for {cat_key}...")
-            result = await compute_openskill_cache(category)
-            if result.get("status") == "ok":
-                await db.analysis_store.update_one(
-                    {"_type": "openskill-cache", "key": cat_key},
-                    {"$set": {**result, "_type": "openskill-cache", "key": cat_key}},
-                    upsert=True,
-                )
-                logger.info(f"OpenSkill cache updated for {cat_key} ({result.get('compute_time_s', '?')}s)")
-        except Exception as e:
-            logger.error(f"OpenSkill cache compute failed for {cat_key}: {e}")
+        async with _openskill_compute_lock:
+            try:
+                logger.info(f"Computing OpenSkill cache for {cat_key}...")
+                result = await compute_openskill_cache(category)
+                if result.get("status") == "ok":
+                    await db.analysis_store.update_one(
+                        {"_type": "openskill-cache", "key": cat_key},
+                        {"$set": {**result, "_type": "openskill-cache", "key": cat_key}},
+                        upsert=True,
+                    )
+                    logger.info(f"OpenSkill cache updated for {cat_key} ({result.get('compute_time_s', '?')}s)")
+            except Exception as e:
+                logger.error(f"OpenSkill cache compute failed for {cat_key}: {e}")
 
     asyncio.create_task(_compute())
     return {"status": "started", "category": cat_key}

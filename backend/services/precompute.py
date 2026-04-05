@@ -227,28 +227,9 @@ async def _compute_validation_datasets():
 
 
 async def _compute_analysis_caches():
-    """Compute Model Analysis page data per category using unified compute_model_analysis."""
-    from services.model_analysis import compute_model_analysis
-    from core.config import CATEGORIES
-
-    results = {}
-    categories = [None]  # None = all categories
-    for cat_info in CATEGORIES:
-        cat_id = cat_info["id"] if isinstance(cat_info, dict) else cat_info
-        categories.append(cat_id)
-
-    for cat in categories:
-        cat_key = cat or "__all__"
-        try:
-            result = await asyncio.wait_for(compute_model_analysis(cat), timeout=120)
-            if result.get("status") == "ok":
-                results[f"model-analysis:{cat_key}"] = result
-        except Exception as e:
-            logger.warning(f"  precompute model-analysis/{cat_key}: {e}")
-        await asyncio.sleep(0)
-
-    logger.info(f"  precompute analysis: {len(results)} endpoints across {len(categories)} categories")
-    return results
+    """No longer needed — Model Analysis computes live from rankings.
+    OpenSkill is cached separately via admin refresh buttons."""
+    return {}
 
 
 def load_precomputed():

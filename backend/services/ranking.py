@@ -832,34 +832,8 @@ async def rerank_category_light(db, category: str):
     # Refresh derived fields (gap scores, community likes)
     await _refresh_derived_fields(db, category)
 
-    # Refresh pre-aggregated analysis store in background (guarded against concurrent runs)
-    asyncio.create_task(_refresh_analysis_store(db, category))
-    asyncio.create_task(_refresh_analysis_store(db, None))
-
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
-
-
-_analysis_refresh_lock = asyncio.Lock()
-
-async def _refresh_analysis_store(db, category: str):
-    """Refresh pre-aggregated analysis documents for a category. Runs in background after rerank."""
-    if _analysis_refresh_lock.locked():
-        return  # Skip if another refresh is already running
-    async with _analysis_refresh_lock:
-        try:
-            from services.model_analysis import compute_model_analysis
-            cat_key = category or "__all__"
-            result = await compute_model_analysis(category)
-            if result.get("status") == "ok":
-                await db.analysis_store.update_one(
-                    {"_type": "model-analysis", "key": cat_key},
-                    {"$set": {**result, "_type": "model-analysis", "key": cat_key}},
-                    upsert=True,
-                )
-        except Exception as e:
-            from core.config import logger
-            logger.debug(f"Analysis store refresh for {category}: {e}")
 
 
 
