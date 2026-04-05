@@ -523,8 +523,8 @@ def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
                 # Add combined OS rows to per_model rows
                 for row in os_data.get("combined", []):
                     pm["rows"].append(row)
-                # Add combined OS rows to controlled_rows too
-                for row in os_data.get("combined", []):
+                # Add within-model OS rows to controlled_rows (NOT combined — controlled must use single-model data)
+                for row in os_data.get("within", []):
                     pm["controlled_rows"].append(row)
             wm = pw_vs_si.get("within_model", {}).get(si_mk)
             if wm:
