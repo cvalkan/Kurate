@@ -624,6 +624,22 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                 return_document=True,
                 projection={"_id": 0, "wins": 1, "comparisons": 1},
             )
+            if not doc:
+                # Ranking doesn't exist yet (race: compare loop ran before fetch loop created it).
+                # Create the ranking entry, then retry the increment.
+                paper_doc = await db.papers.find_one(
+                    {"id": paper_id},
+                    {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+                     "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1},
+                )
+                if paper_doc:
+                    await insert_ranking_for_paper(db, paper_doc)
+                    doc = await db.rankings.find_one_and_update(
+                        {"paper_id": paper_id, "category": category},
+                        {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
+                        return_document=True,
+                        projection={"_id": 0, "wins": 1, "comparisons": 1},
+                    )
             if doc:
                 new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
                 await db.rankings.update_one(
@@ -640,6 +656,20 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                     return_document=True,
                     projection={"_id": 0, "wins": 1, "comparisons": 1},
                 )
+                if not doc:
+                    paper_doc = await db.papers.find_one(
+                        {"id": paper_id},
+                        {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+                         "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1},
+                    )
+                    if paper_doc:
+                        await insert_ranking_for_paper(db, paper_doc)
+                        doc = await db.rankings.find_one_and_update(
+                            {"paper_id": paper_id, "category": category},
+                            {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
+                            return_document=True,
+                            projection={"_id": 0, "wins": 1, "comparisons": 1},
+                        )
                 if doc:
                     new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
                     await db.rankings.update_one(
