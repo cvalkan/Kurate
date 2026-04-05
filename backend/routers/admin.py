@@ -2182,12 +2182,12 @@ async def get_system_logs(
         import re as _re
         query["label"] = {"$regex": _re.escape(label), "$options": "i"}
 
-    # All timeframes: return raw data points. No downsampling.
-    # With 5-min heartbeats: 12h=144, 24h=288, 3d=864, 7d=2016 points.
-    # This ensures all views are visually consistent for overlapping periods.
+    # Cap to limit (default 2000). The frontend only needs mem + repair_queue logs
+    # for chart rendering. Without the cap, production returns 130K+ entries (17MB+)
+    # which crashes the browser with "Maximum call stack size exceeded".
     logs = await db.system_logs.find(
         query, {"_id": 0}
-    ).sort("ts", -1).to_list(None)
+    ).sort("ts", -1).to_list(length=limit)
 
     # Convert datetime to ISO string and ensure clean integer rss_mb
     for log in logs:
