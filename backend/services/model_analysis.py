@@ -778,9 +778,9 @@ def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
         pair_parts = row["pair"].split(" vs ")
         if len(pair_parts) != 2:
             continue
-        # Find model keys from short names
-        m1_key = next((k for k, v in _SHORT_NAMES.items() if v == pair_parts[0]), None)
-        m2_key = next((k for k, v in _SHORT_NAMES.items() if v == pair_parts[1]), None)
+        # Find model keys from short names (normalize to underscore for OS cache lookup)
+        m1_key = next((k.replace(".", "_") for k, v in _SHORT_NAMES.items() if v == pair_parts[0]), None)
+        m2_key = next((k.replace(".", "_") for k, v in _SHORT_NAMES.items() if v == pair_parts[1]), None)
         if not m1_key or not m2_key:
             continue
         for os_key, os_data in [("openskill", "os1"), ("openskill3", "os3"), ("openskill10", "os10")]:
