@@ -2171,8 +2171,9 @@ async def get_system_logs(
 ):
     """Query persisted system logs (memory tracking, events). Stored 7 days.
     
-    For time ranges > 24h, downsamples mem logs to one entry per time bucket
-    (max RSS per bucket) to ensure the full range is visible on charts.
+    Returns all non-mem logs raw (repair_queue, slow_query, events — low volume).
+    For mem logs: downsamples to 1 point per minute (max RSS per bucket) to keep
+    chart resolution high without sending 100K+ entries to the browser.
     """
     from datetime import datetime, timezone, timedelta
     query = {"ts": {"$gte": datetime.now(timezone.utc) - timedelta(hours=hours)}}
@@ -2182,18 +2183,60 @@ async def get_system_logs(
         import re as _re
         query["label"] = {"$regex": _re.escape(label), "$options": "i"}
 
-    # Cap to limit (default 2000). The frontend only needs mem + repair_queue logs
-    # for chart rendering. Without the cap, production returns 130K+ entries (17MB+)
-    # which crashes the browser with "Maximum call stack size exceeded".
-    logs = await db.system_logs.find(
-        query, {"_id": 0}
-    ).sort("ts", -1).to_list(length=limit)
+    # Fetch non-mem logs raw (low volume: repair_queue, slow_query, events)
+    non_mem_query = {**query, "level": {"$ne": "mem"}} if not level else query
+    non_mem_logs = []
+    if not level or level != "mem":
+        non_mem_logs = await db.system_logs.find(
+            non_mem_query, {"_id": 0}
+        ).sort("ts", -1).to_list(length=min(limit, 5000))
 
-    # Convert datetime to ISO string and ensure clean integer rss_mb
+    # Fetch mem logs with server-side downsampling: 1 point per minute (max RSS per bucket)
+    mem_logs = []
+    if not level or level == "mem":
+        mem_query = {**query, "level": "mem"}
+        # Use aggregation to downsample: group by minute, take max RSS
+        bucket_seconds = 60  # 1 minute buckets
+        pipeline = [
+            {"$match": mem_query},
+            {"$addFields": {
+                "bucket": {"$subtract": [
+                    {"$toLong": "$ts"},
+                    {"$mod": [{"$toLong": "$ts"}, bucket_seconds * 1000]}
+                ]}
+            }},
+            {"$sort": {"rss_mb": -1}},  # Sort by RSS desc within each group
+            {"$group": {
+                "_id": "$bucket",
+                "ts": {"$first": "$ts"},
+                "rss_mb": {"$max": "$rss_mb"},
+                "label": {"$first": "$label"},
+            }},
+            {"$sort": {"_id": 1}},
+            {"$limit": hours * 60},  # Max 1 point per minute
+        ]
+        try:
+            async for doc in db.system_logs.aggregate(pipeline):
+                mem_logs.append({
+                    "ts": doc["ts"],
+                    "level": "mem",
+                    "rss_mb": round(doc["rss_mb"]) if doc.get("rss_mb") else None,
+                    "label": doc.get("label", ""),
+                })
+        except Exception:
+            # Fallback: raw query with limit if aggregation fails
+            raw = await db.system_logs.find(
+                mem_query, {"_id": 0}
+            ).sort("ts", -1).to_list(length=min(limit, 5000))
+            mem_logs = raw
+
+    logs = non_mem_logs + mem_logs
+
+    # Convert datetime to ISO string
     for log in logs:
-        if "ts" in log:
+        if "ts" in log and hasattr(log["ts"], "isoformat"):
             log["ts"] = log["ts"].isoformat()
-        if "rss_mb" in log:
+        if "rss_mb" in log and log["rss_mb"] is not None:
             log["rss_mb"] = round(log["rss_mb"])
         log.pop("_id", None)
     return {"logs": logs, "count": len(logs)}
