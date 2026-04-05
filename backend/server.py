@@ -280,44 +280,56 @@ async def startup():
 
 
 async def _retry_missing_summaries():
-    """Retry summary generation for papers in rankings that lack summaries.
+    """Retry summary generation for papers missing the required summary.
 
-    These papers exist in rankings (were fetched and seeded) but their summary
-    generation failed. Without summaries, they can't be matched. This task
-    finds them and retries summary generation.
+    Queries the papers collection (NOT rankings) for all papers in active
+    categories that lack the required summary key. Delegates to the existing
+    _generate_pending_summaries function which handles the actual generation,
+    storage, rating parsing, and progress tracking.
+
+    Runs once on startup after a short delay. The scheduler's regular fetch
+    cycle handles ongoing generation for new papers.
     """
-    await asyncio.sleep(30)  # Wait for startup to settle
-    from core.memlog import log_mem, force_gc
-    from services.scheduler import _pick_summary_source, _summary_model_key, _SUMMARY_KEY_FALLBACKS, _get_paper_summary
+    await asyncio.sleep(60)  # Wait for scheduler and settings to be ready
+    from core.memlog import log_mem
+    from services.scheduler import (
+        _pick_summary_source, _summary_model_key, _SUMMARY_KEY_FALLBACKS,
+        _generate_pending_summaries, _get_cat_status,
+    )
 
-    # Determine the summary key the comparison pipeline uses
     settings = await db.settings.find_one({"key": "global"}) or {}
+    active_cats = settings.get("active_categories", [])
     summary_model = _pick_summary_source(settings.get("summary_source", "thinking"))
     required_key = _summary_model_key(summary_model)
     fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
     all_keys = [required_key] + fallback_keys
 
-    # Find papers in rankings without the required summary
-    ranked_ids = set()
-    async for doc in db.rankings.find({}, {"_id": 0, "paper_id": 1}):
-        ranked_ids.add(doc["paper_id"])
+    # Find papers in active categories missing the required summary
+    total_missing = 0
+    for cat in active_cats:
+        summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
+        summary_filter["categories.0"] = cat
+        total_with = await db.papers.count_documents(summary_filter)
+        total_all = await db.papers.count_documents({"categories.0": cat})
+        missing = total_all - total_with
+        if missing > 0:
+            total_missing += missing
+            logger.info(f"[retry-summaries] {cat}: {missing} of {total_all} papers missing {required_key} summary")
 
-    missing = []
-    for pid in ranked_ids:
-        paper = await db.papers.find_one({"id": pid}, {"_id": 0, "id": 1, "summaries": 1, "title": 1})
-        if not paper:
-            continue
-        has_summary = any(paper.get("summaries", {}).get(k) for k in all_keys)
-        if not has_summary:
-            missing.append(pid)
-
-    if not missing:
+    if total_missing == 0:
+        log_mem("[retry-summaries] All papers have required summaries")
         return
 
-    logger.info(f"[retry-summaries] Found {len(missing)} papers without {required_key} summary, retrying...")
-    # Don't retry all — the regular summary generation pipeline handles this.
-    # Just log the count so the admin knows.
-    log_mem(f"[retry-summaries] {len(missing)} papers need summary generation")
+    log_mem(f"[retry-summaries] {total_missing} papers across {len(active_cats)} categories need summaries, generating...")
+
+    # Use the existing summary generation pipeline for each category
+    for cat in active_cats:
+        try:
+            await _generate_pending_summaries(category=cat)
+        except Exception as e:
+            logger.warning(f"[retry-summaries] {cat} failed: {e}")
+
+    log_mem(f"[retry-summaries] Done")
 
 
 
