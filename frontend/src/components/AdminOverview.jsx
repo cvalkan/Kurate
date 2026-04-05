@@ -341,14 +341,12 @@ export function AdminOverview({
                         ? <CheckCircle2 className="h-3 w-3 text-green-600" />
                         : <Clock className="h-3 w-3 text-amber-500" />
                       }
-                      <span className={goal.met ? "text-green-600" : "text-muted-foreground"}>{goal.label}</span>
+                      <span className="text-muted-foreground">{goal.label}</span>
                     </div>
                     {!goal.met && (
                       <span className="font-mono text-muted-foreground">
                         {goal.median_margin != null && (
-                          <span className={goal.median_margin <= (progress.goal2?.label?.match(/\d+/)?.[0] || 12) ? "text-green-600" : "text-amber-500"}>
-                            median={goal.median_margin}%
-                          </span>
+                          <span>median={goal.median_margin}%</span>
                         )}
                         {goal.median_margin != null && goal.done != null && " · "}
                         {goal.done != null && goal.total != null && `${goal.done}/${goal.total}`}
@@ -379,9 +377,9 @@ export function AdminOverview({
             </span>
             <span>
               {progress.goals_met ? (
-                <span className="text-green-600 font-medium">Converged</span>
+                <span className="text-muted-foreground font-medium">Converged</span>
               ) : !progress.compare_paused && !progress.global_paused ? (
-                <span className="text-accent font-medium">Running</span>
+                <span className="text-muted-foreground font-medium">Running</span>
               ) : null}
             </span>
           </div>
