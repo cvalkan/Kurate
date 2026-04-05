@@ -644,6 +644,21 @@ async def get_progress_estimate(category: str = "cs.RO"):
     cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
     cat_total_in_db = await db.papers.count_documents({"categories.0": category})
 
+    # Detect pair exhaustion: papers that need more matches but have played everyone
+    max_possible_pairs = total_papers * (total_papers - 1) // 2
+    pair_exhausted = False
+    exhausted_papers = 0
+    if not (goal1_met and goal2_met) and total_papers > 1:
+        # Check if any unmet paper has comparisons >= total_papers - 1
+        for e in entries:
+            pid = e["paper_id"]
+            target = ci_target if pid in top_k_ids else ci_target_general
+            margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
+            if margin > target and e.get("comparisons", 0) >= total_papers - 1:
+                exhausted_papers += 1
+        if exhausted_papers > 0:
+            pair_exhausted = True
+
     result = {
         "total_papers": total_papers,
         "total_in_db": cat_total_in_db,
@@ -656,6 +671,9 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "compare_paused": compare_paused,
         "category": category,
         "goals_met": bool(goal1_met and goal2_met and goal3_met),
+        "pair_exhausted": pair_exhausted,
+        "exhausted_papers": exhausted_papers,
+        "max_possible_pairs": max_possible_pairs,
         "goal1": {
             "met": bool(goal1_met),
             "label": f"General CI \u2264 {ci_target_general}%",

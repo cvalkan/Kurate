@@ -349,6 +349,16 @@ export function AdminOverview({
             </div>
           )}
 
+          {/* Pair exhaustion notice */}
+          {progress.pair_exhausted && !progress.goals_met && (
+            <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2.5 mb-2" data-testid="pair-exhausted-notice">
+              <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <div>
+                <span className="font-medium">Temporarily stalled</span> — {progress.exhausted_papers} paper{progress.exhausted_papers > 1 ? "s" : ""} need{progress.exhausted_papers === 1 ? "s" : ""} tighter CI but {progress.exhausted_papers === 1 ? "has" : "have"} been compared against all {progress.total_papers - 1} opponents. Will resume when new papers are added to this category.
+              </div>
+            </div>
+          )}
+
           {/* Remaining estimate + status */}
           <div className="text-xs text-muted-foreground border-t border-border/50 pt-2 mt-2 flex items-center justify-between">
             <span>
