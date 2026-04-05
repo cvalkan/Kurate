@@ -392,6 +392,30 @@ async def compute_openskill_cache(category: Optional[str] = None):
                             "kendall_tau": round(_safe_float(kt_r), 6),
                         })
 
+    # OS vs OS correlations (1p vs 3p, 1p vs 10p, 3p vs 10p)
+    os_variants = [("openskill", os1_global, "OpenSkill 1p"),
+                   ("openskill3", os3_global, "OpenSkill 3p"),
+                   ("openskill10", os10_global, "OpenSkill 10p")]
+    for i in range(len(os_variants)):
+        for j in range(i + 1, len(os_variants)):
+            k1, s1, l1 = os_variants[i]
+            k2, s2, l2 = os_variants[j]
+            if not s1 or not s2:
+                continue
+            common = sorted(set(s1.keys()) & set(s2.keys()))
+            if len(common) >= 10:
+                v1 = [s1[p] for p in common]
+                v2 = [s2[p] for p in common]
+                sp_r, _ = scipy_stats.spearmanr(v1, v2)
+                kt_r, _ = scipy_stats.kendalltau(v1, v2)
+                if not np.isnan(sp_r):
+                    scoring_os_correlations.append({
+                        "method1": k1, "method2": k2,
+                        "label": f"{l1} vs {l2}",
+                        "spearman_rho": round(_safe_float(sp_r), 6),
+                        "kendall_tau": round(_safe_float(kt_r), 6),
+                    })
+
     # Pre-compute PW vs SI OpenSkill rows (combined + per-model)
     # These get injected into the live pw_vs_si tables by the merge function
     pw_papers = [p for p in papers if p.get("comparisons", 0) >= 3]
