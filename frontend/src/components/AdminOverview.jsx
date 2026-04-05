@@ -89,19 +89,31 @@ export function AdminOverview({
 
   const [backfilling, setBackfilling] = useState(false);
   const [corrRefreshing, setCorrRefreshing] = useState(false);
+  const [corrAllRefreshing, setCorrAllRefreshing] = useState(false);
 
-  const refreshCorrelations = async () => {
+  const refreshCorrelationsCategory = async () => {
     setCorrRefreshing(true);
     try {
-      // Clear ALL model-analysis cache (all categories + __all__)
-      await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis`, {}, { headers: getAdminHeaders() });
-      toast.info("Refreshing Model Analysis for all categories... (may take 10-15 min in background)");
-      // Trigger recompute for current category first (fastest feedback)
-      axios.get(`${API}/api/model-analysis${adminCat ? `?category=${adminCat}` : ""}`).catch(() => {});
+      await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis&key=${adminCat}`, {}, { headers: getAdminHeaders() });
+      toast.info(`Refreshing Model Analysis for ${adminCat}... (1-3 min)`);
+      axios.get(`${API}/api/model-analysis?category=${adminCat}`).catch(() => {});
     } catch {
-      toast.error("Failed to refresh correlations");
+      toast.error("Failed to refresh");
     } finally {
       setTimeout(() => setCorrRefreshing(false), 3000);
+    }
+  };
+
+  const refreshCorrelationsAll = async () => {
+    setCorrAllRefreshing(true);
+    try {
+      await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis`, {}, { headers: getAdminHeaders() });
+      toast.info("Refreshing Model Analysis for all categories... (10-15 min in background)");
+      axios.get(`${API}/api/model-analysis?category=${adminCat}`).catch(() => {});
+    } catch {
+      toast.error("Failed to refresh");
+    } finally {
+      setTimeout(() => setCorrAllRefreshing(false), 3000);
     }
   };
 
@@ -367,9 +379,9 @@ export function AdminOverview({
                 <>~<span className="font-mono text-foreground font-medium">{progress.estimated_matches_remaining}</span> matches remaining</>
               )}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
-                onClick={refreshCorrelations}
+                onClick={refreshCorrelationsCategory}
                 disabled={corrRefreshing}
                 variant="outline"
                 size="sm"
@@ -377,7 +389,18 @@ export function AdminOverview({
                 data-testid="refresh-correlations-btn"
               >
                 <RefreshCw className={`h-3 w-3 ${corrRefreshing ? "animate-spin" : ""}`} />
-                {corrRefreshing ? "Refreshing..." : "Refresh All Model Analysis"}
+                {corrRefreshing ? "Refreshing..." : "Refresh Category"}
+              </Button>
+              <Button
+                onClick={refreshCorrelationsAll}
+                disabled={corrAllRefreshing}
+                variant="outline"
+                size="sm"
+                className="gap-1 text-[10px] h-6 px-2"
+                data-testid="refresh-correlations-all-btn"
+              >
+                <RefreshCw className={`h-3 w-3 ${corrAllRefreshing ? "animate-spin" : ""}`} />
+                {corrAllRefreshing ? "Refreshing..." : "Refresh All"}
               </Button>
               <span>
                 {progress.goals_met ? (
