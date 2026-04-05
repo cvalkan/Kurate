@@ -1328,38 +1328,27 @@ _analysis_compute_lock = asyncio.Lock()
 async def get_model_analysis(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
 ):
-    """Unified model analysis endpoint. Returns ALL tables in one response.
-    Loads matches once, computes OpenSkill once, caches as a single document."""
+    """Live model analysis with optional cached OpenSkill.
+    WR/TS/SI data computed fresh from rankings (~200ms).
+    OpenSkill columns merged from cache if available."""
     cat_key = category or "__all__"
-    doc = await db.analysis_store.find_one({"_type": "model-analysis", "key": cat_key}, {"_id": 0})
-    if doc:
-        doc.pop("_type", None)
-        doc.pop("key", None)
-        if "models" in doc:
-            doc["models"] = [m for m in doc["models"] if m.get("total_matches", 0) > 0]
-        return doc
-    if not _analysis_prewarm_done:
-        return {"status": "warming_up", "message": "Model analysis is being computed. Please refresh in a minute."}
-    if _analysis_compute_lock.locked():
-        return {"status": "warming_up", "message": "Another category is being computed. This one is queued."}
-    async with _analysis_compute_lock:
-        # Re-check cache (another request may have computed it while we waited)
-        doc = await db.analysis_store.find_one({"_type": "model-analysis", "key": cat_key}, {"_id": 0})
-        if doc:
-            doc.pop("_type", None)
-            doc.pop("key", None)
-            if "models" in doc:
-                doc["models"] = [m for m in doc["models"] if m.get("total_matches", 0) > 0]
-            return doc
-        from services.model_analysis import compute_model_analysis
-        result = await compute_model_analysis(category)
-        if result.get("status") == "ok":
-            await db.analysis_store.update_one(
-                {"_type": "model-analysis", "key": cat_key},
-                {"$set": {**result, "_type": "model-analysis", "key": cat_key}},
-                upsert=True,
-            )
-        return result
+
+    # Always compute live (fast — reads indexed rankings only)
+    from services.model_analysis import compute_live_analysis, merge_openskill_into_live
+    live = await compute_live_analysis(category)
+    if live.get("status") != "ok":
+        return live
+
+    # Merge cached OpenSkill if available
+    os_doc = await db.analysis_store.find_one(
+        {"_type": "openskill-cache", "key": cat_key}, {"_id": 0}
+    )
+    if os_doc:
+        os_doc.pop("_type", None)
+        os_doc.pop("key", None)
+        live = merge_openskill_into_live(live, os_doc)
+
+    return live
 
 @router.get("/convergence")
 async def get_convergence(

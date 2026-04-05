@@ -197,7 +197,10 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
               const contested = stats.contested || {};
               return (
                 <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
-                  <div className="text-[11px] text-muted-foreground mb-2">{pair.replace(" vs ", " \u2194 ")}</div>
+                  <div className="text-[11px] text-muted-foreground mb-2">{pair.split(" vs ").map(k => {
+                    const m = models.find(mo => mo.key === k);
+                    return m ? m.short : k.split("/").pop();
+                  }).join(" \u2194 ")}</div>
                   <div className="flex items-center gap-3 mb-2">
                     <div className="font-mono text-xl font-bold">{stats.rate}%</div>
                     <div className="text-[11px] text-muted-foreground">

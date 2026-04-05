@@ -94,9 +94,8 @@ export function AdminOverview({
   const refreshCorrelationsCategory = async () => {
     setCorrRefreshing(true);
     try {
-      await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis&key=${adminCat}`, {}, { headers: getAdminHeaders() });
-      toast.info(`Refreshing Model Analysis for ${adminCat}... (1-3 min)`);
-      axios.get(`${API}/api/model-analysis?category=${adminCat}`).catch(() => {});
+      await axios.post(`${API}/api/admin/refresh-openskill?category=${adminCat}`, {}, { headers: getAdminHeaders() });
+      toast.info(`Recomputing OpenSkill for ${adminCat}... (1-3 min in background)`);
     } catch {
       toast.error("Failed to refresh");
     } finally {
@@ -107,10 +106,8 @@ export function AdminOverview({
   const refreshCorrelationsAll = async () => {
     setCorrAllRefreshing(true);
     try {
-      // Only clear the "All Categories" aggregate — leave per-category caches intact
-      await axios.post(`${API}/api/admin/clear-analysis-cache?type=model-analysis&key=__all__`, {}, { headers: getAdminHeaders() });
-      toast.info("Refreshing 'All Categories' Model Analysis... (2-3 min)");
-      axios.get(`${API}/api/model-analysis`).catch(() => {});
+      await axios.post(`${API}/api/admin/refresh-openskill`, {}, { headers: getAdminHeaders() });
+      toast.info("Recomputing OpenSkill for 'All Categories'... (2-3 min in background)");
     } catch {
       toast.error("Failed to refresh");
     } finally {

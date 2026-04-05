@@ -689,33 +689,30 @@ async def _prewarm_all_experiment_caches():
 
 
 async def _prewarm_model_analysis_caches():
-    """Pre-warm model-correlation and scoring-method caches for all categories.
-
-    Runs after heavy startup tasks. Checks analysis_store for existing caches
-    and only computes missing ones. This ensures the Model Analysis page loads
-    instantly after every deployment.
+    """Pre-warm OpenSkill caches for categories that don't have them.
+    
+    Live analysis (WR/TS/SI) is always instant from rankings — no caching needed.
+    Only OpenSkill requires match replay and benefits from background pre-computation.
     """
-    await asyncio.sleep(15)  # Wait for rankings to be ready
+    await asyncio.sleep(15)
     from core.memlog import log_mem, force_gc
     from core.config import CATEGORIES
 
     try:
-        # Get all active categories from tournaments
         all_cats = set()
         async for doc in db.rankings.aggregate([{"$group": {"_id": "$category"}}]):
             all_cats.add(doc["_id"])
         if not all_cats:
             all_cats = set(CATEGORIES.keys())
 
-        # Check which categories already have cached model-analysis
+        # Check which categories already have cached OpenSkill
         cached = set()
         async for doc in db.analysis_store.find(
-            {"_type": "model-analysis"}, {"_id": 0, "key": 1}
+            {"_type": "openskill-cache"}, {"_id": 0, "key": 1}
         ):
             cached.add(doc.get("key"))
 
-        # Compute missing categories (smallest first for quick wins)
-        from services.model_analysis import compute_model_analysis
+        from services.model_analysis import compute_openskill_cache
         cat_sizes = []
         for cat in all_cats:
             n = await db.rankings.count_documents({"category": cat})
@@ -726,39 +723,36 @@ async def _prewarm_model_analysis_caches():
             if cat in cached:
                 continue
             try:
-                logger.info(f"[prewarm] Computing model-analysis for {cat} ({n_papers} papers)...")
-                result = await compute_model_analysis(cat)
+                logger.info(f"[prewarm] Computing OpenSkill cache for {cat} ({n_papers} papers)...")
+                result = await compute_openskill_cache(cat)
                 if result.get("status") == "ok":
                     await db.analysis_store.update_one(
-                        {"_type": "model-analysis", "key": cat},
-                        {"$set": {**result, "_type": "model-analysis", "key": cat}},
+                        {"_type": "openskill-cache", "key": cat},
+                        {"$set": {**result, "_type": "openskill-cache", "key": cat}},
                         upsert=True,
                     )
                 force_gc()
                 await asyncio.sleep(2)
             except Exception as e:
-                logger.warning(f"[prewarm] model-analysis {cat} failed: {e}")
+                logger.warning(f"[prewarm] OpenSkill {cat} failed: {e}")
 
-        # "All Categories"
         if "__all__" not in cached:
             try:
-                logger.info("[prewarm] Computing model-analysis for All Categories...")
-                result = await compute_model_analysis(None)
+                logger.info("[prewarm] Computing OpenSkill cache for All Categories...")
+                result = await compute_openskill_cache(None)
                 if result.get("status") == "ok":
                     await db.analysis_store.update_one(
-                        {"_type": "model-analysis", "key": "__all__"},
-                        {"$set": {**result, "_type": "model-analysis", "key": "__all__"}},
+                        {"_type": "openskill-cache", "key": "__all__"},
+                        {"$set": {**result, "_type": "openskill-cache", "key": "__all__"}},
                         upsert=True,
                     )
                 force_gc()
             except Exception as e:
-                logger.warning(f"[prewarm] model-analysis __all__ failed: {e}")
+                logger.warning(f"[prewarm] OpenSkill __all__ failed: {e}")
 
-        logger.info("[prewarm] Model analysis caches ready")
-        import routers.leaderboard as _lb
-        _lb._analysis_prewarm_done = True
+        logger.info("[prewarm] OpenSkill caches ready")
     except Exception as e:
-        logger.warning(f"[prewarm] Model analysis cache warming failed: {e}")
+        logger.warning(f"[prewarm] OpenSkill cache warming failed: {e}")
 
     await asyncio.sleep(8)  # Wait for leaderboard cache to be ready
     try:

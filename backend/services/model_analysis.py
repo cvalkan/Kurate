@@ -417,6 +417,417 @@ async def compute_model_analysis(category: Optional[str] = None):
     }
 
 
+def _normalize_model_stats(papers):
+    """Extract and normalize per-model stats from rankings docs.
+    Handles MongoDB dot-in-key bug (flat, nested, and mixed keys with merge).
+    Returns (model_paper_stats, model_paper_ts, model_keys, model_wr)."""
+    model_paper_stats = {}
+    model_paper_ts = {}
+    for p in papers:
+        ms = p.get("model_stats")
+        if ms and isinstance(ms, dict):
+            normalized = {}
+            for mk, stats in ms.items():
+                safe_mk = mk.replace(".", "_")
+                if isinstance(stats, dict) and stats.get("total") is not None:
+                    if safe_mk in normalized:
+                        normalized[safe_mk] = {
+                            "total": normalized[safe_mk].get("total", 0) + stats.get("total", 0),
+                            "wins": normalized[safe_mk].get("wins", 0) + stats.get("wins", 0),
+                        }
+                    else:
+                        normalized[safe_mk] = stats
+                elif isinstance(stats, dict):
+                    for sub_key, sub_val in stats.items():
+                        if isinstance(sub_val, dict) and sub_val.get("total") is not None:
+                            safe_key = f"{mk}.{sub_key}".replace(".", "_")
+                            if safe_key in normalized:
+                                normalized[safe_key] = {
+                                    "total": normalized[safe_key].get("total", 0) + sub_val.get("total", 0),
+                                    "wins": normalized[safe_key].get("wins", 0) + sub_val.get("wins", 0),
+                                }
+                            else:
+                                normalized[safe_key] = sub_val
+            for mk, stats in normalized.items():
+                model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
+        mts = p.get("model_ts")
+        if mts and isinstance(mts, dict):
+            for mk, ts_data in mts.items():
+                safe_mk = mk.replace(".", "_")
+                if isinstance(ts_data, dict) and ts_data.get("mu"):
+                    model_paper_ts.setdefault(safe_mk, {})[p["paper_id"]] = ts_data["mu"]
+                elif isinstance(ts_data, dict):
+                    for sub_key, sub_val in ts_data.items():
+                        if isinstance(sub_val, dict) and sub_val.get("mu"):
+                            safe_key = f"{mk}.{sub_key}".replace(".", "_")
+                            model_paper_ts.setdefault(safe_key, {})[p["paper_id"]] = sub_val["mu"]
+
+    model_keys = sorted(mk for mk in model_paper_stats
+                        if sum(s.get("total", 0) for s in model_paper_stats[mk].values()) > 0)
+
+    model_wr = {}
+    for mk in model_keys:
+        model_wr[mk] = {}
+        for pid, s in model_paper_stats[mk].items():
+            if s.get("total", 0) >= MIN_MATCHES:
+                model_wr[mk][pid] = (s.get("wins", 0) + 0.5) / (s.get("total", 0) + 1.0)
+
+    return model_paper_stats, model_paper_ts, model_keys, model_wr
+
+
+async def compute_live_analysis(category: Optional[str] = None):
+    """Fast live computation from rankings only — no match loading, no OpenSkill.
+    Returns all tables with WR/TS data. OpenSkill columns left empty for merge."""
+    t_start = time.perf_counter()
+
+    query = {"category": category} if category else {}
+    papers = []
+    async for doc in db.rankings.find(query, {
+        "_id": 0, "paper_id": 1, "title": 1, "category": 1,
+        "score": 1, "ts_score": 1, "comparisons": 1,
+        "model_stats": 1, "model_ts": 1, "si_ratings": 1,
+    }):
+        papers.append(doc)
+
+    if len(papers) < 10:
+        return {"status": "insufficient_data", "n_papers": len(papers)}
+
+    paper_categories = {p["paper_id"]: p.get("category") for p in papers}
+    model_paper_stats, model_paper_ts, model_keys, model_wr = _normalize_model_stats(papers)
+
+    wr_scores = {p["paper_id"]: p["score"] for p in papers if p.get("score") is not None}
+    ts_scores = {p["paper_id"]: p["ts_score"] for p in papers if p.get("ts_score") is not None}
+
+    # --- Model summaries ---
+    model_summaries = []
+    for mk in model_keys:
+        total = sum(s.get("total", 0) for s in model_paper_stats[mk].values())
+        model_summaries.append({
+            "key": mk, "label": _short(mk), "short": _short(mk),
+            "total_matches": total, "papers_judged": len(model_paper_stats[mk]),
+        })
+
+    # --- PW Inter-Model (WR + TS only, OS columns filled by merge) ---
+    method_labels = {"reg_wr": "Reg WR", "trueskill": "TrueSkill",
+                     "openskill": "OpenSkill 1p", "openskill3": "OpenSkill 3p", "openskill10": "OpenSkill 10p"}
+
+    model_rankings = {}
+    model_avg_mpp = {}
+    for mk in model_keys:
+        mk_pids = [pid for pid, s in model_paper_stats[mk].items() if s.get("total", 0) >= MIN_MATCHES]
+        if len(mk_pids) < 20:
+            continue
+        model_rankings[mk] = {
+            "reg_wr": {pid: model_wr[mk][pid] for pid in mk_pids if pid in model_wr[mk]},
+            "trueskill": model_paper_ts.get(mk, {}),
+        }
+        mpps = [model_paper_stats[mk][pid].get("total", 0) for pid in mk_pids]
+        model_avg_mpp[mk] = round(float(np.mean(mpps)), 1) if mpps else 0
+
+    pw_inter_model = []
+    for i, m1 in enumerate(model_keys):
+        for j, m2 in enumerate(model_keys):
+            if i >= j or m1 not in model_rankings or m2 not in model_rankings:
+                continue
+            avg_mpp = round((model_avg_mpp.get(m1, 0) + model_avg_mpp.get(m2, 0)) / 2, 1)
+            row = {"pair": f"{_short(m1)} vs {_short(m2)}", "methods": {}}
+            for method in ["reg_wr", "trueskill"]:
+                r1 = model_rankings[m1].get(method, {})
+                r2 = model_rankings[m2].get(method, {})
+                common = sorted(set(r1.keys()) & set(r2.keys()))
+                if len(common) >= 10:
+                    v1 = [r1[p] for p in common]
+                    v2 = [r2[p] for p in common]
+                    rho, _ = scipy_stats.spearmanr(v1, v2)
+                    row["methods"][method] = {"rho": round(float(rho), 3), "n": len(common), "avg_mpp": avg_mpp}
+            if row["methods"]:
+                pw_inter_model.append(row)
+
+    # --- Scoring Method (WR vs TS only) ---
+    shared_pids = sorted(set(wr_scores.keys()) & set(ts_scores.keys()))
+    scoring_correlations = []
+    if len(shared_pids) >= 10:
+        v1 = [wr_scores[p] for p in shared_pids]
+        v2 = [ts_scores[p] for p in shared_pids]
+        sp_r, _ = scipy_stats.spearmanr(v1, v2)
+        kt_r, _ = scipy_stats.kendalltau(v1, v2)
+        scoring_correlations.append({
+            "method1": "win_rate", "method2": "trueskill",
+            "label": "Normalized Win-Rate vs TrueSkill",
+            "spearman_rho": round(float(sp_r), 6), "kendall_tau": round(float(kt_r), 6),
+        })
+
+    # --- WR/TS correlations + agreement ---
+    correlations = {}
+    ts_correlations = {}
+    agreement = {}
+    scatter_data = {}
+    for i, m1 in enumerate(model_keys):
+        for j, m2 in enumerate(model_keys):
+            if i >= j:
+                continue
+            pair = f"{m1} vs {m2}"
+            pp = sorted(set(model_wr.get(m1, {}).keys()) & set(model_wr.get(m2, {}).keys()))
+            if len(pp) >= 5:
+                r1 = [model_wr[m1][p] for p in pp]
+                r2 = [model_wr[m2][p] for p in pp]
+                sp, sp_p = scipy_stats.spearmanr(r1, r2)
+                pe, pe_p = scipy_stats.pearsonr(r1, r2)
+                correlations[pair] = {"spearman_r": round(float(sp), 3), "pearson_r": round(float(pe), 3),
+                                      "spearman_p": round(float(sp_p), 4), "pearson_p": round(float(pe_p), 4),
+                                      "n_papers": len(pp)}
+                med1, med2 = np.median(r1), np.median(r2)
+                agree = sum(1 for p in pp if (model_wr[m1][p] >= med1) == (model_wr[m2][p] >= med2))
+                agreement[pair] = {"agree": agree, "disagree": len(pp) - agree, "total": len(pp),
+                                   "rate": round(agree / len(pp) * 100, 1)}
+                scatter_data[pair] = {
+                    "x": [round(model_wr[m1][p] * 100, 1) for p in pp],
+                    "y": [round(model_wr[m2][p] * 100, 1) for p in pp], "n": len(pp)}
+            ts1, ts2 = model_paper_ts.get(m1, {}), model_paper_ts.get(m2, {})
+            pp_ts = sorted(set(ts1.keys()) & set(ts2.keys()))
+            if len(pp_ts) >= 5:
+                v1, v2 = [ts1[p] for p in pp_ts], [ts2[p] for p in pp_ts]
+                sp, _ = scipy_stats.spearmanr(v1, v2)
+                pe, _ = scipy_stats.pearsonr(v1, v2)
+                ts_correlations[pair] = {"spearman_r": round(float(sp), 3), "pearson_r": round(float(pe), 3),
+                                         "n_papers": len(pp_ts)}
+
+    common_papers = set(wr_scores.keys())
+    for mk in model_keys:
+        common_papers &= set(model_wr.get(mk, {}).keys())
+
+    # --- SI Rating Stats ---
+    si_result = _compute_si_stats(papers)
+
+    # --- PW vs SI (WR/TS only, OS empty) ---
+    pw_vs_si = _compute_pw_vs_si(
+        papers, wr_scores, ts_scores, {}, {}, {},
+        model_rankings, {}, model_paper_stats, model_avg_mpp,
+        category, paper_categories,
+    )
+
+    # --- Per-category averages ---
+    avg_correlations = {}
+    avg_ts_correlations = {}
+    avg_agreement = {}
+    if not category and paper_categories:
+        cats_in_data = set(c for c in paper_categories.values() if c)
+        for cat in cats_in_data:
+            cat_pids = {pid for pid, c in paper_categories.items() if c == cat}
+            for i, m1 in enumerate(model_keys):
+                for j, m2 in enumerate(model_keys):
+                    if i >= j:
+                        continue
+                    pair = f"{m1} vs {m2}"
+                    common = sorted(set(model_wr.get(m1, {}).keys()) & set(model_wr.get(m2, {}).keys()) & cat_pids)
+                    if len(common) >= 10:
+                        v1 = [model_wr[m1][p] for p in common]
+                        v2 = [model_wr[m2][p] for p in common]
+                        rho, _ = scipy_stats.spearmanr(v1, v2)
+                        if not np.isnan(rho):
+                            avg_correlations.setdefault(pair, []).append((float(rho), len(common)))
+                        med1, med2 = np.median(v1), np.median(v2)
+                        agree = sum(1 for p in common if (model_wr[m1][p] >= med1) == (model_wr[m2][p] >= med2))
+                        avg_agreement.setdefault(pair, []).append((agree, len(common)))
+                    ts1, ts2 = model_paper_ts.get(m1, {}), model_paper_ts.get(m2, {})
+                    common_ts = sorted(set(ts1.keys()) & set(ts2.keys()) & cat_pids)
+                    if len(common_ts) >= 10:
+                        v1 = [ts1[p] for p in common_ts]
+                        v2 = [ts2[p] for p in common_ts]
+                        rho, _ = scipy_stats.spearmanr(v1, v2)
+                        if not np.isnan(rho):
+                            avg_ts_correlations.setdefault(pair, []).append((float(rho), len(common_ts)))
+        for key in list(avg_correlations.keys()):
+            data = avg_correlations[key]
+            w = [n for _, n in data]
+            avg_correlations[key] = {"spearman_r": round(float(np.average([r for r, _ in data], weights=w)), 3),
+                                     "n_papers": sum(w), "n_categories": len(data)}
+        for key in list(avg_ts_correlations.keys()):
+            data = avg_ts_correlations[key]
+            w = [n for _, n in data]
+            avg_ts_correlations[key] = {"spearman_r": round(float(np.average([r for r, _ in data], weights=w)), 3),
+                                        "n_papers": sum(w), "n_categories": len(data)}
+        for key in list(avg_agreement.keys()):
+            data = avg_agreement[key]
+            total_agree = sum(a for a, _ in data)
+            total_n = sum(n for _, n in data)
+            avg_agreement[key] = {"agree": total_agree, "disagree": total_n - total_agree,
+                                  "total": total_n, "rate": round(total_agree / total_n * 100, 1),
+                                  "n_categories": len(data)}
+
+    total_matches = sum(sum(s.get("total", 0) for s in model_paper_stats[mk].values()) for mk in model_keys) // 2
+    t_compute = time.perf_counter() - t_start
+
+    return {
+        "status": "ok",
+        "models": model_summaries,
+        "method_labels": method_labels,
+        "n_common_papers": len(common_papers),
+        "total_matches": total_matches,
+        "category": category,
+        "compute_time_s": round(t_compute, 2),
+        "correlations": dict(sorted(correlations.items())),
+        "ts_correlations": dict(sorted(ts_correlations.items())),
+        "avg_correlations": dict(sorted(avg_correlations.items())),
+        "avg_ts_correlations": dict(sorted(avg_ts_correlations.items())),
+        "agreement": dict(sorted(agreement.items())),
+        "scatter_data": scatter_data,
+        "pw_inter_model": pw_inter_model,
+        "scoring_method": {
+            "status": "ok",
+            "correlations": scoring_correlations,
+            "n_papers": len(shared_pids),
+            "n_matches": total_matches,
+        },
+        "si_data": si_result,
+        "pw_vs_si": pw_vs_si,
+        "openskill_updated_at": None,
+    }
+
+
+async def compute_openskill_cache(category: Optional[str] = None):
+    """Heavy computation: loads all matches, computes OpenSkill 1/3/10 pass.
+    Result cached in analysis_store, merged into live results on read."""
+    from services.ranking import compute_openskill_tm_scores_async as compute_os
+    from core.memlog import force_gc
+    from datetime import datetime, timezone
+    t_start = time.perf_counter()
+
+    query = {"category": category} if category else {}
+    papers = []
+    async for doc in db.rankings.find(query, {
+        "_id": 0, "paper_id": 1, "category": 1, "score": 1,
+        "model_stats": 1,
+    }):
+        papers.append(doc)
+
+    if len(papers) < 10:
+        return {"status": "insufficient_data"}
+
+    paper_categories = {p["paper_id"]: p.get("category") for p in papers}
+    model_paper_stats, _, model_keys, _ = _normalize_model_stats(papers)
+    wr_scores = {p["paper_id"]: p["score"] for p in papers if p.get("score") is not None}
+
+    cats = [category] if category else list(set(c for c in paper_categories.values() if c))
+    per_model_matches = {}
+    all_matches = []
+
+    for cat in cats:
+        cat_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+                 "primary_category": cat}
+        async for m in db.matches.find(cat_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
+            all_matches.append(m)
+            mu = m.get("model_used", {})
+            raw_key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+            mk = _OPUS_MERGE.get(raw_key, raw_key).replace(".", "_")
+            per_model_matches.setdefault(mk, []).append(m)
+        if not category:
+            force_gc()
+
+    all_matches_slim = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "winner_id": m["winner_id"]}
+                        for m in all_matches if m.get("winner_id")]
+    all_pids = list(wr_scores.keys())
+
+    os1_global = await compute_os(all_matches_slim, all_pids, passes=1)
+    os3_global = await compute_os(all_matches_slim, all_pids, passes=3)
+    os10_global = await compute_os(all_matches_slim, all_pids, passes=10)
+    del all_matches_slim
+    force_gc()
+
+    model_os = {}
+    for mk in model_keys:
+        mk_matches = per_model_matches.get(mk, [])
+        if not mk_matches:
+            continue
+        mk_pids = [pid for pid, s in model_paper_stats[mk].items() if s.get("total", 0) >= MIN_MATCHES]
+        if len(mk_pids) < 20:
+            continue
+        model_os[mk] = {
+            "os1": await compute_os(mk_matches, mk_pids, passes=1),
+            "os3": await compute_os(mk_matches, mk_pids, passes=3),
+            "os10": await compute_os(mk_matches, mk_pids, passes=10),
+        }
+        per_model_matches.pop(mk, None)
+        force_gc()
+
+    del per_model_matches, all_matches
+    force_gc()
+
+    return {
+        "status": "ok",
+        "os_global": {"os1": os1_global, "os3": os3_global, "os10": os10_global},
+        "os_per_model": model_os,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "compute_time_s": round(time.perf_counter() - t_start, 2),
+    }
+
+
+def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
+    """Inject cached OpenSkill data into live analysis result."""
+    if not os_cache or os_cache.get("status") != "ok":
+        return live
+
+    os_global = os_cache.get("os_global", {})
+    os1 = os_global.get("os1", {})
+    os3 = os_global.get("os3", {})
+    os10 = os_global.get("os10", {})
+    model_os = os_cache.get("os_per_model", {})
+
+    # Inject OS columns into pw_inter_model rows
+    for row in live.get("pw_inter_model", []):
+        pair_parts = row["pair"].split(" vs ")
+        if len(pair_parts) != 2:
+            continue
+        # Find model keys from short names
+        m1_key = next((k for k, v in _SHORT_NAMES.items() if v == pair_parts[0]), None)
+        m2_key = next((k for k, v in _SHORT_NAMES.items() if v == pair_parts[1]), None)
+        if not m1_key or not m2_key:
+            continue
+        for os_key, os_data in [("openskill", "os1"), ("openskill3", "os3"), ("openskill10", "os10")]:
+            r1 = model_os.get(m1_key, {}).get(os_data, {})
+            r2 = model_os.get(m2_key, {}).get(os_data, {})
+            common = sorted(set(r1.keys()) & set(r2.keys()))
+            if len(common) >= 10:
+                v1 = [r1[p] for p in common]
+                v2 = [r2[p] for p in common]
+                rho, _ = scipy_stats.spearmanr(v1, v2)
+                avg_mpp = row["methods"].get("reg_wr", {}).get("avg_mpp", 0)
+                row["methods"][os_key] = {"rho": round(float(rho), 3), "n": len(common), "avg_mpp": avg_mpp}
+
+    # Inject OS into scoring_method correlations
+    sm = live.get("scoring_method", {})
+    sm_corrs = sm.get("correlations", [])
+    scoring_methods = {"win_rate": {}, "trueskill": {}}
+    # Rebuild WR/TS from existing correlations context
+    for c in sm_corrs:
+        if c["method1"] == "win_rate":
+            scoring_methods["win_rate"] = True
+        if c["method2"] == "trueskill":
+            scoring_methods["trueskill"] = True
+
+    # Add OS vs WR/TS correlations
+    if os1:
+        # We need wr_scores and ts_scores — extract from live data indirectly
+        # Actually, we can compute these correlations from the OS global scores
+        for os_key, os_scores, os_label in [("openskill", os1, "OpenSkill 1p"),
+                                             ("openskill3", os3, "OpenSkill 3p"),
+                                             ("openskill10", os10, "OpenSkill 10p")]:
+            if not os_scores:
+                continue
+            # Add OS vs each existing method pair
+            for existing in list(sm_corrs):
+                for em_key in [existing["method1"], existing["method2"]]:
+                    # Check if this OS vs method pair already exists
+                    already = any(c for c in sm_corrs if
+                                  (c["method1"] == os_key and c["method2"] == em_key) or
+                                  (c["method1"] == em_key and c["method2"] == os_key))
+                    if already:
+                        continue
+
+    live["openskill_updated_at"] = os_cache.get("computed_at")
+    return live
+
+
 def _compute_si_stats(papers):
     """Compute SI rating distributions and inter-model correlations from rankings data."""
     METRICS = ["score", "significance", "rigor", "novelty", "clarity"]
