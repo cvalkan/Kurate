@@ -89,25 +89,26 @@ async def compute_model_analysis(category: Optional[str] = None):
             # Detect and flatten these broken entries back to the correct key.
             normalized = {}
             for mk, stats in ms.items():
+                # Normalize key: replace dots with underscores for consistency
+                safe_mk = mk.replace(".", "_")
                 if isinstance(stats, dict) and stats.get("total") is not None:
                     # Normal flat key — has {total, wins} directly
-                    normalized[mk] = stats
+                    normalized[safe_mk] = stats
                 elif isinstance(stats, dict):
                     # Check if this is a broken nested key (e.g. "openai/gpt-5" -> {"2": {"total":...}})
                     for sub_key, sub_val in stats.items():
                         if isinstance(sub_val, dict) and sub_val.get("total") is not None:
-                            # Reconstruct: "openai/gpt-5" + "." + "2" -> "openai/gpt-5.2"
-                            full_key = f"{mk}.{sub_key}"
-                            # Also store with underscore for consistency
-                            safe_key = full_key.replace(".", "_")
+                            # Reconstruct: "openai/gpt-5" + "." + "2" -> "openai/gpt-5_2"
+                            safe_key = f"{mk}.{sub_key}".replace(".", "_")
                             normalized[safe_key] = sub_val
             for mk, stats in normalized.items():
                 model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
         mts = p.get("model_ts")
         if mts and isinstance(mts, dict):
             for mk, ts_data in mts.items():
+                safe_mk = mk.replace(".", "_")
                 if isinstance(ts_data, dict) and ts_data.get("mu"):
-                    model_paper_ts.setdefault(mk, {})[p["paper_id"]] = ts_data["mu"]
+                    model_paper_ts.setdefault(safe_mk, {})[p["paper_id"]] = ts_data["mu"]
                 elif isinstance(ts_data, dict):
                     # Handle broken nested TrueSkill keys too
                     for sub_key, sub_val in ts_data.items():
@@ -700,19 +701,25 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
         if not mk_key:
             continue
         wm_rows = []
-        # Win Rate
+        # Win Rate — check both dot and underscore variants of model key
         wm_wr = {}
+        dot_key = mk_key.replace("_", ".")  # also check original dotted key in raw data
         for p in pw_papers:
-            ms = p.get("model_stats", {}).get(mk_key)
+            ms_data = p.get("model_stats", {})
+            ms = ms_data.get(mk_key) or ms_data.get(dot_key)
             if isinstance(ms, dict) and ms.get("total", 0) >= MIN_MATCHES:
                 wm_wr[p["paper_id"]] = (ms.get("wins", 0) + 0.5) / (ms.get("total", 0) + 1.0)
         row = _corr_row("within_wr", "Win Rate", wm_wr, si_scores)
         if row:
             row["avg_mpp"] = within_mpp.get(si_mk, 0)
             wm_rows.append(row)
-        # TrueSkill
-        wm_ts = {p["paper_id"]: p.get("model_ts", {}).get(mk_key, {}).get("mu")
-                 for p in pw_papers if isinstance(p.get("model_ts", {}).get(mk_key), dict) and p["model_ts"][mk_key].get("mu")}
+        # TrueSkill — check both variants
+        wm_ts = {}
+        for p in pw_papers:
+            mts = p.get("model_ts", {})
+            ts_data = mts.get(mk_key) or mts.get(dot_key)
+            if isinstance(ts_data, dict) and ts_data.get("mu"):
+                wm_ts[p["paper_id"]] = ts_data["mu"]
         row = _corr_row("within_ts", "TrueSkill", wm_ts, si_scores)
         if row:
             row["avg_mpp"] = within_mpp.get(si_mk, 0)
