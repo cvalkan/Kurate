@@ -846,29 +846,15 @@ async def _refresh_analysis_store(db, category: str):
         return  # Skip if another refresh is already running
     async with _analysis_refresh_lock:
         try:
-            from routers.leaderboard import _compute_model_correlation, _compute_scoring_method_correlation, _compute_si_rating_stats
+            from services.model_analysis import compute_model_analysis
             cat_key = category or "__all__"
-
-            result = await _compute_model_correlation(category, None)
-            await db.analysis_store.update_one(
-                {"_type": "model-correlation", "key": cat_key},
-                {"$set": {**result, "_type": "model-correlation", "key": cat_key}},
-                upsert=True,
-            )
-
-            result = await _compute_scoring_method_correlation(category)
-            await db.analysis_store.update_one(
-                {"_type": "scoring-method", "key": cat_key},
-                {"$set": {**result, "_type": "scoring-method", "key": cat_key}},
-                upsert=True,
-            )
-
-            result = await _compute_si_rating_stats(category, None)
-            await db.analysis_store.update_one(
-                {"_type": "si-rating", "key": f"{cat_key}:all"},
-                {"$set": {**result, "_type": "si-rating", "key": f"{cat_key}:all"}},
-                upsert=True,
-            )
+            result = await compute_model_analysis(category)
+            if result.get("status") == "ok":
+                await db.analysis_store.update_one(
+                    {"_type": "model-analysis", "key": cat_key},
+                    {"$set": {**result, "_type": "model-analysis", "key": cat_key}},
+                    upsert=True,
+                )
         except Exception as e:
             from core.config import logger
             logger.debug(f"Analysis store refresh for {category}: {e}")

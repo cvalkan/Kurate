@@ -228,13 +228,11 @@ async def _compute_validation_datasets():
 
 
 async def _compute_analysis_caches():
-    """Compute Model Correlation page data: model-correlation, convergence, si-rating-stats per category."""
-    from routers.leaderboard import _compute_model_correlation, _compute_convergence, _compute_si_rating_stats
+    """Compute Model Analysis page data per category using unified compute_model_analysis."""
+    from services.model_analysis import compute_model_analysis
     from core.config import CATEGORIES
 
     results = {}
-
-    # Get categories
     categories = [None]  # None = all categories
     for cat_info in CATEGORIES:
         cat_id = cat_info["id"] if isinstance(cat_info, dict) else cat_info
@@ -242,30 +240,12 @@ async def _compute_analysis_caches():
 
     for cat in categories:
         cat_key = cat or "__all__"
-        # model-correlation
         try:
-            result = await asyncio.wait_for(_compute_model_correlation(cat, None), timeout=60)
-            if result.get("models"):
-                results[f"model-correlation:{cat_key}"] = result
-        except Exception as e:
-            logger.warning(f"  precompute analysis model-correlation/{cat_key}: {e}")
-
-        # convergence
-        try:
-            result = await asyncio.wait_for(_compute_convergence(cat, 20), timeout=60)
+            result = await asyncio.wait_for(compute_model_analysis(cat), timeout=120)
             if result.get("status") == "ok":
-                results[f"convergence:{cat_key}:20"] = result
+                results[f"model-analysis:{cat_key}"] = result
         except Exception as e:
-            logger.warning(f"  precompute analysis convergence/{cat_key}: {e}")
-
-        # si-rating-stats (no model filter)
-        try:
-            result = await asyncio.wait_for(_compute_si_rating_stats(cat, None), timeout=30)
-            if result.get("status") == "ok":
-                results[f"si-rating-stats:{cat_key}:all"] = result
-        except Exception as e:
-            logger.warning(f"  precompute analysis si-rating-stats/{cat_key}: {e}")
-
+            logger.warning(f"  precompute model-analysis/{cat_key}: {e}")
         await asyncio.sleep(0)
 
     logger.info(f"  precompute analysis: {len(results)} endpoints across {len(categories)} categories")
