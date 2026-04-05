@@ -1223,6 +1223,147 @@ async def _recompute_convergence_bg(category: str):
         logger.debug(f"Convergence recompute for {category}: {e}")
 
 
+def _select_pairs(
+    papers: list, stats: dict, compared_pairs: set,
+    max_pairs: int, top_k: int, max_per_round: int, **kwargs,
+) -> List[tuple]:
+    """
+    Goal-directed pair selection with 2-tier CI targets.
+    1. Match neediest papers first (widest margin vs their tier's target)
+       - Established opponents selected by Elo proximity (not arbitrary)
+       - Needy-vs-needy matches preserved for efficiency (both papers benefit)
+    2. Top-K cross-matches after rankings stabilize
+    Never generates repeat pairs — if no novel pair exists, the paper is skipped.
+    """
+    from services.ranking import wilson_margin_pct
+
+    paper_ids = [p["id"] for p in papers]
+    if len(paper_ids) < 2:
+        return []
+
+    ci_target = kwargs.get("ci_target", 10)
+    ci_target_general = kwargs.get("ci_target_general", 15)
+    calibration_pct = kwargs.get("calibration_ratio", 50)
+
+    comparisons = {}
+    wins = {}
+    margins = {}
+
+    for pid in paper_ids:
+        s = stats.get(pid, {})
+        c = s.get("comparisons", 0)
+        w = s.get("wins", 0)
+        comparisons[pid] = c
+        wins[pid] = w
+        margins[pid] = wilson_margin_pct(w, c)
+
+    # Use stored scores from rankings collection (same source as _check_goals_met)
+    SCORE_BASE = 1200
+    wr_scores = {}
+    for pid in paper_ids:
+        wr_scores[pid] = stats.get(pid, {}).get("score", SCORE_BASE)
+
+    elo_vals = sorted(wr_scores.values())
+    median_elo = elo_vals[len(elo_vals) // 2]
+
+    all_ranked = sorted(paper_ids, key=lambda pid: wr_scores[pid], reverse=True)
+    top_k_ids = set(all_ranked[:min(top_k, len(all_ranked))])
+    top_k_list = all_ranked[:min(top_k, len(all_ranked))]
+
+    pairs = []
+    round_count = {pid: 0 for pid in paper_ids}
+
+    def can_pair(p):
+        return round_count[p] < max_per_round
+
+    # --- Rule 1: Match neediest papers (widest margin vs their target) ---
+    def urgency(pid):
+        target = ci_target if pid in top_k_ids else ci_target_general
+        if comparisons[pid] == 0:
+            return 999
+        if margins[pid] > target:
+            return margins[pid] - target
+        return 0
+
+    needy = sorted(paper_ids, key=lambda pid: urgency(pid), reverse=True)
+    needy = [pid for pid in needy if urgency(pid) > 0]
+    established = [pid for pid in paper_ids if urgency(pid) == 0]
+    pair_idx = 0
+
+    for p1 in needy:
+        if len(pairs) >= max_pairs or not can_pair(p1):
+            continue
+
+        prefer_established = len(established) > 0 and ((pair_idx * calibration_pct) % 100 < calibration_pct)
+        pair_idx += 1
+
+        best = None
+
+        if prefer_established:
+            target = median_elo if comparisons[p1] == 0 else wr_scores[p1]
+            best_dist = float('inf')
+            for p2 in established:
+                if p2 == p1 or not can_pair(p2):
+                    continue
+                pair_key = tuple(sorted([p1, p2]))
+                if pair_key in compared_pairs:
+                    continue
+                dist = abs(wr_scores[p2] - target)
+                if dist < best_dist:
+                    best_dist = dist
+                    best = p2
+
+        # If no novel established opponent, pick a novel needy opponent
+        if best is None:
+            best_score = -1
+            for p2 in needy:
+                if p2 == p1 or not can_pair(p2):
+                    continue
+                pair_key = tuple(sorted([p1, p2]))
+                if pair_key in compared_pairs:
+                    continue  # Skip repeats entirely
+                score = urgency(p2)
+                if score > best_score:
+                    best_score = score
+                    best = p2
+
+        # Fallback: any paper with novel pair
+        if best is None:
+            for p2 in paper_ids:
+                if p2 != p1 and can_pair(p2):
+                    pair_key = tuple(sorted([p1, p2]))
+                    if pair_key not in compared_pairs:
+                        best = p2
+                        break
+
+        # No novel pair found → skip this paper (never generate repeats)
+        if best:
+            pair_key = tuple(sorted([p1, best]))
+            pairs.append((p1, best))
+            compared_pairs.add(pair_key)
+            round_count[p1] += 1
+            round_count[best] += 1
+
+    if len(pairs) >= max_pairs:
+        return pairs[:max_pairs]
+
+    # --- Rule 2: Top-K cross-matches ---
+    for i in range(len(top_k_list)):
+        for j in range(i + 1, len(top_k_list)):
+            if len(pairs) >= max_pairs:
+                break
+            pair_key = tuple(sorted([top_k_list[i], top_k_list[j]]))
+            if pair_key not in compared_pairs:
+                pairs.append((top_k_list[i], top_k_list[j]))
+                compared_pairs.add(pair_key)
+                round_count[top_k_list[i]] += 1
+                round_count[top_k_list[j]] += 1
+        if len(pairs) >= max_pairs:
+            break
+
+    return pairs[:max_pairs]
+
+
 async def backfill_shared_categories():
     """One-time backfill: add shared_categories and primary_category to existing matches."""
     # Backfill primary_category (denormalized for indexed queries)
