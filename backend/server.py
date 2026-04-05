@@ -280,12 +280,13 @@ async def startup():
 
 
 async def _retry_missing_summaries():
-    """Retry summary generation for papers missing the required summary.
+    """Retry pre-comparison summary generation for papers missing the required summary.
 
     Queries the papers collection (NOT rankings) for all papers in active
-    categories that lack the required summary key. Delegates to the existing
-    _generate_pending_summaries function which handles the actual generation,
-    storage, rating parsing, and progress tracking.
+    categories that lack the required summary key. Delegates to
+    _generate_paper_summaries — the same function the fetch cycle uses for
+    pre-comparison summaries (NOT _generate_pending_summaries which is for
+    post-tournament impact summaries).
 
     Runs once on startup after a short delay. The scheduler's regular fetch
     cycle handles ongoing generation for new papers.
@@ -294,42 +295,50 @@ async def _retry_missing_summaries():
     from core.memlog import log_mem
     from services.scheduler import (
         _pick_summary_source, _summary_model_key, _SUMMARY_KEY_FALLBACKS,
-        _generate_pending_summaries, _get_cat_status,
+        _generate_paper_summaries,
     )
 
-    settings = await db.settings.find_one({"key": "global"}) or {}
-    active_cats = settings.get("active_categories", [])
-    summary_model = _pick_summary_source(settings.get("summary_source", "thinking"))
-    required_key = _summary_model_key(summary_model)
-    fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
-    all_keys = [required_key] + fallback_keys
+    try:
+        settings = await db.settings.find_one({"key": "global"}) or {}
+        active_cats = settings.get("active_categories", [])
+        summary_model = _pick_summary_source(settings.get("summary_source", "thinking"))
+        required_key = _summary_model_key(summary_model)
+        fallback_keys = _SUMMARY_KEY_FALLBACKS.get(required_key, [])
+        all_keys = [required_key] + fallback_keys
 
-    # Find papers in active categories missing the required summary
-    total_missing = 0
-    for cat in active_cats:
-        summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
-        summary_filter["categories.0"] = cat
-        total_with = await db.papers.count_documents(summary_filter)
-        total_all = await db.papers.count_documents({"categories.0": cat})
-        missing = total_all - total_with
-        if missing > 0:
-            total_missing += missing
-            logger.info(f"[retry-summaries] {cat}: {missing} of {total_all} papers missing {required_key} summary")
+        # Find papers in active categories missing the required summary
+        total_missing = 0
+        cats_with_missing = []
+        for cat in active_cats:
+            summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
+            summary_filter["categories.0"] = cat
+            total_with = await db.papers.count_documents(summary_filter)
+            total_all = await db.papers.count_documents({"categories.0": cat})
+            missing = total_all - total_with
+            if missing > 0:
+                total_missing += missing
+                cats_with_missing.append(cat)
+                logger.info(f"[retry-summaries] {cat}: {missing} of {total_all} papers missing {required_key} summary")
 
-    if total_missing == 0:
-        log_mem("[retry-summaries] All papers have required summaries")
-        return
+        if total_missing == 0:
+            log_mem("[retry-summaries] All papers have required summaries")
+            return
 
-    log_mem(f"[retry-summaries] {total_missing} papers across {len(active_cats)} categories need summaries, generating...")
+        log_mem(f"[retry-summaries] {total_missing} papers need summaries, generating...")
 
-    # Use the existing summary generation pipeline for each category
-    for cat in active_cats:
-        try:
-            await _generate_pending_summaries(category=cat)
-        except Exception as e:
-            logger.warning(f"[retry-summaries] {cat} failed: {e}")
+        # Use the pre-comparison summary generation pipeline
+        for cat in cats_with_missing:
+            try:
+                await _generate_paper_summaries(category=cat)
+            except Exception as e:
+                logger.warning(f"[retry-summaries] {cat} failed: {e}")
 
-    log_mem(f"[retry-summaries] Done")
+        log_mem("[retry-summaries] Done")
+    except Exception as e:
+        import traceback
+        logger.error(f"[retry-summaries] CRASHED: {e}")
+        from core.memlog import log_mem as _lm
+        _lm(f"[retry-summaries] CRASHED: {traceback.format_exc()[-200:]}")
 
 
 
