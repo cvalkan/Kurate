@@ -359,11 +359,22 @@ export function AdminOverview({
           )}
 
           {/* Pair exhaustion notice */}
-          {progress.pair_exhausted && !progress.goals_met && (
+          {!progress.goals_met && (progress.pair_exhausted || progress.all_pairs_exhausted) && (
             <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2.5 mb-2" data-testid="pair-exhausted-notice">
               <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <div>
-                <span className="font-medium">Temporarily stalled</span> — {progress.exhausted_papers} paper{progress.exhausted_papers > 1 ? "s" : ""} need{progress.exhausted_papers === 1 ? "s" : ""} tighter CI but {progress.exhausted_papers === 1 ? "has" : "have"} been compared against all {progress.total_papers - 1} opponents. Will resume when new papers are added to this category.
+                {progress.all_pairs_exhausted ? (
+                  <>
+                    <span className="font-medium">All pairs exhausted</span> — every paper has been compared against every other paper ({progress.unique_pairs_played}/{progress.max_possible_pairs} pairs), but CI targets are not yet met. More papers needed to continue convergence.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium">Temporarily stalled</span> — {progress.exhausted_papers} paper{progress.exhausted_papers > 1 ? "s" : ""} need{progress.exhausted_papers === 1 ? "s" : ""} tighter CI but {progress.exhausted_papers === 1 ? "has" : "have"} been compared against all {progress.total_papers - 1} opponents.
+                    {progress.unique_pairs_played > 0 && progress.max_possible_pairs > 0 && (
+                      <span className="text-muted-foreground ml-1">({progress.unique_pairs_played}/{progress.max_possible_pairs} unique pairs played)</span>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )}
