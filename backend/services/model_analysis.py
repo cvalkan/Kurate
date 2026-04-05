@@ -87,20 +87,31 @@ async def compute_model_analysis(category: Optional[str] = None):
             # MongoDB stores dotted keys (e.g. "openai/gpt-5.2") as nested paths:
             #   {"openai/gpt-5": {"2": {"total": N, "wins": M}}}
             # Detect and flatten these broken entries back to the correct key.
+            # MERGE (not overwrite) when both flat and nested keys exist for the same model.
             normalized = {}
             for mk, stats in ms.items():
-                # Normalize key: replace dots with underscores for consistency
                 safe_mk = mk.replace(".", "_")
                 if isinstance(stats, dict) and stats.get("total") is not None:
                     # Normal flat key — has {total, wins} directly
-                    normalized[safe_mk] = stats
+                    if safe_mk in normalized:
+                        normalized[safe_mk] = {
+                            "total": normalized[safe_mk].get("total", 0) + stats.get("total", 0),
+                            "wins": normalized[safe_mk].get("wins", 0) + stats.get("wins", 0),
+                        }
+                    else:
+                        normalized[safe_mk] = stats
                 elif isinstance(stats, dict):
-                    # Check if this is a broken nested key (e.g. "openai/gpt-5" -> {"2": {"total":...}})
+                    # Broken nested key (e.g. "openai/gpt-5" -> {"2": {"total":...}})
                     for sub_key, sub_val in stats.items():
                         if isinstance(sub_val, dict) and sub_val.get("total") is not None:
-                            # Reconstruct: "openai/gpt-5" + "." + "2" -> "openai/gpt-5_2"
                             safe_key = f"{mk}.{sub_key}".replace(".", "_")
-                            normalized[safe_key] = sub_val
+                            if safe_key in normalized:
+                                normalized[safe_key] = {
+                                    "total": normalized[safe_key].get("total", 0) + sub_val.get("total", 0),
+                                    "wins": normalized[safe_key].get("wins", 0) + sub_val.get("wins", 0),
+                                }
+                            else:
+                                normalized[safe_key] = sub_val
             for mk, stats in normalized.items():
                 model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
         mts = p.get("model_ts")
