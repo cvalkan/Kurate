@@ -1,0 +1,70 @@
+{
+  "summary": "Aggregate/Average toggle fix verified. The issue was that the frontend build was stale and didn't include the avg_pw_vs_si code changes. After rebuilding the frontend, the PW-vs-SI tables and Inter-Model Agreement tables now correctly change values when switching between Aggregate and Average mode.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_avg_toggle.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "The frontend code in PwVsSiSection.jsx and InterModelSection.jsx was correct - it properly checks viewMode and uses avgData when in average mode",
+    "The issue was a stale frontend build - the build was from April 5 but the source files were modified on April 6",
+    "After running 'yarn build' and restarting the frontend, the toggle works correctly"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_avg_toggle.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "No auth needed for /api/model-analysis or /correlation page",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The Aggregate/Average toggle on the Model Correlation page now works correctly. Key findings: (1) Backend API correctly returns avg_pw_vs_si and avg_pw_inter_model fields with different rho values than the aggregate pw_vs_si, (2) Frontend code was correct but the build was stale, (3) After rebuilding frontend with 'yarn build', the toggle changes table values as expected: Claude Reg WR goes from 0.817 (Aggregate) to 0.843 (Average), (4) Inter-Model PW table also changes values correctly, (5) For specific categories, avg_pw_vs_si is correctly null (averages only apply to All Categories view)",
+  "verified_features": {
+    "backend_endpoints": {
+      "GET /api/model-analysis (All Categories)": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns avg_pw_vs_si with per_model and within_model keys",
+          "avg_pw_vs_si.per_model.claude.rows[0].spearman_rho = 0.843 (differs from aggregate 0.817)",
+          "Returns avg_pw_inter_model as non-empty array with 3 rows"
+        ]
+      },
+      "GET /api/model-analysis?category=cs.RO": {
+        "status": "PASS",
+        "test_cases": [
+          "avg_pw_vs_si is null for specific category",
+          "avg_pw_inter_model is null for specific category",
+          "pw_vs_si (aggregate) still works for specific category"
+        ]
+      }
+    },
+    "frontend_components": {
+      "Aggregate/Average Toggle": {
+        "status": "PASS",
+        "test_cases": [
+          "Toggle button switches between Aggregate and Average mode",
+          "PW-vs-SI tables show different rho values in Average mode",
+          "Inter-Model Agreement PW table shows different rho values in Average mode",
+          "Tables still render correctly for specific category tabs"
+        ]
+      }
+    }
+  },
+  "root_cause_analysis": {
+    "issue": "PW-vs-SI and Inter-Model Agreement tables did not change values when switching between Aggregate and Average mode",
+    "root_cause": "Frontend build was stale - the build was created on April 5 at 19:52 but the source files (CorrelationPage.jsx, PwVsSiSection.jsx) were modified on April 6 at 18:35 and 18:48. The built JavaScript did not contain the avg_pw_vs_si code.",
+    "fix_applied": "Rebuilt frontend with 'yarn build' and restarted frontend service with 'sudo supervisorctl restart frontend'",
+    "verification": "After rebuild, the toggle correctly changes table values: Claude Reg WR 0.817 (Aggregate) -> 0.843 (Average)"
+  }
+}

@@ -6,13 +6,14 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 export function PwVsSiSection({ category, siData: externalSiData, viewMode = "aggregate", osUpdatedAt }) {
   const [data, setData] = useState(externalSiData?.pw_vs_si || null);
-  const [avgData, setAvgData] = useState(externalSiData?.avg_pw_vs_si || null);
   const [controlled, setControlled] = useState(false);
+
+  // Derive avgData directly from prop — no state needed
+  const avgData = externalSiData?.avg_pw_vs_si || null;
 
   useEffect(() => {
     if (externalSiData?.pw_vs_si) {
       setData(externalSiData.pw_vs_si);
-      setAvgData(externalSiData.avg_pw_vs_si || null);
       return;
     }
     const params = category ? { category } : {};
