@@ -2242,7 +2242,7 @@ async def get_system_logs(
     }
     restart_logs = await db.system_logs.find(
         restart_query, {"_id": 0}
-    ).sort("ts", -1).to_list(length=200)
+    ).sort("ts", -1).to_list(length=hours * 10)  # ~10 restarts/hour max (generous)
     # Add any restarts not already in mem_logs (dedup by timestamp)
     existing_ts = {log.get("ts") for log in mem_logs if log.get("label") == "Server started"}
     for rl in restart_logs:
