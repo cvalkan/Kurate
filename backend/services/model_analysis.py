@@ -238,8 +238,9 @@ async def compute_live_analysis(category: Optional[str] = None):
                         v1 = [model_wr[m1][p] for p in common]
                         v2 = [model_wr[m2][p] for p in common]
                         rho, _ = scipy_stats.spearmanr(v1, v2)
+                        pr, _ = scipy_stats.pearsonr(v1, v2)
                         if not np.isnan(rho):
-                            avg_correlations.setdefault(pair, []).append((float(rho), len(common)))
+                            avg_correlations.setdefault(pair, []).append((float(rho), float(pr), len(common)))
                         med1, med2 = np.median(v1), np.median(v2)
                         agree = sum(1 for p in common if (model_wr[m1][p] >= med1) == (model_wr[m2][p] >= med2))
                         avg_agreement.setdefault(pair, []).append((agree, len(common)))
@@ -249,18 +250,25 @@ async def compute_live_analysis(category: Optional[str] = None):
                         v1 = [ts1[p] for p in common_ts]
                         v2 = [ts2[p] for p in common_ts]
                         rho, _ = scipy_stats.spearmanr(v1, v2)
+                        pr, _ = scipy_stats.pearsonr(v1, v2)
                         if not np.isnan(rho):
-                            avg_ts_correlations.setdefault(pair, []).append((float(rho), len(common_ts)))
+                            avg_ts_correlations.setdefault(pair, []).append((float(rho), float(pr), len(common_ts)))
         for key in list(avg_correlations.keys()):
             data = avg_correlations[key]
-            w = [n for _, n in data]
-            avg_correlations[key] = {"spearman_r": round(float(np.average([r for r, _ in data], weights=w)), 3),
-                                     "n_papers": sum(w), "n_categories": len(data)}
+            w = [n for _, _, n in data]
+            avg_correlations[key] = {
+                "spearman_r": round(float(np.average([r for r, _, _ in data], weights=w)), 3),
+                "pearson_r": round(float(np.average([pr for _, pr, _ in data], weights=w)), 3),
+                "n_papers": sum(w), "n_categories": len(data),
+            }
         for key in list(avg_ts_correlations.keys()):
             data = avg_ts_correlations[key]
-            w = [n for _, n in data]
-            avg_ts_correlations[key] = {"spearman_r": round(float(np.average([r for r, _ in data], weights=w)), 3),
-                                        "n_papers": sum(w), "n_categories": len(data)}
+            w = [n for _, _, n in data]
+            avg_ts_correlations[key] = {
+                "spearman_r": round(float(np.average([r for r, _, _ in data], weights=w)), 3),
+                "pearson_r": round(float(np.average([pr for _, pr, _ in data], weights=w)), 3),
+                "n_papers": sum(w), "n_categories": len(data),
+            }
         for key in list(avg_agreement.keys()):
             data = avg_agreement[key]
             total_agree = sum(a for a, _ in data)
