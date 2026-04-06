@@ -54,7 +54,6 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
             ? "Controlled: combined PW subsampled to same matches/paper as single judge. Shows whether multi-judge diversity adds signal beyond match count."
             : `How well does the tournament ranking correlate with each model's direct 1-10 quality scores? "All judges" uses all models' matches (${data.n_matches?.toLocaleString()} total); "single judge" isolates each model's own matches.`
           }
-          {osUpdatedAt && <span className="text-muted-foreground/50 ml-1">OpenSkill rows from {new Date(osUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}.</span>}
         </p>
       </div>
 
@@ -132,6 +131,11 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
           );
         })}
       </div>
+      {osUpdatedAt && (
+        <p className="text-xs text-muted-foreground mt-2" data-testid="os-footnote">
+          OpenSkill rows from {new Date(osUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}.
+        </p>
+      )}
     </div>
   );
 }
