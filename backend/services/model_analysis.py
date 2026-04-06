@@ -478,50 +478,59 @@ async def compute_live_analysis(category: Optional[str] = None):
                 })
 
         avg_per_model = {}
+        # Use the aggregate m/paper values (m/paper is a factual count, same in both modes)
+        agg_pm = pw_vs_si.get("per_model", {}) if pw_vs_si else {}
+        agg_wm = pw_vs_si.get("within_model", {}) if pw_vs_si else {}
         for si_mk, pw_data in avg_pm_accum.items():
             rows = []
+            agg_rows = agg_pm.get(si_mk, {}).get("rows", [])
+            agg_mpp_map = {r.get("method", r.get("label", "")): r.get("avg_mpp", 0) for r in agg_rows}
+            # All methods in "All judges combined" share the same m/paper — use WR's value as default
+            default_mpp = agg_mpp_map.get("combined_reg_wr", agg_mpp_map.get("Reg WR", 0))
             for pw_key, label in [("reg_wr", "Reg WR"), ("trueskill", "TrueSkill"),
                                    ("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
                 entries = pw_data.get(pw_key)
                 if entries:
                     avg = _weighted_avg(entries)
                     if avg:
-                        combined_mpp = round(float(np.mean([p.get("comparisons", 0) for p in papers if p.get("comparisons", 0) >= 3])), 1)
+                        mpp = agg_mpp_map.get(f"combined_{pw_key}", default_mpp)
                         rows.append({"method": f"combined_{pw_key}", "label": label,
-                                     "avg_mpp": combined_mpp, **avg})
+                                     "avg_mpp": mpp, **avg})
             avg_per_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": rows, "controlled_rows": [], "n_matches": 0}
 
         # Build controlled rows from avg_ctrl_accum
         for si_mk, ctrl_data in avg_ctrl_accum.items():
             ctrl_rows = []
+            agg_ctrl = agg_pm.get(si_mk, {}).get("controlled_rows", [])
+            agg_ctrl_mpp = {r.get("label", ""): r.get("avg_mpp", 0) for r in agg_ctrl}
+            default_ctrl_mpp = agg_ctrl_mpp.get("Reg WR", 0)
             for pw_key, label in [("reg_wr", "Reg WR"), ("trueskill", "TrueSkill"),
                                    ("openskill1", "OpenSkill 1p"), ("openskill3", "OpenSkill 3p"), ("openskill10", "OpenSkill 10p")]:
                 entries = ctrl_data.get(pw_key)
                 if entries:
                     avg = _weighted_avg(entries)
                     if avg:
-                        mk_key = _MODEL_KEY_MAP.get(si_mk)
-                        mpps = [model_paper_stats.get(mk_key, {}).get(p["paper_id"], {}).get("total", 0) for p in papers] if mk_key else []
-                        wm_mpp = round(float(np.mean([m for m in mpps if m > 0])), 1) if any(m > 0 for m in mpps) else 0
+                        mpp = agg_ctrl_mpp.get(label, default_ctrl_mpp)
                         ctrl_rows.append({"method": f"ctrl_{pw_key}", "label": label,
-                                         "avg_mpp": wm_mpp, **avg})
+                                         "avg_mpp": mpp, **avg})
             if si_mk in avg_per_model:
                 avg_per_model[si_mk]["controlled_rows"] = ctrl_rows
 
         avg_within_model = {}
         for si_mk, method_data in avg_wm_accum.items():
             wm_rows = []
+            agg_wm_rows = agg_wm.get(si_mk, {}).get("rows", [])
+            agg_wm_mpp = {r.get("method", r.get("label", "")): r.get("avg_mpp", 0) for r in agg_wm_rows}
+            default_wm_mpp = agg_wm_mpp.get("within_wr", agg_wm_mpp.get("Win Rate", 0))
             for method_key, label in [("within_wr", "Win Rate"), ("within_ts", "TrueSkill"),
                                        ("within_os1", "OpenSkill 1p"), ("within_os3", "OpenSkill 3p"), ("within_os10", "OpenSkill 10p")]:
                 entries = method_data.get(method_key)
                 if entries:
                     avg = _weighted_avg(entries)
                     if avg:
-                        mk_key = _MODEL_KEY_MAP.get(si_mk)
-                        mpps = [model_paper_stats.get(mk_key, {}).get(p["paper_id"], {}).get("total", 0) for p in papers]
-                        wm_mpp = round(float(np.mean([m for m in mpps if m > 0])), 1) if any(m > 0 for m in mpps) else 0
+                        mpp = agg_wm_mpp.get(method_key, default_wm_mpp)
                         wm_rows.append({"method": method_key, "label": label,
-                                        "avg_mpp": wm_mpp, **avg})
+                                        "avg_mpp": mpp, **avg})
             avg_within_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": wm_rows}
 
         avg_pw_vs_si = {"per_model": avg_per_model, "within_model": avg_within_model}
