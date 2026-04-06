@@ -268,6 +268,163 @@ async def compute_live_analysis(category: Optional[str] = None):
                                   "total": total_n, "rate": round(total_agree / total_n * 100, 1),
                                   "n_categories": len(data)}
 
+    # --- Per-category averaged PW-vs-SI and InterModel tables ---
+    avg_pw_vs_si = None
+    avg_pw_inter_model = []
+    if not category and paper_categories:
+        cats_in_data = set(c for c in paper_categories.values() if c)
+        paper_by_cat = {}
+        for p in papers:
+            pc = paper_categories.get(p.get("paper_id") or p.get("id"))
+            if pc:
+                paper_by_cat.setdefault(pc, []).append(p)
+
+        # --- Avg PW-vs-SI: per-category rho values, then weighted average ---
+        _SI_LABELS = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3 Pro", "avg": "Average (all models)"}
+        _SI_MKS = ("claude", "gpt", "gemini")
+        avg_pm_accum = {}   # {si_mk: {pw_key: [(rho, tau, n), ...]}}
+        avg_wm_accum = {}   # {si_mk: {method: [(rho, tau, n), ...]}}
+
+        def _get_si_score_avg(p, mk=None):
+            si = p.get("si_ratings", {})
+            if mk:
+                r = si.get(mk)
+                return r.get("score") if isinstance(r, dict) and r.get("score") else None
+            ratings = [r for r in si.values() if isinstance(r, dict) and r.get("score")]
+            return round(sum(r["score"] for r in ratings) / len(ratings), 1) if ratings else None
+
+        for cat in cats_in_data:
+            cat_papers = [p for p in paper_by_cat.get(cat, []) if p.get("comparisons", 0) >= 3]
+            if len(cat_papers) < 10:
+                continue
+
+            # Build SI maps for this category
+            cat_si = {}
+            for mk in _SI_MKS:
+                sm = {p["paper_id"]: _get_si_score_avg(p, mk) for p in cat_papers if _get_si_score_avg(p, mk)}
+                if len(sm) >= 10:
+                    cat_si[mk] = sm
+            avg_si_cat = {p["paper_id"]: _get_si_score_avg(p) for p in cat_papers if _get_si_score_avg(p)}
+            if len(avg_si_cat) >= 10:
+                cat_si["avg"] = avg_si_cat
+
+            # PW scores for this category
+            cat_wr = {p["paper_id"]: p["score"] for p in cat_papers if p.get("score")}
+            cat_ts = {p["paper_id"]: p["ts_score"] for p in cat_papers if p.get("ts_score")}
+            cat_pw = {"reg_wr": ("Reg WR", cat_wr), "trueskill": ("TrueSkill", cat_ts)}
+
+            # Combined PW vs SI
+            for si_mk, si_scores in cat_si.items():
+                for pw_key, (pw_label, pw_scores) in cat_pw.items():
+                    row = _corr_row(f"combined_{pw_key}", pw_label, pw_scores, si_scores)
+                    if row:
+                        avg_pm_accum.setdefault(si_mk, {}).setdefault(pw_key, []).append(
+                            (row["spearman_rho"], row["kendall_tau"], row["n"]))
+
+            # Within-model PW vs SI
+            for si_mk, si_scores in cat_si.items():
+                if si_mk == "avg":
+                    continue
+                mk_key = _MODEL_KEY_MAP.get(si_mk)
+                if not mk_key:
+                    continue
+                # Within-model WR
+                wm_wr = {}
+                dot_key = mk_key.replace("_", ".")
+                for p in cat_papers:
+                    ms_data = p.get("model_stats", {})
+                    ms = ms_data.get(mk_key) or ms_data.get(dot_key)
+                    if isinstance(ms, dict) and ms.get("total", 0) >= MIN_MATCHES:
+                        wm_wr[p["paper_id"]] = (ms.get("wins", 0) + 0.5) / (ms.get("total", 0) + 1.0)
+                row = _corr_row("within_wr", "Win Rate", wm_wr, si_scores)
+                if row:
+                    avg_wm_accum.setdefault(si_mk, {}).setdefault("within_wr", []).append(
+                        (row["spearman_rho"], row["kendall_tau"], row["n"]))
+                # Within-model TS
+                wm_ts = {}
+                for p in cat_papers:
+                    mts = p.get("model_ts", {})
+                    ts_data = mts.get(mk_key) or mts.get(dot_key)
+                    if isinstance(ts_data, dict) and ts_data.get("mu"):
+                        wm_ts[p["paper_id"]] = ts_data["mu"]
+                row = _corr_row("within_ts", "TrueSkill", wm_ts, si_scores)
+                if row:
+                    avg_wm_accum.setdefault(si_mk, {}).setdefault("within_ts", []).append(
+                        (row["spearman_rho"], row["kendall_tau"], row["n"]))
+
+        # Aggregate per-category values into weighted averages
+        def _weighted_avg(entries):
+            if not entries:
+                return None
+            weights = [n for _, _, n in entries]
+            rho = round(float(np.average([r for r, _, _ in entries], weights=weights)), 3)
+            tau = round(float(np.average([t for _, t, _ in entries], weights=weights)), 3)
+            return {"spearman_rho": rho, "kendall_tau": tau, "n": sum(weights), "n_categories": len(entries)}
+
+        avg_per_model = {}
+        for si_mk, pw_data in avg_pm_accum.items():
+            rows = []
+            for pw_key in ["reg_wr", "trueskill"]:
+                entries = pw_data.get(pw_key)
+                if entries:
+                    avg = _weighted_avg(entries)
+                    if avg:
+                        label = "Reg WR" if pw_key == "reg_wr" else "TrueSkill"
+                        combined_mpp = round(float(np.mean([p.get("comparisons", 0) for p in papers if p.get("comparisons", 0) >= 3])), 1)
+                        rows.append({"method": f"combined_{pw_key}", "label": label,
+                                     "avg_mpp": combined_mpp, **avg})
+            avg_per_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": rows, "controlled_rows": [], "n_matches": 0}
+
+        avg_within_model = {}
+        for si_mk, method_data in avg_wm_accum.items():
+            wm_rows = []
+            for method_key in ["within_wr", "within_ts"]:
+                entries = method_data.get(method_key)
+                if entries:
+                    avg = _weighted_avg(entries)
+                    if avg:
+                        label = "Win Rate" if method_key == "within_wr" else "TrueSkill"
+                        mk_key = _MODEL_KEY_MAP.get(si_mk)
+                        mpps = [model_paper_stats.get(mk_key, {}).get(p["paper_id"], {}).get("total", 0) for p in papers]
+                        wm_mpp = round(float(np.mean([m for m in mpps if m > 0])), 1) if any(m > 0 for m in mpps) else 0
+                        wm_rows.append({"method": method_key, "label": label,
+                                        "avg_mpp": wm_mpp, **avg})
+            avg_within_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": wm_rows}
+
+        avg_pw_vs_si = {"per_model": avg_per_model, "within_model": avg_within_model}
+
+        # --- Avg InterModel: per-category rho values, then weighted average ---
+        avg_im_accum = {}  # {pair: {method: [(rho, n), ...]}}
+        for cat in cats_in_data:
+            cat_pids = {pid for pid, c in paper_categories.items() if c == cat}
+            for i, m1 in enumerate(model_keys):
+                for j, m2 in enumerate(model_keys):
+                    if i >= j or m1 not in model_rankings or m2 not in model_rankings:
+                        continue
+                    pair = f"{_short(m1)} vs {_short(m2)}"
+                    for method in ["reg_wr", "trueskill"]:
+                        r1 = model_rankings[m1].get(method, {})
+                        r2 = model_rankings[m2].get(method, {})
+                        common = sorted(set(r1.keys()) & set(r2.keys()) & cat_pids)
+                        if len(common) >= 10:
+                            v1 = [r1[p] for p in common]
+                            v2 = [r2[p] for p in common]
+                            rho, _ = scipy_stats.spearmanr(v1, v2)
+                            if not np.isnan(rho):
+                                avg_im_accum.setdefault(pair, {}).setdefault(method, []).append(
+                                    (float(rho), len(common)))
+
+        for pair, methods in avg_im_accum.items():
+            row = {"pair": pair, "methods": {}}
+            for method, entries in methods.items():
+                if entries:
+                    weights = [n for _, n in entries]
+                    rho = round(float(np.average([r for r, _ in entries], weights=weights)), 3)
+                    avg_mpp = round((model_avg_mpp.get(model_keys[0], 0) + model_avg_mpp.get(model_keys[1], 0)) / 2, 1) if len(model_keys) >= 2 else 0
+                    row["methods"][method] = {"rho": rho, "n": sum(weights), "avg_mpp": avg_mpp, "n_categories": len(entries)}
+            if row["methods"]:
+                avg_pw_inter_model.append(row)
+
     total_matches = sum(sum(s.get("total", 0) for s in model_paper_stats[mk].values()) for mk in model_keys) // 2
     t_compute = time.perf_counter() - t_start
 
@@ -286,6 +443,7 @@ async def compute_live_analysis(category: Optional[str] = None):
         "agreement": dict(sorted(agreement.items())),
         "scatter_data": scatter_data,
         "pw_inter_model": pw_inter_model,
+        "avg_pw_inter_model": avg_pw_inter_model if avg_pw_inter_model else None,
         "scoring_method": {
             "status": "ok",
             "correlations": scoring_correlations,
@@ -294,6 +452,7 @@ async def compute_live_analysis(category: Optional[str] = None):
         },
         "si_data": si_result,
         "pw_vs_si": pw_vs_si,
+        "avg_pw_vs_si": avg_pw_vs_si,
         "openskill_updated_at": None,
     }
 

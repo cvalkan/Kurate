@@ -6,11 +6,13 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 export function PwVsSiSection({ category, siData: externalSiData, viewMode = "aggregate", osUpdatedAt }) {
   const [data, setData] = useState(externalSiData?.pw_vs_si || null);
+  const [avgData, setAvgData] = useState(externalSiData?.avg_pw_vs_si || null);
   const [controlled, setControlled] = useState(false);
 
   useEffect(() => {
     if (externalSiData?.pw_vs_si) {
       setData(externalSiData.pw_vs_si);
+      setAvgData(externalSiData.avg_pw_vs_si || null);
       return;
     }
     const params = category ? { category } : {};
@@ -58,8 +60,8 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {["claude", "gpt", "gemini"].map(mk => {
           const isAvg = viewMode === "average";
-          const perModelSource = isAvg && data.avg_per_model ? data.avg_per_model : data.per_model;
-          const withinSource = isAvg && data.avg_within_model ? data.avg_within_model : data.within_model;
+          const perModelSource = isAvg && avgData?.per_model ? avgData.per_model : data.per_model;
+          const withinSource = isAvg && avgData?.within_model ? avgData.within_model : data.within_model;
           const mData = perModelSource?.[mk];
           if (!mData) return null;
           const wmData = withinSource?.[mk];
