@@ -2233,6 +2233,27 @@ async def get_system_logs(
 
     logs = non_mem_logs + mem_logs
 
+    # Always include restart markers at full resolution (bypass downsampling).
+    # "Server started" entries have low RSS and get dropped by the max-RSS grouping.
+    restart_query = {
+        "ts": {"$gte": datetime.now(timezone.utc) - timedelta(hours=hours)},
+        "level": "mem",
+        "label": "Server started",
+    }
+    restart_logs = await db.system_logs.find(
+        restart_query, {"_id": 0}
+    ).sort("ts", -1).to_list(length=200)
+    # Add any restarts not already in mem_logs (dedup by timestamp)
+    existing_ts = {log.get("ts") for log in mem_logs if log.get("label") == "Server started"}
+    for rl in restart_logs:
+        if rl.get("ts") not in existing_ts:
+            logs.append({
+                "ts": rl["ts"],
+                "level": "mem",
+                "rss_mb": round(rl["rss_mb"]) if rl.get("rss_mb") else None,
+                "label": "Server started",
+            })
+
     # Convert datetime to ISO string
     for log in logs:
         if "ts" in log and hasattr(log["ts"], "isoformat"):
