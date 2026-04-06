@@ -390,6 +390,60 @@ async def compute_live_analysis(category: Optional[str] = None):
             tau = round(float(np.average([t for _, t, _ in entries], weights=weights)), 3)
             return {"spearman_rho": rho, "kendall_tau": tau, "n": sum(weights), "n_categories": len(entries)}
 
+        # --- Avg Scoring Method (WR vs TS, WR vs OS, TS vs OS) per-category ---
+        avg_scoring_accum = {}  # {label: [(rho, tau, n), ...]}
+        for cat in cats_in_data:
+            cat_papers_sm = [p for p in paper_by_cat.get(cat, []) if p.get("comparisons", 0) >= 3]
+            if len(cat_papers_sm) < 10:
+                continue
+            cat_wr_sm = {p["paper_id"]: p["score"] for p in cat_papers_sm if p.get("score")}
+            cat_ts_sm = {p["paper_id"]: p["ts_score"] for p in cat_papers_sm if p.get("ts_score")}
+            # WR vs TS
+            shared = sorted(set(cat_wr_sm.keys()) & set(cat_ts_sm.keys()))
+            if len(shared) >= 10:
+                sp_r, _ = scipy_stats.spearmanr([cat_wr_sm[p] for p in shared], [cat_ts_sm[p] for p in shared])
+                kt_r, _ = scipy_stats.kendalltau([cat_wr_sm[p] for p in shared], [cat_ts_sm[p] for p in shared])
+                if not np.isnan(sp_r):
+                    avg_scoring_accum.setdefault("Normalized Win-Rate vs TrueSkill", []).append((float(sp_r), float(kt_r), len(shared)))
+            # WR/TS vs OS (from cache)
+            cat_sm_os_cache = await db.analysis_store.find_one(
+                {"_type": "openskill-cache", "key": cat}, {"_id": 0, "os_global": 1})
+            if cat_sm_os_cache and cat_sm_os_cache.get("os_global"):
+                osg = cat_sm_os_cache["os_global"]
+                for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
+                    os_scores = osg.get(os_key, {})
+                    for pw_name, pw_label, pw_dict in [("win_rate", "Normalized Win-Rate", cat_wr_sm), ("trueskill", "TrueSkill", cat_ts_sm)]:
+                        shared_os = sorted(set(pw_dict.keys()) & set(os_scores.keys()))
+                        if len(shared_os) >= 10:
+                            sp_r, _ = scipy_stats.spearmanr([pw_dict[p] for p in shared_os], [os_scores[p] for p in shared_os])
+                            kt_r, _ = scipy_stats.kendalltau([pw_dict[p] for p in shared_os], [os_scores[p] for p in shared_os])
+                            if not np.isnan(sp_r):
+                                label = f"{pw_label} vs {os_label}"
+                                avg_scoring_accum.setdefault(label, []).append((float(sp_r), float(kt_r), len(shared_os)))
+                    # OS vs OS
+                    for os_key2, os_label2 in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
+                        if os_key >= os_key2:
+                            continue
+                        os2 = osg.get(os_key2, {})
+                        shared_os2 = sorted(set(os_scores.keys()) & set(os2.keys()))
+                        if len(shared_os2) >= 10:
+                            sp_r, _ = scipy_stats.spearmanr([os_scores[p] for p in shared_os2], [os2[p] for p in shared_os2])
+                            kt_r, _ = scipy_stats.kendalltau([os_scores[p] for p in shared_os2], [os2[p] for p in shared_os2])
+                            if not np.isnan(sp_r):
+                                avg_scoring_accum.setdefault(f"{os_label} vs {os_label2}", []).append((float(sp_r), float(kt_r), len(shared_os2)))
+
+        avg_scoring_correlations = []
+        for label, entries in avg_scoring_accum.items():
+            avg = _weighted_avg(entries)
+            if avg:
+                parts = label.split(" vs ")
+                m1 = parts[0].lower().replace("normalized ", "").replace("-", "_").replace(" ", "_")
+                m2 = parts[1].lower().replace(" ", "").replace("openskill", "openskill")
+                avg_scoring_correlations.append({
+                    "method1": m1, "method2": m2,
+                    "label": label, **avg,
+                })
+
         avg_per_model = {}
         for si_mk, pw_data in avg_pm_accum.items():
             rows = []
@@ -426,6 +480,11 @@ async def compute_live_analysis(category: Optional[str] = None):
         avg_im_accum = {}  # {pair: {method: [(rho, n), ...]}}
         for cat in cats_in_data:
             cat_pids = {pid for pid, c in paper_categories.items() if c == cat}
+            # Load OS cache for this category (for inter-model OS correlations)
+            cat_im_os_cache = await db.analysis_store.find_one(
+                {"_type": "openskill-cache", "key": cat},
+                {"_id": 0, "os_per_model": 1},
+            )
             for i, m1 in enumerate(model_keys):
                 for j, m2 in enumerate(model_keys):
                     if i >= j or m1 not in model_rankings or m2 not in model_rankings:
@@ -442,6 +501,23 @@ async def compute_live_analysis(category: Optional[str] = None):
                             if not np.isnan(rho):
                                 avg_im_accum.setdefault(pair, {}).setdefault(method, []).append(
                                     (float(rho), len(common)))
+                    # OS inter-model from per-model cache
+                    if cat_im_os_cache and cat_im_os_cache.get("os_per_model"):
+                        opm = cat_im_os_cache["os_per_model"]
+                        os_m1 = opm.get(m1, {})
+                        os_m2 = opm.get(m2, {})
+                        for os_key in ["os1", "os3", "os10"]:
+                            s1 = os_m1.get(os_key, {})
+                            s2 = os_m2.get(os_key, {})
+                            common = sorted(set(s1.keys()) & set(s2.keys()) & cat_pids)
+                            if len(common) >= 10:
+                                v1 = [s1[p] for p in common]
+                                v2 = [s2[p] for p in common]
+                                rho, _ = scipy_stats.spearmanr(v1, v2)
+                                if not np.isnan(rho):
+                                    method_name = {"os1": "openskill1", "os3": "openskill3", "os10": "openskill10"}[os_key]
+                                    avg_im_accum.setdefault(pair, {}).setdefault(method_name, []).append(
+                                        (float(rho), len(common)))
 
         for pair, methods in avg_im_accum.items():
             row = {"pair": pair, "methods": {}}
@@ -476,6 +552,7 @@ async def compute_live_analysis(category: Optional[str] = None):
         "scoring_method": {
             "status": "ok",
             "correlations": scoring_correlations,
+            "avg_correlations": avg_scoring_correlations if avg_scoring_correlations else None,
             "n_papers": len(shared_pids),
             "n_matches": total_matches,
         },

@@ -4,11 +4,13 @@ const METHOD_COLORS = {
   "win_rate vs trueskill": "bg-violet-500/10",
 };
 
-export function ScoringMethodSection({ category, scoringData, osUpdatedAt }) {
+export function ScoringMethodSection({ category, scoringData, viewMode = "aggregate", osUpdatedAt }) {
   const data = scoringData;
-  const hasOs = data?.correlations?.some(c => c.method1?.startsWith("openskill") || c.method2?.startsWith("openskill"));
+  const isAvg = viewMode === "average";
+  const rows = (isAvg && data?.avg_correlations?.length ? data.avg_correlations : data?.correlations) || [];
+  const hasOs = rows.some(c => c.method1?.startsWith("openskill") || c.method2?.startsWith("openskill"));
 
-  if (!data || !data.correlations?.length) return null;
+  if (!data || !rows.length) return null;
 
   return (
     <div className="my-6" data-testid="scoring-method-section">
@@ -29,7 +31,7 @@ export function ScoringMethodSection({ category, scoringData, osUpdatedAt }) {
             </tr>
           </thead>
           <tbody>
-            {data.correlations.map((c, i) => (
+            {rows.map((c, i) => (
               <tr key={i} className={`border-t border-border/50 ${METHOD_COLORS[c.label?.toLowerCase()] || ""}`}>
                 <td className="px-3 py-1.5 text-xs">{c.label?.replace("Regularized WR", "Reg WR").replace("Bradley-Terry", "BT").replace("Normalized Win-Rate", "Win Rate")}</td>
                 <td className="px-3 py-1.5 text-xs text-right font-mono tabular-nums">{c.spearman_rho?.toFixed(4)}</td>

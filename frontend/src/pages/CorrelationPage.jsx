@@ -158,7 +158,7 @@ export default function CorrelationPage() {
       </SectionBoundary>
 
       <SectionBoundary>
-        <ScoringMethodSection category={category || null} scoringData={data?.scoring_method} osUpdatedAt={data?.openskill_updated_at} />
+        <ScoringMethodSection category={category || null} scoringData={data?.scoring_method} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} />
       </SectionBoundary>
 
       <SectionBoundary>
