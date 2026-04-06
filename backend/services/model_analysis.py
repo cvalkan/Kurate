@@ -285,6 +285,7 @@ async def compute_live_analysis(category: Optional[str] = None):
         _SI_MKS = ("claude", "gpt", "gemini")
         avg_pm_accum = {}   # {si_mk: {pw_key: [(rho, tau, n), ...]}}
         avg_wm_accum = {}   # {si_mk: {method: [(rho, tau, n), ...]}}
+        avg_ctrl_accum = {} # {si_mk: {pw_key: [(rho, tau, n), ...]}} — controlled (single-judge) per-category
 
         def _get_si_score_avg(p, mk=None):
             si = p.get("si_ratings", {})
@@ -341,7 +342,7 @@ async def compute_live_analysis(category: Optional[str] = None):
                         avg_pm_accum.setdefault(si_mk, {}).setdefault(os_key, []).append(
                             (row["spearman_rho"], row["kendall_tau"], row["n"]))
 
-            # Within-model PW vs SI
+            # Within-model PW vs SI (also accumulates controlled rows)
             for si_mk, si_scores in cat_si.items():
                 if si_mk == "avg":
                     continue
@@ -381,6 +382,28 @@ async def compute_live_analysis(category: Optional[str] = None):
                             if row:
                                 avg_wm_accum.setdefault(si_mk, {}).setdefault(f"within_{os_key}", []).append(
                                     (row["spearman_rho"], row["kendall_tau"], row["n"]))
+
+                # Controlled: single-judge stats correlated vs ALL SI models (not just the matching one)
+                # For controlled, we correlate this judge's PW vs each SI model's scores
+                # This goes into avg_ctrl_accum under each SI target
+                for si_target, si_target_scores in cat_si.items():
+                    row_wr = _corr_row("ctrl_wr", "Reg WR", wm_wr, si_target_scores)
+                    if row_wr:
+                        avg_ctrl_accum.setdefault(si_target, {}).setdefault("reg_wr", []).append(
+                            (row_wr["spearman_rho"], row_wr["kendall_tau"], row_wr["n"]))
+                    row_ts = _corr_row("ctrl_ts", "TrueSkill", wm_ts, si_target_scores)
+                    if row_ts:
+                        avg_ctrl_accum.setdefault(si_target, {}).setdefault("trueskill", []).append(
+                            (row_ts["spearman_rho"], row_ts["kendall_tau"], row_ts["n"]))
+                    if cat_os_cache:
+                        opm = cat_os_cache.get("os_per_model", {}).get(mk_key, {})
+                        for os_key, os_label in [("os1", "openskill1"), ("os3", "openskill3"), ("os10", "openskill10")]:
+                            os_sc = opm.get(os_key, {})
+                            if len(os_sc) >= 10:
+                                row_os = _corr_row(f"ctrl_{os_key}", os_label, os_sc, si_target_scores)
+                                if row_os:
+                                    avg_ctrl_accum.setdefault(si_target, {}).setdefault(os_label, []).append(
+                                        (row_os["spearman_rho"], row_os["kendall_tau"], row_os["n"]))
 
         # Aggregate per-category values into weighted averages
         def _weighted_avg(entries):
@@ -458,6 +481,23 @@ async def compute_live_analysis(category: Optional[str] = None):
                         rows.append({"method": f"combined_{pw_key}", "label": label,
                                      "avg_mpp": combined_mpp, **avg})
             avg_per_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "rows": rows, "controlled_rows": [], "n_matches": 0}
+
+        # Build controlled rows from avg_ctrl_accum
+        for si_mk, ctrl_data in avg_ctrl_accum.items():
+            ctrl_rows = []
+            for pw_key, label in [("reg_wr", "Reg WR"), ("trueskill", "TrueSkill"),
+                                   ("openskill1", "OpenSkill 1p"), ("openskill3", "OpenSkill 3p"), ("openskill10", "OpenSkill 10p")]:
+                entries = ctrl_data.get(pw_key)
+                if entries:
+                    avg = _weighted_avg(entries)
+                    if avg:
+                        mk_key = _MODEL_KEY_MAP.get(si_mk)
+                        mpps = [model_paper_stats.get(mk_key, {}).get(p["paper_id"], {}).get("total", 0) for p in papers] if mk_key else []
+                        wm_mpp = round(float(np.mean([m for m in mpps if m > 0])), 1) if any(m > 0 for m in mpps) else 0
+                        ctrl_rows.append({"method": f"ctrl_{pw_key}", "label": label,
+                                         "avg_mpp": wm_mpp, **avg})
+            if si_mk in avg_per_model:
+                avg_per_model[si_mk]["controlled_rows"] = ctrl_rows
 
         avg_within_model = {}
         for si_mk, method_data in avg_wm_accum.items():

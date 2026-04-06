@@ -66,7 +66,10 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
 
           // In Average mode: use averaged rows (WR/TS + OS all computed per-category)
           let combinedRows, withinRows;
-          if (controlled) {
+          if (controlled && isAvg && avgData?.per_model?.[mk]) {
+            combinedRows = avgData.per_model[mk].controlled_rows || [];
+            withinRows = avgData.within_model?.[mk]?.rows || [];
+          } else if (controlled) {
             combinedRows = mDataAgg?.controlled_rows || [];
             withinRows = wmDataAgg?.rows || [];
           } else if (isAvg && avgData?.per_model?.[mk]) {
