@@ -272,6 +272,7 @@ async def compute_live_analysis(category: Optional[str] = None):
     # --- Per-category averaged PW-vs-SI and InterModel tables ---
     avg_pw_vs_si = None
     avg_pw_inter_model = []
+    avg_scoring_correlations = []
     if not category and paper_categories:
         cats_in_data = set(c for c in paper_categories.values() if c)
         paper_by_cat = {}
