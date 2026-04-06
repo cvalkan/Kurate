@@ -169,10 +169,53 @@ Of the 33 profiles with S2 name search results:
 | S2 findable by name | 77% | 62% |
 | S2 by ORCID | 0% | 0% |
 
-### Key Insight
-**ORCID works coverage (84%) is MUCH higher than the celebrity-researcher test suggested (40%).** The earlier test was biased toward high-profile ML researchers who tend not to maintain ORCID. The general academic population has works on ORCID primarily via **Crossref and Scopus auto-import** from publishers — researchers don't have to do anything.
+### Key Insight (CORRECTED)
+The first survey (general ORCID keyword search) showed 84% with works — but this was biased toward established researchers who have keywords in their ORCID profiles. **A second survey of actual Kurate leaderboard authors tells a very different story.**
 
-This strongly favors **Option E**: for 84% of researchers, verification could be instant (paper already on ORCID). Only 16% would need to manually add a paper (~60 seconds).
+---
+
+## Survey 2: Kurate Leaderboard Authors (April 2026, n=40)
+
+Sample: First authors of actual papers on Kurate's leaderboard across cs.RO, cs.CR, cs.DC, cs.SI, astro-ph.CO, quant-ph.
+
+### ORCID Profile Quality
+| Metric | Count | % |
+|---|---|---|
+| Has ORCID profile (found by name) | 32/40 | 80% |
+| ORCID with any works | 11/40 | **28%** |
+| ORCID with 5+ works | 5/40 | 12% |
+| Has auto-imported works (Crossref etc.) | 10/40 | 25% |
+| Has institutional email | 4/40 | 10% |
+
+### S2 Linkability
+| Method | Count | % |
+|---|---|---|
+| S2 direct ORCID lookup | 0/32 | **0%** |
+| S2 name search finds candidates | 38/40 | 95% |
+| S2 name unambiguous (1 result) | 10/38 | 26% |
+| S2 name ambiguous (2+ results) | 28/38 | **74%** |
+| S2 result has matching ORCID | 0/32 | 0% |
+
+### S2 Name Search Disambiguation Detail
+| Candidates | Count | Notes |
+|---|---|---|
+| 1 (unambiguous) | 10 | Can auto-link |
+| 2 | 4 | Manageable picker |
+| 3 | 4 | Manageable picker |
+| 4 | 2 | Needs context (affiliation, paper count) |
+| 5 (max returned) | 18 | Likely more — may need better disambiguation |
+
+### Comparison: General ORCID vs Kurate Authors
+| Metric | General (n=50) | Kurate (n=40) |
+|---|---|---|
+| ORCID with works | **84%** | **28%** |
+| ORCID with 5+ works | ? | 12% |
+| Institutional email | 26% | 10% |
+| S2 direct ORCID | 0% | 0% |
+| S2 name found | 66% | 95% |
+| S2 name unambiguous | 24% | 26% |
+
+**Why the gap:** Kurate authors are recent arXiv preprint authors — often junior researchers (grad students, postdocs). Their papers are preprints (no DOI → no Crossref auto-import). The general ORCID sample was biased toward established researchers with keyword-rich profiles.
 
 ---
 
@@ -220,14 +263,14 @@ Tested prominent CS/ML researchers (LeCun, Hinton, Bengio, Manning, etc.):
 
 ---
 
-## Recommendation
+## Recommendation (Updated with Kurate-specific data)
 
-**Option E (ORCID-only)** is the clear winner:
-- 84% instant verification (works already on ORCID via auto-import)
-- 16% need one manual step (~60 seconds, comparable friction to all other options)
-- Zero fragile dependencies
-- Simplest implementation
+**No single option is clearly dominant for Kurate's user base:**
 
-**Option B (Scholar URL)** is a viable fallback if ORCID works coverage proves lower for Kurate's specific arXiv-heavy user base (since Crossref auto-import favors journal papers over preprints).
+- **Option E (ORCID-only):** Only 28% instant verification for Kurate authors (not 84%). 72% would need to manually add a paper to ORCID. Still the simplest to implement and maintain (no scraping, no disambiguation), but higher friction than initially estimated.
 
-**Option A (S2 name search)** should be avoided as a primary path due to 76% disambiguation rate.
+- **Option B (ORCID + Scholar URL):** Avoids the 72% manual-add problem since most researchers maintain Scholar profiles. But adds HTML parsing fragility and fuzzy title matching.
+
+- **S2 path:** 95% findable by name search, but 74% ambiguous. Could work WITH a disambiguation picker showing paper counts and affiliations, but UX is clunky for common names.
+
+**Pragmatic approach:** Implement Option E first (simplest, ~0.5 day). For the 72% who need to manually add a paper to ORCID, provide clear step-by-step guidance in the UI. Monitor the conversion rate. If too many users drop off at the "add to ORCID" step, add Option B (Scholar URL) as an alternative path.
