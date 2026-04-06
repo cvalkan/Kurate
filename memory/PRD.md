@@ -21,6 +21,10 @@ Build and maintain a sophisticated "Validation Hub" for an AI paper-judging syst
 
 **ORCID API:** The main v3.0 endpoints (`/person`, `/email`) do NOT expose verified email domains. Use the Record Summary API at `https://orcid.org/{id}/public-record.json` — it has the `emailDomains` field. The v3.0 `/email` endpoint only returns emails the user made fully public (~6% of researchers).
 
+**Factual metrics must be consistent across view modes:** When adding an "Average" or alternative view of correlation data, factual metrics like m/paper (matches per paper) must not change — they're counts, not statistics. Always copy factual columns from the primary (Aggregate) computation rather than recomputing from a different paper population. In this codebase, Average rows are computed from per-category subsets but the aggregate m/paper comes from `pw_papers` (papers with SI ratings). Recomputing from `papers` (all papers) gives different values. The fix: derive m/paper from the already-computed aggregate rows.
+
+
+
 
 
 ## What's Been Implemented
