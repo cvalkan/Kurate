@@ -313,12 +313,31 @@ async def compute_live_analysis(category: Optional[str] = None):
             cat_ts = {p["paper_id"]: p["ts_score"] for p in cat_papers if p.get("ts_score")}
             cat_pw = {"reg_wr": ("Reg WR", cat_wr), "trueskill": ("TrueSkill", cat_ts)}
 
-            # Combined PW vs SI
+            # Load cached OpenSkill scores for this category
+            cat_os_cache = await db.analysis_store.find_one(
+                {"_type": "openskill-cache", "key": cat},
+                {"_id": 0, "os_global": 1, "os_per_model": 1},
+            )
+            cat_os = {}
+            if cat_os_cache and cat_os_cache.get("os_global"):
+                osg = cat_os_cache["os_global"]
+                for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
+                    scores = osg.get(os_key, {})
+                    if len(scores) >= 10:
+                        cat_os[os_key] = (os_label, scores)
+
+            # Combined PW vs SI (WR, TS, OS)
             for si_mk, si_scores in cat_si.items():
                 for pw_key, (pw_label, pw_scores) in cat_pw.items():
                     row = _corr_row(f"combined_{pw_key}", pw_label, pw_scores, si_scores)
                     if row:
                         avg_pm_accum.setdefault(si_mk, {}).setdefault(pw_key, []).append(
+                            (row["spearman_rho"], row["kendall_tau"], row["n"]))
+                # OpenSkill vs SI
+                for os_key, (os_label, os_scores) in cat_os.items():
+                    row = _corr_row(f"combined_{os_key}", os_label, os_scores, si_scores)
+                    if row:
+                        avg_pm_accum.setdefault(si_mk, {}).setdefault(os_key, []).append(
                             (row["spearman_rho"], row["kendall_tau"], row["n"]))
 
             # Within-model PW vs SI
@@ -351,6 +370,16 @@ async def compute_live_analysis(category: Optional[str] = None):
                 if row:
                     avg_wm_accum.setdefault(si_mk, {}).setdefault("within_ts", []).append(
                         (row["spearman_rho"], row["kendall_tau"], row["n"]))
+                # Within-model OS (from per-model OS cache for this category)
+                if cat_os_cache:
+                    os_per_model = cat_os_cache.get("os_per_model", {}).get(mk_key, {})
+                    for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
+                        os_scores = os_per_model.get(os_key, {})
+                        if len(os_scores) >= 10:
+                            row = _corr_row(f"within_{os_key}", os_label, os_scores, si_scores)
+                            if row:
+                                avg_wm_accum.setdefault(si_mk, {}).setdefault(f"within_{os_key}", []).append(
+                                    (row["spearman_rho"], row["kendall_tau"], row["n"]))
 
         # Aggregate per-category values into weighted averages
         def _weighted_avg(entries):
@@ -364,12 +393,12 @@ async def compute_live_analysis(category: Optional[str] = None):
         avg_per_model = {}
         for si_mk, pw_data in avg_pm_accum.items():
             rows = []
-            for pw_key in ["reg_wr", "trueskill"]:
+            for pw_key, label in [("reg_wr", "Reg WR"), ("trueskill", "TrueSkill"),
+                                   ("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
                 entries = pw_data.get(pw_key)
                 if entries:
                     avg = _weighted_avg(entries)
                     if avg:
-                        label = "Reg WR" if pw_key == "reg_wr" else "TrueSkill"
                         combined_mpp = round(float(np.mean([p.get("comparisons", 0) for p in papers if p.get("comparisons", 0) >= 3])), 1)
                         rows.append({"method": f"combined_{pw_key}", "label": label,
                                      "avg_mpp": combined_mpp, **avg})
@@ -378,12 +407,12 @@ async def compute_live_analysis(category: Optional[str] = None):
         avg_within_model = {}
         for si_mk, method_data in avg_wm_accum.items():
             wm_rows = []
-            for method_key in ["within_wr", "within_ts"]:
+            for method_key, label in [("within_wr", "Win Rate"), ("within_ts", "TrueSkill"),
+                                       ("within_os1", "OpenSkill 1p"), ("within_os3", "OpenSkill 3p"), ("within_os10", "OpenSkill 10p")]:
                 entries = method_data.get(method_key)
                 if entries:
                     avg = _weighted_avg(entries)
                     if avg:
-                        label = "Win Rate" if method_key == "within_wr" else "TrueSkill"
                         mk_key = _MODEL_KEY_MAP.get(si_mk)
                         mpps = [model_paper_stats.get(mk_key, {}).get(p["paper_id"], {}).get("total", 0) for p in papers]
                         wm_mpp = round(float(np.mean([m for m in mpps if m > 0])), 1) if any(m > 0 for m in mpps) else 0

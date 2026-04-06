@@ -61,20 +61,26 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {["claude", "gpt", "gemini"].map(mk => {
           const isAvg = viewMode === "average";
-          const perModelSource = isAvg && avgData?.per_model ? avgData.per_model : data.per_model;
-          const withinSource = isAvg && avgData?.within_model ? avgData.within_model : data.within_model;
-          const mData = perModelSource?.[mk];
-          if (!mData) return null;
-          const wmData = withinSource?.[mk];
-          // Controlled rows always from aggregate (controlled subsampling is independent of averaging)
           const mDataAgg = data.per_model?.[mk];
-          const combinedRows = controlled
-            ? (mDataAgg?.controlled_rows || [])
-            : (mData.rows || []);
-          const withinRows = (wmData?.rows || []);
+          const wmDataAgg = data.within_model?.[mk];
+
+          // In Average mode: use averaged rows (WR/TS + OS all computed per-category)
+          let combinedRows, withinRows;
+          if (controlled) {
+            combinedRows = mDataAgg?.controlled_rows || [];
+            withinRows = wmDataAgg?.rows || [];
+          } else if (isAvg && avgData?.per_model?.[mk]) {
+            combinedRows = avgData.per_model[mk].rows || [];
+            withinRows = avgData.within_model?.[mk]?.rows || [];
+          } else {
+            combinedRows = mDataAgg?.rows || [];
+            withinRows = wmDataAgg?.rows || [];
+          }
+
+          if (!mDataAgg) return null;
           const allRhos = [...combinedRows, ...withinRows].map(r => r.spearman_rho);
           const bestRho = allRhos.length > 0 ? Math.max(...allRhos) : null;
-          const shortName = mData.label.split(" ")[0];
+          const shortName = mDataAgg.label.split(" ")[0];
           return (
             <div key={mk} className="border border-border rounded-lg overflow-hidden" data-testid={`pw-vs-si-${mk}`}>
               <div className="px-3 py-1.5 bg-secondary/10 border-b border-border">
