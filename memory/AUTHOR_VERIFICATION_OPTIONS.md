@@ -263,14 +263,32 @@ Tested prominent CS/ML researchers (LeCun, Hinton, Bengio, Manning, etc.):
 
 ---
 
+## Survey 3: Coverage of Actual Recent Kurate Preprints (April 2026, n=50)
+
+The critical test: are recent preprints on Kurate's leaderboard findable on S2 or ORCID?
+
+Sample: 50 most recent papers across 10 Kurate categories, published 2026-03-15 to 2026-04-03.
+
+| Metric | Coverage | Note |
+|---|---|---|
+| Paper indexed on S2 | 14/50 (**28%**) | arXiv preprints take days/weeks to appear |
+| S2 paper has author ORCID | 0/14 (0%) | Even when indexed, no ORCID link |
+| First author has ORCID profile | 45/50 (90%) | Identity layer is solid |
+| First author ORCID has any works | 15/50 (30%) | Works layer is sparse |
+| **THIS paper on first author's ORCID** | **1/50 (2%)** | Almost no preprints auto-imported |
+
+**Bottom line for recent preprints: ALL verification options require a manual step for ~98% of papers.** The question is which manual step is least friction.
+
+---
+
 ## Recommendation (Updated with Kurate-specific data)
 
 **No single option is clearly dominant for Kurate's user base:**
 
-- **Option E (ORCID-only):** Only 28% instant verification for Kurate authors (not 84%). 72% would need to manually add a paper to ORCID. Still the simplest to implement and maintain (no scraping, no disambiguation), but higher friction than initially estimated.
+- **Option E (ORCID-only):** Only 2% instant verification for recent preprints. 98% must manually add a paper to ORCID (~60 sec). But simplest to implement, zero dependencies.
 
-- **Option B (ORCID + Scholar URL):** Avoids the 72% manual-add problem since most researchers maintain Scholar profiles. But adds HTML parsing fragility and fuzzy title matching.
+- **Option B (ORCID + Scholar URL):** Avoids the manual-add problem since Scholar profiles are generally more complete. But adds HTML parsing fragility and fuzzy title matching. ~15 sec user action.
 
-- **S2 path:** 95% findable by name search, but 74% ambiguous. Could work WITH a disambiguation picker showing paper counts and affiliations, but UX is clunky for common names.
+- **Option A (S2 name search):** 95% of authors findable but 74% ambiguous. Only 28% of papers indexed. Not viable for recent preprints.
 
-**Pragmatic approach:** Implement Option E first (simplest, ~0.5 day). For the 72% who need to manually add a paper to ORCID, provide clear step-by-step guidance in the UI. Monitor the conversion rate. If too many users drop off at the "add to ORCID" step, add Option B (Scholar URL) as an alternative path.
+**Pragmatic approach:** Start with Option E (simplest, ~0.5 day). Provide clear guidance for the "add to ORCID" step. If the 60-second ORCID add-work UX proves too much friction, add Option B (Scholar URL) as an alternative. Both share the ORCID identity layer.
