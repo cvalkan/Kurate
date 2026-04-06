@@ -122,7 +122,8 @@ async def compute_live_analysis(category: Optional[str] = None):
 
     # --- PW Inter-Model (WR + TS only, OS columns filled by merge) ---
     method_labels = {"reg_wr": "Reg WR", "trueskill": "TrueSkill",
-                     "openskill": "OpenSkill 1p", "openskill3": "OpenSkill 3p", "openskill10": "OpenSkill 10p"}
+                     "openskill": "OpenSkill 1p", "openskill1": "OpenSkill 1p",
+                     "openskill3": "OpenSkill 3p", "openskill10": "OpenSkill 10p"}
 
     model_rankings = {}
     model_avg_mpp = {}
@@ -546,6 +547,7 @@ async def compute_live_analysis(category: Optional[str] = None):
         "avg_correlations": dict(sorted(avg_correlations.items())),
         "avg_ts_correlations": dict(sorted(avg_ts_correlations.items())),
         "agreement": dict(sorted(agreement.items())),
+        "avg_agreement": dict(sorted(avg_agreement.items())) if avg_agreement else None,
         "scatter_data": scatter_data,
         "pw_inter_model": pw_inter_model,
         "avg_pw_inter_model": avg_pw_inter_model if avg_pw_inter_model else None,
@@ -761,7 +763,7 @@ def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
         m2_key = next((k for k, v in _SHORT_NAMES.items() if v == pair_parts[1]), None)
         if not m1_key or not m2_key:
             continue
-        for os_key, os_data in [("openskill", "os1"), ("openskill3", "os3"), ("openskill10", "os10")]:
+        for os_key, os_data in [("openskill1", "os1"), ("openskill3", "os3"), ("openskill10", "os10")]:
             r1 = model_os.get(m1_key, {}).get(os_data, {})
             r2 = model_os.get(m2_key, {}).get(os_data, {})
             common = sorted(set(r1.keys()) & set(r2.keys()))
@@ -777,6 +779,33 @@ def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
     sm_corrs = sm.get("correlations", [])
     for row in os_cache.get("scoring_os_correlations", []):
         sm_corrs.append(row)
+
+    # Ensure OS-vs-OS pairs exist (they may be missing from older caches)
+    os_global = os_cache.get("os_global", {})
+    existing_labels = {r.get("label") for r in sm_corrs}
+    os_variants = [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]
+    for i in range(len(os_variants)):
+        for j in range(i + 1, len(os_variants)):
+            k1, l1 = os_variants[i]
+            k2, l2 = os_variants[j]
+            label = f"{l1} vs {l2}"
+            if label in existing_labels:
+                continue
+            s1 = os_global.get(k1, {})
+            s2 = os_global.get(k2, {})
+            common = sorted(set(s1.keys()) & set(s2.keys()))
+            if len(common) >= 10:
+                v1 = [s1[p] for p in common]
+                v2 = [s2[p] for p in common]
+                sp_r, _ = scipy_stats.spearmanr(v1, v2)
+                kt_r, _ = scipy_stats.kendalltau(v1, v2)
+                if not np.isnan(sp_r):
+                    sm_corrs.append({
+                        "method1": k1, "method2": k2,
+                        "label": label,
+                        "spearman_rho": round(float(sp_r), 6),
+                        "kendall_tau": round(float(kt_r), 6),
+                    })
 
     # Inject OS rows into pw_vs_si (pre-computed in cache)
     pw_vs_si = live.get("pw_vs_si")
