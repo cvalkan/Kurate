@@ -84,7 +84,7 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
           return (
             <div key={mk} className="border border-border rounded-lg overflow-hidden" data-testid={`pw-vs-si-${mk}`}>
               <div className="px-3 py-1.5 bg-secondary/10 border-b border-border">
-                <span className="text-[10px] font-semibold">vs {mData.label} Scores</span>
+                <span className="text-[10px] font-semibold">vs {mDataAgg.label} Scores</span>
               </div>
               <table className="w-full text-[10px]">
                 <thead>
@@ -112,7 +112,7 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
                   {withinRows.length > 0 && (
                     <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">
                       {shortName} only
-                      {wmData?.n_matches ? <span className="ml-1 font-normal">({wmData.n_matches.toLocaleString()} matches)</span> : ""}
+                      {wmDataAgg?.n_matches ? <span className="ml-1 font-normal">({wmDataAgg.n_matches.toLocaleString()} matches)</span> : ""}
                     </td></tr>
                   )}
                   {withinRows.map(row => (
@@ -120,7 +120,7 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
                       <td className="py-1 px-2 font-medium">{row.label}</td>
                       <td className={`py-1 px-2 text-right font-mono ${row.spearman_rho === bestRho ? "font-bold text-emerald-700" : "font-semibold"}`}>{row.spearman_rho?.toFixed(3) ?? "—"}</td>
                       <td className="py-1 px-2 text-right font-mono">{row.kendall_tau?.toFixed(3) ?? "—"}</td>
-                      <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.avg_mpp || wmData?.avg_mpp || "—"}</td>
+                      <td className="py-1 px-2 text-right font-mono text-muted-foreground">{row.avg_mpp || wmDataAgg?.avg_mpp || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
