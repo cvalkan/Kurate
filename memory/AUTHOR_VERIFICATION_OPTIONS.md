@@ -1,294 +1,211 @@
 # Author Verification & Paper Claiming — Options Analysis
-*Date: April 5, 2026*
+*Updated: April 6, 2026*
 
 ## Goal
 Allow researchers to claim authorship of their papers on Kurate.org, proving they are who they say they are and linking their identity to their publications.
 
 ## Current Implementation Status
-- **ORCID OAuth**: Fully built (backend + frontend). Proves identity, extracts institutional email domains.
-- **Semantic Scholar helpers**: Built — paper lookup by arXiv ID, author search by ORCID (unreliable), author paper list retrieval.
+- **ORCID OAuth**: Fully built (backend + frontend). Proves identity via OAuth.
+- **Semantic Scholar helpers**: Built — paper lookup by arXiv ID, author search, author paper list retrieval.
 - **Verification pipeline**: Built — multi-signal verification with fuzzy name matching, trust levels.
 - **Frontend component**: Built but orphaned (not wired to any page).
 - **ORCID credentials**: Configured in production `.env`.
 
-## Key Finding: S2 ORCID Lookup Coverage is ~7%, Not 40-60%
+---
 
-Semantic Scholar stores ORCID in `externalIds` on some author profiles, and the data structure exists for `ORCID:xxx` direct lookup. However, empirical testing (April 2026) shows extremely sparse coverage:
+## Key API Discovery: ORCID Record Summary Exposes Verified Email Domains
 
-- Tested 15 prominent CS/ML researchers (LeCun, Hinton, Sutskever, Bengio, Manning, Narayanan, Abebe, Gebru, Guestrin, etc.)
-- **Only 1/15 (Manning) had ORCID mapped on S2** (~7%)
-- The `ORCID:xxx` direct lookup endpoint returns 404 for all tested ORCIDs — even Manning's, despite his profile having the ORCID in `externalIds`
-- S2 author search by ORCID ID string also returns 0 results for all tested
+As of April 2026, ORCID's **Record Summary API** (`public-record.json`) includes a `emailDomains` field containing verified institutional email domains — without exposing the full email address. This is the privacy-preserving "trust marker" ORCID launched in September 2024.
 
-**Conclusion:** S2's ORCID→author mapping cannot be relied upon as a primary verification path. It's useful as a fast-track shortcut (check first, skip disambiguation if found), but 90%+ of users will need a fallback.
+**Endpoint**: `GET https://orcid.org/{orcid_id}/public-record.json`
+
+**Response (example):**
+```json
+{
+  "emails": {
+    "emails": null,
+    "emailDomains": [
+      {"value": "harvard.edu", "visibility": "PUBLIC", "createdDate": {...}},
+      {"value": "dtu.dk", "visibility": "PUBLIC", "createdDate": {...}}
+    ]
+  }
+}
+```
+
+**API availability status (April 6, 2026):**
+
+| Endpoint | Verified domains? | Confirmed |
+|---|---|---|
+| `orcid.org/{id}/public-record.json` (Record Summary) | **Yes — `emailDomains` field** | Tested, working |
+| `pub.orcid.org/v3.0/{id}/email` (main API v3.0) | **No** | Tested, not exposed |
+| `pub.orcid.org/v3.0/{id}/person` (main API v3.0) | **No** | Tested, no domain field |
+| ORCID profile web page (UI) | Yes (visual trust marker) | Documented |
+
+The main v3.0 API was supposed to add this in "the next major version" (per ORCID's 2024 blog) but no new version has shipped. The Record Summary endpoint is the only programmatic access today.
+
+---
+
+## Survey 1: General ORCID Profiles (n=50)
+
+Sample: 50 ORCID profiles from arXiv-relevant keyword searches (CS, ML, NLP, physics, economics).
+
+| Metric | Count | % |
+|---|---|---|
+| Has works on ORCID | 42/50 | 84% |
+| Has verified email visible | 14/50 | 28% |
+| Has institutional email domain | 13/50 | 26% |
+
+**Note:** This sample is biased toward established researchers. See Survey 2 for Kurate-specific data.
+
+---
+
+## Survey 2: Kurate Leaderboard Authors (n=40)
+
+Sample: First authors of actual papers on Kurate's leaderboard (cs.RO, cs.CR, cs.DC, cs.SI, astro-ph.CO, quant-ph).
+
+| Metric | Count | % |
+|---|---|---|
+| Has ORCID profile | 32/40 | 80% |
+| ORCID with any works | 11/40 | 28% |
+| Has auto-imported works | 10/40 | 25% |
+| Has institutional email (old method, full email public) | 4/40 | 10% |
+
+---
+
+## Survey 3: Recent Kurate Preprints — Paper Coverage (n=50)
+
+Sample: 50 most recent papers on Kurate, published 2026-03-15 to 2026-04-03.
+
+| Source | Paper found? | Note |
+|---|---|---|
+| **Google Scholar** | **48/50 (96%)** | Near-instant arXiv indexing |
+| Semantic Scholar | 14/50 (28%) | Days/weeks lag for arXiv preprints |
+| First author's ORCID works | 1/50 (2%) | Preprints rarely auto-imported |
+
+---
+
+## Survey 4: ORCID Trust Signals — Full Category Scan (n=140)
+
+Sample: 10 first authors from each of Kurate's 14 active categories. Checked via the Record Summary API (`public-record.json`) for verified email domains, and the main API for affiliations.
+
+| Signal | Count | % | Trust strength |
+|---|---|---|---|
+| Has ORCID profile | 128/140 | **91%** | Identity proof (via OAuth) |
+| **Verified email domain (public, via Record Summary)** | **34/140** | **24%** | **Strong — institution verified by ORCID** |
+| Public full email address | 8/140 | 6% | Strong but rare |
+| Institution-asserted affiliation | 5/140 | 4% | Strongest (institution pushed via Member API) |
+| Self-declared affiliation | 47/140 | 34% | Weak (anyone can type anything) |
+| Any public affiliation | 50/140 | 36% | Available for context |
+
+### By category (verified email domain via Record Summary):
+| Category | n | ORCID | Domain | Email | Inst-asserted |
+|---|---|---|---|---|---|
+| physics.comp-ph | 10 | 10 | 5 | 1 | 0 |
+| astro-ph.CO | 10 | 9 | 4 | 2 | 1 |
+| cs.DC | 10 | 9 | 4 | 0 | 0 |
+| q-bio.BM | 10 | 7 | 3 | 2 | 0 |
+| quant-ph | 10 | 8 | 3 | 0 | 0 |
+| physics.chem-ph | 10 | 10 | 3 | 1 | 0 |
+| cs.RO | 10 | 10 | 2 | 0 | 0 |
+| cs.CR | 10 | 9 | 2 | 0 | 0 |
+| chemrxiv.IC | 10 | 10 | 2 | 0 | 1 |
+| cs.SI | 10 | 9 | 2 | 0 | 0 |
+| cond-mat.mtrl-sci | 10 | 9 | 1 | 1 | 1 |
+| cs.GT | 10 | 9 | 1 | 0 | 1 |
+| cs.IT | 10 | 10 | 1 | 1 | 1 |
+| econ.GN | 10 | 9 | 1 | 0 | 0 |
+| **TOTAL** | **140** | **128 (91%)** | **34 (24%)** | **8 (6%)** | **5 (4%)** |
+
+Sample verified domains found: harvard.edu, mit.edu, berkeley.edu, caltech.edu, ethz.ch, cambridge, oxford, fu-berlin.de, kyushu-u.ac.jp, upenn.edu, etc.
+
+### Key insight: 24% vs 9%
+Previous analysis using only the main v3.0 `/email` endpoint found 9% with institutional signals. The Record Summary API's `emailDomains` field reveals **24%** — nearly 3x more. These researchers made their domain public (privacy-preserving) without exposing their full email address.
+
+---
+
+## Semantic Scholar Coverage (Empirical Data)
+
+### S2 ORCID Mapping
+- Celebrity researcher test (n=15): 1/15 (7%) had ORCID on S2
+- Broad sample (n=50): 0/50 (0%) via direct `ORCID:xxx` lookup
+- Kurate authors (n=140): 0/128 (0%) via name search cross-check
+- **Verdict: S2 ORCID mapping is completely unusable**
+
+### S2 Name Search
+- 95% of Kurate authors findable by name
+- But 74% of results are ambiguous (2+ candidates)
+- Only 26% unambiguous (1 result)
+
+### S2 Paper Indexing
+- Only 28% of recent Kurate preprints indexed on S2
+- arXiv preprints take days/weeks to appear
 
 ---
 
 ## Option A: ORCID + S2 Name Search
 
-**Flow:**
-1. User connects ORCID (OAuth) → proves identity, gives real name + institutional email
-2. Backend searches Semantic Scholar by **name** (not ORCID)
-3. User picks their S2 author profile from results (disambiguation step)
-4. Backend fetches all papers for that S2 author
-5. Cross-reference with Kurate's DB by arXiv ID
-6. User confirms which papers are theirs
+**Flow:** ORCID OAuth → S2 name search → user picks profile → fetch papers → cross-reference
 
-**Pros:**
-- S2 has a real, stable API (free, no scraping)
-- ORCID provides strong identity proof
-- S2 paper entries include arXiv IDs → direct matching with Kurate's DB
-- Most infrastructure already built
-
-**Cons:**
-- **Name disambiguation is a real problem**: "Wei Zhang" returns thousands of S2 results. Common names make the picker UX painful or unusable.
-- Relies on user correctly identifying their S2 profile among duplicates
-- S2 author profiles can be fragmented (same person split across multiple IDs)
-
-**Effort:** ~1 day (name search endpoint + disambiguation UI + bulk confirm)
+**Pros:** S2 has real API, free
+**Cons:** 74% ambiguous name results, only 28% of recent papers indexed
+**Effort:** ~1 day
 
 ---
 
-## Option B: ORCID + Google Scholar URL (Recommended)
+## Option B: ORCID + Google Scholar URL
 
-**Flow:**
-1. User connects ORCID (OAuth) → proves identity, gives institutional email domain
-2. User pastes their Google Scholar profile URL (e.g., `https://scholar.google.com/citations?user=kukA0LcAAAAJ`)
-3. Backend fetches the **single public profile page** → extracts:
-   - "Verified email at [domain]" (institutional affiliation signal)
-   - Paper titles listed on the profile
-4. **Domain cross-check**: ORCID institutional email domain vs Scholar verified domain. If they match → high trust (no email verification code needed)
-5. Cross-reference Scholar paper titles against Kurate's DB (fuzzy title matching)
-6. User confirms matched papers → bulk claim
+**Flow:** ORCID OAuth → user pastes Scholar URL → fetch public profile page → extract papers → cross-reference
 
-**Pros:**
-- **No disambiguation**: user provides their exact profile URL
-- Researchers know their Scholar URL (or find it in seconds)
-- Scholar profiles are the most complete & actively maintained publication lists
-- ORCID + Scholar domain match provides strong verification without sending email codes
-- Fetching one public page per claim is not bulk scraping — well within acceptable use
-
-**Cons:**
-- **No Google Scholar API**: must parse public HTML. The page structure has been stable for years (`gsc_a_at` class for paper titles, "Verified email at" text), but Google could change it without notice.
-- Some profiles show "Verified email at gmail.com" (useless as institutional signal)
-- Paper matching is by title (not arXiv ID) since Scholar doesn't consistently show arXiv IDs
-- If Google starts CAPTCHAing single-page fetches, the flow breaks (fallback: ask user to paste paper titles manually)
-
-**Effort:** ~1-2 days (Scholar page parser + domain cross-check + title matching + bulk confirm UI)
+**Pros:** 96% of papers on Scholar, no disambiguation, ORCID domain match for trust
+**Cons:** No Scholar API (HTML parsing), fragile to page changes, fuzzy title matching
+**Effort:** ~1-2 days
 
 ---
 
 ## Option C: Google Scholar URL + Email Verification Code (alphaXiv's approach)
 
-**Flow:**
-1. User pastes Google Scholar profile URL
-2. Backend scrapes profile → extracts "Verified email at [domain]" + paper list
-3. User provides their full institutional email (e.g., `jsmith@stanford.edu`)
-4. Backend verifies the email domain matches Scholar's verified domain
-5. Backend sends a verification code to that email address
-6. User enters code → proves they control the institutional email
-7. Papers synced from Scholar profile
+**Flow:** User pastes Scholar URL → scrape profile → extract "Verified email at" domain → send code → verify
 
-**Pros:**
-- Proven flow (alphaXiv uses it)
-- No ORCID dependency
-- Email verification code is a strong ownership proof
-
-**Cons:**
-- Same HTML parsing fragility as Option B
-- Requires email-sending infrastructure (Resend integration — not yet built)
-- Scholar only shows the **domain**, not the full email. User must provide their email, and you check the domain matches. Potential for mismatch (e.g., user has multiple institutional emails).
-- More steps for the user (paste URL + enter email + enter code)
-- No ORCID means no additional identity proof beyond "controls an email at this domain"
-
-**Effort:** ~2-3 days (Scholar parser + email sending via Resend + code verification flow + UI)
+**Pros:** Proven flow (alphaXiv uses it)
+**Cons:** Same scraping fragility, needs email-sending infra (Resend), more user steps, no ORCID identity
+**Effort:** ~2-3 days
 
 ---
 
-## Option D: ORCID + S2 Name Search + Scholar URL Fallback
+## Option E: ORCID as Both Identity AND Verification
 
 **Flow:**
-1. User connects ORCID → identity + institutional email
-2. Try S2 author search by name → show results if unambiguous
-3. If ambiguous or user can't find themselves → fallback to "paste your Google Scholar URL"
-4. Cross-reference papers with Kurate's DB
-5. User confirms
+1. User connects ORCID (OAuth) → proves identity
+2. Backend checks Record Summary for verified email domain → **24% get instant institutional verification**
+3. User selects a paper on Kurate to claim
+4. Backend checks ORCID works for this paper → **2% get instant paper verification** (Crossref auto-import)
+5. If not found → "Add this paper to your ORCID profile" (~60 sec) → re-check
 
 **Pros:**
-- Best of both: S2 API for clean cases, Scholar URL for disambiguation edge cases
-- Graceful degradation
+- Zero fragile dependencies (no scraping, no S2)
+- Record Summary API gives institutional trust for 24% instantly
+- ORCID is single source of truth for identity + publication
+- Simplest backend (~30 lines new code)
 
 **Cons:**
-- Most complex to build and maintain
-- Two different paper-matching paths (arXiv ID from S2 vs title from Scholar)
+- 98% of recent preprints need manual ORCID add (~60 sec per paper)
+- No deep link to pre-fill ORCID's "add work" form
 
-**Effort:** ~2-3 days
+**Effort:** ~0.5-1 day
 
 ---
 
 ## Recommendation
 
-**Option B (ORCID + Google Scholar URL)** is the sweet spot:
-- No disambiguation problem (user provides exact URL)
-- ORCID domain match eliminates the need for email verification codes
-- Single public page fetch is reliable and not scraping
-- Combines strong identity proof (ORCID) with the most complete paper graph (Scholar)
-- Least user friction after ORCID connect (just paste a URL)
+**For institutional trust signal:** Use the ORCID Record Summary API (`public-record.json` → `emailDomains`). Available today, gives 24% instant verification, privacy-preserving. For the other 76%, the ask is "make your institutional email domain public on ORCID" (~30 seconds, email stays private). As ORCID continues prompting users, this percentage will grow.
 
-The ORCID infrastructure is already built. The new work is: Scholar page parser (~30 lines), domain cross-check (~10 lines), title matching against Kurate DB (~30 lines), and the bulk confirm UI.
+**For paper claiming:** No option avoids a manual step for 98% of recent preprints:
+- Option E asks "add paper to ORCID" (~60 sec) — simplest, zero dependencies
+- Option B asks "paste Scholar URL" (~15 sec) — lower friction but adds scraping fragility
 
----
+**Pragmatic path:**
+1. **Start with Option E** (simplest): ORCID OAuth → check Record Summary for domain trust marker → check works for paper → if not found, guide user to add it
+2. **If conversion drops off at "add to ORCID" step**, add Option B (Scholar URL) as an alternative
+3. **Watch for ORCID main API update** — when v3.0 `/person` or `/email` exposes domains, the Record Summary workaround becomes unnecessary
 
-## Empirical Survey: ORCID → S2 Linkability (April 2026, n=50)
-
-Sample: 50 ORCID profiles from arXiv-relevant domains (CS, ML, NLP, robotics, physics, economics, quantum computing, biomolecular).
-
-### ORCID Profile Quality
-| Metric | Count | % |
-|---|---|---|
-| Has works on ORCID | 42/50 | **84%** |
-| Has verified email visible | 14/50 | 28% |
-| Has institutional email domain | 13/50 | 26% |
-
-### S2 Linkability
-| Method | Count | % |
-|---|---|---|
-| S2 direct ORCID lookup | 0/50 | **0%** (completely unusable) |
-| S2 name search finds candidates | 33/50 | 66% |
-| S2 name result has matching ORCID | 1/50 | 2% |
-
-### S2 Name Search Disambiguation
-Of the 33 profiles with S2 name search results:
-- Unambiguous (1 candidate): 8/33 (24%)
-- Ambiguous (2+ candidates): 25/33 (**76% need disambiguation**)
-
-### Institutional vs Non-Institutional
-| Metric | Institutional (n=13) | Non-institutional (n=37) |
-|---|---|---|
-| Has works on ORCID | 100% | 78% |
-| S2 findable by name | 77% | 62% |
-| S2 by ORCID | 0% | 0% |
-
-### Key Insight (CORRECTED)
-The first survey (general ORCID keyword search) showed 84% with works — but this was biased toward established researchers who have keywords in their ORCID profiles. **A second survey of actual Kurate leaderboard authors tells a very different story.**
-
----
-
-## Survey 2: Kurate Leaderboard Authors (April 2026, n=40)
-
-Sample: First authors of actual papers on Kurate's leaderboard across cs.RO, cs.CR, cs.DC, cs.SI, astro-ph.CO, quant-ph.
-
-### ORCID Profile Quality
-| Metric | Count | % |
-|---|---|---|
-| Has ORCID profile (found by name) | 32/40 | 80% |
-| ORCID with any works | 11/40 | **28%** |
-| ORCID with 5+ works | 5/40 | 12% |
-| Has auto-imported works (Crossref etc.) | 10/40 | 25% |
-| Has institutional email | 4/40 | 10% |
-
-### S2 Linkability
-| Method | Count | % |
-|---|---|---|
-| S2 direct ORCID lookup | 0/32 | **0%** |
-| S2 name search finds candidates | 38/40 | 95% |
-| S2 name unambiguous (1 result) | 10/38 | 26% |
-| S2 name ambiguous (2+ results) | 28/38 | **74%** |
-| S2 result has matching ORCID | 0/32 | 0% |
-
-### S2 Name Search Disambiguation Detail
-| Candidates | Count | Notes |
-|---|---|---|
-| 1 (unambiguous) | 10 | Can auto-link |
-| 2 | 4 | Manageable picker |
-| 3 | 4 | Manageable picker |
-| 4 | 2 | Needs context (affiliation, paper count) |
-| 5 (max returned) | 18 | Likely more — may need better disambiguation |
-
-### Comparison: General ORCID vs Kurate Authors
-| Metric | General (n=50) | Kurate (n=40) |
-|---|---|---|
-| ORCID with works | **84%** | **28%** |
-| ORCID with 5+ works | ? | 12% |
-| Institutional email | 26% | 10% |
-| S2 direct ORCID | 0% | 0% |
-| S2 name found | 66% | 95% |
-| S2 name unambiguous | 24% | 26% |
-
-**Why the gap:** Kurate authors are recent arXiv preprint authors — often junior researchers (grad students, postdocs). Their papers are preprints (no DOI → no Crossref auto-import). The general ORCID sample was biased toward established researchers with keyword-rich profiles.
-
----
-
-## S2 ORCID Coverage (Empirical Data)
-
-### Celebrity Researcher Test (n=15)
-Tested prominent CS/ML researchers (LeCun, Hinton, Bengio, Manning, etc.):
-- Only 1/15 (Manning) had ORCID mapped on S2 (~7%)
-- The `ORCID:xxx` direct lookup endpoint returns 404 for all tested
-
-### Broad Sample (n=50)
-- S2 direct ORCID lookup: **0/50 (0%)**
-- S2 name search: 66% find candidates, but 76% of those are ambiguous
-
-**Conclusion:** S2 ORCID mapping is completely unusable as a primary path. S2 name search works for ~66% but with severe disambiguation problems (76% ambiguous). Neither is reliable enough as a primary verification method.
-
----
-
-## Option E: ORCID as Both Identity AND Verification (Recommended)
-
-**Flow:**
-1. User connects ORCID (OAuth) → proves identity *(already built)*
-2. User selects a paper on Kurate they want to claim
-3. Backend calls `GET /v3.0/{orcid_id}/works` → checks if the paper is already on their ORCID profile
-4. **If found** (84% of cases) → **instant auto-verification**, no extra steps
-5. **If not found** → Kurate shows: "To verify authorship, add this paper to your ORCID profile" with guidance/link to orcid.org. User adds it (~60 seconds), clicks "I've added it", backend re-checks.
-
-**Pros:**
-- **ORCID is the single source of truth** for both identity and publication ownership — no S2, no Scholar, no scraping
-- Official, free, stable API with read scope already available
-- No name disambiguation, no fuzzy matching, no HTML parsing
-- Zero external service dependencies beyond ORCID itself
-- Verification is cryptographic: ORCID OAuth proves they own the profile where the paper lives
-- DOI-based matching → exact, not fuzzy title matching
-- **84% of researchers already have works on ORCID** → instant verification for most users
-- Encourages researchers to maintain their ORCID (benefit to the community)
-- Simplest backend: one API call to check works list
-
-**Cons:**
-- ~16% of researchers have zero works on ORCID and must add the paper manually (~60 second action)
-- No deep link to pre-fill ORCID's "add work" form
-- arXiv preprints less likely to be auto-imported than journal papers (Crossref imports primarily DOI-registered works)
-
-**Effort:** ~0.5-1 day. ORCID OAuth and API helpers already built. New work: works-check endpoint (~30 lines), UI guidance flow, on-demand verification trigger.
-
----
-
-## Survey 3: Coverage of Actual Recent Kurate Preprints (April 2026, n=50)
-
-The critical test: are recent preprints on Kurate's leaderboard findable on S2 or ORCID?
-
-Sample: 50 most recent papers across 10 Kurate categories, published 2026-03-15 to 2026-04-03.
-
-| Metric | Coverage | Note |
-|---|---|---|
-| Paper indexed on S2 | 14/50 (**28%**) | arXiv preprints take days/weeks to appear |
-| S2 paper has author ORCID | 0/14 (0%) | Even when indexed, no ORCID link |
-| First author has ORCID profile | 45/50 (90%) | Identity layer is solid |
-| First author ORCID has any works | 15/50 (30%) | Works layer is sparse |
-| **THIS paper on first author's ORCID** | **1/50 (2%)** | Almost no preprints auto-imported |
-
-**Bottom line for recent preprints: ALL verification options require a manual step for ~98% of papers.** The question is which manual step is least friction.
-
----
-
-## Recommendation (Updated with Kurate-specific data)
-
-**No single option is clearly dominant for Kurate's user base:**
-
-- **Option E (ORCID-only):** Only 2% instant verification for recent preprints. 98% must manually add a paper to ORCID (~60 sec). But simplest to implement, zero dependencies.
-
-- **Option B (ORCID + Scholar URL):** Avoids the manual-add problem since Scholar profiles are generally more complete. But adds HTML parsing fragility and fuzzy title matching. ~15 sec user action.
-
-- **Option A (S2 name search):** 95% of authors findable but 74% ambiguous. Only 28% of papers indexed. Not viable for recent preprints.
-
-**Pragmatic approach:** Start with Option E (simplest, ~0.5 day). Provide clear guidance for the "add to ORCID" step. If the 60-second ORCID add-work UX proves too much friction, add Option B (Scholar URL) as an alternative. Both share the ORCID identity layer.
+Both options share the ORCID identity + institutional trust layer. The paper verification is the only difference.
