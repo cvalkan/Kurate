@@ -161,13 +161,25 @@ export default function AdminPage() {
           const s = statusRes.data;
           if (s.status === "completed") {
             clearInterval(pollInterval);
-            toast.success(`Fetch complete: ${s.result?.new_papers || 0} new ${adminCat} papers`);
+            const r = s.result || {};
+            const parts = [];
+            if (r.new_papers > 0) parts.push(`${r.new_papers} new papers`);
+            if (r.pdfs_downloaded > 0) parts.push(`${r.pdfs_downloaded} PDFs downloaded`);
+            if (r.summaries_generated > 0) parts.push(`${r.summaries_generated} summaries generated`);
+            if (r.rankings_inserted > 0) parts.push(`${r.rankings_inserted} rankings added`);
+            const msg = parts.length > 0 ? parts.join(", ") : "No new work needed";
+            if (r.errors?.length > 0) {
+              toast.warning(`Partial: ${msg}. Errors: ${r.errors.join("; ").slice(0, 200)}`);
+            } else {
+              toast.success(`Done: ${msg}`);
+            }
             setLoading(l => ({ ...l, fetch: false, fetchCat: null }));
             fetchAll();
           } else if (s.status === "failed") {
             clearInterval(pollInterval);
             toast.error(`Fetch failed: ${s.error}`);
             setLoading(l => ({ ...l, fetch: false, fetchCat: null }));
+            fetchAll();
           }
         } catch { /* keep polling */ }
       }, 5000);

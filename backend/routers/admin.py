@@ -144,8 +144,14 @@ async def _run_fetch_in_background(category: str):
     """Wrapper that runs fetch cycle and records result."""
     try:
         result = await run_fetch_cycle(category=category, force=True)
-        # If run_fetch_cycle caught an internal error, surface it as failed
-        final_status = "failed" if (isinstance(result, dict) and result.get("status") == "error") else "completed"
+        # Map internal status to task status
+        internal_status = result.get("status", "error") if isinstance(result, dict) else "error"
+        if internal_status == "error":
+            final_status = "failed"
+        elif internal_status == "partial":
+            final_status = "completed"  # partial success is still "completed" for polling
+        else:
+            final_status = "completed"
         _fetch_tasks[category] = {
             "status": final_status,
             "started_at": _fetch_tasks[category]["started_at"],
@@ -193,6 +199,53 @@ async def get_fetch_status(category: str):
     if not task:
         return {"status": "no_task", "message": "No fetch task has been run for this category."}
     return task
+
+
+
+@router.get("/unranked-papers", dependencies=[Depends(verify_admin)])
+async def get_unranked_papers(category: str = "cs.RO"):
+    """Diagnostic: find papers with summaries that aren't on the leaderboard."""
+    ranked_ids = set()
+    async for r in db.rankings.find({"category": category}, {"_id": 0, "paper_id": 1}):
+        ranked_ids.add(r["paper_id"])
+
+    unranked = []
+    async for p in db.papers.find(
+        {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "added_at": 1, "full_text": 1}
+    ):
+        if p["id"] not in ranked_ids:
+            unranked.append({
+                "id": p["id"],
+                "title": p["title"],
+                "arxiv_id": p.get("arxiv_id"),
+                "added_at": p.get("added_at"),
+                "has_full_text": bool(p.get("full_text")),
+            })
+
+    # Also find papers with full_text but no summaries
+    no_summaries = []
+    async for p in db.papers.find(
+        {"categories.0": category, "full_text": {"$ne": None},
+         "$or": [{"summaries": {"$exists": False}}, {"summaries": {}}, {"summaries": None}]},
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "added_at": 1}
+    ):
+        no_summaries.append({
+            "id": p["id"],
+            "title": p["title"],
+            "arxiv_id": p.get("arxiv_id"),
+            "added_at": p.get("added_at"),
+        })
+
+    return {
+        "category": category,
+        "ranked_count": len(ranked_ids),
+        "unranked_with_summaries": unranked,
+        "unranked_with_summaries_count": len(unranked),
+        "has_text_no_summaries": no_summaries,
+        "has_text_no_summaries_count": len(no_summaries),
+    }
+
 
 
 @router.post("/toggle-pause", dependencies=[Depends(verify_admin)])

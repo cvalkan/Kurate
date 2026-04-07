@@ -574,120 +574,152 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
     _fetching_cats.add(category)
     cat_status = _get_cat_status(category)
     cat_status["is_fetching"] = True
-    cat_status["current_activity"] = "Fetching papers..."
+    result = {"new_papers": 0, "pdfs_downloaded": 0, "summaries_generated": 0, "rankings_inserted": 0, "errors": []}
 
     try:
         settings = await get_settings()
         max_papers = settings.get("max_papers_per_fetch", 50)
 
-        # Route to the correct fetcher based on category prefix
-        if category.startswith("chemrxiv."):
-            from services.chemrxiv import fetch_chemrxiv_papers
-            raw_papers = await fetch_chemrxiv_papers(category=category, max_results=max_papers)
-            logger.info(f"Fetched {len(raw_papers)} {category} papers from ChemRxiv")
-            id_field = "chemrxiv_id"  # Dedup key for ChemRxiv
-        else:
-            raw_papers = await fetch_arxiv_papers(category=category, max_results=max_papers)
-            logger.info(f"Fetched {len(raw_papers)} {category} papers from arXiv")
-            id_field = "arxiv_id"
+        # --- STEP 1: Fetch new papers from source ---
+        cat_status["current_activity"] = "Fetching new papers from source..."
+        try:
+            if category.startswith("chemrxiv."):
+                from services.chemrxiv import fetch_chemrxiv_papers
+                raw_papers = await fetch_chemrxiv_papers(category=category, max_results=max_papers)
+                logger.info(f"[{category}] Step 1: Fetched {len(raw_papers)} papers from ChemRxiv")
+                id_field = "chemrxiv_id"
+            else:
+                raw_papers = await fetch_arxiv_papers(category=category, max_results=max_papers)
+                logger.info(f"[{category}] Step 1: Fetched {len(raw_papers)} papers from arXiv")
+                id_field = "arxiv_id"
 
-        new_count = 0
-        # Batch dedup: load existing source IDs and dedup hashes for this category
-        existing_ids = set()
-        existing_hashes = set()
-        async for doc in db.papers.find(
-            {"categories.0": category} if not category.startswith("chemrxiv.") else {},
-            {"_id": 0, id_field: 1, "dedup_hash": 1}
-        ):
-            if doc.get(id_field):
-                existing_ids.add(doc[id_field])
-            if doc.get("dedup_hash"):
-                existing_hashes.add(doc["dedup_hash"])
+            new_count = 0
+            existing_ids = set()
+            existing_hashes = set()
+            async for doc in db.papers.find(
+                {"categories.0": category} if not category.startswith("chemrxiv.") else {},
+                {"_id": 0, id_field: 1, "dedup_hash": 1}
+            ):
+                if doc.get(id_field):
+                    existing_ids.add(doc[id_field])
+                if doc.get("dedup_hash"):
+                    existing_hashes.add(doc["dedup_hash"])
 
-        for rp in raw_papers:
-            dedup_value = rp.get(id_field) or rp.get("doi") or rp.get("arxiv_id")
-            if not dedup_value:
-                continue
-            if dedup_value in existing_ids:
-                continue
-            title_norm = rp["title"].strip().lower()
-            first_author = (rp.get("authors") or [""])[0].strip().lower() if rp.get("authors") else ""
-            content_hash = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
-            if content_hash in existing_hashes:
-                logger.debug(f"[{category}] Skipping duplicate (hash match): {rp['title'][:60]}")
-                continue
-            paper_doc = {
-                "id": str(uuid.uuid4()),
-                "title": rp["title"],
-                "authors": rp["authors"],
-                "abstract": rp["abstract"],
-                "categories": rp["categories"],
-                "published": rp["published"],
-                "link": rp["link"],
-                "pdf_link": rp.get("pdf_link"),
-                "full_text": None,
-                "added_at": datetime.now(timezone.utc).isoformat(),
-                "needs_pdf": True,
-                "dedup_hash": content_hash,
-            }
-            # Store source-specific IDs
-            if rp.get("arxiv_id"):
-                paper_doc["arxiv_id"] = rp["arxiv_id"]
-            if rp.get("chemrxiv_id"):
-                paper_doc["chemrxiv_id"] = rp["chemrxiv_id"]
-            if rp.get("doi"):
-                paper_doc["doi"] = rp["doi"]
-            await db.papers.insert_one(paper_doc)
-            existing_hashes.add(content_hash)  # Prevent same-batch duplicates
-            new_count += 1
+            for rp in raw_papers:
+                dedup_value = rp.get(id_field) or rp.get("doi") or rp.get("arxiv_id")
+                if not dedup_value:
+                    continue
+                if dedup_value in existing_ids:
+                    continue
+                title_norm = rp["title"].strip().lower()
+                first_author = (rp.get("authors") or [""])[0].strip().lower() if rp.get("authors") else ""
+                content_hash = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
+                if content_hash in existing_hashes:
+                    continue
+                paper_doc = {
+                    "id": str(uuid.uuid4()),
+                    "title": rp["title"],
+                    "authors": rp["authors"],
+                    "abstract": rp["abstract"],
+                    "categories": rp["categories"],
+                    "published": rp["published"],
+                    "link": rp["link"],
+                    "pdf_link": rp.get("pdf_link"),
+                    "full_text": None,
+                    "added_at": datetime.now(timezone.utc).isoformat(),
+                    "needs_pdf": True,
+                    "dedup_hash": content_hash,
+                }
+                if rp.get("arxiv_id"):
+                    paper_doc["arxiv_id"] = rp["arxiv_id"]
+                if rp.get("chemrxiv_id"):
+                    paper_doc["chemrxiv_id"] = rp["chemrxiv_id"]
+                if rp.get("doi"):
+                    paper_doc["doi"] = rp["doi"]
+                await db.papers.insert_one(paper_doc)
+                existing_hashes.add(content_hash)
+                new_count += 1
 
-        cat_status["current_activity"] = f"Fetched {new_count} new papers, downloading PDFs..."
-        logger.info(f"Added {new_count} new {category} papers to DB")
+            result["new_papers"] = new_count
+            logger.info(f"[{category}] Step 1 done: {new_count} new papers added")
+        except Exception as e:
+            err_msg = f"ArXiv/source fetch failed: {str(e)[:200]}"
+            logger.warning(f"[{category}] Step 1 FAILED: {err_msg}")
+            result["errors"].append(err_msg)
+            # Continue to steps 2-4 even if fetch fails
 
-        # Update paper count immediately so admin dashboard reflects new papers
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
-        # Always attempt PDF downloads (catches retries for previously failed downloads)
-        await _download_pending_pdfs(category=category)
+        # --- STEP 2: Download PDFs for papers missing full_text ---
+        cat_status["current_activity"] = "Downloading PDFs..."
+        try:
+            pdfs = await _download_pending_pdfs(category=category)
+            result["pdfs_downloaded"] = pdfs or 0
+            logger.info(f"[{category}] Step 2 done: {pdfs or 0} PDFs downloaded")
+        except Exception as e:
+            err_msg = f"PDF download failed: {str(e)[:200]}"
+            logger.warning(f"[{category}] Step 2 FAILED: {err_msg}")
+            result["errors"].append(err_msg)
 
-        # Generate AI summaries for papers with full text
+        # --- STEP 3: Generate AI summaries ---
         cat_status["current_activity"] = "Generating summaries..."
-        await _generate_paper_summaries(category=category, force=force)
+        try:
+            gen_count = await _generate_paper_summaries(category=category, force=force)
+            result["summaries_generated"] = gen_count or 0
+            logger.info(f"[{category}] Step 3 done: {gen_count or 0} summaries generated")
+        except Exception as e:
+            err_msg = f"Summary generation failed: {str(e)[:200]}"
+            logger.warning(f"[{category}] Step 3 FAILED: {err_msg}")
+            result["errors"].append(err_msg)
 
-        # Explicit GC after heavy operations to release memory before next steps
+        # Explicit GC after heavy operations
         from core.memlog import force_gc
         force_gc()
 
-        # Final paper count (with summaries — for compare loop eligibility)
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
 
-        # Add new papers with summaries to DB-backed rankings
-        if new_count > 0:
-            try:
-                from services.ranking import insert_ranking_for_paper
-                async for p in db.papers.find(
-                    {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
-                    {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-                     "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1}
-                ):
-                    existing = await db.rankings.find_one({"paper_id": p["id"]}, {"_id": 0, "paper_id": 1})
-                    if not existing:
-                        await insert_ranking_for_paper(db, p)
-            except Exception as e:
-                logger.warning(f"[{category}] Rankings insert failed: {e}")
+        # --- STEP 4: Insert rankings for new papers with summaries ---
+        cat_status["current_activity"] = "Updating rankings..."
+        try:
+            from services.ranking import insert_ranking_for_paper
+            inserted = 0
+            async for p in db.papers.find(
+                {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
+                {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+                 "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1}
+            ):
+                existing = await db.rankings.find_one({"paper_id": p["id"]}, {"_id": 0, "paper_id": 1})
+                if not existing:
+                    await insert_ranking_for_paper(db, p)
+                    inserted += 1
+            result["rankings_inserted"] = inserted
+            if inserted > 0:
+                logger.info(f"[{category}] Step 4 done: {inserted} new rankings inserted")
+        except Exception as e:
+            err_msg = f"Rankings insert failed: {str(e)[:200]}"
+            logger.warning(f"[{category}] Step 4 FAILED: {err_msg}")
+            result["errors"].append(err_msg)
 
         cat_status["current_activity"] = "Idle"
-        log_mem(f"fetch_cycle({category}) done (new={new_count}, fetched={len(raw_papers)})")
-        if new_count > 0:
+        log_mem(f"fetch_cycle({category}) done (new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, sums={result['summaries_generated']})")
+
+        if result["new_papers"] > 0 or result["summaries_generated"] > 0 or result["rankings_inserted"] > 0:
             from routers.leaderboard import notify_data_changed
             notify_data_changed()
-            invalidate_goals_cache(category)  # New papers change matchable count
-            wake_scheduler()  # New papers → compare loop should check for unmet goals
-        return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
+            invalidate_goals_cache(category)
+            wake_scheduler()
+
+        # Determine overall status
+        if result["errors"]:
+            result["status"] = "partial" if (result["new_papers"] > 0 or result["pdfs_downloaded"] > 0 or result["summaries_generated"] > 0) else "error"
+            result["error"] = "; ".join(result["errors"])
+        else:
+            result["status"] = "ok"
+        return result
 
     except Exception as e:
         err_msg = str(e) or f"{type(e).__name__} (no message)"
-        logger.error(f"Fetch cycle failed for {category}: {err_msg}")
+        logger.error(f"[{category}] Fetch cycle critical failure: {err_msg}")
         cat_status["current_activity"] = f"Fetch failed: {err_msg[:100]}"
         log_mem(f"fetch_cycle({category}) FAILED: {err_msg[:80]}")
         return {"status": "error", "error": str(e)}
