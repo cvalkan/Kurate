@@ -205,9 +205,34 @@ async def get_fetch_status(category: str):
 @router.get("/unranked-papers", dependencies=[Depends(verify_admin)])
 async def get_unranked_papers(category: str = "cs.RO"):
     """Diagnostic: find papers with summaries that aren't on the leaderboard."""
+    from services.scheduler import get_matchable_paper_ids, _SUMMARY_GENERATION_MODELS, _summary_model_key, _SUMMARY_KEY_FALLBACKS
+
     ranked_ids = set()
     async for r in db.rankings.find({"category": category}, {"_id": 0, "paper_id": 1}):
         ranked_ids.add(r["paper_id"])
+
+    # Find matchable IDs (papers with the required Claude Thinking summary)
+    settings = await get_settings()
+    matchable_ids = await get_matchable_paper_ids(category, settings.get("summary_source", "thinking"))
+
+    # Ranked but NOT matchable (missing the required summary key)
+    ranked_not_matchable = []
+    if matchable_ids and len(ranked_ids) > len(matchable_ids):
+        non_matchable_ids = ranked_ids - matchable_ids
+        model_keys = [_summary_model_key(m) for m in _SUMMARY_GENERATION_MODELS]
+        async for p in db.papers.find(
+            {"id": {"$in": list(non_matchable_ids)}},
+            {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "summaries": 1}
+        ):
+            existing_keys = list((p.get("summaries") or {}).keys())
+            missing_keys = [mk for mk in model_keys if mk not in existing_keys]
+            ranked_not_matchable.append({
+                "id": p["id"],
+                "title": p["title"],
+                "arxiv_id": p.get("arxiv_id"),
+                "has_summary_keys": existing_keys,
+                "missing_summary_keys": missing_keys,
+            })
 
     unranked = []
     async for p in db.papers.find(
@@ -240,6 +265,9 @@ async def get_unranked_papers(category: str = "cs.RO"):
     return {
         "category": category,
         "ranked_count": len(ranked_ids),
+        "matchable_count": len(matchable_ids) if matchable_ids else len(ranked_ids),
+        "ranked_not_matchable": ranked_not_matchable,
+        "ranked_not_matchable_count": len(ranked_not_matchable),
         "unranked_with_summaries": unranked,
         "unranked_with_summaries_count": len(unranked),
         "has_text_no_summaries": no_summaries,
