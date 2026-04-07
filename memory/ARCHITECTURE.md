@@ -525,8 +525,6 @@ The `_live_analysis_cache` has a 1-hour TTL safety net, but in practice it's alw
 
 **Cost**: Computing the All Categories analysis loads all rankings (~5K documents), computes correlations per model pair, per scoring method, and per category. On production with ~5K papers this takes ~6 seconds. Users never see this — they always read from cache (~0.15s).
 
-**Critical bug found April 2026**: The `logger` was not imported in `model_analysis.py`, causing the background task to crash silently on every server startup. The cache was never populated, and every page view triggered a 6.6s cold computation. Fixed by adding `from core.config import logger`.
-
 ### 4.4 Archive Loop
 
 **Purpose**: Daily leaderboard snapshots for historical tracking.
@@ -583,3 +581,200 @@ Background tasks communicate through two mechanisms:
                                                  notify_data_changed()
                                                    (cycle continues)
 ```
+
+---
+
+## 5. Paper Ingestion Pipeline
+
+### 5.1 Overview
+
+Papers enter the system through a 4-step pipeline. Each step is independent — failure at any step doesn't block subsequent steps.
+
+```
+ArXiv/ChemRxiv API
+       │
+       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Step 1: Fetch  │───▶│ Step 2: PDF     │───▶│ Step 3: Summary │───▶│ Step 4: Ranking │
+│  New Papers     │    │ Download        │    │ Generation      │    │ Insert          │
+│                 │    │                 │    │                 │    │                 │
+│ ArXiv API call  │    │ Download PDF    │    │ 3 LLM calls per │    │ Create ranking  │
+│ Dedup by        │    │ Extract text    │    │ paper (Claude,  │    │ doc in rankings │
+│ arxiv_id +      │    │ via PyMuPDF     │    │ GPT, Gemini)    │    │ collection      │
+│ content hash    │    │                 │    │                 │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+     May fail:              May fail:              May fail:              May fail:
+     429 rate limit         Timeout, 404,          Budget exceeded,       DB error
+                            paywall                content filter         (rare)
+```
+
+### 5.2 Step 1: Fetch New Papers
+
+**Source routing**: Categories prefixed with `chemrxiv.` use the ChemRxiv API; all others use ArXiv.
+
+**ArXiv pagination**: The API is queried with `sortBy=submittedDate&sortOrder=descending`. For niche categories where primary papers are sparse, it paginates up to 5 pages (batch size = `max_papers_per_fetch × 3`, default 150) to find enough primary-category papers.
+
+**Dedup strategy** (two layers):
+1. **Source ID dedup**: Skip if `arxiv_id` already exists in DB
+2. **Content hash dedup**: `SHA-256(normalized_title | first_author)[:16]` stored as `dedup_hash` with a unique index. Catches re-submissions and cross-postings with different arxiv_ids but identical title/author.
+
+### 5.3 Step 2: PDF Download & Text Extraction
+
+**Query**: Papers are selected for download when `full_text` is None and either `needs_pdf=True` (new paper) or `pdf_failed` is not True (hasn't permanently failed).
+
+**Force mode**: Admin button clicks retry ALL papers with `full_text=None`, including previously failed ones (`pdf_failed=True`).
+
+**Extraction**: PDFs are downloaded via httpx and extracted using PyMuPDF (fitz) in a thread pool executor (non-blocking). The full extracted text is stored in `papers.full_text`.
+
+**Failure handling**: Failed papers are marked with:
+- `pdf_failed: True` — excluded from automatic retry cycles
+- `pdf_fail_reason`: classified as `timeout`, `rate_limit`, `not_found`, `connection`, or `extraction_error`
+- `pdf_failed_at`: timestamp for diagnostic purposes
+
+Rate between 1-second between downloads to avoid hammering ArXiv.
+
+### 5.4 Step 3: AI Summary Generation
+
+Each paper with `full_text` gets summaries from three models:
+
+| Model | Key in DB | Config |
+|-------|-----------|--------|
+| Claude Opus 4.6 | `anthropic:claude-opus-4-6:thinking` | Extended thinking enabled (10K budget tokens) |
+| GPT-5.2 | `openai:gpt-5_2` | Standard completion |
+| Gemini 3 Pro | `gemini:gemini-3-pro-preview` | Standard completion |
+
+**Two-phase scan**:
+1. **Lightweight scan**: Load only `{id, summaries}` for all papers — check which model keys are missing
+2. **On-demand load**: Only load `full_text` for papers that actually need generation (avoids loading ~100MB of text for papers that are already complete)
+
+**Concurrency**: Controlled by `summary_parallel` (default 10) via `asyncio.Semaphore`.
+
+**Content handling**: The full paper text is sent with no truncation. If the LLM returns a token-limit error, the content is halved and retried (up to 4 attempts). A truncation note is appended to the summary when this happens.
+
+**Rating extraction**: Claude Thinking summaries include a JSON ratings block at the end (`{"score": 7.5, "significance": 8.0, ...}`). This is parsed and stored in `papers.ai_rating` and `papers.ai_ratings_by_model`.
+
+**Force mode**: Bypasses the system pause check, allowing summary generation even when the tournament is paused.
+
+### 5.5 Step 4: Ranking Insert
+
+For every paper that has at least one summary but isn't yet in the `rankings` collection, a new ranking document is created with default scores (score=1200, 0 wins, 0 comparisons).
+
+In force mode (admin button), this runs for ALL categories — not just newly fetched papers. This catches papers that got summaries in a previous run but weren't ranked due to a bug or timing issue.
+
+### 5.6 Summary Fallback Chain
+
+Tournament matchability requires a specific summary key. The default source is Claude Thinking (`anthropic:claude-opus-4-6:thinking`). If unavailable, the system walks a fallback chain:
+
+```
+anthropic:claude-opus-4-6:thinking     (preferred — extended thinking)
+  → anthropic:claude-opus-4-6          (non-thinking Opus 4.6)
+  → anthropic:claude-opus-4-5-20251101 (legacy Opus 4.5)
+  → openai:gpt-5_2                    (GPT fallback)
+  → gemini:gemini-3-pro-preview       (Gemini fallback)
+```
+
+The GPT/Gemini fallbacks were added because Claude's content policy refuses to summarize certain papers (notably AI safety/adversarial research papers like jailbreaking studies). Without fallbacks, these papers would be permanently excluded from tournament rankings despite having valid summaries from other models.
+
+---
+
+## 6. LLM Integration
+
+### 6.1 Emergent Universal Key
+
+All LLM calls route through the Emergent proxy using a single Universal Key (`sk-emergent-...`). This key works with OpenAI, Anthropic, and Google models without needing separate API keys.
+
+```python
+from emergentintegrations.llm.utils import get_integration_proxy_url
+
+params = {
+    "model": "claude-opus-4-6",           # or "gpt-5.2", "gemini/gemini-3-pro-preview"
+    "api_key": EMERGENT_LLM_KEY,
+    "api_base": get_integration_proxy_url() + "/llm",
+    "custom_llm_provider": "openai",       # Emergent proxy speaks the OpenAI protocol
+}
+response = litellm.completion(**params)
+```
+
+The `litellm` library handles model routing. For Gemini models, the model name is prefixed with `gemini/` when going through the Emergent proxy.
+
+### 6.2 Two Prompt Architectures
+
+The platform uses two distinct LLM interactions:
+
+**1. Tournament Comparison (pairwise judgment)**
+- **When**: During `run_comparison_round`, for each match
+- **Input**: Two papers' pre-generated summaries (not raw PDFs)
+- **Output**: JSON with `winner` and `reasoning`
+- **Models**: Round-robin across GPT-5.2, Claude Opus 4.6, Gemini 3 Pro
+- **Prompt**: Configurable via admin panel (stored in `settings.custom_prompt`)
+
+```
+System: "You are a scientific paper evaluator..."
+User: "Compare these two papers for scientific impact:
+       Paper 1: {title}\n{summary}
+       Paper 2: {title}\n{summary}
+       Which paper has higher estimated scientific impact?"
+→ Response: {"winner": "paper1", "reasoning": "..."}
+```
+
+**2. Impact Assessment (summary generation)**
+- **When**: During paper ingestion (Step 3), once per paper per model
+- **Input**: Full paper text (abstract + extracted PDF content)
+- **Output**: ~1000 word assessment + JSON ratings block
+- **Models**: All three, independently (stored under separate keys)
+- **Prompt**: Fixed (not admin-configurable)
+
+```
+System: "You are a scientific impact analyst..."
+User: "Write a scientific impact assessment for:
+       Title: {title}
+       Content: {abstract + full_text}
+       Write your assessment, then provide ratings as JSON..."
+→ Response: "This paper introduces... [assessment] ...
+             {"score": 7.5, "significance": 8.0, "rigor": 7.0, ...}"
+```
+
+### 6.3 Model Selection
+
+**Tournament comparisons**: Models are selected round-robin via a global counter (`_model_counter`). This ensures even distribution — each model judges approximately 1/3 of all matches. The per-model statistics are then used in the Model Correlation analysis to measure inter-model agreement.
+
+**Summary generation**: All three models generate summaries independently for every paper. Only the Claude Thinking summary is used in live tournament comparisons (as it includes extended reasoning). GPT and Gemini summaries are generated for:
+- Fallback matchability (when Claude refuses)
+- SI (Single-Item) rating correlation analysis
+- Inter-model agreement statistics
+
+### 6.4 Error Handling
+
+| Error Type | Detection | Behavior |
+|------------|-----------|----------|
+| Budget exceeded | Keywords: "budget", "balance", "insufficient", "credit", "quota" | Wait 15s, retry (up to 4 attempts) |
+| Token limit | Keywords: "context_length", "maximum.*tokens", "too long" | Halve content, retry with truncated text |
+| Rate limit | HTTP 429 or "rate" keyword | Exponential backoff |
+| Content filter | Empty response or refusal | Count as failure; fallback chain handles matchability |
+| Network error | Connection timeout, DNS failure | Retry with exponential backoff (2^attempt seconds) |
+
+Budget errors are the most common failure mode. The Emergent Universal Key has a spending cap that auto-tops up in small increments. During high-throughput periods (20 concurrent agents), the spending can briefly exceed the cap before auto-top-up kicks in.
+
+### 6.5 Token Tracking
+
+Every LLM call records actual token usage from the response:
+```python
+tokens = {
+    "input": usage.prompt_tokens,
+    "output": usage.completion_tokens,
+    "thinking": usage.completion_tokens_details.reasoning_tokens,  # Claude only
+}
+```
+
+For summaries, this is stored per-model in `papers.summary_tokens`. For matches, it's stored on the match document. The admin Statistics page aggregates these for cost monitoring.
+
+### 6.6 Content Truncation
+
+When a paper's full text exceeds a model's context window, the system:
+1. Catches the token-limit error
+2. Halves `char_limit` (minimum 20,000 chars)
+3. Rebuilds the content: `Abstract: {abstract}\n\nFull Paper Text:\n{full_text[:char_limit]}`
+4. Retries (up to 4 attempts)
+5. Appends a note to the generated summary:
+   `[Note: This summary was generated from 47% of the paper (85,000 of 180,000 characters) due to anthropic/claude-opus-4-6 context window limits.]`
+
