@@ -778,3 +778,209 @@ When a paper's full text exceeds a model's context window, the system:
 5. Appends a note to the generated summary:
    `[Note: This summary was generated from 47% of the paper (85,000 of 180,000 characters) due to anthropic/claude-opus-4-6 context window limits.]`
 
+
+
+---
+
+## 7. Caching & Performance
+
+### 7.1 Cache Inventory
+
+The system maintains several in-memory caches. All are event-driven (refreshed when data changes) rather than timer-driven (refreshed on a schedule).
+
+| Cache | Location | Size | TTL | Trigger | Purpose |
+|-------|----------|------|-----|---------|---------|
+| **Leaderboard metadata** | `leaderboard.py:_cache` | ~5 MB | Event-driven | `notify_data_changed()` | Admin stats, tags, PDF counts, rating stats |
+| **Model analysis** | `model_analysis.py:_live_analysis_cache` | ~160 KB per entry | 1h safety net | `mark_live_analysis_dirty()` | Correlation tables, agreement stats |
+| **Tag queries** | `leaderboard.py:_tag_cache` | Max 100 entries | 20s | Cleared on cache refresh | Filtered leaderboard by tag combo |
+| **Goals-met** | `scheduler.py:_goals_met_cache` | ~1 KB per cat | 60s | `invalidate_goals_cache()` | Avoid repeated DB queries in compare loop |
+| **Match counts** | `leaderboard.py:_match_count_cache` | ~1 KB | 5 min | `invalidate_match_count_cache()` | Total match count for status endpoint |
+| **Convergence** | MongoDB `convergence_cache` | ~50 KB per cat | Persistent | After comparison rounds | Convergence curve charts |
+| **OpenSkill** | MongoDB `analysis_store` | ~200 KB per cat | Persistent | Admin refresh button | OpenSkill correlation columns |
+
+**Total in-memory cache footprint: ~20 MB** (down from ~750 MB before the DB-backed rankings migration).
+
+### 7.2 Event-Driven Cache Architecture
+
+Caches are never refreshed on a timer or on every request. Instead, they respond to a single event signal:
+
+```
+Match completes
+  → update_rankings_for_match()     (incremental DB update)
+  → notify_data_changed()           (sets dirty flags)
+    → _cache_dirty.set()            (leaderboard metadata cache)
+    → mark_live_analysis_dirty()    (model analysis cache)
+    → invalidate_goals_cache()      (goals check)
+    → invalidate_match_count_cache() (match counts)
+```
+
+Each cache has a debounce period (10-30s) to batch rapid match completions. During a tournament round with 100 matches completing in ~60s, the caches refresh once or twice — not 100 times.
+
+### 7.3 Leaderboard Serving
+
+The leaderboard is served directly from the `rankings` MongoDB collection via indexed queries — not from an in-memory cache. This is the "Option 3: DB-Backed Leaderboard" from the scaling roadmap.
+
+```python
+# Primary query: category leaderboard with pagination
+db.rankings.find({"category": "cs.CR"})
+    .sort("rank", 1)
+    .skip(offset)
+    .limit(50)
+```
+
+**Performance**: ~5-10ms per query (indexed). The `category_1_rank_1` compound index makes this essentially a B-tree range scan.
+
+**Search**: Title search uses a regex on the `title` field within the category. For the current scale (~2K papers per category), this is fast enough. At 100K+ papers, a text index or full-text search engine would be needed.
+
+### 7.4 Memory Budget
+
+| Component | Memory | Notes |
+|-----------|--------|-------|
+| Python process baseline | ~150 MB | FastAPI + imported libraries |
+| MongoDB driver pool | ~50 MB | Connection pool, cursors |
+| Leaderboard metadata cache | ~5 MB | Tags, stats, PDF counts |
+| Model analysis cache | ~10 MB | All-categories + per-category entries |
+| LLM executor thread pool | ~20 MB | `ThreadPoolExecutor` for litellm calls |
+| Active comparison data | ~50 MB | Paper summaries loaded during matches |
+| **Typical RSS** | **~450 MB** | In a 2 GB container with ~1.2 GB available |
+
+Peak memory occurs during `_refresh_cache()` when old and new caches briefly coexist. With the current metadata-only cache, this peak is negligible (~10 MB).
+
+---
+
+## 8. API Reference
+
+### 8.1 Public Endpoints
+
+These require no authentication and are used by the frontend.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/leaderboard` | Paginated leaderboard. Params: `category`, `period` (all/week/month/recent), `limit`, `offset`, `search`, `sort_by`, `tags` |
+| `GET` | `/api/papers/{paper_id}` | Paper detail with match history |
+| `GET` | `/api/categories` | Active categories list |
+| `GET` | `/api/tags` | All category tags with paper counts |
+| `GET` | `/api/model-analysis` | Model correlation data (WR, TS, OS, agreement, scatter). Param: `category` |
+| `GET` | `/api/convergence` | Convergence curve data. Param: `category` |
+| `GET` | `/api/status` | Public system status (paper/match counts) |
+| `GET` | `/api/prompts` | Current evaluation prompt (read-only) |
+| `GET` | `/api/archive/list` | Available weekly/monthly archive snapshots |
+| `GET` | `/api/archive/{category}/{year}/w{week}` | Weekly archive snapshot |
+| `GET` | `/api/sitemap.xml` | SEO sitemap |
+
+### 8.2 Admin Endpoints
+
+All require `X-Admin-Token` header (obtained via `/api/admin/login`).
+
+**Paper Ingestion:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/admin/fetch` | Trigger 4-step fetch pipeline for a category |
+| `GET` | `/api/admin/fetch-status/{category}` | Poll fetch task status (running/completed/failed) |
+| `GET` | `/api/admin/check-new-papers` | Check ArXiv for new papers without downloading |
+| `POST` | `/api/admin/backfill-summaries` | Generate missing summaries (force mode) |
+| `GET` | `/api/admin/summary-gen-progress` | Real-time summary generation progress |
+
+**Tournament Control:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/admin/compare` | Trigger manual comparison round |
+| `POST` | `/api/admin/toggle-pause` | Pause/unpause entire system |
+| `GET` | `/api/admin/progress` | Detailed tournament progress with convergence goals |
+| `GET` | `/api/admin/scheduler-diagnostics` | Compare loop health, last cycle results |
+| `GET` | `/api/admin/diagnose-pairs` | Per-paper stall diagnosis |
+| `GET` | `/api/admin/unranked-papers` | Papers not on leaderboard with diagnostic details |
+
+**Configuration:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET/PUT` | `/api/admin/settings` | All admin settings |
+| `GET/PUT` | `/api/admin/prompt` | Tournament evaluation prompt |
+| `POST` | `/api/admin/categories/add` | Add new category |
+| `POST` | `/api/admin/categories/remove` | Remove category |
+| `POST` | `/api/admin/categories/reorder` | Drag-and-drop category ordering |
+| `GET` | `/api/admin/tournaments` | Per-category tournament state |
+| `POST` | `/api/admin/tournaments/{id}/toggle-fetch` | Pause/resume fetching per category |
+| `POST` | `/api/admin/tournaments/{id}/toggle-compare` | Pause/resume comparisons per category |
+
+**Monitoring:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/admin/status` | Full admin dashboard data |
+| `GET` | `/api/admin/stats` | Cost, token usage, per-model breakdowns |
+| `GET` | `/api/admin/timeseries` | System logs for memory/event charts |
+| `GET` | `/api/admin/extraction-stats` | PDF extraction success rates |
+| `POST` | `/api/admin/refresh-openskill` | Trigger OpenSkill recomputation |
+| `POST` | `/api/admin/reconcile-rankings` | Full ranking recomputation from matches |
+| `POST` | `/api/admin/rerank-all` | Recompute ranks for a category |
+
+### 8.3 Authentication
+
+**Admin auth**: Password-based. `POST /api/admin/login` with `{"password": "..."}` returns a token. Token is sent as `X-Admin-Token` header. Tokens are stored in `admin_sessions` collection.
+
+**User auth**: Google OAuth via Emergent-managed integration. Users can bookmark papers, create reading lists, and submit suggestions. User features are secondary to the core tournament/ranking functionality.
+
+---
+
+## 9. Frontend Architecture
+
+### 9.1 Build & Serving
+
+The frontend is a React 18 application compiled to a production bundle (`yarn build`). The compiled bundle is served by FastAPI as static files — there is no separate frontend server in production.
+
+**Critical implication**: Hot reload works during development but does **NOT** rebuild the production bundle. After modifying any frontend file, you must run:
+```bash
+cd /app/frontend && yarn build && sudo supervisorctl restart frontend
+```
+
+### 9.2 Key Pages
+
+| Page | Route | Purpose |
+|------|-------|---------|
+| **Leaderboard** | `/` | Main page. Ranked papers by category with search/filter/sort |
+| **Paper Detail** | `/paper/{id}` | Paper info, match history, win/loss record |
+| **Model Correlation** | `/correlation` | Inter-model agreement, scoring method comparisons |
+| **Validation** | `/validation` | Human vs AI benchmark experiments |
+| **Methodology** | `/methodology` | Public documentation of ranking methodology |
+| **Admin Panel** | `/admin` | Password-protected dashboard (6 tabs) |
+| **Archive** | `/archive/{category}` | Historical leaderboard snapshots |
+
+### 9.3 Admin Panel Tabs
+
+| Tab | Component | Purpose |
+|-----|-----------|---------|
+| **Statistics** | `AdminStatistics.jsx` | Cost charts, token usage, memory monitoring, per-model breakdowns |
+| **Tournaments** | `AdminOverview.jsx` | Per-category paper ingestion, tournament progress, convergence goals |
+| **Settings** | (inline in AdminPage) | Global settings: parallel agents, CI targets, fetch intervals |
+| **Prompt** | (inline in AdminPage) | Edit tournament evaluation prompt |
+| **Experiment** | `AdminExperiment.jsx` | Validation experiment management |
+| **Suggestions** | (inline in AdminPage) | User-submitted feature suggestions |
+| **Users** | (inline in AdminPage) | Registered user management |
+
+### 9.4 Key Components
+
+**Correlation page sections** (each is a standalone component receiving data from the unified `/api/model-analysis` endpoint):
+- `CorrelationSection` — Inter-model WR/TS correlation tables (Aggregate + Average modes)
+- `ScoringMethodSection` — WR vs TrueSkill vs OpenSkill comparison
+- `PwVsSiSection` — Pairwise ranking vs Single-Item rating correlation
+- `InterModelSection` — Per-model-pair correlation details
+- `SiRatingSection` — Single-Item rating distribution analysis
+- `ConvergenceSection` — Ranking stability curves
+
+**Leaderboard components** (in `components/leaderboard/`):
+- Paper cards with score, rank, confidence indicators
+- Period filters (all-time, week, month, recent)
+- Tag-based filtering
+- Search with real-time results
+
+### 9.5 Styling
+
+- **Tailwind CSS** with a custom theme
+- **Shadcn/UI** component library (buttons, cards, switches, dropdowns, etc.)
+- Dark/light mode toggle
+- Responsive design (mobile-optimized admin panel)
+- `sonner` for toast notifications
