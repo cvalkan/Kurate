@@ -653,7 +653,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         # --- STEP 2: Download PDFs for papers missing full_text ---
         cat_status["current_activity"] = "Downloading PDFs..."
         try:
-            pdfs = await _download_pending_pdfs(category=category)
+            pdfs = await _download_pending_pdfs(category=category, force=force)
             result["pdfs_downloaded"] = pdfs or 0
             logger.info(f"[{category}] Step 2 done: {pdfs or 0} PDFs downloaded")
         except Exception as e:
@@ -728,13 +728,19 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         cat_status["is_fetching"] = False
 
 
-async def _download_pending_pdfs(category: str = None):
+async def _download_pending_pdfs(category: str = None, force: bool = False):
     """Download PDFs for papers missing full_text, scoped to a category.
     
     Papers that fail extraction are marked with needs_pdf=False and pdf_failed=True
     so they can be retried later without blocking every cycle.
+    When force=True (admin button), retries previously failed papers too.
     """
-    query = {"$or": [{"needs_pdf": True}, {"full_text": None, "pdf_failed": {"$ne": True}}], "pdf_link": {"$ne": None}}
+    if force:
+        # Admin manually clicked — retry ALL papers missing full_text (including previously failed)
+        query = {"full_text": None, "pdf_link": {"$ne": None}}
+    else:
+        # Automatic cycle — skip previously failed papers
+        query = {"$or": [{"needs_pdf": True}, {"full_text": None, "pdf_failed": {"$ne": True}}], "pdf_link": {"$ne": None}}
     if category:
         query["categories.0"] = category
 
@@ -744,6 +750,15 @@ async def _download_pending_pdfs(category: str = None):
 
     if not papers_needing_pdf:
         return 0
+
+    if force:
+        previously_failed = sum(1 for _ in await collect_all(db.papers.find(
+            {"categories.0": category, "pdf_failed": True, "full_text": None} if category else {"pdf_failed": True, "full_text": None},
+            {"_id": 0, "id": 1}
+        )))
+        logger.info(f"[{category}] Step 2: {len(papers_needing_pdf)} papers need PDFs ({previously_failed} retries from previous failures)")
+    else:
+        logger.info(f"[{category}] Downloading PDFs for {len(papers_needing_pdf)} papers")
 
     cat_status = _get_cat_status(category) if category else None
 
