@@ -783,16 +783,14 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
 
     full_text = paper.get("full_text", "")
     abstract = paper.get("abstract", "")
-    if not full_text and not abstract:
-        return None
+    if not full_text:
+        return None  # Require full PDF text — never summarize from abstract alone
 
     # Start with the full text, no limit
-    char_limit = len(full_text) if full_text else len(abstract)
+    char_limit = len(full_text)
 
     def _build_content(limit: int) -> str:
-        if full_text:
-            return f"Abstract: {abstract}\n\nFull Paper Text:\n{full_text[:limit]}"
-        return f"Abstract: {abstract[:3000]}"
+        return f"Abstract: {abstract}\n\nFull Paper Text:\n{full_text[:limit]}"
 
     content = _build_content(char_limit)
 

@@ -696,20 +696,30 @@ async def _download_pending_pdfs(category: str = None):
             if full_text:
                 await db.papers.update_one(
                     {"id": paper["id"]},
-                    {"$set": {"full_text": full_text, "needs_pdf": False}, "$unset": {"pdf_failed": ""}},
+                    {"$set": {"full_text": full_text, "needs_pdf": False},
+                     "$unset": {"pdf_failed": "", "pdf_fail_reason": ""}},
                 )
                 downloaded += 1
             else:
-                # Mark as failed so it's not retried every cycle, but can be force-retried
                 await db.papers.update_one(
                     {"id": paper["id"]},
-                    {"$set": {"needs_pdf": False, "pdf_failed": True}},
+                    {"$set": {"needs_pdf": False, "pdf_failed": True,
+                              "pdf_fail_reason": "extraction_empty",
+                              "pdf_failed_at": datetime.now(timezone.utc).isoformat()}},
                 )
         except Exception as e:
-            logger.warning(f"PDF download failed for {paper['id']}: {e}")
+            err_str = str(e)[:200]
+            reason = "timeout" if "timeout" in err_str.lower() else \
+                     "rate_limit" if "429" in err_str else \
+                     "not_found" if "404" in err_str else \
+                     "connection" if "connect" in err_str.lower() else \
+                     "extraction_error"
+            logger.warning(f"PDF download failed for {paper['id']} ({reason}): {err_str[:80]}")
             await db.papers.update_one(
                 {"id": paper["id"]},
-                {"$set": {"needs_pdf": False, "pdf_failed": True}},
+                {"$set": {"needs_pdf": False, "pdf_failed": True,
+                          "pdf_fail_reason": reason,
+                          "pdf_failed_at": datetime.now(timezone.utc).isoformat()}},
             )
         await asyncio.sleep(1)
     return downloaded
