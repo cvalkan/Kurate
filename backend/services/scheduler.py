@@ -856,8 +856,14 @@ _SUMMARY_KEY_FALLBACKS = {
     "anthropic:claude-opus-4-6:thinking": [
         "anthropic:claude-opus-4-6",            # non-thinking Opus 4.6
         "anthropic:claude-opus-4-5-20251101",    # legacy Opus 4.5
+        "openai:gpt-5_2",                       # GPT fallback (e.g. Claude refuses safety-related content)
+        "gemini:gemini-3-pro-preview",           # Gemini fallback
     ],
-    "anthropic:claude-opus-4-6": ["anthropic:claude-opus-4-5-20251101"],
+    "anthropic:claude-opus-4-6": [
+        "anthropic:claude-opus-4-5-20251101",
+        "openai:gpt-5_2",
+        "gemini:gemini-3-pro-preview",
+    ],
 }
 
 
