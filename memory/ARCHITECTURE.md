@@ -791,14 +791,16 @@ The system maintains several in-memory caches. All are event-driven (refreshed w
 | Cache | Location | Size | TTL | Trigger | Purpose |
 |-------|----------|------|-----|---------|---------|
 | **Leaderboard metadata** | `leaderboard.py:_cache` | ~5 MB | Event-driven | `notify_data_changed()` | Admin stats, tags, PDF counts, rating stats |
+| **Match counters** | `leaderboard.py:_incr_match_counts` | ~3 MB | Persistent | `bump_match_counter()` per match | Replaces full-collection `$group` aggregation |
 | **Model analysis** | `model_analysis.py:_live_analysis_cache` | ~160 KB per entry | 1h safety net | `mark_live_analysis_dirty()` | Correlation tables, agreement stats |
+| **Pair dedup set** | `scheduler.py:_select_pairs` (local) | ~3 MB per category | Per-round | Loaded once at start of pair selection | Replaces N per-paper DB queries |
 | **Tag queries** | `leaderboard.py:_tag_cache` | Max 100 entries | 20s | Cleared on cache refresh | Filtered leaderboard by tag combo |
 | **Goals-met** | `scheduler.py:_goals_met_cache` | ~1 KB per cat | 60s | `invalidate_goals_cache()` | Avoid repeated DB queries in compare loop |
-| **Match counts** | `leaderboard.py:_match_count_cache` | ~1 KB | 5 min | `invalidate_match_count_cache()` | Total match count for status endpoint |
+| **Match counts** | `leaderboard.py:_match_count_cache` | ~1 KB | 5 min | `invalidate_match_count_cache()` | Total match count for status endpoint (fallback) |
 | **Convergence** | MongoDB `convergence_cache` | ~50 KB per cat | Persistent | After comparison rounds | Convergence curve charts |
 | **OpenSkill** | MongoDB `analysis_store` | ~200 KB per cat | Persistent | Admin refresh button | OpenSkill correlation columns |
 
-**Total in-memory cache footprint: ~20 MB** (down from ~750 MB before the DB-backed rankings migration).
+**Total in-memory cache footprint: ~25 MB** (down from ~750 MB before the DB-backed rankings migration).
 
 ### 7.2 Event-Driven Cache Architecture
 
@@ -806,6 +808,7 @@ Caches are never refreshed on a timer or on every request. Instead, they respond
 
 ```
 Match completes
+  → bump_match_counter(category)    (O(1) in-memory counter increment)
   → update_rankings_for_match()     (incremental DB update)
   → notify_data_changed()           (sets dirty flags)
     → _cache_dirty.set()            (leaderboard metadata cache)
@@ -815,6 +818,8 @@ Match completes
 ```
 
 Each cache has a debounce period (10-30s) to batch rapid match completions. During a tournament round with 100 matches completing in ~60s, the caches refresh once or twice — not 100 times.
+
+**Key optimization (Apr 7, 2026):** `_refresh_cache` no longer scans the matches collection. Match counts come from incremental in-memory counters seeded at startup and bumped per match. This reduced `_refresh_cache` from **13.2s → 0.3s** (43x). Similarly, `_select_pairs` loads all dedup pairs once per round instead of querying per needy paper — reducing DB queries from **N+1 → 1**.
 
 ### 7.3 Leaderboard Serving
 
@@ -839,12 +844,13 @@ db.rankings.find({"category": "cs.CR"})
 | Python process baseline | ~150 MB | FastAPI + imported libraries |
 | MongoDB driver pool | ~50 MB | Connection pool, cursors |
 | Leaderboard metadata cache | ~5 MB | Tags, stats, PDF counts |
+| Match counters | ~3 MB | Incremental ok/failed counts per category |
 | Model analysis cache | ~10 MB | All-categories + per-category entries |
 | LLM executor thread pool | ~20 MB | `ThreadPoolExecutor` for litellm calls |
-| Active comparison data | ~50 MB | Paper summaries loaded during matches |
+| Active comparison data | ~50 MB | Paper summaries + dedup pair set (~3 MB per category) loaded during matches |
 | **Typical RSS** | **~450 MB** | In a 2 GB container with ~1.2 GB available |
 
-Peak memory occurs during `_refresh_cache()` when old and new caches briefly coexist. With the current metadata-only cache, this peak is negligible (~10 MB).
+Peak memory occurs during comparison rounds when paper summaries and the dedup pair set are loaded. With the incremental counters, `_refresh_cache` no longer contributes to peak memory.
 
 ---
 
@@ -1116,9 +1122,9 @@ The entire system (web server + background scheduler + analysis computation) run
 
 | Metric | Current | Limit | Bottleneck |
 |--------|---------|-------|-----------|
-| Papers | ~5,100 | ~50,000 | RSS memory (~8.6 KB per paper in metadata cache) |
-| Matches | ~150,000 | ~500,000 | Match count aggregations slow above 500K |
-| Categories | 14 | ~30 | Each category adds ~50 MB during comparison rounds |
+| Papers | ~5,100 | ~100,000 | RSS memory (~8.6 KB per paper in metadata cache) |
+| Matches | ~150,000 | ~2,000,000 | Incremental counters scale linearly; dedup set ~3MB per 43K matches |
+| Categories | 14 | ~30 | Each category adds ~6 MB during comparison rounds (dedup set + summaries) |
 | Concurrent agents | 20 | 20 (hard cap) | LLM proxy rate limits; raise cap to test |
 | Match throughput | ~50/min | ~100/min | `parallel_agents` cap; LLM latency floor ~8s |
 
@@ -1129,9 +1135,10 @@ The entire system (web server + background scheduler + analysis computation) run
 - Event-driven cache refresh (no periodic full recomputation)
 - Materialized `unique_opponents` (O(1) stall detection)
 - Gap-fill ranking seed (no match loading at startup)
+- Incremental match counters (`_refresh_cache` 13.2s → 0.3s)
+- In-memory dedup set for pair selection (`_select_pairs` N+1 queries → 1)
 
 **Remaining:**
-- Per-category streaming in `_refresh_cache()` (reduce peak memory during metadata refresh)
 - Text index on `rankings.title` for fast search at scale
 - Increase `parallel_agents` cap after testing LLM proxy limits
 

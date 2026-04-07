@@ -77,23 +77,23 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 
 ## Remaining Bottlenecks (by priority)
 
-### 1. Leaderboard Cache Matches Aggregation — Event Loop Contention
-**What:** The matches `$group` aggregation in `_refresh_cache` takes 0.1s standalone but 8.7s when running concurrently with the scheduler's LLM calls. This is an async I/O scheduling issue — MongoDB queries queue behind long-running LLM HTTP calls.
+### ~~1. Leaderboard Cache Matches Aggregation — Event Loop Contention~~ ✅ FIXED (Apr 7, 2026)
+**Was:** The matches `$group` aggregation in `_refresh_cache` scanned ALL matches (150K+) every refresh, taking 0.1s standalone but 8.7s under event loop contention with concurrent LLM calls. Caused a 2.5GB memory spike.
 
-**Current mitigation:** 30s debounce reduces overlap frequency. Dead progress computation removed.
+**Fix:** Replaced with incremental in-memory counters (`_incr_match_counts`, `_incr_failed_counts`). Seeded from DB once at startup via `_seed_match_counters()`. Bumped atomically per match via `bump_match_counter()` called from `run_comparison_round`. `_refresh_cache` now reads the counters in O(1) — no matches collection scan.
 
-**Future fix:** Run the cache refresh in a separate thread (not the async event loop) to avoid contention with LLM calls. Or maintain match counts incrementally (bump a counter on each new match).
+**Result:** `_refresh_cache` dropped from **13.2s → 0.3s** (43x faster). The 2.5GB memory spike scenario is eliminated.
 
-**Scales to:** Current scale is fine with debounce. Would need incremental counters at 500K+ matches.
+**Memory cost:** ~3MB for 43K match counter strings. Scales linearly — 500K matches ≈ 37MB.
 
-### 2. `_select_pairs` → `_get_compared_opponents` — One Query Per Needy Paper
-**What:** For each needy paper, builds a `pair_keys` array of all candidates and does a `$in` query. With 10K papers, each `pair_keys` has 10K entries.
+### ~~2. `_select_pairs` → `_get_compared_opponents` — One Query Per Needy Paper~~ ✅ FIXED (Apr 7, 2026)
+**Was:** For each needy paper, `_get_compared_opponents` built a `pair_keys` array of all candidates and did a `$in` query against the `dedup_pair` index. With N needy papers, that was N separate DB queries.
 
-**Current state:** Fine at current scale (<50 needy papers per cycle for mature categories).
+**Fix:** Single query loads ALL `dedup_pair` strings for the category into an in-memory set at the start of `_select_pairs`. All pair-existence checks are then O(1) set lookups. The top-K cross-match check also uses the same set.
 
-**Future fix:** Batch into a single aggregation query. The `pair_dedup_idx` index supports this.
+**Result:** DB queries in `_select_pairs` dropped from **N+1 → 1**. Verified with manual comparison round on preview (5 matches, 0 errors).
 
-**Scales to:** Breaks at ~1K+ needy papers (fresh large categories).
+**Memory cost:** ~3MB for cs.RO (43K dedup_pair strings). Same scaling as #1.
 
 ### 3. `seed_rankings` Full Match Load — Catastrophic Recovery Path
 **What:** The gap-fill fallback (>20% unranked) still loads ALL matches via `collect_all`. For cs.RO: 42K matches in memory.
@@ -129,16 +129,18 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 | Progress endpoint | Per-request from rankings (indexed) |
 | `update_rankings_for_match` | Single `find_one_and_update` with index |
 | Ghost match prevention | Auto-creates ranking on first match, no drift |
+| **`_refresh_cache`** | **Incremental counters, O(1) — no match scan** |
+| **`_select_pairs` pair checks** | **In-memory dedup set, O(1) per pair** |
 
 ## DB Indexes (as of Apr 7, 2026)
 
-### matches (142K docs)
-- `pair_dedup_idx`: `(primary_category, dedup_pair)` — pair existence checks
-- `primary_category_1_completed_1_failed_1_mode_1` — filtered match counts
+### matches (150K+ docs)
+- `pair_dedup_idx`: `(primary_category, dedup_pair)` — pair existence checks + dedup set loading
+- `primary_category_1_completed_1_failed_1_mode_1` — filtered match counts (used by counter seed)
 - `paper1_id_1`, `paper2_id_1` — per-paper match lookups
 - `created_at_1` — recent matches
 
-### rankings (4,935 docs)  
+### rankings (5K+ docs)  
 - `category_1_score_-1` — leaderboard sorting
 - `category_1_comparisons_-1`, `category_1_ts_score_-1` — alternative sorts
 - `paper_id_1` — single-paper lookups
@@ -147,16 +149,16 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 - `categories_summaries` — matchable paper filtering
 - `id_1`, `arxiv_id_1` — lookups
 
-## Scaling Projections
+## Scaling Projections (updated Apr 7, 2026)
 
 | Metric | Current | 10K papers | 50K papers | 100K papers |
 |---|---|---|---|---|
 | Rankings reads (indexed) | <1ms | <5ms | <10ms | <20ms |
-| Matches per category | 42K | 200K | 1M | 5M |
-| `_refresh_cache` | 9s | ~15s | ~60s | OOM without incremental |
+| Matches per category | 43K | 200K | 1M | 5M |
+| **`_refresh_cache`** | **0.3s** | **~0.5s** | **~1s** | **~2s** |
 | `_check_goals_met` (cached) | 0ms | 0ms | 0ms | 0ms |
-| `_select_pairs` (50 needy) | <1s | <2s | <5s | <10s |
+| **`_select_pairs` (50 needy)** | **<0.5s** | **<1s** | **<2s** | **<5s** |
 | `seed_rankings` (gap-fill) | <1s | <1s | <1s | <1s |
 | `seed_rankings` (full, if needed) | ~2s | ~10s | ~50s | OOM |
 | Startup memory spike | ~360MB | ~400MB | ~500MB | ~600MB |
-| Steady-state memory | ~800MB | ~900MB | ~1.2GB | needs fixes |
+| Steady-state memory | ~450MB | ~500MB | ~700MB | ~900MB |
