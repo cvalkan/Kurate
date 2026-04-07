@@ -603,6 +603,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
     cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
     cat_total_in_db = await db.papers.count_documents({"categories.0": category})
+    cat_papers_with_summaries = await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}})
 
     # Detect pair exhaustion: papers that need more matches but have played all matchable opponents.
     # Uses materialized `unique_opponents` field on rankings (O(1) per paper, no aggregation).
@@ -667,7 +668,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "estimated_matches_remaining": int(total_est),
         "estimated_minutes": int(est_minutes),
         "summary_coverage": {
-            "with_summaries": total_papers,
+            "with_summaries": cat_papers_with_summaries,
         },
     }
 

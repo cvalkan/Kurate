@@ -924,19 +924,23 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     async def gen_one(paper_id, model_info):
         nonlocal generated, failed
         if _summary_gen_stop:
+            logger.debug(f"[{category}] gen_one: stop flag set, skipping {paper_id[:8]}")
             return
         if not force:
             s = await get_settings()
             if s.get("paused", False):
+                logger.debug(f"[{category}] gen_one: paused (pre-sem), skipping {paper_id[:8]}")
                 return
 
         mk = _summary_model_key(model_info)
         async with sem:
             if _summary_gen_stop:
+                logger.debug(f"[{category}] gen_one: stop flag set (post-sem), skipping {paper_id[:8]}")
                 return
             if not force:
                 s2 = await get_settings()
                 if s2.get("paused", False):
+                    logger.debug(f"[{category}] gen_one: paused (post-sem), skipping {paper_id[:8]}")
                     return
             # Load full paper data on-demand (only when actually generating)
             paper = await db.papers.find_one(
@@ -944,6 +948,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                 {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
             )
             if not paper:
+                logger.warning(f"[{category}] gen_one: paper {paper_id[:8]} not found in DB")
                 return
             # Re-check in case another worker already generated it
             if _get_paper_summary(paper, mk):
@@ -996,6 +1001,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             else:
                 failed += 1
                 _sync_progress()
+                logger.warning(f"[{category}] Summary gen returned None for '{paper.get('title', '')[:60]}' ({mk}) — full_text len={len(paper.get('full_text','') or '')}")
 
     # Process papers needing generation in small batches
     batch_size = settings.get("summary_batch_size", 50)
