@@ -6,19 +6,19 @@
 *(INSTRUCT next agent to respond in the user's preferred language only)*
 
 **what currently exists?** 
-A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) capable of scaling to 100k+ papers. The application features a complex background tournament scheduler, real-time Admin Tournament Dashboard, and a Unified Model Analysis endpoint. In this session, the system was upgraded to use DB-backed Pair Deduplication (O(1) memory scaling), and Model Analysis was split into Live (instant WR/TS/SI data) and Cached (OpenSkill data computed on-demand via Admin buttons).
+A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) scaling to handle 100k+ papers. The application features a background tournament scheduler, real-time Admin Tournament Dashboard, and Live/Cached Model Analysis. In this session, the architecture was drastically stabilized: the scheduler was made resilient to crashes, the model analysis correlation page was optimized to drop load times from 65s to <0.3s via event-driven background caching, ghost matches were eliminated via upserts, and the stall banner logic was fixed using a new O(1) materialized  field. 
 
 **Last working item**:
-    - Last item agent was working: Fixing the Pair Exhaustion stall notice logic (using ), removing font colors from goal metrics, and updating Admin Settings tooltips to show static defaults matching the codebase. The agent committed the code and verified it on preview, but the user reported the changes did not reflect on production after their latest deploy due to a commit/deploy timing mismatch.
+    - Last item agent was working: Fixing duplicate OpenSkill rows in the Correlation Tables. The agent discovered that the cache returned the same dict reference which was then repeatedly mutated. The fix was principled: moving the OpenSkill merge *into*  before the result is cached, making the cached result immutable on read.
     - Status: USER VERIFICATION PENDING
     - Agent Testing Done: Y
     - Which testing method agent to use? manual testing by curl / frontend screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Production deploy mismatch for final UI tweaks (P1)
-     - Attempted fixes: Code was successfully committed to address pair exhaustion notice strictness, UI metric colors, and tooltip defaults.
-     - Next debug checklist: Inform user to trigger a fresh deployment, as the previous deploy was built from a commit generated just prior to the final frontend adjustments.
+  Issue 1: Production deploy mismatch for final backend fixes (P1)
+     - Attempted fixes: Deployed the duplicate OpenSkill row fix, Average mode tables fix, Pearson correlation additions, and OS m/paper adjustments.
+     - Next debug checklist: Inform user to trigger a fresh deployment or confirm if the latest deploy shows the stable OS rows without duplicates.
      - Why fix this issue and what will be achieved with the fix? Ensures production UI matches the correct, verified preview state.
      - Status: USER VERIFICATION PENDING
      - Is recurring issue? N
@@ -38,98 +38,118 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
   Task 1: Analyze ReviewerToo Paper & Implement Multiple Reviewer Personas (P0)
      - Where to resume: Read the ReviewerToo paper concepts and implement the prompt architecture for diverse AI judges.
      - What will be achieved with this? Enhances pairwise ranking accuracy and correlation with human judgments by utilizing varied AI prompt personas instead of a single prompt.
-     - Status: NOT STARTED (Continually deferred due to critical scheduler crashes, DB scaling, and Model Analysis overhauls).
+     - Status: NOT STARTED (Continually deferred due to critical scheduler crashes, DB scaling, and Correlation Page overhauls).
      - Should Test frontend/backend/both after fix? Both
      - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
+    - (P1) Implement Author Verification flow: User connects ORCID via OAuth, then adds their paper to their ORCID profile to claim it (Option E) or pastes a Google Scholar URL (Option B). Documented in .
+    - (P1) Architecture Split (Option A): Implement  environment variable (web vs worker) to isolate the FastAPI leaderboard routes from the background scheduler loops. Documented in .
     - (P1) TrueSkill-first matchmaking: Update the matchmaking algorithm to utilize TrueSkill  (uncertainty) instead of Win-Rate confidence.
     - (P1) Implement an email notification system for registered users using the Resend integration.
     - (P1) Code Quality: Resolve circular import chain ( ->  -> ). Extract auth utilities.
-    - (P1) Code Quality: Migrate from  to  cookies for auth tokens to prevent XSS vulnerabilities.
 
     Future Tasks:
-    - (P2) Wire up the  to the PaperPage, or remove the orphaned component entirely.
+    - (P2) Migrate from  to  cookies for auth tokens to prevent XSS vulnerabilities.
     - (P2) Complete the Gmail congrats flow or remove the 3 currently unwired endpoints.
     - (P2) Refactor monolithic  and .
-    - (P2) Optimize scheduler  to use aggregation instead of loading all matches (documented in ).
 
 **Completed work in this session**
-- Scheduler Crash Fix: Restored the accidentally deleted  function that was blocking all tournament matches globally. (DONE)
-- DB-Backed Match Deduplication: Replaced O(N) in-memory  array with an O(1) indexed  DB field. Added a one-time DB migration. Documented in . (DONE)
-- MongoDB Dotted Key Fix: GPT-5.2 data was missing from model correlation because the key  broke MongoDB nested paths on . Added a startup migration to sanitize all keys (replacing  with ) and simplified the reader. (DONE)
-- Incremental Model Analysis: Split the heavy  endpoint. WR/TS/SI data is now computed live in <0.1s. Expensive OpenSkill (OS) computations are cached and updated purely on-demand. Documented in . (DONE)
-- Admin UI Overhaul: Fixed paper ingestion denominator (), added 6 new dynamic system settings (timeouts, batch sizes) to the UI, and added Refresh This Category / Refresh All Categories buttons to manually control OpenSkill caches. (DONE)
-- Admin Progress Optimization: Removed duplicate precomputed-cache path for progress endpoint. All progress data now comes directly from the DB. (DONE)
-- UI Enhancements: Added Pair Exhaustion stall notice, OS timestamps, and full resolution (91 bin) SI histograms. Removed dead SVG heatmaps. (DONE)
+- Scheduler Resilience: Fixed permanent crash in  by adding exponential backoff auto-restart. (DONE)
+- Stall Banner Logic: Replaced flawed  math with a materialized  field, backfilled via MongoDB migration. (DONE)
+- Ghost Matches Fixed:  now auto-creates missing ranking entries via  upserts, eliminating the race condition between fetch and compare loops. (DONE)
+- Correlation Page Scaling: Reduced  load time from 65s to 0.2s by batch-loading OS caches and moving to an event-driven background refresh task (triggered by ). (DONE)
+- Average Mode UI: InterModel and PW-vs-SI tables now dynamically compute and display correct per-category averages (including Pearson correlation). (DONE)
+- Admin Statistics Crash: Prevented  in the browser by implementing 1-minute server-side downsampling for , dropping payloads from 17.5MB to ~200KB while preserving restart markers. (DONE)
+- Category Reordering: Added drag-and-drop to Admin Categories; order now correctly persists to the DB and reflects on the leaderboard. (DONE)
+- LLM Truncation Tracking: Dead fallback code removed. Added specific truncation warning notes to summaries when LLM context limits (e.g., GPT-5.2's 128k limit) force content halving. (DONE)
+- Cache Rebuild Optimization: Removed dead  logic from leaderboard cache, debounced refresh to 30s, and cached  to eliminate concurrent DB read spikes. Peak memory dropped 66%. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-  - None (All recent user reports addressed; P0 feature deferred).
+  - Author Verification API limits: Discovered that Semantic Scholar (S2) indexes very few recent preprints, and its ORCID lookup has 0% success rate for this demographic.
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Mobile Unfurling on Twitter/X Fails
-  - Recurrence count: 6+
+  - Recurrence count: 7+
   - Status: BLOCKED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Incremental Model Analysis**: The  endpoint no longer loads matches. It reads from  and returns instantly. OpenSkill data is pulled from  and merged into the response.
-- **DB-Backed Deduplication**: To scale,  uses the  field (e.g. ) and  queries to check for repeat matches, eliminating Python memory bloat.
-- **Dotted Key Sanitization**: MongoDB corrupts nested fields if keys contain dots (e.g. ). The application now STRICTLY normalizes model keys to use underscores () before writing to the DB.
+- **Materialized :** Instead of expensive aggregations to determine tournament stall states, the ranking DB tracks  incrementally. 
+- **Event-Driven Analysis Cache:** To keep the correlation page fast (<0.3s), a background task precomputes complex correlations across all 14 categories triggered by  rather than on-demand.
+- **Server-Side Log Downsampling:** Prevents UI crashes by bucketing memory logs into 1-minute intervals (taking  RSS) while explicitly preserving zero-RSS events like Server restarted.
+- **Ghost Match Prevention:** The system aggressively assumes  documents might not exist when a match finishes (due to loop races) and uses strict upserts to guarantee consistency.
 
 **key DB schema**
-  - : Stores pairwise comparisons. (NEW FIELD: ).
-  - : Master materialized view. (KEYS: ).
-  - : Now strictly stores ONLY OpenSkill cached data. Prewarm is NO LONGER automatic.
-  - : Master configuration (holds migration flags and dynamic admin settings).
+  - : Master materialized view. (NEW FIELD:  equal to unique  encounters).
+  - : Stores pairwise comparisons ( field ensures no repeats).
+  - : Precomputed OpenSkill correlation sets (merged into  responses at cache-write).
+  - : Features a TTL index and tracks memory RSS + explicit scheduler failures.
 
 **changes in tech stack**
   - None.
 
 **All files of reference**
-  1.  (DB-backed match generation).
-  2.  (Live + cached merge logic).
-  3.  (Startup migrations for  and ).
-  4.  (Blueprint for future scaling optimizations).
-  5. 
-  6. 
+  1.  (Resilience logic, diagnostic endpoint).
+  2.  (Cache merge logic, Average mode Pearson computations).
+  3.  ( tracking, upserts).
+  4.  (Log downsampling logic, category reorder API).
+  5.  (Gap-fill startup logic).
+  6.  (Detailed analysis of ORCID vs Scholar flows).
+  7.  (Unified master doc tracking system bottlenecks).
+  8.  & 
 
 **Areas that need refactoring**:
   -  ->  ->  (Circular dependency ring).
-  - Optimize scheduler  to use MongoDB aggregations.
+  -  fallback code in  is effectively dead as live matches utilize . 
 
 **key api endpoints**
-  - : Returns live WR/TS/SI data combined with cached OpenSkill data.
-  - : Sequentially queues and recomputes the expensive OpenSkill cache for a category.
-  - : Real-time tournament progress tracking directly from the DB.
+  - : Returns unified scoring correlations (WR/TS/OS) instantly via background caching.
+  - : Exposes compare loop health, heartbeat, and failure reasons.
+  - : Returns downsampled memory trajectory charts.
+  - : Persists manual admin drag-and-drop category priorities.
 
 **Critical Info for New Agent**
-1. **Model Analysis Cache is NO LONGER Automatic**:  does NOT prewarm OpenSkill correlations on startup anymore (to prevent OOM/deployment wiping). It is exclusively triggered via Admin UI buttons.
-2. **MongoDB Dotted Keys**: Never write model names with dots (like ) to nested fields in MongoDB. The startup migration () has scrubbed existing data to use .
-3. **Deploy Timing**: Emergent auto-commits on tool calls, but deployments are snapshot builds. If the user complains that a newly implemented UI change isn't on production, politely inform them they just need to click 'Deploy' again to capture the very last commit.
-4. **P0 Task is untouched**: The ReviewerToo feature has been repeatedly shelved to put out fires. Prioritize it if no critical bugs emerge.
+1. **Frontend Build Stales:** Hot reloading does *not* automatically rebuild the production Javascript bundle that the FastAPI backend serves. You MUST run yarn run v1.22.22
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command. in  before capturing visual verification screenshots. 
+2. **ORCID Verification Limitations:** S2's ORCID lookup has 0% empirical success for Kurate's user base. Rely on Option E (add to ORCID manually) or Option B (Scholar URL). Refer directly to .
+3. **Cache Mutation Danger:** Never mutate fetched cache dicts ( is a band-aid; merge the complex stats *before* caching them to ensure purity on subsequent reads). 
+4. **P0 Task is untouched**: ReviewerToo has been repeatedly shelved to put out scaling and UI correlation fires. Pick it up!
 
 **documents and test reports created in this job**
   - 
   - 
   - 
   -  (Updated)
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages**
-- User: Asked to check Model Analysis loading times.
-- Agent: Explained payload sizes and compute queue.
-- User: Requested implementation of the DB-backed Match Dedup scaling plan.
-- Agent: Implemented it, added migrations, and verified no repeat matches were generated.
-- User: Asked to check OS correlation progress.
-- Agent: Tracked background tasks. Handled a server timeout issue caused by / OpenSkill float values breaking JSON serialization. Fixed with .
-- User: Asked if correlation pages could be incrementally updated without heavy computation.
-- Agent: Refactored the architecture. Live WR/TS/SI data is now computed in <0.1s from DB. OS is cached and merged.
-- User: Noticed GPT matches still under-reporting on the new UI.
-- Agent: Traced it to MongoDB dotted-key corruption. Built a one-time startup migration to sanitize all keys globally and removed legacy workaround code.
-- User: Pointed out production UI hadn't picked up the final pair exhaustion and tooltips tweaks after deployment. (PENDING: Agent needs to advise user to run one more deploy to capture the final commit).
+- User: Asked to check correlation table duplicate rows on production.
+- Agent: Diagnosed the issue: cache mutation on read. Fixed by moving the merge step to cache-write time.
+- User: Confirmed the duplicate rows fix. Asked if it was principled.
+- Agent: Explained the solution makes cache reads immutable.
+- User: Instructed the agent to thoroughly test the changes, scalable dedup logic, and race condition fixes since the last deployment.
+- Agent: Called the testing subagent, verified all 14 tests passed, and confirmed backend and frontend health.
+- User: Asked if ready for redeployment, suggesting removal of extra debug logging.
+- Agent: Cleaned up stale logging and debug endpoints. Caught a bug where the metrics cleared instantly mid-cycle, fixed it.
+- User: Deployed. Requested confirmation that everything works as expected.
+- Agent: Validated production endpoints. Confirmed 0 ghost matches, scheduler healthy, and OS correlation rows populated successfully.
+- User: Asked to identify code areas that might fail to scale with 10k+ papers/categories.
+- Agent: Profiled DB query overhead. Highlighted 4 immediate scaling bottlenecks.
+- User: Asked clarifying questions on the bottlenecks and requested a scaling action plan.
+- Agent: Answered the questions, provided a prioritized 4-step action plan.
+- User: Approved the first fix. (Gap-fill startup).
+- Agent: Replaced  match-loading with an empty gap-fill ranking creation. Verified.
+- User: Approved the second fix. (Incremental leaderboard cache).
+- Agent: Optimized the leaderboard cache refresh, eliminated dead progress querying, and implemented  caching. Peak RAM dropped by 66%. Documented in . 
+- User: Pointed out the Correlation page was timing out (65s).
+- Agent: Found the Average mode was un-optimized, batch-loaded the OS cache, and changed the API to rely on an event-driven background refresh. Page load dropped to 0.2s.
+- User: Pointed out correlation table bugs (missing Pearson, duplicate OS rows, Aggregate/Average toggle mismatch). 
+- Agent: Fixed all display math issues, rebuilt frontend, verified via browser. (PENDING: User verification on production).
 
 **Project Health Check:**
   - Broken: Mobile Twitter/X Unfurling (Cloudflare block).
@@ -137,18 +157,19 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
 
 **3rd Party Integrations**
   - OpenAI GPT-5.2 — uses Emergent LLM Key
-  - Anthropic Claude — uses Emergent LLM Key
+  - Anthropic Claude Opus 4.6 — uses Emergent LLM Key
   - Gemini 3 Pro — uses Emergent LLM Key
   - Resend (Pending implementation for email notifications)
+  - ORCID OAuth (Identity provider active in )
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Heavy reliance on manual bash validation, DB querying, and frontend screenshots).
-  - Troubleshoot agent used after agent stuck in loop: YES (Used to identify technical debt for scaling scheduler).
+  - Testing agent used after significant changes: YES (, )
+  - Troubleshoot agent used after agent stuck in loop: NO 
   - Test files created: None.
   - Known regressions: None.
 
 **Credentials to test flow:**
-  - NA (Use emergent-managed . Admin password for manual auth testing defaults to  — refer to tests or  if required).
+  -  for admin login panel access (or  in backend ).
 
 **What agent forgot to execute**
-  - The P0 Task: **ReviewerToo Multiple Reviewer Personas**. The entire session was dedicated to stabilizing the scheduler (restoring ), preventing MongoDB schema corruption (dotted keys), migrating Match Dedup logic to the DB for scaling, and optimizing Model Analysis performance.</analysis>
+  - The P0 Task: **ReviewerToo Multiple Reviewer Personas**. The entire session was again dedicated to production stabilization (fixing memory limits, resolving cache read conflicts, and UI correlation table fixes).</analysis>
