@@ -578,7 +578,7 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
 
     # Resolve content_mode from legacy abstract_only flag
     if content_mode is None:
-        content_mode = "abstract" if abstract_only else "extract"
+        content_mode = "abstract" if abstract_only else "abstract_plus_summary"
 
     if content_mode == "abstract":
         p1_content = f"Abstract: {paper1.get('abstract', '')}"
@@ -625,9 +625,19 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
         p2_abs = paper2.get('abstract', '')
         p2_imp = paper2.get('impact_statement', '')
         p2_content = f"Abstract: {p2_abs}\n\nEditorial Impact Statement: {p2_imp}" if p2_imp else f"Abstract: {p2_abs}"
-    else:
+    elif content_mode == "extract":
+        # Legacy: section-extracted content. Kept for backward compatibility with old validation experiments.
         p1_content = _build_paper_content(paper1, char_limit)
         p2_content = _build_paper_content(paper2, char_limit)
+    else:
+        # Unknown mode — fall back to abstract_plus_summary
+        logger.warning(f"Unknown content_mode '{content_mode}', falling back to abstract_plus_summary")
+        p1_abs = paper1.get('abstract', '')
+        p1_sum = paper1.get('ai_impact_summary_thinking', '') or paper1.get('ai_impact_summary', '')
+        p1_content = f"Abstract: {p1_abs}\n\nAI Impact Assessment:\n{p1_sum}" if p1_sum else f"Abstract: {p1_abs}"
+        p2_abs = paper2.get('abstract', '')
+        p2_sum = paper2.get('ai_impact_summary_thinking', '') or paper2.get('ai_impact_summary', '')
+        p2_content = f"Abstract: {p2_abs}\n\nAI Impact Assessment:\n{p2_sum}" if p2_sum else f"Abstract: {p2_abs}"
 
     prompt = user_template.format(
         paper1_title=paper1["title"],
