@@ -88,9 +88,29 @@ def _extract_model_data(papers):
     return model_paper_stats, model_paper_ts, model_keys, model_wr
 
 
+_live_analysis_cache = {}  # {cache_key: {"result": dict, "ts": float}}
+_LIVE_ANALYSIS_TTL = 60  # seconds
+
+
 async def compute_live_analysis(category: Optional[str] = None):
     """Fast live computation from rankings only — no match loading, no OpenSkill.
-    Returns all tables with WR/TS data. OpenSkill columns left empty for merge."""
+    Returns all tables with WR/TS data. OpenSkill columns left empty for merge.
+    
+    All Categories (category=None) result is cached for 60s since it involves
+    expensive per-category averaging (~800 scipy correlations).
+    """
+    cache_key = category or "__all__"
+    cached = _live_analysis_cache.get(cache_key)
+    if cached and (time.time() - cached["ts"]) < _LIVE_ANALYSIS_TTL:
+        return cached["result"]
+
+    result = await _compute_live_analysis_impl(category)
+    _live_analysis_cache[cache_key] = {"result": result, "ts": time.time()}
+    return result
+
+
+async def _compute_live_analysis_impl(category: Optional[str] = None):
+    """Actual computation — loads from DB."""
     t_start = time.perf_counter()
 
     query = {"category": category} if category else {}
