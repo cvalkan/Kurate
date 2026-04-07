@@ -1279,6 +1279,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                     completed += 1
 
                 await db.matches.insert_one(match_doc)
+                # Bump incremental match counter (avoids full-collection scan in _refresh_cache)
+                from routers.leaderboard import bump_match_counter
+                bump_match_counter(category, failed=match_doc.get("failed", False))
                 # Incrementally update DB-backed rankings for this match
                 if match_doc.get("completed") and match_doc.get("winner_id"):
                     from services.ranking import update_rankings_for_match

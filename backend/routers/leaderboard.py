@@ -21,6 +21,46 @@ _analysis_prewarm_done = False  # Set to True by server.py after prewarm complet
 _match_count_cache = {}  # category_or_"__all__" -> {"count": int, "ts": float}
 _MATCH_COUNT_TTL = 300  # 5 min TTL (safety net — normally invalidated by data change)
 
+# --- Incremental match counters (avoid full-collection aggregation in _refresh_cache) ---
+# Seeded from DB at startup, incremented by run_comparison_round.
+# Used by _refresh_cache instead of scanning the matches collection.
+_incr_match_counts = {}   # {category: count} — successful matches only
+_incr_failed_counts = {}  # {category: count} — failed matches only
+_incr_seeded = False      # True after initial seed from DB
+
+
+async def _seed_match_counters():
+    """One-time seed from DB. Called at startup."""
+    global _incr_seeded
+    async for doc in db.matches.aggregate([
+        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
+        {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
+    ]):
+        _incr_match_counts[doc["_id"]] = doc["count"]
+
+    async for doc in db.matches.aggregate([
+        {"$match": {"failed": True, "mode": {"$exists": False}}},
+        {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
+    ]):
+        _incr_failed_counts[doc["_id"]] = doc["count"]
+
+    _incr_seeded = True
+    logger.info(f"Match counters seeded: {sum(_incr_match_counts.values())} ok, {sum(_incr_failed_counts.values())} failed across {len(_incr_match_counts)} categories")
+
+
+def bump_match_counter(category: str, failed: bool = False):
+    """Called after each match completes. O(1), no DB access."""
+    if failed:
+        _incr_failed_counts[category] = _incr_failed_counts.get(category, 0) + 1
+    else:
+        _incr_match_counts[category] = _incr_match_counts.get(category, 0) + 1
+
+
+def get_match_counts_snapshot() -> tuple:
+    """Return (match_counts_by_cat, failed_by_cat) from incremental counters.
+    Falls back to empty dicts if not yet seeded (startup race)."""
+    return dict(_incr_match_counts), dict(_incr_failed_counts)
+
 
 async def _get_match_count(category: str = None) -> int:
     """Return cached match count for a category (or all). Refreshes on miss/stale."""
@@ -211,23 +251,10 @@ async def _refresh_cache():
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
-    # --- Counts ---
+    # --- Counts (from incremental counters — no matches collection scan) ---
     total_papers = await db.rankings.count_documents({})
-    match_counts_by_cat = {}
-    async for doc in db.matches.aggregate([
-        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
-        {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
-    ]):
-        match_counts_by_cat[doc["_id"]] = doc["count"]
+    match_counts_by_cat, failed_by_cat = get_match_counts_snapshot()
     total_matches = sum(match_counts_by_cat.values())
-
-    # --- Failed match counts per category ---
-    failed_by_cat = Counter()
-    async for m in db.matches.find(
-        {"failed": True, "mode": {"$exists": False}},
-        {"_id": 0, "primary_category": 1},
-    ):
-        failed_by_cat[m.get("primary_category", "unknown")] += 1
 
     # --- PDF/storage stats via aggregation ---
     pdf_by_cat = Counter()
@@ -350,6 +377,11 @@ async def _bg_cache_loop():
     _bg_task_started = True
     # Delay initial cache warm to let health checks respond first
     await asyncio.sleep(5)
+    # Seed incremental match counters from DB (one-time)
+    try:
+        await _seed_match_counters()
+    except Exception as e:
+        logger.warning(f"Match counter seed failed: {e}")
     # Initial warm
     try:
         await _refresh_cache()
