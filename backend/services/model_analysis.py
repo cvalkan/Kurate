@@ -89,15 +89,22 @@ def _extract_model_data(papers):
 
 
 _live_analysis_cache = {}  # {cache_key: {"result": dict, "ts": float}}
-_LIVE_ANALYSIS_TTL = 120  # seconds — background refresh keeps this warm
+_LIVE_ANALYSIS_TTL = 300  # seconds — generous TTL, refresh is event-driven not timer-driven
+_live_analysis_dirty = False  # Set by notify_data_changed, consumed by background task
+
+
+def mark_live_analysis_dirty():
+    """Called when match data changes. Triggers background recompute of All Categories."""
+    global _live_analysis_dirty
+    _live_analysis_dirty = True
 
 
 async def compute_live_analysis(category: Optional[str] = None):
     """Fast live computation from rankings only — no match loading, no OpenSkill.
     Returns all tables with WR/TS data. OpenSkill columns left empty for merge.
     
-    All Categories (category=None) is precomputed by background task every 90s.
-    Per-category results are cached for 120s after first request.
+    All Categories (category=None) is precomputed in background when data changes.
+    Per-category results are cached with TTL after first request.
     """
     cache_key = category or "__all__"
     cached = _live_analysis_cache.get(cache_key)
@@ -110,17 +117,38 @@ async def compute_live_analysis(category: Optional[str] = None):
 
 
 async def _bg_refresh_all_categories():
-    """Background task: precompute All Categories analysis every 90s.
-    No visitor ever waits for the expensive computation."""
+    """Background task: recomputes All Categories analysis when data changes.
+    Debounces by 10s to batch rapid match completions."""
     import asyncio
-    await asyncio.sleep(30)  # Let startup finish first
+    global _live_analysis_dirty
+
+    # Initial warm-up after startup
+    await asyncio.sleep(30)
+    try:
+        result = await _compute_live_analysis_impl(None)
+        _live_analysis_cache["__all__"] = {"result": result, "ts": time.time()}
+    except Exception as e:
+        logger.warning(f"Initial All Categories refresh failed: {e}")
+
     while True:
+        # Wait for data to change
+        while not _live_analysis_dirty:
+            await asyncio.sleep(5)
+        
+        # Debounce: wait 10s for more changes to batch
+        _live_analysis_dirty = False
+        await asyncio.sleep(10)
+        _live_analysis_dirty = False  # Clear any that arrived during debounce
+
         try:
             result = await _compute_live_analysis_impl(None)
             _live_analysis_cache["__all__"] = {"result": result, "ts": time.time()}
+            # Also invalidate per-category caches (data changed)
+            keys_to_remove = [k for k in _live_analysis_cache if k != "__all__"]
+            for k in keys_to_remove:
+                del _live_analysis_cache[k]
         except Exception as e:
             logger.warning(f"Background All Categories refresh failed: {e}")
-        await asyncio.sleep(90)
 
 
 async def _compute_live_analysis_impl(category: Optional[str] = None):
