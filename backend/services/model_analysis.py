@@ -100,8 +100,8 @@ def mark_live_analysis_dirty():
 
 
 async def compute_live_analysis(category: Optional[str] = None):
-    """Fast live computation from rankings only — no match loading, no OpenSkill.
-    Returns all tables with WR/TS data. OpenSkill columns left empty for merge.
+    """Computes live analysis from rankings + merges cached OpenSkill data.
+    Returns the complete, final response — no post-cache mutation needed.
     
     All Categories (category=None) is precomputed in background when data changes.
     Per-category results are cached with TTL after first request.
@@ -112,6 +112,18 @@ async def compute_live_analysis(category: Optional[str] = None):
         return cached["result"]
 
     result = await _compute_live_analysis_impl(category)
+
+    # Merge cached OpenSkill data into the live result BEFORE caching.
+    # This way the cached result is complete — no mutation on read.
+    cat_key = category or "__all__"
+    os_doc = await db.analysis_store.find_one(
+        {"_type": "openskill-cache", "key": cat_key}, {"_id": 0}
+    )
+    if os_doc:
+        os_doc.pop("_type", None)
+        os_doc.pop("key", None)
+        result = merge_openskill_into_live(result, os_doc)
+
     _live_analysis_cache[cache_key] = {"result": result, "ts": time.time()}
     return result
 
@@ -126,6 +138,13 @@ async def _bg_refresh_all_categories():
     await asyncio.sleep(30)
     try:
         result = await _compute_live_analysis_impl(None)
+        os_doc = await db.analysis_store.find_one(
+            {"_type": "openskill-cache", "key": "__all__"}, {"_id": 0}
+        )
+        if os_doc:
+            os_doc.pop("_type", None)
+            os_doc.pop("key", None)
+            result = merge_openskill_into_live(result, os_doc)
         _live_analysis_cache["__all__"] = {"result": result, "ts": time.time()}
     except Exception as e:
         logger.warning(f"Initial All Categories refresh failed: {e}")
@@ -142,6 +161,13 @@ async def _bg_refresh_all_categories():
 
         try:
             result = await _compute_live_analysis_impl(None)
+            os_doc = await db.analysis_store.find_one(
+                {"_type": "openskill-cache", "key": "__all__"}, {"_id": 0}
+            )
+            if os_doc:
+                os_doc.pop("_type", None)
+                os_doc.pop("key", None)
+                result = merge_openskill_into_live(result, os_doc)
             _live_analysis_cache["__all__"] = {"result": result, "ts": time.time()}
             # Also invalidate per-category caches (data changed)
             keys_to_remove = [k for k in _live_analysis_cache if k != "__all__"]

@@ -1227,26 +1227,9 @@ async def get_model_analysis(
     OpenSkill columns merged from cache if available."""
     cat_key = category or "__all__"
 
-    # Always compute live (fast — reads indexed rankings only)
-    from services.model_analysis import compute_live_analysis, merge_openskill_into_live
+    # Always compute live + merge OS (cached together as one complete result)
+    from services.model_analysis import compute_live_analysis
     live = await compute_live_analysis(category)
-
-    # Deep-copy the cached result before merging OS data into it.
-    # merge_openskill_into_live MUTATES the dict (appends OS rows to lists).
-    # Without copy, repeated requests would keep appending duplicates to the cached dict.
-    import copy
-    live = copy.deepcopy(live)
-    if live.get("status") != "ok":
-        return live
-
-    # Merge cached OpenSkill if available
-    os_doc = await db.analysis_store.find_one(
-        {"_type": "openskill-cache", "key": cat_key}, {"_id": 0}
-    )
-    if os_doc:
-        os_doc.pop("_type", None)
-        os_doc.pop("key", None)
-        live = merge_openskill_into_live(live, os_doc)
 
     return live
 
