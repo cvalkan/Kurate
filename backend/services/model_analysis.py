@@ -89,7 +89,7 @@ def _extract_model_data(papers):
 
 
 _live_analysis_cache = {}  # {cache_key: {"result": dict, "ts": float}}
-_LIVE_ANALYSIS_TTL = 3600  # 1 hour — generous TTL since background task handles freshness
+_LIVE_ANALYSIS_TTL = 3600  # 1 hour safety net — in practice cache is refreshed event-driven by notify_data_changed
 _live_analysis_dirty = False  # Set by notify_data_changed, consumed by background task
 
 
@@ -151,13 +151,9 @@ async def _bg_refresh_all_categories():
         logger.warning(f"Initial All Categories refresh failed: {e}")
 
     while True:
-        # Wait for data to change OR periodic refresh (every 5 min as safety net)
-        wait_count = 0
+        # Wait for data to change (event-driven, no periodic refresh)
         while not _live_analysis_dirty:
             await asyncio.sleep(5)
-            wait_count += 1
-            if wait_count >= 60:  # 60 × 5s = 5 minutes
-                break  # Periodic refresh even without data changes
         
         # Debounce: wait 10s for more changes to batch
         _live_analysis_dirty = False
