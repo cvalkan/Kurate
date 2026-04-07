@@ -287,12 +287,12 @@ async def _compute_single_item_results():
         if pairwise_matches:
             paper_dicts = [{"id": p["id"], "title": p.get("title", "")} for p in scored]
             pw_lb = await compute_leaderboard_async(paper_dicts, pairwise_matches)
-            bt_scores = {e["id"]: e["score"] for e in pw_lb}
-            common_ids = [pid for pid in gt if pid in bt_scores]
+            wr_scores = {e["id"]: e["score"] for e in pw_lb}
+            common_ids = [pid for pid in gt if pid in wr_scores]
             if len(common_ids) >= 5:
-                bt_vals = [bt_scores[pid] for pid in common_ids]
+                wr_vals = [wr_scores[pid] for pid in common_ids]
                 gt_vals = [gt[pid] for pid in common_ids]
-                pw_rho_v, pw_pval_v = scipy_stats.spearmanr(bt_vals, gt_vals)
+                pw_rho_v, pw_pval_v = scipy_stats.spearmanr(wr_vals, gt_vals)
                 if not np.isnan(pw_rho_v):
                     pw_rho = round(pw_rho_v, 4)
                     pw_pval = round(pw_pval_v, 4) if pw_pval_v >= 0.001 else 0.0
@@ -317,12 +317,12 @@ async def _compute_single_item_results():
             tj_rho = tj_pval = None
             paper_dicts_tj = [{"id": p["id"], "title": p.get("title", "")} for p in scored]
             tj_lb = await compute_leaderboard_async(paper_dicts_tj, tj_matches)
-            tj_bt = {e["id"]: e["score"] for e in tj_lb}
-            tj_common = [pid for pid in gt if pid in tj_bt]
+            tj_wr = {e["id"]: e["score"] for e in tj_lb}
+            tj_common = [pid for pid in gt if pid in tj_wr]
             if len(tj_common) >= 5:
-                tj_bt_vals = [tj_bt[pid] for pid in tj_common]
+                tj_wr_vals = [tj_wr[pid] for pid in tj_common]
                 tj_gt_vals = [gt[pid] for pid in tj_common]
-                tj_rho_v, tj_pval_v = scipy_stats.spearmanr(tj_bt_vals, tj_gt_vals)
+                tj_rho_v, tj_pval_v = scipy_stats.spearmanr(tj_wr_vals, tj_gt_vals)
                 if not np.isnan(tj_rho_v):
                     tj_rho = round(tj_rho_v, 4)
                     tj_pval = round(tj_pval_v, 4) if tj_pval_v >= 0.001 else 0.0

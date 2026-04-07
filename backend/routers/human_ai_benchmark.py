@@ -820,7 +820,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     wr_indiv_rho, wr_indiv_tau = await _wr_correlate(human_individual_matches, all_ai_wr_matches)
 
     # Direct ranking: AI BT (all matches) vs h1_avg_rating
-    bt_vs_avg_rho = None
+    wr_vs_avg_rho = None
     if len(all_ai_wr_matches) >= 10:
         ai_wr_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_wr_papers, all_ai_wr_matches)}
         avg_rating_map = {}
@@ -839,7 +839,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             sp, _ = scipy_stats.spearmanr([ai_wr_rank[p] for p in shared],
                                            [avg_rating_map[p] for p in shared])
             if not np.isnan(sp):
-                bt_vs_avg_rho = float(sp)
+                wr_vs_avg_rho = float(sp)
 
     # Build tier score map for all papers (used by both AI and per-expert tier correlation)
     tier_score_map = {}
@@ -851,8 +851,8 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
                 tier_score_map[pid] = TIER_SCORE[t]
 
     # AI BT vs ICLR tier decisions (program committee)
-    bt_vs_tier_rho = None
-    bt_vs_tier_tau = None
+    wr_vs_tier_rho = None
+    wr_vs_tier_tau = None
     if len(all_ai_wr_matches) >= 10:
         if not ai_wr_rank:
             ai_wr_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_wr_papers, all_ai_wr_matches)}
@@ -863,12 +863,12 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             kt, _ = scipy_stats.kendalltau([ai_wr_rank[p] for p in shared],
                                             [tier_score_map[p] for p in shared])
             if not np.isnan(sp):
-                bt_vs_tier_rho = float(sp)
+                wr_vs_tier_rho = float(sp)
             if not np.isnan(kt):
-                bt_vs_tier_tau = float(kt)
+                wr_vs_tier_tau = float(kt)
 
     # Internal human baselines: individual vs committee, per-expert correlations
-    bt_indiv_vs_comm_rho, bt_indiv_vs_comm_tau = await _wr_correlate(human_individual_matches, human_committee_matches)
+    wr_indiv_vs_comm_rho, wr_indiv_vs_comm_tau = await _wr_correlate(human_individual_matches, human_committee_matches)
 
     # Per-expert BT: build BT from each expert's preferences, correlate with committee, AI, individual aggregate
     expert_vs_comm_rhos = []
@@ -1265,7 +1265,7 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
                              "cf_total": int(cf_ac_total)},
         },
         "by_difficulty": _format_difficulty(difficulty_stats),
-        "bt_correlation": {
+        "wr_correlation": {
             "committee": {
                 "spearman_rho": safe_round(wr_comm_rho) if wr_comm_rho else None,
                 "kendall_tau": safe_round(wr_comm_tau) if wr_comm_tau else None,
@@ -1275,8 +1275,8 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
                 "kendall_tau": safe_round(wr_indiv_tau) if wr_indiv_tau else None,
             },
             "indiv_vs_comm": {
-                "spearman_rho": safe_round(bt_indiv_vs_comm_rho) if bt_indiv_vs_comm_rho else None,
-                "kendall_tau": safe_round(bt_indiv_vs_comm_tau) if bt_indiv_vs_comm_tau else None,
+                "spearman_rho": safe_round(wr_indiv_vs_comm_rho) if wr_indiv_vs_comm_rho else None,
+                "kendall_tau": safe_round(wr_indiv_vs_comm_tau) if wr_indiv_vs_comm_tau else None,
             },
             "avg_expert_vs_comm": {
                 "spearman_rho": safe_round(avg_expert_vs_comm_rho) if avg_expert_vs_comm_rho else None,
@@ -1302,14 +1302,14 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
                 "spearman_rho": safe_round(avg_expert_vs_loo_indiv_rho) if avg_expert_vs_loo_indiv_rho else None,
                 "kendall_tau": safe_round(avg_expert_vs_loo_indiv_tau) if avg_expert_vs_loo_indiv_tau else None,
             },
-            "vs_tier_rho": safe_round(bt_vs_tier_rho) if bt_vs_tier_rho else None,
-            "vs_tier_tau": safe_round(bt_vs_tier_tau) if bt_vs_tier_tau else None,
+            "vs_tier_rho": safe_round(wr_vs_tier_rho) if wr_vs_tier_rho else None,
+            "vs_tier_tau": safe_round(wr_vs_tier_tau) if wr_vs_tier_tau else None,
             "avg_expert_vs_tier": {
                 "spearman_rho": safe_round(avg_expert_vs_tier_rho) if avg_expert_vs_tier_rho else None,
                 "kendall_tau": safe_round(avg_expert_vs_tier_tau) if avg_expert_vs_tier_tau else None,
             },
             "n_papers": len(ctrl_paper_ids),
-            "vs_avg_rating_rho": safe_round(bt_vs_avg_rho) if bt_vs_avg_rho else None,
+            "vs_avg_rating_rho": safe_round(wr_vs_avg_rho) if wr_vs_avg_rho else None,
         },
     }
 
@@ -1379,11 +1379,11 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
         "hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0],
         "wr_comm_rhos": [], "wr_comm_taus": [],
         "wr_indiv_rhos": [], "wr_indiv_taus": [],
-        "bt_ivc_rhos": [], "bt_ivc_taus": [],
-        "bt_evc_rhos": [], "bt_evc_taus": [],
-        "bt_eva_rhos": [], "bt_eva_taus": [],
-        "bt_evi_rhos": [], "bt_evi_taus": [],
-        "bt_avg_rating_rhos": [],
+        "wr_ivc_rhos": [], "wr_ivc_taus": [],
+        "wr_evc_rhos": [], "wr_evc_taus": [],
+        "wr_eva_rhos": [], "wr_eva_taus": [],
+        "wr_evi_rhos": [], "wr_evi_taus": [],
+        "wr_avg_rating_rhos": [],
         "inter_rater_rhos": [],
         "ai_h_concordances": [],
         "concordance_rates": [],
@@ -1459,22 +1459,22 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
         pooled["ti_hc_loo_tie"] += ti.get("hc_loo_tie", 0)
         if result.get("ceiling") and result["ceiling"].get("overall"):
             pooled["ceilings"].append(result["ceiling"]["overall"])
-        bt = result.get("bt_correlation", {})
-        bt_c = bt.get("committee", {})
-        bt_i = bt.get("individual", {})
-        if bt_c.get("spearman_rho") is not None:
-            pooled["wr_comm_rhos"].append(bt_c["spearman_rho"])
-        if bt_c.get("kendall_tau") is not None:
-            pooled["wr_comm_taus"].append(bt_c["kendall_tau"])
-        if bt_i.get("spearman_rho") is not None:
-            pooled["wr_indiv_rhos"].append(bt_i["spearman_rho"])
-        if bt_i.get("kendall_tau") is not None:
-            pooled["wr_indiv_taus"].append(bt_i["kendall_tau"])
+        bt = result.get("wr_correlation", {})
+        wr_c = bt.get("committee", {})
+        wr_i = bt.get("individual", {})
+        if wr_c.get("spearman_rho") is not None:
+            pooled["wr_comm_rhos"].append(wr_c["spearman_rho"])
+        if wr_c.get("kendall_tau") is not None:
+            pooled["wr_comm_taus"].append(wr_c["kendall_tau"])
+        if wr_i.get("spearman_rho") is not None:
+            pooled["wr_indiv_rhos"].append(wr_i["spearman_rho"])
+        if wr_i.get("kendall_tau") is not None:
+            pooled["wr_indiv_taus"].append(wr_i["kendall_tau"])
         for src, dst_r, dst_t in [
-            ("indiv_vs_comm", "bt_ivc_rhos", "bt_ivc_taus"),
-            ("avg_expert_vs_comm", "bt_evc_rhos", "bt_evc_taus"),
-            ("avg_expert_vs_ai", "bt_eva_rhos", "bt_eva_taus"),
-            ("avg_expert_vs_indiv", "bt_evi_rhos", "bt_evi_taus"),
+            ("indiv_vs_comm", "wr_ivc_rhos", "wr_ivc_taus"),
+            ("avg_expert_vs_comm", "wr_evc_rhos", "wr_evc_taus"),
+            ("avg_expert_vs_ai", "wr_eva_rhos", "wr_eva_taus"),
+            ("avg_expert_vs_indiv", "wr_evi_rhos", "wr_evi_taus"),
         ]:
             sub = bt.get(src, {})
             if sub.get("spearman_rho") is not None:
@@ -1482,31 +1482,31 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
             if sub.get("kendall_tau") is not None:
                 pooled[dst_t].append(sub["kendall_tau"])
         if bt.get("vs_avg_rating_rho") is not None:
-            pooled["bt_avg_rating_rhos"].append(bt["vs_avg_rating_rho"])
+            pooled["wr_avg_rating_rhos"].append(bt["vs_avg_rating_rho"])
         loo_sub = bt.get("avg_expert_vs_loo", {})
         if loo_sub.get("spearman_rho") is not None:
-            pooled.setdefault("bt_loo_rhos", []).append(loo_sub["spearman_rho"])
+            pooled.setdefault("wr_loo_rhos", []).append(loo_sub["spearman_rho"])
         if loo_sub.get("kendall_tau") is not None:
-            pooled.setdefault("bt_loo_taus", []).append(loo_sub["kendall_tau"])
+            pooled.setdefault("wr_loo_taus", []).append(loo_sub["kendall_tau"])
         loo_avg_sub = bt.get("avg_expert_vs_loo_avg", {})
         if loo_avg_sub.get("spearman_rho") is not None:
-            pooled.setdefault("bt_loo_avg_rhos", []).append(loo_avg_sub["spearman_rho"])
+            pooled.setdefault("wr_loo_avg_rhos", []).append(loo_avg_sub["spearman_rho"])
         if loo_avg_sub.get("kendall_tau") is not None:
-            pooled.setdefault("bt_loo_avg_taus", []).append(loo_avg_sub["kendall_tau"])
+            pooled.setdefault("wr_loo_avg_taus", []).append(loo_avg_sub["kendall_tau"])
         loo_indiv_sub = bt.get("avg_expert_vs_loo_indiv", {})
         if loo_indiv_sub.get("spearman_rho") is not None:
-            pooled.setdefault("bt_loo_indiv_rhos", []).append(loo_indiv_sub["spearman_rho"])
+            pooled.setdefault("wr_loo_indiv_rhos", []).append(loo_indiv_sub["spearman_rho"])
         if loo_indiv_sub.get("kendall_tau") is not None:
-            pooled.setdefault("bt_loo_indiv_taus", []).append(loo_indiv_sub["kendall_tau"])
+            pooled.setdefault("wr_loo_indiv_taus", []).append(loo_indiv_sub["kendall_tau"])
         if bt.get("vs_tier_rho") is not None:
-            pooled.setdefault("bt_tier_rhos", []).append(bt["vs_tier_rho"])
+            pooled.setdefault("wr_tier_rhos", []).append(bt["vs_tier_rho"])
         if bt.get("vs_tier_tau") is not None:
-            pooled.setdefault("bt_tier_taus", []).append(bt["vs_tier_tau"])
+            pooled.setdefault("wr_tier_taus", []).append(bt["vs_tier_tau"])
         exp_tier_sub = bt.get("avg_expert_vs_tier", {})
         if exp_tier_sub.get("spearman_rho") is not None:
-            pooled.setdefault("bt_exp_tier_rhos", []).append(exp_tier_sub["spearman_rho"])
+            pooled.setdefault("wr_exp_tier_rhos", []).append(exp_tier_sub["spearman_rho"])
         if exp_tier_sub.get("kendall_tau") is not None:
-            pooled.setdefault("bt_exp_tier_taus", []).append(exp_tier_sub["kendall_tau"])
+            pooled.setdefault("wr_exp_tier_taus", []).append(exp_tier_sub["kendall_tau"])
         tv = result.get("tie_validation", {})
         pooled.setdefault("tv_ai_agree", 0)
         pooled.setdefault("tv_ai_total", 0)
@@ -1734,7 +1734,7 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
                                  "pairs": pooled["ac"][1],
                                  "ci": _wilson_ci(pooled["ac"][0], pooled["ac"][1])},
             },
-            "bt_correlation": {
+            "wr_correlation": {
                 "committee": {
                     "spearman_rho": safe_round(float(np.mean(pooled["wr_comm_rhos"]))) if pooled["wr_comm_rhos"] else None,
                     "kendall_tau": safe_round(float(np.mean(pooled["wr_comm_taus"]))) if pooled["wr_comm_taus"] else None,
@@ -1744,40 +1744,40 @@ async def _compute_benchmark(gt_type: str = "comp", include_within_tier: bool = 
                     "kendall_tau": safe_round(float(np.mean(pooled["wr_indiv_taus"]))) if pooled["wr_indiv_taus"] else None,
                 },
                 "indiv_vs_comm": {
-                    "spearman_rho": safe_round(float(np.mean(pooled["bt_ivc_rhos"]))) if pooled["bt_ivc_rhos"] else None,
-                    "kendall_tau": safe_round(float(np.mean(pooled["bt_ivc_taus"]))) if pooled["bt_ivc_taus"] else None,
+                    "spearman_rho": safe_round(float(np.mean(pooled["wr_ivc_rhos"]))) if pooled["wr_ivc_rhos"] else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["wr_ivc_taus"]))) if pooled["wr_ivc_taus"] else None,
                 },
                 "avg_expert_vs_comm": {
-                    "spearman_rho": safe_round(float(np.mean(pooled["bt_evc_rhos"]))) if pooled["bt_evc_rhos"] else None,
-                    "kendall_tau": safe_round(float(np.mean(pooled["bt_evc_taus"]))) if pooled["bt_evc_taus"] else None,
+                    "spearman_rho": safe_round(float(np.mean(pooled["wr_evc_rhos"]))) if pooled["wr_evc_rhos"] else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["wr_evc_taus"]))) if pooled["wr_evc_taus"] else None,
                 },
                 "avg_expert_vs_ai": {
-                    "spearman_rho": safe_round(float(np.mean(pooled["bt_eva_rhos"]))) if pooled["bt_eva_rhos"] else None,
-                    "kendall_tau": safe_round(float(np.mean(pooled["bt_eva_taus"]))) if pooled["bt_eva_taus"] else None,
+                    "spearman_rho": safe_round(float(np.mean(pooled["wr_eva_rhos"]))) if pooled["wr_eva_rhos"] else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["wr_eva_taus"]))) if pooled["wr_eva_taus"] else None,
                 },
                 "avg_expert_vs_indiv": {
-                    "spearman_rho": safe_round(float(np.mean(pooled["bt_evi_rhos"]))) if pooled["bt_evi_rhos"] else None,
-                    "kendall_tau": safe_round(float(np.mean(pooled["bt_evi_taus"]))) if pooled["bt_evi_taus"] else None,
+                    "spearman_rho": safe_round(float(np.mean(pooled["wr_evi_rhos"]))) if pooled["wr_evi_rhos"] else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["wr_evi_taus"]))) if pooled["wr_evi_taus"] else None,
                 },
                 "avg_expert_vs_loo": {
-                    "spearman_rho": safe_round(float(np.mean(pooled["bt_loo_rhos"]))) if pooled.get("bt_loo_rhos") else None,
-                    "kendall_tau": safe_round(float(np.mean(pooled["bt_loo_taus"]))) if pooled.get("bt_loo_taus") else None,
+                    "spearman_rho": safe_round(float(np.mean(pooled["wr_loo_rhos"]))) if pooled.get("wr_loo_rhos") else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["wr_loo_taus"]))) if pooled.get("wr_loo_taus") else None,
                 },
                 "avg_expert_vs_loo_avg": {
-                    "spearman_rho": safe_round(float(np.mean(pooled["bt_loo_avg_rhos"]))) if pooled.get("bt_loo_avg_rhos") else None,
-                    "kendall_tau": safe_round(float(np.mean(pooled["bt_loo_avg_taus"]))) if pooled.get("bt_loo_avg_taus") else None,
+                    "spearman_rho": safe_round(float(np.mean(pooled["wr_loo_avg_rhos"]))) if pooled.get("wr_loo_avg_rhos") else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["wr_loo_avg_taus"]))) if pooled.get("wr_loo_avg_taus") else None,
                 },
                 "avg_expert_vs_loo_indiv": {
-                    "spearman_rho": safe_round(float(np.mean(pooled["bt_loo_indiv_rhos"]))) if pooled.get("bt_loo_indiv_rhos") else None,
-                    "kendall_tau": safe_round(float(np.mean(pooled["bt_loo_indiv_taus"]))) if pooled.get("bt_loo_indiv_taus") else None,
+                    "spearman_rho": safe_round(float(np.mean(pooled["wr_loo_indiv_rhos"]))) if pooled.get("wr_loo_indiv_rhos") else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["wr_loo_indiv_taus"]))) if pooled.get("wr_loo_indiv_taus") else None,
                 },
-                "vs_tier_rho": safe_round(float(np.mean(pooled["bt_tier_rhos"]))) if pooled.get("bt_tier_rhos") else None,
-                "vs_tier_tau": safe_round(float(np.mean(pooled["bt_tier_taus"]))) if pooled.get("bt_tier_taus") else None,
+                "vs_tier_rho": safe_round(float(np.mean(pooled["wr_tier_rhos"]))) if pooled.get("wr_tier_rhos") else None,
+                "vs_tier_tau": safe_round(float(np.mean(pooled["wr_tier_taus"]))) if pooled.get("wr_tier_taus") else None,
                 "avg_expert_vs_tier": {
-                    "spearman_rho": safe_round(float(np.mean(pooled["bt_exp_tier_rhos"]))) if pooled.get("bt_exp_tier_rhos") else None,
-                    "kendall_tau": safe_round(float(np.mean(pooled["bt_exp_tier_taus"]))) if pooled.get("bt_exp_tier_taus") else None,
+                    "spearman_rho": safe_round(float(np.mean(pooled["wr_exp_tier_rhos"]))) if pooled.get("wr_exp_tier_rhos") else None,
+                    "kendall_tau": safe_round(float(np.mean(pooled["wr_exp_tier_taus"]))) if pooled.get("wr_exp_tier_taus") else None,
                 },
-                "vs_avg_rating_rho": safe_round(float(np.mean(pooled["bt_avg_rating_rhos"]))) if pooled["bt_avg_rating_rhos"] else None,
+                "vs_avg_rating_rho": safe_round(float(np.mean(pooled["wr_avg_rating_rhos"]))) if pooled["wr_avg_rating_rhos"] else None,
             },
             "by_difficulty": _format_pooled_difficulty(),
             "tie_impact": tie_impact,
@@ -1886,7 +1886,7 @@ async def dataset_rankings(dataset_id: str):
 
     # Build match sets
     # 1. AI: all thinking matches
-    ai_bt_matches = [
+    ai_pairwise_matches = [
         {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
          "winner_id": m["winner_id"], "completed": True, "failed": False}
         for m in ai_raw if m.get("winner_id")
@@ -1940,7 +1940,7 @@ async def dataset_rankings(dataset_id: str):
             scores[pid] = {"score": elo_map.get(pid, SCORE_BASE), "wins": s["w"], "losses": s["l"], "matches": n}
         return scores
 
-    ai_elo = _compute_elo(ai_bt_matches)
+    ai_elo = _compute_elo(ai_pairwise_matches)
     h_indiv_elo = _compute_elo(human_indiv_matches)
     h_maj_elo = _compute_elo(human_maj_matches)
 
@@ -2000,7 +2000,7 @@ async def dataset_rankings(dataset_id: str):
         "dataset_id": dataset_id,
         "n_papers": len(papers),
         "n_controlled_pairs": len(controlled_pairs),
-        "n_ai_matches": len(ai_bt_matches),
+        "n_ai_matches": len(ai_pairwise_matches),
         "ai_content_mode": ai_content_mode,
         "papers": rows,
     }
@@ -2140,15 +2140,15 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
             s1, s2 = si_scores.get(m["paper1_id"]), si_scores.get(m["paper2_id"])
             m["_si_gap"] = abs(s1 - s2) if s1 is not None and s2 is not None else None
 
-        # Compute BT scores from all matches, then annotate each match with BT gap
+        # Compute WR scores from all matches, then annotate each match with score gap
         from services.ranking import compute_leaderboard as _sync_lb
-        bt_lb = _sync_lb(papers, [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+        wr_lb = _sync_lb(papers, [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
                                     "winner_id": m["winner_id"], "completed": True, "failed": False}
                                    for m in all_matches if m.get("winner_id")])
-        bt_scores = {e["id"]: e["score"] for e in bt_lb}
+        wr_scores = {e["id"]: e["score"] for e in wr_lb}
         for m in all_matches:
-            b1, b2 = bt_scores.get(m["paper1_id"]), bt_scores.get(m["paper2_id"])
-            m["_bt_gap"] = abs(b1 - b2) if b1 is not None and b2 is not None else None
+            b1, b2 = wr_scores.get(m["paper1_id"]), wr_scores.get(m["paper2_id"])
+            m["_score_gap"] = abs(b1 - b2) if b1 is not None and b2 is not None else None
 
         tier_rank = {p["id"]: -TIER_MAP[norm_tier(p.get("decision"))]
                      for p in papers if norm_tier(p.get("decision")) in TIER_MAP}
@@ -2193,7 +2193,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                 total_pairs += len(ctrl)
                 if len(ctrl) < 10:
                     continue
-                ai_bt = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": ai_pair[p],
+                ai_filtered = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": ai_pair[p],
                           "completed": True, "failed": False} for p in ctrl]
                 h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
                             "completed": True, "failed": False}
@@ -2204,7 +2204,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                 ceiling_pairs = ctrl
             else:
                 total_pairs += len(ai_pair)
-                ai_bt = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
+                ai_filtered = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
                           "winner_id": m["winner_id"], "completed": True, "failed": False}
                          for m in filtered]
                 h_indiv = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": w,
@@ -2215,7 +2215,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                          for p in c["all_expert_ge2"] if p in c["expert_majority"]]
                 ceiling_pairs = c["all_expert_ge2"]
 
-            ai_rank = {e["id"]: e["score"] for e in await compute_leaderboard(papers, ai_bt)}
+            ai_rank = {e["id"]: e["score"] for e in await compute_leaderboard(papers, ai_filtered)}
 
             def _rho(a, b):
                 s = sorted(set(a) & set(b))
@@ -2433,7 +2433,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
                "avg": gap0_row["avg"], "h_ceil": gap0_full.get("h_ceil"), "ai_advantage": gap0_row.get("ai_advantage")}
     bt_sampling_rows.append(bt_gap0)
     for g in bt_gap_thresholds[1:]:
-        row = await _compute_row(ds_items, lambda m, g=g: m.get("_bt_gap") is not None and m["_bt_gap"] >= g, controlled=False)
+        row = await _compute_row(ds_items, lambda m, g=g: m.get("_score_gap") is not None and m["_score_gap"] >= g, controlled=False)
         row["min_gap"] = g
         bt_sampling_rows.append(row)
 
@@ -2451,7 +2451,7 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     for label, wfn, is_uni in bt_weight_schemes:
         if is_uni:
             continue
-        row = await _compute_weighted_row(ds_items, wfn, "_bt_gap", label, is_uniform=False)
+        row = await _compute_weighted_row(ds_items, wfn, "_score_gap", label, is_uniform=False)
         bt_weighted_rows.append(row)
 
     return {
@@ -2756,20 +2756,20 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
         ))
 
-    ai_bt_matches = [
+    ai_pairwise_matches = [
         {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
          "winner_id": m["winner_id"], "completed": True, "failed": False}
         for m in ai_raw if m.get("winner_id")
     ]
 
-    if len(ai_bt_matches) < 10 or len(human_indiv_matches) < 10:
+    if len(ai_pairwise_matches) < 10 or len(human_indiv_matches) < 10:
         return None
 
     # Paper universe: all papers in the dataset
     all_papers = papers
 
     # Compute leaderboards
-    ai_lb = await compute_leaderboard(all_papers, ai_bt_matches)
+    ai_lb = await compute_leaderboard(all_papers, ai_pairwise_matches)
     h_indiv_lb = await compute_leaderboard(all_papers, human_indiv_matches)
     h_maj_lb = await compute_leaderboard(all_papers, human_maj_matches) if human_maj_matches else []
 
@@ -2890,7 +2890,7 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
     _paper_ids = [p["id"] for p in all_papers]
     by_method = {"win_rate": default_results}
     for method_key, score_fn in [("bt", compute_bt_ranking_scores), ("trueskill", compute_trueskill_ranking_scores)]:
-        _ai_r = score_fn(ai_bt_matches, _paper_ids)
+        _ai_r = score_fn(ai_pairwise_matches, _paper_ids)
         _hi_r = score_fn(human_indiv_matches, _paper_ids)
         _hm_r = score_fn(human_maj_matches, _paper_ids) if human_maj_matches else {}
         by_method[method_key] = _build_method_results(_ai_r, _hi_r, _hm_r)
@@ -2898,7 +2898,7 @@ async def _compute_standalone_ranking(dataset_id: str, include_within_tier: bool
     return {
         "dataset_id": dataset_id,
         "n_papers": len(papers),
-        "n_ai_matches": len(ai_bt_matches),
+        "n_ai_matches": len(ai_pairwise_matches),
         "n_ai_pairs": len(ai_pairs),
         "n_expert_pairs": len(all_expert_pairs_ge2),
         "n_expert_pairs_incl_ties": len(all_rated_pairs_incl_ties),

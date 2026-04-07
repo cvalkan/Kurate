@@ -3379,19 +3379,19 @@ async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optiona
     str_scores = {p["id"]: p["str_score"] for p in cp}
     pids = sorted(a_rank.keys())
 
-    ai_bt = [a_rank[pid]["score"] for pid in pids]
+    ai_wr_scores = [a_rank[pid]["score"] for pid in pids]
     sig_vals = [sig_scores[pid] for pid in pids]
     str_vals = [str_scores[pid] for pid in pids]
 
     # Correlations against significance
-    sp_sig, sp_sig_p = scipy_stats.spearmanr(ai_bt, sig_vals)
-    kt_sig, kt_sig_p = scipy_stats.kendalltau(ai_bt, sig_vals)
-    pr_sig, pr_sig_p = scipy_stats.pearsonr(ai_bt, sig_vals)
+    sp_sig, sp_sig_p = scipy_stats.spearmanr(ai_wr_scores, sig_vals)
+    kt_sig, kt_sig_p = scipy_stats.kendalltau(ai_wr_scores, sig_vals)
+    pr_sig, pr_sig_p = scipy_stats.pearsonr(ai_wr_scores, sig_vals)
 
     # Correlations against strength
-    sp_str, sp_str_p = scipy_stats.spearmanr(ai_bt, str_vals)
-    kt_str, kt_str_p = scipy_stats.kendalltau(ai_bt, str_vals)
-    pr_str, pr_str_p = scipy_stats.pearsonr(ai_bt, str_vals)
+    sp_str, sp_str_p = scipy_stats.spearmanr(ai_wr_scores, str_vals)
+    kt_str, kt_str_p = scipy_stats.kendalltau(ai_wr_scores, str_vals)
+    pr_str, pr_str_p = scipy_stats.pearsonr(ai_wr_scores, str_vals)
 
     SIG_LABELS = {5: "landmark", 4: "fundamental", 3: "important", 2: "valuable", 1: "useful"}
     STR_LABELS = {6: "exceptional", 5: "compelling", 4: "convincing", 3: "solid", 2: "incomplete", 1: "inadequate"}

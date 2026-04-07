@@ -2801,11 +2801,11 @@ async def backfill_archives():
         if len(entries_with_both) >= 2:
             from scipy import stats as _sp_stats
             import numpy as _np
-            _bt_vals = _np.array([e["score"] for e in entries_with_both])
+            _wr_vals = _np.array([e["score"] for e in entries_with_both])
             _si_vals = _np.array([e["ai_rating"] for e in entries_with_both])
-            _bt_pct = _sp_stats.rankdata(_bt_vals) / len(entries_with_both) * 100
+            _wr_pct = _sp_stats.rankdata(_wr_vals) / len(entries_with_both) * 100
             _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
-            _gap_raw = _bt_pct - _si_pct
+            _gap_raw = _wr_pct - _si_pct
             for i, entry in enumerate(entries_with_both):
                 entry["gap_score"] = round(float(_gap_raw[i]), 1)
 

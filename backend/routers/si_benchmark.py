@@ -470,7 +470,7 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
         ctrl_paper_ids.add(p[1])
     ctrl_papers = [papers_by_id[pid] for pid in ctrl_paper_ids if pid in papers_by_id]
 
-    async def _bt_correlate(h_matches, a_matches):
+    async def _wr_correlate(h_matches, a_matches):
         if len(h_matches) < 10 or len(a_matches) < 10:
             return None, None
         h_lb = await compute_leaderboard(ctrl_papers, h_matches)
@@ -488,9 +488,9 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
         tau_v = float(kt) if not np.isnan(kt) else None
         return rho_v, tau_v
 
-    bt_comm_rho, bt_comm_tau = await _bt_correlate(human_committee_matches, ai_matches_ctrl)
-    bt_indiv_rho, bt_indiv_tau = await _bt_correlate(human_individual_matches, ai_matches_ctrl)
-    bt_ivc_rho, bt_ivc_tau = await _bt_correlate(human_individual_matches, human_committee_matches)
+    wr_comm_rho, wr_comm_tau = await _wr_correlate(human_committee_matches, ai_matches_ctrl)
+    wr_indiv_rho, wr_indiv_tau = await _wr_correlate(human_individual_matches, ai_matches_ctrl)
+    wr_ivc_rho, wr_ivc_tau = await _wr_correlate(human_individual_matches, human_committee_matches)
 
     # Direct ranking: AI BT vs h1_avg_rating
     bt_vs_avg_rho = None
@@ -600,10 +600,10 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
         },
         "by_difficulty": _format_difficulty(),
         "bt_correlation": {
-            "committee": {"spearman_rho": safe_round(bt_comm_rho) if bt_comm_rho else None,
-                          "kendall_tau": safe_round(bt_comm_tau) if bt_comm_tau else None},
-            "individual": {"spearman_rho": safe_round(bt_indiv_rho) if bt_indiv_rho else None,
-                           "kendall_tau": safe_round(bt_indiv_tau) if bt_indiv_tau else None},
+            "committee": {"spearman_rho": safe_round(wr_comm_rho) if wr_comm_rho else None,
+                          "kendall_tau": safe_round(wr_comm_tau) if wr_comm_tau else None},
+            "individual": {"spearman_rho": safe_round(wr_indiv_rho) if wr_indiv_rho else None,
+                           "kendall_tau": safe_round(wr_indiv_tau) if wr_indiv_tau else None},
             "avg_expert_vs_comm": {"spearman_rho": safe_round(avg_evc_rho) if avg_evc_rho else None},
             "avg_expert_vs_indiv": {"spearman_rho": safe_round(avg_evi_rho) if avg_evi_rho else None},
             "n_papers": len(ctrl_paper_ids),
@@ -652,7 +652,7 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
     pooled = {
         "hh": [0, 0], "hc": [0, 0], "hc_loo": [0, 0], "ah": [0, 0], "ac": [0, 0],
         "inter_rater_rhos": [], "ai_h_concordances": [], "concordance_rates": [], "ceilings": [],
-        "bt_comm_rhos": [], "bt_indiv_rhos": [], "bt_evc_rhos": [], "bt_evi_rhos": [],
+        "wr_comm_rhos": [], "wr_indiv_rhos": [], "wr_evc_rhos": [], "wr_evi_rhos": [],
         "bt_avg_rating_rhos": [],
         "total_pairs": 0,
         "total_papers": 0,
@@ -707,8 +707,8 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
         pooled["ti_hc_loo_tie"] += ti.get("hc_loo_tie", 0)
 
         bt = result.get("bt_correlation", {})
-        for src, dst in [("committee", "bt_comm_rhos"), ("individual", "bt_indiv_rhos"),
-                         ("avg_expert_vs_comm", "bt_evc_rhos"), ("avg_expert_vs_indiv", "bt_evi_rhos")]:
+        for src, dst in [("committee", "wr_comm_rhos"), ("individual", "wr_indiv_rhos"),
+                         ("avg_expert_vs_comm", "wr_evc_rhos"), ("avg_expert_vs_indiv", "wr_evi_rhos")]:
             v = bt.get(src, {}).get("spearman_rho")
             if v is not None:
                 pooled[dst].append(v)
@@ -846,10 +846,10 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
                                  "pairs": pooled["ac"][1]},
             },
             "bt_correlation": {
-                "committee": {"spearman_rho": _avg(pooled["bt_comm_rhos"])},
-                "individual": {"spearman_rho": _avg(pooled["bt_indiv_rhos"])},
-                "avg_expert_vs_comm": {"spearman_rho": _avg(pooled["bt_evc_rhos"])},
-                "avg_expert_vs_indiv": {"spearman_rho": _avg(pooled["bt_evi_rhos"])},
+                "committee": {"spearman_rho": _avg(pooled["wr_comm_rhos"])},
+                "individual": {"spearman_rho": _avg(pooled["wr_indiv_rhos"])},
+                "avg_expert_vs_comm": {"spearman_rho": _avg(pooled["wr_evc_rhos"])},
+                "avg_expert_vs_indiv": {"spearman_rho": _avg(pooled["wr_evi_rhos"])},
                 "vs_avg_rating_rho": _avg(pooled["bt_avg_rating_rhos"]),
             },
             "by_difficulty": _format_pooled_difficulty(),

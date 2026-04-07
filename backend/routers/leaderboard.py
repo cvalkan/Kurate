@@ -971,13 +971,13 @@ async def _db_tag_leaderboard_impl(
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
         ))
         if local_matches:
-            bt_matches = [
+            wr_matches = [
                 {"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"],
                  "winner_id": m["winner_id"], "completed": True, "failed": False}
                 for m in local_matches
             ]
             papers_stub = [{"id": pid, "title": ""} for pid in paper_id_set]
-            local_lb = compute_leaderboard(papers_stub, bt_matches)
+            local_lb = compute_leaderboard(papers_stub, wr_matches)
             local_map = {e["id"]: e for e in local_lb}
             for entry in entries:
                 loc = local_map.get(entry["id"])
