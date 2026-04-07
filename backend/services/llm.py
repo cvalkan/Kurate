@@ -825,6 +825,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
         return params
 
     max_retries = 4
+    original_char_limit = char_limit
+    was_truncated = False
     for attempt in range(max_retries):
         prompt = IMPACT_ASSESSMENT_PROMPT["user_prompt"].format(
             title=paper.get("title", "Untitled"),
@@ -841,6 +843,11 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             response_text = raw_response.choices[0].message.content if raw_response.choices else ""
             if response_text and response_text.strip():
                 summary_text = response_text.strip()
+
+                # Append truncation note if the paper was truncated for this model
+                if was_truncated:
+                    pct = round(100 * char_limit / original_char_limit)
+                    summary_text += f"\n\n[Note: This summary was generated from {pct}% of the paper ({char_limit:,} of {original_char_limit:,} characters) due to {provider}/{model} context window limits.]"
 
                 # Extract actual token usage from response
                 usage = raw_response.usage
@@ -859,6 +866,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                     "char_count": len(summary_text),
                     "word_count": len(summary_text.split()),
                     "tokens": tokens,
+                    "truncated": was_truncated,
+                    "truncated_pct": round(100 * char_limit / original_char_limit) if was_truncated else 100,
                 }
         except Exception as e:
             err_str = str(e).lower()
@@ -871,6 +880,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             elif is_token_limit:
                 # Halve the content and retry
                 char_limit = max(char_limit // 2, 20_000)
+                was_truncated = True
                 content = _build_content(char_limit)
                 logger.warning(f"Token limit hit for '{paper.get('title', '')[:50]}' ({provider}/{model}), retrying with {char_limit:,} chars")
             else:
