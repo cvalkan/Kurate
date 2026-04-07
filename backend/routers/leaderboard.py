@@ -207,7 +207,13 @@ async def _refresh_cache():
 
     # --- Counts ---
     total_papers = await db.rankings.count_documents({})
-    total_matches = await _get_match_count()
+    match_counts_by_cat = {}
+    async for doc in db.matches.aggregate([
+        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
+        {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
+    ]):
+        match_counts_by_cat[doc["_id"]] = doc["count"]
+    total_matches = sum(match_counts_by_cat.values())
 
     # --- Failed match counts per category ---
     failed_by_cat = Counter()
@@ -231,128 +237,10 @@ async def _refresh_cache():
         storage_chars_by_cat[cat] = doc["chars"]
         storage_chars_total += doc["chars"]
 
-    # --- Progress per category (from rankings DB) ---
-    top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 10)
-    ci_target_general = settings.get("ci_target_general", 15)
-    parallel_agents = settings.get("parallel_agents", 5)
-
     progress_by_cat = {}
-    for cat_id in active_cats:
-        entries = await db.rankings.find(
-            {"category": cat_id},
-            {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1}
-        ).sort("score", -1).to_list(10000)
-
-        # Filter to matchable papers only (same as _check_goals_met in scheduler.py)
-        try:
-            from services.scheduler import _pick_summary_source, _summary_model_key, _SUMMARY_KEY_FALLBACKS
-            _sm = _pick_summary_source(settings.get("summary_source", "thinking"))
-            _rk = _summary_model_key(_sm)
-            _fk = _SUMMARY_KEY_FALLBACKS.get(_rk, [])
-            _sf = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in [_rk] + _fk]}
-            _sf["categories.0"] = cat_id
-            _mids = set()
-            async for doc in db.papers.find(_sf, {"_id": 0, "id": 1}):
-                _mids.add(doc["id"])
-            if _mids:
-                entries = [e for e in entries if e["paper_id"] in _mids]
-        except Exception:
-            pass
-
-        cat_total = len(entries)
-        if cat_total == 0:
-            progress_by_cat[cat_id] = {"total_papers": 0, "goals_met": True, "category": cat_id}
-            continue
-
-        top_k_list = entries[:min(top_k, cat_total)]
-        top_k_ids = {e["paper_id"] for e in top_k_list}
-
-        # Goal 1: General CI
-        general_converged = general_total = general_additional = 0
-        widest_general = 0.0
-        general_margins = []
-        for e in entries:
-            if e["paper_id"] in top_k_ids:
-                continue
-            general_total += 1
-            n, w = e.get("comparisons", 0), e.get("wins", 0)
-            margin = wilson_margin_pct(w, n)
-            general_margins.append(margin)
-            if margin <= ci_target_general:
-                general_converged += 1
-            else:
-                general_additional += max(3, int(n * (margin / ci_target_general) ** 2) - n) if n >= 2 else 30
-            widest_general = max(widest_general, margin)
-
-        goal1_met = general_converged == general_total if general_total > 0 else True
-        median_general = sorted(general_margins)[len(general_margins) // 2] if general_margins else 0.0
-        matches_for_goal1 = 0 if goal1_met else max(0, int(general_additional * 0.6))
-
-        # Goal 2: Top-K CI
-        topk_converged = topk_additional = 0
-        topk_total = len(top_k_ids)
-        widest_topk = 0.0
-        topk_margins = []
-        for e in top_k_list:
-            n, w = e.get("comparisons", 0), e.get("wins", 0)
-            margin = wilson_margin_pct(w, n)
-            topk_margins.append(margin)
-            if margin <= ci_target:
-                topk_converged += 1
-            else:
-                topk_additional += max(3, int(n * (margin / ci_target) ** 2) - n) if n >= 2 else 40
-            widest_topk = max(widest_topk, margin)
-
-        goal2_met = topk_converged == topk_total if topk_total > 0 else True
-        median_topk = sorted(topk_margins)[len(topk_margins) // 2] if topk_margins else 0.0
-        matches_for_goal2 = 0 if goal2_met else max(0, int(topk_additional * 0.6))
-
-        # Goal 3: Cross-matches among top-K (use targeted count queries, not full scan)
-        topk_id_list = [e["paper_id"] for e in top_k_list]
-        topk_total_pairs = len(topk_id_list) * (len(topk_id_list) - 1) // 2
-        topk_matched_pairs = 0
-        for i in range(len(topk_id_list)):
-            for j in range(i + 1, len(topk_id_list)):
-                p1, p2 = topk_id_list[i], topk_id_list[j]
-                has_match = await db.matches.count_documents({
-                    "completed": True, "failed": {"$ne": True}, "primary_category": cat_id,
-                    "mode": {"$exists": False},
-                    "$or": [
-                        {"paper1_id": p1, "paper2_id": p2},
-                        {"paper1_id": p2, "paper2_id": p1},
-                    ],
-                }) > 0
-                if has_match:
-                    topk_matched_pairs += 1
-        goal3_met = topk_matched_pairs == topk_total_pairs
-        matches_for_goal3 = topk_total_pairs - topk_matched_pairs
-
-        total_est = max(matches_for_goal1, matches_for_goal2) + matches_for_goal3
-        est_minutes = max(0, round(total_est * (10.0 / max(parallel_agents, 1)) / 60))
-        cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
-
-        progress_by_cat[cat_id] = {
-            "total_papers": cat_total,
-            "total_matches": cat_matches_done,
-            "papers_with_pdf": pdf_by_cat.get(cat_id, 0),
-            "category": cat_id,
-            "goals_met": bool(goal1_met and goal2_met and goal3_met),
-            "goal1": {"met": bool(goal1_met), "label": f"General CI \u2264 {ci_target_general}%",
-                      "done": int(general_converged), "total": int(general_total), "median_margin": round(median_general, 1)},
-            "goal2": {"met": bool(goal2_met), "label": f"Top-{topk_total} CI \u2264 {ci_target}%",
-                      "done": int(topk_converged), "total": int(topk_total), "median_margin": round(median_topk, 1)},
-            "goal3": {"met": bool(goal3_met), "label": f"Top-{len(topk_id_list)} cross-matches",
-                      "done": int(topk_matched_pairs), "total": int(topk_total_pairs)},
-            "estimated_matches_remaining": int(total_est),
-            "estimated_minutes": int(est_minutes),
-        }
-        await asyncio.sleep(0)  # Yield between categories
 
     # --- Summary stats via aggregation ---
-    _t_progress = time.time()
     summary_stats = await _compute_summary_stats_agg()
-    logger.info(f"Progress + summary stats computed in {time.time() - _t_progress:.1f}s")
 
     # --- Rating stats via aggregation ---
     rating_stats = {"__all__": {"rated": 0, "with_summaries": 0}}
@@ -447,7 +335,7 @@ async def _refresh_cache():
     _cache = new_cache
     _t1 = time.time()
     from core.memlog import get_mem_mb
-    logger.info(f"Metadata cache refresh took {_t1 - _t0:.1f}s ({total_papers} papers, {total_matches} matches, {len(active_cats)} categories) [RSS: {get_mem_mb():.0f}MB]")
+    logger.info(f"Metadata cache refresh took {_t1 - _t0:.1f}s ({total_papers} papers, {total_matches} matches) [RSS: {get_mem_mb():.0f}MB]")
 
 
 async def _bg_cache_loop():
@@ -467,7 +355,7 @@ async def _bg_cache_loop():
         # Wait ONLY for data change — no timeout fallback
         await _cache_dirty.wait()
         _cache_dirty.clear()
-        await asyncio.sleep(10)  # Debounce: batch rapid changes (e.g. 5 matches in a row)
+        await asyncio.sleep(30)  # Debounce: remaining cache data (tags, PDF stats) is slow-changing
         _cache_dirty.clear()
 
         try:
