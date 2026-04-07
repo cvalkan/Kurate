@@ -289,6 +289,14 @@ async def compute_live_analysis(category: Optional[str] = None):
             if pc:
                 paper_by_cat.setdefault(pc, []).append(p)
 
+        # Batch-load all OS caches upfront (reused across PW-vs-SI, Scoring Method, Inter-Model loops)
+        _os_cache_by_cat = {}
+        async for doc in db.analysis_store.find(
+            {"_type": "openskill-cache", "key": {"$in": list(cats_in_data)}},
+            {"_id": 0, "key": 1, "os_global": 1, "os_per_model": 1},
+        ):
+            _os_cache_by_cat[doc["key"]] = doc
+
         # --- Avg PW-vs-SI: per-category rho values, then weighted average ---
         _SI_LABELS = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3 Pro", "avg": "Average (all models)"}
         _SI_MKS = ("claude", "gpt", "gemini")
@@ -309,7 +317,8 @@ async def compute_live_analysis(category: Optional[str] = None):
             if len(cat_papers) < 10:
                 continue
 
-            # Build SI maps for this category
+            # Load cached OpenSkill scores for this category (pre-loaded above)
+            cat_os_cache = _os_cache_by_cat.get(cat)
             cat_si = {}
             for mk in _SI_MKS:
                 sm = {p["paper_id"]: _get_si_score_avg(p, mk) for p in cat_papers if _get_si_score_avg(p, mk)}
@@ -324,11 +333,8 @@ async def compute_live_analysis(category: Optional[str] = None):
             cat_ts = {p["paper_id"]: p["ts_score"] for p in cat_papers if p.get("ts_score")}
             cat_pw = {"reg_wr": ("Reg WR", cat_wr), "trueskill": ("TrueSkill", cat_ts)}
 
-            # Load cached OpenSkill scores for this category
-            cat_os_cache = await db.analysis_store.find_one(
-                {"_type": "openskill-cache", "key": cat},
-                {"_id": 0, "os_global": 1, "os_per_model": 1},
-            )
+            # Load cached OpenSkill scores for this category (batch pre-loaded)
+            cat_os_cache = _os_cache_by_cat.get(cat)
             cat_os = {}
             if cat_os_cache and cat_os_cache.get("os_global"):
                 osg = cat_os_cache["os_global"]
@@ -438,9 +444,8 @@ async def compute_live_analysis(category: Optional[str] = None):
                 kt_r, _ = scipy_stats.kendalltau([cat_wr_sm[p] for p in shared], [cat_ts_sm[p] for p in shared])
                 if not np.isnan(sp_r):
                     avg_scoring_accum.setdefault("Normalized Win-Rate vs TrueSkill", []).append((float(sp_r), float(kt_r), len(shared)))
-            # WR/TS vs OS (from cache)
-            cat_sm_os_cache = await db.analysis_store.find_one(
-                {"_type": "openskill-cache", "key": cat}, {"_id": 0, "os_global": 1})
+            # WR/TS vs OS (from batch pre-loaded cache)
+            cat_sm_os_cache = _os_cache_by_cat.get(cat)
             if cat_sm_os_cache and cat_sm_os_cache.get("os_global"):
                 osg = cat_sm_os_cache["os_global"]
                 for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
@@ -540,10 +545,8 @@ async def compute_live_analysis(category: Optional[str] = None):
         for cat in cats_in_data:
             cat_pids = {pid for pid, c in paper_categories.items() if c == cat}
             # Load OS cache for this category (for inter-model OS correlations)
-            cat_im_os_cache = await db.analysis_store.find_one(
-                {"_type": "openskill-cache", "key": cat},
-                {"_id": 0, "os_per_model": 1},
-            )
+            # Load OS cache for this category (batch pre-loaded)
+            cat_im_os_cache = _os_cache_by_cat.get(cat)
             for i, m1 in enumerate(model_keys):
                 for j, m2 in enumerate(model_keys):
                     if i >= j or m1 not in model_rankings or m2 not in model_rankings:
