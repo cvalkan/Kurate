@@ -737,7 +737,8 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
     """
     if force:
         # Admin manually clicked — retry ALL papers missing full_text (including previously failed and empty extractions)
-        query = {"$or": [{"full_text": None}, {"full_text": ""}, {"full_text": {"$exists": False}}], "pdf_link": {"$ne": None}}
+        # Include papers without pdf_link — we can construct it from arxiv_id
+        query = {"$or": [{"full_text": None}, {"full_text": ""}, {"full_text": {"$exists": False}}]}
     else:
         # Automatic cycle — skip previously failed papers
         _no_text = {"$or": [{"full_text": None}, {"full_text": ""}, {"full_text": {"$exists": False}}]}
@@ -746,7 +747,7 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
         query["categories.0"] = category
 
     papers_needing_pdf = await collect_all(db.papers.find(
-        query, {"_id": 0, "id": 1, "pdf_link": 1, "title": 1, "doi": 1},
+        query, {"_id": 0, "id": 1, "pdf_link": 1, "title": 1, "doi": 1, "arxiv_id": 1},
     ))
 
     if not papers_needing_pdf:
@@ -767,8 +768,16 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
     for i, paper in enumerate(papers_needing_pdf):
         if cat_status:
             cat_status["current_activity"] = f"Downloading PDF {i+1}/{len(papers_needing_pdf)}: {paper['title'][:40]}..."
+        # Construct pdf_link from arxiv_id if missing
+        pdf_link = paper.get("pdf_link")
+        if not pdf_link and paper.get("arxiv_id"):
+            pdf_link = f"https://arxiv.org/pdf/{paper['arxiv_id']}"
+            await db.papers.update_one({"id": paper["id"]}, {"$set": {"pdf_link": pdf_link}})
+        if not pdf_link:
+            logger.warning(f"[{category}] No pdf_link and no arxiv_id for {paper['id'][:8]} — skipping")
+            continue
         try:
-            full_text = await download_and_extract_pdf(paper["pdf_link"], doi=paper.get("doi"))
+            full_text = await download_and_extract_pdf(pdf_link, doi=paper.get("doi"))
             if full_text:
                 await db.papers.update_one(
                     {"id": paper["id"]},
