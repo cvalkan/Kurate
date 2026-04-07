@@ -445,6 +445,10 @@ async def _compare_loop_inner():
             pass  # Periodic re-check: goals might have changed (new papers, pruning, etc.)
 
 
+_goals_met_cache = {}  # {category: {"result": bool, "ts": float}}
+_GOALS_CACHE_TTL = 60  # seconds
+
+
 async def _check_goals_met(category: str = "cs.RO") -> bool:
     """Check if ranking has converged for a category.
     
@@ -455,7 +459,30 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     
     Returns True when all goals met. Only considers matchable papers
     (those with summaries that can be compared by LLMs).
+    
+    Results are cached for 60s to reduce DB load. The worst case of a stale
+    "not met" is one extra no-op round (no LLM cost — _select_pairs finds no pairs).
     """
+    import time as _time
+    cached = _goals_met_cache.get(category)
+    if cached and (_time.time() - cached["ts"]) < _GOALS_CACHE_TTL:
+        return cached["result"]
+
+    result = await _check_goals_met_impl(category)
+    _goals_met_cache[category] = {"result": result, "ts": _time.time()}
+    return result
+
+
+def invalidate_goals_cache(category: str = None):
+    """Clear goals cache for a category (or all). Call after matches update rankings."""
+    if category:
+        _goals_met_cache.pop(category, None)
+    else:
+        _goals_met_cache.clear()
+
+
+async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
+    """Actual goals check — loads rankings from DB."""
     from core.memlog import log_mem
     from services.ranking import wilson_margin_pct
 
@@ -654,6 +681,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         if new_count > 0:
             from routers.leaderboard import notify_data_changed
             notify_data_changed()
+            invalidate_goals_cache(category)  # New papers change matchable count
             wake_scheduler()  # New papers → compare loop should check for unmet goals
         return {"status": "ok", "new_papers": new_count, "total_fetched": len(raw_papers)}
 
@@ -1239,6 +1267,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 # Invalidate admin progress cache for this category
                 from routers.admin import _invalidate_admin_cache
                 _invalidate_admin_cache(category)
+                # Invalidate goals cache so next cycle re-checks from DB
+                invalidate_goals_cache(category)
                 # Recompute convergence in background (non-blocking)
                 asyncio.create_task(_recompute_convergence_bg(category))
 
