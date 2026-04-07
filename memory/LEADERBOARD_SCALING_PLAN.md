@@ -1,3 +1,5 @@
+> **Superseded:** See [/app/memory/SCALABILITY_ANALYSIS.md] for the current unified analysis (Apr 7, 2026).
+
 # Leaderboard at 100K+ Papers: Deep Dive Analysis & Action Plan
 
 ## Current State (2K papers)

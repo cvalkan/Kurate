@@ -1,3 +1,5 @@
+> **Superseded:** See [/app/memory/SCALABILITY_ANALYSIS.md] for the current unified analysis (Apr 7, 2026).
+
 # Scheduler Scaling Plan: 100+ Categories
 
 ## Current State (Apr 2026)
