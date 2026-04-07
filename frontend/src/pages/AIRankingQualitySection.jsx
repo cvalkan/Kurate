@@ -98,12 +98,12 @@ function GapAnalysisTable() {
       {data.weighted && renderWeightedTable("SI-Gap Match Weighting", data.weighted,
         "Weights based on SI score difference. Close-cut Nx: small SI gap \u2192 higher weight. Wide-gap Nx: large SI gap \u2192 higher weight."
       )}
-      {data.bt_sampling && renderTable(
+      {data.score_gap_sampling && renderTable(
         "Score-Gap Sampling (AI filtered by score gap, human GT fixed)",
         "Like SI-gap sampling but using the AI\u2019s own ranking scores to determine pair difficulty. Score gaps are in score points. Matches between similarly-ranked papers (small score gap) are the hardest.",
-        data.bt_sampling, "min_gap", "score gap \u2265"
+        data.score_gap_sampling, "min_gap", "score gap \u2265"
       )}
-      {data.bt_weighted && renderWeightedTable("Score-Gap Match Weighting", data.bt_weighted,
+      {data.score_gap_weighted && renderWeightedTable("Score-Gap Match Weighting", data.score_gap_weighted,
         "Weights based on Score difference (score points). Close-cut: emphasize matches between similarly-ranked papers. Wide-gap: emphasize matches between papers far apart in the ranking."
       )}
     </div>

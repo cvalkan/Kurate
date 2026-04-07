@@ -363,13 +363,13 @@ function DatasetRankings({ datasets }) {
                 <tr className="border-b border-border text-muted-foreground">
                   {[
                     { key: "ai_rank", label: "AI Rank", bg: "bg-sky-500/[0.06]" },
-                    { key: "ai_bt", label: "AI Score", bg: "bg-sky-500/[0.06]" },
+                    { key: "ai_wr_score", label: "AI Score", bg: "bg-sky-500/[0.06]" },
                     { key: "ai_wl", label: "AI W/L", bg: "bg-sky-500/[0.06]", noSort: true },
                     { key: "h_indiv_rank", label: "H-Indiv Rank", bg: "bg-amber-500/[0.06]" },
-                    { key: "h_indiv_bt", label: "H-Indiv score", bg: "bg-amber-500/[0.06]" },
+                    { key: "h_indiv_wr_score", label: "H-Indiv score", bg: "bg-amber-500/[0.06]" },
                     { key: "h_indiv_wl", label: "H-Indiv W/L", bg: "bg-amber-500/[0.06]", noSort: true },
                     { key: "h_maj_rank", label: "H-Maj Rank", bg: "bg-rose-500/[0.06]" },
-                    { key: "h_maj_bt", label: "H-Maj Score", bg: "bg-rose-500/[0.06]" },
+                    { key: "h_maj_wr_score", label: "H-Maj Score", bg: "bg-rose-500/[0.06]" },
                     { key: "h_maj_wl", label: "H-Maj W/L", bg: "bg-rose-500/[0.06]", noSort: true },
                     { key: "decision", label: "Decision" },
                     { key: "h1_avg_rating", label: "H Avg" },
@@ -388,17 +388,17 @@ function DatasetRankings({ datasets }) {
               </thead>
               <tbody>
                 {sorted.map((r, i) => {
-                  const matchAiMaj = r.ai_bt === r.h_maj_bt;
+                  const matchAiMaj = r.ai_wr_score === r.h_maj_wr_score;
                   return (
                     <tr key={i} className={`border-b border-border/20 ${matchAiMaj ? "bg-amber-500/[0.04]" : ""}`}>
                       <td className="py-1 px-1.5 text-right font-mono font-semibold bg-sky-500/[0.06]">{r.ai_rank}</td>
-                      <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{r.ai_bt}</td>
+                      <td className="py-1 px-1.5 text-right font-mono bg-sky-500/[0.06]">{r.ai_wr_score}</td>
                       <td className="py-1 px-1.5 text-right font-mono text-foreground/60 bg-sky-500/[0.06]">{r.ai_wl}</td>
                       <td className="py-1 px-1.5 text-right font-mono font-semibold bg-amber-500/[0.06]">{r.h_indiv_rank}</td>
-                      <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{r.h_indiv_bt}</td>
+                      <td className="py-1 px-1.5 text-right font-mono bg-amber-500/[0.06]">{r.h_indiv_wr_score}</td>
                       <td className="py-1 px-1.5 text-right font-mono text-foreground/60 bg-amber-500/[0.06]">{r.h_indiv_wl}</td>
                       <td className="py-1 px-1.5 text-right font-mono font-semibold bg-rose-500/[0.06]">{r.h_maj_rank}</td>
-                      <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${matchAiMaj ? "font-bold" : ""}`}>{r.h_maj_bt}</td>
+                      <td className={`py-1 px-1.5 text-right font-mono bg-rose-500/[0.06] ${matchAiMaj ? "font-bold" : ""}`}>{r.h_maj_wr_score}</td>
                       <td className="py-1 px-1.5 text-right font-mono text-foreground/60 bg-rose-500/[0.06]">{r.h_maj_wl}</td>
                       <td className={`py-1 px-1.5 text-right text-[10px] capitalize ${TIER_COLORS[r.tier] || ""}`}>{r.decision || "\u2014"}</td>
                       <td className="py-1 px-1.5 text-right font-mono">{r.h1_avg_rating != null ? Number(r.h1_avg_rating).toFixed(1) : "\u2014"}</td>

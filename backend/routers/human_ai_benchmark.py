@@ -1979,19 +1979,19 @@ async def dataset_rankings(dataset_id: str):
             "tier": tier,
             "h1_avg_rating": h1_avg,
             "ai_rank": ai_rank,
-            "ai_bt": ai_elo[pid]["score"],
+            "ai_wr_score": ai_elo[pid]["score"],
             "ai_wl": f"{ai_elo[pid]['wins']}/{ai_elo[pid]['losses']}",
-            "h_indiv_bt": h_indiv_elo[pid]["score"],
+            "h_indiv_wr_score": h_indiv_elo[pid]["score"],
             "h_indiv_wl": f"{h_indiv_elo[pid]['wins']}/{h_indiv_elo[pid]['losses']}",
-            "h_maj_bt": h_maj_elo[pid]["score"],
+            "h_maj_wr_score": h_maj_elo[pid]["score"],
             "h_maj_wl": f"{h_maj_elo[pid]['wins']}/{h_maj_elo[pid]['losses']}",
         })
 
     # Add ranks for human methods
-    h_indiv_sorted = sorted(rows, key=lambda r: (-r["h_indiv_bt"], r["title"]))
+    h_indiv_sorted = sorted(rows, key=lambda r: (-r["h_indiv_wr_score"], r["title"]))
     for i, r in enumerate(h_indiv_sorted):
         r["h_indiv_rank"] = i + 1
-    h_maj_sorted = sorted(rows, key=lambda r: (-r["h_maj_bt"], r["title"]))
+    h_maj_sorted = sorted(rows, key=lambda r: (-r["h_maj_wr_score"], r["title"]))
     for i, r in enumerate(h_maj_sorted):
         r["h_maj_rank"] = i + 1
 
@@ -2426,16 +2426,16 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
     # Table 5: BT Gap Sampling (non-controlled) — like Table 1 but using BT score gap
     # BT gaps are in Elo points (typically 0-800), not 1-10 like SI
     bt_gap_thresholds = [0, 25, 50, 100, 200, 300, 500]
-    bt_sampling_rows = []
+    score_gap_sampling_rows = []
     # Row 0: reuse ranking quality values (gap=0 = all matches)
     bt_gap0 = {"min_gap": 0, "matches": gap0_row["matches"], "pairs": gap0_row["pairs"],
                "indiv": gap0_row["indiv"], "maj": gap0_row["maj"], "tier": gap0_row["tier"],
                "avg": gap0_row["avg"], "h_ceil": gap0_full.get("h_ceil"), "ai_advantage": gap0_row.get("ai_advantage")}
-    bt_sampling_rows.append(bt_gap0)
+    score_gap_sampling_rows.append(bt_gap0)
     for g in bt_gap_thresholds[1:]:
         row = await _compute_row(ds_items, lambda m, g=g: m.get("_score_gap") is not None and m["_score_gap"] >= g, controlled=False)
         row["min_gap"] = g
-        bt_sampling_rows.append(row)
+        score_gap_sampling_rows.append(row)
 
     # Table 6: BT Gap Weighting
     bt_weight_schemes = [
@@ -2446,13 +2446,13 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         ("Wide-gap 2x (score)", lambda g: max(1, round(1 + g / 100)), False),
         ("Wide-gap 4x (score)", lambda g: max(1, round(1 + g / 50)), False),
     ]
-    bt_weighted_rows = []
-    bt_weighted_rows.append(dict(uni_row))  # Same uniform baseline
+    score_gap_weighted_rows = []
+    score_gap_weighted_rows.append(dict(uni_row))  # Same uniform baseline
     for label, wfn, is_uni in bt_weight_schemes:
         if is_uni:
             continue
         row = await _compute_weighted_row(ds_items, wfn, "_score_gap", label, is_uniform=False)
-        bt_weighted_rows.append(row)
+        score_gap_weighted_rows.append(row)
 
     return {
         "status": "ok",
@@ -2462,8 +2462,8 @@ async def _compute_gap_analysis(gt_type: str = "comp"):
         "controlled_wide": ctrl_wide_rows,
         "controlled_close": ctrl_close_rows,
         "weighted": weighted_rows,
-        "bt_sampling": bt_sampling_rows,
-        "bt_weighted": bt_weighted_rows,
+        "score_gap_sampling": score_gap_sampling_rows,
+        "score_gap_weighted": score_gap_weighted_rows,
     }
 
 
