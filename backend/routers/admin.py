@@ -144,12 +144,14 @@ async def _run_fetch_in_background(category: str):
     """Wrapper that runs fetch cycle and records result."""
     try:
         result = await run_fetch_cycle(category=category, force=True)
+        # If run_fetch_cycle caught an internal error, surface it as failed
+        final_status = "failed" if (isinstance(result, dict) and result.get("status") == "error") else "completed"
         _fetch_tasks[category] = {
-            "status": "completed",
+            "status": final_status,
             "started_at": _fetch_tasks[category]["started_at"],
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "result": result,
-            "error": None,
+            "error": result.get("error") if final_status == "failed" else None,
         }
     except Exception as e:
         logger.error(f"Background fetch failed for {category}: {e}")

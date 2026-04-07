@@ -925,17 +925,19 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
         nonlocal generated, failed
         if _summary_gen_stop:
             return
-        s = await get_settings()
-        if s.get("paused", False):
-            return
+        if not force:
+            s = await get_settings()
+            if s.get("paused", False):
+                return
 
         mk = _summary_model_key(model_info)
         async with sem:
             if _summary_gen_stop:
                 return
-            s2 = await get_settings()
-            if s2.get("paused", False):
-                return
+            if not force:
+                s2 = await get_settings()
+                if s2.get("paused", False):
+                    return
             # Load full paper data on-demand (only when actually generating)
             paper = await db.papers.find_one(
                 {"id": paper_id},
