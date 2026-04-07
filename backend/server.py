@@ -906,13 +906,16 @@ async def _startup_fix_dotted_model_keys():
 
 
 async def _startup_seed_rankings():
-    """Seed the DB-backed rankings collection if empty or stale.
+    """Ensure all papers with summaries have ranking entries.
     
-    Memory-optimized: only reseeds categories that actually have unranked papers,
-    rather than all categories. Processes one category at a time with GC between.
+    Gap-fill approach: only creates missing ranking entries (no match loading,
+    no score recomputation). Scores build up naturally via update_rankings_for_match.
+    
+    Falls back to full reseed only if rankings collection is completely empty
+    (cold start) or >20% of papers are unranked (catastrophic recovery).
     """
     try:
-        from services.ranking import seed_rankings
+        from services.ranking import seed_rankings, insert_ranking_for_paper
         from core.auth import get_settings
         from core.config import CATEGORIES
         from core.memlog import force_gc
@@ -920,59 +923,89 @@ async def _startup_seed_rankings():
         settings = await get_settings()
         cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
-        # Check if rankings need seeding
         rankings_count = await db.rankings.count_documents({})
         papers_count = await db.papers.count_documents({"summaries": {"$exists": True, "$ne": {}}})
 
         if rankings_count == 0 and papers_count > 0:
-            logger.info(f"Seeding rankings collection from {papers_count} papers...")
+            # Cold start: full reseed needed (no rankings exist at all)
+            logger.info(f"Cold start: seeding rankings from {papers_count} papers...")
             seeded = await seed_rankings(db)
-            logger.info(f"Rankings seeded: {seeded} entries across {len(cats)} categories")
-        elif rankings_count > 0:
-            # Find which specific categories have unranked papers
-            cats_needing_seed = []
-            for cat in cats:
-                # Count papers with summaries for this category
-                cat_papers = await db.papers.count_documents(
-                    {"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}}
-                )
-                cat_rankings = await db.rankings.count_documents({"category": cat})
-                if cat_papers > cat_rankings:
-                    cats_needing_seed.append(cat)
-                    logger.info(f"[{cat}] {cat_papers} papers, {cat_rankings} rankings — needs reseeding")
+            logger.info(f"Rankings seeded: {seeded} entries")
+            return
 
-            if cats_needing_seed:
-                logger.info(f"Reseeding {len(cats_needing_seed)}/{len(cats)} categories with new papers...")
-                total_seeded = 0
-                for cat in cats_needing_seed:
-                    seeded = await seed_rankings(db, category=cat)
-                    total_seeded += (seeded or 0)
-                    force_gc()
-                logger.info(f"Rankings reseeded: {total_seeded} entries in {len(cats_needing_seed)} categories")
-            else:
-                # Backfill added_at if empty/null (one-time migration)
-                empty_added = await db.rankings.count_documents(
-                    {"$or": [{"added_at": ""}, {"added_at": None}, {"added_at": {"$exists": False}}]}
+        # Gap-fill: find papers with summaries but no ranking entry
+        total_filled = 0
+        for cat in cats:
+            # Get paper IDs that have summaries for this category
+            cat_paper_ids = set()
+            async for doc in db.papers.find(
+                {"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}},
+                {"_id": 0, "id": 1},
+            ):
+                cat_paper_ids.add(doc["id"])
+
+            if not cat_paper_ids:
+                continue
+
+            # Get paper IDs that already have rankings
+            ranked_ids = set()
+            async for doc in db.rankings.find(
+                {"category": cat},
+                {"_id": 0, "paper_id": 1},
+            ):
+                ranked_ids.add(doc["paper_id"])
+
+            missing = cat_paper_ids - ranked_ids
+
+            if not missing:
+                continue
+
+            # Catastrophic recovery: if >20% unranked, fall back to full reseed
+            if len(missing) > len(cat_paper_ids) * 0.2 and len(missing) > 10:
+                logger.info(f"[{cat}] {len(missing)}/{len(cat_paper_ids)} unranked (>{20}%) — full reseed")
+                await seed_rankings(db, category=cat)
+                force_gc()
+                total_filled += len(missing)
+                continue
+
+            # Normal gap-fill: create blank ranking entries for missing papers
+            logger.info(f"[{cat}] Gap-filling {len(missing)} missing ranking entries")
+            for pid in missing:
+                paper_doc = await db.papers.find_one(
+                    {"id": pid},
+                    {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+                     "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1},
                 )
-                if empty_added > 0:
-                    logger.info(f"Backfilling added_at for {empty_added} rankings...")
-                    backfilled = 0
-                    async for p in db.papers.find(
-                        {"added_at": {"$nin": [None, ""]}},
-                        {"_id": 0, "id": 1, "added_at": 1}
-                    ):
-                        result = await db.rankings.update_one(
-                            {"paper_id": p["id"], "$or": [{"added_at": ""}, {"added_at": None}, {"added_at": {"$exists": False}}]},
-                            {"$set": {"added_at": p["added_at"]}}
-                        )
-                        if result.modified_count:
-                            backfilled += 1
-                    logger.info(f"Backfilled added_at for {backfilled} rankings")
-                else:
-                    logger.info(f"Rankings collection up to date ({rankings_count} entries)")
+                if paper_doc:
+                    await insert_ranking_for_paper(db, paper_doc)
+                    total_filled += 1
+
+        if total_filled:
+            logger.info(f"Gap-filled {total_filled} ranking entries across {len(cats)} categories")
+        else:
+            # Backfill added_at if empty/null (one-time migration)
+            empty_added = await db.rankings.count_documents(
+                {"$or": [{"added_at": ""}, {"added_at": None}, {"added_at": {"$exists": False}}]}
+            )
+            if empty_added > 0:
+                logger.info(f"Backfilling added_at for {empty_added} rankings...")
+                backfilled = 0
+                async for p in db.papers.find(
+                    {"added_at": {"$nin": [None, ""]}},
+                    {"_id": 0, "id": 1, "added_at": 1}
+                ):
+                    result = await db.rankings.update_one(
+                        {"paper_id": p["id"], "$or": [{"added_at": ""}, {"added_at": None}, {"added_at": {"$exists": False}}]},
+                        {"$set": {"added_at": p["added_at"]}}
+                    )
+                    if result.modified_count:
+                        backfilled += 1
+                logger.info(f"Backfilled added_at for {backfilled} rankings")
+            else:
+                logger.info(f"Rankings up to date ({rankings_count} entries)")
 
     except Exception as e:
-        logger.warning(f"Rankings seed failed: {e}")
+        logger.warning(f"Rankings startup failed: {e}")
 
 
 
