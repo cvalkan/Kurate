@@ -618,6 +618,10 @@ async def _deferred_startup():
     from routers.leaderboard import start_cache_bg
     start_cache_bg()
 
+    # Start background All Categories model analysis refresh (keeps correlation page fast)
+    from services.model_analysis import _bg_refresh_all_categories
+    asyncio.create_task(_bg_refresh_all_categories())
+
     # Pre-warm caches and run startup tasks in background.
     # IMPORTANT: Tasks are staggered to prevent concurrent memory spikes that
     # can trigger OOM kills. Heavy tasks (dedup, regen, experiment cache) are

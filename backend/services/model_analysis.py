@@ -89,15 +89,15 @@ def _extract_model_data(papers):
 
 
 _live_analysis_cache = {}  # {cache_key: {"result": dict, "ts": float}}
-_LIVE_ANALYSIS_TTL = 60  # seconds
+_LIVE_ANALYSIS_TTL = 120  # seconds — background refresh keeps this warm
 
 
 async def compute_live_analysis(category: Optional[str] = None):
     """Fast live computation from rankings only — no match loading, no OpenSkill.
     Returns all tables with WR/TS data. OpenSkill columns left empty for merge.
     
-    All Categories (category=None) result is cached for 60s since it involves
-    expensive per-category averaging (~800 scipy correlations).
+    All Categories (category=None) is precomputed by background task every 90s.
+    Per-category results are cached for 120s after first request.
     """
     cache_key = category or "__all__"
     cached = _live_analysis_cache.get(cache_key)
@@ -107,6 +107,20 @@ async def compute_live_analysis(category: Optional[str] = None):
     result = await _compute_live_analysis_impl(category)
     _live_analysis_cache[cache_key] = {"result": result, "ts": time.time()}
     return result
+
+
+async def _bg_refresh_all_categories():
+    """Background task: precompute All Categories analysis every 90s.
+    No visitor ever waits for the expensive computation."""
+    import asyncio
+    await asyncio.sleep(30)  # Let startup finish first
+    while True:
+        try:
+            result = await _compute_live_analysis_impl(None)
+            _live_analysis_cache["__all__"] = {"result": result, "ts": time.time()}
+        except Exception as e:
+            logger.warning(f"Background All Categories refresh failed: {e}")
+        await asyncio.sleep(90)
 
 
 async def _compute_live_analysis_impl(category: Optional[str] = None):
