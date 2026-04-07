@@ -38,8 +38,12 @@ def safe_round(v, n=4):
     return round(v, n)
 
 
-def _simple_bt_scores(pair_winners, paper_ids):
-    """Simple Bradley-Terry scores from pairwise winners. Returns {paper_id: score}."""
+def _simple_wr_scores(pair_winners, paper_ids):
+    """Regularized win-rate scores from pairwise winners. Returns {paper_id: score}.
+    
+    Note: Despite historical variable names, this is NOT Bradley-Terry MLE.
+    It computes a Laplace-smoothed win-rate on an Elo-like log-odds scale.
+    """
     wins = Counter()
     comparisons = Counter()
     for pair, winner in pair_winners:
@@ -355,28 +359,28 @@ async def _compute_dataset(db, dataset_id: str):
                 cf_tier_hh_agree += 0.5
 
     # --- 6. Ranking correlation (BT scores: all comparisons) ---
-    bt_results = {}
+    wr_results = {}
 
     try:
         all_pids_in_controlled = list({pid for pair in controlled_pairs for pid in pair})
 
-        # AI BT scores (from AI majority votes)
-        ai_bt = _simple_bt_scores(
+        # AI WR scores (from AI majority votes)
+        ai_wr = _simple_wr_scores(
             [(pair, ai_pair[pair]) for pair in controlled_pairs],
             all_pids_in_controlled
         )
 
-        # Human majority BT scores
+        # Human majority WR scores
         maj_pairs = [(pair, expert_majority[pair]) for pair in controlled_pairs if pair in expert_majority]
-        h_maj_bt = _simple_bt_scores(maj_pairs, all_pids_in_controlled) if len(maj_pairs) >= 10 else {}
+        h_maj_wr = _simple_wr_scores(maj_pairs, all_pids_in_controlled) if len(maj_pairs) >= 10 else {}
 
-        # Human individual aggregate BT (each expert vote = separate match)
+        # Human individual aggregate WR (each expert vote = separate match)
         indiv_pairs = []
         for pair in controlled_pairs:
             prefs = expert_pair_prefs.get(pair, {})
             for exp, winner in prefs.items():
                 indiv_pairs.append((pair, winner))
-        h_indiv_bt = _simple_bt_scores(indiv_pairs, all_pids_in_controlled) if len(indiv_pairs) >= 10 else {}
+        h_indiv_wr = _simple_wr_scores(indiv_pairs, all_pids_in_controlled) if len(indiv_pairs) >= 10 else {}
 
         # Average reviewer score per paper
         avg_rating = {}
@@ -413,26 +417,26 @@ async def _compute_dataset(db, dataset_id: str):
 
         # AI VS HUMAN comparisons
         # AI vs Individual aggregate
-        rho, tau = _corr(ai_bt, h_indiv_bt)
-        bt_results["individual"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+        rho, tau = _corr(ai_wr, h_indiv_wr)
+        wr_results["individual"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
 
         # AI vs Avg Rating
-        rho, tau = _corr(ai_bt, avg_rating)
-        bt_results["vs_avg_rating"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
-        bt_results["vs_avg_rating_rho"] = safe_round(rho)
+        rho, tau = _corr(ai_wr, avg_rating)
+        wr_results["vs_avg_rating"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+        wr_results["vs_avg_rating_rho"] = safe_round(rho)
 
         # AI vs Majority
-        rho, tau = _corr(ai_bt, h_maj_bt)
-        bt_results["committee"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+        rho, tau = _corr(ai_wr, h_maj_wr)
+        wr_results["committee"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
 
         # AI vs Committee (ICLR PC tier)
-        rho, tau = _corr(ai_bt, tier_scores)
-        bt_results["vs_tier_rho"] = safe_round(rho)
-        bt_results["vs_tier_tau"] = safe_round(tau)
+        rho, tau = _corr(ai_wr, tier_scores)
+        wr_results["vs_tier_rho"] = safe_round(rho)
+        wr_results["vs_tier_tau"] = safe_round(tau)
 
         # Indiv vs Comm (consistency check)
-        rho, tau = _corr(h_indiv_bt, h_maj_bt)
-        bt_results["indiv_vs_comm"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
+        rho, tau = _corr(h_indiv_wr, h_maj_wr)
+        wr_results["indiv_vs_comm"] = {"spearman_rho": safe_round(rho), "kendall_tau": safe_round(tau)}
 
         # HUMAN INTERNAL comparisons (LOO-based, averaged across experts)
         loo_vs_indiv_rhos = []
@@ -450,7 +454,7 @@ async def _compute_dataset(db, dataset_id: str):
                          if pair in expert_pair_prefs and exp in expert_pair_prefs[pair]]
             if len(exp_pairs) < 5:
                 continue
-            exp_bt = _simple_bt_scores(exp_pairs, all_pids_in_controlled)
+            exp_wr = _simple_wr_scores(exp_pairs, all_pids_in_controlled)
 
             # LOO majority (exclude this expert)
             loo_maj_pairs = []
@@ -462,7 +466,7 @@ async def _compute_dataset(db, dataset_id: str):
                     best, n = c.most_common(1)[0]
                     if n > len(others) / 2:
                         loo_maj_pairs.append((pair, best))
-            loo_maj_bt = _simple_bt_scores(loo_maj_pairs, all_pids_in_controlled) if len(loo_maj_pairs) >= 5 else {}
+            loo_maj_wr = _simple_wr_scores(loo_maj_pairs, all_pids_in_controlled) if len(loo_maj_pairs) >= 5 else {}
 
             # LOO individual aggregate (all others' votes)
             loo_indiv_pairs = []
@@ -471,7 +475,7 @@ async def _compute_dataset(db, dataset_id: str):
                 for e, v in prefs.items():
                     if e != exp:
                         loo_indiv_pairs.append((pair, v))
-            loo_indiv_bt = _simple_bt_scores(loo_indiv_pairs, all_pids_in_controlled) if len(loo_indiv_pairs) >= 5 else {}
+            loo_indiv_wr = _simple_wr_scores(loo_indiv_pairs, all_pids_in_controlled) if len(loo_indiv_pairs) >= 5 else {}
 
             # LOO avg rating
             loo_avg = {}
@@ -481,33 +485,33 @@ async def _compute_dataset(db, dataset_id: str):
                     loo_avg[pid] = sum(scores) / len(scores)
 
             # Correlations
-            r, _ = _corr(exp_bt, h_indiv_bt)
+            r, _ = _corr(exp_wr, h_indiv_wr)
             if r is not None:
                 loo_vs_indiv_agg_rhos.append(r)
 
-            r, _ = _corr(exp_bt, loo_avg)
+            r, _ = _corr(exp_wr, loo_avg)
             if r is not None:
                 loo_vs_avg_rhos.append(r)
 
-            r, _ = _corr(exp_bt, loo_maj_bt)
+            r, _ = _corr(exp_wr, loo_maj_wr)
             if r is not None:
                 loo_vs_maj_rhos.append(r)
 
-            r, _ = _corr(exp_bt, tier_scores)
+            r, _ = _corr(exp_wr, tier_scores)
             if r is not None:
                 loo_vs_tier_rhos.append(r)
 
-            r, _ = _corr(exp_bt, loo_indiv_bt)
+            r, _ = _corr(exp_wr, loo_indiv_wr)
             if r is not None:
                 loo_vs_indiv_rhos.append(r)
 
-        bt_results["avg_expert_vs_ai"] = {"spearman_rho": safe_round(float(np.mean([r for r in loo_vs_indiv_rhos]))) if loo_vs_indiv_rhos else None}
-        bt_results["avg_expert_vs_comm"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_maj_rhos))) if loo_vs_maj_rhos else None}
-        bt_results["avg_expert_vs_indiv"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_indiv_agg_rhos))) if loo_vs_indiv_agg_rhos else None}
-        bt_results["avg_expert_vs_loo"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_maj_rhos))) if loo_vs_maj_rhos else None}
-        bt_results["avg_expert_vs_loo_avg"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_avg_rhos))) if loo_vs_avg_rhos else None}
-        bt_results["avg_expert_vs_loo_indiv"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_indiv_rhos))) if loo_vs_indiv_rhos else None}
-        bt_results["avg_expert_vs_tier"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_tier_rhos))) if loo_vs_tier_rhos else None}
+        wr_results["avg_expert_vs_ai"] = {"spearman_rho": safe_round(float(np.mean([r for r in loo_vs_indiv_rhos]))) if loo_vs_indiv_rhos else None}
+        wr_results["avg_expert_vs_comm"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_maj_rhos))) if loo_vs_maj_rhos else None}
+        wr_results["avg_expert_vs_indiv"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_indiv_agg_rhos))) if loo_vs_indiv_agg_rhos else None}
+        wr_results["avg_expert_vs_loo"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_maj_rhos))) if loo_vs_maj_rhos else None}
+        wr_results["avg_expert_vs_loo_avg"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_avg_rhos))) if loo_vs_avg_rhos else None}
+        wr_results["avg_expert_vs_loo_indiv"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_indiv_rhos))) if loo_vs_indiv_rhos else None}
+        wr_results["avg_expert_vs_tier"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_tier_rhos))) if loo_vs_tier_rhos else None}
 
     except Exception:
         pass
@@ -587,7 +591,9 @@ async def _compute_dataset(db, dataset_id: str):
                 "total_pairs": len(controlled_pairs_cf),
             },
         },
-        "bt_correlation": bt_results,
+        # API key kept as "bt_correlation" for frontend backward compatibility.
+        # The underlying scores are regularized win-rate, NOT Bradley-Terry MLE.
+        "bt_correlation": wr_results,
     }
 
 
