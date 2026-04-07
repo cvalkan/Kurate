@@ -736,11 +736,11 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
     When force=True (admin button), retries previously failed papers too.
     """
     if force:
-        # Admin manually clicked — retry ALL papers missing full_text (including previously failed)
-        query = {"full_text": None, "pdf_link": {"$ne": None}}
+        # Admin manually clicked — retry ALL papers missing full_text (including previously failed and empty extractions)
+        query = {"$or": [{"full_text": None}, {"full_text": ""}], "pdf_link": {"$ne": None}}
     else:
         # Automatic cycle — skip previously failed papers
-        query = {"$or": [{"needs_pdf": True}, {"full_text": None, "pdf_failed": {"$ne": True}}], "pdf_link": {"$ne": None}}
+        query = {"$or": [{"needs_pdf": True}, {"full_text": {"$in": [None, ""]}, "pdf_failed": {"$ne": True}}], "pdf_link": {"$ne": None}}
     if category:
         query["categories.0"] = category
 
