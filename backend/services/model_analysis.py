@@ -10,7 +10,7 @@ from scipy import stats as scipy_stats
 from collections import Counter
 from typing import Optional
 
-from core.config import db
+from core.config import db, logger
 
 
 _OPUS_MERGE = {
@@ -89,7 +89,7 @@ def _extract_model_data(papers):
 
 
 _live_analysis_cache = {}  # {cache_key: {"result": dict, "ts": float}}
-_LIVE_ANALYSIS_TTL = 300  # seconds — generous TTL, refresh is event-driven not timer-driven
+_LIVE_ANALYSIS_TTL = 3600  # 1 hour — generous TTL since background task handles freshness
 _live_analysis_dirty = False  # Set by notify_data_changed, consumed by background task
 
 
@@ -146,13 +146,18 @@ async def _bg_refresh_all_categories():
             os_doc.pop("key", None)
             result = merge_openskill_into_live(result, os_doc)
         _live_analysis_cache["__all__"] = {"result": result, "ts": time.time()}
+        logger.info("Background All Categories analysis cache warmed on startup")
     except Exception as e:
         logger.warning(f"Initial All Categories refresh failed: {e}")
 
     while True:
-        # Wait for data to change
+        # Wait for data to change OR periodic refresh (every 5 min as safety net)
+        wait_count = 0
         while not _live_analysis_dirty:
             await asyncio.sleep(5)
+            wait_count += 1
+            if wait_count >= 60:  # 60 × 5s = 5 minutes
+                break  # Periodic refresh even without data changes
         
         # Debounce: wait 10s for more changes to batch
         _live_analysis_dirty = False
@@ -169,6 +174,7 @@ async def _bg_refresh_all_categories():
                 os_doc.pop("key", None)
                 result = merge_openskill_into_live(result, os_doc)
             _live_analysis_cache["__all__"] = {"result": result, "ts": time.time()}
+            logger.info("Background All Categories analysis cache refreshed")
             # Also invalidate per-category caches (data changed)
             keys_to_remove = [k for k in _live_analysis_cache if k != "__all__"]
             for k in keys_to_remove:
