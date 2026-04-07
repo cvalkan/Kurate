@@ -1423,7 +1423,7 @@ async def _select_pairs(
 ) -> List[tuple]:
     """
     Goal-directed pair selection with 2-tier CI targets.
-    Uses DB queries via dedup_pair index for O(1) repeat-match checks.
+    Loads all existing pairs once, then checks in-memory (O(1) per pair).
     """
     from services.ranking import wilson_margin_pct
 
@@ -1434,6 +1434,15 @@ async def _select_pairs(
     ci_target = kwargs.get("ci_target", 10)
     ci_target_general = kwargs.get("ci_target_general", 15)
     calibration_pct = kwargs.get("calibration_ratio", 50)
+
+    # --- Load ALL existing dedup_pairs for this category once (replaces N per-paper queries) ---
+    existing_pairs = set()
+    async for m in db.matches.find(
+        {"primary_category": category, "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+        {"_id": 0, "dedup_pair": 1},
+    ):
+        if m.get("dedup_pair"):
+            existing_pairs.add(m["dedup_pair"])
 
     comparisons = {}
     wins = {}
@@ -1491,7 +1500,8 @@ async def _select_pairs(
 
         # Get all already-compared opponents for p1
         all_candidates = [p for p in paper_ids if p != p1 and can_pair(p)]
-        already_compared = await _get_compared_opponents(p1, category, all_candidates)
+        # Check already-compared opponents via in-memory set (no DB query)
+        already_compared = {c for c in all_candidates if _make_dedup_pair(p1, c) in existing_pairs}
         # Also exclude pairs selected this round
         already_compared |= {opp for pair_key in selected_this_round for opp in [pair_key.split("|")[0], pair_key.split("|")[1]] if _make_dedup_pair(p1, opp) == pair_key}
 
@@ -1536,7 +1546,7 @@ async def _select_pairs(
     if len(pairs) >= max_pairs:
         return pairs[:max_pairs]
 
-    # --- Rule 2: Top-K cross-matches ---
+    # --- Rule 2: Top-K cross-matches (use same in-memory set) ---
     topk_pair_keys = []
     topk_pair_map = {}
     for i in range(len(top_k_list)):
@@ -1545,19 +1555,10 @@ async def _select_pairs(
             topk_pair_keys.append(pk)
             topk_pair_map[pk] = (top_k_list[i], top_k_list[j])
 
-    existing_topk = set()
-    if topk_pair_keys:
-        async for m in db.matches.find(
-            {"primary_category": category, "dedup_pair": {"$in": topk_pair_keys},
-             "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
-            {"_id": 0, "dedup_pair": 1},
-        ):
-            existing_topk.add(m["dedup_pair"])
-
     for pk in topk_pair_keys:
         if len(pairs) >= max_pairs:
             break
-        if pk not in existing_topk and pk not in selected_this_round:
+        if pk not in existing_pairs and pk not in selected_this_round:
             p1, p2 = topk_pair_map[pk]
             pairs.append((p1, p2))
             selected_this_round.add(pk)
