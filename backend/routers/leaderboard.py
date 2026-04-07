@@ -1230,6 +1230,12 @@ async def get_model_analysis(
     # Always compute live (fast — reads indexed rankings only)
     from services.model_analysis import compute_live_analysis, merge_openskill_into_live
     live = await compute_live_analysis(category)
+
+    # Deep-copy the cached result before merging OS data into it.
+    # merge_openskill_into_live MUTATES the dict (appends OS rows to lists).
+    # Without copy, repeated requests would keep appending duplicates to the cached dict.
+    import copy
+    live = copy.deepcopy(live)
     if live.get("status") != "ok":
         return live
 
