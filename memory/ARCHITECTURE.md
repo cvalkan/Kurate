@@ -984,3 +984,255 @@ cd /app/frontend && yarn build && sudo supervisorctl restart frontend
 - Dark/light mode toggle
 - Responsive design (mobile-optimized admin panel)
 - `sonner` for toast notifications
+
+---
+
+## 10. Deployment & Operations
+
+### 10.1 Production Environment
+
+| Component | Configuration |
+|-----------|--------------|
+| Container | Kubernetes pod, 2 GB RAM limit (~1.2 GB available for Python after OS/MongoDB/nginx) |
+| Process manager | Supervisor (manages backend + frontend + MongoDB + nginx) |
+| Backend | FastAPI on `0.0.0.0:8001`, proxied by nginx |
+| Frontend | Compiled React bundle served on port 3000 |
+| Routing | Kubernetes ingress: `/api/*` → port 8001, all other routes → port 3000 |
+| CDN | Cloudflare (DNS, caching, bot protection) |
+
+### 10.2 Startup Sequence
+
+The server prioritizes fast readiness over completeness:
+
+```
+T+0.0s   FastAPI starts, essential indexes created
+T+0.1s   Precomputed JSON caches loaded (experiments)
+T+0.1s   Health endpoint available — start accepting traffic
+T+0.1s   _deferred_startup() begins in background:
+           → Create remaining indexes
+           → Run migrations & backfills
+           → Seed rankings for new papers
+T+2.0s   Leaderboard metadata cache warmed
+T+5.0s   Compare loop starts
+T+8.0s   Fetch loop starts
+T+30s    Model analysis cache warmed (background)
+T+120s   Summary bias cache pre-warmed
+```
+
+All heavy work (index creation, backfills, cache warming) runs in `_deferred_startup()` as a background task. The health endpoint responds immediately so Kubernetes doesn't kill the pod during a slow warm-up.
+
+### 10.3 Deploy Behavior
+
+The deploy platform writes files to disk sequentially (not atomically). With `--reload` enabled (development), each file write triggers a uvicorn restart. Deploying 15+ modified files causes 2-3 restart cycles before the final stable process starts.
+
+**Mitigation**: On first startup, the server patches the supervisor config to remove `--reload`, then exits. Supervisor restarts it without `--reload`, eliminating the restart storm. This is critical for the 2 GB container — during a reload cycle, the old and new processes briefly coexist, doubling RSS and triggering OOM kills.
+
+### 10.4 MongoDB Configuration
+
+**WiredTiger cache**: The default WiredTiger cache is 50% of system RAM (~3.5 GB). This leaves no room for Python. At startup, the server caps it to 384 MB:
+```python
+await admin_db.command({"setParameter": 1, "wiredTigerEngineRuntimeConfig": "cache_size=384M"})
+```
+
+**TTL index**: `system_logs` has a 7-day TTL index on the `ts` field. MongoDB automatically purges old logs.
+
+### 10.5 Monitoring
+
+**Memory**: RSS is logged every 5 minutes (`_bg_memory_heartbeat`) and at key events (cache refresh, comparison round, fetch cycle). Stored in `system_logs` with color-coded thresholds in the admin chart:
+- Green: < 1 GB (safe)
+- Amber: 1-1.5 GB (warning)
+- Red: > 1.5 GB (danger, approaching 2 GB limit)
+
+**Scheduler health**: `/api/admin/scheduler-diagnostics` exposes:
+- `loop_alive`: Boolean — is the compare loop running?
+- `last_cycle_at`: Timestamp of last cycle
+- `last_cycle_results`: Per-category match results from the last round
+- `cycles_since_restart`: Counter (resets to 0 on crash/restart)
+- Crash info (error, traceback, restart count) if applicable
+
+**Admin dashboard**: The Statistics tab shows cumulative cost, token usage, per-model breakdowns, memory chart with restart markers, and paper/match growth curves.
+
+---
+
+## 11. Known Limitations & Technical Debt
+
+### 11.1 Monolithic Files
+
+| File | Lines | Concern |
+|------|-------|---------|
+| `routers/admin.py` | 3,336 | The largest file. Mixes tournament control, paper ingestion, statistics, prompt management, category CRUD, and diagnostics |
+| `routers/leaderboard.py` | 1,635 | Public API + cache management + convergence computation + archive logic |
+| `services/scheduler.py` | 1,620 | Compare loop + fetch loop + summary generation + matchmaking |
+| `services/ranking.py` | 1,428 | WR scoring + TrueSkill + rankings CRUD + repair queue |
+| `services/model_analysis.py` | 1,316 | Correlation computation + cache management |
+| `server.py` | 1,286 | Startup + migrations + index creation + backfills |
+
+**Recommended split** (not yet implemented):
+- `admin.py` → `admin_tournaments.py`, `admin_settings.py`, `admin_diagnostics.py`, `admin_categories.py`
+- `scheduler.py` → `compare_loop.py`, `fetch_loop.py`, `summary_gen.py`, `matchmaking.py`
+
+### 11.2 Circular Import Chain
+
+```
+core/auth.py  →  routers/admin.py  →  services/scheduler.py
+     ↑                                       │
+     └───────────────────────────────────────┘
+```
+
+`core/auth.py` imports from `routers/admin.py` (for `_invalidate_admin_cache`), and `routers/admin.py` imports from `core/auth.py` (for `verify_admin`, `get_settings`). This works at runtime because the imports are deferred (inside function bodies), but it's fragile and makes refactoring difficult.
+
+**Fix**: Extract shared utilities (`get_settings`, `invalidate_settings_cache`) into a standalone module with no router/service dependencies.
+
+### 11.3 Claude Content Policy Gaps
+
+Claude Opus refuses to generate impact summaries for papers about adversarial AI (jailbreaking, safety evaluation, bypassing classifiers). These papers get GPT and Gemini summaries but no Claude Thinking summary.
+
+**Current mitigation**: Summary fallback chain allows GPT/Gemini summaries for tournament matchability. The papers participate in tournaments but with a different model's summary than the default.
+
+**Impact**: Minimal. ~2 out of 823 papers in cs.CR affected. The fallback summaries are high quality.
+
+### 11.4 Twitter/X Mobile Unfurling
+
+Open Graph meta tags are served correctly for desktop browsers, but Twitter/X mobile app shows a blank preview card. Root cause: Cloudflare's bot protection blocks Twitter's mobile user-agent crawler. Desktop Twitter works because it uses a different crawler.
+
+**Status**: Blocked on Cloudflare configuration. Investigated in multiple sessions with no resolution. The Cloudflare "bot fight mode" or "super bot fight mode" setting needs exceptions for Twitter's crawlers.
+
+### 11.5 Single-Process Architecture
+
+The entire system (web server + background scheduler + analysis computation) runs in a single FastAPI process. This means:
+- A CPU-intensive computation (e.g., OpenSkill replay) blocks the event loop for all HTTP requests
+- Memory is shared — a spike in one component affects all others
+- No horizontal scaling — can't add more workers
+
+**Planned fix**: Architecture split via `KURATE_ROLE` environment variable (documented in `/app/memory/ARCHITECTURE_DECOMPOSITION.md`):
+- `KURATE_ROLE=web`: Only run FastAPI routes, no background tasks
+- `KURATE_ROLE=worker`: Only run scheduler loops, no HTTP serving
+
+---
+
+## 12. Scaling Roadmap
+
+### 12.1 Current Limits
+
+| Metric | Current | Limit | Bottleneck |
+|--------|---------|-------|-----------|
+| Papers | ~5,100 | ~50,000 | RSS memory (~8.6 KB per paper in metadata cache) |
+| Matches | ~150,000 | ~500,000 | Match count aggregations slow above 500K |
+| Categories | 14 | ~30 | Each category adds ~50 MB during comparison rounds |
+| Concurrent agents | 20 | 20 (hard cap) | LLM proxy rate limits; raise cap to test |
+| Match throughput | ~50/min | ~100/min | `parallel_agents` cap; LLM latency floor ~8s |
+
+### 12.2 Near-Term (10K-50K papers)
+
+**Already done:**
+- DB-backed rankings (O(1) memory for leaderboard serving)
+- Event-driven cache refresh (no periodic full recomputation)
+- Materialized `unique_opponents` (O(1) stall detection)
+- Gap-fill ranking seed (no match loading at startup)
+
+**Remaining:**
+- Per-category streaming in `_refresh_cache()` (reduce peak memory during metadata refresh)
+- Text index on `rankings.title` for fast search at scale
+- Increase `parallel_agents` cap after testing LLM proxy limits
+
+### 12.3 Long-Term (50K+ papers)
+
+- **Architecture split**: Separate web and worker processes (KURATE_ROLE)
+- **TrueSkill-first matchmaking**: Use uncertainty (σ) to select maximally informative pairs, reducing total matches needed by ~35%
+- **Incremental OpenSkill**: Currently requires full match replay; implement online updates
+- **Match archiving**: Move old matches to a cold collection after ranking stabilizes
+
+### 12.4 Infrastructure
+
+- Current: Single 2 GB Kubernetes pod, local MongoDB
+- Scale to 4 GB: Doubles headroom for metadata caches, enables 100K papers
+- Scale to dedicated MongoDB: Atlas free tier → dedicated cluster for index and query performance
+- Scale to multi-pod: Requires KURATE_ROLE split + shared MongoDB
+
+---
+
+## 13. Lessons Learned
+
+Operational lessons from production incidents and debugging sessions. Each entry includes the root cause, how it was detected, and the fix — for future reference.
+
+### 13.1 Silent Background Task Crashes
+
+**Incident**: The model analysis cache was never populated after server restart. Every page view to `/correlation` took 6.6 seconds instead of 0.15 seconds.
+
+**Root cause**: `logger` was not imported in `model_analysis.py`. The background warm-up task crashed with `NameError: name 'logger' is not defined`. Since it was an `asyncio.create_task`, the exception was silently discarded — no log line, no error, no alert.
+
+**Detection**: User reported >5s correlation page load. Investigation found `compute_time_s: 6.6` in the API response, indicating a cold computation rather than a cache hit.
+
+**Fix**: Added `from core.config import logger` to `model_analysis.py`.
+
+**Lesson**: Always log at the start of background tasks ("Task X started") so silent crashes are detectable by the absence of the log line. Periodically check `asyncio.Task` results for unhandled exceptions.
+
+### 13.2 Ghost Matches
+
+**Incident**: 278 matches in cs.SI had rankings that never updated. Papers showed 0 wins/0 losses despite having completed matches in the DB.
+
+**Root cause**: `update_rankings_for_match` used `find_one_and_update` without `upsert`. When the compare loop matched a paper before the fetch loop created its ranking entry (race condition), the `$inc` silently did nothing — match saved to DB, rankings never updated.
+
+**Fix**: If `find_one_and_update` returns `None`, create the ranking entry on the fly, then retry the increment. If retry fails, queue for background repair.
+
+**Lesson**: In MongoDB, `$inc` on a non-existent document is a silent no-op. Always check the return value and handle `None`.
+
+### 13.3 Stale Frontend Builds
+
+**Incident**: Frontend code changes appeared correct in source files but the browser showed old behavior. Multiple debugging cycles were wasted on non-existent React state bugs.
+
+**Root cause**: The React app serves a compiled production bundle, not live source files. Hot reload works in development but does NOT rebuild the bundle. The testing agent was screenshotting the old compiled bundle.
+
+**Fix**: After ANY frontend file modification, run `cd /app/frontend && yarn build && sudo supervisorctl restart frontend`.
+
+**Lesson**: Always browser-test UI changes AFTER rebuilding the bundle.
+
+### 13.4 Summary Generation Silently Skipped
+
+**Incident**: Admin clicked "Generate missing summaries" while system was paused. Progress showed 0 generated, all skipped. No error message.
+
+**Root cause**: The `gen_one` inner function checked `settings.paused` but ignored the `force=True` parameter from the admin button. All papers were silently skipped.
+
+**Fix**: `gen_one` now checks `if not force:` before consulting the pause state.
+
+**Lesson**: Admin manual actions (`force=True`) must bypass operational guardrails (pause state, failure blacklists). The admin explicitly chose to override — respect that.
+
+### 13.5 PDF Downloads Permanently Blacklisted
+
+**Incident**: 22 papers in cs.CR showed as "not downloaded" forever. Clicking the fetch button never retried them.
+
+**Root cause**: The PDF download query excluded papers with `pdf_failed=True`. Once a paper failed (e.g., temporary ArXiv rate limit), it was permanently blacklisted from automatic and manual retries.
+
+**Fix**: In force mode (admin button), the query includes all papers with `full_text=None` regardless of `pdf_failed` status. Automatic scheduler cycles still skip failed papers.
+
+**Lesson**: Distinguish between "automatic retry" (skip known failures to avoid wasting time) and "manual retry" (user explicitly wants to try again). Same principle as 13.4.
+
+### 13.6 ArXiv 429 Killing Entire Pipeline
+
+**Incident**: "Fetch & generate summaries" button showed "completed: 0 new papers" when ArXiv was rate-limited. No PDFs downloaded, no summaries generated — even though there were papers needing both.
+
+**Root cause**: The entire `run_fetch_cycle` was a single try/except. ArXiv 429 at step 1 caused the function to throw, skipping steps 2-4.
+
+**Fix**: Restructured into 4 independent try/except blocks. Each step runs even if a previous one fails. Status reports "partial" when some steps succeed and others fail.
+
+**Lesson**: Multi-step pipelines should be resilient to individual step failures, especially when steps are independent (downloading PDFs doesn't require fetching new papers first).
+
+### 13.7 Cache Mutation on Read
+
+**Incident**: Duplicate OpenSkill rows appeared in the correlation tables. The same data showed 2x or 3x depending on how many times the page was loaded.
+
+**Root cause**: The cache stored a dict reference. On each read, OpenSkill data was merged into the same dict, adding rows each time. The cached result was mutated in place.
+
+**Fix**: Moved the OpenSkill merge step into `compute_live_analysis` BEFORE caching. The cached result is complete and immutable — no post-cache mutation on read.
+
+**Lesson**: Never mutate cached data after retrieval. Either return a deep copy, or merge everything before caching so the stored result is immutable.
+
+### 13.8 Summary Count Display Mismatch
+
+**Incident**: Admin panel showed "799/801 summarized" with a "Generate 2 missing summaries" button that never worked. The 2 "missing" summaries didn't actually exist.
+
+**Root cause**: `summary_coverage.with_summaries` was set to `total_papers` (leaderboard/matchable count = 799) instead of the actual DB count of papers with summaries (801). The "2 missing" were papers that were ranked but not matchable — not papers missing summaries.
+
+**Fix**: Query `db.papers.count_documents({"summaries": {"$exists": True, "$ne": {}}})` for the actual count.
+
+**Lesson**: Display metrics must come from their actual data source, not from a proxy value that happens to be close. "Ranked papers" ≠ "papers with summaries" — they diverge when matchability filters apply.
