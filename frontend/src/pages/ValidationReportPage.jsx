@@ -113,7 +113,7 @@ export default function ValidationReportPage() {
         const pw = bm.pairwise || {};
         const cf = bm.tie_impact?.coin_flip || {};
         const ts = bm.tie_stats || {};
-        const bt = bm.bt_correlation || {};
+        const bt = bm.wr_correlation || {};
         return (
           <Section num="1" title="Can AI Match Human Reviewers?">
             <p>Pairwise concordance benchmark across {ex.benchmark?.n_datasets || "9"} comparative GT datasets ({ex.benchmark?.total_controlled_pairs?.toLocaleString()} controlled pairs, {ex.benchmark?.total_papers} papers). AI uses Opus 4.6 Thinking summaries with round-robin judges.</p>

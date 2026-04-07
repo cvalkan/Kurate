@@ -599,7 +599,7 @@ async def _compute_si_dataset_benchmark(dataset_id: str, require_pw: bool = Fals
             "ai_committee": {"agree": ac_agree, "total": ac_total, "rate": _rate(ac_agree, ac_total)},
         },
         "by_difficulty": _format_difficulty(),
-        "bt_correlation": {
+        "wr_correlation": {
             "committee": {"spearman_rho": safe_round(wr_comm_rho) if wr_comm_rho else None,
                           "kendall_tau": safe_round(wr_comm_tau) if wr_comm_tau else None},
             "individual": {"spearman_rho": safe_round(wr_indiv_rho) if wr_indiv_rho else None,
@@ -706,7 +706,7 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
         pooled["ti_ah_tie"] += ti.get("ah_tie", 0)
         pooled["ti_hc_loo_tie"] += ti.get("hc_loo_tie", 0)
 
-        bt = result.get("bt_correlation", {})
+        bt = result.get("wr_correlation", {})
         for src, dst in [("committee", "wr_comm_rhos"), ("individual", "wr_indiv_rhos"),
                          ("avg_expert_vs_comm", "wr_evc_rhos"), ("avg_expert_vs_indiv", "wr_evi_rhos")]:
             v = bt.get(src, {}).get("spearman_rho")
@@ -845,7 +845,7 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
                 "ai_committee": {"rate": _rate(pooled["ac"][0], pooled["ac"][1]),
                                  "pairs": pooled["ac"][1]},
             },
-            "bt_correlation": {
+            "wr_correlation": {
                 "committee": {"spearman_rho": _avg(pooled["wr_comm_rhos"])},
                 "individual": {"spearman_rho": _avg(pooled["wr_indiv_rhos"])},
                 "avg_expert_vs_comm": {"spearman_rho": _avg(pooled["wr_evc_rhos"])},

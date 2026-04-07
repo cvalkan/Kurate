@@ -270,8 +270,8 @@ function DatasetTable({ datasets }) {
             <tbody>
               {datasets.map(d => {
                 const pw = d.pairwise || {};
-                const bt_c = d.bt_correlation?.committee || {};
-                const bt_i = d.bt_correlation?.individual || {};
+                const wr_c = d.wr_correlation?.committee || {};
+                const wr_i = d.wr_correlation?.individual || {};
                 return (
                   <tr key={d.dataset_id} className="border-b border-border/20">
                     <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
@@ -281,8 +281,8 @@ function DatasetTable({ datasets }) {
                     <td className="py-1 px-2 text-right font-mono">{pw.human_committee_loo?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{pw.human_committee?.rate ?? "\u2014"}%</td>
                     <td className="py-1 px-2 text-right font-mono">{d.inter_rater_rho?.toFixed(2) ?? "\u2014"}</td>
-                    <td className="py-1 px-2 text-right font-mono">{bt_c.spearman_rho?.toFixed(2) ?? "\u2014"}</td>
-                    <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{bt_i.spearman_rho?.toFixed(2) ?? "\u2014"}</td>
+                    <td className="py-1 px-2 text-right font-mono">{wr_c.spearman_rho?.toFixed(2) ?? "\u2014"}</td>
+                    <td className="py-1 px-2 text-right font-mono text-muted-foreground/60">{wr_i.spearman_rho?.toFixed(2) ?? "\u2014"}</td>
                     <td className="py-1 px-2 text-right font-mono">{d.controlled_pairs}</td>
                     <td className="py-1 px-2 text-right font-mono">{d.n_experts}</td>
                   </tr>
@@ -347,18 +347,18 @@ function SIBenchmarkPage({ apiUrl, headerDesc, testId }) {
 
       {/* 2. Ranking Correlation (Pairwise) */}
       {(() => {
-        const bt = p.bt_correlation || {};
+        const wr = p.wr_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
-          { group: "AI vs Human", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null,
+          { group: "AI vs Human", label: "AI vs Avg Rating", rho: wr.vs_avg_rating_rho, tau: null,
             desc: "AI ranking vs h1_avg_rating ranking (same metric as summary table)" },
-          { group: "", label: "AI vs Committee", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau,
+          { group: "", label: "AI vs Committee", rho: wr.committee?.spearman_rho, tau: wr.committee?.kendall_tau,
             desc: "AI ranking vs expert-majority ranking" },
-          { group: "", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau,
+          { group: "", label: "AI vs Individual aggregate", rho: wr.individual?.spearman_rho, tau: wr.individual?.kendall_tau,
             desc: "AI ranking vs all-expert-votes ranking" },
-          { group: "Human internal", label: "Single expert vs Committee", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau,
+          { group: "Human internal", label: "Single expert vs Committee", rho: wr.avg_expert_vs_comm?.spearman_rho, tau: wr.avg_expert_vs_comm?.kendall_tau,
             desc: "Each expert's ranking vs committee ranking (averaged)" },
-          { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau,
+          { group: "", label: "Single expert vs Individual aggregate", rho: wr.avg_expert_vs_indiv?.spearman_rho, tau: wr.avg_expert_vs_indiv?.kendall_tau,
             desc: "Each expert's ranking vs all-votes ranking (averaged)" },
         ];
         let lastGroup = "";

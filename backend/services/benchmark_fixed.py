@@ -591,9 +591,9 @@ async def _compute_dataset(db, dataset_id: str):
                 "total_pairs": len(controlled_pairs_cf),
             },
         },
-        # API key kept as "bt_correlation" for frontend backward compatibility.
+        # API key kept as "wr_correlation" for frontend backward compatibility.
         # The underlying scores are regularized win-rate, NOT Bradley-Terry MLE.
-        "bt_correlation": wr_results,
+        "wr_correlation": wr_results,
     }
 
 
@@ -699,17 +699,17 @@ def _pool_datasets(per_dataset):
                     "avg_expert_vs_ai", "avg_expert_vs_comm", "avg_expert_vs_indiv",
                     "avg_expert_vs_loo", "avg_expert_vs_loo_avg", "avg_expert_vs_loo_indiv",
                     "avg_expert_vs_tier"]:
-        rhos = [d["bt_correlation"].get(bt_key, {}).get("spearman_rho")
-                for d in per_dataset if d["bt_correlation"].get(bt_key, {}).get("spearman_rho") is not None]
-        taus = [d["bt_correlation"].get(bt_key, {}).get("kendall_tau")
-                for d in per_dataset if d["bt_correlation"].get(bt_key, {}).get("kendall_tau") is not None]
+        rhos = [d["wr_correlation"].get(bt_key, {}).get("spearman_rho")
+                for d in per_dataset if d["wr_correlation"].get(bt_key, {}).get("spearman_rho") is not None]
+        taus = [d["wr_correlation"].get(bt_key, {}).get("kendall_tau")
+                for d in per_dataset if d["wr_correlation"].get(bt_key, {}).get("kendall_tau") is not None]
         bt_pooled[bt_key] = {
             "spearman_rho": safe_round(float(np.mean(rhos))) if rhos else None,
             "kendall_tau": safe_round(float(np.mean(taus))) if taus else None,
         }
     # Scalar correlations
     for scalar_key in ["vs_tier_rho", "vs_tier_tau", "vs_avg_rating_rho"]:
-        vals = [d["bt_correlation"].get(scalar_key) for d in per_dataset if d["bt_correlation"].get(scalar_key) is not None]
+        vals = [d["wr_correlation"].get(scalar_key) for d in per_dataset if d["wr_correlation"].get(scalar_key) is not None]
         bt_pooled[scalar_key] = safe_round(float(np.mean(vals))) if vals else None
 
     # Concordance values for header cards
@@ -730,5 +730,5 @@ def _pool_datasets(per_dataset):
             "coin_flip": pooled_cf,
             **pooled_ti_raw,
         },
-        "bt_correlation": bt_pooled,
+        "wr_correlation": bt_pooled,
     }

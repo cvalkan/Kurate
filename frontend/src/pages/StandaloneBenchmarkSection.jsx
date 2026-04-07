@@ -120,7 +120,7 @@ function DatasetTable({ datasets }) {
                   <td className="py-1 px-2 text-left font-medium">{d.name || d.dataset_id}</td>
                   <td className="py-1 px-2 text-right font-mono">{d.agreement?.rate ?? "\u2014"}%</td>
                   <td className="py-1 px-2 text-right font-mono">{d.coin_flip?.rate ?? "\u2014"}%</td>
-                  <td className="py-1 px-2 text-right font-mono">{d.bt_correlation?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
+                  <td className="py-1 px-2 text-right font-mono">{d.wr_correlation?.spearman_rho?.toFixed(3) ?? "\u2014"}</td>
                   <td className="py-1 px-2 text-right font-mono">{d.gt_tie_rate ?? "\u2014"}%</td>
                   <td className="py-1 px-2 text-right font-mono">{d.controlled_pairs}</td>
                   <td className="py-1 px-2 text-right font-mono">{d.n_papers}</td>
@@ -155,7 +155,7 @@ function StandaloneBenchmarkPage({ apiUrl, headerDesc, testId }) {
   if (!data || data.status !== "ok") return <div className="text-sm text-muted-foreground">No benchmark data available.</div>;
 
   const p = data.pooled;
-  const bt = p.bt_correlation || {};
+  const wr = p.wr_correlation || {};
 
   return (
     <div className="space-y-6" data-testid={testId}>
@@ -174,7 +174,7 @@ function StandaloneBenchmarkPage({ apiUrl, headerDesc, testId }) {
           <Metric label="AI-GT (ties excl.)" value={`${p.agreement?.rate ?? "\u2014"}%`} sub="GT ties excluded" />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
-          <Metric label="Ranking Spearman ρ" value={bt.spearman_rho?.toFixed(3) ?? "\u2014"} sub="AI vs GT ranking" accent />
+          <Metric label="Ranking Spearman ρ" value={wr.spearman_rho?.toFixed(3) ?? "\u2014"} sub="AI vs GT ranking" accent />
         </div>
         <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label="GT Tie Rate" value={`${p.gt_tie_rate ?? "\u2014"}%`} sub="same aggregate score" />

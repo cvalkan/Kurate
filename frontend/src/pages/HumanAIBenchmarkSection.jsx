@@ -243,7 +243,7 @@ function DatasetTable({ datasets }) {
             <tbody>
               {datasets.map(d => {
                 const pw = d.pairwise || {};
-                const bt = d.bt_correlation || {};
+                const wr = d.wr_correlation || {};
                 const ta = d.tier_accuracy || {};
                 const f3 = v => v?.toFixed(3) ?? "\u2014";
                 const ah = pw.ai_human?.cf_rate ?? pw.ai_human?.rate;
@@ -252,12 +252,12 @@ function DatasetTable({ datasets }) {
                 const hmaj = pw.human_committee_loo?.cf_rate ?? pw.human_committee_loo?.rate;
                 const apc = ta.ai_rate;
                 const hpc = ta.hh_rate;
-                const abt1 = bt.individual?.spearman_rho;
-                const hbt1 = bt.avg_expert_vs_loo_indiv?.spearman_rho;
-                const abt2 = bt.committee?.spearman_rho;
-                const hbt2 = bt.avg_expert_vs_loo?.spearman_rho;
-                const abt3 = bt.vs_tier_rho;
-                const hbt3 = bt.avg_expert_vs_tier?.spearman_rho;
+                const abt1 = wr.individual?.spearman_rho;
+                const hbt1 = wr.avg_expert_vs_loo_indiv?.spearman_rho;
+                const abt2 = wr.committee?.spearman_rho;
+                const hbt2 = wr.avg_expert_vs_loo?.spearman_rho;
+                const abt3 = wr.vs_tier_rho;
+                const hbt3 = wr.avg_expert_vs_tier?.spearman_rho;
                 const b = (a, h) => a != null && h != null && a > h ? "font-semibold" : "";
                 const bh = (a, h) => h != null && a != null && h > a ? "font-semibold" : "";
                 return (
@@ -285,7 +285,7 @@ function DatasetTable({ datasets }) {
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               <strong>Note on PeerRead ACL 2017:</strong> This dataset behaves differently from ICLR — AI-H ranking correlation ({(() => {
                 const pr = datasets?.find(d => d.name?.includes("PeerRead"));
-                return pr?.bt_correlation?.individual?.spearman_rho?.toFixed(3) ?? "—";
+                return pr?.wr_correlation?.individual?.spearman_rho?.toFixed(3) ?? "—";
               })()}) is far below
               the ICLR range. Contributing factors: only 2–3 reviewers per paper (vs 4–6), a coarser 1–5 scale with ~{(() => {
                 const pr = datasets?.find(d => d.name?.includes("PeerRead"));
@@ -493,32 +493,32 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
 
       {/* 2. Ranking Correlation (Pairwise) */}
       {(() => {
-        const bt = p.bt_correlation || {};
+        const wr = p.wr_correlation || {};
         const f = (v) => v?.toFixed(3) ?? "\u2014";
         const rows = [
-          { group: "AI vs Human", label: "AI vs Individual aggregate", rho: bt.individual?.spearman_rho, tau: bt.individual?.kendall_tau, color: "sky", pair: "indiv", side: "ai",
+          { group: "AI vs Human", label: "AI vs Individual aggregate", rho: wr.individual?.spearman_rho, tau: wr.individual?.kendall_tau, color: "sky", pair: "indiv", side: "ai",
             desc: "Each expert's vote on each pair is a separate match (preserving individual disagreements). AI ranking is compared against this combined human ranking" },
-          { group: "", label: "AI vs Avg Rating", rho: bt.vs_avg_rating_rho, tau: null, pair: "avg", side: "ai",
+          { group: "", label: "AI vs Avg Rating", rho: wr.vs_avg_rating_rho, tau: null, pair: "avg", side: "ai",
             desc: "AI ranking vs simple average of reviewer scores — different methodologies (ranking vs mean)" },
-          { group: "", label: "AI vs Majority", rho: bt.committee?.spearman_rho, tau: bt.committee?.kendall_tau, color: "amber", pair: "maj", side: "ai",
+          { group: "", label: "AI vs Majority", rho: wr.committee?.spearman_rho, tau: wr.committee?.kendall_tau, color: "amber", pair: "maj", side: "ai",
             desc: "AI ranking vs majority-vote matches — one match per pair, loses margin information" },
-          { group: "", label: "AI vs Committee (ICLR PC)", rho: bt.vs_tier_rho, tau: bt.vs_tier_tau, color: "rose", pair: "tier", side: "ai",
+          { group: "", label: "AI vs Committee (ICLR PC)", rho: wr.vs_tier_rho, tau: wr.vs_tier_tau, color: "rose", pair: "tier", side: "ai",
             desc: "AI ranking vs actual program committee tier decisions — coarse (4 tiers only)" },
-          { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: bt.avg_expert_vs_loo_indiv?.spearman_rho, tau: bt.avg_expert_vs_loo_indiv?.kendall_tau, color: "sky", pair: "indiv", side: "h",
+          { group: "Human internal", label: "Single expert vs Individual aggregate (LOO)", rho: wr.avg_expert_vs_loo_indiv?.spearman_rho, tau: wr.avg_expert_vs_loo_indiv?.kendall_tau, color: "sky", pair: "indiv", side: "h",
             desc: "One human reviewer vs all other reviewers (self excluded) — mirrors the AI row: single judge vs crowd. Apples-to-apples human ceiling" },
-          { group: "", label: "Single expert vs Avg Rating (LOO)", rho: bt.avg_expert_vs_loo_avg?.spearman_rho, tau: bt.avg_expert_vs_loo_avg?.kendall_tau, pair: "avg", side: "h",
+          { group: "", label: "Single expert vs Avg Rating (LOO)", rho: wr.avg_expert_vs_loo_avg?.spearman_rho, tau: wr.avg_expert_vs_loo_avg?.kendall_tau, pair: "avg", side: "h",
             desc: "One reviewer's ranking vs LOO average scores — different methodologies (ranking vs mean)" },
-          { group: "", label: "Single expert vs Majority (LOO)", rho: bt.avg_expert_vs_loo?.spearman_rho, tau: bt.avg_expert_vs_loo?.kendall_tau, color: "amber", pair: "maj", side: "h",
+          { group: "", label: "Single expert vs Majority (LOO)", rho: wr.avg_expert_vs_loo?.spearman_rho, tau: wr.avg_expert_vs_loo?.kendall_tau, color: "amber", pair: "maj", side: "h",
             desc: "One reviewer's ranking vs LOO majority ranking — loses margin information, LOO ties skipped" },
-          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: bt.avg_expert_vs_tier?.spearman_rho, tau: bt.avg_expert_vs_tier?.kendall_tau, color: "rose", pair: "tier", side: "h",
+          { group: "", label: "Single expert vs Committee (ICLR PC)", rho: wr.avg_expert_vs_tier?.spearman_rho, tau: wr.avg_expert_vs_tier?.kendall_tau, color: "rose", pair: "tier", side: "h",
             desc: "Expert ranking vs tier decisions — circular (reviewers influenced the decisions)" },
-          { group: "", label: "Single expert vs Majority", rho: bt.avg_expert_vs_comm?.spearman_rho, tau: bt.avg_expert_vs_comm?.kendall_tau, circular: true,
+          { group: "", label: "Single expert vs Majority", rho: wr.avg_expert_vs_comm?.spearman_rho, tau: wr.avg_expert_vs_comm?.kendall_tau, circular: true,
             desc: "Circular — expert's own votes are included in the majority" },
-          { group: "", label: "Single expert vs Individual aggregate", rho: bt.avg_expert_vs_indiv?.spearman_rho, tau: bt.avg_expert_vs_indiv?.kendall_tau, circular: true,
+          { group: "", label: "Single expert vs Individual aggregate", rho: wr.avg_expert_vs_indiv?.spearman_rho, tau: wr.avg_expert_vs_indiv?.kendall_tau, circular: true,
             desc: "Circular — expert's own votes are included in the aggregate" },
         ];
-        const aiRhos = { indiv: bt.individual?.spearman_rho, maj: bt.committee?.spearman_rho, tier: bt.vs_tier_rho, avg: bt.vs_avg_rating_rho };
-        const hRhos = { indiv: bt.avg_expert_vs_loo_indiv?.spearman_rho, maj: bt.avg_expert_vs_loo?.spearman_rho, tier: bt.avg_expert_vs_tier?.spearman_rho, avg: bt.avg_expert_vs_loo_avg?.spearman_rho };
+        const aiRhos = { indiv: wr.individual?.spearman_rho, maj: wr.committee?.spearman_rho, tier: wr.vs_tier_rho, avg: wr.vs_avg_rating_rho };
+        const hRhos = { indiv: wr.avg_expert_vs_loo_indiv?.spearman_rho, maj: wr.avg_expert_vs_loo?.spearman_rho, tier: wr.avg_expert_vs_tier?.spearman_rho, avg: wr.avg_expert_vs_loo_avg?.spearman_rho };
         let lastGroup = "";
         return (
           <div className="border border-border rounded-lg overflow-hidden">
@@ -575,24 +575,24 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
                 Size-weighted pooling would lower all correlations because datasets with weaker {"\u03C1"} (PeerRead, ICLR PDEs) happen to have
                 larger pair counts, pulling the weighted average down.
               </p>
-              {bt.individual?.spearman_rho != null && bt.avg_expert_vs_loo_indiv?.spearman_rho != null && (
+              {wr.individual?.spearman_rho != null && wr.avg_expert_vs_loo_indiv?.spearman_rho != null && (
                 <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
                   <strong>Key finding</strong> (highlighted rows): AI outperforms a single human expert across all ground truth methods.
-                  vs Individual aggregate: {bt.individual.spearman_rho.toFixed(3)} vs {bt.avg_expert_vs_loo_indiv.spearman_rho.toFixed(3)} (advantage: +{(bt.individual.spearman_rho - bt.avg_expert_vs_loo_indiv.spearman_rho).toFixed(3)}).
-                  {bt.vs_tier_rho != null && bt.avg_expert_vs_tier?.spearman_rho != null && <>vs Committee:
-                  {bt.vs_tier_rho.toFixed(3)} vs {bt.avg_expert_vs_tier.spearman_rho.toFixed(3)} — even though
+                  vs Individual aggregate: {wr.individual.spearman_rho.toFixed(3)} vs {wr.avg_expert_vs_loo_indiv.spearman_rho.toFixed(3)} (advantage: +{(wr.individual.spearman_rho - wr.avg_expert_vs_loo_indiv.spearman_rho).toFixed(3)}).
+                  {wr.vs_tier_rho != null && wr.avg_expert_vs_tier?.spearman_rho != null && <>vs Committee:
+                  {wr.vs_tier_rho.toFixed(3)} vs {wr.avg_expert_vs_tier.spearman_rho.toFixed(3)} — even though
                   the human has a circularity advantage (their scores influenced the committee decisions).</>}
                   {" "}AI compensates with consistency: no off-days or idiosyncratic biases that make individual reviewers
                   disagree with the eventual consensus.
                 </p>
               )}
-              {bt.vs_tier_rho != null && bt.avg_expert_vs_tier?.spearman_rho != null && (
+              {wr.vs_tier_rho != null && wr.avg_expert_vs_tier?.spearman_rho != null && (
                 <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">
                   <strong>Ceiling analysis:</strong> A 4-tier committee ranking (Oral/Spotlight/Poster/Reject) imposes a theoretical
                   maximum {"\u03C1"} {"\u2248"} 0.878 — even a perfect tier predictor with random within-tier ordering cannot exceed this.
-                  AI reaches <strong>{(bt.vs_tier_rho / 0.878 * 100).toFixed(0)}%</strong> of this ceiling
-                  ({bt.vs_tier_rho.toFixed(3)}), a single expert reaches {(bt.avg_expert_vs_tier.spearman_rho / 0.878 * 100).toFixed(0)}%
-                  ({bt.avg_expert_vs_tier.spearman_rho.toFixed(3)}).
+                  AI reaches <strong>{(wr.vs_tier_rho / 0.878 * 100).toFixed(0)}%</strong> of this ceiling
+                  ({wr.vs_tier_rho.toFixed(3)}), a single expert reaches {(wr.avg_expert_vs_tier.spearman_rho / 0.878 * 100).toFixed(0)}%
+                  ({wr.avg_expert_vs_tier.spearman_rho.toFixed(3)}).
                 </p>
               )}
               <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5">

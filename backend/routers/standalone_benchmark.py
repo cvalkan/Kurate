@@ -273,7 +273,7 @@ async def compute_standalone_dataset(dataset_id, ai_source="pairwise"):
             }
             for level, s in diff_stats.items()
         },
-        "bt_correlation": {
+        "wr_correlation": {
             "spearman_rho": safe_round(bt_rho) if bt_rho else None,
             "kendall_tau": safe_round(bt_tau) if bt_tau else None,
             "n_papers": len(ctrl_paper_ids),
@@ -320,7 +320,7 @@ async def compute_standalone_benchmark(ai_source="pairwise"):
         pooled_pairs += result["controlled_pairs"]
         pooled_papers += result["n_papers"]
 
-        bt = result.get("bt_correlation", {})
+        bt = result.get("wr_correlation", {})
         if bt.get("spearman_rho") is not None:
             pooled_rhos.append(bt["spearman_rho"])
         if bt.get("kendall_tau") is not None:
@@ -362,7 +362,7 @@ async def compute_standalone_benchmark(ai_source="pairwise"):
                 "total": pooled_total + pooled_gt_tie,
             },
             "gt_tie_rate": gt_tie_frac,
-            "bt_correlation": {
+            "wr_correlation": {
                 "spearman_rho": safe_round(float(np.mean(pooled_rhos))) if pooled_rhos else None,
                 "kendall_tau": safe_round(float(np.mean(pooled_taus))) if pooled_taus else None,
             },
