@@ -95,6 +95,20 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 
 **Memory cost:** ~3MB for cs.RO (43K dedup_pair strings). Same scaling as #1.
 
+### ~~2b. Goals Check Amplification — 14 Categories × Every Cycle~~ ✅ FIXED (Apr 8, 2026)
+**Was:** `_check_goals_met` was called for all 14+ categories every compare loop cycle (every ~2-25s). Each call loaded all rankings + queried papers collection for matchability. Additionally, `update_tournament_stats` called `_check_goals_met` for ALL 17 tournament categories (including inactive ones) and ran `count_documents` on the matches collection per category — 34 DB queries per cycle just for stats.
+
+**Root cause analysis:** Production memory grew from 490 MB (fresh restart) to 1,377 MB over hours. Logs showed `_check_goals` was the dominant memory amplifier: 14 categories checking goals simultaneously caused rankings data from multiple categories to stack in memory before GC. The 60s TTL cache expired for ALL categories simultaneously (populated at the same time → expired at the same time), causing periodic recomputation storms.
+
+**Fix (three parts):**
+1. **Two-tier cache TTL:** Goals MET (True) → cached indefinitely until explicitly invalidated. Goals NOT MET (False) → 60s TTL. Only data mutations (new matches, new papers, settings change) invalidate met categories.
+2. **Snapshot-based staleness detection:** Each cache entry stores `{papers: N, matches: M}` at cache time. On read, compares against current counts — if they differ, the cache is stale even without explicit invalidation. Protects against future code paths that forget to call `invalidate_goals_cache()`. Zero overhead when counts match (two integer comparisons).
+3. **`update_tournament_stats` decoupled from goals computation:** No longer calls `_check_goals_met` — reads cached result if available. Match counts read from incremental counters instead of 17 `count_documents` queries.
+
+**Result:** Goals checks per cycle dropped from **10-14 → 0.04** (107 cycles, 4 checks total — only the single unmet category). Memory flat at **382 MB across 197 cycles** (was growing to 1,377 MB). DB queries per cycle from tournament stats dropped from **34+ → 0**.
+
+**Safeguard:** If any future code path adds papers/matches without calling `invalidate_goals_cache()`, the snapshot mismatch fires a log warning and auto-invalidates: `Goals cache stale for cs.RO: papers 207→208, matches 9224→9225`.
+
 ### 3. `seed_rankings` Full Match Load — Catastrophic Recovery Path
 **What:** The gap-fill fallback (>20% unranked) still loads ALL matches via `collect_all`. For cs.RO: 42K matches in memory.
 
@@ -131,6 +145,8 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 | Ghost match prevention | Auto-creates ranking on first match, no drift |
 | **`_refresh_cache`** | **Incremental counters, O(1) — no match scan** |
 | **`_select_pairs` pair checks** | **In-memory dedup set, O(1) per pair** |
+| **`_check_goals_met` (met cats)** | **Cached indefinitely with snapshot-based staleness detection** |
+| **`update_tournament_stats`** | **Reads cached goals + incremental match counters — 0 DB queries** |
 
 ## DB Indexes (as of Apr 7, 2026)
 
@@ -149,16 +165,18 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 - `categories_summaries` — matchable paper filtering
 - `id_1`, `arxiv_id_1` — lookups
 
-## Scaling Projections (updated Apr 7, 2026)
+## Scaling Projections (updated Apr 8, 2026)
 
 | Metric | Current | 10K papers | 50K papers | 100K papers |
 |---|---|---|---|---|
 | Rankings reads (indexed) | <1ms | <5ms | <10ms | <20ms |
 | Matches per category | 43K | 200K | 1M | 5M |
 | **`_refresh_cache`** | **0.3s** | **~0.5s** | **~1s** | **~2s** |
-| `_check_goals_met` (cached) | 0ms | 0ms | 0ms | 0ms |
+| `_check_goals_met` (met cats) | 0ms (cached indefinitely) | 0ms | 0ms | 0ms |
+| `_check_goals_met` (unmet cats) | ~50ms (60s TTL) | ~100ms | ~200ms | ~500ms |
 | **`_select_pairs` (50 needy)** | **<0.5s** | **<1s** | **<2s** | **<5s** |
+| `update_tournament_stats` | 0ms (cached counters) | 0ms | 0ms | 0ms |
 | `seed_rankings` (gap-fill) | <1s | <1s | <1s | <1s |
 | `seed_rankings` (full, if needed) | ~2s | ~10s | ~50s | OOM |
 | Startup memory spike | ~360MB | ~400MB | ~500MB | ~600MB |
-| Steady-state memory | ~450MB | ~500MB | ~700MB | ~900MB |
+| Steady-state memory | ~382MB | ~450MB | ~600MB | ~800MB |

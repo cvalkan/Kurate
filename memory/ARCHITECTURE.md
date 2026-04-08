@@ -385,7 +385,7 @@ The top K papers (default K=10) must have tighter confidence — ≤ 10 percenta
 **Goal 3 — Top-K cross-matches**
 Every pair of top-K papers must have been directly compared at least once. This prevents a scenario where paper A and paper B are both ranked highly but have never been compared head-to-head.
 
-Goals are checked at the start of each compare loop cycle. The check is cached for 60 seconds to avoid DB load. When all goals are met, the compare loop sleeps until new data arrives (new papers, configuration change, or wake signal).
+Goals are checked at the start of each compare loop cycle. Once goals are met for a category, the result is cached **indefinitely** — only invalidated when new matches complete, new papers are added, or settings change. Each cache entry stores a snapshot of {papers, matches} counts as a tripwire: if the counts change without explicit invalidation (e.g., a future code path that forgets to call `invalidate_goals_cache`), the cache auto-invalidates with a log warning. Unmet categories are rechecked every 60 seconds. When all goals are met, the compare loop sleeps until new data arrives.
 
 ### 3.4 Matchmaking Algorithm
 
@@ -795,7 +795,7 @@ The system maintains several in-memory caches. All are event-driven (refreshed w
 | **Model analysis** | `model_analysis.py:_live_analysis_cache` | ~160 KB per entry | 1h safety net | `mark_live_analysis_dirty()` | Correlation tables, agreement stats |
 | **Pair dedup set** | `scheduler.py:_select_pairs` (local) | ~3 MB per category | Per-round | Loaded once at start of pair selection | Replaces N per-paper DB queries |
 | **Tag queries** | `leaderboard.py:_tag_cache` | Max 100 entries | 20s | Cleared on cache refresh | Filtered leaderboard by tag combo |
-| **Goals-met** | `scheduler.py:_goals_met_cache` | ~1 KB per cat | 60s | `invalidate_goals_cache()` | Avoid repeated DB queries in compare loop |
+| **Goals-met** | `scheduler.py:_goals_met_cache` | ~1 KB per cat | Met: indefinite; Unmet: 60s | `invalidate_goals_cache()` + snapshot staleness check | Avoid repeated DB queries in compare loop |
 | **Match counts** | `leaderboard.py:_match_count_cache` | ~1 KB | 5 min | `invalidate_match_count_cache()` | Total match count for status endpoint (fallback) |
 | **Convergence** | MongoDB `convergence_cache` | ~50 KB per cat | Persistent | After comparison rounds | Convergence curve charts |
 | **OpenSkill** | MongoDB `analysis_store` | ~200 KB per cat | Persistent | Admin refresh button | OpenSkill correlation columns |
@@ -819,7 +819,10 @@ Match completes
 
 Each cache has a debounce period (10-30s) to batch rapid match completions. During a tournament round with 100 matches completing in ~60s, the caches refresh once or twice — not 100 times.
 
-**Key optimization (Apr 7, 2026):** `_refresh_cache` no longer scans the matches collection. Match counts come from incremental in-memory counters seeded at startup and bumped per match. This reduced `_refresh_cache` from **13.2s → 0.3s** (43x). Similarly, `_select_pairs` loads all dedup pairs once per round instead of querying per needy paper — reducing DB queries from **N+1 → 1**.
+**Key optimization (Apr 7-8, 2026):** Three changes dramatically reduced per-cycle DB load and memory:
+1. `_refresh_cache` no longer scans the matches collection — match counts come from incremental in-memory counters (**13.2s → 0.3s**, 43x faster).
+2. `_select_pairs` loads all dedup pairs once per round instead of querying per needy paper (**N+1 → 1** DB queries).
+3. Goals cache uses two-tier TTL: met categories cached indefinitely (with snapshot-based staleness detection), unmet categories cached 60s. `update_tournament_stats` decoupled from live goals computation. Goals checks per cycle dropped from **10-14 → 0.04**. Memory flat at **382 MB** (was growing to 1,377 MB).
 
 ### 7.3 Leaderboard Serving
 
@@ -848,9 +851,9 @@ db.rankings.find({"category": "cs.CR"})
 | Model analysis cache | ~10 MB | All-categories + per-category entries |
 | LLM executor thread pool | ~20 MB | `ThreadPoolExecutor` for litellm calls |
 | Active comparison data | ~50 MB | Paper summaries + dedup pair set (~3 MB per category) loaded during matches |
-| **Typical RSS** | **~450 MB** | In a 2 GB container with ~1.2 GB available |
+| **Typical RSS** | **~380 MB** | In a 2 GB container with ~1.2 GB available |
 
-Peak memory occurs during comparison rounds when paper summaries and the dedup pair set are loaded. With the incremental counters, `_refresh_cache` no longer contributes to peak memory.
+Peak memory occurs during comparison rounds when paper summaries and the dedup pair set are loaded. With incremental counters and indefinite goals caching, `_refresh_cache` and `_check_goals` no longer contribute to peak memory. Memory stays flat across hundreds of cycles when all goals are met.
 
 ---
 
@@ -1137,6 +1140,8 @@ The entire system (web server + background scheduler + analysis computation) run
 - Gap-fill ranking seed (no match loading at startup)
 - Incremental match counters (`_refresh_cache` 13.2s → 0.3s)
 - In-memory dedup set for pair selection (`_select_pairs` N+1 queries → 1)
+- Two-tier goals cache with snapshot staleness detection (goals checks 10-14/cycle → 0.04/cycle, memory 1,377 MB → 382 MB steady-state)
+- `update_tournament_stats` decoupled from live DB queries (reads cached counters)
 
 **Remaining:**
 - Text index on `rankings.title` for fast search at scale
@@ -1243,3 +1248,18 @@ Operational lessons from production incidents and debugging sessions. Each entry
 **Fix**: Query `db.papers.count_documents({"summaries": {"$exists": True, "$ne": {}}})` for the actual count.
 
 **Lesson**: Display metrics must come from their actual data source, not from a proxy value that happens to be close. "Ranked papers" ≠ "papers with summaries" — they diverge when matchability filters apply.
+
+### 13.9 Goals Cache Simultaneous Expiry
+
+**Incident**: Production memory grew from 490 MB (fresh restart) to 1,377 MB over 6 hours of sustained tournament operation. The biggest spikes (+361 MB, +295 MB) correlated with `_check_goals` calls, not comparison rounds.
+
+**Root cause**: The 60s TTL goals cache was populated for all 14 categories at the same time (during the first compare loop cycle). All 14 entries expired simultaneously every 60s → 14 `_check_goals_met_impl` calls fired in rapid succession, each loading rankings and querying papers. Memory from one category's computation wasn't freed before the next started. Additionally, `update_tournament_stats` called `_check_goals_met` for all 17 tournament categories every cycle (including inactive ones) and ran 17 `count_documents` queries on the matches collection — a hidden amplifier.
+
+**Fix**: Three-part:
+1. Met categories cached indefinitely (only invalidated by data mutations). Unmet categories keep 60s TTL.
+2. Each cache entry stores a snapshot of `{papers: N, matches: M}` — auto-invalidates if counts change without explicit invalidation (tripwire for future code changes).
+3. `update_tournament_stats` reads cached goals result and incremental match counters instead of computing live.
+
+**Result**: Goals checks per cycle: 10-14 → 0.04. Memory: flat at 382 MB across 197 cycles.
+
+**Lesson**: Fixed-TTL caches with uniform population time create "cache stampede" — all entries expire at once. Use event-driven invalidation for stable results (met goals) and TTL only for volatile results (unmet goals). Add snapshot-based tripwires to catch future invalidation oversights.
