@@ -170,21 +170,23 @@ async def init_tournament_registry():
 
 
 async def update_tournament_stats(category: str, mode: str = "standard"):
-    """Update stats on a tournament document."""
+    """Update stats on a tournament document. Uses cached goals result if available."""
     tid = f"cat={category}|mode={mode}"
-    paper_count = await db.papers.count_documents({"categories.0": category})
-    match_count = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
-    )
-    goals_met = await _check_goals_met(category=category)
+    paper_count = _get_cat_status(category).get("papers_count", 0)
+    match_count = _get_cat_status(category).get("matches_count", 0)
+    # Use cached goals result — don't trigger fresh computation just for stats
+    cached = _goals_met_cache.get(category)
+    goals_met = cached["result"] if cached else None
+    update_fields = {
+        "stats.papers": paper_count,
+        "stats.matches": match_count,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if goals_met is not None:
+        update_fields["stats.goals_met"] = goals_met
     await db.tournaments.update_one(
         {"tournament_id": tid},
-        {"$set": {
-            "stats.papers": paper_count,
-            "stats.matches": match_count,
-            "stats.goals_met": goals_met,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }},
+        {"$set": update_fields},
     )
 
 
@@ -342,16 +344,15 @@ async def _compare_loop_inner():
             if not is_paused and active_cats:
                 log_mem(f"Compare loop: entering (paused={is_paused}, active={len(active_cats)} cats, tournaments={len(all_tournament_cats)})")
                 # Update per-category paper/match counts and tournament stats
-                # Each category is independent — one timeout shouldn't block others
+                # Match counts from incremental counters (no DB scan)
+                from routers.leaderboard import get_match_counts_snapshot
+                _match_snap, _ = get_match_counts_snapshot()
                 for cat in all_tournament_cats:
                     try:
                         cat_status = _get_cat_status(cat)
                         cat_paper_count = await db.papers.count_documents({"categories.0": cat})
                         cat_status["papers_count"] = cat_paper_count
-                        cat_match_count = await db.matches.count_documents(
-                            {"completed": True, "failed": {"$ne": True}, "primary_category": cat, "mode": {"$exists": False}}
-                        )
-                        cat_status["matches_count"] = cat_match_count
+                        cat_status["matches_count"] = _match_snap.get(cat, cat_status.get("matches_count", 0))
                         await update_tournament_stats(cat)
                     except Exception:
                         pass  # Skip this category's stats update on timeout
@@ -446,7 +447,9 @@ async def _compare_loop_inner():
 
 
 _goals_met_cache = {}  # {category: {"result": bool, "ts": float}}
-_GOALS_CACHE_TTL = 60  # seconds
+_GOALS_CACHE_TTL_UNMET = 60  # seconds — recheck unmet categories periodically
+# Met categories: cached indefinitely until explicitly invalidated by
+# invalidate_goals_cache() (called on new matches, new papers, settings change).
 
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
@@ -460,13 +463,22 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     Returns True when all goals met. Only considers matchable papers
     (those with summaries that can be compared by LLMs).
     
-    Results are cached for 60s to reduce DB load. The worst case of a stale
-    "not met" is one extra no-op round (no LLM cost — _select_pairs finds no pairs).
+    Caching strategy:
+    - Goals MET (True): cached indefinitely. Only invalidated by explicit
+      invalidate_goals_cache() call (new matches, new papers, settings change).
+    - Goals NOT MET (False): cached for 60s. Worst case of stale "not met" is
+      one extra no-op round (no LLM cost — _select_pairs finds no pairs).
     """
     import time as _time
     cached = _goals_met_cache.get(category)
-    if cached and (_time.time() - cached["ts"]) < _GOALS_CACHE_TTL:
-        return cached["result"]
+    if cached:
+        if cached["result"]:
+            # Goals met — cached indefinitely until invalidated
+            return True
+        elif (_time.time() - cached["ts"]) < _GOALS_CACHE_TTL_UNMET:
+            # Goals not met — respect TTL
+            return False
+        # else: unmet cache expired, recompute
 
     result = await _check_goals_met_impl(category)
     _goals_met_cache[category] = {"result": result, "ts": _time.time()}
@@ -476,9 +488,15 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
 def invalidate_goals_cache(category: str = None):
     """Clear goals cache for a category (or all). Call after matches update rankings."""
     if category:
+        was_cached = category in _goals_met_cache
         _goals_met_cache.pop(category, None)
+        if was_cached:
+            logger.debug(f"Goals cache invalidated for {category}")
     else:
+        n = len(_goals_met_cache)
         _goals_met_cache.clear()
+        if n > 0:
+            logger.info(f"Goals cache cleared (all {n} categories)")
 
 
 async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
