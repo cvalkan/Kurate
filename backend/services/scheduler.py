@@ -446,10 +446,13 @@ async def _compare_loop_inner():
             pass  # Periodic re-check: goals might have changed (new papers, pruning, etc.)
 
 
-_goals_met_cache = {}  # {category: {"result": bool, "ts": float}}
+_goals_met_cache = {}  # {category: {"result": bool, "ts": float, "snapshot": {"papers": int, "matches": int}}}
 _GOALS_CACHE_TTL_UNMET = 60  # seconds — recheck unmet categories periodically
 # Met categories: cached indefinitely until explicitly invalidated by
 # invalidate_goals_cache() (called on new matches, new papers, settings change).
+# Safety net: snapshot of paper/match counts at cache time — if they change,
+# the cache is stale even if no explicit invalidation was called.
+# This protects against future code paths that forget to invalidate.
 
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
@@ -464,24 +467,42 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     (those with summaries that can be compared by LLMs).
     
     Caching strategy:
-    - Goals MET (True): cached indefinitely. Only invalidated by explicit
-      invalidate_goals_cache() call (new matches, new papers, settings change).
+    - Goals MET (True): cached until paper/match counts change or explicit invalidation.
     - Goals NOT MET (False): cached for 60s. Worst case of stale "not met" is
       one extra no-op round (no LLM cost — _select_pairs finds no pairs).
+    
+    Safety net: each cached entry stores a snapshot of {papers, matches} at cache time.
+    If the current counts differ, the cache is considered stale — protects against
+    future code paths that mutate data without calling invalidate_goals_cache().
     """
     import time as _time
     cached = _goals_met_cache.get(category)
     if cached:
         if cached["result"]:
-            # Goals met — cached indefinitely until invalidated
-            return True
+            # Goals met — check snapshot for silent data changes
+            snap = cached.get("snapshot", {})
+            cat_status = _get_cat_status(category)
+            current_papers = cat_status.get("papers_count", -1)
+            current_matches = cat_status.get("matches_count", -1)
+            if current_papers == snap.get("papers", -1) and current_matches == snap.get("matches", -1):
+                return True
+            # Data changed without invalidation — recompute
+            logger.info(f"Goals cache stale for {category}: papers {snap.get('papers')}→{current_papers}, matches {snap.get('matches')}→{current_matches}")
         elif (_time.time() - cached["ts"]) < _GOALS_CACHE_TTL_UNMET:
             # Goals not met — respect TTL
             return False
-        # else: unmet cache expired, recompute
+        # else: unmet cache expired or met cache stale, recompute
 
     result = await _check_goals_met_impl(category)
-    _goals_met_cache[category] = {"result": result, "ts": _time.time()}
+    cat_status = _get_cat_status(category)
+    _goals_met_cache[category] = {
+        "result": result,
+        "ts": _time.time(),
+        "snapshot": {
+            "papers": cat_status.get("papers_count", 0),
+            "matches": cat_status.get("matches_count", 0),
+        },
+    }
     return result
 
 
