@@ -192,7 +192,7 @@ async def _compute_single_item_results():
         papers = await collect_all(db.validation_papers.find(
             {"dataset_id": ds_id, "single_item_score": {"$exists": True}},
             {"_id": 0, "id": 1, "title": 1, "h1_avg_rating": 1, "single_item_score": 1,
-             "single_item_details": 1, "alphaxiv_likes": 1}
+             "single_item_details": 1}
         ))
 
         scored = [p for p in papers if p.get("single_item_score") and p.get("h1_avg_rating") is not None]

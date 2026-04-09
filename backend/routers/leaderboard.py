@@ -513,7 +513,7 @@ _RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
               "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1, "gap_score_ts": 1,
-              "community_likes": 1, "categories": 1}
+              "categories": 1}
 
 
 def _encode_cursor(score: int, paper_id: str) -> str:
@@ -558,7 +558,6 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         **({"ai_rating": doc["ai_rating"]} if doc.get("ai_rating") else {}),
         **({"gap_score": doc["gap_score"]} if doc.get("gap_score") is not None else {}),
         **({"gap_score_ts": doc["gap_score_ts"]} if doc.get("gap_score_ts") is not None else {}),
-        **({"community_likes": doc["community_likes"]} if doc.get("community_likes") is not None else {}),
     }
 
 
@@ -576,7 +575,6 @@ _SORT_FIELD_MAP = {
     "ts_sigma": ("ts_sigma", 1),  # Lower sigma = more confident = default ascending
     "ai_rating": ("ai_rating", -1),
     "gap_score": ("gap_score", -1),
-    "community_likes": ("community_likes", -1),
 }
 
 
@@ -675,25 +673,7 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
 
 
 async def _get_community_correlation(category: str):
-    """Compute community correlation for a category (currently only cs.RO)."""
-    if category != "cs.RO":
-        return None
-    liked = []
-    async for doc in db.rankings.find(
-        {"category": category, "community_likes": {"$exists": True, "$ne": None}},
-        {"_id": 0, "score": 1, "community_likes": 1}
-    ):
-        liked.append((doc["score"], doc["community_likes"]))
-    if len(liked) >= 10:
-        from scipy import stats as _sp
-        import numpy as _np
-        scores, likes = zip(*liked)
-        rho, pval = _sp.spearmanr(scores, likes)
-        return {
-            "rho": round(rho, 4) if not _np.isnan(rho) else None,
-            "p_value": round(pval, 4) if not _np.isnan(pval) else None,
-            "n": len(liked),
-        }
+    """Community correlation — removed (AlphaXiv experiment obsolete)."""
     return None
 
 

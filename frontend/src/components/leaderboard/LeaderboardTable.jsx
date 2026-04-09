@@ -17,7 +17,6 @@ const COLUMN_TIPS = {
   comparisons: "Number of head-to-head LLM comparisons this paper has participated in within this set.",
   comparisons_g: "Total comparisons across ALL categories, including matches outside this filtered set.",
   published: "arXiv publication date.",
-  community_likes: "AlphaXiv community likes \u2014 a popularity metric from alphaxiv.org. Higher = more community interest (not necessarily higher quality).",
 };
 
 function SortHeader({ label, sortKey, currentSort, currentDir, onSort, className, tip }) {

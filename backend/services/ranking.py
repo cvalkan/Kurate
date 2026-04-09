@@ -420,25 +420,6 @@ SCORE_BASE_CONST = 1200  # Same base as compute_leaderboard
 
 TS_SCALE = 10.0  # Elo points per conservative-score unit for TrueSkill normalization
 
-# Community likes cache — loaded once, reused across reranks. Invalidated on data change.
-_community_likes_cache = {"data": None, "ts": 0}
-_COMMUNITY_LIKES_TTL = 300  # 5 min
-
-
-async def _get_community_likes(db) -> dict:
-    """Get community likes with caching (avoids full collection scan on every rerank)."""
-    import time
-    if _community_likes_cache["data"] is not None and (time.time() - _community_likes_cache["ts"]) < _COMMUNITY_LIKES_TTL:
-        return _community_likes_cache["data"]
-    likes = {}
-    async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
-        if doc.get("likes") is not None:
-            likes[doc["id"]] = doc["likes"]
-    _community_likes_cache["data"] = likes
-    _community_likes_cache["ts"] = time.time()
-    return likes
-
-
 def _extract_ai_rating(entry: dict) -> float | None:
     """Extract a single numeric AI rating from a ranking entry.
     
@@ -628,12 +609,6 @@ async def seed_rankings(db, category: str = None):
         from datetime import datetime, timezone
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        # Load AlphaXiv community likes
-        community_likes = {}
-        async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
-            if doc.get("likes") is not None:
-                community_likes[doc["id"]] = doc["likes"]
-
         # Compute gap scores (WR percentile - AI percentile)
         gap_scores = {}
         entries_with_both = [e for e in lb if ai_ratings.get(e["id"]) and e.get("comparisons", 0) >= 3]
@@ -677,7 +652,6 @@ async def seed_rankings(db, category: str = None):
                 "added_at": p.get("added_at") or "",
                 "categories": p.get("categories", [cat]),
                 "ai_rating": ai_ratings.get(entry["id"]),
-                "community_likes": community_likes.get(entry["id"]),
                 "gap_score": gap_scores.get(entry["id"]),
                 "updated_at": now_iso,
             }
@@ -937,9 +911,8 @@ async def rerank_category_light(db, category: str):
     ts_elo = _compute_ts_elo(entries)
     rank_wr, rank_ts = _compute_ranks(entries, ts_elo)
     gap_wr, gap_ts = _compute_gap_scores(entries, ts_elo)
-    community_likes = await _get_community_likes(db)
 
-    # Single bulk write — ranks + ts_score + gap scores + community likes
+    # Single bulk write — ranks + ts_score + gap scores
     ops = []
     for e in entries:
         pid = e["paper_id"]
@@ -953,8 +926,6 @@ async def rerank_category_light(db, category: str):
             update["gap_score"] = gap_wr[pid]
         if pid in gap_ts:
             update["gap_score_ts"] = gap_ts[pid]
-        if pid in community_likes:
-            update["community_likes"] = community_likes[pid]
         ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
@@ -1049,9 +1020,8 @@ async def rerank_category(db, category: str):
     ts_elo = _compute_ts_elo(entries)
     rank_wr, rank_ts = _compute_ranks(entries, ts_elo)
     gap_wr, gap_ts = _compute_gap_scores(entries, ts_elo)
-    community_likes = await _get_community_likes(db)
 
-    # Step 4: Single bulk write — ranks + ts_score + gap scores + community likes
+    # Step 4: Single bulk write — ranks + ts_score + gap scores
     ops = []
     for e in entries:
         pid = e["paper_id"]
@@ -1065,8 +1035,6 @@ async def rerank_category(db, category: str):
             update["gap_score"] = gap_wr[pid]
         if pid in gap_ts:
             update["gap_score_ts"] = gap_ts[pid]
-        if pid in community_likes:
-            update["community_likes"] = community_likes[pid]
         ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
