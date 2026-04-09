@@ -436,6 +436,14 @@ async def _compare_loop_inner():
                         # GC between batches to release match/paper data from completed rounds
                         from core.memlog import force_gc
                         force_gc()
+                        # Sequential reranks — one at a time with GC between to prevent memory stacking
+                        from services.ranking import rerank_category_light
+                        for cat, res in zip(batch, results):
+                            if isinstance(res, dict) and res.get("completed", 0) > 0:
+                                try:
+                                    await rerank_category_light(db, cat)
+                                except Exception as e:
+                                    logger.warning(f"[{cat}] Rankings rerank failed: {e}")
                         # Process any queued repairs from failed incremental updates
                         from services.ranking import process_repair_queue
                         repaired = await process_repair_queue(db)
@@ -1401,12 +1409,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             log_mem(f"comparison_round({category}) done (ok={completed}, fail={failed}, total={total_matches + completed})")
 
             if completed > 0:
-                # Update DB-backed rankings incrementally
-                try:
-                    from services.ranking import rerank_category_light
-                    await rerank_category_light(db, category)
-                except Exception as e:
-                    logger.warning(f"[{category}] Rankings rerank failed: {e}")
+                # DON'T rerank here — reranks run sequentially after the batch completes
+                # to prevent concurrent memory stacking. See compare loop batch handler.
                 # Signal leaderboard cache to refresh
                 from routers.leaderboard import notify_data_changed
                 notify_data_changed()

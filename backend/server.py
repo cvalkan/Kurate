@@ -344,6 +344,9 @@ async def _retry_missing_summaries():
 async def _deferred_startup():
     """Heavy startup work that runs in background after health endpoint is available."""
     await asyncio.sleep(0.1)  # Yield to let server start accepting connections
+    from core.memlog import log_mem, force_gc
+
+    log_mem("_deferred_startup: begin")
 
     # Create remaining indexes
     try:
@@ -456,6 +459,9 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
 
+    log_mem("_deferred_startup: after indexes")
+    force_gc()
+
     # Migration: remove papers whose primary category is not in active categories
     try:
         from core.auth import get_settings
@@ -478,6 +484,9 @@ async def _deferred_startup():
                 logger.info(f"Cleaned {len(invalid_papers)} papers with unsupported primary categories")
     except Exception as e:
         logger.warning(f"Migration warning: {e}")
+
+    log_mem("_deferred_startup: after category cleanup")
+    force_gc()
 
     # Migration: fix prompt variables if needed
     try:
@@ -585,6 +594,9 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"SI rating backfill warning: {e}")
 
+    log_mem("_deferred_startup: after SI rating backfill")
+    force_gc()
+
     # Import within-tier experiment matches if missing from this DB.
     # These were generated on preview and are needed for the fixed benchmark to
     # produce correct results (~6,800 pairs) on live recomputation.
@@ -609,6 +621,7 @@ async def _deferred_startup():
         logger.warning(f"Experiment match import warning: {e}")
 
     await start_scheduler()
+    log_mem("_deferred_startup: after start_scheduler")
 
     # Retry summary generation for papers that are in rankings but lack summaries
     # (these papers can't be matched until they have summaries)
@@ -630,6 +643,8 @@ async def _deferred_startup():
     # can fire the startup event before all module-level functions are defined).
     asyncio.create_task(_staggered_startup_tasks())
 
+    log_mem("_deferred_startup: all tasks launched")
+    force_gc()
     logger.info("Deferred startup complete — all background tasks launched")
 
 
