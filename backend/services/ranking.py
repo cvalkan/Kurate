@@ -791,7 +791,9 @@ async def rerank_category_light(db, category: str):
     """Lightweight rank re-sort from pre-computed scores.
     
     Both WR and TrueSkill scores are updated incrementally per-match.
-    This function just re-sorts rank numbers and normalizes TS to Elo scale.
+    This function just re-sorts rank numbers, normalizes TS to Elo scale,
+    and refreshes derived fields (gap scores, community likes).
+    Single-pass: loads rankings once for both ranking and gap computation.
     No match loading — O(P) reads + O(P) writes.
     
     Called after every comparison round.
@@ -802,12 +804,13 @@ async def rerank_category_light(db, category: str):
 
     _t0 = _time.perf_counter()
 
-    # Load all rankings for this category (lightweight projection)
+    # Single load with all fields needed for both ranking and gap computation
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
         {"_id": 0, "paper_id": 1, "score": 1, "title": 1,
-         "ts_mu": 1, "ts_sigma": 1, "wins": 1, "comparisons": 1},
+         "ts_mu": 1, "ts_sigma": 1, "wins": 1, "comparisons": 1,
+         "ts_score": 1, "si_ratings": 1, "ai_rating": 1},
     ):
         entries.append(doc)
 
@@ -870,14 +873,70 @@ async def rerank_category_light(db, category: str):
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
 
-    # Refresh derived fields (gap scores, community likes)
-    await _refresh_derived_fields(db, category)
+    # --- Compute gap scores using already-loaded entries (no second DB scan) ---
+    ai_ratings = {}
+    for e in entries:
+        si = e.get("si_ratings", {})
+        if isinstance(si, dict) and si:
+            scores = [v.get("score") for v in si.values() if isinstance(v, dict) and v.get("score")]
+            if scores:
+                ai_ratings[e["paper_id"]] = round(sum(scores) / len(scores), 1)
+        if e["paper_id"] not in ai_ratings:
+            ar = e.get("ai_rating")
+            if ar and isinstance(ar, dict) and ar.get("score"):
+                ai_ratings[e["paper_id"]] = round(ar["score"], 1)
+            elif ar and isinstance(ar, (int, float)):
+                ai_ratings[e["paper_id"]] = round(ar, 1)
+
+    gap_scores = {}
+    gap_scores_ts = {}
+    entries_with_both = [
+        e for e in entries
+        if ai_ratings.get(e["paper_id"]) and e.get("comparisons", 0) >= 3
+    ]
+    if len(entries_with_both) >= 2:
+        from scipy import stats as _sp_stats
+        import numpy as _np
+        _wr_vals = _np.array([e["score"] for e in entries_with_both])
+        _si_vals = _np.array([ai_ratings[e["paper_id"]] for e in entries_with_both])
+        _wr_pct = _sp_stats.rankdata(_wr_vals) / len(entries_with_both) * 100
+        _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
+        _gap_wr = _wr_pct - _si_pct
+        for i, entry in enumerate(entries_with_both):
+            gap_scores[entry["paper_id"]] = round(float(_gap_wr[i]), 1)
+
+        _ts_vals = _np.array([ts_elo.get(e["paper_id"], SCORE_BASE_CONST) for e in entries_with_both])
+        _ts_pct = _sp_stats.rankdata(_ts_vals) / len(entries_with_both) * 100
+        _gap_ts = _ts_pct - _si_pct
+        for i, entry in enumerate(entries_with_both):
+            gap_scores_ts[entry["paper_id"]] = round(float(_gap_ts[i]), 1)
+
+    # Community likes
+    community_likes = {}
+    async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
+        if doc.get("likes") is not None:
+            community_likes[doc["id"]] = doc["likes"]
+
+    # Bulk update gap scores and community likes
+    gap_ops = []
+    for e in entries:
+        pid = e["paper_id"]
+        update = {}
+        if pid in gap_scores:
+            update["gap_score"] = gap_scores[pid]
+        if pid in gap_scores_ts:
+            update["gap_score_ts"] = gap_scores_ts[pid]
+        if pid in community_likes:
+            update["community_likes"] = community_likes[pid]
+        if update:
+            gap_ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
+    if gap_ops:
+        await db.rankings.bulk_write(gap_ops, ordered=False)
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
 
     # Release memory before the next category's rerank can start.
-    # Without this, sequential reranks stack in memory (Python/glibc holds freed pages).
     from core.memlog import force_gc
     force_gc()
 

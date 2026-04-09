@@ -44,6 +44,36 @@ _summary_gen_progress: Dict[str, dict] = {}
 _summary_gen_stop = False
 
 
+# --- Pair-exhaustion tracking ---
+# Categories where _select_pairs returned 0 pairs are marked as exhausted.
+# They won't be retried until paper/match counts change (new data invalidates exhaustion).
+_pair_exhausted_cats: Dict[str, dict] = {}  # {category: {"papers": N, "matches": M}}
+
+
+def _mark_pair_exhausted(category: str):
+    """Mark a category as pair-exhausted (no new pairs possible)."""
+    cat_status = _get_cat_status(category)
+    _pair_exhausted_cats[category] = {
+        "papers": cat_status.get("papers_count", 0),
+        "matches": cat_status.get("matches_count", 0),
+    }
+    logger.info(f"[{category}] Marked pair-exhausted (no pairs available)")
+
+
+def _is_pair_exhausted(category: str) -> bool:
+    """Check if a category is pair-exhausted and nothing has changed since."""
+    snap = _pair_exhausted_cats.get(category)
+    if not snap:
+        return False
+    cat_status = _get_cat_status(category)
+    if (cat_status.get("papers_count", 0) != snap["papers"] or
+            cat_status.get("matches_count", 0) != snap["matches"]):
+        del _pair_exhausted_cats[category]
+        return False
+    return True
+
+
+
 def stop_summary_generation():
     """Signal all running summary generation to stop immediately."""
     global _summary_gen_stop
@@ -379,7 +409,10 @@ async def _compare_loop_inner():
                         continue
                     try:
                         if not await _check_goals_met(category=cat):
-                            unmet_cats.append(cat)
+                            if _is_pair_exhausted(cat):
+                                _get_cat_status(cat)["current_activity"] = "Pair-exhausted — waiting for new papers"
+                            else:
+                                unmet_cats.append(cat)
                     except Exception:
                         # If goals check fails (Atlas timeout), assume unmet → try to generate matches
                         unmet_cats.append(cat)
@@ -1384,6 +1417,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
                 invalidate_goals_cache(category)
                 # Recompute convergence in background (non-blocking)
                 asyncio.create_task(_recompute_convergence_bg(category))
+            elif completed == 0 and failed == 0:
+                # No matches at all — pairs exhausted for this category
+                _mark_pair_exhausted(category)
 
             return {"status": "ok", "completed": completed, "failed": failed}
 
