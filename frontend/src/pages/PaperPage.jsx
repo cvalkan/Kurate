@@ -190,6 +190,7 @@ export default function PaperPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [paperBadges, setPaperBadges] = useState([]);
+  const [activeCategories, setActiveCategories] = useState(new Set());
 
   useEffect(() => {
     const fetchPaper = async () => {
@@ -208,8 +209,16 @@ export default function PaperPage() {
         setPaperBadges(res.data.badges || []);
       } catch {}
     };
+    const fetchCategories = async () => {
+      try {
+        const res = await axios.get(`${API}/api/categories`);
+        const cats = (res.data.categories || []).map(c => c.id || c.category || c);
+        setActiveCategories(new Set(cats));
+      } catch {}
+    };
     fetchPaper();
     fetchBadges();
+    fetchCategories();
   }, [id]);
 
   if (loading) {
@@ -279,80 +288,28 @@ export default function PaperPage() {
           )}
         </div>
 
-        {/* Categories — clickable links to leaderboards */}
+        {/* Categories — clickable links to leaderboards (only if category has a leaderboard) */}
         {paper.categories && paper.categories.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 mt-3" data-testid="paper-categories">
             <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            {paper.categories.map((cat, i) => (
-              <Link
-                key={cat}
-                to={`/?category=${encodeURIComponent(cat)}`}
-                className={`inline-flex items-center text-[11px] px-2 py-0.5 rounded-md font-mono hover:opacity-80 transition-opacity ${
-                  i === 0
-                    ? "bg-primary/10 text-primary border border-primary/20 font-medium"
-                    : "bg-secondary text-muted-foreground border border-border"
-                }`}
-                data-testid={`paper-cat-${cat}`}
-              >
-                {cat}
-                {i === 0 && <span className="ml-1 text-[9px] opacity-60">(primary)</span>}
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Score Metrics — Pairwise Stats + Confidence + SI Ratings */}
-      <div className="mb-8 space-y-4" data-testid="paper-score-metrics">
-        {/* Pairwise Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="paper-stats">
-          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
-            <div className="font-mono text-2xl font-bold text-green-600">{stats.wins}</div>
-            <div className="text-xs text-muted-foreground mt-1">Wins</div>
-          </div>
-          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
-            <div className="font-mono text-2xl font-bold text-red-500">{stats.losses}</div>
-            <div className="text-xs text-muted-foreground mt-1">Losses</div>
-          </div>
-          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
-            <div className="font-mono text-2xl font-bold">{stats.comparisons}</div>
-            <div className="text-xs text-muted-foreground mt-1">Matches</div>
-          </div>
-          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
-            <div className="font-mono text-2xl font-bold text-accent">{winRate}%</div>
-            <div className="text-xs text-muted-foreground mt-1">Win Rate</div>
-          </div>
-        </div>
-
-        {/* Confidence Interval */}
-        {stats.confidence && stats.confidence.comparisons > 0 && (
-          <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="confidence-details">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Confidence Interval (95%)</h3>
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.lower_bound * 100)}%</span>
-              <div className="flex-1 h-2 bg-slate-100 rounded-full relative overflow-hidden">
-                <div
-                  className="absolute h-full bg-accent/20 rounded-full"
-                  style={{
-                    left: `${stats.confidence.lower_bound * 100}%`,
-                    width: `${(stats.confidence.upper_bound - stats.confidence.lower_bound) * 100}%`,
-                  }}
-                />
-                <div
-                  className="absolute h-full w-1.5 bg-accent rounded-full"
-                  style={{ left: `${stats.confidence.win_rate * 100}%`, transform: "translateX(-50%)" }}
-                />
-              </div>
-              <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.upper_bound * 100)}%</span>
-            </div>
-          </div>
-        )}
-
-        {/* Single-Item AI Ratings */}
-        {paper.ai_rating && (
-          <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="paper-si-ratings">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">AI Single-Item Rating</h3>
-            <RatingBadge ratings={typeof paper.ai_rating === "object" ? paper.ai_rating : { score: paper.ai_rating }} />
+            {paper.categories.map((cat, i) => {
+              const hasLeaderboard = activeCategories.has(cat);
+              const className = `inline-flex items-center text-[11px] px-2 py-0.5 rounded-md font-mono ${
+                i === 0
+                  ? "bg-primary/10 text-primary border border-primary/20 font-medium"
+                  : "bg-secondary text-muted-foreground border border-border"
+              } ${hasLeaderboard ? "hover:opacity-80 transition-opacity" : ""}`;
+              const content = <>{cat}{i === 0 && <span className="ml-1 text-[9px] opacity-60">(primary)</span>}</>;
+              return hasLeaderboard ? (
+                <Link key={cat} to={`/?category=${encodeURIComponent(cat)}`} className={className} data-testid={`paper-cat-${cat}`}>
+                  {content}
+                </Link>
+              ) : (
+                <span key={cat} className={className} data-testid={`paper-cat-${cat}`}>
+                  {content}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>
@@ -378,6 +335,59 @@ export default function PaperPage() {
           </div>
         </div>
       )}
+
+      {/* Rating (Single-Item AI Rating) */}
+      {paper.ai_rating && (
+        <div className="mb-4 p-4 bg-secondary/30 rounded-lg border border-border" data-testid="paper-si-ratings">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Rating</h3>
+          <RatingBadge ratings={typeof paper.ai_rating === "object" ? paper.ai_rating : { score: paper.ai_rating }} />
+        </div>
+      )}
+
+      {/* Pairwise Stats + Confidence */}
+      <div className="mb-8 space-y-4" data-testid="paper-score-metrics">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="paper-stats">
+          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
+            <div className="font-mono text-2xl font-bold text-green-600">{stats.wins}</div>
+            <div className="text-xs text-muted-foreground mt-1">Wins</div>
+          </div>
+          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
+            <div className="font-mono text-2xl font-bold text-red-500">{stats.losses}</div>
+            <div className="text-xs text-muted-foreground mt-1">Losses</div>
+          </div>
+          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
+            <div className="font-mono text-2xl font-bold">{stats.comparisons}</div>
+            <div className="text-xs text-muted-foreground mt-1">Matches</div>
+          </div>
+          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
+            <div className="font-mono text-2xl font-bold text-accent">{winRate}%</div>
+            <div className="text-xs text-muted-foreground mt-1">Win Rate</div>
+          </div>
+        </div>
+
+        {stats.confidence && stats.confidence.comparisons > 0 && (
+          <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="confidence-details">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Confidence Interval (95%)</h3>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.lower_bound * 100)}%</span>
+              <div className="flex-1 h-2 bg-slate-100 rounded-full relative overflow-hidden">
+                <div
+                  className="absolute h-full bg-accent/20 rounded-full"
+                  style={{
+                    left: `${stats.confidence.lower_bound * 100}%`,
+                    width: `${(stats.confidence.upper_bound - stats.confidence.lower_bound) * 100}%`,
+                  }}
+                />
+                <div
+                  className="absolute h-full w-1.5 bg-accent rounded-full"
+                  style={{ left: `${stats.confidence.win_rate * 100}%`, transform: "translateX(-50%)" }}
+                />
+              </div>
+              <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.upper_bound * 100)}%</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Abstract */}
       {paper.abstract && (
