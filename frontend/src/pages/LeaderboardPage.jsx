@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -121,7 +121,28 @@ export default function LeaderboardPage() {
   // Server-side pagination with server-side sorting.
   const PAGE_SIZE = 200;
 
+  // Client-side sorted archive leaderboard
+  const sortedArchiveLeaderboard = useMemo(() => {
+    if (!activeArchive?.leaderboard) return null;
+    const data = [...activeArchive.leaderboard];
+    const key = sortKey || "rank";
+    const dir = sortDir || "asc";
+    data.sort((a, b) => {
+      let va = a[key], vb = b[key];
+      // Handle string vs number
+      if (typeof va === "string" && typeof vb === "string") {
+        return dir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      va = va ?? (dir === "asc" ? Infinity : -Infinity);
+      vb = vb ?? (dir === "asc" ? Infinity : -Infinity);
+      return dir === "asc" ? va - vb : vb - va;
+    });
+    return data;
+  }, [activeArchive, sortKey, sortDir]);
+
+
   const fetchLeaderboard = useCallback(async () => {
+    if (activeArchive) return; // Archive data is sorted client-side
     if (!category && !isTagMode) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
@@ -313,7 +334,7 @@ export default function LeaderboardPage() {
       />
 
       <StatusBar
-        leaderboard={activeArchive ? activeArchive.leaderboard : leaderboard}
+        leaderboard={sortedArchiveLeaderboard || leaderboard}
         totalPapers={activeArchive ? activeArchive.paper_count : totalPapers}
         totalInPeriod={activeArchive ? activeArchive.paper_count : totalInPeriod}
         totalMatches={activeArchive ? activeArchive.match_count : totalMatches}
@@ -377,7 +398,7 @@ export default function LeaderboardPage() {
 
           <div className={sortPending ? "opacity-50 pointer-events-none transition-opacity duration-150" : "transition-opacity duration-150"}>
           <LeaderboardTable
-            leaderboard={activeArchive ? activeArchive.leaderboard : leaderboard}
+            leaderboard={sortedArchiveLeaderboard || leaderboard}
             loading={loading && !activeArchive} showCatCol={isTagMode}
             hasSelectedTags={hasSelectedTags} globalStats={globalStats}
             debouncedKeyword={debouncedKeyword} keyword={keyword}
