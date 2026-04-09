@@ -876,6 +876,11 @@ async def rerank_category_light(db, category: str):
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
 
+    # Release memory before the next category's rerank can start.
+    # Without this, sequential reranks stack in memory (Python/glibc holds freed pages).
+    from core.memlog import force_gc
+    force_gc()
+
 
 
 async def rerank_category(db, category: str):
@@ -966,6 +971,9 @@ async def rerank_category(db, category: str):
     _elapsed = _time.perf_counter() - _t0
     drift_msg = f", fixed {len(fix_ops)} drifted" if fix_ops else ""
     log_mem(f"rerank_category({category}) done ({len(entries)} papers, {_elapsed:.1f}s{drift_msg})")
+
+    from core.memlog import force_gc
+    force_gc()
 
 
 async def _refresh_derived_fields(db, category: str):
