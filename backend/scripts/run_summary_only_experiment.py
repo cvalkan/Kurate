@@ -147,6 +147,10 @@ async def main():
 
     # Use the global db from core.config (has Emergent key configured)
 
+    # Only run ICLR datasets
+    ICLR_ONLY = {"iclr-codegen", "iclr-fairness", "iclr-llm", "iclr-molecules",
+                 "iclr-optimization", "iclr-ot", "iclr-pdes", "iclr-protein"}
+    
     # Collect all source matches (abstract_plus_summary:thinking)
     source_matches = []
     async for m in db.validation_matches.find(
@@ -154,7 +158,8 @@ async def main():
         {"_id": 0, "id": 1, "dataset_id": 1, "paper1_id": 1, "paper2_id": 1,
          "winner_id": 1, "model_used": 1}
     ):
-        source_matches.append(m)
+        if m["dataset_id"] in ICLR_ONLY:
+            source_matches.append(m)
 
     log.info(f"Source matches ({SOURCE_MODE}): {len(source_matches)}")
 
