@@ -1395,7 +1395,14 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
 
             pause_task = asyncio.create_task(_pause_checker())
             all_tasks = [_run_one(p1, p2) for p1, p2 in pairs]
-            results = await asyncio.gather(*all_tasks, return_exceptions=True)
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.gather(*all_tasks, return_exceptions=True),
+                    timeout=300,  # 5 min max per round — prevents indefinite hangs
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"[{category}] Comparison round timed out after 300s ({completed} completed, {len(pairs)} attempted)")
+                results = []
             _paused = True  # Stop pause checker
             pause_task.cancel()
 

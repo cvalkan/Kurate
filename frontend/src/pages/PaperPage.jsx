@@ -301,7 +301,7 @@ export default function PaperPage() {
               } ${hasLeaderboard ? "hover:opacity-80 transition-opacity" : ""}`;
               const content = <>{cat}{i === 0 && <span className="ml-1 text-[9px] opacity-60">(primary)</span>}</>;
               return hasLeaderboard ? (
-                <Link key={cat} to={`/?category=${encodeURIComponent(cat)}`} className={className} data-testid={`paper-cat-${cat}`}>
+                <Link key={cat} to={`/?cat=${encodeURIComponent(cat)}`} className={className} data-testid={`paper-cat-${cat}`}>
                   {content}
                 </Link>
               ) : (
@@ -386,7 +386,7 @@ export default function PaperPage() {
 
         {stats.confidence && stats.confidence.comparisons > 0 && (
           <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="confidence-details">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Confidence Interval (95%)</h3>
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 cursor-help" title="95% Wilson confidence interval. The interval is asymmetric — at 99% win rate, ±6% means the true rate is likely between 93–100% (not 93–105%). At extreme win rates the uncertainty is mostly one-sided because win rate can't exceed 100% or go below 0%. Lower margin = more matches played = more certainty.">Confidence Interval (95%)</h3>
             <div className="flex items-center gap-3">
               <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.lower_bound * 100)}%</span>
               <div className="flex-1 h-2 bg-slate-100 rounded-full relative overflow-hidden">
