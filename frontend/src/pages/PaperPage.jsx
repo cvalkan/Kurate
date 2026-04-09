@@ -183,6 +183,72 @@ function AbstractText({ text }) {
   return <p className="text-sm leading-relaxed">{text}</p>;
 }
 
+const MATCHES_PER_PAGE = 20;
+
+function ComparisonHistory({ matches }) {
+  const [showCount, setShowCount] = useState(MATCHES_PER_PAGE);
+  const validMatches = useMemo(() => matches.filter(m => !m.failed), [matches]);
+  const visible = validMatches.slice(0, showCount);
+  const remaining = validMatches.length - showCount;
+
+  return (
+    <div data-testid="comparison-logs">
+      <h2 className="font-heading text-lg font-medium mb-4">
+        Comparison History ({validMatches.length})
+      </h2>
+
+      {validMatches.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No comparisons yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {visible.map((match) => (
+            <div
+              key={match.id}
+              className="p-3 border border-border rounded-lg hover:bg-secondary/20 transition-colors"
+              data-testid={`match-${match.id}`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {match.won ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                  )}
+                  <span className="text-sm truncate">
+                    vs. <span className="font-medium">{match.opponent_title}</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <ModelBadge model={match.model_used} />
+                  {match.created_at && (
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {new Date(match.created_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {match.reasoning && (
+                <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+                  {match.reasoning}
+                </p>
+              )}
+            </div>
+          ))}
+          {remaining > 0 && (
+            <button
+              onClick={() => setShowCount(prev => prev + MATCHES_PER_PAGE)}
+              className="w-full py-3 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-secondary/20 transition-colors"
+              data-testid="load-more-matches"
+            >
+              Show more ({remaining} remaining)
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PaperPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -491,51 +557,7 @@ export default function PaperPage() {
       ) : null}
 
       {/* Comparison Logs */}
-      <div data-testid="comparison-logs">
-        <h2 className="font-heading text-lg font-medium mb-4">
-          Comparison History ({matches.length})
-        </h2>
-
-        {matches.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No comparisons yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {matches.filter(m => !m.failed).map((match) => (
-              <div
-                key={match.id}
-                className="p-3 border border-border rounded-lg hover:bg-secondary/20 transition-colors"
-                data-testid={`match-${match.id}`}
-              >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    {match.won ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                    )}
-                    <span className="text-sm truncate">
-                      vs. <span className="font-medium">{match.opponent_title}</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <ModelBadge model={match.model_used} />
-                    {match.created_at && (
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {new Date(match.created_at).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {match.reasoning && (
-                  <p className="text-xs text-muted-foreground leading-relaxed pl-6">
-                    {match.reasoning}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <ComparisonHistory matches={matches} />
     </div>
   );
 }
