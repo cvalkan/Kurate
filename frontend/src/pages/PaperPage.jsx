@@ -405,29 +405,42 @@ export default function PaperPage() {
 
       {/* Rating */}
       {(() => {
-        // Try to get structured ratings: first from paper.ai_rating, then from first summary's inline ratings
+        // Try to get structured ratings from multiple sources
         let ratings = null;
+        
+        // Source 1: paper.ai_rating if it's a structured object
         if (paper.ai_rating && typeof paper.ai_rating === "object" && paper.ai_rating.score) {
           ratings = paper.ai_rating;
-        } else {
-          // Try extracting from the primary (Claude) summary
+        }
+        // Source 2: paper.ai_ratings_by_model (per-model structured ratings)
+        if (!ratings && paper.ai_ratings_by_model) {
+          const byModel = paper.ai_ratings_by_model;
+          const preferred = byModel.claude || byModel.anthropic || byModel.gpt || byModel.gemini;
+          if (preferred && typeof preferred === "object" && preferred.score) {
+            ratings = preferred;
+          }
+        }
+        // Source 3: Extract from primary summary text
+        if (!ratings && summaryEntries.length > 0) {
           const primaryEntry = summaryEntries.find(e => e.provider === "anthropic") || summaryEntries[0];
           if (primaryEntry) {
             const [, inlineRatings] = extractRatingsFromSummary(primaryEntry.text);
             if (inlineRatings) ratings = inlineRatings;
           }
-          // Fall back to plain numeric rating
-          if (!ratings && paper.ai_rating) {
-            ratings = { score: typeof paper.ai_rating === "number" ? paper.ai_rating : paper.ai_rating };
-          }
         }
-        if (!ratings) return null;
+        // Source 4: Plain numeric ai_rating (no sub-scores)
+        if (!ratings && paper.ai_rating) {
+          ratings = { score: typeof paper.ai_rating === "number" ? paper.ai_rating : parseFloat(paper.ai_rating) || null };
+        }
+        if (!ratings || !ratings.score) return null;
+        
         const dims = [
           { key: "significance", label: "Significance", color: "bg-blue-100 text-blue-700" },
           { key: "rigor", label: "Rigor", color: "bg-emerald-100 text-emerald-700" },
           { key: "novelty", label: "Novelty", color: "bg-violet-100 text-violet-700" },
           { key: "clarity", label: "Clarity", color: "bg-amber-100 text-amber-700" },
         ];
+        const hasSubs = dims.some(d => ratings[d.key]);
         return (
           <div className="mb-4 p-4 bg-secondary/30 rounded-lg border border-border" data-testid="paper-si-ratings">
             <div className="flex items-center gap-4 flex-wrap">
@@ -436,7 +449,7 @@ export default function PaperPage() {
                 <span className="text-lg font-semibold">{ratings.score}</span>
                 <span className="text-sm text-muted-foreground">/ 10</span>
               </div>
-              {dims.map(d => ratings[d.key] ? (
+              {hasSubs && dims.map(d => ratings[d.key] ? (
                 <span key={d.key} className={`text-xs px-2 py-1 rounded ${d.color}`}>
                   {d.label} {ratings[d.key]}
                 </span>
