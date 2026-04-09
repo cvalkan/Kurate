@@ -117,12 +117,12 @@ function RatingBadge({ ratings }) {
     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30 flex-wrap" data-testid="summary-ratings">
       <div className="flex items-center gap-1">
         <span className="text-[10px] text-muted-foreground">Rating:</span>
-        <span className="text-sm font-mono font-bold">{ratings.score}</span>
+        <span className="text-sm font-semibold">{ratings.score}</span>
         <span className="text-[10px] text-muted-foreground">/ 10</span>
       </div>
       <div className="flex gap-1 flex-wrap">
         {dims.map(d => ratings[d.key] ? (
-          <span key={d.key} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${d.color}`}>
+          <span key={d.key} className={`text-[9px] px-1.5 py-0.5 rounded ${d.color}`}>
             {d.label} {ratings[d.key]}
           </span>
         ) : null)}
