@@ -62,10 +62,11 @@ export default function LeaderboardPage() {
   const isTagMode = tagFilterOpen || hasSelectedTags;
 
   const handleSort = (key) => {
-    // Block loadMore during the async gap (prevents race condition)
-    // but keep showing current data (no empty flash)
-    setSortPending(true);
-    setNextCursor(null);
+    if (!activeArchive) {
+      // Server-side sort: block loadMore during the async gap
+      setSortPending(true);
+      setNextCursor(null);
+    }
     if (sortKey === key) {
       setSortDir(d => d === "asc" ? "desc" : "asc");
     } else {
