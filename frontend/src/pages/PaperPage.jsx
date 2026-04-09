@@ -336,13 +336,32 @@ export default function PaperPage() {
         </div>
       )}
 
-      {/* Rating (Single-Item AI Rating) */}
-      {paper.ai_rating && (
-        <div className="mb-4 p-4 bg-secondary/30 rounded-lg border border-border" data-testid="paper-si-ratings">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Rating</h3>
-          <RatingBadge ratings={typeof paper.ai_rating === "object" ? paper.ai_rating : { score: paper.ai_rating }} />
-        </div>
-      )}
+      {/* Rating */}
+      {paper.ai_rating && (() => {
+        const ratings = typeof paper.ai_rating === "object" ? paper.ai_rating : { score: paper.ai_rating };
+        const dims = [
+          { key: "significance", label: "Significance", color: "bg-blue-100 text-blue-700" },
+          { key: "rigor", label: "Rigor", color: "bg-emerald-100 text-emerald-700" },
+          { key: "novelty", label: "Novelty", color: "bg-violet-100 text-violet-700" },
+          { key: "clarity", label: "Clarity", color: "bg-amber-100 text-amber-700" },
+        ];
+        return (
+          <div className="mb-4 p-4 bg-secondary/30 rounded-lg border border-border" data-testid="paper-si-ratings">
+            <div className="flex items-center gap-4 flex-wrap">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rating</h3>
+              <div className="flex items-center gap-1.5">
+                <span className="text-lg font-mono font-bold">{ratings.score}</span>
+                <span className="text-sm text-muted-foreground">/ 10</span>
+              </div>
+              {dims.map(d => ratings[d.key] ? (
+                <span key={d.key} className={`text-xs px-2 py-1 rounded font-mono ${d.color}`}>
+                  {d.label} {ratings[d.key]}
+                </span>
+              ) : null)}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Pairwise Stats + Confidence */}
       <div className="mb-8 space-y-4" data-testid="paper-score-metrics">
