@@ -418,6 +418,123 @@ def wilson_margin_pct(wins, comparisons):
 SCORE_BASE_CONST = 1200  # Same base as compute_leaderboard
 
 
+TS_SCALE = 10.0  # Elo points per conservative-score unit for TrueSkill normalization
+
+# Community likes cache — loaded once, reused across reranks. Invalidated on data change.
+_community_likes_cache = {"data": None, "ts": 0}
+_COMMUNITY_LIKES_TTL = 300  # 5 min
+
+
+async def _get_community_likes(db) -> dict:
+    """Get community likes with caching (avoids full collection scan on every rerank)."""
+    import time
+    if _community_likes_cache["data"] is not None and (time.time() - _community_likes_cache["ts"]) < _COMMUNITY_LIKES_TTL:
+        return _community_likes_cache["data"]
+    likes = {}
+    async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
+        if doc.get("likes") is not None:
+            likes[doc["id"]] = doc["likes"]
+    _community_likes_cache["data"] = likes
+    _community_likes_cache["ts"] = time.time()
+    return likes
+
+
+def _extract_ai_rating(entry: dict) -> float | None:
+    """Extract a single numeric AI rating from a ranking entry.
+    
+    Priority: averaged si_ratings > ai_rating dict > ai_rating scalar.
+    Returns None if no valid rating found.
+    """
+    si = entry.get("si_ratings", {})
+    if isinstance(si, dict) and si:
+        scores = [v.get("score") for v in si.values() if isinstance(v, dict) and v.get("score")]
+        if scores:
+            return round(sum(scores) / len(scores), 1)
+    ar = entry.get("ai_rating")
+    if ar and isinstance(ar, dict) and ar.get("score"):
+        return round(ar["score"], 1)
+    if ar and isinstance(ar, (int, float)):
+        return round(ar, 1)
+    return None
+
+
+def _compute_ts_elo(entries: list) -> dict:
+    """Normalize TrueSkill mu/sigma to Elo-like scale for all entries.
+    
+    Uses mu - 3*sigma (conservative score, standard TrueSkill ranking).
+    Default: mu=25, sigma=25/3≈8.33 → conservative=0 → ts_score=1200
+    """
+    ts_elo = {}
+    for e in entries:
+        raw_mu = e.get("ts_mu", 25.0)
+        raw_sigma = e.get("ts_sigma", 25.0 / 3)
+        if raw_mu is not None:
+            conservative = raw_mu - 3 * raw_sigma
+            ts_elo[e["paper_id"]] = round(conservative * TS_SCALE + SCORE_BASE_CONST)
+        else:
+            ts_elo[e["paper_id"]] = SCORE_BASE_CONST
+    return ts_elo
+
+
+def _compute_ranks(entries: list, ts_elo: dict) -> tuple:
+    """Sort entries by WR score and TS score, return (rank_wr, rank_ts) dicts."""
+    import hashlib
+    wr_sorted = sorted(
+        entries,
+        key=lambda e: (e.get("score", SCORE_BASE_CONST),
+                       hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest()),
+        reverse=True,
+    )
+    rank_wr = {e["paper_id"]: rank for rank, e in enumerate(wr_sorted, 1)}
+
+    ts_sorted = sorted(
+        entries,
+        key=lambda e: (ts_elo.get(e["paper_id"], SCORE_BASE_CONST),
+                       hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest()),
+        reverse=True,
+    )
+    rank_ts = {e["paper_id"]: rank for rank, e in enumerate(ts_sorted, 1)}
+
+    return rank_wr, rank_ts
+
+
+def _compute_gap_scores(entries: list, ts_elo: dict) -> tuple:
+    """Compute WR and TS gap scores (percentile difference vs AI rating).
+    
+    Returns (gap_scores_wr, gap_scores_ts) dicts.
+    """
+    ai_ratings = {}
+    for e in entries:
+        rating = _extract_ai_rating(e)
+        if rating is not None:
+            ai_ratings[e["paper_id"]] = rating
+
+    gap_wr = {}
+    gap_ts = {}
+    entries_with_both = [
+        e for e in entries
+        if ai_ratings.get(e["paper_id"]) and e.get("comparisons", 0) >= 3
+    ]
+    if len(entries_with_both) >= 2:
+        import numpy as _np
+        _wr_vals = _np.array([e["score"] for e in entries_with_both])
+        _si_vals = _np.array([ai_ratings[e["paper_id"]] for e in entries_with_both])
+        _wr_pct = scipy_stats.rankdata(_wr_vals) / len(entries_with_both) * 100
+        _si_pct = scipy_stats.rankdata(_si_vals) / len(entries_with_both) * 100
+        _gap_wr_raw = _wr_pct - _si_pct
+        for i, entry in enumerate(entries_with_both):
+            gap_wr[entry["paper_id"]] = round(float(_gap_wr_raw[i]), 1)
+
+        _ts_vals = _np.array([ts_elo.get(e["paper_id"], SCORE_BASE_CONST) for e in entries_with_both])
+        _ts_pct = scipy_stats.rankdata(_ts_vals) / len(entries_with_both) * 100
+        _gap_ts_raw = _ts_pct - _si_pct
+        for i, entry in enumerate(entries_with_both):
+            gap_ts[entry["paper_id"]] = round(float(_gap_ts_raw[i]), 1)
+
+    return gap_wr, gap_ts
+
+
+
 def compute_paper_score(wins: int, comparisons: int) -> dict:
     """Compute score, CI, wilson_margin, win_rate for a single paper.
     
@@ -793,150 +910,58 @@ async def rerank_category_light(db, category: str):
     Both WR and TrueSkill scores are updated incrementally per-match.
     This function just re-sorts rank numbers, normalizes TS to Elo scale,
     and refreshes derived fields (gap scores, community likes).
-    Single-pass: loads rankings once for both ranking and gap computation.
+    Single-pass: loads rankings once, computes everything, writes once.
     No match loading — O(P) reads + O(P) writes.
     
     Called after every comparison round.
     """
-    import hashlib
     from core.memlog import log_mem
     import time as _time
+    from pymongo import UpdateOne
 
     _t0 = _time.perf_counter()
 
-    # Single load with all fields needed for both ranking and gap computation
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
         {"_id": 0, "paper_id": 1, "score": 1, "title": 1,
          "ts_mu": 1, "ts_sigma": 1, "wins": 1, "comparisons": 1,
-         "ts_score": 1, "si_ratings": 1, "ai_rating": 1},
+         "si_ratings": 1, "ai_rating": 1},
     ):
         entries.append(doc)
 
     if not entries:
         return
 
-    # --- Normalize TrueSkill to Elo-like scale using conservative score ---
-    # Uses mu - 3*sigma (standard TrueSkill ranking approach, used by Xbox/chess).
-    # Fixed scale factor (no population dependency) → stable under new paper additions.
-    # Default: mu=25, sigma=25/3≈8.33 → conservative=0 → ts_score=1200
-    # Strong paper: mu=40, sigma=2 → conservative=34 → ts_score=1540
-    # Weak paper: mu=15, sigma=2 → conservative=9 → ts_score=1090
-    TS_SCALE = 10.0  # Elo points per conservative-score unit
-    ts_elo = {}
-    for e in entries:
-        raw_mu = e.get("ts_mu", 25.0)
-        raw_sigma = e.get("ts_sigma", 25.0 / 3)
-        if raw_mu is not None:
-            conservative = raw_mu - 3 * raw_sigma
-            ts_elo[e["paper_id"]] = round(conservative * TS_SCALE + SCORE_BASE_CONST)
-        else:
-            ts_elo[e["paper_id"]] = SCORE_BASE_CONST
+    # Compute all derived values
+    ts_elo = _compute_ts_elo(entries)
+    rank_wr, rank_ts = _compute_ranks(entries, ts_elo)
+    gap_wr, gap_ts = _compute_gap_scores(entries, ts_elo)
+    community_likes = await _get_community_likes(db)
 
-    # --- Sort by WR score → assign rank_wr ---
-    wr_sorted = sorted(
-        entries,
-        key=lambda e: (
-            e.get("score", SCORE_BASE_CONST),
-            hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest(),
-        ),
-        reverse=True,
-    )
-    rank_wr = {e["paper_id"]: rank for rank, e in enumerate(wr_sorted, 1)}
-
-    # --- Sort by TS Elo → assign rank_ts ---
-    ts_sorted = sorted(
-        entries,
-        key=lambda e: (
-            ts_elo.get(e["paper_id"], SCORE_BASE_CONST),
-            hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest(),
-        ),
-        reverse=True,
-    )
-    rank_ts = {e["paper_id"]: rank for rank, e in enumerate(ts_sorted, 1)}
-
-    # --- Bulk write: ts_score, rank (WR-based, default), rank_wr, rank_ts ---
-    from pymongo import UpdateOne
+    # Single bulk write — ranks + ts_score + gap scores + community likes
     ops = []
     for e in entries:
         pid = e["paper_id"]
-        ops.append(UpdateOne(
-            {"paper_id": pid, "category": category},
-            {"$set": {
-                "ts_score": ts_elo.get(pid, SCORE_BASE_CONST),
-                "rank": rank_wr[pid],          # Default rank = WR-based
-                "rank_wr": rank_wr[pid],
-                "rank_ts": rank_ts[pid],
-            }},
-        ))
-    if ops:
-        await db.rankings.bulk_write(ops, ordered=False)
-
-    # --- Compute gap scores using already-loaded entries (no second DB scan) ---
-    ai_ratings = {}
-    for e in entries:
-        si = e.get("si_ratings", {})
-        if isinstance(si, dict) and si:
-            scores = [v.get("score") for v in si.values() if isinstance(v, dict) and v.get("score")]
-            if scores:
-                ai_ratings[e["paper_id"]] = round(sum(scores) / len(scores), 1)
-        if e["paper_id"] not in ai_ratings:
-            ar = e.get("ai_rating")
-            if ar and isinstance(ar, dict) and ar.get("score"):
-                ai_ratings[e["paper_id"]] = round(ar["score"], 1)
-            elif ar and isinstance(ar, (int, float)):
-                ai_ratings[e["paper_id"]] = round(ar, 1)
-
-    gap_scores = {}
-    gap_scores_ts = {}
-    entries_with_both = [
-        e for e in entries
-        if ai_ratings.get(e["paper_id"]) and e.get("comparisons", 0) >= 3
-    ]
-    if len(entries_with_both) >= 2:
-        from scipy import stats as _sp_stats
-        import numpy as _np
-        _wr_vals = _np.array([e["score"] for e in entries_with_both])
-        _si_vals = _np.array([ai_ratings[e["paper_id"]] for e in entries_with_both])
-        _wr_pct = _sp_stats.rankdata(_wr_vals) / len(entries_with_both) * 100
-        _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
-        _gap_wr = _wr_pct - _si_pct
-        for i, entry in enumerate(entries_with_both):
-            gap_scores[entry["paper_id"]] = round(float(_gap_wr[i]), 1)
-
-        _ts_vals = _np.array([ts_elo.get(e["paper_id"], SCORE_BASE_CONST) for e in entries_with_both])
-        _ts_pct = _sp_stats.rankdata(_ts_vals) / len(entries_with_both) * 100
-        _gap_ts = _ts_pct - _si_pct
-        for i, entry in enumerate(entries_with_both):
-            gap_scores_ts[entry["paper_id"]] = round(float(_gap_ts[i]), 1)
-
-    # Community likes
-    community_likes = {}
-    async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
-        if doc.get("likes") is not None:
-            community_likes[doc["id"]] = doc["likes"]
-
-    # Bulk update gap scores and community likes
-    gap_ops = []
-    for e in entries:
-        pid = e["paper_id"]
-        update = {}
-        if pid in gap_scores:
-            update["gap_score"] = gap_scores[pid]
-        if pid in gap_scores_ts:
-            update["gap_score_ts"] = gap_scores_ts[pid]
+        update = {
+            "ts_score": ts_elo.get(pid, SCORE_BASE_CONST),
+            "rank": rank_wr[pid],
+            "rank_wr": rank_wr[pid],
+            "rank_ts": rank_ts[pid],
+        }
+        if pid in gap_wr:
+            update["gap_score"] = gap_wr[pid]
+        if pid in gap_ts:
+            update["gap_score_ts"] = gap_ts[pid]
         if pid in community_likes:
             update["community_likes"] = community_likes[pid]
-        if update:
-            gap_ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
-    if gap_ops:
-        await db.rankings.bulk_write(gap_ops, ordered=False)
+        ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
+    if ops:
+        await db.rankings.bulk_write(ops, ordered=False)
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
 
-    # Release memory before the next category's rerank can start.
     from core.memlog import force_gc
     force_gc()
 
@@ -945,19 +970,22 @@ async def rerank_category_light(db, category: str):
 async def rerank_category(db, category: str):
     """Full rank recompute with win/loss count verification.
     
-    Expensive: runs $facet aggregation over ALL matches. Only use for
-    admin-triggered reconciliation, not after every comparison round.
+    Expensive: runs $facet aggregation over ALL matches to verify actual
+    win/loss counts against stored values. Fixes any drift.
+    Then re-sorts ranks using the same logic as rerank_category_light.
+    
+    Only use for admin-triggered reconciliation, not after every comparison round.
     """
     import hashlib
     from core.memlog import log_mem
     import time as _time
+    from pymongo import UpdateOne
 
     _t0 = _time.perf_counter()
-    _m0 = log_mem(f"rerank_category({category}) start") or 0
+    log_mem(f"rerank_category({category}) start")
 
     # Step 1: Compute actual win/loss counts from matches via aggregation
     actual_stats = {}
-    # Count comparisons per paper
     async for doc in db.matches.aggregate([
         {"$match": {"completed": True, "failed": {"$ne": True},
                      "primary_category": category, "mode": {"$exists": False}}},
@@ -983,22 +1011,20 @@ async def rerank_category(db, category: str):
             actual_stats[pid]["wins"] += entry["wins"]
             actual_stats[pid]["comparisons"] += entry["total"]
 
-    # Step 2: Fetch all rankings, fix counts if drifted, collect for sorting
+    # Step 2: Load all rankings, fix drifted counts
     entries = []
-    from pymongo import UpdateOne
     fix_ops = []
+    drifted_papers = 0
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "score": 1, "title": 1, "wins": 1, "comparisons": 1}
+        {"_id": 0, "paper_id": 1, "score": 1, "title": 1, "wins": 1, "comparisons": 1,
+         "ts_mu": 1, "ts_sigma": 1, "si_ratings": 1, "ai_rating": 1},
     ):
         pid = doc["paper_id"]
-        title_hash = hashlib.sha256(doc.get("title", pid).encode()).hexdigest()
-
         actual = actual_stats.get(pid, {"wins": 0, "comparisons": 0})
         a_wins = actual["wins"]
         a_comp = actual["comparisons"]
 
-        # Fix drift if detected
         if doc.get("wins", 0) != a_wins or doc.get("comparisons", 0) != a_comp:
             new_stats = compute_paper_score(a_wins, a_comp)
             fix_ops.append(UpdateOne(
@@ -1006,105 +1032,53 @@ async def rerank_category(db, category: str):
                 {"$set": {"wins": a_wins, "losses": a_comp - a_wins,
                           "comparisons": a_comp, **new_stats}},
             ))
-            entries.append((pid, new_stats.get("score", SCORE_BASE_CONST), title_hash))
-        else:
-            entries.append((pid, doc["score"], title_hash))
+            doc["score"] = new_stats.get("score", SCORE_BASE_CONST)
+            doc["wins"] = a_wins
+            doc["comparisons"] = a_comp
+            drifted_papers += 1
+
+        entries.append(doc)
 
     if fix_ops:
         await db.rankings.bulk_write(fix_ops, ordered=False)
 
-    # Step 3: Sort and assign ranks
-    entries.sort(key=lambda e: (e[1], e[2]), reverse=True)
-    rank_ops = []
-    for rank, (paper_id, _, _) in enumerate(entries, 1):
-        rank_ops.append(UpdateOne(
-            {"paper_id": paper_id, "category": category},
-            {"$set": {"rank": rank}},
-        ))
-    if rank_ops:
-        await db.rankings.bulk_write(rank_ops, ordered=False)
+    if not entries:
+        return
 
-    # Refresh gap_score and community_likes
-    await _refresh_derived_fields(db, category)
+    # Step 3: Compute all derived values (same as light version)
+    ts_elo = _compute_ts_elo(entries)
+    rank_wr, rank_ts = _compute_ranks(entries, ts_elo)
+    gap_wr, gap_ts = _compute_gap_scores(entries, ts_elo)
+    community_likes = await _get_community_likes(db)
+
+    # Step 4: Single bulk write — ranks + ts_score + gap scores + community likes
+    ops = []
+    for e in entries:
+        pid = e["paper_id"]
+        update = {
+            "ts_score": ts_elo.get(pid, SCORE_BASE_CONST),
+            "rank": rank_wr[pid],
+            "rank_wr": rank_wr[pid],
+            "rank_ts": rank_ts[pid],
+        }
+        if pid in gap_wr:
+            update["gap_score"] = gap_wr[pid]
+        if pid in gap_ts:
+            update["gap_score_ts"] = gap_ts[pid]
+        if pid in community_likes:
+            update["community_likes"] = community_likes[pid]
+        ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
+    if ops:
+        await db.rankings.bulk_write(ops, ordered=False)
 
     _elapsed = _time.perf_counter() - _t0
-    drift_msg = f", fixed {len(fix_ops)} drifted" if fix_ops else ""
+    drift_msg = f", fixed {drifted_papers} drifted" if drifted_papers else ""
     log_mem(f"rerank_category({category}) done ({len(entries)} papers, {_elapsed:.1f}s{drift_msg})")
 
     from core.memlog import force_gc
     force_gc()
 
 
-async def _refresh_derived_fields(db, category: str):
-    """Refresh gap_score, gap_score_ts, and community_likes for a category after reranking."""
-
-    # Load community likes
-    community_likes = {}
-    async for doc in db.alphaxiv_likes.find({}, {"_id": 0, "id": 1, "likes": 1}):
-        if doc.get("likes") is not None:
-            community_likes[doc["id"]] = doc["likes"]
-
-    # Load rankings with stored SI ratings (no papers collection needed)
-    rankings = []
-    ai_ratings = {}
-    async for r in db.rankings.find(
-        {"category": category},
-        {"_id": 0, "paper_id": 1, "score": 1, "ts_score": 1, "comparisons": 1, "si_ratings": 1, "ai_rating": 1}
-    ):
-        rankings.append(r)
-        # Get SI score: prefer si_ratings (averaged), fall back to ai_rating
-        si = r.get("si_ratings", {})
-        if isinstance(si, dict) and si:
-            scores = [v.get("score") for v in si.values() if isinstance(v, dict) and v.get("score")]
-            if scores:
-                ai_ratings[r["paper_id"]] = round(sum(scores) / len(scores), 1)
-        if r["paper_id"] not in ai_ratings:
-            ar = r.get("ai_rating")
-            if ar and isinstance(ar, dict) and ar.get("score"):
-                ai_ratings[r["paper_id"]] = round(ar["score"], 1)
-            elif ar and isinstance(ar, (int, float)):
-                ai_ratings[r["paper_id"]] = round(ar, 1)
-
-    gap_scores = {}
-    gap_scores_ts = {}
-    entries_with_both = [
-        e for e in rankings
-        if ai_ratings.get(e["paper_id"]) and e.get("comparisons", 0) >= 3
-    ]
-    if len(entries_with_both) >= 2:
-        from scipy import stats as _sp_stats
-        import numpy as _np
-        _wr_vals = _np.array([e["score"] for e in entries_with_both])
-        _si_vals = _np.array([ai_ratings[e["paper_id"]] for e in entries_with_both])
-        _wr_pct = _sp_stats.rankdata(_wr_vals) / len(entries_with_both) * 100
-        _si_pct = _sp_stats.rankdata(_si_vals) / len(entries_with_both) * 100
-        _gap_wr = _wr_pct - _si_pct
-        for i, entry in enumerate(entries_with_both):
-            gap_scores[entry["paper_id"]] = round(float(_gap_wr[i]), 1)
-
-        # TS-based gap
-        _ts_vals = _np.array([e.get("ts_score", e["score"]) for e in entries_with_both])
-        _ts_pct = _sp_stats.rankdata(_ts_vals) / len(entries_with_both) * 100
-        _gap_ts = _ts_pct - _si_pct
-        for i, entry in enumerate(entries_with_both):
-            gap_scores_ts[entry["paper_id"]] = round(float(_gap_ts[i]), 1)
-
-    # Bulk update
-    from pymongo import UpdateOne
-    ops = []
-    for r in rankings:
-        pid = r["paper_id"]
-        update = {}
-        if pid in gap_scores:
-            update["gap_score"] = gap_scores[pid]
-        if pid in gap_scores_ts:
-            update["gap_score_ts"] = gap_scores_ts[pid]
-        if pid in community_likes:
-            update["community_likes"] = community_likes[pid]
-        if update:
-            ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
-    if ops:
-        await db.rankings.bulk_write(ops, ordered=False)
 
 
 async def insert_ranking_for_paper(db, paper_doc: dict):
