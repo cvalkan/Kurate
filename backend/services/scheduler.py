@@ -423,7 +423,7 @@ async def _compare_loop_inner():
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
                     for i in range(0, len(unmet_cats), batch_size):
                         batch = unmet_cats[i:i+batch_size]
-                        tasks = [run_comparison_round(category=cat) for cat in batch]
+                        tasks = [run_comparison_round(category=cat, skip_rerank=True) for cat in batch]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
                         # Record per-category results for diagnostics
                         for cat, res in zip(batch, results):
@@ -1182,7 +1182,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
 
 
-async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO"):
+async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO", skip_rerank: bool = False):
     from core.memlog import log_mem
     lock = _get_lock(category)
     if lock.locked():
@@ -1409,8 +1409,13 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO")
             log_mem(f"comparison_round({category}) done (ok={completed}, fail={failed}, total={total_matches + completed})")
 
             if completed > 0:
-                # DON'T rerank here — reranks run sequentially after the batch completes
-                # to prevent concurrent memory stacking. See compare loop batch handler.
+                # Rerank unless caller will handle it (compare loop does sequential reranks)
+                if not skip_rerank:
+                    try:
+                        from services.ranking import rerank_category_light
+                        await rerank_category_light(db, category)
+                    except Exception as e:
+                        logger.warning(f"[{category}] Rankings rerank failed: {e}")
                 # Signal leaderboard cache to refresh
                 from routers.leaderboard import notify_data_changed
                 notify_data_changed()
