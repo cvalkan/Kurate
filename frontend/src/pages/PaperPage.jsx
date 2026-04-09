@@ -4,7 +4,7 @@ import axios from "axios";
 import DOMPurify from "dompurify";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
   ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2, Bookmark,
@@ -403,14 +403,16 @@ export default function PaperPage() {
 
         {stats.confidence && stats.confidence.comparisons > 0 && (
           <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="confidence-details">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 cursor-help">Confidence Interval (95%)</h3>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                <p className="text-xs">95% Wilson confidence interval half-width. The interval is asymmetric — at 99% win rate, ±6% means the true rate is likely between 93–100% (not 93–105%). At extreme win rates the uncertainty is mostly one-sided because win rate can't exceed 100% or go below 0%. Lower margin = more matches played = more certainty.</p>
-              </TooltipContent>
-            </Tooltip>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 cursor-help">Confidence Interval (95%)</h3>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p className="text-xs">95% Wilson confidence interval half-width. The interval is asymmetric — at 99% win rate, ±6% means the true rate is likely between 93–100% (not 93–105%). At extreme win rates the uncertainty is mostly one-sided because win rate can't exceed 100% or go below 0%. Lower margin = more matches played = more certainty.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="flex items-center gap-3">
               <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.lower_bound * 100)}%</span>
               <div className="flex-1 h-2 bg-slate-100 rounded-full relative overflow-hidden">
