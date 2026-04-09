@@ -553,48 +553,11 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"Tournament registry init warning: {e}")
 
-    # Migration: backfill per-model SI ratings from existing summaries + ai_rating
-    # Idempotent: skips papers that already have ratings. No LLM calls — just text parsing.
-    try:
-        from services.llm import parse_ratings_from_summary
-        _MODEL_MAP = {
-            "openai:gpt-5_2": "gpt",
-            "gemini:gemini-3-pro-preview": "gemini",
-            "anthropic:claude-opus-4-6:thinking": "claude",
-            "anthropic:claude-opus-4-6": "claude",
-            "anthropic:claude-opus-4-5-20251101": "claude",
-        }
-        # Step 1: Copy ai_rating → ai_ratings_by_model.claude
-        r1 = await db.papers.update_many(
-            {"ai_rating": {"$exists": True}, "ai_ratings_by_model.claude": {"$exists": False}},
-            [{"$set": {"ai_ratings_by_model.claude": "$ai_rating"}}]
-        )
-        # Step 2: Parse ratings from all model summaries
-        _backfill_parsed = 0
-        async for p in db.papers.find(
-            {"summaries": {"$exists": True, "$ne": {}}},
-            {"_id": 0, "id": 1, "summaries": 1, "ai_ratings_by_model": 1}
-        ):
-            existing = p.get("ai_ratings_by_model", {}) or {}
-            update = {}
-            for sk, text in p.get("summaries", {}).items():
-                ms = _MODEL_MAP.get(sk)
-                if not ms or not isinstance(text, str):
-                    continue
-                if ms in existing and isinstance(existing.get(ms), dict) and existing[ms].get("score"):
-                    continue
-                rating = parse_ratings_from_summary(text)
-                if rating:
-                    update[f"ai_ratings_by_model.{ms}"] = rating
-                    _backfill_parsed += 1
-            if update:
-                await db.papers.update_one({"id": p["id"]}, {"$set": update})
-        if r1.modified_count or _backfill_parsed:
-            logger.info(f"SI rating backfill: {r1.modified_count} claude copied, {_backfill_parsed} parsed from summaries")
-    except Exception as e:
-        logger.warning(f"SI rating backfill warning: {e}")
+    # NOTE: SI rating backfill removed Apr 9, 2026.
+    # Was a one-time migration that loaded ALL paper summaries (~90 MB) on every startup.
+    # All papers now have ai_ratings_by_model populated during summary generation.
 
-    log_mem("_deferred_startup: after SI rating backfill")
+    log_mem("_deferred_startup: after migrations")
     force_gc()
 
     # Import within-tier experiment matches if missing from this DB.
