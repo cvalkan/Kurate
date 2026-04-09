@@ -337,8 +337,24 @@ export default function PaperPage() {
       )}
 
       {/* Rating */}
-      {paper.ai_rating && (() => {
-        const ratings = typeof paper.ai_rating === "object" ? paper.ai_rating : { score: paper.ai_rating };
+      {(() => {
+        // Try to get structured ratings: first from paper.ai_rating, then from first summary's inline ratings
+        let ratings = null;
+        if (paper.ai_rating && typeof paper.ai_rating === "object" && paper.ai_rating.score) {
+          ratings = paper.ai_rating;
+        } else {
+          // Try extracting from the primary (Claude) summary
+          const primaryEntry = summaryEntries.find(e => e.provider === "anthropic") || summaryEntries[0];
+          if (primaryEntry) {
+            const [, inlineRatings] = extractRatingsFromSummary(primaryEntry.text);
+            if (inlineRatings) ratings = inlineRatings;
+          }
+          // Fall back to plain numeric rating
+          if (!ratings && paper.ai_rating) {
+            ratings = { score: typeof paper.ai_rating === "number" ? paper.ai_rating : paper.ai_rating };
+          }
+        }
+        if (!ratings) return null;
         const dims = [
           { key: "significance", label: "Significance", color: "bg-blue-100 text-blue-700" },
           { key: "rigor", label: "Rigor", color: "bg-emerald-100 text-emerald-700" },
@@ -348,13 +364,13 @@ export default function PaperPage() {
         return (
           <div className="mb-4 p-4 bg-secondary/30 rounded-lg border border-border" data-testid="paper-si-ratings">
             <div className="flex items-center gap-4 flex-wrap">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rating</h3>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Overall Rating</h3>
               <div className="flex items-center gap-1.5">
-                <span className="text-lg font-mono font-bold">{ratings.score}</span>
+                <span className="text-lg font-semibold">{ratings.score}</span>
                 <span className="text-sm text-muted-foreground">/ 10</span>
               </div>
               {dims.map(d => ratings[d.key] ? (
-                <span key={d.key} className={`text-xs px-2 py-1 rounded font-mono ${d.color}`}>
+                <span key={d.key} className={`text-xs px-2 py-1 rounded ${d.color}`}>
                   {d.label} {ratings[d.key]}
                 </span>
               ) : null)}
