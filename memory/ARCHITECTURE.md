@@ -851,9 +851,9 @@ db.rankings.find({"category": "cs.CR"})
 | Model analysis cache | ~10 MB | All-categories + per-category entries |
 | LLM executor thread pool | ~20 MB | `ThreadPoolExecutor` for litellm calls |
 | Active comparison data | ~50 MB | Paper summaries + dedup pair set (~3 MB per category) loaded during matches |
-| **Typical RSS** | **~380 MB** | In a 2 GB container with ~1.2 GB available |
+| **Typical RSS** | **~430 MB** | In a 2 GB container with ~1.2 GB available |
 
-Peak memory occurs during comparison rounds when paper summaries and the dedup pair set are loaded. With incremental counters and indefinite goals caching, `_refresh_cache` and `_check_goals` no longer contribute to peak memory. Memory stays flat across hundreds of cycles when all goals are met.
+Peak memory occurs during comparison rounds when paper summaries and the dedup pair set are loaded. With incremental counters, indefinite goals caching, sequential reranks with GC, and pair-exhaustion detection, memory stays flat across hundreds of cycles. Production verified at 432 MB across 800+ cycles (Apr 9, 2026 — down from 1,580 MB before optimization).
 
 ---
 
@@ -1140,8 +1140,12 @@ The entire system (web server + background scheduler + analysis computation) run
 - Gap-fill ranking seed (no match loading at startup)
 - Incremental match counters (`_refresh_cache` 13.2s → 0.3s)
 - In-memory dedup set for pair selection (`_select_pairs` N+1 queries → 1)
-- Two-tier goals cache with snapshot staleness detection (goals checks 10-14/cycle → 0.04/cycle, memory 1,377 MB → 382 MB steady-state)
+- Two-tier goals cache with snapshot staleness detection (goals checks 10-14/cycle → 0.04/cycle)
 - `update_tournament_stats` decoupled from live DB queries (reads cached counters)
+- Sequential reranks with GC between (prevents concurrent memory stacking)
+- Single-pass rerank with shared helpers (eliminated double DB scan, consistent light/heavy logic)
+- Pair-exhaustion detection (stalled categories stop cycling)
+- Removed obsolete SI rating backfill and community_likes
 
 **Remaining:**
 - Text index on `rankings.title` for fast search at scale
@@ -1263,3 +1267,18 @@ Operational lessons from production incidents and debugging sessions. Each entry
 **Result**: Goals checks per cycle: 10-14 → 0.04. Memory: flat at 382 MB across 197 cycles.
 
 **Lesson**: Fixed-TTL caches with uniform population time create "cache stampede" — all entries expire at once. Use event-driven invalidation for stable results (met goals) and TTL only for volatile results (unmet goals). Add snapshot-based tripwires to catch future invalidation oversights.
+
+### 13.10 Concurrent Reranks and CPython RSS Retention
+
+**Incident**: Production RSS grew from 432 MB to 1,580 MB and never dropped, even after all work completed. Adding one new category (cs.AI) tripled the baseline.
+
+**Root cause (three compounding factors):**
+1. `rerank_category_light` ran inside concurrent comparison rounds (`asyncio.gather` with `parallel_categories=10`). Multiple reranks overlapped in the async event loop, stacking their memory allocations.
+2. Each rerank loaded rankings twice — once for rank sorting, once for gap score computation via `_refresh_derived_fields`. The second load duplicated all data.
+3. CPython's glibc allocator (`pymalloc` → `malloc`) doesn't return freed pages to the OS. RSS only grows, never shrinks — unless `malloc_trim(0)` is explicitly called.
+
+**Fix:** Five changes — sequential reranks via `skip_rerank` flag, single-pass rerank merging both DB scans, `force_gc()` + `malloc_trim` after each rerank, shared helper functions for consistent logic, removal of unnecessary community_likes collection scan.
+
+**Result:** Production RSS: 1,580 MB → 432 MB (73% reduction), stable across 800+ cycles.
+
+**Lesson:** In Python async code, `asyncio.gather` makes concurrent execution easy but memory implications are invisible. Each gathered task's allocations coexist in memory until ALL tasks complete. For memory-heavy operations (DB scans, bulk computations), sequential execution with explicit GC between iterations is safer. The CPython RSS ratchet effect (`malloc` never returns pages) means one concurrent spike permanently elevates the baseline.

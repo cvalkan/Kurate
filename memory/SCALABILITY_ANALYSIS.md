@@ -109,6 +109,32 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 
 **Safeguard:** If any future code path adds papers/matches without calling `invalidate_goals_cache()`, the snapshot mismatch fires a log warning and auto-invalidates: `Goals cache stale for cs.RO: papers 207→208, matches 9224→9225`.
 
+### ~~2c. Rerank Memory Stacking — Sequential Reranks + Single-Pass + GC~~ ✅ FIXED (Apr 9, 2026)
+**Was:** `rerank_category_light` ran inside concurrent comparison rounds (`asyncio.gather`), causing multiple reranks to overlap in memory. Each rerank loaded rankings twice (once for sorting, once for gap scores via `_refresh_derived_fields`). Community likes collection was scanned on every rerank. CPython/glibc held freed pages, so RSS never dropped after spikes. Production RSS grew to 2,465 MB during rerank storms.
+
+**Fix (five parts):**
+1. **Sequential reranks:** Moved reranks out of concurrent `run_comparison_round` via `skip_rerank` flag. Compare loop batch handler runs reranks one-at-a-time after all rounds complete.
+2. **Single-pass rerank:** Merged `_refresh_derived_fields` into `rerank_category_light` — loads rankings ONCE, computes ranks + gap scores + writes in a single bulk operation (was 2 DB scans + 2 bulk writes).
+3. **`force_gc()` after every rerank:** `gc.collect()` + `malloc_trim(0)` releases freed pages to OS between sequential reranks.
+4. **Shared helpers:** Extracted `_compute_ts_elo`, `_compute_ranks`, `_compute_gap_scores`, `_extract_ai_rating` — both light and heavy rerank use identical logic. Heavy version now includes TrueSkill normalization (was missing).
+5. **Removed community_likes:** Eliminated full `alphaxiv_likes` collection scan from every rerank (obsolete experiment).
+
+**Result:** Production RSS dropped from **1,580 MB → 432 MB** (73% reduction). Stable across 800+ cycles with zero growth.
+
+### ~~2d. Pair-Exhaustion Detection — Stalled Categories~~ ✅ FIXED (Apr 9, 2026)
+**Was:** cs.SI (all pairs exhausted, 0 new matches possible) kept starting futile comparison rounds every cycle, loading paper summaries each time.
+
+**Fix:** When `_select_pairs` returns 0 pairs, mark the category as pair-exhausted via `_mark_pair_exhausted()`. The compare loop skips exhausted categories until paper/match counts change (auto-invalidates on new data). Uses the same snapshot pattern as the goals cache.
+
+**Result:** cs.SI stops cycling after the first 0-pair round. No memory waste from futile rounds.
+
+### ~~2e. Obsolete SI Rating Backfill Removed~~ ✅ FIXED (Apr 9, 2026)
+**Was:** Every startup loaded ALL papers' full summary text (~75 MB for 5,100 papers) to parse AI ratings — a one-time migration that was still running on every restart.
+
+**Fix:** Removed. All papers now have `ai_ratings_by_model` populated during summary generation.
+
+**Result:** Startup RSS spike reduced by ~90 MB.
+
 ### 3. `seed_rankings` Full Match Load — Catastrophic Recovery Path
 **What:** The gap-fill fallback (>20% unranked) still loads ALL matches via `collect_all`. For cs.RO: 42K matches in memory.
 
@@ -147,6 +173,8 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 | **`_select_pairs` pair checks** | **In-memory dedup set, O(1) per pair** |
 | **`_check_goals_met` (met cats)** | **Cached indefinitely with snapshot-based staleness detection** |
 | **`update_tournament_stats`** | **Reads cached goals + incremental match counters — 0 DB queries** |
+| **`rerank_category_light`** | **Single-pass, single bulk write, sequential execution with GC** |
+| **Pair-exhausted categories** | **Skipped entirely until new data arrives** |
 
 ## DB Indexes (as of Apr 7, 2026)
 
@@ -179,4 +207,6 @@ Total: ~9.5s per refresh, triggered every ~12s during active matching.
 | `seed_rankings` (gap-fill) | <1s | <1s | <1s | <1s |
 | `seed_rankings` (full, if needed) | ~2s | ~10s | ~50s | OOM |
 | Startup memory spike | ~360MB | ~400MB | ~500MB | ~600MB |
-| Steady-state memory | ~382MB | ~450MB | ~600MB | ~800MB |
+| Steady-state memory | ~432MB | ~500MB | ~600MB | ~750MB |
+
+**Production verified (Apr 9, 2026):** 15 categories, ~5,100 papers, 86K+ matches. RSS stable at 432 MB across 800+ compare loop cycles. Previous baseline was 1,580 MB.

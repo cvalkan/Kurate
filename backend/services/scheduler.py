@@ -1295,6 +1295,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
 
             if not pairs:
                 cat_status["current_activity"] = "No new pairs needed"
+                _mark_pair_exhausted(category)
                 return {"status": "no_pairs"}
 
             paper_lookup = {p["id"]: p for p in all_papers}
