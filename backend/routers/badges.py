@@ -459,7 +459,13 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
 
 @router.get("/paper/{paper_id}/badges")
 async def get_paper_badges(paper_id: str):
-    """Get all badges (top 3 appearances) for a specific paper across all archives."""
+    """Get all badges (top 3 appearances) for a specific paper across all archives.
+    Only returns badges matching the category's configured archive frequency (weekly or monthly)."""
+    from core.auth import get_settings
+    settings = await get_settings()
+    archive_config = settings.get("archive_frequency", {})
+    default_freq = archive_config.get("default", "weekly")
+
     archives = await db.leaderboard_archives.find(
         {"leaderboard": {"$elemMatch": {"id": paper_id, "rank": {"$lte": 3}}},
          "period_type": {"$in": ["weekly", "monthly"]}},
@@ -469,6 +475,10 @@ async def get_paper_badges(paper_id: str):
 
     badges = []
     for a in archives:
+        # Only show badges matching the category's configured frequency
+        cat_freq = archive_config.get(a["category"], default_freq)
+        if a.get("period_type") != cat_freq:
+            continue
         lb = a.get("leaderboard", [])
         if not lb:
             continue
