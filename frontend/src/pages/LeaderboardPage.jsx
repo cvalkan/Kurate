@@ -126,11 +126,18 @@ export default function LeaderboardPage() {
   const sortedArchiveLeaderboard = useMemo(() => {
     if (!activeArchive?.leaderboard) return null;
     const data = [...activeArchive.leaderboard];
-    const key = sortKey || "rank";
+    // Map sort key based on scoring method (same logic as server-side)
+    const key = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
+      : sortKey === "score" && scoringMethod === "os" ? "os_score"
+      : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
+      : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
+      : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
+      : sortKey === "rank" && scoringMethod === "ts" ? "rank_ts"
+      : sortKey === "rank" && scoringMethod === "os" ? "rank_os"
+      : sortKey || "rank";
     const dir = sortDir || "asc";
     data.sort((a, b) => {
       let va = a[key], vb = b[key];
-      // Handle string vs number
       if (typeof va === "string" && typeof vb === "string") {
         return dir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
       }
@@ -139,7 +146,7 @@ export default function LeaderboardPage() {
       return dir === "asc" ? va - vb : vb - va;
     });
     return data;
-  }, [activeArchive, sortKey, sortDir]);
+  }, [activeArchive, sortKey, sortDir, scoringMethod]);
 
 
   const fetchLeaderboard = useCallback(async () => {
@@ -361,6 +368,7 @@ export default function LeaderboardPage() {
         isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={isTagMode ? [] : archives}
         onArchiveSelect={(data, archive) => {
           setActiveArchive(data);
+          if (data) setScoringMethod("wr"); // Archives only have WR scores
           if (data && archive) {
             const slug = archive.period_type === "older" ? "older"
               : archive.period_type === "weekly" ? `${archive.year}-w${archive.week}`
@@ -372,13 +380,13 @@ export default function LeaderboardPage() {
           if (data) setLoading(false);
         }}
         activeArchiveLabel={activeArchive?.label}
-        scoringToggle={
+        scoringToggle={!activeArchive && (
           <div className="flex items-center gap-2 shrink-0" data-testid="scoring-method-toggle">
             <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
               {[["wr", "Win Rate"], ["ts", "TrueSkill"], ["os", "OpenSkill"]].map(([key, label]) => (
                 <button
                   key={key}
-                  onClick={() => { setSortPending(true); setNextCursor(null); setScoringMethod(key); }}
+                  onClick={() => { if (!activeArchive) { setSortPending(true); setNextCursor(null); } setScoringMethod(key); }}
                   className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
                     scoringMethod === key
                       ? "bg-background text-foreground shadow-sm"
@@ -394,7 +402,7 @@ export default function LeaderboardPage() {
               {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : scoringMethod === "os" ? "Bayesian OpenSkill rating" : "Regularized win-rate (default)"}
             </span>
           </div>
-        }
+        )}
       />
 
       {warmingUp && (
