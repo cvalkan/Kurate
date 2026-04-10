@@ -525,8 +525,8 @@ export default function PaperPage() {
                     </div>
                     <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMax}</span>
                   </div>
-                  <div className="text-center mt-2 text-xs text-muted-foreground">
-                    Score: <span className="font-semibold text-foreground">{score}</span> ±{ci}
+                  <div className="text-center mt-2 text-sm text-muted-foreground">
+                    Score: <span className="font-semibold text-foreground text-base">{score}</span> <span className="text-xs">±{ci}</span>
                   </div>
                 </div>
               );
