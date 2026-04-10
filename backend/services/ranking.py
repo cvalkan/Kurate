@@ -831,6 +831,35 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
         except Exception:
             pass
 
+    # --- Step 5: Incremental per-model OpenSkill update ---
+    if model_key:
+        try:
+            from openskill.models import ThurstoneMostellerFull
+            _os_model_pm = ThurstoneMostellerFull()
+            w_doc = await db.rankings.find_one(
+                {"paper_id": winner_id, "category": category},
+                {"_id": 0, f"model_os.{model_key}": 1},
+            )
+            l_doc = await db.rankings.find_one(
+                {"paper_id": loser_id, "category": category},
+                {"_id": 0, f"model_os.{model_key}": 1},
+            )
+            w_os = (w_doc or {}).get("model_os", {}).get(model_key, {})
+            l_os = (l_doc or {}).get("model_os", {}).get(model_key, {})
+            w_rating = _os_model_pm.rating(mu=w_os.get("mu", 25.0), sigma=w_os.get("sigma", 25.0 / 3))
+            l_rating = _os_model_pm.rating(mu=l_os.get("mu", 25.0), sigma=l_os.get("sigma", 25.0 / 3))
+            [[new_w], [new_l]] = _os_model_pm.rate([[w_rating], [l_rating]], ranks=[1, 2])
+            await db.rankings.update_one(
+                {"paper_id": winner_id, "category": category},
+                {"$set": {f"model_os.{model_key}.mu": new_w.mu, f"model_os.{model_key}.sigma": new_w.sigma}},
+            )
+            await db.rankings.update_one(
+                {"paper_id": loser_id, "category": category},
+                {"$set": {f"model_os.{model_key}.mu": new_l.mu, f"model_os.{model_key}.sigma": new_l.sigma}},
+            )
+        except Exception:
+            pass
+
 
 async def _queue_repair(db, category: str, paper_id: str):
     """Queue a paper for background ranking repair."""

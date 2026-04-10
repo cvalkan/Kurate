@@ -381,7 +381,7 @@ export default function LeaderboardPage() {
               ))}
             </div>
             <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : "Regularized win-rate (default)"}
+              {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : scoringMethod === "os" ? "Bayesian OpenSkill rating" : "Regularized win-rate (default)"}
             </span>
           </div>
         }

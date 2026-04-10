@@ -69,6 +69,7 @@ export function LeaderboardTable({
 
   const isGlobal = hasSelectedTags && globalStats;
   const isTS = scoringMethod === "ts";
+  const isOS = scoringMethod === "os";
   const TS_SCALE = 10.0; // Must match backend TS_SCALE in ranking.py
   const getScore = (p) => {
     if (isGlobal && p.global_score !== undefined) return p.global_score;
@@ -233,7 +234,7 @@ export function LeaderboardTable({
             <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper) || "—"}</div>
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) != null ? `${getWinRate(paper)}%` : "—"}</div>}
             {!isMobile && !isTablet && <div className="text-right font-mono text-xs text-muted-foreground">
-              {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}${isTS ? "" : "%"}` : "—"; })()}
+              {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}${(isTS || isOS) ? "" : "%"}` : "—"; })()}
             </div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
             {showRatingCol && !isMobile && !isTablet && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{(typeof paper.ai_rating === "object" && paper.ai_rating ? paper.ai_rating.score : paper.ai_rating) || "—"}</div>}
