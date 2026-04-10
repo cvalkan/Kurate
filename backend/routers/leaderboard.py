@@ -1174,6 +1174,17 @@ async def get_paper_detail(paper_id: str):
             if ranking_doc.get(field) is not None:
                 paper[field] = ranking_doc[field]
 
+    # Get category OS score range for CI bar
+    primary_cat = paper.get("categories", [None])[0]
+    if primary_cat:
+        pipeline = [
+            {"$match": {"category": primary_cat, "os_score": {"$exists": True, "$ne": None}}},
+            {"$group": {"_id": None, "min_os": {"$min": "$os_score"}, "max_os": {"$max": "$os_score"}}},
+        ]
+        async for agg in db.rankings.aggregate(pipeline):
+            paper["category_os_min"] = agg.get("min_os")
+            paper["category_os_max"] = agg.get("max_os")
+
     return {
         "paper": paper,
         "matches": enriched_matches,

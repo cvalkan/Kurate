@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
-  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2, Bookmark,
+  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2, Bookmark, Target,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBookmarks } from "@/contexts/BookmarkContext";
@@ -403,155 +403,192 @@ export default function PaperPage() {
         </div>
       )}
 
-      {/* Rating */}
+      {/* Score Card — E2 Design */}
       {(() => {
-        // Try to get structured ratings from multiple sources
+        // Extract ratings
         let ratings = null;
-        
-        // Source 1: paper.ai_rating if it's a structured object
-        if (paper.ai_rating && typeof paper.ai_rating === "object" && paper.ai_rating.score) {
-          ratings = paper.ai_rating;
-        }
-        // Source 2: paper.ai_ratings_by_model (per-model structured ratings)
+        if (paper.ai_rating && typeof paper.ai_rating === "object" && paper.ai_rating.score) ratings = paper.ai_rating;
         if (!ratings && paper.ai_ratings_by_model) {
           const byModel = paper.ai_ratings_by_model;
           const preferred = byModel.claude || byModel.anthropic || byModel.gpt || byModel.gemini;
-          if (preferred && typeof preferred === "object" && preferred.score) {
-            ratings = preferred;
-          }
+          if (preferred && typeof preferred === "object" && preferred.score) ratings = preferred;
         }
-        // Source 3: Extract from primary summary text
         if (!ratings && summaryEntries.length > 0) {
           const primaryEntry = summaryEntries.find(e => e.provider === "anthropic") || summaryEntries[0];
-          if (primaryEntry) {
-            const [, inlineRatings] = extractRatingsFromSummary(primaryEntry.text);
-            if (inlineRatings) ratings = inlineRatings;
-          }
+          if (primaryEntry) { const [, ir] = extractRatingsFromSummary(primaryEntry.text); if (ir) ratings = ir; }
         }
-        // Source 4: Plain numeric ai_rating (no sub-scores)
-        if (!ratings && paper.ai_rating) {
-          ratings = { score: typeof paper.ai_rating === "number" ? paper.ai_rating : parseFloat(paper.ai_rating) || null };
-        }
-        if (!ratings || !ratings.score) return null;
-        
+        if (!ratings && paper.ai_rating) ratings = { score: typeof paper.ai_rating === "number" ? paper.ai_rating : parseFloat(paper.ai_rating) || null };
+
         const dims = [
-          { key: "significance", label: "Significance", color: "bg-blue-100 text-blue-700" },
-          { key: "rigor", label: "Rigor", color: "bg-emerald-100 text-emerald-700" },
-          { key: "novelty", label: "Novelty", color: "bg-violet-100 text-violet-700" },
-          { key: "clarity", label: "Clarity", color: "bg-amber-100 text-amber-700" },
+          { key: "significance", label: "Significance", color: "text-blue-700 bg-blue-50 border-blue-200" },
+          { key: "rigor", label: "Rigor", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+          { key: "novelty", label: "Novelty", color: "text-violet-700 bg-violet-50 border-violet-200" },
+          { key: "clarity", label: "Clarity", color: "text-amber-700 bg-amber-50 border-amber-200" },
         ];
-        const hasSubs = dims.some(d => ratings[d.key]);
+
+        const osScore = paper.os_score;
+        const osSigma = paper.os_sigma;
+        const osCi = osSigma ? Math.round(1.96 * osSigma * 15) : null;
+        const rangeMin = paper.category_os_min || 900;
+        const rangeMax = paper.category_os_max || 2000;
+        const paddedMin = Math.floor((rangeMin - 50) / 50) * 50;
+        const paddedMax = Math.ceil((rangeMax + 50) / 50) * 50;
+        const range = paddedMax - paddedMin || 1;
+
         return (
-          <div className="mb-4 p-4 bg-secondary/30 rounded-lg border border-border" data-testid="paper-si-ratings">
-            <div className="flex items-center gap-4 flex-wrap">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Overall Rating</h3>
-              <div className="flex items-center gap-1.5">
-                <span className="text-lg font-semibold">{ratings.score}</span>
-                <span className="text-sm text-muted-foreground">/ 10</span>
+          <div className="mb-8 border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden" data-testid="paper-score-card">
+            {/* Desktop/Tablet: side-by-side */}
+            <div className="hidden md:flex flex-row">
+              {/* Tournament Score */}
+              <div className="w-[70%] p-6 border-r border-slate-200">
+                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Trophy className="h-3.5 w-3.5" /> Tournament Score
+                </div>
+                {osScore ? (
+                  <>
+                    <div className="flex items-baseline gap-2 mb-3">
+                      <span className="text-5xl font-bold tracking-tight text-slate-900">{osScore}</span>
+                      {osCi && <span className="text-lg text-slate-400">±{osCi}</span>}
+                    </div>
+                    <div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full relative">
+                        <div className="absolute h-full bg-blue-200 rounded-full" style={{
+                          left: `${Math.max(0, ((osScore - osCi - paddedMin) / range) * 100)}%`,
+                          width: `${Math.min(100, (osCi * 2 / range) * 100)}%`,
+                        }} />
+                        <div className="absolute h-3.5 w-3.5 bg-blue-600 rounded-full top-1/2 -translate-y-1/2 -translate-x-1/2 border-2 border-white shadow-sm" style={{
+                          left: `${((osScore - paddedMin) / range) * 100}%`,
+                        }} />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[10px] text-slate-400">
+                        <span>{paddedMin}</span><span>{paddedMax}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-baseline gap-2 mb-3">
+                    <span className="text-5xl font-bold tracking-tight text-slate-900">{stats.score || "—"}</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-slate-100">
+                  <div className="text-center p-2.5 bg-slate-50 rounded-lg">
+                    <div className="text-xl font-bold text-slate-900">{winRate}%</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Win Rate</div>
+                  </div>
+                  <div className="text-center p-2.5 bg-green-50 rounded-lg">
+                    <div className="text-xl font-bold text-green-600">{stats.wins}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Wins</div>
+                  </div>
+                  <div className="text-center p-2.5 bg-red-50 rounded-lg">
+                    <div className="text-xl font-bold text-red-500">{stats.losses}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Losses</div>
+                  </div>
+                  <div className="text-center p-2.5 bg-slate-50 rounded-lg">
+                    <div className="text-xl font-bold text-slate-900">{stats.comparisons}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Matches</div>
+                  </div>
+                </div>
               </div>
-              {hasSubs && dims.map(d => ratings[d.key] ? (
-                <span key={d.key} className={`text-xs px-2 py-1 rounded ${d.color}`}>
-                  {d.label} {ratings[d.key]}
-                </span>
-              ) : null)}
+              {/* Rating */}
+              <div className="w-[30%] p-6 bg-slate-50/50">
+                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Target className="h-3.5 w-3.5" /> Rating
+                </div>
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-4xl font-bold tracking-tight text-slate-700">{ratings?.score || "—"}</span>
+                  {ratings?.score && <span className="text-sm text-slate-400">/ 10</span>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {dims.map(d => ratings?.[d.key] ? (
+                    <div key={d.key} className={`flex items-center justify-between text-xs font-medium px-3 py-1.5 rounded-lg border ${d.color}`}>
+                      <span>{d.label}</span>
+                      <span className="font-bold">{ratings[d.key]}</span>
+                    </div>
+                  ) : null)}
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile: stacked */}
+            <div className="md:hidden">
+              <div className="p-5">
+                <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Trophy className="h-3 w-3" /> Tournament Score
+                </div>
+                {osScore ? (
+                  <>
+                    <div className="flex items-baseline gap-1.5 mb-2.5">
+                      <span className="text-4xl font-bold tracking-tight text-slate-900">{osScore}</span>
+                      {osCi && <span className="text-base text-slate-400">±{osCi}</span>}
+                    </div>
+                    <div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full relative">
+                        <div className="absolute h-full bg-blue-200 rounded-full" style={{
+                          left: `${Math.max(0, ((osScore - osCi - paddedMin) / range) * 100)}%`,
+                          width: `${Math.min(100, (osCi * 2 / range) * 100)}%`,
+                        }} />
+                        <div className="absolute h-3.5 w-3.5 bg-blue-600 rounded-full top-1/2 -translate-y-1/2 -translate-x-1/2 border-2 border-white shadow-sm" style={{
+                          left: `${((osScore - paddedMin) / range) * 100}%`,
+                        }} />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[10px] text-slate-400">
+                        <span>{paddedMin}</span><span>{paddedMax}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-baseline gap-1.5 mb-2.5">
+                    <span className="text-4xl font-bold tracking-tight text-slate-900">{stats.score || "—"}</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-4 gap-1.5 mt-3 pt-3 border-t border-slate-100">
+                  <div className="text-center py-2 bg-slate-50 rounded-lg">
+                    <div className="text-lg font-bold text-slate-900">{winRate}%</div>
+                    <div className="text-[9px] text-slate-500">Win Rate</div>
+                  </div>
+                  <div className="text-center py-2 bg-green-50 rounded-lg">
+                    <div className="text-lg font-bold text-green-600">{stats.wins}</div>
+                    <div className="text-[9px] text-slate-500">Wins</div>
+                  </div>
+                  <div className="text-center py-2 bg-red-50 rounded-lg">
+                    <div className="text-lg font-bold text-red-500">{stats.losses}</div>
+                    <div className="text-[9px] text-slate-500">Losses</div>
+                  </div>
+                  <div className="text-center py-2 bg-slate-50 rounded-lg">
+                    <div className="text-lg font-bold text-slate-900">{stats.comparisons}</div>
+                    <div className="text-[9px] text-slate-500">Matches</div>
+                  </div>
+                </div>
+              </div>
+              {/* Rating - mobile */}
+              {ratings?.score && (
+                <div className="p-5 pt-0">
+                  <div className="border-t border-slate-200 pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-1.5">
+                        <Target className="h-3 w-3 text-slate-500" />
+                        <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Rating</span>
+                      </div>
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-2xl font-bold text-slate-700">{ratings.score}</span>
+                        <span className="text-xs text-slate-400">/ 10</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {dims.map(d => ratings[d.key] ? (
+                        <div key={d.key} className={`flex items-center justify-between text-[11px] font-medium px-2.5 py-1.5 rounded-lg border ${d.color}`}>
+                          <span>{d.label}</span>
+                          <span className="font-bold">{ratings[d.key]}</span>
+                        </div>
+                      ) : null)}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
       })()}
-
-      {/* Pairwise Stats + Confidence */}
-      <div className="mb-8 space-y-4" data-testid="paper-score-metrics">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="paper-stats">
-          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
-            <div className="font-mono text-2xl font-bold text-green-600">{stats.wins}</div>
-            <div className="text-xs text-muted-foreground mt-1">Wins</div>
-          </div>
-          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
-            <div className="font-mono text-2xl font-bold text-red-500">{stats.losses}</div>
-            <div className="text-xs text-muted-foreground mt-1">Losses</div>
-          </div>
-          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
-            <div className="font-mono text-2xl font-bold">{stats.comparisons}</div>
-            <div className="text-xs text-muted-foreground mt-1">Matches</div>
-          </div>
-          <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center">
-            <div className="font-mono text-2xl font-bold text-accent">{winRate}%</div>
-            <div className="text-xs text-muted-foreground mt-1">Win Rate</div>
-          </div>
-        </div>
-
-        {stats.confidence && stats.confidence.comparisons > 0 && (
-          <div className="p-4 bg-secondary/30 rounded-lg border border-border" data-testid="confidence-details">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 cursor-help">Confidence Interval (95%)</h3>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-xs">
-                  <p className="text-xs">95% confidence interval showing the likely range of the paper's true score. The highlighted band represents ±1.96σ around the estimated score. Narrower band = more matches = more certainty.</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {paper.os_score && paper.os_sigma ? (() => {
-              const score = paper.os_score;
-              const ci = Math.round(1.96 * paper.os_sigma * 15);
-              const lo = score - ci;
-              const hi = score + ci;
-              const rangeMin = 700;
-              const rangeMax = 2200;
-              const range = rangeMax - rangeMin;
-              const loPct = Math.max(0, Math.min(100, ((lo - rangeMin) / range) * 100));
-              const hiPct = Math.max(0, Math.min(100, ((hi - rangeMin) / range) * 100));
-              const scorePct = Math.max(0, Math.min(100, ((score - rangeMin) / range) * 100));
-              return (
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMin}</span>
-                    <div className="flex-1 relative">
-                      <div className="h-3 bg-slate-100 rounded-full relative overflow-hidden">
-                        <div
-                          className="absolute h-full bg-accent/20 rounded-full"
-                          style={{ left: `${loPct}%`, width: `${hiPct - loPct}%` }}
-                        />
-                        <div
-                          className="absolute h-full w-1.5 bg-accent rounded-full"
-                          style={{ left: `${scorePct}%`, transform: "translateX(-50%)" }}
-                        />
-                      </div>
-                      <div className="relative mt-1.5" style={{ left: `${scorePct}%`, transform: "translateX(-50%)", width: "fit-content" }}>
-                        <span className="text-sm text-muted-foreground">Score: </span>
-                        <span className="font-semibold text-foreground text-base">{score}</span>
-                        <span className="text-xs text-muted-foreground"> ±{ci}</span>
-                      </div>
-                    </div>
-                    <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMax}</span>
-                  </div>
-                </div>
-              );
-            })() : (
-              <div>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.lower_bound * 100)}%</span>
-                  <div className="flex-1 h-2 bg-slate-100 rounded-full relative overflow-hidden">
-                    <div
-                      className="absolute h-full bg-accent/20 rounded-full"
-                      style={{
-                        left: `${stats.confidence.lower_bound * 100}%`,
-                        width: `${(stats.confidence.upper_bound - stats.confidence.lower_bound) * 100}%`,
-                      }}
-                    />
-                    <div
-                      className="absolute h-full w-1.5 bg-accent rounded-full"
-                      style={{ left: `${stats.confidence.win_rate * 100}%`, transform: "translateX(-50%)" }}
-                    />
-                  </div>
-                  <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.upper_bound * 100)}%</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Abstract */}
       {paper.abstract && (
