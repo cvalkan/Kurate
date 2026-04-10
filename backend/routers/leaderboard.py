@@ -1145,7 +1145,8 @@ async def get_paper_detail(paper_id: str):
     ranking_doc = await db.rankings.find_one(
         {"paper_id": paper_id},
         {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
-         "score": 1, "rank": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1}
+         "score": 1, "rank": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1,
+         "ts_score": 1, "ts_sigma": 1, "os_score": 1, "os_sigma": 1}
     )
 
     if ranking_doc:
@@ -1166,6 +1167,12 @@ async def get_paper_detail(paper_id: str):
             "comparisons": total,
             "confidence": calculate_confidence_interval(wins, total),
         }
+
+    # Merge ranking scores into paper for frontend display
+    if ranking_doc:
+        for field in ["ts_score", "ts_sigma", "os_score", "os_sigma"]:
+            if ranking_doc.get(field) is not None:
+                paper[field] = ranking_doc[field]
 
     return {
         "paper": paper,
