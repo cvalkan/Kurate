@@ -48,7 +48,10 @@ export default function LeaderboardPage() {
   const [sortPending, setSortPending] = useState(false); // Blocks loadMore during sort transition
   const [sortKey, setSortKey] = useState(searchParams.get("sort") || "rank");
   const [sortDir, setSortDir] = useState(searchParams.get("dir") || "asc");
-  const [scoringMethod, setScoringMethod] = useState(searchParams.get("method") || "ts");
+  const [scoringMethod, setScoringMethod] = useState(() => {
+    const m = searchParams.get("method");
+    return m === "ts" || m === "os" ? m : "ts";
+  });
 
   const { user } = useAuth();
   const [showSuggestion, setShowSuggestion] = useState(false);
