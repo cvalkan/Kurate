@@ -162,15 +162,19 @@ export default function LeaderboardPage() {
       }
       // Server-side sorting — map sort key based on scoring method
       const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
+        : sortKey === "score" && scoringMethod === "os" ? "os_score"
         : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
         : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
+        : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
         : sortKey;
       if (effectiveSortKey && effectiveSortKey !== "rank") {
         params.sort_by = effectiveSortKey;
         params.sort_dir = sortDir;
       } else if (scoringMethod === "ts") {
-        // Default rank view in TS mode: sort by ts_score
         params.sort_by = "ts_score";
+        params.sort_dir = "desc";
+      } else if (scoringMethod === "os") {
+        params.sort_by = "os_score";
         params.sort_dir = "desc";
       }
       const res = await axios.get(`${API}/api/leaderboard`, { params, signal: controller.signal });
@@ -219,13 +223,19 @@ export default function LeaderboardPage() {
         params.offset = leaderboard.length;
         // Map sort key based on scoring method
         const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
+          : sortKey === "score" && scoringMethod === "os" ? "os_score"
           : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
+          : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
+          : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
           : sortKey;
         if (effectiveSortKey && effectiveSortKey !== "rank") {
           params.sort_by = effectiveSortKey;
           params.sort_dir = sortDir;
         } else if (scoringMethod === "ts") {
           params.sort_by = "ts_score";
+          params.sort_dir = "desc";
+        } else if (scoringMethod === "os") {
+          params.sort_by = "os_score";
           params.sort_dir = "desc";
         }
       } else {
@@ -365,7 +375,7 @@ export default function LeaderboardPage() {
         scoringToggle={
           <div className="flex items-center gap-2 shrink-0" data-testid="scoring-method-toggle">
             <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
-              {[["wr", "Win Rate"], ["ts", "TrueSkill"]].map(([key, label]) => (
+              {[["wr", "Win Rate"], ["ts", "TrueSkill"], ["os", "OpenSkill"]].map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => { setSortPending(true); setNextCursor(null); setScoringMethod(key); }}

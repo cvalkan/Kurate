@@ -73,27 +73,30 @@ export function LeaderboardTable({
   const TS_SCALE = 10.0; // Must match backend TS_SCALE in ranking.py
   const getScore = (p) => {
     if (isGlobal && p.global_score !== undefined) return p.global_score;
-    return isTS ? (p.ts_score || p.score) : p.score;
+    return isTS ? (p.ts_score || p.score) : isOS ? (p.os_score || p.score) : p.score;
   };
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
   const getWilsonMargin = (p) => {
     if (isGlobal) return null;
     if (isTS) {
-      // TrueSkill 95% CI in Elo points: ±1.96 * sigma * TS_SCALE
       const sigma = p.ts_sigma;
+      if (sigma != null && sigma > 0) return Math.round(1.96 * sigma * TS_SCALE);
+      return null;
+    }
+    if (isOS) {
+      const sigma = p.os_sigma;
       if (sigma != null && sigma > 0) return Math.round(1.96 * sigma * TS_SCALE);
       return null;
     }
     return p.wilson_margin;
   };
-  const getRank = (p) => isTS ? (p.rank_ts || p.rank) : (p.rank_wr || p.rank);
+  const getRank = (p) => isTS ? (p.rank_ts || p.rank) : isOS ? (p.rank_os || p.rank) : (p.rank_wr || p.rank);
 
-  // Compute score-based rank for badges (top 3 by score get gold/silver/bronze)
-  // This is stable regardless of sort order — always based on the score metric.
   const scoreRankMap = useMemo(() => {
     const scoreFn = isGlobal ? (p => p.global_score || 0)
       : isTS ? (p => p.ts_score || 0)
+      : isOS ? (p => p.os_score || 0)
       : (p => p.score || 0);
     const byScore = [...leaderboard].sort((a, b) => scoreFn(b) - scoreFn(a));
     const map = {};

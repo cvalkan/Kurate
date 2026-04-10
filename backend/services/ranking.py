@@ -929,7 +929,7 @@ async def rerank_category_light(db, category: str):
         {"category": category},
         {"_id": 0, "paper_id": 1, "score": 1, "title": 1,
          "ts_mu": 1, "ts_sigma": 1, "wins": 1, "comparisons": 1,
-         "si_ratings": 1, "ai_rating": 1},
+         "si_ratings": 1, "ai_rating": 1, "model_os": 1},
     ):
         entries.append(doc)
 
@@ -941,7 +941,32 @@ async def rerank_category_light(db, category: str):
     rank_wr, rank_ts = _compute_ranks(entries, ts_elo)
     gap_wr, gap_ts = _compute_gap_scores(entries, ts_elo)
 
-    # Single bulk write — ranks + ts_score + gap scores
+    # Compute global OpenSkill score from per-model OS (average across models)
+    os_elo = {}
+    os_sigma_map = {}
+    for e in entries:
+        mos = e.get("model_os", {})
+        if mos and isinstance(mos, dict):
+            mus = [v["mu"] for v in mos.values() if isinstance(v, dict) and v.get("mu")]
+            sigmas = [v["sigma"] for v in mos.values() if isinstance(v, dict) and v.get("sigma")]
+            if mus:
+                avg_mu = sum(mus) / len(mus)
+                avg_sigma = sum(sigmas) / len(sigmas) if sigmas else 25.0 / 3
+                conservative = avg_mu - 3 * avg_sigma
+                os_elo[e["paper_id"]] = round(conservative * TS_SCALE + SCORE_BASE_CONST)
+                os_sigma_map[e["paper_id"]] = round(avg_sigma, 4)
+
+    # Rank by OS score
+    import hashlib
+    os_sorted = sorted(
+        [e for e in entries if e["paper_id"] in os_elo],
+        key=lambda e: (os_elo.get(e["paper_id"], SCORE_BASE_CONST),
+                       hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest()),
+        reverse=True,
+    )
+    rank_os = {e["paper_id"]: rank for rank, e in enumerate(os_sorted, 1)}
+
+    # Single bulk write — ranks + ts_score + os_score + gap scores
     ops = []
     for e in entries:
         pid = e["paper_id"]
@@ -951,6 +976,10 @@ async def rerank_category_light(db, category: str):
             "rank_wr": rank_wr[pid],
             "rank_ts": rank_ts[pid],
         }
+        if pid in os_elo:
+            update["os_score"] = os_elo[pid]
+            update["os_sigma"] = os_sigma_map.get(pid)
+            update["rank_os"] = rank_os.get(pid)
         if pid in gap_wr:
             update["gap_score"] = gap_wr[pid]
         if pid in gap_ts:

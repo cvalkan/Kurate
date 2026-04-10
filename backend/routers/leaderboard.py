@@ -508,8 +508,9 @@ async def get_categories():
 # ─── DB-Backed Leaderboard Serving (Phase 2) ────────────────────────────────
 
 # Projection for rankings queries — exclude MongoDB _id, include all serving fields
-_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "rank_ts": 1,
+_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "rank_ts": 1, "rank_os": 1,
               "score": 1, "ts_score": 1, "ts_mu": 1, "ts_sigma": 1,
+              "os_score": 1, "os_sigma": 1,
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
               "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1, "gap_score_ts": 1,
@@ -558,6 +559,9 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         **({"ai_rating": doc["ai_rating"]} if doc.get("ai_rating") else {}),
         **({"gap_score": doc["gap_score"]} if doc.get("gap_score") is not None else {}),
         **({"gap_score_ts": doc["gap_score_ts"]} if doc.get("gap_score_ts") is not None else {}),
+        **({"os_score": doc["os_score"]} if doc.get("os_score") is not None else {}),
+        **({"os_sigma": doc["os_sigma"]} if doc.get("os_sigma") is not None else {}),
+        **({"rank_os": doc["rank_os"]} if doc.get("rank_os") is not None else {}),
     }
 
 
@@ -575,6 +579,8 @@ _SORT_FIELD_MAP = {
     "ts_sigma": ("ts_sigma", 1),  # Lower sigma = more confident = default ascending
     "ai_rating": ("ai_rating", -1),
     "gap_score": ("gap_score", -1),
+    "os_score": ("os_score", -1),
+    "os_sigma": ("os_sigma", 1),
 }
 
 
