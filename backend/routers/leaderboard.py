@@ -1558,7 +1558,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     # Freeze the leaderboard: store essential fields only
     frozen_entries = []
     for i, r in enumerate(source_entries, 1):
-        frozen_entries.append({
+        entry = {
             "rank": i,
             "id": r.get("paper_id"),
             "title": r.get("title", ""),
@@ -1575,7 +1575,12 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
             "arxiv_id": r.get("arxiv_id"),
             "ai_rating": r.get("ai_rating"),
             "gap_score": r.get("gap_score"),
-        })
+        }
+        # Include TS and OS scores if available
+        for field in ["ts_score", "ts_sigma", "rank_ts", "os_score", "os_sigma", "rank_os", "gap_score_ts"]:
+            if r.get(field) is not None:
+                entry[field] = r[field]
+        frozen_entries.append(entry)
 
     if period_type == "weekly":
         label = f"Week {week}, {year}"

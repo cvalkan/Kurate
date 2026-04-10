@@ -368,7 +368,7 @@ export default function LeaderboardPage() {
         isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={isTagMode ? [] : archives}
         onArchiveSelect={(data, archive) => {
           setActiveArchive(data);
-          if (data) setScoringMethod("wr"); // Archives only have WR scores
+          if (data) setScoringMethod("wr"); // Reset to WR when entering archive
           if (data && archive) {
             const slug = archive.period_type === "older" ? "older"
               : archive.period_type === "weekly" ? `${archive.year}-w${archive.week}`
@@ -380,7 +380,7 @@ export default function LeaderboardPage() {
           if (data) setLoading(false);
         }}
         activeArchiveLabel={activeArchive?.label}
-        scoringToggle={!activeArchive && (
+        scoringToggle={(
           <div className="flex items-center gap-2 shrink-0" data-testid="scoring-method-toggle">
             <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
               {[["wr", "Win Rate"], ["ts", "TrueSkill"], ["os", "OpenSkill"]].map(([key, label]) => (
