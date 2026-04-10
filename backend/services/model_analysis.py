@@ -218,9 +218,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
 
     # --- PW Inter-Model (WR + TS only, OS columns filled by merge) ---
     method_labels = {"reg_wr": "Reg WR", "trueskill": "TrueSkill",
-                     "openskill_incr": "OS (live)",
-                     "openskill": "OpenSkill 1p", "openskill1": "OpenSkill 1p",
-                     "openskill3": "OpenSkill 3p", "openskill10": "OpenSkill 10p"}
+                     "openskill": "OpenSkill"}
 
     model_rankings = {}
     model_avg_mpp = {}
@@ -231,7 +229,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         model_rankings[mk] = {
             "reg_wr": {pid: model_wr[mk][pid] for pid in mk_pids if pid in model_wr[mk]},
             "trueskill": model_paper_ts.get(mk, {}),
-            "openskill_incr": model_paper_os.get(mk, {}),
+            "openskill": model_paper_os.get(mk, {}),
         }
         mpps = [model_paper_stats[mk][pid].get("total", 0) for pid in mk_pids]
         model_avg_mpp[mk] = round(float(np.mean(mpps)), 1) if mpps else 0
@@ -243,7 +241,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 continue
             avg_mpp = round((model_avg_mpp.get(m1, 0) + model_avg_mpp.get(m2, 0)) / 2, 1)
             row = {"pair": f"{_short(m1)} vs {_short(m2)}", "methods": {}}
-            for method in ["reg_wr", "trueskill", "openskill_incr"]:
+            for method in ["reg_wr", "trueskill", "openskill"]:
                 r1 = model_rankings[m1].get(method, {})
                 r2 = model_rankings[m2].get(method, {})
                 common = sorted(set(r1.keys()) & set(r2.keys()))
@@ -277,8 +275,8 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             kt_r, _ = scipy_stats.kendalltau([pw_dict[p] for p in shared_os], [os_scores[p] for p in shared_os])
             if not np.isnan(sp_r):
                 scoring_correlations.append({
-                    "method1": pw_key, "method2": "openskill_incr",
-                    "label": f"{pw_label} vs OpenSkill (live)",
+                    "method1": pw_key, "method2": "openskill",
+                    "label": f"{pw_label} vs OpenSkill",
                     "spearman_rho": round(float(sp_r), 6), "kendall_tau": round(float(kt_r), 6),
                 })
 
@@ -443,7 +441,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             cat_wr = {p["paper_id"]: p["score"] for p in cat_papers if p.get("score")}
             cat_ts = {p["paper_id"]: p["ts_score"] for p in cat_papers if p.get("ts_score")}
             cat_os_incr = {p["paper_id"]: p["os_score"] for p in cat_papers if p.get("os_score")}
-            cat_pw = {"reg_wr": ("Reg WR", cat_wr), "trueskill": ("TrueSkill", cat_ts), "openskill_incr": ("OS (live)", cat_os_incr)}
+            cat_pw = {"reg_wr": ("Reg WR", cat_wr), "trueskill": ("TrueSkill", cat_ts), "openskill": ("OpenSkill", cat_os_incr)}
 
             # Load cached OpenSkill scores for this category (batch pre-loaded)
             cat_os_cache = _os_cache_by_cat.get(cat)
@@ -506,9 +504,9 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     os_data = mos.get(mk_key) or mos.get(dot_key)
                     if isinstance(os_data, dict) and os_data.get("mu"):
                         wm_os_incr[p["paper_id"]] = os_data["mu"]
-                row = _corr_row("within_os_incr", "OS (live)", wm_os_incr, si_scores)
+                row = _corr_row("within_os", "OpenSkill", wm_os_incr, si_scores)
                 if row:
-                    avg_wm_accum.setdefault(si_mk, {}).setdefault("within_os_incr", []).append(
+                    avg_wm_accum.setdefault(si_mk, {}).setdefault("within_os", []).append(
                         (row["spearman_rho"], row["kendall_tau"], row["n"]))
                 # Within-model OS (from per-model OS cache for this category)
                 if cat_os_cache:
@@ -534,9 +532,9 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                         avg_ctrl_accum.setdefault(si_target, {}).setdefault("trueskill", []).append(
                             (row_ts["spearman_rho"], row_ts["kendall_tau"], row_ts["n"]))
                     # Controlled OS (live)
-                    row_os_incr = _corr_row("ctrl_os_incr", "OS (live)", wm_os_incr, si_target_scores)
+                    row_os_incr = _corr_row("ctrl_os", "OpenSkill", wm_os_incr, si_target_scores)
                     if row_os_incr:
-                        avg_ctrl_accum.setdefault(si_target, {}).setdefault("openskill_incr", []).append(
+                        avg_ctrl_accum.setdefault(si_target, {}).setdefault("openskill", []).append(
                             (row_os_incr["spearman_rho"], row_os_incr["kendall_tau"], row_os_incr["n"]))
                     if cat_os_cache:
                         opm = cat_os_cache.get("os_per_model", {}).get(mk_key, {})
@@ -581,7 +579,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     sp_r, _ = scipy_stats.spearmanr([pw_dict[p] for p in shared_os_live], [cat_os_sm[p] for p in shared_os_live])
                     kt_r, _ = scipy_stats.kendalltau([pw_dict[p] for p in shared_os_live], [cat_os_sm[p] for p in shared_os_live])
                     if not np.isnan(sp_r):
-                        avg_scoring_accum.setdefault(f"{pw_label} vs OpenSkill (live)", []).append((float(sp_r), float(kt_r), len(shared_os_live)))
+                        avg_scoring_accum.setdefault(f"{pw_label} vs OpenSkill", []).append((float(sp_r), float(kt_r), len(shared_os_live)))
             cat_sm_os_cache = _os_cache_by_cat.get(cat)
             if cat_sm_os_cache and cat_sm_os_cache.get("os_global"):
                 osg = cat_sm_os_cache["os_global"]
@@ -630,7 +628,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             # All methods in "All judges combined" share the same m/paper — use WR's value as default
             default_mpp = agg_mpp_map.get("combined_reg_wr", agg_mpp_map.get("Reg WR", 0))
             for pw_key, label in [("reg_wr", "Reg WR"), ("trueskill", "TrueSkill"),
-                                   ("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
+                                   ("openskill", "OpenSkill")]:
                 entries = pw_data.get(pw_key)
                 if entries:
                     avg = _weighted_avg(entries)
@@ -647,7 +645,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             agg_ctrl_mpp = {r.get("label", ""): r.get("avg_mpp", 0) for r in agg_ctrl}
             default_ctrl_mpp = agg_ctrl_mpp.get("Reg WR", 0)
             for pw_key, label in [("reg_wr", "Reg WR"), ("trueskill", "TrueSkill"),
-                                   ("openskill1", "OpenSkill 1p"), ("openskill3", "OpenSkill 3p"), ("openskill10", "OpenSkill 10p")]:
+                                   ("openskill", "OpenSkill")]:
                 entries = ctrl_data.get(pw_key)
                 if entries:
                     avg = _weighted_avg(entries)
@@ -665,7 +663,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             agg_wm_mpp = {r.get("method", r.get("label", "")): r.get("avg_mpp", 0) for r in agg_wm_rows}
             default_wm_mpp = agg_wm_mpp.get("within_wr", agg_wm_mpp.get("Win Rate", 0))
             for method_key, label in [("within_wr", "Win Rate"), ("within_ts", "TrueSkill"),
-                                       ("within_os1", "OpenSkill 1p"), ("within_os3", "OpenSkill 3p"), ("within_os10", "OpenSkill 10p")]:
+                                       ("within_os", "OpenSkill")]:
                 entries = method_data.get(method_key)
                 if entries:
                     avg = _weighted_avg(entries)
@@ -689,7 +687,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     if i >= j or m1 not in model_rankings or m2 not in model_rankings:
                         continue
                     pair = f"{_short(m1)} vs {_short(m2)}"
-                    for method in ["reg_wr", "trueskill", "openskill_incr"]:
+                    for method in ["reg_wr", "trueskill", "openskill"]:
                         r1 = model_rankings[m1].get(method, {})
                         r2 = model_rankings[m2].get(method, {})
                         common = sorted(set(r1.keys()) & set(r2.keys()) & cat_pids)
@@ -945,9 +943,9 @@ async def compute_openskill_cache(category: Optional[str] = None):
 
 
 def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
-    """Inject cached OpenSkill data into live analysis result."""
-    if not os_cache or os_cache.get("status") != "ok":
-        return live
+    """Previously injected cached OpenSkill 1p/3p/10p data into live analysis.
+    Now a no-op — incremental OpenSkill ('openskill') is computed live."""
+    return live
 
     model_os = os_cache.get("os_per_model", {})
 
@@ -1240,17 +1238,14 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
     combined_pw = {
         "reg_wr": ("Reg WR", {p["paper_id"]: p["score"] for p in pw_papers if p.get("score")}),
         "trueskill": ("TrueSkill", {p["paper_id"]: p["ts_score"] for p in pw_papers if p.get("ts_score")}),
-        "openskill_incr": ("OS (live)", os_incr or {}),
-        "openskill": ("OpenSkill 1p", os1),
-        "openskill3": ("OpenSkill 3p", os3),
-        "openskill10": ("OpenSkill 10p", os10),
+        "openskill": ("OpenSkill", os_incr or {}),
     }
 
     # Combined PW vs SI per model
     per_model = {}
     for si_mk, si_scores in si_maps.items():
         rows = []
-        for pw_key in ["reg_wr", "trueskill", "openskill_incr", "openskill", "openskill3", "openskill10"]:
+        for pw_key in ["reg_wr", "trueskill", "openskill"]:
             pw_label, pw_scores = combined_pw[pw_key]
             row = _corr_row(f"combined_{pw_key}", pw_label, pw_scores, si_scores)
             if row:
@@ -1268,8 +1263,7 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
 
     controlled_pw = {
         "reg_wr": ("Reg WR", {}), "trueskill": ("TrueSkill", {}),
-        "openskill_incr": ("OS (live)", {}),
-        "openskill": ("OpenSkill 1p", {}), "openskill3": ("OpenSkill 3p", {}), "openskill10": ("OpenSkill 10p", {}),
+        "openskill": ("OpenSkill", {}),
     }
     # Controlled WR from single model's stats
     sub_wr = {}
@@ -1305,13 +1299,7 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
             if isinstance(os_data, dict) and os_data.get("mu"):
                 sub_os[p["paper_id"]] = os_data["mu"]
                 break
-    controlled_pw["openskill_incr"] = ("OS (live)", sub_os)
-
-    # Controlled OpenSkill from model_os (already computed!)
-    if sub_mk in model_os:
-        controlled_pw["openskill"] = ("OpenSkill 1p", model_os[sub_mk]["os1"])
-        controlled_pw["openskill3"] = ("OpenSkill 3p", model_os[sub_mk]["os3"])
-        controlled_pw["openskill10"] = ("OpenSkill 10p", model_os[sub_mk]["os10"])
+    controlled_pw["openskill"] = ("OpenSkill", sub_os)
 
     within_mpp = {}
     for si_mk in si_maps:
@@ -1322,7 +1310,7 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
 
     for si_mk, si_scores in si_maps.items():
         ctrl_rows = []
-        for pw_key in ["reg_wr", "trueskill", "openskill_incr", "openskill", "openskill3", "openskill10"]:
+        for pw_key in ["reg_wr", "trueskill", "openskill"]:
             pw_label, pw_scores = controlled_pw[pw_key]
             row = _corr_row(f"ctrl_{pw_key}", pw_label, pw_scores, si_scores)
             if row:
@@ -1370,17 +1358,10 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
             os_data = mos.get(mk_key) or mos.get(dot_key)
             if isinstance(os_data, dict) and os_data.get("mu"):
                 wm_os[p["paper_id"]] = os_data["mu"]
-        row = _corr_row("within_os_incr", "OS (live)", wm_os, si_scores)
+        row = _corr_row("within_os", "OpenSkill", wm_os, si_scores)
         if row:
             row["avg_mpp"] = within_mpp.get(si_mk, 0)
             wm_rows.append(row)
-        # OpenSkill (from pre-computed model_os)
-        if mk_key in model_os:
-            for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
-                row = _corr_row(f"within_{os_key}", os_label, model_os[mk_key][os_key], si_scores)
-                if row:
-                    row["avg_mpp"] = within_mpp.get(si_mk, 0)
-                    wm_rows.append(row)
 
         n_matches = sum(model_paper_stats.get(mk_key, {}).get(p["paper_id"], {}).get("total", 0) for p in pw_papers)
         within_model[si_mk] = {"label": _SI_LABELS.get(si_mk, si_mk), "n_matches": n_matches,
