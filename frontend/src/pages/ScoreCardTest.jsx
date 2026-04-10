@@ -51,7 +51,7 @@ function E2() {
             <span className="text-lg text-slate-400">±{DATA.ci}</span>
           </div>
           <CIBar {...DATA} />
-          <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100">
+          <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-slate-100">
             <div className="text-center p-2.5 bg-slate-50 rounded-lg">
               <div className="text-xl font-bold text-slate-900">{DATA.winRate}%</div>
               <div className="text-[10px] text-slate-500 mt-0.5">Win Rate</div>
@@ -63,6 +63,10 @@ function E2() {
             <div className="text-center p-2.5 bg-red-50 rounded-lg">
               <div className="text-xl font-bold text-red-500">{DATA.losses}</div>
               <div className="text-[10px] text-slate-500 mt-0.5">Losses</div>
+            </div>
+            <div className="text-center p-2.5 bg-slate-50 rounded-lg">
+              <div className="text-xl font-bold text-slate-900">{DATA.matches}</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Matches</div>
             </div>
           </div>
         </div>
@@ -97,7 +101,7 @@ function E2() {
             <span className="text-base text-slate-400">±{DATA.ci}</span>
           </div>
           <CIBar {...DATA} />
-          <div className="grid grid-cols-3 gap-1.5 mt-3 pt-3 border-t border-slate-100">
+          <div className="grid grid-cols-4 gap-1.5 mt-3 pt-3 border-t border-slate-100">
             <div className="text-center py-2 bg-slate-50 rounded-lg">
               <div className="text-lg font-bold text-slate-900">{DATA.winRate}%</div>
               <div className="text-[9px] text-slate-500">Win Rate</div>
@@ -109,6 +113,10 @@ function E2() {
             <div className="text-center py-2 bg-red-50 rounded-lg">
               <div className="text-lg font-bold text-red-500">{DATA.losses}</div>
               <div className="text-[9px] text-slate-500">Losses</div>
+            </div>
+            <div className="text-center py-2 bg-slate-50 rounded-lg">
+              <div className="text-lg font-bold text-slate-900">{DATA.matches}</div>
+              <div className="text-[9px] text-slate-500">Matches</div>
             </div>
           </div>
         </div>
@@ -175,7 +183,7 @@ export default function ScoreCardTest() {
             <span className="text-base text-slate-400">±{DATA.ci}</span>
           </div>
           <CIBar {...DATA} />
-          <div className="grid grid-cols-3 gap-1.5 mt-3 pt-3 border-t border-slate-100">
+          <div className="grid grid-cols-4 gap-1.5 mt-3 pt-3 border-t border-slate-100">
             <div className="text-center py-2 bg-slate-50 rounded-lg">
               <div className="text-lg font-bold text-slate-900">{DATA.winRate}%</div>
               <div className="text-[9px] text-slate-500">Win Rate</div>
@@ -187,6 +195,10 @@ export default function ScoreCardTest() {
             <div className="text-center py-2 bg-red-50 rounded-lg">
               <div className="text-lg font-bold text-red-500">{DATA.losses}</div>
               <div className="text-[9px] text-slate-500">Losses</div>
+            </div>
+            <div className="text-center py-2 bg-slate-50 rounded-lg">
+              <div className="text-lg font-bold text-slate-900">{DATA.matches}</div>
+              <div className="text-[9px] text-slate-500">Matches</div>
             </div>
           </div>
         </div>
