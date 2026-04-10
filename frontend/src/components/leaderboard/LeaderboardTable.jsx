@@ -71,6 +71,7 @@ export function LeaderboardTable({
   const isTS = scoringMethod === "ts";
   const isOS = scoringMethod === "os";
   const TS_SCALE = 10.0; // Must match backend TS_SCALE in ranking.py
+  const OS_SCALE = 15.0; // Must match backend OS_SCALE in ranking.py
   const getScore = (p) => {
     if (isGlobal && p.global_score !== undefined) return p.global_score;
     return isTS ? (p.ts_score || p.score) : isOS ? (p.os_score || p.score) : p.score;
@@ -86,7 +87,7 @@ export function LeaderboardTable({
     }
     if (isOS) {
       const sigma = p.os_sigma;
-      if (sigma != null && sigma > 0) return Math.round(1.96 * sigma * TS_SCALE);
+      if (sigma != null && sigma > 0) return Math.round(1.96 * sigma * OS_SCALE);
       return null;
     }
     return p.wilson_margin;

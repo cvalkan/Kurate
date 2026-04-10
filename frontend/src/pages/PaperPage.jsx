@@ -494,11 +494,11 @@ export default function PaperPage() {
             </TooltipProvider>
             {paper.os_score && paper.os_sigma ? (() => {
               const score = paper.os_score;
-              const ci = Math.round(1.96 * paper.os_sigma * 10);
+              const ci = Math.round(1.96 * paper.os_sigma * 15);
               const lo = score - ci;
               const hi = score + ci;
-              const rangeMin = 800;
-              const rangeMax = 1900;
+              const rangeMin = 700;
+              const rangeMax = 2200;
               const range = rangeMax - rangeMin;
               const loPct = Math.max(0, Math.min(100, ((lo - rangeMin) / range) * 100));
               const hiPct = Math.max(0, Math.min(100, ((hi - rangeMin) / range) * 100));

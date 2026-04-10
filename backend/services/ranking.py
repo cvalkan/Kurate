@@ -419,6 +419,7 @@ SCORE_BASE_CONST = 1200  # Same base as compute_leaderboard
 
 
 TS_SCALE = 10.0  # Elo points per conservative-score unit for TrueSkill normalization
+OS_SCALE = 15.0  # Elo points per conservative-score unit for OpenSkill (higher to match Elo std≈200)
 
 def _extract_ai_rating(entry: dict) -> float | None:
     """Extract a single numeric AI rating from a ranking entry.
@@ -984,7 +985,7 @@ async def rerank_category_light(db, category: str):
         raw_sigma = e.get("os_sigma", 25.0 / 3)
         if raw_mu is not None:
             conservative = raw_mu - 3 * raw_sigma
-            os_elo[e["paper_id"]] = round(conservative * TS_SCALE + SCORE_BASE_CONST)
+            os_elo[e["paper_id"]] = round(conservative * OS_SCALE + SCORE_BASE_CONST)
             os_sigma_map[e["paper_id"]] = round(raw_sigma, 4)
 
     # Rank by OS score

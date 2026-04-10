@@ -27,6 +27,7 @@ async def main():
     os_model = ThurstoneMostellerFull()
     ts_env = trueskill.TrueSkill(draw_probability=0)
     TS_SCALE = 10.0
+    OS_SCALE = 15.0
     SCORE_BASE = 1200
     DEFAULT_MU = 25.0
     DEFAULT_SIGMA = DEFAULT_MU / 3
@@ -167,7 +168,7 @@ async def main():
         os_sigmas = {}
         for pid, (g_mu, g_sigma) in cat_global_os.get(cat, {}).items():
             conservative = g_mu - 3 * g_sigma
-            os_scores[pid] = round(conservative * TS_SCALE + SCORE_BASE)
+            os_scores[pid] = round(conservative * OS_SCALE + SCORE_BASE)
             os_sigmas[pid] = round(g_sigma, 4)
 
         # Compute ranks
