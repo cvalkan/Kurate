@@ -526,7 +526,7 @@ export default function PaperPage() {
                     <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMax}</span>
                   </div>
                   <div className="text-center mt-2 text-xs text-muted-foreground">
-                    OpenSkill: <span className="font-semibold text-foreground">{score}</span> ±{ci}
+                    Score: <span className="font-semibold text-foreground">{score}</span> ±{ci}
                   </div>
                 </div>
               );
