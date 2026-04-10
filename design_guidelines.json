@@ -1,171 +1,115 @@
 {
-  "project_name": "PaperSumo Badges",
-  "version": "1.0",
-  "design_philosophy": {
-    "core_identity": "Scientific Prestige meets Modern Fintech",
-    "vibe": "Exclusive, Data-Rich, Dark Mode, High Contrast",
-    "anti_patterns": [
-      "Generic certificate scrollwork",
-      "Gradients that look like WordArt",
-      "Low contrast text",
-      "Cluttered academic citation formats"
-    ]
-  },
-  "typography": {
-    "font_family": "Liberation Sans",
-    "weights": {
-      "regular": "LiberationSans-Regular.ttf",
-      "bold": "LiberationSans-Bold.ttf"
-    },
-    "hierarchy": {
-      "rank_number": {
-        "size": 180,
-        "weight": "bold",
-        "tracking": "tight",
-        "description": "The visual anchor. Massive, unapologetic."
-      },
-      "tier_label": {
-        "size": 36,
-        "weight": "bold",
-        "case": "uppercase",
-        "tracking": "wide (2px)"
-      },
-      "title": {
-        "size": 48,
-        "weight": "bold",
-        "leading": 60,
-        "description": "High readability, max 2 lines."
-      },
-      "authors": {
-        "size": 32,
-        "weight": "regular",
-        "color": "muted"
-      },
-      "stats_value": {
-        "size": 42,
-        "weight": "bold",
-        "description": "Monospaced feel via layout"
-      },
-      "stats_label": {
-        "size": 20,
-        "weight": "regular",
-        "case": "uppercase",
-        "color": "muted"
-      },
-      "brand": {
-        "size": 24,
-        "weight": "bold",
-        "opacity": 0.8
-      }
-    }
-  },
+  "theme_archetype": "Archetype 4: Swiss & High-Contrast (Light Theme) - Academic App Context",
+  "design_philosophy": "Dense, data-first control room style. We are combining three vertically stacked, space-wasting cards into highly scanable, unified bento-box and horizontal strip layouts. Priority on optical alignment, compact vertical height, and clear hierarchy.",
   "colors": {
-    "theme": "Dark Luxury",
     "backgrounds": {
-      "deep_obsidian": "#050505",
-      "midnight_navy": "#0F172A",
-      "rich_charcoal": "#18181B"
+      "card": "bg-white",
+      "muted": "bg-slate-50",
+      "track": "bg-slate-100"
     },
     "text": {
-      "primary": "#FFFFFF",
-      "secondary": "#94A3B8",
-      "tertiary": "#475569"
+      "primary": "text-slate-900",
+      "secondary": "text-slate-500",
+      "tertiary": "text-slate-400"
     },
-    "tiers": {
-      "gold": {
-        "primary": "#FBBF24",
-        "glow": "#78350F",
-        "rgb": [251, 191, 36],
-        "bg_accent": "#451a03"
-      },
-      "silver": {
-        "primary": "#E2E8F0",
-        "glow": "#475569",
-        "rgb": [226, 232, 240],
-        "bg_accent": "#1e293b"
-      },
-      "bronze": {
-        "primary": "#D97706",
-        "glow": "#7C2D12",
-        "rgb": [217, 119, 6],
-        "bg_accent": "#431407"
-      }
+    "metrics": {
+      "wins": "text-green-600 bg-green-50 border-green-200",
+      "losses": "text-red-600 bg-red-50 border-red-200",
+      "win_rate": "text-slate-900",
+      "accent": "text-blue-600",
+      "ci_band": "bg-blue-200",
+      "ci_dot": "bg-blue-600"
+    },
+    "badges": {
+      "significance": "text-blue-700 bg-blue-50 border-blue-200",
+      "rigor": "text-emerald-700 bg-emerald-50 border-emerald-200",
+      "novelty": "text-violet-700 bg-violet-50 border-violet-200",
+      "clarity": "text-amber-700 bg-amber-50 border-amber-200"
     }
   },
-  "concepts": [
+  "typography": {
+    "primary_font": "font-sans",
+    "hierarchy": {
+      "hero_metric": "text-4xl font-bold tracking-tight leading-none",
+      "primary_metric": "text-2xl font-bold tracking-tight leading-none",
+      "secondary_metric": "text-lg font-semibold",
+      "label": "text-xs font-medium text-slate-500 uppercase tracking-wider",
+      "badge": "text-[11px] font-medium px-2 py-0.5 rounded-full border"
+    }
+  },
+  "visual_enhancers": {
+    "borders": "border border-slate-200",
+    "shadows": "shadow-sm",
+    "radius": "rounded-xl"
+  },
+  "layout_options": [
     {
-      "id": "concept_a",
-      "name": "The Obsidian Slab (Recommended)",
-      "description": "A vertical split layout. Left 25% is a solid colored sidebar (Tier Color) housing the Rank. Right 75% is deep obsidian showing the data. This creates a bold 'stop-scrolling' visual anchor.",
-      "layout_logic": {
-        "canvas": [1200, 630],
-        "sidebar": {
-          "width": 300,
-          "color": "Tier Primary or Darkened Tier",
-          "elements": [
-            { "type": "text", "content": "#RANK", "align": "center", "y": "center_visual" },
-            { "type": "text", "content": "TIER NAME", "align": "center", "y": "below_rank" }
-          ]
-        },
-        "main_area": {
-          "x_start": 360,
-          "width": 780,
-          "elements": [
-            { "type": "text", "content": "CATEGORY • ARCHIVE", "y": 60, "style": "label_muted" },
-            { "type": "text", "content": "TITLE", "y": 110, "max_lines": 2, "style": "heading_white" },
-            { "type": "text", "content": "AUTHORS", "y": "below_title + 30", "style": "body_muted" },
-            { "type": "grid", "y": 480, "columns": 4, "elements": ["ELO", "WIN RATE", "MATCHES", "PAPERS"] },
-            { "type": "text", "content": "PaperSumo by Kurate.org", "y": 570, "align": "right", "style": "brand_logo" }
-          ]
-        }
-      }
+      "name": "Option 1: The Bento Row (Equal Split)",
+      "description": "A single row divided into 3 equal columns on desktop. Highly balanced, reads left to right.",
+      "structure": "flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x border rounded-xl bg-white shadow-sm overflow-hidden",
+      "sections": [
+        "Left (Rating): Huge '9.0' with '/10' subscript. Below it, a dense 2x2 grid of the 4 sub-score badges.",
+        "Middle (Stats): Hero '92%' win rate. Below it, a flex row with '45W / 4L' in green/red, and '49 Matches' in slate.",
+        "Right (CI): Score '1677 ±77' text. Below it, the horizontal CI bar visualization."
+      ]
     },
     {
-      "id": "concept_b",
-      "name": "The Orbit",
-      "description": "Centralized radial design. A glowing ring (Tier Color) in the center holds the rank. Data floats around it.",
-      "layout_logic": {
-        "canvas": [1200, 630],
-        "background": "Radial Gradient (simulated via concentric circles)",
-        "center_piece": {
-          "x": 600,
-          "y": 250,
-          "radius": 120,
-          "stroke": 4,
-          "content": "#RANK"
-        },
-        "details": {
-          "y_start": 420,
-          "align": "center",
-          "elements": ["TITLE", "AUTHORS", "STATS_ROW"]
-        }
-      }
+      "name": "Option 2: The Hero Left Sidebar (Asymmetric)",
+      "description": "Prioritizes the Overall Rating and CI into a highlighted left column, grouping granular stats on the right.",
+      "structure": "flex flex-col md:flex-row border rounded-xl bg-white shadow-sm overflow-hidden",
+      "sections": [
+        "Left Sidebar (w-1/3, bg-slate-50): Stacks Overall Rating (large) and the CI visualization directly underneath it.",
+        "Right Content (w-2/3, p-4, bg-white): A 2x2 grid layout. Top row: Sub-score badges wrapping naturally. Bottom row: Tournament stats displayed as mini-metrics (Wins, Losses, Rate)."
+      ]
+    },
+    {
+      "name": "Option 3: The Compact Strip (Ultra-dense)",
+      "description": "Absolute minimum vertical height. Best if the paper detail page is heavily crowded. Designed to look like a stock ticker or complex table row.",
+      "structure": "flex flex-wrap md:flex-nowrap items-center justify-between p-3 border rounded-lg bg-white shadow-sm gap-4",
+      "sections": [
+        "Item 1: Flex row with Overall Rating (text-2xl) and a vertical divider.",
+        "Item 2: Flex row of Sub-score badges (very tight gap-1).",
+        "Item 3: Vertical divider, then '92% Win Rate' and small '45W - 4L'.",
+        "Item 4: Vertical divider, then CI visual collapsed into a very small horizontal footprint (w-32)."
+      ]
+    },
+    {
+      "name": "Option 4: The 2x2 Feature Card",
+      "description": "Uses a CSS Grid to create a 2x2 bento layout that is perfectly square-ish or rectangular, good for reading.",
+      "structure": "grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-200 border rounded-xl overflow-hidden",
+      "sections": [
+        "Top-Left (bg-white p-5): Overall Rating and Sub-scores.",
+        "Top-Right (bg-white p-5): Tournament Stats prominently displayed.",
+        "Bottom-Full (col-span-1 md:col-span-2 bg-white p-5): The CI Visualization taking up the full width for maximum precision reading."
+      ]
     }
   ],
-  "implementation_guidelines": {
-    "backend_pillow": {
-      "file_path": "/app/backend/routers/badges.py",
-      "instructions": [
-        "Replace the current simple drawing logic with Concept A (Obsidian Slab).",
-        "Use 'Image.new' with 'RGB' and the background color (15, 23, 42).",
-        "Draw a rectangle for the sidebar: [(0,0), (300, 630)]. Fill with Tier Dark Accent.",
-        "Draw a massive vertical line or accent bar: [(295, 0), (300, 630)] fill with Tier Bright Color.",
-        "Title Text Wrap: Write a helper function to wrap text at ~35 characters for font size 48.",
-        "Stats Grid: Calculate X positions dynamically: x=360, x=560, x=760, x=960."
-      ]
-    },
-    "frontend_react": {
-      "file_path": "/app/frontend/src/pages/BadgePage.jsx",
-      "instructions": [
-        "Update the 'TIER_STYLES' to match the new 'Dark Luxury' palette.",
-        "Change the 'badge-card' container to have a dark background (slate-950) instead of the current light styles.",
-        "Use 'border-l-8' (left border) colored by Tier to mimic the image design.",
-        "Ensure the 'Share' buttons are prominent and high-contrast."
-      ]
+  "components": {
+    "ci_visualization_math": {
+      "concept": "A horizontal bar representing the 700-2200 range. A highlighted band represents the ±77 interval. A dot represents the exact score 1677.",
+      "range_min": 700,
+      "range_max": 2200,
+      "total_range": 1500,
+      "score": 1677,
+      "ci_margin": 77,
+      "calculations": {
+        "left_bound": 1600,
+        "right_bound": 1754,
+        "band_left_percent": "((1600 - 700) / 1500) * 100 = 60%",
+        "band_width_percent": "((1754 - 1600) / 1500) * 100 = 10.26%",
+        "dot_left_percent": "((1677 - 700) / 1500) * 100 = 65.13%"
+      },
+      "html_structure": "<div class='w-full h-1.5 bg-slate-100 rounded-full relative mt-2'><div class='absolute h-full bg-blue-200 rounded-full' style='left: 60%; width: 10.26%;'></div><div class='absolute h-3 w-3 bg-blue-600 rounded-full top-1/2 -translate-y-1/2 -translate-x-1/2 border-2 border-white' style='left: 65.13%;'></div></div>"
     }
   },
-  "asset_generation": {
-    "icons": "Use Lucide React icons in frontend. No external assets for Pillow (draw geometric shapes).",
-    "logo": "Render 'PaperSumo' as text in Pillow using the Bold font."
-  }
+  "instructions_to_main_agent": [
+    "Read this JSON carefully to understand the 4 layout options requested.",
+    "Create a new generic dashboard layout or showcase page in the frontend to display all 4 options stacked vertically with generous spacing (gap-12) so the user can review them.",
+    "Do NOT drop any data points. Every option MUST include: Overall 9/10, the 4 sub-scores with their specific colors, the 45W/4L/49M/92% tournament stats, and the CI 1677 ±77 range bar.",
+    "Implement the CI visualization accurately using absolute positioning as detailed in the 'ci_visualization_math' section.",
+    "Apply `data-testid` to all major containers and metrics (e.g., `data-testid='score-card-option-1'`, `data-testid='overall-rating'`, `data-testid='win-rate'`).",
+    "Use Lucide-react icons sparingly but effectively (e.g., Target, Trophy, Activity, TrendingUp) to accompany section labels.",
+    "Ensure complete responsiveness. Mobile views should stack cleanly (`flex-col` or `grid-cols-1`) with proper borders/dividers adjusting (e.g., switching from `divide-x` to `divide-y`).",
+    "DO NOT USE ANY PLACEHOLDER IMAGES OR TEXT. Use exactly the data provided."
+  ]
 }
