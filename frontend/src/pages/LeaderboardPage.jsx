@@ -383,7 +383,7 @@ export default function LeaderboardPage() {
         scoringToggle={(
           <div className="flex items-center gap-2 shrink-0" data-testid="scoring-method-toggle">
             <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
-              {[["wr", "Win Rate"], ["ts", "TrueSkill"], ["os", "OpenSkill"]].map(([key, label]) => (
+              {[["ts", "TrueSkill"], ["os", "OpenSkill"]].map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => { if (!activeArchive) { setSortPending(true); setNextCursor(null); } setScoringMethod(key); }}
