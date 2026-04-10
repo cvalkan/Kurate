@@ -48,7 +48,7 @@ export default function LeaderboardPage() {
   const [sortPending, setSortPending] = useState(false); // Blocks loadMore during sort transition
   const [sortKey, setSortKey] = useState(searchParams.get("sort") || "rank");
   const [sortDir, setSortDir] = useState(searchParams.get("dir") || "asc");
-  const [scoringMethod, setScoringMethod] = useState(searchParams.get("method") || "wr");
+  const [scoringMethod, setScoringMethod] = useState(searchParams.get("method") || "ts");
 
   const { user } = useAuth();
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -399,7 +399,7 @@ export default function LeaderboardPage() {
               ))}
             </div>
             <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : scoringMethod === "os" ? "Bayesian OpenSkill rating" : "Regularized win-rate (default)"}
+              {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : scoringMethod === "os" ? "Bayesian OpenSkill rating" : "Regularized win-rate"}
             </span>
           </div>
         )}
