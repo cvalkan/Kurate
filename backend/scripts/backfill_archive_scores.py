@@ -16,10 +16,7 @@ from pymongo import UpdateOne
 
 
 async def main():
-    mongo_url = open("/app/backend/.env").read().split("MONGO_URL=")[1].split("\n")[0].strip().strip('"')
-    db_name = open("/app/backend/.env").read().split("DB_NAME=")[1].split("\n")[0].strip().strip('"')
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[db_name]
+    from core.config import db
 
     t0 = time.perf_counter()
 
