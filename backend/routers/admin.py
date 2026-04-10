@@ -3351,6 +3351,10 @@ async def run_backfill(name: str):
         from scripts.backfill_archive_scores import main as backfill_fn
         asyncio.create_task(_run_backfill_bg("archive_scores", backfill_fn))
         return {"status": "started", "backfill": "archive_scores"}
+    elif name == "si_ratings":
+        from scripts.backfill_model_openskill import backfill_si_ratings
+        asyncio.create_task(_run_backfill_bg("si_ratings", backfill_si_ratings))
+        return {"status": "started", "backfill": "si_ratings"}
     else:
         return {"status": "error", "message": f"Unknown backfill: {name}. Available: model_openskill, archive_scores"}
 

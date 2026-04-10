@@ -141,3 +141,59 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+async def backfill_si_ratings():
+    """Parse structured ratings from summaries into ai_rating and ai_ratings_by_model."""
+    from core.config import db
+    from services.llm import parse_ratings_from_summary
+    import time
+
+    t0 = time.perf_counter()
+    _MODEL_MAP = {
+        "openai:gpt-5_2": "gpt",
+        "gemini:gemini-3-pro-preview": "gemini",
+        "anthropic:claude-opus-4-6:thinking": "claude",
+        "anthropic:claude-opus-4-6": "claude",
+        "anthropic:claude-opus-4-5-20251101": "claude",
+    }
+
+    # Step 1: Copy ai_rating → ai_ratings_by_model.claude where missing
+    r1 = await db.papers.update_many(
+        {"ai_rating": {"$exists": True, "$type": "object"}, "ai_ratings_by_model.claude": {"$exists": False}},
+        [{"$set": {"ai_ratings_by_model.claude": "$ai_rating"}}]
+    )
+
+    # Step 2: Parse ratings from all model summaries
+    backfill_parsed = 0
+    updated_papers = 0
+    async for p in db.papers.find(
+        {"summaries": {"$exists": True, "$ne": {}}},
+        {"_id": 0, "id": 1, "summaries": 1, "ai_ratings_by_model": 1, "ai_rating": 1}
+    ):
+        existing = p.get("ai_ratings_by_model", {}) or {}
+        update = {}
+        best_rating = None
+        for sk, text in p.get("summaries", {}).items():
+            ms = _MODEL_MAP.get(sk)
+            if not ms or not isinstance(text, str):
+                continue
+            if ms in existing and isinstance(existing.get(ms), dict) and existing[ms].get("score"):
+                if ms == "claude" and not best_rating:
+                    best_rating = existing[ms]
+                continue
+            rating = parse_ratings_from_summary(text)
+            if rating:
+                update[f"ai_ratings_by_model.{ms}"] = rating
+                backfill_parsed += 1
+                if ms == "claude" and not best_rating:
+                    best_rating = rating
+        # Also update ai_rating if it's a plain number and we have structured data
+        if best_rating and not isinstance(p.get("ai_rating"), dict):
+            update["ai_rating"] = best_rating
+        if update:
+            await db.papers.update_one({"id": p["id"]}, {"$set": update})
+            updated_papers += 1
+
+    elapsed = time.perf_counter() - t0
+    print(f"SI backfill: {r1.modified_count} claude copied, {backfill_parsed} parsed, {updated_papers} papers updated in {elapsed:.1f}s")
