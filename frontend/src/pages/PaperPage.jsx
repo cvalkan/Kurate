@@ -497,7 +497,6 @@ export default function PaperPage() {
               const ci = Math.round(1.96 * paper.os_sigma * 10);
               const lo = score - ci;
               const hi = score + ci;
-              // Category score range (use reasonable defaults)
               const rangeMin = 800;
               const rangeMax = 1900;
               const range = rangeMax - rangeMin;
@@ -506,28 +505,28 @@ export default function PaperPage() {
               const scorePct = Math.max(0, Math.min(100, ((score - rangeMin) / range) * 100));
               return (
                 <div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs text-muted-foreground w-10 text-right">{lo}</span>
-                    <div className="flex-1 h-3 bg-slate-100 rounded-full relative overflow-hidden">
-                      <div
-                        className="absolute h-full bg-accent/20 rounded-full"
-                        style={{ left: `${loPct}%`, width: `${hiPct - loPct}%` }}
-                      />
-                      <div
-                        className="absolute h-full w-1.5 bg-accent rounded-full"
-                        style={{ left: `${scorePct}%`, transform: "translateX(-50%)" }}
-                      />
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMin}</span>
+                    <div className="flex-1 relative">
+                      <div className="h-3 bg-slate-100 rounded-full relative overflow-hidden">
+                        <div
+                          className="absolute h-full bg-accent/20 rounded-full"
+                          style={{ left: `${loPct}%`, width: `${hiPct - loPct}%` }}
+                        />
+                        <div
+                          className="absolute h-full w-1.5 bg-accent rounded-full"
+                          style={{ left: `${scorePct}%`, transform: "translateX(-50%)" }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="font-mono text-[10px] text-muted-foreground" style={{ marginLeft: `${loPct}%`, transform: "translateX(-50%)" }}>{lo}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground" style={{ position: "absolute", left: `${hiPct}%`, transform: "translateX(-50%)" }}>{hi}</span>
+                      </div>
                     </div>
-                    <span className="font-mono text-xs text-muted-foreground w-10">{hi}</span>
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMax}</span>
                   </div>
-                  <div className="flex items-center justify-between mt-1.5 text-[10px] text-muted-foreground">
-                    <span>{rangeMin}</span>
-                    <span>OpenSkill: <span className="font-semibold text-foreground">{score}</span> ±{ci}
-                      {paper.ts_score && paper.ts_sigma && (
-                        <span className="ml-3">TrueSkill: <span className="font-semibold text-foreground">{paper.ts_score}</span> ±{Math.round(1.96 * paper.ts_sigma * 10)}</span>
-                      )}
-                    </span>
-                    <span>{rangeMax}</span>
+                  <div className="text-center mt-2 text-xs text-muted-foreground">
+                    OpenSkill: <span className="font-semibold text-foreground">{score}</span> ±{ci}
                   </div>
                 </div>
               );
