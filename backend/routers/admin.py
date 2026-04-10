@@ -3337,3 +3337,36 @@ async def prune_storm_matches(request: Request, category: str = Query(...), dry_
         "deleted": total_deleted,
         "collateral_papers": collateral,
     }
+
+
+@router.post("/run-backfill/{name}", dependencies=[Depends(verify_admin)])
+async def run_backfill(name: str):
+    """Run a named backfill script. Admin only."""
+    import asyncio
+    if name == "model_openskill":
+        from scripts.backfill_model_openskill import main as backfill_fn
+        asyncio.create_task(_run_backfill_bg("model_openskill", backfill_fn))
+        return {"status": "started", "backfill": "model_openskill"}
+    elif name == "archive_scores":
+        from scripts.backfill_archive_scores import main as backfill_fn
+        asyncio.create_task(_run_backfill_bg("archive_scores", backfill_fn))
+        return {"status": "started", "backfill": "archive_scores"}
+    else:
+        return {"status": "error", "message": f"Unknown backfill: {name}. Available: model_openskill, archive_scores"}
+
+_backfill_status = {}
+
+async def _run_backfill_bg(name, fn):
+    import time
+    _backfill_status[name] = {"status": "running", "started_at": time.time()}
+    try:
+        await fn()
+        _backfill_status[name] = {"status": "completed", "elapsed": round(time.time() - _backfill_status[name]["started_at"], 1)}
+        logger.info(f"Backfill {name} completed in {_backfill_status[name]['elapsed']}s")
+    except Exception as e:
+        _backfill_status[name] = {"status": "failed", "error": str(e)[:200]}
+        logger.error(f"Backfill {name} failed: {e}")
+
+@router.get("/backfill-status/{name}", dependencies=[Depends(verify_admin)])
+async def get_backfill_status(name: str):
+    return _backfill_status.get(name, {"status": "not_started"})
