@@ -507,20 +507,24 @@ export default function PaperPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMin}</span>
-                    <div className="flex-1 h-3 bg-slate-100 rounded-full relative overflow-hidden">
-                      <div
-                        className="absolute h-full bg-accent/20 rounded-full"
-                        style={{ left: `${loPct}%`, width: `${hiPct - loPct}%` }}
-                      />
-                      <div
-                        className="absolute h-full w-1.5 bg-accent rounded-full"
-                        style={{ left: `${scorePct}%`, transform: "translateX(-50%)" }}
-                      />
+                    <div className="flex-1 relative">
+                      <div className="h-3 bg-slate-100 rounded-full relative overflow-hidden">
+                        <div
+                          className="absolute h-full bg-accent/20 rounded-full"
+                          style={{ left: `${loPct}%`, width: `${hiPct - loPct}%` }}
+                        />
+                        <div
+                          className="absolute h-full w-1.5 bg-accent rounded-full"
+                          style={{ left: `${scorePct}%`, transform: "translateX(-50%)" }}
+                        />
+                      </div>
+                      <div className="relative mt-1.5" style={{ left: `${scorePct}%`, transform: "translateX(-50%)", width: "fit-content" }}>
+                        <span className="text-sm text-muted-foreground">Score: </span>
+                        <span className="font-semibold text-foreground text-base">{score}</span>
+                        <span className="text-xs text-muted-foreground"> ±{ci}</span>
+                      </div>
                     </div>
                     <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMax}</span>
-                  </div>
-                  <div className="text-center mt-2 text-sm text-muted-foreground">
-                    Score: <span className="font-semibold text-foreground text-base">{score}</span> <span className="text-xs">±{ci}</span>
                   </div>
                 </div>
               );
