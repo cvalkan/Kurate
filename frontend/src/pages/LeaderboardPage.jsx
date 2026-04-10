@@ -371,7 +371,7 @@ export default function LeaderboardPage() {
         isLoggedIn={isLoggedIn} requireAuth={requireAuth} archives={isTagMode ? [] : archives}
         onArchiveSelect={(data, archive) => {
           setActiveArchive(data);
-          if (data) setScoringMethod("wr"); // Reset to WR when entering archive
+          if (data) setScoringMethod("ts"); // Reset to TrueSkill when entering archive
           if (data && archive) {
             const slug = archive.period_type === "older" ? "older"
               : archive.period_type === "weekly" ? `${archive.year}-w${archive.week}`
@@ -402,7 +402,7 @@ export default function LeaderboardPage() {
               ))}
             </div>
             <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : scoringMethod === "os" ? "Bayesian OpenSkill rating" : "Regularized win-rate"}
+              {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : "Bayesian OpenSkill rating"}
             </span>
           </div>
         )}
