@@ -444,27 +444,12 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             cat_pw = {"reg_wr": ("Reg WR", cat_wr), "trueskill": ("TrueSkill", cat_ts), "openskill": ("OpenSkill", cat_os_incr)}
 
             # Load cached OpenSkill scores for this category (batch pre-loaded)
-            cat_os_cache = _os_cache_by_cat.get(cat)
-            cat_os = {}
-            if cat_os_cache and cat_os_cache.get("os_global"):
-                osg = cat_os_cache["os_global"]
-                for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
-                    scores = osg.get(os_key, {})
-                    if len(scores) >= 10:
-                        cat_os[os_key] = (os_label, scores)
-
             # Combined PW vs SI (WR, TS, OS)
             for si_mk, si_scores in cat_si.items():
                 for pw_key, (pw_label, pw_scores) in cat_pw.items():
                     row = _corr_row(f"combined_{pw_key}", pw_label, pw_scores, si_scores)
                     if row:
                         avg_pm_accum.setdefault(si_mk, {}).setdefault(pw_key, []).append(
-                            (row["spearman_rho"], row["kendall_tau"], row["n"]))
-                # OpenSkill vs SI
-                for os_key, (os_label, os_scores) in cat_os.items():
-                    row = _corr_row(f"combined_{os_key}", os_label, os_scores, si_scores)
-                    if row:
-                        avg_pm_accum.setdefault(si_mk, {}).setdefault(os_key, []).append(
                             (row["spearman_rho"], row["kendall_tau"], row["n"]))
 
             # Within-model PW vs SI (also accumulates controlled rows)
@@ -497,7 +482,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 if row:
                     avg_wm_accum.setdefault(si_mk, {}).setdefault("within_ts", []).append(
                         (row["spearman_rho"], row["kendall_tau"], row["n"]))
-                # Within-model OS (live) — per-model incremental OpenSkill
+                # Within-model OpenSkill — per-model incremental
                 wm_os_incr = {}
                 for p in cat_papers:
                     mos = p.get("model_os", {})
@@ -508,20 +493,8 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 if row:
                     avg_wm_accum.setdefault(si_mk, {}).setdefault("within_os", []).append(
                         (row["spearman_rho"], row["kendall_tau"], row["n"]))
-                # Within-model OS (from per-model OS cache for this category)
-                if cat_os_cache:
-                    os_per_model = cat_os_cache.get("os_per_model", {}).get(mk_key, {})
-                    for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
-                        os_scores = os_per_model.get(os_key, {})
-                        if len(os_scores) >= 10:
-                            row = _corr_row(f"within_{os_key}", os_label, os_scores, si_scores)
-                            if row:
-                                avg_wm_accum.setdefault(si_mk, {}).setdefault(f"within_{os_key}", []).append(
-                                    (row["spearman_rho"], row["kendall_tau"], row["n"]))
 
-                # Controlled: single-judge stats correlated vs ALL SI models (not just the matching one)
-                # For controlled, we correlate this judge's PW vs each SI model's scores
-                # This goes into avg_ctrl_accum under each SI target
+                # Controlled: single-judge stats correlated vs ALL SI models
                 for si_target, si_target_scores in cat_si.items():
                     row_wr = _corr_row("ctrl_wr", "Reg WR", wm_wr, si_target_scores)
                     if row_wr:
@@ -531,20 +504,11 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     if row_ts:
                         avg_ctrl_accum.setdefault(si_target, {}).setdefault("trueskill", []).append(
                             (row_ts["spearman_rho"], row_ts["kendall_tau"], row_ts["n"]))
-                    # Controlled OS (live)
+                    # Controlled OpenSkill
                     row_os_incr = _corr_row("ctrl_os", "OpenSkill", wm_os_incr, si_target_scores)
                     if row_os_incr:
                         avg_ctrl_accum.setdefault(si_target, {}).setdefault("openskill", []).append(
                             (row_os_incr["spearman_rho"], row_os_incr["kendall_tau"], row_os_incr["n"]))
-                    if cat_os_cache:
-                        opm = cat_os_cache.get("os_per_model", {}).get(mk_key, {})
-                        for os_key, os_label in [("os1", "openskill1"), ("os3", "openskill3"), ("os10", "openskill10")]:
-                            os_sc = opm.get(os_key, {})
-                            if len(os_sc) >= 10:
-                                row_os = _corr_row(f"ctrl_{os_key}", os_label, os_sc, si_target_scores)
-                                if row_os:
-                                    avg_ctrl_accum.setdefault(si_target, {}).setdefault(os_label, []).append(
-                                        (row_os["spearman_rho"], row_os["kendall_tau"], row_os["n"]))
 
         # Aggregate per-category values into weighted averages
         def _weighted_avg(entries):
@@ -580,30 +544,6 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     kt_r, _ = scipy_stats.kendalltau([pw_dict[p] for p in shared_os_live], [cat_os_sm[p] for p in shared_os_live])
                     if not np.isnan(sp_r):
                         avg_scoring_accum.setdefault(f"{pw_label} vs OpenSkill", []).append((float(sp_r), float(kt_r), len(shared_os_live)))
-            cat_sm_os_cache = _os_cache_by_cat.get(cat)
-            if cat_sm_os_cache and cat_sm_os_cache.get("os_global"):
-                osg = cat_sm_os_cache["os_global"]
-                for os_key, os_label in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
-                    os_scores = osg.get(os_key, {})
-                    for pw_name, pw_label, pw_dict in [("win_rate", "Normalized Win-Rate", cat_wr_sm), ("trueskill", "TrueSkill", cat_ts_sm)]:
-                        shared_os = sorted(set(pw_dict.keys()) & set(os_scores.keys()))
-                        if len(shared_os) >= 10:
-                            sp_r, _ = scipy_stats.spearmanr([pw_dict[p] for p in shared_os], [os_scores[p] for p in shared_os])
-                            kt_r, _ = scipy_stats.kendalltau([pw_dict[p] for p in shared_os], [os_scores[p] for p in shared_os])
-                            if not np.isnan(sp_r):
-                                label = f"{pw_label} vs {os_label}"
-                                avg_scoring_accum.setdefault(label, []).append((float(sp_r), float(kt_r), len(shared_os)))
-                    # OS vs OS
-                    for os_key2, os_label2 in [("os1", "OpenSkill 1p"), ("os3", "OpenSkill 3p"), ("os10", "OpenSkill 10p")]:
-                        if os_key >= os_key2:
-                            continue
-                        os2 = osg.get(os_key2, {})
-                        shared_os2 = sorted(set(os_scores.keys()) & set(os2.keys()))
-                        if len(shared_os2) >= 10:
-                            sp_r, _ = scipy_stats.spearmanr([os_scores[p] for p in shared_os2], [os2[p] for p in shared_os2])
-                            kt_r, _ = scipy_stats.kendalltau([os_scores[p] for p in shared_os2], [os2[p] for p in shared_os2])
-                            if not np.isnan(sp_r):
-                                avg_scoring_accum.setdefault(f"{os_label} vs {os_label2}", []).append((float(sp_r), float(kt_r), len(shared_os2)))
 
         avg_scoring_correlations = []
         for label, entries in avg_scoring_accum.items():
@@ -698,23 +638,6 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                             if not np.isnan(rho):
                                 avg_im_accum.setdefault(pair, {}).setdefault(method, []).append(
                                     (float(rho), len(common)))
-                    # OS inter-model from per-model cache
-                    if cat_im_os_cache and cat_im_os_cache.get("os_per_model"):
-                        opm = cat_im_os_cache["os_per_model"]
-                        os_m1 = opm.get(m1, {})
-                        os_m2 = opm.get(m2, {})
-                        for os_key in ["os1", "os3", "os10"]:
-                            s1 = os_m1.get(os_key, {})
-                            s2 = os_m2.get(os_key, {})
-                            common = sorted(set(s1.keys()) & set(s2.keys()) & cat_pids)
-                            if len(common) >= 10:
-                                v1 = [s1[p] for p in common]
-                                v2 = [s2[p] for p in common]
-                                rho, _ = scipy_stats.spearmanr(v1, v2)
-                                if not np.isnan(rho):
-                                    method_name = {"os1": "openskill1", "os3": "openskill3", "os10": "openskill10"}[os_key]
-                                    avg_im_accum.setdefault(pair, {}).setdefault(method_name, []).append(
-                                        (float(rho), len(common)))
 
         for pair, methods in avg_im_accum.items():
             row = {"pair": pair, "methods": {}}
