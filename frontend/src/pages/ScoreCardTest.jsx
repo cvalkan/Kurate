@@ -34,70 +34,15 @@ const BADGES = [
 ];
 
 // ═══════════════════════════════════════════
-// E1: Sub-ratings on ONE line (horizontal badges)
-// Tournament 65%, Rating 35%
-// ═══════════════════════════════════════════
-function E1() {
-  return (
-    <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
-      <div className="flex flex-col md:flex-row">
-        {/* Tournament Score */}
-        <div className="md:w-[65%] p-6 md:border-r border-b md:border-b-0 border-slate-200">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Trophy className="h-3.5 w-3.5" /> Tournament Score
-          </div>
-          <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-5xl font-bold tracking-tight text-slate-900">{DATA.score}</span>
-            <span className="text-lg text-slate-400">±{DATA.ci}</span>
-          </div>
-          <CIBar {...DATA} />
-          <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100">
-            <div className="text-center p-2.5 bg-slate-50 rounded-lg">
-              <div className="text-xl font-bold text-slate-900">{DATA.winRate}%</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Win Rate</div>
-            </div>
-            <div className="text-center p-2.5 bg-green-50 rounded-lg">
-              <div className="text-xl font-bold text-green-600">{DATA.wins}</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Wins</div>
-            </div>
-            <div className="text-center p-2.5 bg-red-50 rounded-lg">
-              <div className="text-xl font-bold text-red-500">{DATA.losses}</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Losses</div>
-            </div>
-          </div>
-        </div>
-        {/* AI Rating — badges horizontal */}
-        <div className="md:w-[35%] p-6 bg-slate-50/50">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Target className="h-3.5 w-3.5" /> AI Rating
-          </div>
-          <div className="flex items-baseline gap-1 mb-4">
-            <span className="text-4xl font-bold tracking-tight text-slate-700">{DATA.rating}.0</span>
-            <span className="text-sm text-slate-400">/ 10</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {BADGES.map(b => (
-              <span key={b.label} className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${b.color}`}>
-                {b.label} {b.value}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════
-// E2: Sub-ratings STACKED (each on own line)
-// Tournament 70%, Rating 30%
+// E2 — Desktop/Tablet: side-by-side 70/30
+//       Mobile: stacked, redesigned for narrow screens
 // ═══════════════════════════════════════════
 function E2() {
   return (
     <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
-      <div className="flex flex-col md:flex-row">
-        {/* Tournament Score */}
-        <div className="md:w-[70%] p-6 md:border-r border-b md:border-b-0 border-slate-200">
+      {/* Desktop/Tablet: side-by-side */}
+      <div className="hidden md:flex flex-row">
+        <div className="w-[70%] p-6 border-r border-slate-200">
           <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Trophy className="h-3.5 w-3.5" /> Tournament Score
           </div>
@@ -121,8 +66,7 @@ function E2() {
             </div>
           </div>
         </div>
-        {/* AI Rating — badges stacked */}
-        <div className="md:w-[30%] p-6 bg-slate-50/50">
+        <div className="w-[30%] p-6 bg-slate-50/50">
           <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Target className="h-3.5 w-3.5" /> AI Rating
           </div>
@@ -140,6 +84,58 @@ function E2() {
           </div>
         </div>
       </div>
+
+      {/* Mobile: stacked layout */}
+      <div className="md:hidden">
+        {/* Tournament Score */}
+        <div className="p-5">
+          <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+            <Trophy className="h-3 w-3" /> Tournament Score
+          </div>
+          <div className="flex items-baseline gap-1.5 mb-2.5">
+            <span className="text-4xl font-bold tracking-tight text-slate-900">{DATA.score}</span>
+            <span className="text-base text-slate-400">±{DATA.ci}</span>
+          </div>
+          <CIBar {...DATA} />
+          <div className="grid grid-cols-3 gap-1.5 mt-3 pt-3 border-t border-slate-100">
+            <div className="text-center py-2 bg-slate-50 rounded-lg">
+              <div className="text-lg font-bold text-slate-900">{DATA.winRate}%</div>
+              <div className="text-[9px] text-slate-500">Win Rate</div>
+            </div>
+            <div className="text-center py-2 bg-green-50 rounded-lg">
+              <div className="text-lg font-bold text-green-600">{DATA.wins}</div>
+              <div className="text-[9px] text-slate-500">Wins</div>
+            </div>
+            <div className="text-center py-2 bg-red-50 rounded-lg">
+              <div className="text-lg font-bold text-red-500">{DATA.losses}</div>
+              <div className="text-[9px] text-slate-500">Losses</div>
+            </div>
+          </div>
+        </div>
+        {/* AI Rating */}
+        <div className="p-5 pt-0">
+          <div className="border-t border-slate-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <Target className="h-3 w-3 text-slate-500" />
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">AI Rating</span>
+              </div>
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-2xl font-bold text-slate-700">{DATA.rating}.0</span>
+                <span className="text-xs text-slate-400">/ 10</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {BADGES.map(b => (
+                <div key={b.label} className={`flex items-center justify-between text-[11px] font-medium px-2.5 py-1.5 rounded-lg border ${b.color}`}>
+                  <span>{b.label}</span>
+                  <span className="font-bold">{b.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -153,44 +149,68 @@ function ViewportLabel({ label }) {
 export default function ScoreCardTest() {
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Option E — Two Variants</h1>
+      <h1 className="text-2xl font-bold text-slate-900">E2 — Final with Mobile Fix</h1>
 
-      {/* ===== DESKTOP ===== */}
-      <ViewportLabel label="Desktop" />
-      <div className="max-w-4xl mx-auto space-y-8">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-700 mb-2">E1: Sub-ratings on one line</h2>
-          <E1 />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-slate-700 mb-2">E2: Sub-ratings stacked</h2>
-          <E2 />
-        </div>
+      <ViewportLabel label="Desktop (full width)" />
+      <div className="max-w-4xl mx-auto">
+        <E2 />
       </div>
 
-      {/* ===== TABLET ===== */}
       <ViewportLabel label="Tablet (640px)" />
-      <div className="max-w-[640px] mx-auto space-y-8">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-700 mb-2">E1 — Tablet</h2>
-          <E1 />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-slate-700 mb-2">E2 — Tablet</h2>
-          <E2 />
-        </div>
+      <div className="max-w-[640px] mx-auto">
+        <E2 />
       </div>
 
-      {/* ===== MOBILE ===== */}
-      <ViewportLabel label="Mobile (375px)" />
-      <div className="max-w-[375px] mx-auto space-y-8">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-700 mb-2">E1 — Mobile</h2>
-          <E1 />
+      <ViewportLabel label="Mobile (375px) — actual viewport simulation" />
+      <p className="text-xs text-slate-500 text-center">Note: To see the true mobile layout, resize your browser to &lt;768px. Below is the mobile-specific layout rendered directly.</p>
+
+      {/* Force mobile layout by rendering only the mobile portion */}
+      <div className="max-w-[375px] mx-auto border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+        <div className="p-5">
+          <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+            <Trophy className="h-3 w-3" /> Tournament Score
+          </div>
+          <div className="flex items-baseline gap-1.5 mb-2.5">
+            <span className="text-4xl font-bold tracking-tight text-slate-900">{DATA.score}</span>
+            <span className="text-base text-slate-400">±{DATA.ci}</span>
+          </div>
+          <CIBar {...DATA} />
+          <div className="grid grid-cols-3 gap-1.5 mt-3 pt-3 border-t border-slate-100">
+            <div className="text-center py-2 bg-slate-50 rounded-lg">
+              <div className="text-lg font-bold text-slate-900">{DATA.winRate}%</div>
+              <div className="text-[9px] text-slate-500">Win Rate</div>
+            </div>
+            <div className="text-center py-2 bg-green-50 rounded-lg">
+              <div className="text-lg font-bold text-green-600">{DATA.wins}</div>
+              <div className="text-[9px] text-slate-500">Wins</div>
+            </div>
+            <div className="text-center py-2 bg-red-50 rounded-lg">
+              <div className="text-lg font-bold text-red-500">{DATA.losses}</div>
+              <div className="text-[9px] text-slate-500">Losses</div>
+            </div>
+          </div>
         </div>
-        <div>
-          <h2 className="text-sm font-semibold text-slate-700 mb-2">E2 — Mobile</h2>
-          <E2 />
+        <div className="p-5 pt-0">
+          <div className="border-t border-slate-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <Target className="h-3 w-3 text-slate-500" />
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">AI Rating</span>
+              </div>
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-2xl font-bold text-slate-700">{DATA.rating}.0</span>
+                <span className="text-xs text-slate-400">/ 10</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {BADGES.map(b => (
+                <div key={b.label} className={`flex items-center justify-between text-[11px] font-medium px-2.5 py-1.5 rounded-lg border ${b.color}`}>
+                  <span>{b.label}</span>
+                  <span className="font-bold">{b.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
