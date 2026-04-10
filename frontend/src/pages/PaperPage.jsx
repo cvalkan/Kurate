@@ -507,21 +507,15 @@ export default function PaperPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMin}</span>
-                    <div className="flex-1 relative">
-                      <div className="h-3 bg-slate-100 rounded-full relative overflow-hidden">
-                        <div
-                          className="absolute h-full bg-accent/20 rounded-full"
-                          style={{ left: `${loPct}%`, width: `${hiPct - loPct}%` }}
-                        />
-                        <div
-                          className="absolute h-full w-1.5 bg-accent rounded-full"
-                          style={{ left: `${scorePct}%`, transform: "translateX(-50%)" }}
-                        />
-                      </div>
-                      <div className="flex justify-between mt-1">
-                        <span className="font-mono text-[10px] text-muted-foreground" style={{ marginLeft: `${loPct}%`, transform: "translateX(-50%)" }}>{lo}</span>
-                        <span className="font-mono text-[10px] text-muted-foreground" style={{ position: "absolute", left: `${hiPct}%`, transform: "translateX(-50%)" }}>{hi}</span>
-                      </div>
+                    <div className="flex-1 h-3 bg-slate-100 rounded-full relative overflow-hidden">
+                      <div
+                        className="absolute h-full bg-accent/20 rounded-full"
+                        style={{ left: `${loPct}%`, width: `${hiPct - loPct}%` }}
+                      />
+                      <div
+                        className="absolute h-full w-1.5 bg-accent rounded-full"
+                        style={{ left: `${scorePct}%`, transform: "translateX(-50%)" }}
+                      />
                     </div>
                     <span className="font-mono text-xs text-muted-foreground shrink-0">{rangeMax}</span>
                   </div>
