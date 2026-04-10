@@ -88,6 +88,7 @@ export default function LeaderboardPage() {
     const p = new URLSearchParams();
     if (category && !isTagMode) p.set("cat", category);
     if (period !== "week") p.set("period", period);
+    if (scoringMethod !== "ts") p.set("method", scoringMethod);
     if (selectedTags.length) p.set("tags", selectedTags.join(","));
     if (tagMode !== "or") p.set("tagMode", tagMode);
     if (tagFilterOpen && !selectedTags.length) p.set("tagOpen", "1");
@@ -98,7 +99,7 @@ export default function LeaderboardPage() {
     if (activeArchive && archiveSlugRef.current) p.set("archive", archiveSlugRef.current);
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [category, period, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir, activeArchive]);
+  }, [category, period, scoringMethod, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir, activeArchive]);
 
   // Notify navbar
   useEffect(() => {
