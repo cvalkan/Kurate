@@ -426,11 +426,11 @@ export default function PaperPage() {
           { key: "clarity", label: "Clarity", color: "text-amber-700 bg-amber-50 border-amber-200" },
         ];
 
-        const osScore = paper.os_score;
-        const osSigma = paper.os_sigma;
-        const osCi = osSigma ? Math.round(1.96 * osSigma * 15) : null;
-        const rangeMin = paper.category_os_min || 900;
-        const rangeMax = paper.category_os_max || 2000;
+        const tsScore = paper.ts_score;
+        const tsSigma = paper.ts_sigma;
+        const tsCi = tsSigma ? Math.round(1.96 * tsSigma * 10) : null;
+        const rangeMin = paper.category_ts_min || 900;
+        const rangeMax = paper.category_ts_max || 2000;
         const paddedMin = Math.floor((rangeMin - 50) / 50) * 50;
         const paddedMax = Math.ceil((rangeMax + 50) / 50) * 50;
         const range = paddedMax - paddedMin || 1;
@@ -444,20 +444,20 @@ export default function PaperPage() {
                 <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Trophy className="h-3.5 w-3.5" /> Tournament Score
                 </div>
-                {osScore ? (
+                {tsScore ? (
                   <>
                     <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-5xl font-bold tracking-tight text-slate-900">{osScore}</span>
-                      {osCi && <span className="text-lg text-slate-400">±{osCi}</span>}
+                      <span className="text-5xl font-bold tracking-tight text-slate-900">{tsScore}</span>
+                      {tsCi && <span className="text-lg text-slate-400">±{tsCi}</span>}
                     </div>
                     <div>
                       <div className="w-full h-2 bg-slate-100 rounded-full relative">
                         <div className="absolute h-full bg-blue-200 rounded-full" style={{
-                          left: `${Math.max(0, ((osScore - osCi - paddedMin) / range) * 100)}%`,
-                          width: `${Math.min(100, (osCi * 2 / range) * 100)}%`,
+                          left: `${Math.max(0, ((tsScore - tsCi - paddedMin) / range) * 100)}%`,
+                          width: `${Math.min(100, (tsCi * 2 / range) * 100)}%`,
                         }} />
                         <div className="absolute h-3.5 w-3.5 bg-blue-600 rounded-full top-1/2 -translate-y-1/2 -translate-x-1/2 border-2 border-white shadow-sm" style={{
-                          left: `${((osScore - paddedMin) / range) * 100}%`,
+                          left: `${((tsScore - paddedMin) / range) * 100}%`,
                         }} />
                       </div>
                       <div className="flex justify-between mt-1 text-[10px] text-slate-400">
@@ -515,20 +515,20 @@ export default function PaperPage() {
                 <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                   <Trophy className="h-3 w-3" /> Tournament Score
                 </div>
-                {osScore ? (
+                {tsScore ? (
                   <>
                     <div className="flex items-baseline gap-1.5 mb-2.5">
-                      <span className="text-4xl font-bold tracking-tight text-slate-900">{osScore}</span>
-                      {osCi && <span className="text-base text-slate-400">±{osCi}</span>}
+                      <span className="text-4xl font-bold tracking-tight text-slate-900">{tsScore}</span>
+                      {tsCi && <span className="text-base text-slate-400">±{tsCi}</span>}
                     </div>
                     <div>
                       <div className="w-full h-2 bg-slate-100 rounded-full relative">
                         <div className="absolute h-full bg-blue-200 rounded-full" style={{
-                          left: `${Math.max(0, ((osScore - osCi - paddedMin) / range) * 100)}%`,
-                          width: `${Math.min(100, (osCi * 2 / range) * 100)}%`,
+                          left: `${Math.max(0, ((tsScore - tsCi - paddedMin) / range) * 100)}%`,
+                          width: `${Math.min(100, (tsCi * 2 / range) * 100)}%`,
                         }} />
                         <div className="absolute h-3.5 w-3.5 bg-blue-600 rounded-full top-1/2 -translate-y-1/2 -translate-x-1/2 border-2 border-white shadow-sm" style={{
-                          left: `${((osScore - paddedMin) / range) * 100}%`,
+                          left: `${((tsScore - paddedMin) / range) * 100}%`,
                         }} />
                       </div>
                       <div className="flex justify-between mt-1 text-[10px] text-slate-400">

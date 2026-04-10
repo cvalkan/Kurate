@@ -1177,13 +1177,17 @@ async def get_paper_detail(paper_id: str):
     # Get category OS score range for CI bar
     primary_cat = paper.get("categories", [None])[0]
     if primary_cat:
-        pipeline = [
-            {"$match": {"category": primary_cat, "os_score": {"$exists": True, "$ne": None}}},
-            {"$group": {"_id": None, "min_os": {"$min": "$os_score"}, "max_os": {"$max": "$os_score"}}},
-        ]
-        async for agg in db.rankings.aggregate(pipeline):
-            paper["category_os_min"] = agg.get("min_os")
-            paper["category_os_max"] = agg.get("max_os")
+        for score_field, min_key, max_key in [
+            ("os_score", "category_os_min", "category_os_max"),
+            ("ts_score", "category_ts_min", "category_ts_max"),
+        ]:
+            pipeline = [
+                {"$match": {"category": primary_cat, score_field: {"$exists": True, "$ne": None}}},
+                {"$group": {"_id": None, "min_val": {"$min": f"${score_field}"}, "max_val": {"$max": f"${score_field}"}}},
+            ]
+            async for agg in db.rankings.aggregate(pipeline):
+                paper[min_key] = agg.get("min_val")
+                paper[max_key] = agg.get("max_val")
 
     return {
         "paper": paper,
