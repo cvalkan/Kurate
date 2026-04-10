@@ -72,7 +72,8 @@ async def main():
     # Replay matches chronologically, snapshotting TS/OS at each archive's cutoff
     # Per-category state: {category: {paper_id: (ts_mu, ts_sigma, os_mu, os_sigma)}}
     cat_ts = defaultdict(dict)  # {cat: {pid: trueskill.Rating}}
-    cat_os = defaultdict(dict)  # {cat: {pid: (mu, sigma)}}
+    cat_os = defaultdict(dict)  # {cat: {pid: {mk: (mu, sigma)}}} — per-model
+    cat_global_os = defaultdict(dict)  # {cat: {pid: (mu, sigma)}} — global
 
     match_idx = 0
     total_archives_updated = 0
@@ -130,6 +131,24 @@ async def main():
                 cat_os[m_cat][p2][mk] = (nw.mu, nw.sigma)
                 cat_os[m_cat][p1][mk] = (nl.mu, nl.sigma)
 
+            # Global OS update (all matches regardless of model)
+            if p1 not in cat_global_os[m_cat]:
+                cat_global_os[m_cat][p1] = (DEFAULT_MU, DEFAULT_SIGMA)
+            if p2 not in cat_global_os[m_cat]:
+                cat_global_os[m_cat][p2] = (DEFAULT_MU, DEFAULT_SIGMA)
+
+            gr1 = os_model.rating(mu=cat_global_os[m_cat][p1][0], sigma=cat_global_os[m_cat][p1][1])
+            gr2 = os_model.rating(mu=cat_global_os[m_cat][p2][0], sigma=cat_global_os[m_cat][p2][1])
+
+            if winner == p1:
+                [[gw], [gl]] = os_model.rate([[gr1], [gr2]], ranks=[1, 2])
+                cat_global_os[m_cat][p1] = (gw.mu, gw.sigma)
+                cat_global_os[m_cat][p2] = (gl.mu, gl.sigma)
+            else:
+                [[gw], [gl]] = os_model.rate([[gr2], [gr1]], ranks=[1, 2])
+                cat_global_os[m_cat][p2] = (gw.mu, gw.sigma)
+                cat_global_os[m_cat][p1] = (gl.mu, gl.sigma)
+
             match_idx += 1
 
         # Snapshot TS/OS scores for this archive's category
@@ -143,18 +162,13 @@ async def main():
             conservative = rating.mu - 3 * rating.sigma
             ts_scores[pid] = round(conservative * TS_SCALE + SCORE_BASE)
 
-        # Build OS scores (average across models)
+        # Build OS scores from global OS (all matches, not per-model average)
         os_scores = {}
         os_sigmas = {}
-        for pid, model_data in cat_os.get(cat, {}).items():
-            if model_data:
-                mus = [v[0] for v in model_data.values()]
-                sigs = [v[1] for v in model_data.values()]
-                avg_mu = sum(mus) / len(mus)
-                avg_sig = sum(sigs) / len(sigs)
-                conservative = avg_mu - 3 * avg_sig
-                os_scores[pid] = round(conservative * TS_SCALE + SCORE_BASE)
-                os_sigmas[pid] = round(avg_sig, 4)
+        for pid, (g_mu, g_sigma) in cat_global_os.get(cat, {}).items():
+            conservative = g_mu - 3 * g_sigma
+            os_scores[pid] = round(conservative * TS_SCALE + SCORE_BASE)
+            os_sigmas[pid] = round(g_sigma, 4)
 
         # Compute ranks
         ts_ranked = sorted(ts_scores.items(), key=lambda x: -x[1])

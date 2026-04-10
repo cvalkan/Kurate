@@ -49,6 +49,7 @@ async def main():
                 matches.append(m)
 
         model_ratings = defaultdict(dict)
+        global_os = {}  # {paper_id: (mu, sigma)} — all matches regardless of model
 
         _OPUS_MERGE = {
             "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
@@ -61,6 +62,7 @@ async def main():
             raw_key = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
             mk = _OPUS_MERGE.get(raw_key, raw_key).replace(".", "_")
 
+            # Per-model OS
             if p1 not in model_ratings[mk]:
                 model_ratings[mk][p1] = (DEFAULT_MU, DEFAULT_SIGMA)
             if p2 not in model_ratings[mk]:
@@ -78,6 +80,24 @@ async def main():
                 model_ratings[mk][p2] = (new_w.mu, new_w.sigma)
                 model_ratings[mk][p1] = (new_l.mu, new_l.sigma)
 
+            # Global OS (all matches regardless of model)
+            if p1 not in global_os:
+                global_os[p1] = (DEFAULT_MU, DEFAULT_SIGMA)
+            if p2 not in global_os:
+                global_os[p2] = (DEFAULT_MU, DEFAULT_SIGMA)
+
+            gr1 = model.rating(mu=global_os[p1][0], sigma=global_os[p1][1])
+            gr2 = model.rating(mu=global_os[p2][0], sigma=global_os[p2][1])
+
+            if winner == p1:
+                [[gw], [gl]] = model.rate([[gr1], [gr2]], ranks=[1, 2])
+                global_os[p1] = (gw.mu, gw.sigma)
+                global_os[p2] = (gl.mu, gl.sigma)
+            else:
+                [[gw], [gl]] = model.rate([[gr2], [gr1]], ranks=[1, 2])
+                global_os[p2] = (gw.mu, gw.sigma)
+                global_os[p1] = (gl.mu, gl.sigma)
+
         paper_updates = defaultdict(dict)
         for mk, ratings in model_ratings.items():
             for paper_id, (mu, sigma) in ratings.items():
@@ -88,10 +108,23 @@ async def main():
             set_fields = {}
             for mk, vals in model_data.items():
                 set_fields[f"model_os.{mk}"] = vals
+            # Also write global OS
+            if paper_id in global_os:
+                g_mu, g_sigma = global_os[paper_id]
+                set_fields["os_mu"] = g_mu
+                set_fields["os_sigma"] = g_sigma
             ops.append(UpdateOne(
                 {"paper_id": paper_id, "category": cat},
                 {"$set": set_fields},
             ))
+        # Papers that have global OS but no per-model data (shouldn't happen, but safety)
+        for paper_id in global_os:
+            if paper_id not in paper_updates:
+                g_mu, g_sigma = global_os[paper_id]
+                ops.append(UpdateOne(
+                    {"paper_id": paper_id, "category": cat},
+                    {"$set": {"os_mu": g_mu, "os_sigma": g_sigma}},
+                ))
 
         if ops:
             result = await db.rankings.bulk_write(ops, ordered=False)

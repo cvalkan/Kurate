@@ -831,6 +831,40 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
         except Exception:
             pass
 
+    # --- Step 4: Incremental global OpenSkill update ---
+    # Uses ALL matches (not per-model) — same data volume as TrueSkill.
+    # Stored as os_mu/os_sigma on ranking doc (parallel to ts_mu/ts_sigma).
+    try:
+        from openskill.models import ThurstoneMostellerFull
+        _os_global = ThurstoneMostellerFull()
+        w_doc_g = await db.rankings.find_one(
+            {"paper_id": winner_id, "category": category},
+            {"_id": 0, "os_mu": 1, "os_sigma": 1},
+        )
+        l_doc_g = await db.rankings.find_one(
+            {"paper_id": loser_id, "category": category},
+            {"_id": 0, "os_mu": 1, "os_sigma": 1},
+        )
+        w_os_g = _os_global.rating(
+            mu=(w_doc_g or {}).get("os_mu", 25.0),
+            sigma=(w_doc_g or {}).get("os_sigma", 25.0 / 3),
+        )
+        l_os_g = _os_global.rating(
+            mu=(l_doc_g or {}).get("os_mu", 25.0),
+            sigma=(l_doc_g or {}).get("os_sigma", 25.0 / 3),
+        )
+        [[new_w_g], [new_l_g]] = _os_global.rate([[w_os_g], [l_os_g]], ranks=[1, 2])
+        await db.rankings.update_one(
+            {"paper_id": winner_id, "category": category},
+            {"$set": {"os_mu": new_w_g.mu, "os_sigma": new_w_g.sigma}},
+        )
+        await db.rankings.update_one(
+            {"paper_id": loser_id, "category": category},
+            {"$set": {"os_mu": new_l_g.mu, "os_sigma": new_l_g.sigma}},
+        )
+    except Exception:
+        pass
+
     # --- Step 5: Incremental per-model OpenSkill update ---
     if model_key:
         try:
@@ -928,7 +962,8 @@ async def rerank_category_light(db, category: str):
     async for doc in db.rankings.find(
         {"category": category},
         {"_id": 0, "paper_id": 1, "score": 1, "title": 1,
-         "ts_mu": 1, "ts_sigma": 1, "wins": 1, "comparisons": 1,
+         "ts_mu": 1, "ts_sigma": 1, "os_mu": 1, "os_sigma": 1,
+         "wins": 1, "comparisons": 1,
          "si_ratings": 1, "ai_rating": 1, "model_os": 1},
     ):
         entries.append(doc)
@@ -941,20 +976,16 @@ async def rerank_category_light(db, category: str):
     rank_wr, rank_ts = _compute_ranks(entries, ts_elo)
     gap_wr, gap_ts = _compute_gap_scores(entries, ts_elo)
 
-    # Compute global OpenSkill score from per-model OS (average across models)
+    # Compute global OpenSkill score from os_mu/os_sigma (same pattern as TrueSkill)
     os_elo = {}
     os_sigma_map = {}
     for e in entries:
-        mos = e.get("model_os", {})
-        if mos and isinstance(mos, dict):
-            mus = [v["mu"] for v in mos.values() if isinstance(v, dict) and v.get("mu")]
-            sigmas = [v["sigma"] for v in mos.values() if isinstance(v, dict) and v.get("sigma")]
-            if mus:
-                avg_mu = sum(mus) / len(mus)
-                avg_sigma = sum(sigmas) / len(sigmas) if sigmas else 25.0 / 3
-                conservative = avg_mu - 3 * avg_sigma
-                os_elo[e["paper_id"]] = round(conservative * TS_SCALE + SCORE_BASE_CONST)
-                os_sigma_map[e["paper_id"]] = round(avg_sigma, 4)
+        raw_mu = e.get("os_mu")
+        raw_sigma = e.get("os_sigma", 25.0 / 3)
+        if raw_mu is not None:
+            conservative = raw_mu - 3 * raw_sigma
+            os_elo[e["paper_id"]] = round(conservative * TS_SCALE + SCORE_BASE_CONST)
+            os_sigma_map[e["paper_id"]] = round(raw_sigma, 4)
 
     # Rank by OS score
     import hashlib
