@@ -13,7 +13,7 @@ const COLUMN_TIPS = {
   score_g: "Win-rate score from ALL matches across all categories (pairwise win-rate). Reflects overall performance.",
   win_rate: "Percentage of head-to-head comparisons won within this set.",
   win_rate_g: "Win rate across ALL matches the paper has participated in, not just this filtered set.",
-  wilson_margin: "95% Wilson confidence interval half-width. The interval is asymmetric \u2014 at 99% win rate, \u00B16% means the true rate is likely between 93\u2013100% (not 93\u2013105%). At extreme win rates the uncertainty is mostly one-sided because win rate can\u2019t exceed 100% or go below 0%. Lower margin = more matches played = more certainty.",
+  wilson_margin: "95% confidence interval half-width. For Win Rate: Wilson score interval on win percentage. For TrueSkill/OpenSkill: \u00B11.96\u00D7\u03C3 in Elo-scaled score points. Lower = more matches played = more certainty in the rating.",
   comparisons: "Number of head-to-head LLM comparisons this paper has participated in within this set.",
   comparisons_g: "Total comparisons across ALL categories, including matches outside this filtered set.",
   published: "arXiv publication date.",
@@ -193,7 +193,7 @@ export function LeaderboardTable({
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
           <SortHeader label={isMobile ? "Score" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={scoreTip} />
           {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
-          {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isTS ? "95% TrueSkill confidence interval in Elo points. Lower = more certain rating. Based on Bayesian sigma parameter." : COLUMN_TIPS.wilson_margin} />}
+          {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isTS ? "95% TrueSkill confidence interval (\u00B11.96\u00D7\u03C3) in Elo-scaled score points. Lower = more certain." : isOS ? "95% OpenSkill confidence interval (\u00B11.96\u00D7\u03C3) in Elo-scaled score points. Lower = more certain." : COLUMN_TIPS.wilson_margin} />}
           {!isMobile && <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />}
           {showRatingCol && !isMobile && !isTablet && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
           {showGapCol && !isMobile && !isTablet && <SortHeader label="Gap" sortKey="gap_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Difference between tournament rank percentile and AI rating percentile. Positive = tournament ranks the paper higher than the AI rating suggests. Negative = AI rating is more optimistic than tournament performance. Measured in percentile points (e.g., -5.9 means the AI rates the paper ~6 percentile points higher than the tournament does)." />}

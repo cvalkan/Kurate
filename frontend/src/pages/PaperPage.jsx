@@ -488,12 +488,14 @@ export default function PaperPage() {
                   <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 cursor-help">Confidence Interval (95%)</h3>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs">
-                  <p className="text-xs">95% Wilson confidence interval half-width. The interval is asymmetric — at 99% win rate, ±6% means the true rate is likely between 93–100% (not 93–105%). At extreme win rates the uncertainty is mostly one-sided because win rate can't exceed 100% or go below 0%. Lower margin = more matches played = more certainty.</p>
+                  <p className="text-xs">95% confidence interval. For Win Rate: Wilson score interval on win percentage. For TrueSkill/OpenSkill: ±1.96×σ in Elo-scaled score points. Lower margin = more matches played = more certainty.</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.lower_bound * 100)}%</span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {Math.round(stats.confidence.lower_bound * 100)}%
+              </span>
               <div className="flex-1 h-2 bg-slate-100 rounded-full relative overflow-hidden">
                 <div
                   className="absolute h-full bg-accent/20 rounded-full"
@@ -507,8 +509,21 @@ export default function PaperPage() {
                   style={{ left: `${stats.confidence.win_rate * 100}%`, transform: "translateX(-50%)" }}
                 />
               </div>
-              <span className="font-mono text-xs text-muted-foreground">{Math.round(stats.confidence.upper_bound * 100)}%</span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {Math.round(stats.confidence.upper_bound * 100)}%
+              </span>
             </div>
+            {/* Score-based CI for TS/OS */}
+            {(paper.ts_sigma || paper.os_sigma) && (
+              <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+                {paper.ts_sigma && (
+                  <span>TrueSkill: <span className="font-mono">{paper.ts_score || "—"} ±{Math.round(1.96 * paper.ts_sigma * 10)}</span></span>
+                )}
+                {paper.os_sigma && (
+                  <span>OpenSkill: <span className="font-mono">{paper.os_score || "—"} ±{Math.round(1.96 * paper.os_sigma * 10)}</span></span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

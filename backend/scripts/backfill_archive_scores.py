@@ -194,6 +194,35 @@ async def main():
                 entry["rank_os"] = rank_os.get(pid)
                 updated = True
 
+        # Compute gap scores (WR percentile vs AI rating percentile)
+        ai_ratings = {}
+        for entry in lb:
+            ai_r = entry.get("ai_rating")
+            if ai_r and isinstance(ai_r, dict) and ai_r.get("score"):
+                ai_ratings[entry["id"]] = ai_r["score"]
+            elif ai_r and isinstance(ai_r, (int, float)):
+                ai_ratings[entry["id"]] = ai_r
+
+        entries_with_both = [e for e in lb if ai_ratings.get(e.get("id")) and (e.get("comparisons") or 0) >= 3]
+        if len(entries_with_both) >= 2:
+            import numpy as _np
+            from scipy import stats as _sp
+            wr_vals = _np.array([e.get("score", 0) for e in entries_with_both])
+            si_vals = _np.array([ai_ratings[e["id"]] for e in entries_with_both])
+            wr_pct = _sp.rankdata(wr_vals) / len(entries_with_both) * 100
+            si_pct = _sp.rankdata(si_vals) / len(entries_with_both) * 100
+            gap_wr = wr_pct - si_pct
+            for i, entry in enumerate(entries_with_both):
+                entry["gap_score"] = round(float(gap_wr[i]), 1)
+
+            if any(e.get("ts_score") for e in entries_with_both):
+                ts_vals = _np.array([e.get("ts_score", e.get("score", 0)) for e in entries_with_both])
+                ts_pct = _sp.rankdata(ts_vals) / len(entries_with_both) * 100
+                gap_ts = ts_pct - si_pct
+                for i, entry in enumerate(entries_with_both):
+                    entry["gap_score_ts"] = round(float(gap_ts[i]), 1)
+            updated = True  # Gap scores changed
+
         if updated:
             await db.leaderboard_archives.update_one(
                 {"_id": archive["_id"]},
