@@ -552,6 +552,21 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"ts_score backfill warning: {e}")
 
+    # Migration: ensure ts_mu/ts_sigma exist on all rankings (some have ts_score but missing raw params)
+    try:
+        DEFAULT_MU = 25.0
+        DEFAULT_SIGMA = DEFAULT_MU / 3
+        missing_mu = await db.rankings.count_documents(
+            {"$or": [{"ts_mu": {"$exists": False}}, {"ts_mu": None}]}
+        )
+        if missing_mu > 0:
+            await db.rankings.update_many(
+                {"$or": [{"ts_mu": {"$exists": False}}, {"ts_mu": None}]},
+                {"$set": {"ts_mu": DEFAULT_MU, "ts_sigma": DEFAULT_SIGMA}},
+            )
+            logger.info(f"Backfilled ts_mu/ts_sigma defaults for {missing_mu} ranking docs")
+    except Exception as e:
+        logger.warning(f"ts_mu/ts_sigma backfill warning: {e}")
 
     # Migration: backfill ai_rating into existing archive entries that are missing it.
     # ai_rating is static (derived from paper content) so copying current values is safe.

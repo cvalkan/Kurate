@@ -3374,3 +3374,16 @@ async def _run_backfill_bg(name, fn):
 @router.get("/backfill-status/{name}", dependencies=[Depends(verify_admin)])
 async def get_backfill_status(name: str):
     return _backfill_status.get(name, {"status": "not_started"})
+
+
+@router.post("/run-audit", dependencies=[Depends(verify_admin)])
+async def run_data_audit():
+    """Run comprehensive data integrity audit. Returns results inline (not background)."""
+    from tests.test_data_integrity import run_audit
+    results = await run_audit()
+    total_failed = sum(r["failed"] for r in results.values())
+    return {
+        "status": "passed" if total_failed == 0 else "failed",
+        "total_failed": total_failed,
+        "results": results,
+    }
