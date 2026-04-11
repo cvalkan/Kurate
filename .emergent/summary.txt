@@ -1,31 +1,48 @@
 <analysis>### Handover Summary
 
-**original_problem_statement**: Build and maintain a sophisticated Validation Hub for an AI paper-judging system at kurate.org. The application evaluates scientific papers using an incremental TrueSkill & Win-Rate approach. PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the ReviewerToo academic paper to enhance pairwise ranking accuracy.
+**original_problem_statement**: Build and maintain a sophisticated Validation Hub for an AI paper-judging system at kurate.org. The application evaluates scientific papers using an incremental TrueSkill & Win-Rate approach. PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the ReviewerToo academic paper to enhance pairwise ranking accuracy. 
 
-**User's preferred language**: English
-*(INSTRUCT next agent to respond in the user's preferred language only)*
+**User's preferred language**: English (INSTRUCT next agent to respond in the user's preferred language only)
 
 **what currently exists?** 
-A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) scaling to handle 100k+ papers. The application features a background tournament scheduler, real-time Admin Tournament Dashboard, and Live/Cached Model Analysis. In this session, the architecture was drastically stabilized: the scheduler was made resilient to crashes, the model analysis correlation page was optimized to drop load times from 65s to <0.3s via event-driven background caching, ghost matches were eliminated via upserts, and the stall banner logic was fixed using a new O(1) materialized  field. 
+A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) handling 100k+ papers. The platform utilizes TrueSkill and OpenSkill models for paper evaluation. Recently, the architecture underwent a major cleanup to standardize on TrueSkill ( and ) across all leaderboard, badge, and archive views, completely purging Win-Rate (WR) from default rankings. Shareable social media cards () are universally available for all papers, dynamically generating SVG-to-PNG images leveraging historical archive snapshots.
 
 **Last working item**:
-    - Last item agent was working: Fixing duplicate OpenSkill rows in the Correlation Tables. The agent discovered that the cache returned the same dict reference which was then repeatedly mutated. The fix was principled: moving the OpenSkill merge *into*  before the result is cached, making the cached result immutable on read.
+    - Last item agent was working: The agent just finalized the backend consistency of the  script. The script was updated to use bounded effective cutoffs (archive creation to next archive creation) and a cleanup pass was added to catch edge cases where papers were stuck with the default  despite having matches. At the end of the session, the agent and user discussed drafting an email to Emergent Support to whitelist the  IP on the MongoDB Atlas cluster to enable direct database access for debugging.
     - Status: USER VERIFICATION PENDING
     - Agent Testing Done: Y
-    - Which testing method agent to use? manual testing by curl / frontend screenshot tool
+    - Which testing method agent to use? manual testing by curl / python -c
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Production deploy mismatch for final backend fixes (P1)
-     - Attempted fixes: Deployed the duplicate OpenSkill row fix, Average mode tables fix, Pearson correlation additions, and OS m/paper adjustments.
-     - Next debug checklist: Inform user to trigger a fresh deployment or confirm if the latest deploy shows the stable OS rows without duplicates.
-     - Why fix this issue and what will be achieved with the fix? Ensures production UI matches the correct, verified preview state.
+  Issue 1: Deploy and verify final backfill fixes (P0)
+     - Attempted fixes: The agent added a final cleanup pass to  to fix ~12 boundary edge cases. 
+     - Next debug checklist: Instruct the user to deploy, then execute  and verify with .
+     - Why fix this issue and what will be achieved with the fix? Ensures 100% data integrity for all historical snapshots and badge assignments.
      - Status: USER VERIFICATION PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
+     - Should Test frontend/backend/both after fix? Backend
      - Blocked on other issue: None
 
-  Issue 2: Mobile Unfurling on Twitter/X Fails (P2)
+  Issue 2: 14 papers missing  on production (P1)
+     - Attempted fixes: Identified during the automated audit.
+     - Next debug checklist: These papers have summaries but the LLM failed to output a parseable rating JSON block. Their summaries need to be re-generated via the scheduler.
+     - Why fix this issue and what will be achieved with the fix? Fixes missing data (–) in the live and archive leaderboards.
+     - Status: NOT STARTED
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
+
+  Issue 3: Request direct DB access (IP Whitelisting) (P2)
+     - Attempted fixes: Discussed sending an email to  to allow IP  on the Emergent-managed MongoDB Atlas instance.
+     - Next debug checklist: Draft the email for the user.
+     - Why fix this issue and what will be achieved with the fix? Crucial for rapid debugging of production data anomalies without having to push test endpoints.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? NA
+     - Blocked on other issue: User action required
+
+  Issue 4: Mobile Unfurling on Twitter/X Fails (P2)
      - Attempted fixes: Investigated in previous sessions.
      - Next debug checklist: Cloudflare configuration.
      - Why fix this issue and what will be achieved with the fix? Required for social sharing.
@@ -38,138 +55,155 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
   Task 1: Analyze ReviewerToo Paper & Implement Multiple Reviewer Personas (P0)
      - Where to resume: Read the ReviewerToo paper concepts and implement the prompt architecture for diverse AI judges.
      - What will be achieved with this? Enhances pairwise ranking accuracy and correlation with human judgments by utilizing varied AI prompt personas instead of a single prompt.
-     - Status: NOT STARTED (Continually deferred due to critical scheduler crashes, DB scaling, and Correlation Page overhauls).
+     - Status: NOT STARTED (Deferred constantly for operational stability and data integrity tasks).
      - Should Test frontend/backend/both after fix? Both
      - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Implement Author Verification flow: User connects ORCID via OAuth, then adds their paper to their ORCID profile to claim it (Option E) or pastes a Google Scholar URL (Option B). Documented in .
-    - (P1) Architecture Split (Option A): Implement  environment variable (web vs worker) to isolate the FastAPI leaderboard routes from the background scheduler loops. Documented in .
-    - (P1) TrueSkill-first matchmaking: Update the matchmaking algorithm to utilize TrueSkill  (uncertainty) instead of Win-Rate confidence.
+    - (P1) Implement Author Verification flow: User connects ORCID via OAuth, then adds their paper to their ORCID profile to claim it (Option E) or pastes a Google Scholar URL (Option B). 
+    - (P1) Architecture Split (Option A): Implement  environment variable (web vs worker) to isolate the FastAPI leaderboard routes from the background scheduler loops.
     - (P1) Implement an email notification system for registered users using the Resend integration.
-    - (P1) Code Quality: Resolve circular import chain ( ->  -> ). Extract auth utilities.
+    - (P1) Code Quality: Resolve circular import chain ( ->  -> ).
 
     Future Tasks:
-    - (P2) Migrate from  to  cookies for auth tokens to prevent XSS vulnerabilities.
-    - (P2) Complete the Gmail congrats flow or remove the 3 currently unwired endpoints.
-    - (P2) Refactor monolithic  and .
+    - (P2) Migrate from  to  cookies for auth tokens.
+    - (P2) Complete the Gmail congrats flow.
+    - (P2) Refactor monolithic .
 
 **Completed work in this session**
-- Scheduler Resilience: Fixed permanent crash in  by adding exponential backoff auto-restart. (DONE)
-- Stall Banner Logic: Replaced flawed  math with a materialized  field, backfilled via MongoDB migration. (DONE)
-- Ghost Matches Fixed:  now auto-creates missing ranking entries via  upserts, eliminating the race condition between fetch and compare loops. (DONE)
-- Correlation Page Scaling: Reduced  load time from 65s to 0.2s by batch-loading OS caches and moving to an event-driven background refresh task (triggered by ). (DONE)
-- Average Mode UI: InterModel and PW-vs-SI tables now dynamically compute and display correct per-category averages (including Pearson correlation). (DONE)
-- Admin Statistics Crash: Prevented  in the browser by implementing 1-minute server-side downsampling for , dropping payloads from 17.5MB to ~200KB while preserving restart markers. (DONE)
-- Category Reordering: Added drag-and-drop to Admin Categories; order now correctly persists to the DB and reflects on the leaderboard. (DONE)
-- LLM Truncation Tracking: Dead fallback code removed. Added specific truncation warning notes to summaries when LLM context limits (e.g., GPT-5.2's 128k limit) force content halving. (DONE)
-- Cache Rebuild Optimization: Removed dead  logic from leaderboard cache, debounced refresh to 30s, and cached  to eliminate concurrent DB read spikes. Peak memory dropped 66%. (DONE)
+- Unified TrueSkill Standardization: Leaderboard default sort, paper page rank, keyset cursors, and badge assignments now strictly use  and . (DONE)
+- SVG Medal Rank Bug Fix: Fixed the no-op template string replacement so generated PNG cards correctly display their actual rank instead of hardcoded numbers. (DONE)
+- Graceful Universal Share Cards: Non-medalist papers now correctly render RANKED cards with grey circles utilizing historical archive snapshot data. (DONE)
+- Startup DB Migrations: Added migrations to  to auto-backfill , , , and missing s in archives to fix sorting anomalies of older papers. (DONE)
+- Bound Archive Cutoffs: Fixed  to bound replay matches using the creation date of the *subsequent* archive to ensure historical accuracy, grouping weekly and monthly correctly. (DONE)
+- Minimum Match Threshold: Implemented . Papers with fewer than 9 matches can no longer earn top-3 medals. (DONE)
+- Data Integrity Audit: Created  (backed by ) to verify 100% consistency across rankings, archives, medals, and badges. (DONE)
+- Frontend Leaderboard Refinements: Added proper sorting to Archive pages, updated tooltips, and made Global stats the default. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-  - Author Verification API limits: Discovered that Semantic Scholar (S2) indexes very few recent preprints, and its ORCID lookup has 0% success rate for this demographic.
+  - Author Verification API limits (S2 ORCID lookup has 0% empirical success; rely on Option E/B).
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Mobile Unfurling on Twitter/X Fails
-  - Recurrence count: 7+
+  - Recurrence count: 9+
   - Status: BLOCKED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Materialized :** Instead of expensive aggregations to determine tournament stall states, the ranking DB tracks  incrementally. 
-- **Event-Driven Analysis Cache:** To keep the correlation page fast (<0.3s), a background task precomputes complex correlations across all 14 categories triggered by  rather than on-demand.
-- **Server-Side Log Downsampling:** Prevents UI crashes by bucketing memory logs into 1-minute intervals (taking  RSS) while explicitly preserving zero-RSS events like Server restarted.
-- **Ghost Match Prevention:** The system aggressively assumes  documents might not exist when a match finishes (due to loop races) and uses strict upserts to guarantee consistency.
+- **TrueSkill Standardization**:  (default 1200) is the global ranking metric. Win Rate (WR) is only used as a sorting mechanism when users actively apply Tag Filters (Local Mode) because TrueSkill cannot be recomputed from a match subset.
+- **Archive Snapshots**:  store frozen snapshots of rankings. The badge image ALWAYS renders data from the historical snapshot. The footer of the share page ALWAYS displays the current live (All Time) rank.
+- **Match Minimums**:  is enforced in  to prevent papers with 1 or 2 lucky wins from obtaining medals. 
+- **Emergent MongoDB Atlas**: The DB is hosted in Emergent's shared Atlas cluster. IP whitelisting limits direct access via Current Mongosh Log ID:	69dabef59403148c733d88b2
+Connecting to:		mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.8.2
+Using MongoDB:		7.0.31
+Using Mongosh:		2.8.2
+
+For mongosh info see: https://www.mongodb.com/docs/mongodb-shell/
+
+
+To help improve our products, anonymous usage data is collected and sent to MongoDB periodically (https://www.mongodb.com/legal/privacy-policy).
+You can opt-out by running the disableTelemetry() command.
+
+------
+   The server generated these startup warnings when booting
+   2026-04-11T21:36:47.599+00:00: Using the XFS filesystem is strongly recommended with the WiredTiger storage engine. See http://dochub.mongodb.org/core/prodnotes-filesystem
+   2026-04-11T21:36:48.689+00:00: Access control is not enabled for the database. Read and write access to data and configuration is unrestricted
+   2026-04-11T21:36:48.689+00:00: You are running this process as the root user, which is not recommended
+   2026-04-11T21:36:48.689+00:00: Soft rlimits for open file descriptors too low
+------
+
+test>  or Compass from external pods.
 
 **key DB schema**
-  - : Master materialized view. (NEW FIELD:  equal to unique  encounters).
-  - : Stores pairwise comparisons ( field ensures no repeats).
-  - : Precomputed OpenSkill correlation sets (merged into  responses at cache-write).
-  - : Features a TTL index and tracks memory RSS + explicit scheduler failures.
+  - : Master materialized view (, , , ). 
+  - : Snapshots ( array contains frozen paper stats and ).
+  - : Stores pairwise comparisons (, , ).
 
 **changes in tech stack**
   - None.
 
-**All files of reference**
-  1.  (Resilience logic, diagnostic endpoint).
-  2.  (Cache merge logic, Average mode Pearson computations).
-  3.  ( tracking, upserts).
-  4.  (Log downsampling logic, category reorder API).
-  5.  (Gap-fill startup logic).
-  6.  (Detailed analysis of ORCID vs Scholar flows).
-  7.  (Unified master doc tracking system bottlenecks).
-  8.  & 
+**All files of reference** 
+  - 
+  - 
+  - 
+  - 
+  -  (Created)
+  - 
+  - 
 
 **Areas that need refactoring**:
-  -  ->  ->  (Circular dependency ring).
-  -  fallback code in  is effectively dead as live matches utilize . 
+  -  is highly monolithic.
+  - Circular dependency ring:  ->  -> .
 
 **key api endpoints**
-  - : Returns unified scoring correlations (WR/TS/OS) instantly via background caching.
-  - : Exposes compare loop health, heartbeat, and failure reasons.
-  - : Returns downsampled memory trajectory charts.
-  - : Persists manual admin drag-and-drop category priorities.
+  - : Triggers background backfill of historical /.
+  - : Background task validating entire DB consistency.
+  - : Retrieves results of the DB audit.
+  - : Generates universal SVG-to-PNG social card utilizing historical snapshots.
 
 **Critical Info for New Agent**
-1. **Frontend Build Stales:** Hot reloading does *not* automatically rebuild the production Javascript bundle that the FastAPI backend serves. You MUST run yarn run v1.22.22
-info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command. in  before capturing visual verification screenshots. 
-2. **ORCID Verification Limitations:** S2's ORCID lookup has 0% empirical success for Kurate's user base. Rely on Option E (add to ORCID manually) or Option B (Scholar URL). Refer directly to .
-3. **Cache Mutation Danger:** Never mutate fetched cache dicts ( is a band-aid; merge the complex stats *before* caching them to ensure purity on subsequent reads). 
-4. **P0 Task is untouched**: ReviewerToo has been repeatedly shelved to put out scaling and UI correlation fires. Pick it up!
+1. **TrueSkill is King**: Do not revert to Win Rate (/). The entire platform logic relies on  and  for sorting, cursors, and badges. 
+2. **MongoDB Access**: Direct connection strings to  will timeout from your pod due to IP blocking. Avoid trying to use  or Current Mongosh Log ID:	69dabef50374d3798f3d88b2
+Connecting to:		mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.8.2
+Using MongoDB:		7.0.31
+Using Mongosh:		2.8.2
+
+For mongosh info see: https://www.mongodb.com/docs/mongodb-shell/
+
+------
+   The server generated these startup warnings when booting
+   2026-04-11T21:36:47.599+00:00: Using the XFS filesystem is strongly recommended with the WiredTiger storage engine. See http://dochub.mongodb.org/core/prodnotes-filesystem
+   2026-04-11T21:36:48.689+00:00: Access control is not enabled for the database. Read and write access to data and configuration is unrestricted
+   2026-04-11T21:36:48.689+00:00: You are running this process as the root user, which is not recommended
+   2026-04-11T21:36:48.689+00:00: Soft rlimits for open file descriptors too low
+------
+
+test>  directly unless you guide the user to contact Emergent support to whitelist your pod IP ().
+3. **Frontend Build Stales:** Hot reloading does not automatically rebuild the production Javascript bundle that the FastAPI backend serves. Always run yarn run v1.22.22
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command. in  before capturing screenshots of new components.
+4. **P0 Task Overlooked (Again):** The multiple reviewer personas task (ReviewerToo) is STILL sitting untouched. Prioritize it once the backend cleanup is completely verified.
 
 **documents and test reports created in this job**
-  - 
-  - 
-  - 
   -  (Updated)
-  - 
-  - 
 
-**Last 10 User Messages and any pending HUMAN messages**
-- User: Asked to check correlation table duplicate rows on production.
-- Agent: Diagnosed the issue: cache mutation on read. Fixed by moving the merge step to cache-write time.
-- User: Confirmed the duplicate rows fix. Asked if it was principled.
-- Agent: Explained the solution makes cache reads immutable.
-- User: Instructed the agent to thoroughly test the changes, scalable dedup logic, and race condition fixes since the last deployment.
-- Agent: Called the testing subagent, verified all 14 tests passed, and confirmed backend and frontend health.
-- User: Asked if ready for redeployment, suggesting removal of extra debug logging.
-- Agent: Cleaned up stale logging and debug endpoints. Caught a bug where the metrics cleared instantly mid-cycle, fixed it.
-- User: Deployed. Requested confirmation that everything works as expected.
-- Agent: Validated production endpoints. Confirmed 0 ghost matches, scheduler healthy, and OS correlation rows populated successfully.
-- User: Asked to identify code areas that might fail to scale with 10k+ papers/categories.
-- Agent: Profiled DB query overhead. Highlighted 4 immediate scaling bottlenecks.
-- User: Asked clarifying questions on the bottlenecks and requested a scaling action plan.
-- Agent: Answered the questions, provided a prioritized 4-step action plan.
-- User: Approved the first fix. (Gap-fill startup).
-- Agent: Replaced  match-loading with an empty gap-fill ranking creation. Verified.
-- User: Approved the second fix. (Incremental leaderboard cache).
-- Agent: Optimized the leaderboard cache refresh, eliminated dead progress querying, and implemented  caching. Peak RAM dropped by 66%. Documented in . 
-- User: Pointed out the Correlation page was timing out (65s).
-- Agent: Found the Average mode was un-optimized, batch-loaded the OS cache, and changed the API to rely on an event-driven background refresh. Page load dropped to 0.2s.
-- User: Pointed out correlation table bugs (missing Pearson, duplicate OS rows, Aggregate/Average toggle mismatch). 
-- Agent: Fixed all display math issues, rebuilt frontend, verified via browser. (PENDING: User verification on production).
+**Last 10 User Messages and any pending HUMAN messages** 
+- User: Deployed the fix. Noticed 12 boundary edge cases remaining in the audit for archives.
+- Agent: Explained the 12 boundary cases (1 match right on the cutoff line) and added a fallback cleanup pass to  to fix them.
+- User: Asked how the agent can get direct access to the MongoDB DB since debugging through the API is tedious.
+- Agent: Explained the MongoDB instance is Emergent-managed Atlas and blocks non-whitelisted IPs. Suggested drafting an email to Emergent support.
+- User: Asked for options regarding creating a free Atlas instance and migrating data.
+- Agent: Calculated sizes. App won't fit the 512MB free tier unless ~500MB of experiment/validation collections are dropped. Listed the migration steps.
+- User: Instructed the agent NOT to proceed with migration and asked why the IP is needed for authentication rather than just credentials.
+- Agent: Clarified that MongoDB Atlas uses a Network Access List (TCP/IP blocking) as a security-in-depth measure before credentials are even checked.
+- User: Asked for the preview pod's IP.
+- Agent: Provided the IP () but warned it changes on pod restarts. Recommended  whitelisting via Emergent support.
+- User: Concluded that direct access would be very helpful.
+- Agent: Agreed, summarizing how direct access drastically cuts debug time, and offered to draft the email to support.
+
+*Pending verification*: User needs to draft/send the email to support for DB whitelisting (if desired), and run the final deploy ->  ->  loop on production.
 
 **Project Health Check:**
   - Broken: Mobile Twitter/X Unfurling (Cloudflare block).
   - Mocked: None.
 
 **3rd Party Integrations**
-  - OpenAI GPT-5.2 — uses Emergent LLM Key
-  - Anthropic Claude Opus 4.6 — uses Emergent LLM Key
+  - OpenAI GPT-5.2 — uses Emergent LLM Key 
+  - Anthropic Claude Opus 4.6 — uses Emergent LLM Key 
   - Gemini 3 Pro — uses Emergent LLM Key
-  - Resend (Pending implementation for email notifications)
   - ORCID OAuth (Identity provider active in )
 
 **Testing status**
-  - Testing agent used after significant changes: YES (, )
-  - Troubleshoot agent used after agent stuck in loop: NO 
-  - Test files created: None.
+  - Testing agent used after significant changes: NO (Heavy manual execution and DB endpoint audits were heavily utilized instead)
+  - Troubleshoot agent used after agent stuck in loop: YES (Used to review the consistency of the badge and archive refactoring)
+  - Test files created:  (Integrated directly into admin routes as  to bypass deployment limits)
   - Known regressions: None.
 
 **Credentials to test flow:**
-  -  for admin login panel access (or  in backend ).
+  - Admin login:  (or  in backend ).
 
 **What agent forgot to execute**
-  - The P0 Task: **ReviewerToo Multiple Reviewer Personas**. The entire session was again dedicated to production stabilization (fixing memory limits, resolving cache read conflicts, and UI correlation table fixes).</analysis>
+  - Testing Agent V3 Fork was NOT used to execute a final regression sweep across the platform.
+  - The ReviewerToo Persona feature (P0) was entirely untouched.</analysis>
