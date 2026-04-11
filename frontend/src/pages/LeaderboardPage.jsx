@@ -134,13 +134,13 @@ export default function LeaderboardPage() {
     // For "rank" sort: use ts_score/os_score (archive rank_ts is global, not period-specific)
     const key = sortKey === "rank" && scoringMethod === "ts" ? "ts_score"
       : sortKey === "rank" && scoringMethod === "os" ? "os_score"
-      : sortKey === "rank" ? "score"
+      : sortKey === "rank" ? "ts_score"
       : sortKey === "score" && scoringMethod === "ts" ? "ts_score"
       : sortKey === "score" && scoringMethod === "os" ? "os_score"
       : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
       : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
       : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
-      : sortKey || "score";
+      : sortKey || "ts_score";
     // Rank sort: "asc" means rank 1,2,3 (score desc), "desc" means rank reversed (score asc)
     const dir = sortKey === "rank"
       ? (sortDir === "desc" ? "asc" : "desc")

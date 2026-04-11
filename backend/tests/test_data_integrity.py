@@ -41,7 +41,7 @@ async def run_audit(production_url: str = None):
         "title",
     ]
     OPTIONAL_RANKING_FIELDS = [
-        "os_score", "os_sigma", "rank_os", "ai_rating", "gap_score", "gap_score_ts",
+        "os_score", "os_mu", "os_sigma", "rank_os", "ai_rating", "gap_score", "gap_score_ts",
     ]
 
     categories = await db.rankings.distinct("category")
@@ -91,6 +91,24 @@ async def run_audit(production_url: str = None):
             max_rank = r.get("rank_ts", 0)
         if max_rank != cat_count and cat_count > 0:
             fail("rankings", f"{cat}: rank_ts max={max_rank} but {cat_count} papers (gap in ranks)")
+        else:
+            ok("rankings")
+
+        # Check OS fields
+        missing_os = await db.rankings.count_documents(
+            {"category": cat, "comparisons": {"$gte": 1},
+             "$or": [{"os_score": {"$exists": False}}, {"os_score": None}]}
+        )
+        missing_os_mu = await db.rankings.count_documents(
+            {"category": cat, "comparisons": {"$gte": 1},
+             "$or": [{"os_mu": {"$exists": False}}, {"os_mu": None}]}
+        )
+        if missing_os > 0:
+            fail("rankings", f"{cat}: {missing_os} papers with matches missing os_score")
+        else:
+            ok("rankings")
+        if missing_os_mu > 0:
+            fail("rankings", f"{cat}: {missing_os_mu} papers with matches missing os_mu")
         else:
             ok("rankings")
 
