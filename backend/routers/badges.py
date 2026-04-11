@@ -458,7 +458,7 @@ async def _find_paper_badge(paper_id: str) -> dict:
     Returns None only if the paper has never appeared in any archive."""
     from core.auth import get_settings
     settings = await get_settings()
-    archive_config = settings.get("archive_frequency", {})
+    archive_config = settings.get("archive_frequency") or {}
     default_freq = archive_config.get("default", "weekly")
 
     archives = await db.leaderboard_archives.find(
@@ -657,7 +657,7 @@ async def get_paper_badges(paper_id: str):
     Only returns badges matching the category's configured archive frequency (weekly or monthly)."""
     from core.auth import get_settings
     settings = await get_settings()
-    archive_config = settings.get("archive_frequency", {})
+    archive_config = settings.get("archive_frequency") or {}
     default_freq = archive_config.get("default", "weekly")
 
     archives = await db.leaderboard_archives.find(

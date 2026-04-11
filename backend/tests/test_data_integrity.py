@@ -161,7 +161,7 @@ async def run_audit(production_url: str = None):
     # =========================================================================
     from core.auth import get_settings
     settings = await get_settings()
-    archive_config = settings.get("archive_frequency", {})
+    archive_config = settings.get("archive_frequency") or {}
     default_freq = archive_config.get("default", "weekly")
     from routers.badges import _compute_archive_rank, _get_tier, _find_paper_badge
 

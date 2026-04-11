@@ -2643,7 +2643,7 @@ async def create_all_snapshots():
     from routers.leaderboard import create_archive_snapshot
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
-    archive_config = settings.get("archive_frequency", {})
+    archive_config = settings.get("archive_frequency") or {}
     default_freq = archive_config.get("default", "weekly")
     created = 0
     for cat in active_cats:
@@ -2660,7 +2660,7 @@ async def set_archive_frequency(request: Request):
     Both types are always computed and stored — this only controls the dropdown."""
     body = await request.json()
     settings = await get_settings()
-    archive_config = settings.get("archive_frequency", {})
+    archive_config = settings.get("archive_frequency") or {}
 
     if "default" in body:
         archive_config["default"] = body["default"]
@@ -2680,7 +2680,7 @@ async def set_archive_frequency(request: Request):
 async def get_archive_frequency():
     """Get current archive frequency settings."""
     settings = await get_settings()
-    return settings.get("archive_frequency", {"default": "weekly"})
+    return settings.get("archive_frequency") or {"default": "weekly"}
 
 
 @router.post("/archive/backfill", dependencies=[Depends(verify_admin)])

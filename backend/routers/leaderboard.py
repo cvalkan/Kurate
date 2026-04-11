@@ -1069,7 +1069,7 @@ def _filter_archives_by_frequency(archives, category, settings):
     """Filter archive list to show only the type configured by admin (weekly or monthly).
     Excludes the current (ongoing) period and sorts by recency."""
     from datetime import datetime, timezone
-    freq_config = settings.get("archive_frequency", {})
+    freq_config = settings.get("archive_frequency") or {}
     freq = freq_config.get(category, freq_config.get("default", "weekly"))
     target_type = "monthly" if freq == "monthly" else "weekly"
 
