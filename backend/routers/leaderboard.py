@@ -1010,7 +1010,7 @@ async def _db_tag_leaderboard_impl(
                     entry["wins"] = loc["wins"]
                     entry["losses"] = loc["losses"]
                     entry["comparisons"] = loc["comparisons"]
-            entries.sort(key=lambda e: (-e.get("ts_score", e.get("score", 0)), e["id"]))
+            entries.sort(key=lambda e: (-e["score"], e["id"]))
             for i, e in enumerate(entries):
                 e["rank"] = i + 1
 
