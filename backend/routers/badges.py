@@ -126,8 +126,13 @@ def _truncate(text: str, max_len: int) -> str:
 
 
 def _compute_archive_rank(leaderboard: list, paper_id: str) -> int:
-    """Compute paper rank from archive leaderboard by sorting on ts_score."""
-    sorted_lb = sorted(leaderboard, key=lambda p: (p.get("ts_score") or p.get("score") or 0), reverse=True)
+    """Compute paper rank from archive leaderboard by sorting on ts_score.
+    Papers with ts_score rank first; papers without rank after them."""
+    sorted_lb = sorted(
+        leaderboard,
+        key=lambda p: (1 if p.get("ts_score") else 0, p.get("ts_score") or 0, p.get("score") or 0),
+        reverse=True,
+    )
     return next((i + 1 for i, p in enumerate(sorted_lb) if p.get("id") == paper_id), 999)
 
 
