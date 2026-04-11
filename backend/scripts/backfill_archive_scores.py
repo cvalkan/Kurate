@@ -53,7 +53,7 @@ async def main():
     archives = []
     async for a in db.leaderboard_archives.find(
         {"leaderboard": {"$exists": True}},
-        {"_id": 1, "category": 1, "created_at": 1, "label": 1, "leaderboard": 1},
+        {"_id": 1, "category": 1, "created_at": 1, "label": 1, "period_type": 1, "leaderboard": 1},
     ).sort("created_at", 1):
         archives.append(a)
 
@@ -70,38 +70,34 @@ async def main():
 
     # Compute effective cutoff per archive: max(created_at, latest match for archive papers)
     # This handles archives where created_at is the period start date but data was captured later
+    # Compute effective cutoff per archive using the NEXT archive's created_at
+    # as the boundary — that's when the live system took the next snapshot.
+    # For archives with backdated created_at (midnight timestamps), this gives
+    # the correct window. For the most recent archive, use current time.
     print("Computing effective cutoffs per archive...")
-    archive_cutoffs = {}  # archive_id -> effective cutoff datetime
-    for archive in archives:
-        cat = archive["category"]
-        lb = archive.get("leaderboard", [])
-        paper_ids = [p["id"] for p in lb if p.get("id")]
-        nominal_cutoff = parse_ts(archive.get("created_at", ""))
+    archive_cutoffs = {}
 
-        # Bound: cutoff cannot exceed the end of the archive's time period
-        # Weekly: created_at + 7 days. Monthly: created_at + 31 days.
-        period_type = archive.get("period_type", "weekly")
-        period_days = 7 if period_type == "weekly" else 31
-        max_cutoff = nominal_cutoff + timedelta(days=period_days)
+    # Group archives by (category, period_type) to find next-archive boundaries
+    from itertools import groupby
+    archives_by_group = defaultdict(list)
+    for a in archives:
+        key = (a["category"], a.get("period_type", "weekly"))
+        archives_by_group[key].append(a)
 
-        if not paper_ids:
-            archive_cutoffs[archive["_id"]] = nominal_cutoff
-            continue
+    # Sort each group by created_at ascending
+    for key in archives_by_group:
+        archives_by_group[key].sort(key=lambda a: parse_ts(a.get("created_at", "")))
 
-        # Find latest match for any paper in this archive, bounded by period end
-        latest_match = await db.matches.find_one(
-            {"primary_category": cat, "completed": True, "failed": {"$ne": True},
-             "mode": {"$exists": False},
-             "created_at": {"$lte": max_cutoff.isoformat()},
-             "$or": [{"paper1_id": {"$in": paper_ids}}, {"paper2_id": {"$in": paper_ids}}]},
-            {"_id": 0, "created_at": 1},
-            sort=[("created_at", -1)],
-        )
-        if latest_match and latest_match.get("created_at"):
-            match_ts = parse_ts(latest_match["created_at"])
-            archive_cutoffs[archive["_id"]] = max(nominal_cutoff, min(match_ts, max_cutoff))
-        else:
-            archive_cutoffs[archive["_id"]] = max_cutoff
+    now = datetime.now(timezone.utc)
+    for key, group in archives_by_group.items():
+        for i, a in enumerate(group):
+            if i + 1 < len(group):
+                # Use next archive's created_at as cutoff
+                next_created = parse_ts(group[i + 1].get("created_at", ""))
+                archive_cutoffs[a["_id"]] = next_created
+            else:
+                # Most recent archive — use current time
+                archive_cutoffs[a["_id"]] = now
 
     # Re-sort archives by effective cutoff
     archives.sort(key=lambda a: archive_cutoffs.get(a["_id"], parse_ts(a.get("created_at", ""))))
@@ -232,7 +228,7 @@ async def main():
                 continue
 
             # WR stats from replayed matches
-            wr = cat_wr[cat].get(pid, {"wins": 0, "losses": 0})
+            wr = cat_wr[cat][pid]
             wins = wr["wins"]
             losses = wr["losses"]
             comparisons = wins + losses
