@@ -11,7 +11,7 @@ import asyncio
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, "/app/backend")
 
@@ -78,23 +78,30 @@ async def main():
         paper_ids = [p["id"] for p in lb if p.get("id")]
         nominal_cutoff = parse_ts(archive.get("created_at", ""))
 
+        # Bound: cutoff cannot exceed the end of the archive's time period
+        # Weekly: created_at + 7 days. Monthly: created_at + 31 days.
+        period_type = archive.get("period_type", "weekly")
+        period_days = 7 if period_type == "weekly" else 31
+        max_cutoff = nominal_cutoff + timedelta(days=period_days)
+
         if not paper_ids:
             archive_cutoffs[archive["_id"]] = nominal_cutoff
             continue
 
-        # Find latest match for any paper in this archive
+        # Find latest match for any paper in this archive, bounded by period end
         latest_match = await db.matches.find_one(
             {"primary_category": cat, "completed": True, "failed": {"$ne": True},
              "mode": {"$exists": False},
+             "created_at": {"$lte": max_cutoff.isoformat()},
              "$or": [{"paper1_id": {"$in": paper_ids}}, {"paper2_id": {"$in": paper_ids}}]},
             {"_id": 0, "created_at": 1},
             sort=[("created_at", -1)],
         )
         if latest_match and latest_match.get("created_at"):
             match_ts = parse_ts(latest_match["created_at"])
-            archive_cutoffs[archive["_id"]] = max(nominal_cutoff, match_ts)
+            archive_cutoffs[archive["_id"]] = max(nominal_cutoff, min(match_ts, max_cutoff))
         else:
-            archive_cutoffs[archive["_id"]] = nominal_cutoff
+            archive_cutoffs[archive["_id"]] = max_cutoff
 
     # Re-sort archives by effective cutoff
     archives.sort(key=lambda a: archive_cutoffs.get(a["_id"], parse_ts(a.get("created_at", ""))))
