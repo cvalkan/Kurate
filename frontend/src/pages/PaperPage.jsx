@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
-  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2, Bookmark, Target,
+  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2, Bookmark, Target, Award,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBookmarks } from "@/contexts/BookmarkContext";
@@ -108,10 +108,10 @@ function extractRatingsFromSummary(text) {
 function RatingBadge({ ratings }) {
   if (!ratings) return null;
   const dims = [
-    { key: "significance", label: "Significance", color: "bg-blue-100 text-blue-700" },
-    { key: "rigor", label: "Rigor", color: "bg-emerald-100 text-emerald-700" },
-    { key: "novelty", label: "Novelty", color: "bg-violet-100 text-violet-700" },
-    { key: "clarity", label: "Clarity", color: "bg-amber-100 text-amber-700" },
+    { key: "significance", label: "Significance" },
+    { key: "rigor", label: "Rigor" },
+    { key: "novelty", label: "Novelty" },
+    { key: "clarity", label: "Clarity" },
   ];
   return (
     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30 flex-wrap" data-testid="summary-ratings">
@@ -122,7 +122,7 @@ function RatingBadge({ ratings }) {
       </div>
       <div className="flex gap-1 flex-wrap">
         {dims.map(d => ratings[d.key] ? (
-          <span key={d.key} className={`text-[9px] px-1.5 py-0.5 rounded ${d.color}`}>
+          <span key={d.key} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
             {d.label} {ratings[d.key]}
           </span>
         ) : null)}
@@ -500,11 +500,15 @@ export default function PaperPage() {
                   <span className="text-4xl font-bold tracking-tight text-slate-700">{ratings?.score || "—"}</span>
                   {ratings?.score && <span className="text-sm text-slate-400">/ 10</span>}
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2.5">
                   {dims.map(d => ratings?.[d.key] ? (
-                    <div key={d.key} className={`flex items-center justify-between text-xs font-medium px-3 py-1.5 rounded-lg border ${d.color}`}>
-                      <span>{d.label}</span>
-                      <span className="font-bold">{ratings[d.key]}</span>
+                    <div key={d.key}>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                        <span>{d.label}</span><span className="font-bold text-slate-700">{ratings[d.key]}</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-slate-400 rounded-full" style={{ width: `${ratings[d.key] * 10}%` }} />
+                      </div>
                     </div>
                   ) : null)}
                 </div>
@@ -576,11 +580,15 @@ export default function PaperPage() {
                         <span className="text-xs text-slate-400">/ 10</span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
                       {dims.map(d => ratings[d.key] ? (
-                        <div key={d.key} className={`flex items-center justify-between text-[11px] font-medium px-2.5 py-1.5 rounded-lg border ${d.color}`}>
-                          <span>{d.label}</span>
-                          <span className="font-bold">{ratings[d.key]}</span>
+                        <div key={d.key}>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                            <span>{d.label}</span><span className="font-bold text-slate-700">{d.value}</span>
+                          </div>
+                          <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-slate-400 rounded-full" style={{ width: `${ratings[d.key] * 10}%` }} />
+                          </div>
                         </div>
                       ) : null)}
                     </div>
