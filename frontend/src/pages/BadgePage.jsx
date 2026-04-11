@@ -185,7 +185,7 @@ export default function BadgePage() {
     ? `#${displayRank} ${data.tier} in ${data.category_name} Preprints — ${data.badge?.archive_label || data.archive_label || ""}`
     : `#${data.rank} of ${data.total_in_category} in ${data.category_name} — Kurate.org`;
   // Footer below image: always shows current live rank in all-time leaderboard
-  const subtitleText = `#${data.rank} of ${data.total_in_category || "—"} in ${data.category_name}`;
+  const subtitleText = `#${data.rank} of ${data.total_in_category || "—"} in ${data.category_name} (All Time)`;
 
   return (
     <>

@@ -115,7 +115,7 @@ export function LeaderboardTable({
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
     } else {
       // Server-sorted: use the order from the backend (handles both WR and TS)
-      ranked = leaderboard.map((p, i) => ({ ...p, _displayRank: p.rank || (i + 1) }));
+      ranked = leaderboard.map((p, i) => ({ ...p, _displayRank: getRank(p) || (i + 1) }));
     }
     return ranked;
   }, [leaderboard, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
