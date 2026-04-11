@@ -68,7 +68,37 @@ async def main():
         except:
             return datetime.min.replace(tzinfo=timezone.utc)
 
-    archives.sort(key=lambda a: parse_ts(a.get("created_at", "")))
+    # Compute effective cutoff per archive: max(created_at, latest match for archive papers)
+    # This handles archives where created_at is the period start date but data was captured later
+    print("Computing effective cutoffs per archive...")
+    archive_cutoffs = {}  # archive_id -> effective cutoff datetime
+    for archive in archives:
+        cat = archive["category"]
+        lb = archive.get("leaderboard", [])
+        paper_ids = [p["id"] for p in lb if p.get("id")]
+        nominal_cutoff = parse_ts(archive.get("created_at", ""))
+
+        if not paper_ids:
+            archive_cutoffs[archive["_id"]] = nominal_cutoff
+            continue
+
+        # Find latest match for any paper in this archive
+        latest_match = await db.matches.find_one(
+            {"primary_category": cat, "completed": True, "failed": {"$ne": True},
+             "mode": {"$exists": False},
+             "$or": [{"paper1_id": {"$in": paper_ids}}, {"paper2_id": {"$in": paper_ids}}]},
+            {"_id": 0, "created_at": 1},
+            sort=[("created_at", -1)],
+        )
+        if latest_match and latest_match.get("created_at"):
+            match_ts = parse_ts(latest_match["created_at"])
+            archive_cutoffs[archive["_id"]] = max(nominal_cutoff, match_ts)
+        else:
+            archive_cutoffs[archive["_id"]] = nominal_cutoff
+
+    # Re-sort archives by effective cutoff
+    archives.sort(key=lambda a: archive_cutoffs.get(a["_id"], parse_ts(a.get("created_at", ""))))
+    print(f"Effective cutoffs computed for {len(archives)} archives")
 
     # Replay matches chronologically, snapshotting TS/OS at each archive's cutoff
     # Per-category state: {category: {paper_id: (ts_mu, ts_sigma, os_mu, os_sigma)}}
@@ -80,7 +110,7 @@ async def main():
     total_archives_updated = 0
 
     for archive in archives:
-        cutoff = parse_ts(archive.get("created_at", ""))
+        cutoff = archive_cutoffs.get(archive["_id"], parse_ts(archive.get("created_at", "")))
         cat = archive["category"]
 
         # Replay matches up to this archive's cutoff
