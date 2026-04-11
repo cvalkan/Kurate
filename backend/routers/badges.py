@@ -440,33 +440,14 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
     return {"has_badge": bool(tier), "rank": paper.get("rank_ts", paper.get("rank")), "tier": tier["name"] if tier else None}
 
 
-@router.get("/paper/{paper_id}/share")
-async def get_paper_share_data(paper_id: str):
-    """Get shareable badge data for ANY paper — includes best archive badge info if available."""
-    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1, "ai_rating": 1, "arxiv_id": 1})
-    if not paper_doc:
-        raise HTTPException(404, "Paper not found")
-
-    primary_cat = paper_doc.get("categories", [None])[0]
-    ranking = await db.rankings.find_one(
-        {"paper_id": paper_id},
-        {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1, "category": 1},
-    )
-
-    # Use TS rank (TrueSkill) — the canonical ranking metric
-    rank = ranking.get("rank_ts", ranking.get("rank")) if ranking else None
-    total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
-
-    ai_rating = paper_doc.get("ai_rating")
-    rating_score = ai_rating.get("score") if isinstance(ai_rating, dict) else ai_rating if isinstance(ai_rating, (int, float)) else None
-
-    # Look up best archive badge for this paper (most recent top-3 appearance)
+async def _find_paper_badge(paper_id: str) -> dict:
+    """Find the paper's archive badge (top-3 appearance). Each paper has at most one badge.
+    Returns dict with tier/rank/archive_label or None."""
     from core.auth import get_settings
     settings = await get_settings()
     archive_config = settings.get("archive_frequency", {})
     default_freq = archive_config.get("default", "weekly")
 
-    best_badge = None
     archives = await db.leaderboard_archives.find(
         {"leaderboard.id": paper_id, "period_type": {"$in": ["weekly", "monthly"]}},
         {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1, "label": 1, "leaderboard": 1},
@@ -487,9 +468,8 @@ async def get_paper_share_data(paper_id: str):
         tier = _get_tier(archive_rank)
         if tier:
             slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
-            best_badge = {
-                "tier": tier["name"],
-                "tier_color": tier["color"],
+            return {
+                "tier": tier,
                 "rank": archive_rank,
                 "archive_label": a.get("label"),
                 "category": a["category"],
@@ -498,7 +478,53 @@ async def get_paper_share_data(paper_id: str):
                 "badge_url": f"/badge/{a['category']}/{a['year']}/{slug}/{paper_id}",
                 "leaderboard_url": f"/leaderboard/{a['category']}/{a['year']}/{slug}",
             }
-            break  # Take the most recent badge
+    return None
+
+
+@router.get("/paper/{paper_id}/share")
+async def get_paper_share_data(paper_id: str):
+    """Get shareable badge data for ANY paper — includes best archive badge info if available."""
+    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1, "ai_rating": 1, "arxiv_id": 1})
+    if not paper_doc:
+        raise HTTPException(404, "Paper not found")
+
+    primary_cat = paper_doc.get("categories", [None])[0]
+    ranking = await db.rankings.find_one(
+        {"paper_id": paper_id},
+        {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1, "category": 1},
+    )
+
+    # Use TS rank (TrueSkill) — the canonical ranking metric
+    rank = ranking.get("rank_ts", ranking.get("rank")) if ranking else None
+    total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
+
+    ai_rating = paper_doc.get("ai_rating")
+    rating_score = ai_rating.get("score") if isinstance(ai_rating, dict) else ai_rating if isinstance(ai_rating, (int, float)) else None
+
+    # Look up the paper's archive badge (each paper has at most one)
+    badge_data = await _find_paper_badge(paper_id)
+
+    # Use archive badge if it exists, otherwise fall back to live rank
+    if badge_data:
+        display_tier = badge_data["tier"]["name"]
+        display_rank = badge_data["rank"]
+        has_medal = True
+        badge = {
+            "tier": badge_data["tier"]["name"],
+            "tier_color": badge_data["tier"]["color"],
+            "rank": badge_data["rank"],
+            "archive_label": badge_data["archive_label"],
+            "category": badge_data["category"],
+            "slug": badge_data["slug"],
+            "year": badge_data["year"],
+            "badge_url": badge_data["badge_url"],
+            "leaderboard_url": badge_data["leaderboard_url"],
+        }
+    else:
+        display_tier = _get_tier(rank)["name"] if rank and _get_tier(rank) else None
+        display_rank = rank
+        has_medal = rank is not None and rank <= 3
+        badge = None
 
     return {
         "title": paper_doc.get("title"),
@@ -513,16 +539,17 @@ async def get_paper_share_data(paper_id: str):
         "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else None,
         "arxiv_id": paper_doc.get("arxiv_id"),
         "paper_id": paper_id,
-        "has_medal": rank is not None and rank <= 3,
-        "tier": _get_tier(rank)["name"] if rank and _get_tier(rank) else None,
-        "best_badge": best_badge,
+        "has_medal": has_medal,
+        "tier": display_tier,
+        "display_rank": display_rank,
+        "badge": badge,
         "image_url": f"/api/badge/paper/{paper_id}/share/image.png",
     }
 
 
 @router.get("/paper/{paper_id}/share/image.png")
 async def get_paper_share_image(paper_id: str):
-    """Render a shareable badge image for any paper (no medal)."""
+    """Render a shareable badge image for any paper. Uses the paper's archive badge if it exists."""
     await _install_fonts_if_needed()
 
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1})
@@ -537,10 +564,19 @@ async def get_paper_share_image(paper_id: str):
     if not ranking:
         raise HTTPException(404, "Paper has no ranking")
 
-    # Use TS rank (TrueSkill) — the canonical ranking metric
-    rank = ranking.get("rank_ts", ranking.get("rank", 999))
+    live_rank = ranking.get("rank_ts", ranking.get("rank", 999))
     total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
-    tier = _get_tier(rank)
+
+    # Check for historical badge — use it for the image if available
+    best_badge_data = await _find_paper_badge(paper_id)
+    if best_badge_data:
+        rank = best_badge_data["rank"]
+        tier = best_badge_data["tier"]  # Already a dict like {"rank": 1, "name": "Gold", ...}
+        archive_label = best_badge_data["archive_label"]
+    else:
+        rank = live_rank
+        tier = _get_tier(rank)
+        archive_label = None
 
     data = {
         "paper": {
@@ -556,7 +592,7 @@ async def get_paper_share_image(paper_id: str):
         "category": primary_cat,
         "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else "",
         "paper_count": total,
-        "archive_label": None,
+        "archive_label": archive_label,
     }
 
     img_bytes = _render_badge_image(data)

@@ -175,16 +175,17 @@ export default function BadgePage() {
     setShowEmail(false);
   };
 
-  const hasMedal = !!(data.has_medal || (data.tier && data.rank <= 3));
+  const hasMedal = !!(data.has_medal || (data.tier && data.display_rank && data.display_rank <= 3));
+  const displayRank = data.display_rank || data.rank;
   const truncTitle = data.title?.length > 70 ? data.title.slice(0, 67) + "..." : data.title;
   const pageTitle = hasMedal
-    ? `#${data.rank} ${data.tier} — ${data.title} | Kurate.org`
+    ? `#${displayRank} ${data.tier} — ${data.title} | Kurate.org`
     : `#${data.rank} in ${data.category_name} — ${data.title} | Kurate.org`;
   const ogTitle = hasMedal
-    ? `#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label || ""}`
+    ? `#${displayRank} ${data.tier} in ${data.category_name} Preprints — ${data.badge?.archive_label || data.archive_label || ""}`
     : `#${data.rank} of ${data.total_in_category} in ${data.category_name} — Kurate.org`;
-  const subtitleText = hasMedal && data.archive_label
-    ? `#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label}`
+  const subtitleText = hasMedal && (data.badge?.archive_label || data.archive_label)
+    ? `#${displayRank} ${data.tier} in ${data.category_name} Preprints — ${data.badge?.archive_label || data.archive_label}`
     : `#${data.rank} of ${data.total_in_category || "—"} in ${data.category_name}`;
 
   return (
@@ -235,10 +236,10 @@ export default function BadgePage() {
               <a href={`/leaderboard/${category}/${year}/${slug}`} className="hover:underline">{data.archive_label} leaderboard</a>
             </>
           )}
-          {isShareMode && data.best_badge && (
+          {isShareMode && data.badge && (
             <>
               <span className="text-border">·</span>
-              <a href={data.best_badge.leaderboard_url} className="hover:underline">{data.best_badge.archive_label} leaderboard</a>
+              <a href={data.badge.leaderboard_url} className="hover:underline">{data.badge.archive_label} leaderboard</a>
             </>
           )}
           <span className="text-border">·</span>
