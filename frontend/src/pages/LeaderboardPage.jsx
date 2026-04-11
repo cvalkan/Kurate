@@ -141,8 +141,10 @@ export default function LeaderboardPage() {
       : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
       : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
       : sortKey || "score";
-    // For rank sort, always descending (highest score = rank #1)
-    const dir = sortKey === "rank" ? "desc" : (sortDir || "asc");
+    // Rank sort: "asc" means rank 1,2,3 (score desc), "desc" means rank reversed (score asc)
+    const dir = sortKey === "rank"
+      ? (sortDir === "desc" ? "asc" : "desc")
+      : (sortDir || "asc");
     data.sort((a, b) => {
       let va = a[key], vb = b[key];
       if (typeof va === "string" && typeof vb === "string") {

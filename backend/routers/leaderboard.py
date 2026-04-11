@@ -593,6 +593,9 @@ def _resolve_sort(sort_by: str = None, sort_dir: str = None, default_field: str 
     """
     if not sort_by or sort_by == "rank":
         # Default sort: TrueSkill score descending with paper_id tiebreaker
+        # sort_dir flips it: "asc" = rank 1,2,3 (ts_score desc), "desc" = reversed
+        if sort_dir == "desc":
+            return [("ts_score", 1), ("paper_id", 1)], False
         return [("ts_score", -1), ("paper_id", -1)], True
 
     field, default_dir = _SORT_FIELD_MAP.get(sort_by, (sort_by, -1))
