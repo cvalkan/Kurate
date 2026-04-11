@@ -100,7 +100,10 @@ CATEGORIES = {
     "physics.comp-ph": "Computational Physics", "q-bio.BM": "Biomolecules",
     "cs.GT": "Game Theory", "physics.chem-ph": "Chemical Physics",
     "chemrxiv.IC": "Inorganic Chemistry", "cs.CR": "Cryptography & Security",
-    "cs.IT": "Information Theory",
+    "cs.IT": "Information Theory", "quant-ph": "Quantum Physics",
+    "astro-ph.CO": "Cosmology & Astrophysics", "cond-mat.mtrl-sci": "Materials Science",
+    "cs.AI": "Artificial Intelligence", "cs.SI": "Social & Information Networks",
+    "cs.FL": "Formal Languages", "q-fin.CP": "Quantitative Finance",
 }
 
 TIER_CONFIG = [
