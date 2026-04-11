@@ -125,12 +125,18 @@ def _truncate(text: str, max_len: int) -> str:
     return text[:max_len - 1] + "\u2026" if len(text) > max_len else text
 
 
-async def _get_badge_data(category: str, year: int, week: int, paper_id: str) -> dict:
-    """Fetch archive and extract badge data for a specific paper."""
-    archive = await db.leaderboard_archives.find_one(
-        {"category": category, "year": year, "week": week, "period_type": "weekly"},
-        {"_id": 0},
-    )
+async def _get_badge_data(category: str, year: int, paper_id: str, week: int = None, month: int = None) -> dict:
+    """Fetch archive and extract badge data for a specific paper. Works for both weekly and monthly."""
+    if week is not None:
+        query = {"category": category, "year": year, "week": week, "period_type": "weekly"}
+        fallback_label = f"Week {week}, {year}"
+    elif month is not None:
+        query = {"category": category, "year": year, "month": month, "period_type": "monthly"}
+        fallback_label = f"Month {month}, {year}"
+    else:
+        raise HTTPException(400, "Must specify week or month")
+
+    archive = await db.leaderboard_archives.find_one(query, {"_id": 0})
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -139,42 +145,45 @@ async def _get_badge_data(category: str, year: int, week: int, paper_id: str) ->
     if not paper:
         raise HTTPException(404, "Paper not found in this archive")
 
-    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
+    rank = paper.get("rank_ts", paper.get("rank", 999))
+    tier = _get_tier(rank)
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
 
     if not paper.get("comparisons"):
         raise HTTPException(404, "Paper has no tournament matches yet — badge unavailable")
 
-    # Fetch full categories from papers collection (archives don't store them)
     categories = [category]
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
     if paper_doc and paper_doc.get("categories"):
         categories = paper_doc["categories"]
 
+    slug = f"w{week}" if week is not None else f"m{month}"
+
     return {
         "paper": paper,
+        "rank": rank,
         "tier": tier,
-        "archive_label": archive.get("label", f"Week {week}, {year}"),
+        "archive_label": archive.get("label", fallback_label),
         "category": category,
         "category_name": CATEGORIES.get(category, category),
         "paper_count": archive.get("paper_count", len(lb)),
         "categories": categories,
         "year": year,
         "week": week,
+        "month": month,
+        "slug": slug,
     }
 
 
-@router.get("/{category}/{year}/w{week}/{paper_id}")
-async def get_badge(category: str, year: int, week: int, paper_id: str):
-    """Get badge data for a top-ranked paper in a weekly archive."""
-    data = await _get_badge_data(category, year, week, paper_id)
+def _badge_response(data: dict, paper_id: str) -> dict:
+    """Build the standard badge API response from badge data."""
     p = data["paper"]
     return {
         "title": p.get("title"),
         "authors": p.get("authors", []),
-        "rank": p["rank"],
-        "score": p.get("score"),
+        "rank": data["rank"],
+        "score": p.get("ts_score", p.get("score")),
         "win_rate": p.get("win_rate"),
         "comparisons": p.get("comparisons"),
         "tier": data["tier"]["name"],
@@ -185,8 +194,15 @@ async def get_badge(category: str, year: int, week: int, paper_id: str):
         "paper_count": data["paper_count"],
         "arxiv_id": p.get("arxiv_id"),
         "paper_id": paper_id,
-        "image_url": f"/api/badge/{category}/{year}/w{week}/{paper_id}/image.png",
+        "image_url": f"/api/badge/{data['category']}/{data['year']}/{data['slug']}/{paper_id}/image.png",
     }
+
+
+@router.get("/{category}/{year}/w{week}/{paper_id}")
+async def get_badge(category: str, year: int, week: int, paper_id: str):
+    """Get badge data for a top-ranked paper in a weekly archive."""
+    data = await _get_badge_data(category, year, paper_id, week=week)
+    return _badge_response(data, paper_id)
 
 
 @router.get("/{category}/{year}/w{week}/{paper_id}/image.png")
@@ -206,7 +222,7 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
         return Response(content=cached, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=3600"})
     # 3. Render on-the-fly and cache
-    data = await _get_badge_data(category, year, week, paper_id)
+    data = await _get_badge_data(category, year, paper_id, week=week)
     img_bytes = _render_badge_image(data)
     _set_cached_image(store_key, img_bytes)
     # Also persist for future cold starts
@@ -219,7 +235,7 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
 async def get_badge_share_page(category: str, year: int, week: int, paper_id: str, request: Request):
     """Static HTML page with OG meta tags for social sharing. JS redirect for humans, crawlers see tags."""
     from core.sharing import get_public_base_url, SHARE_HEADERS
-    data = await _get_badge_data(category, year, week, paper_id)
+    data = await _get_badge_data(category, year, paper_id, week=week)
     base_url = get_public_base_url(request)
     html = _render_share_html(data, category, year, f"w{week}", paper_id, base_url)
     return HTMLResponse(content=html, headers=SHARE_HEADERS)
@@ -327,7 +343,7 @@ def _render_badge_image(data: dict) -> bytes:
     import os
     paper = data["paper"]
     tier = data["tier"]
-    rank = paper.get("rank_ts", paper.get("rank", 999))
+    rank = data["rank"]
     tier_name = tier["name"]
 
     # Load the correct SVG template
@@ -407,42 +423,8 @@ def _render_badge_image(data: dict) -> bytes:
 @router.get("/{category}/{year}/m{month}/{paper_id}")
 async def get_monthly_badge(category: str, year: int, month: int, paper_id: str):
     """Get badge data for a top-ranked paper in a monthly archive."""
-    archive = await db.leaderboard_archives.find_one(
-        {"category": category, "year": year, "month": month, "period_type": "monthly"},
-        {"_id": 0},
-    )
-    if not archive:
-        raise HTTPException(404, "Archive not found")
-
-    lb = archive.get("leaderboard", [])
-    paper = next((p for p in lb if p.get("id") == paper_id), None)
-    if not paper:
-        raise HTTPException(404, "Paper not found in this archive")
-
-    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
-    if not tier:
-        raise HTTPException(404, "Paper is not in the top 3 for this period")
-
-    if not paper.get("comparisons"):
-        raise HTTPException(404, "Paper has no tournament matches yet — badge unavailable")
-
-    return {
-        "title": paper.get("title"),
-        "authors": paper.get("authors", []),
-        "rank": paper.get("rank_ts", paper.get("rank", 999)),
-        "score": paper.get("score"),
-        "win_rate": paper.get("win_rate"),
-        "comparisons": paper.get("comparisons"),
-        "tier": tier["name"],
-        "tier_color": tier["color"],
-        "archive_label": archive.get("label", f"Month {month}, {year}"),
-        "category": category,
-        "category_name": CATEGORIES.get(category, category),
-        "paper_count": archive.get("paper_count", len(lb)),
-        "arxiv_id": paper.get("arxiv_id"),
-        "paper_id": paper_id,
-        "image_url": f"/api/badge/{category}/{year}/m{month}/{paper_id}/image.png",
-    }
+    data = await _get_badge_data(category, year, paper_id, month=month)
+    return _badge_response(data, paper_id)
 
 @router.get("/{category}/{year}/w{week}/{paper_id}/exists")
 async def badge_exists(category: str, year: int, week: int, paper_id: str):
