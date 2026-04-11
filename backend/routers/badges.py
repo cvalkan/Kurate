@@ -367,18 +367,24 @@ def _render_badge_image(data: dict) -> bytes:
     categories = paper.get("categories") or data.get("categories") or [data.get("category", "")]
     cats_str = _esc("Category: " + ", ".join(categories[:4]))
 
-    archive_label = _esc(data.get("archive_label", ""))
+    archive_label = _esc(data.get("archive_label") or "")
     cat_name = _esc(data.get("category_name", ""))
     paper_count = data.get("paper_count", "?")
     score = paper.get("score", "?")
     win_rate = paper.get("win_rate", "?")
 
     # Replace placeholder text in the SVG
-    # Header
-    svg = svg.replace(">Week 11, 2026<", f">{archive_label}<")
+    # Header — for universal share pages (no archive), show just the category
+    svg = svg.replace(">Week 11, 2026<", f">{archive_label}<" if archive_label else f"><")
     svg = svg.replace(">Robotics Preprints<", f">{cat_name} Preprints<")
 
-    # Tier label + rank
+    # Tier label + rank in medal circle
+    # Each template has a hardcoded rank in the medal: Gold=#1, Silver=#2, Bronze=#3
+    # Replace the TEMPLATE'S hardcoded rank with the actual rank
+    template_rank_map = {"Gold": 1, "Silver": 2, "Bronze": 3}
+    template_rank = template_rank_map.get(tier_name, 2)
+    svg = svg.replace(f">#{template_rank}<", f">#{rank}<")
+
     tier_labels = {"Gold": "GOLD", "Silver": "SILVER", "Bronze": "BRONZE"}
     if is_medal:
         svg = svg.replace(f">{tier_labels.get(tier_name, 'SILVER')}<", f">{tier_name.upper()}<")
@@ -386,7 +392,6 @@ def _render_badge_image(data: dict) -> bytes:
         # No medal — replace tier label with rank text
         for label in tier_labels.values():
             svg = svg.replace(f">{label}<", f">RANKED<")
-    svg = svg.replace(f">#{rank}<", f">#{rank}<")  # already correct
 
     # Title (two tspan lines)
     svg = svg.replace(">Data Analogies Enable Efficient<", f">{title_line1}<")
@@ -448,7 +453,8 @@ async def get_paper_share_data(paper_id: str):
         {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1, "category": 1},
     )
 
-    rank = ranking.get("rank_ts", ranking.get("rank")) if ranking else None
+    # Use WR rank (matches leaderboard default sort) for consistency
+    rank = ranking.get("rank", ranking.get("rank_ts")) if ranking else None
     total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
 
     ai_rating = paper_doc.get("ai_rating")
@@ -467,7 +473,8 @@ async def get_paper_share_data(paper_id: str):
         "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else None,
         "arxiv_id": paper_doc.get("arxiv_id"),
         "paper_id": paper_id,
-        "has_medal": False,
+        "has_medal": rank is not None and rank <= 3,
+        "tier": _get_tier(rank)["name"] if rank and _get_tier(rank) else None,
         "image_url": f"/api/badge/paper/{paper_id}/share/image.png",
     }
 
@@ -489,8 +496,10 @@ async def get_paper_share_image(paper_id: str):
     if not ranking:
         raise HTTPException(404, "Paper has no ranking")
 
-    rank = ranking.get("rank_ts", ranking.get("rank", 999))
+    # Use WR rank (matches leaderboard default sort) for consistency
+    rank = ranking.get("rank", ranking.get("rank_ts", 999))
     total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
+    tier = _get_tier(rank)
 
     data = {
         "paper": {
@@ -502,7 +511,7 @@ async def get_paper_share_image(paper_id: str):
             "comparisons": ranking.get("comparisons"),
         },
         "rank": rank,
-        "tier": None,
+        "tier": tier,
         "category": primary_cat,
         "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else "",
         "paper_count": total,

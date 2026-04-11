@@ -64,15 +64,21 @@ export default function BadgePage() {
     );
   }
 
-  const shareUrl = `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
-  const leaderboardUrl = `${window.location.origin}/leaderboard/${category}/${year}/${slug}`;
+  const shareUrl = isShareMode
+    ? `${window.location.origin}/share/${paperId}`
+    : `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
+  const leaderboardUrl = isShareMode
+    ? `${window.location.origin}/?cat=${data.category}&period=all`
+    : `${window.location.origin}/leaderboard/${category}/${year}/${slug}`;
   const imageUrl = isShareMode
     ? (data.image_url ? `${API}${data.image_url}` : null)
     : `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
   const arxivUrl = data.arxiv_id ? `https://arxiv.org/abs/${data.arxiv_id}` : "";
   const arxivSuffix = arxivUrl ? `\n${arxivUrl}` : "";
-  const authorTweet = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!${arxivSuffix}`;
-  const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!${arxivSuffix}`;
+  const tierLabel = data.tier ? `${data.tier} ` : "";
+  const periodLabel = data.archive_label ? ` (${data.archive_label})` : "";
+  const authorTweet = `Our paper "${data.title}" ranked #${data.rank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
+  const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(leaderboardUrl);
@@ -169,15 +175,15 @@ export default function BadgePage() {
     setShowEmail(false);
   };
 
-  const hasMedal = data.tier && !data.has_medal === false;  // has_medal defaults to true for badge endpoints
+  const hasMedal = !!(data.has_medal || (data.tier && data.rank <= 3));
   const truncTitle = data.title?.length > 70 ? data.title.slice(0, 67) + "..." : data.title;
   const pageTitle = hasMedal
     ? `#${data.rank} ${data.tier} — ${data.title} | Kurate.org`
     : `#${data.rank} in ${data.category_name} — ${data.title} | Kurate.org`;
   const ogTitle = hasMedal
-    ? `#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label}`
+    ? `#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label || ""}`
     : `#${data.rank} of ${data.total_in_category} in ${data.category_name} — Kurate.org`;
-  const subtitleText = hasMedal
+  const subtitleText = hasMedal && data.archive_label
     ? `#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label}`
     : `#${data.rank} of ${data.total_in_category || "—"} in ${data.category_name}`;
 
@@ -222,10 +228,14 @@ export default function BadgePage() {
         {/* Navigation links */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-accent mb-8">
           <a href={`/paper/${data.paper_id}`} className="hover:underline">Paper details</a>
+          {!isShareMode && (
+            <>
+              <span className="text-border">·</span>
+              <a href={`/leaderboard/${category}/${year}/${slug}`} className="hover:underline">{data.archive_label} leaderboard</a>
+            </>
+          )}
           <span className="text-border">·</span>
-          <a href={`/leaderboard/${category}/${year}/${slug}`} className="hover:underline">{data.archive_label} leaderboard</a>
-          <span className="text-border">·</span>
-          <a href={`/?cat=${category}&period=all`} className="hover:underline">All Time leaderboard</a>
+          <a href={`/?cat=${data.category || category}&period=all`} className="hover:underline">All Time leaderboard</a>
         </div>
 
         {/* Section 1: Share your achievement (for authors) */}

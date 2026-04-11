@@ -1192,11 +1192,12 @@ async def get_paper_detail(paper_id: str):
                 paper[max_key] = agg.get("max_val")
 
     # Get current rank and total papers in category
+    # Use WR rank (matches leaderboard default sort by score)
     if ranking_doc and primary_cat:
         from routers.badges import CATEGORIES as _CAT_NAMES
-        rank_ts = ranking_doc.get("rank_ts") or ranking_doc.get("rank")
-        if rank_ts:
-            paper["current_rank"] = rank_ts
+        paper_rank = ranking_doc.get("rank") or ranking_doc.get("rank_ts")
+        if paper_rank:
+            paper["current_rank"] = paper_rank
         total_in_cat = await db.rankings.count_documents({"category": primary_cat})
         paper["total_in_category"] = total_in_cat
         paper["category_name"] = _CAT_NAMES.get(primary_cat, primary_cat)
