@@ -3380,12 +3380,7 @@ async def get_backfill_status(name: str):
 @router.post("/run-audit", dependencies=[Depends(verify_admin)])
 async def run_data_audit():
     """Run comprehensive data integrity audit in background."""
-    try:
-        from tests.test_data_integrity import run_audit
-    except ImportError:
-        import sys as _sys
-        _sys.path.insert(0, str(Path(__file__).parent.parent / "tests"))
-        from test_data_integrity import run_audit
+    from services.data_audit import run_audit
 
     async def _run():
         _backfill_status["audit"] = {"status": "running", "started_at": _time.time()}
