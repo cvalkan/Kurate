@@ -42,7 +42,7 @@ export default function LeaderboardPage() {
 
   const [keyword, setKeyword] = useState(searchParams.get("q") || "");
   const [debouncedKeyword, setDebouncedKeyword] = useState(searchParams.get("q") || "");
-  const [globalStats, setGlobalStats] = useState(searchParams.get("global") === "1");
+  const [globalStats, setGlobalStats] = useState(searchParams.get("global") !== "0");
   const [nextCursor, setNextCursor] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [sortPending, setSortPending] = useState(false); // Blocks loadMore during sort transition
@@ -93,7 +93,7 @@ export default function LeaderboardPage() {
     if (tagMode !== "or") p.set("tagMode", tagMode);
     if (tagFilterOpen && !selectedTags.length) p.set("tagOpen", "1");
     if (debouncedKeyword) p.set("q", debouncedKeyword);
-    if (globalStats) p.set("global", "1");
+    if (!globalStats) p.set("global", "0");
     if (sortKey && sortKey !== "rank") p.set("sort", sortKey);
     if (sortKey && sortKey !== "rank" && sortDir !== "asc") p.set("dir", sortDir);
     if (activeArchive && archiveSlugRef.current) p.set("archive", archiveSlugRef.current);

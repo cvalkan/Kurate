@@ -12,7 +12,7 @@ export function StatsToggle({ globalStats, setGlobalStats }) {
               <MapPin className="h-3 w-3" /> Local
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">Stats computed only from matches between papers in the current filtered set.</p></TooltipContent>
+          <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">Recomputes win-rate stats from only matches between papers in the current filtered set. Sorted by local win-rate (the only metric computable from a match subset).</p></TooltipContent>
         </Tooltip>
         <Switch checked={globalStats} onCheckedChange={setGlobalStats} className="h-4 w-7" data-testid="global-local-toggle" />
         <Tooltip>
@@ -21,7 +21,7 @@ export function StatsToggle({ globalStats, setGlobalStats }) {
               <Globe className="h-3 w-3" /> Global
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">Stats from all tournament matches each paper has participated in, using pairwise win-rate scores across all categories.</p></TooltipContent>
+          <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">Each paper's TrueSkill score from all tournament matches in its primary category. Default ranking metric.</p></TooltipContent>
         </Tooltip>
       </div>
     </div>
