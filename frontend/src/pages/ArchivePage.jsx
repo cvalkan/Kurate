@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
-import { Archive, ChevronLeft, Calendar } from "lucide-react";
+import { Archive, ChevronLeft, Search } from "lucide-react";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -12,15 +13,20 @@ const CATEGORY_NAMES = {
   "physics.comp-ph": "Computational Physics", "q-bio.BM": "Biomolecules",
   "cs.GT": "Game Theory", "physics.chem-ph": "Chemical Physics",
   "chemrxiv.IC": "Inorganic Chemistry", "cs.CR": "Cryptography & Security",
-  "cs.IT": "Information Theory",
+  "cs.IT": "Information Theory", "quant-ph": "Quantum Physics",
+  "astro-ph.CO": "Cosmology & Astrophysics", "cond-mat.mtrl-sci": "Materials Science",
+  "cs.AI": "Artificial Intelligence", "cs.SI": "Social & Information Networks",
+  "q-fin.CP": "Quantitative Finance",
 };
 
 export default function ArchivePage() {
   const { category, year, weekOrMonth } = useParams();
   const [archive, setArchive] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState("rank");
+  const [sortDir, setSortDir] = useState("asc");
+  const [keyword, setKeyword] = useState("");
 
-  // Parse week/month from URL
   const isWeekly = weekOrMonth?.startsWith("w");
   const num = parseInt(weekOrMonth?.replace(/^[wm]/, ""), 10);
 
@@ -37,6 +43,49 @@ export default function ArchivePage() {
     }).catch(() => setArchive(null))
       .finally(() => setLoading(false));
   }, [category, year, num, isWeekly]);
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir(key === "title" || key === "published" ? "asc" : "desc");
+    }
+  };
+
+  const sortedEntries = useMemo(() => {
+    if (!archive?.leaderboard) return [];
+    let data = [...archive.leaderboard];
+
+    // Filter by keyword
+    if (keyword.trim()) {
+      const kw = keyword.toLowerCase();
+      data = data.filter(e =>
+        (e.title || "").toLowerCase().includes(kw) ||
+        (e.authors || []).some(a => a.toLowerCase().includes(kw))
+      );
+    }
+
+    // Sort: "rank" sorts by ts_score desc (rank 1,2,3), other keys sort directly
+    const key = sortKey === "rank" ? "ts_score"
+      : sortKey === "score" ? "ts_score"
+      : sortKey;
+    const dir = sortKey === "rank"
+      ? (sortDir === "desc" ? "asc" : "desc")
+      : (sortDir || "asc");
+
+    data.sort((a, b) => {
+      let va = a[key], vb = b[key];
+      if (typeof va === "string" && typeof vb === "string") {
+        return dir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      va = va ?? (dir === "asc" ? Infinity : -Infinity);
+      vb = vb ?? (dir === "asc" ? Infinity : -Infinity);
+      return dir === "asc" ? va - vb : vb - va;
+    });
+
+    return data;
+  }, [archive, sortKey, sortDir, keyword]);
 
   if (loading) {
     return (
@@ -79,25 +128,38 @@ export default function ArchivePage() {
           <p className="text-sm text-muted-foreground">
             Leaderboard snapshot.
             {" "}{entries.length} preprints from arXiv ({category}), {archive.match_count?.toLocaleString()} matches.
-            {" "}Archived {new Date(archive.created_at).toLocaleDateString()}.
           </p>
+        </div>
+
+        <div className="mb-4">
+          <div className="relative max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={keyword}
+              onChange={e => setKeyword(e.target.value)}
+              placeholder="Search papers..."
+              className="pl-8 h-8 text-sm"
+              data-testid="archive-search"
+            />
+          </div>
         </div>
 
         <div className="border border-border rounded-lg overflow-hidden" data-testid="archive-table">
           <LeaderboardTable
-            leaderboard={entries}
-            displayCount={entries.length}
-            sortKey="rank"
-            sortDir="asc"
-            onSort={() => {}}
+            leaderboard={sortedEntries}
+            displayCount={sortedEntries.length}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
             showRatingCol={entries.some(e => e.ai_rating)}
-            showGapCol={entries.some(e => e.gap_score)}
+            showGapCol={entries.some(e => e.gap_score != null || e.gap_score_ts != null)}
+            scoringMethod="ts"
           />
         </div>
 
         <div className="mt-6 text-center">
-          <Link to={`/?cat=${category}&period=week`} className="text-xs text-accent hover:underline">
-            View current live leaderboard for {category}
+          <Link to={`/?cat=${category}&period=all`} className="text-xs text-accent hover:underline">
+            View All Time leaderboard for {CATEGORY_NAMES[category] || category}
           </Link>
         </div>
       </div>
