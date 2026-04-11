@@ -449,10 +449,10 @@ export default function PaperPage() {
                       <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Link to={b.badge_url} className="flex items-center gap-1.5 text-sm font-semibold transition-opacity hover:opacity-80" style={{ color: tc.color }} data-testid={`paper-badge-${i}`}>
+                      <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: tc.color }} data-testid={`paper-badge-${i}`}>
                         <Award className="h-4 w-4" />
                         {b.tier} · {b.archive_label}
-                      </Link>
+                      </span>
                       <Link to={`/share/${paper.id}`} className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border transition-colors hover:opacity-80" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
                         <Share2 className="h-3.5 w-3.5" /> Share
                       </Link>
@@ -460,11 +460,11 @@ export default function PaperPage() {
                   </div>
                   {/* Mobile: badge + share only */}
                   <div className="flex md:hidden items-center justify-between w-full">
-                    <Link to={b.badge_url} className="flex items-center gap-1.5 text-sm font-semibold transition-opacity hover:opacity-80" style={{ color: tc.color }} data-testid={`paper-badge-mobile-${i}`}>
+                    <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: tc.color }} data-testid={`paper-badge-mobile-${i}`}>
                       <Award className="h-4 w-4" />
                       {b.tier} · {b.archive_label}
-                    </Link>
-                    <Link to={b.badge_url} className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border transition-colors hover:opacity-80" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
+                    </span>
+                    <Link to={`/share/${paper.id}`} className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border transition-colors hover:opacity-80" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
                       <Share2 className="h-3.5 w-3.5" /> Share
                     </Link>
                   </div>

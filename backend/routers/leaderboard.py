@@ -584,15 +584,15 @@ _SORT_FIELD_MAP = {
 }
 
 
-def _resolve_sort(sort_by: str = None, sort_dir: str = None, default_field: str = "score"):
+def _resolve_sort(sort_by: str = None, sort_dir: str = None, default_field: str = "ts_score"):
     """Resolve frontend sort params to MongoDB sort spec.
     
     Returns (mongo_sort_list, is_default_sort).
-    is_default_sort=True means score desc (the default ranking) — allows keyset cursor.
+    is_default_sort=True means ts_score desc (the default ranking) — allows keyset cursor.
     """
     if not sort_by or sort_by == "rank":
-        # Default sort: score descending with paper_id tiebreaker
-        return [("score", -1), ("paper_id", -1)], True
+        # Default sort: TrueSkill score descending with paper_id tiebreaker
+        return [("ts_score", -1), ("paper_id", -1)], True
 
     field, default_dir = _SORT_FIELD_MAP.get(sort_by, (sort_by, -1))
     direction = 1 if sort_dir == "asc" else (-1 if sort_dir == "desc" else default_dir)
@@ -733,13 +733,13 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
 
     mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
 
-    # Keyset pagination: O(1) for any page depth — only works with default score sort
+    # Keyset pagination: O(1) for any page depth — only works with default ts_score sort
     if cursor and not search and is_default_sort:
         cursor_score, cursor_pid = _decode_cursor(cursor)
         if cursor_score is not None:
             query["$or"] = [
-                {"score": {"$lt": cursor_score}},
-                {"score": cursor_score, "paper_id": {"$lt": cursor_pid}},
+                {"ts_score": {"$lt": cursor_score}},
+                {"ts_score": cursor_score, "paper_id": {"$lt": cursor_pid}},
             ]
             offset = 0
 
@@ -757,7 +757,7 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
 
     next_cursor = None
     if entries and last_doc and len(entries) == limit:
-        next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
+        next_cursor = _encode_cursor(last_doc.get("ts_score", 0), last_doc.get("paper_id", ""))
 
     # is_ranking = actively running pairwise comparisons right now
     from services.scheduler import _get_cat_status
@@ -834,13 +834,13 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
 
     mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
 
-    # Keyset pagination (only with default score sort)
+    # Keyset pagination (only with default ts_score sort)
     if cursor and not search and is_default_sort:
         cursor_score, cursor_pid = _decode_cursor(cursor)
         if cursor_score is not None:
             query["$or"] = [
-                {"score": {"$lt": cursor_score}},
-                {"score": cursor_score, "paper_id": {"$lt": cursor_pid}},
+                {"ts_score": {"$lt": cursor_score}},
+                {"ts_score": cursor_score, "paper_id": {"$lt": cursor_pid}},
             ]
             offset = 0
 
@@ -858,7 +858,7 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
 
     next_cursor = None
     if entries and last_doc and len(entries) == limit:
-        next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
+        next_cursor = _encode_cursor(last_doc.get("ts_score", 0), last_doc.get("paper_id", ""))
 
     return {
         "leaderboard": entries,
@@ -956,13 +956,13 @@ async def _db_tag_leaderboard_impl(
 
     mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
 
-    # Keyset pagination (only with default score sort)
+    # Keyset pagination (only with default ts_score sort)
     if cursor and not search and is_default_sort:
         cursor_score, cursor_pid = _decode_cursor(cursor)
         if cursor_score is not None:
             rank_query["$or"] = [
-                {"score": {"$lt": cursor_score}},
-                {"score": cursor_score, "paper_id": {"$lt": cursor_pid}},
+                {"ts_score": {"$lt": cursor_score}},
+                {"ts_score": cursor_score, "paper_id": {"$lt": cursor_pid}},
             ]
             offset = 0
 
@@ -1011,7 +1011,7 @@ async def _db_tag_leaderboard_impl(
 
     next_cursor = None
     if entries and last_doc and len(entries) == limit:
-        next_cursor = _encode_cursor(last_doc.get("score", 0), last_doc.get("paper_id", ""))
+        next_cursor = _encode_cursor(last_doc.get("ts_score", 0), last_doc.get("paper_id", ""))
 
     return {
         "leaderboard": entries,
@@ -1192,12 +1192,12 @@ async def get_paper_detail(paper_id: str):
                 paper[max_key] = agg.get("max_val")
 
     # Get current rank and total papers in category
-    # Use WR rank (matches leaderboard default sort by score)
+    # Use TS rank (TrueSkill) — the canonical ranking metric
     if ranking_doc and primary_cat:
         from routers.badges import CATEGORIES as _CAT_NAMES
-        paper_rank = ranking_doc.get("rank") or ranking_doc.get("rank_ts")
-        if paper_rank:
-            paper["current_rank"] = paper_rank
+        rank_ts = ranking_doc.get("rank_ts") or ranking_doc.get("rank")
+        if rank_ts:
+            paper["current_rank"] = rank_ts
         total_in_cat = await db.rankings.count_documents({"category": primary_cat})
         paper["total_in_category"] = total_in_cat
         paper["category_name"] = _CAT_NAMES.get(primary_cat, primary_cat)
@@ -1586,7 +1586,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     period_filter = _build_period_filter("month" if period_type == "monthly" else "week")
     rank_query = {"category": category}
     rank_query.update(period_filter)
-    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort("score", -1).to_list(10000)
+    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort("ts_score", -1).to_list(10000)
     if not source_entries:
         return None
 

@@ -442,7 +442,7 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
 
 @router.get("/paper/{paper_id}/share")
 async def get_paper_share_data(paper_id: str):
-    """Get shareable badge data for ANY paper — same layout as top-3 badges but without medal for unranked papers."""
+    """Get shareable badge data for ANY paper — includes best archive badge info if available."""
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1, "ai_rating": 1, "arxiv_id": 1})
     if not paper_doc:
         raise HTTPException(404, "Paper not found")
@@ -453,12 +453,52 @@ async def get_paper_share_data(paper_id: str):
         {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1, "category": 1},
     )
 
-    # Use WR rank (matches leaderboard default sort) for consistency
-    rank = ranking.get("rank", ranking.get("rank_ts")) if ranking else None
+    # Use TS rank (TrueSkill) — the canonical ranking metric
+    rank = ranking.get("rank_ts", ranking.get("rank")) if ranking else None
     total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
 
     ai_rating = paper_doc.get("ai_rating")
     rating_score = ai_rating.get("score") if isinstance(ai_rating, dict) else ai_rating if isinstance(ai_rating, (int, float)) else None
+
+    # Look up best archive badge for this paper (most recent top-3 appearance)
+    from core.auth import get_settings
+    settings = await get_settings()
+    archive_config = settings.get("archive_frequency", {})
+    default_freq = archive_config.get("default", "weekly")
+
+    best_badge = None
+    archives = await db.leaderboard_archives.find(
+        {"leaderboard.id": paper_id, "period_type": {"$in": ["weekly", "monthly"]}},
+        {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1, "label": 1, "leaderboard": 1},
+    ).sort([("year", -1), ("week", -1), ("month", -1)]).to_list(20)
+
+    for a in archives:
+        cat_freq = archive_config.get(a["category"], default_freq)
+        if a.get("period_type") != cat_freq:
+            continue
+        lb = a.get("leaderboard", [])
+        if not lb:
+            continue
+        p = next((entry for entry in lb if entry.get("id") == paper_id), None)
+        if not p or not p.get("comparisons"):
+            continue
+        sorted_lb = sorted(lb, key=lambda x: (x.get("ts_score") or x.get("score") or 0), reverse=True)
+        archive_rank = next((i + 1 for i, entry in enumerate(sorted_lb) if entry.get("id") == paper_id), 999)
+        tier = _get_tier(archive_rank)
+        if tier:
+            slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
+            best_badge = {
+                "tier": tier["name"],
+                "tier_color": tier["color"],
+                "rank": archive_rank,
+                "archive_label": a.get("label"),
+                "category": a["category"],
+                "slug": slug,
+                "year": a.get("year"),
+                "badge_url": f"/badge/{a['category']}/{a['year']}/{slug}/{paper_id}",
+                "leaderboard_url": f"/leaderboard/{a['category']}/{a['year']}/{slug}",
+            }
+            break  # Take the most recent badge
 
     return {
         "title": paper_doc.get("title"),
@@ -475,6 +515,7 @@ async def get_paper_share_data(paper_id: str):
         "paper_id": paper_id,
         "has_medal": rank is not None and rank <= 3,
         "tier": _get_tier(rank)["name"] if rank and _get_tier(rank) else None,
+        "best_badge": best_badge,
         "image_url": f"/api/badge/paper/{paper_id}/share/image.png",
     }
 
@@ -496,8 +537,8 @@ async def get_paper_share_image(paper_id: str):
     if not ranking:
         raise HTTPException(404, "Paper has no ranking")
 
-    # Use WR rank (matches leaderboard default sort) for consistency
-    rank = ranking.get("rank", ranking.get("rank_ts", 999))
+    # Use TS rank (TrueSkill) — the canonical ranking metric
+    rank = ranking.get("rank_ts", ranking.get("rank", 999))
     total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
     tier = _get_tier(rank)
 
