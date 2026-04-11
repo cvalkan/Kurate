@@ -381,30 +381,15 @@ export default function PaperPage() {
         )}
       </div>
 
-      {/* Badge sharing — for top-3 papers in any archive */}
-      {paperBadges.length > 0 && (
-        <div className="mb-6">
-          <div className="flex flex-wrap items-center gap-2" data-testid="paper-badges">
-            <Trophy className="h-4 w-4 text-muted-foreground" />
-            {paperBadges.map((b, i) => (
-              <Link key={i} to={b.badge_url}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium hover:opacity-80 transition-opacity"
-                style={{ borderColor: b.tier_color, color: b.tier_color }}
-                data-testid={`paper-badge-${i}`}
-              >
-                <Share2 className="h-3 w-3" />
-                <span className="w-5 h-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold" style={{ backgroundColor: b.tier_color }}>
-                  {b.rank}
-                </span>
-                {b.tier} · {b.category_name} · {b.archive_label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Score Card — E2 Design */}
+      {/* Score Card — E2 Design with integrated badge header */}
       {(() => {
+        // Badge tier colors
+        const TIER_COLORS = {
+          "Gold": { color: "#D4A012", bg: "#FEFCE8" },
+          "Silver": { color: "#6B7280", bg: "#F3F4F6" },
+          "Bronze": { color: "#CD7F32", bg: "#FFF7ED" },
+        };
+
         // Extract ratings
         let ratings = null;
         if (paper.ai_rating && typeof paper.ai_rating === "object" && paper.ai_rating.score) ratings = paper.ai_rating;
@@ -437,6 +422,23 @@ export default function PaperPage() {
 
         return (
           <div className="mb-8 border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden" data-testid="paper-score-card">
+            {/* Badge header bar (only if paper has badges) */}
+            {paperBadges.length > 0 && paperBadges.map((b, i) => {
+              const tc = TIER_COLORS[b.tier] || { color: b.tier_color, bg: "#F9FAFB" };
+              return (
+                <Link key={i} to={b.badge_url} className="flex items-center justify-between px-4 py-2.5 border-b transition-opacity hover:opacity-80" style={{ backgroundColor: tc.bg, borderBottomColor: `${tc.color}33` }} data-testid={`paper-badge-${i}`}>
+                  <div className="flex items-center gap-2">
+                    <Award className="h-4 w-4" style={{ color: tc.color }} />
+                    <span className="text-sm font-semibold" style={{ color: tc.color }}>
+                      {b.tier} · #{b.rank} in {b.category_name} · {b.archive_label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
+                    <Share2 className="h-3 w-3" /> Share
+                  </div>
+                </Link>
+              );
+            })}
             {/* Desktop/Tablet: side-by-side */}
             <div className="hidden md:flex flex-row">
               {/* Tournament Score */}
