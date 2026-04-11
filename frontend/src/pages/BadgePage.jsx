@@ -13,6 +13,7 @@ const API = process.env.REACT_APP_BACKEND_URL || "";
 
 export default function BadgePage() {
   const { category, year, slug, paperId } = useParams();
+  const isShareMode = !category && !year && !slug;  // /share/:paperId route
   const { user, getAuthHeaders } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,11 +28,14 @@ export default function BadgePage() {
   const [emailBody, setEmailBody] = useState("");
 
   useEffect(() => {
-    axios.get(`${API}/api/badge/${category}/${year}/${slug}/${paperId}`)
+    const url = isShareMode
+      ? `${API}/api/badge/paper/${paperId}/share`
+      : `${API}/api/badge/${category}/${year}/${slug}/${paperId}`;
+    axios.get(url)
       .then(res => setData(res.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [category, year, slug, paperId]);
+  }, [category, year, slug, paperId, isShareMode]);
 
   // Fetch congrats remaining + gmail status
   useEffect(() => {
@@ -163,13 +167,23 @@ export default function BadgePage() {
     setShowEmail(false);
   };
 
+  const hasMedal = data.tier && !data.has_medal === false;  // has_medal defaults to true for badge endpoints
   const truncTitle = data.title?.length > 70 ? data.title.slice(0, 67) + "..." : data.title;
+  const pageTitle = hasMedal
+    ? `#${data.rank} ${data.tier} — ${data.title} | Kurate.org`
+    : `#${data.rank} in ${data.category_name} — ${data.title} | Kurate.org`;
+  const ogTitle = hasMedal
+    ? `#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label}`
+    : `#${data.rank} of ${data.total_in_category} in ${data.category_name} — Kurate.org`;
+  const subtitleText = hasMedal
+    ? `#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label}`
+    : `#${data.rank} of ${data.total_in_category || "—"} in ${data.category_name}`;
 
   return (
     <>
       <Helmet>
-        <title>{`#${data.rank} ${data.tier} — ${data.title} | Kurate.org`}</title>
-        <meta property="og:title" content={`#${data.rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label}`} />
+        <title>{pageTitle}</title>
+        <meta property="og:title" content={ogTitle} />
         <meta property="og:description" content={`${data.title} | AI-ranked by scientific impact | Kurate.org`} />
         <meta property="og:image" content={`${window.location.origin}${data.image_url}`} />
         <meta property="og:image:width" content="1200" />
@@ -191,7 +205,7 @@ export default function BadgePage() {
           </div>
           <div className="px-4 py-3 bg-secondary/20 border-t border-border flex items-center justify-between">
             <div>
-              <div className="text-xs font-medium">#{data.rank} {data.tier} in {data.category_name} Preprints — {data.archive_label}</div>
+              <div className="text-xs font-medium">{subtitleText}</div>
               <div className="text-[10px] text-muted-foreground truncate max-w-md">{data.title}</div>
             </div>
             {data.arxiv_id && (

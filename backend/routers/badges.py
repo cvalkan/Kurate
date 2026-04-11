@@ -428,6 +428,43 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
     tier = _get_tier(paper.get("rank", 999))
     return {"has_badge": bool(tier), "rank": paper.get("rank_ts", paper.get("rank")), "tier": tier["name"] if tier else None}
 
+
+@router.get("/paper/{paper_id}/share")
+async def get_paper_share_data(paper_id: str):
+    """Get shareable badge data for ANY paper — same layout as top-3 badges but without medal for unranked papers."""
+    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1, "ai_rating": 1, "arxiv_id": 1})
+    if not paper_doc:
+        raise HTTPException(404, "Paper not found")
+
+    primary_cat = paper_doc.get("categories", [None])[0]
+    ranking = await db.rankings.find_one(
+        {"paper_id": paper_id},
+        {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1, "category": 1},
+    )
+
+    rank = ranking.get("rank_ts", ranking.get("rank")) if ranking else None
+    total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
+
+    ai_rating = paper_doc.get("ai_rating")
+    rating_score = ai_rating.get("score") if isinstance(ai_rating, dict) else ai_rating if isinstance(ai_rating, (int, float)) else None
+
+    return {
+        "title": paper_doc.get("title"),
+        "authors": paper_doc.get("authors", []),
+        "rank": rank,
+        "total_in_category": total,
+        "score": ranking.get("ts_score") if ranking else None,
+        "win_rate": round(ranking.get("win_rate", 0)) if ranking else None,
+        "comparisons": ranking.get("comparisons") if ranking else None,
+        "rating": rating_score,
+        "category": primary_cat,
+        "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else None,
+        "arxiv_id": paper_doc.get("arxiv_id"),
+        "paper_id": paper_id,
+        "has_medal": False,  # No medal — this is the universal share version
+    }
+
+
 @router.get("/paper/{paper_id}/badges")
 async def get_paper_badges(paper_id: str):
     """Get all badges (top 3 appearances) for a specific paper across all archives.

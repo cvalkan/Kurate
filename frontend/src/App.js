@@ -18,7 +18,6 @@ import BadgePage from "@/pages/BadgePage";
 import ProfilePage from "@/pages/ProfilePage";
 import BookmarksPage from "@/pages/BookmarksPage";
 import ReadingListPage from "@/pages/ReadingListPage";
-import SharePage from "@/pages/SharePage";
 import ScoreCardTest from "@/pages/ScoreCardTest";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
@@ -43,12 +42,12 @@ function AppRouter() {
           <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/paper/:id" element={<PaperPage />} />
           <Route path="/admin" element={<AdminLoginPage />} />
-          <Route path="/share/:paperId" element={<SharePage />} />
           <Route path="/test/score-card" element={<ScoreCardTest />} />
           <Route path="/admin/dashboard" element={<AdminPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/orcid/callback" element={<OrcidCallbackPage />} />
           <Route path="/badge/:category/:year/:slug/:paperId" element={<BadgePage />} />
+          <Route path="/share/:paperId" element={<BadgePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/bookmarks" element={<BookmarksPage />} />
           <Route path="/list/:listId" element={<ReadingListPage />} />

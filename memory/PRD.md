@@ -1,64 +1,69 @@
 # Kurate.org Validation Hub — PRD
 
 ## Original Problem Statement
-Build and maintain a sophisticated "Validation Hub" for an AI paper-judging system at kurate.org. The platform benchmarks AI judges against human peer reviewers using multiple methodologies (pairwise comparison, single-item rating, tournament ranking) across multiple academic datasets.
+Build and maintain a sophisticated "Validation Hub" for an AI paper-judging system at kurate.org.
 
-## Core Architecture
-- **Backend**: FastAPI + MongoDB, live analysis from rankings + cached OpenSkill
-- **Frontend**: React, served as compiled build
-- **Full architecture doc**: `/app/memory/ARCHITECTURE.md` (1,250+ lines, 13 sections)
-- **Scalability doc**: `/app/memory/SCALABILITY_ANALYSIS.md`
+## Full Architecture Doc
+`/app/memory/ARCHITECTURE.md` (1,250+ lines, 13 sections)
 
-## What's Been Implemented
+## What's Been Implemented (Apr 9-11, 2026)
 
-### Session: Apr 8-9, 2026
+### Incremental OpenSkill
+- Global + per-model incremental OS with separate OS_SCALE=15
+- Backfill endpoints for model_os, archive_scores, si_ratings
+- Model Analysis integration (renamed from OS 1p/3p/10p to single "OpenSkill")
+- Leaderboard toggle: TrueSkill (default) + OpenSkill
 
-**Memory Optimization (4 fixes):**
-- Fix A: `force_gc()` + `malloc_trim` after every rerank
-- Fix B: Pair-exhaustion detection for stalled categories
-- Fix C: Single-pass rerank (eliminated double DB scan)
-- Sequential reranks in compare loop (prevents concurrent memory stacking)
-- Memory profiling instrumentation in `_deferred_startup`
+### Paper Page Redesign (E2)
+- Tournament Score hero (70%) + Rating sidebar (30%)
+- Grey score bars for sub-ratings
+- Integrated badge header (Gold/Silver/Bronze with tier colors)
+- Universal rank header (#X of Y · Category Name)
+- Score-based CI bar with category min/max range
+- 4 stat tiles (Win Rate, Wins, Losses, Matches)
+- Paginated comparison history (20 per page)
+- Mobile-responsive stacked layout
 
-**BT→WR Naming Cleanup:**
-- Renamed all misleading BT variables/API keys across 6 backend files + 5 frontend files + precomputed JSON
-- `bt_correlation` → `wr_correlation`, `ai_bt` → `ai_wr_score`, `bt_sampling` → `score_gap_sampling`
+### Universal Share Page
+- `/share/{paperId}` route reuses BadgePage
+- Medal display for top-3 papers, plain rank for all others
+- Backend endpoint `/api/badge/paper/{id}/share`
 
-**Vision vs Text Experiment:**
-- Selected 100 papers (50 visual-heavy, 50 text-heavy) across 3 categories
-- Ran Claude Opus 4.6 Thinking on all 100 with text-only AND native PDF input
-- Result: ρ improvement not statistically significant (Δ=+0.029, 95% CI [-0.022, +0.087])
-- PDF mode costs 1.9x more than text mode via Anthropic direct API
-- Native PDF document type DOES include vision (confirmed empirically)
+### Badge Consistency
+- All views sort by ts_score for rank (archive list, paper page, badge page)
+- Merged weekly/monthly badge endpoints into shared `_get_badge_data`
+- Badges filtered by category archive_frequency setting
 
-**Scoring Method Analysis:**
-- Subsampling experiment: TS/OS outperform WR at sparse data (<18 M/P)
-- At full data density (>30 M/P), all methods converge
-- H-BT vs scalar GT comparison across 9 ICLR datasets
-- Anthropic direct pricing: ~$6.41/M input vs Emergent $5.00/M
+### Memory Optimizations (1,580→432 MB)
+- Sequential reranks with GC
+- Single-pass rerank (eliminated double DB scan)
+- Pair-exhaustion detection
+- Incremental match counters
+- Two-tier goals cache with snapshot staleness detection
+- Removed obsolete SI backfill + community_likes
 
-**Other:**
-- Admin button fixes (force bypass, resilient fetch pipeline, PDF retry)
-- Correlation page 6.6s→0.15s (background cache logger fix)
-- Summary fallback chain for Claude content policy
-- Gap tooltip improvement
-- Architecture document (13 sections)
-- Investor pitch document
+### Experiments
+- Vision vs Text PDF summaries (100 papers, ρ improvement not significant)
+- Summary-only vs Abstract+Summary (7K matches, abstract helps ρ+0.055 on ICLR)
+- WR vs TS vs OS scoring method analysis with subsampling
+
+### Code Cleanup
+- BT→WR rename across entire codebase
+- Removed OpenSkill 1p/3p/10p (replaced by incremental)
+- Removed community_likes
 
 ## Prioritized Backlog
 
 ### P0
-- Implement Multiple AI Reviewer Personas from ReviewerToo paper
+- ReviewerToo Multiple Reviewer Personas
 
 ### P1
-- Architecture Split: KURATE_ROLE env var (web vs worker) — fundamental memory fix
-- Investigate production 1,550 MB baseline (profiling instrumentation deployed)
+- Architecture Split (KURATE_ROLE)
+- Badge image for non-medal papers
 - TrueSkill-first matchmaking
 - Email notifications via Resend
-- Resolve circular import chain
 
 ### P2
-- Migrate to httpOnly cookies
+- Shareable badge card redesign
 - Refactor monolithic files
-- Mobile Twitter/X unfurling (BLOCKED on Cloudflare)
-- Vision-based PDF summaries (experiment shows marginal quality improvement at 2x cost)
+- Mobile Twitter/X unfurling
