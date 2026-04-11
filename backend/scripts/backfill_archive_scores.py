@@ -189,11 +189,33 @@ async def main():
                 entry["ts_sigma"] = round(ts_r.sigma, 4) if ts_r else None
                 entry["rank_ts"] = rank_ts.get(pid)
                 updated = True
+            else:
+                # Paper had no matches at this point — assign default prior
+                entry["ts_score"] = SCORE_BASE
+                entry["ts_sigma"] = round(DEFAULT_SIGMA, 4)
+                updated = True
             if pid in os_scores:
                 entry["os_score"] = os_scores[pid]
                 entry["os_sigma"] = os_sigmas.get(pid)
                 entry["rank_os"] = rank_os.get(pid)
                 updated = True
+            else:
+                entry["os_score"] = SCORE_BASE
+                entry["os_sigma"] = round(DEFAULT_SIGMA, 4)
+                updated = True
+
+        # Recompute ranks including papers with default scores
+        all_ts = [(entry.get("id"), entry.get("ts_score", SCORE_BASE)) for entry in lb if entry.get("id")]
+        all_ts.sort(key=lambda x: -x[1])
+        rank_ts_full = {pid: i + 1 for i, (pid, _) in enumerate(all_ts)}
+        all_os = [(entry.get("id"), entry.get("os_score", SCORE_BASE)) for entry in lb if entry.get("id")]
+        all_os.sort(key=lambda x: -x[1])
+        rank_os_full = {pid: i + 1 for i, (pid, _) in enumerate(all_os)}
+        for entry in lb:
+            pid = entry.get("id")
+            if pid:
+                entry["rank_ts"] = rank_ts_full.get(pid)
+                entry["rank_os"] = rank_os_full.get(pid)
 
         # Compute gap scores (WR percentile vs AI rating percentile)
         ai_ratings = {}
