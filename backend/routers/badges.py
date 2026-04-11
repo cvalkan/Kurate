@@ -442,7 +442,7 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
 
 async def _find_paper_badge(paper_id: str) -> dict:
     """Find the paper's archive badge (top-3 appearance). Each paper has at most one badge.
-    Returns dict with tier/rank/archive_label or None."""
+    Returns all data from the archive snapshot, or None."""
     from core.auth import get_settings
     settings = await get_settings()
     archive_config = settings.get("archive_frequency", {})
@@ -450,7 +450,8 @@ async def _find_paper_badge(paper_id: str) -> dict:
 
     archives = await db.leaderboard_archives.find(
         {"leaderboard.id": paper_id, "period_type": {"$in": ["weekly", "monthly"]}},
-        {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1, "label": 1, "leaderboard": 1},
+        {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1,
+         "label": 1, "paper_count": 1, "leaderboard": 1},
     ).sort([("year", -1), ("week", -1), ("month", -1)]).to_list(20)
 
     for a in archives:
@@ -472,11 +473,16 @@ async def _find_paper_badge(paper_id: str) -> dict:
                 "tier": tier,
                 "rank": archive_rank,
                 "archive_label": a.get("label"),
+                "paper_count": a.get("paper_count", len(lb)),
                 "category": a["category"],
                 "slug": slug,
                 "year": a.get("year"),
                 "badge_url": f"/badge/{a['category']}/{a['year']}/{slug}/{paper_id}",
                 "leaderboard_url": f"/leaderboard/{a['category']}/{a['year']}/{slug}",
+                # Snapshot stats from the archive
+                "score": p.get("ts_score", p.get("score")),
+                "win_rate": p.get("win_rate"),
+                "comparisons": p.get("comparisons"),
             }
     return None
 
@@ -504,15 +510,15 @@ async def get_paper_share_data(paper_id: str):
     # Look up the paper's archive badge (each paper has at most one)
     badge_data = await _find_paper_badge(paper_id)
 
-    # Use archive badge if it exists, otherwise fall back to live rank
+    # When badge exists, image data comes from archive, footer shows live rank
     if badge_data:
-        display_tier = badge_data["tier"]["name"]
-        display_rank = badge_data["rank"]
-        has_medal = True
         badge = {
             "tier": badge_data["tier"]["name"],
             "tier_color": badge_data["tier"]["color"],
             "rank": badge_data["rank"],
+            "paper_count": badge_data["paper_count"],
+            "score": badge_data["score"],
+            "win_rate": round(badge_data["win_rate"]) if badge_data["win_rate"] else None,
             "archive_label": badge_data["archive_label"],
             "category": badge_data["category"],
             "slug": badge_data["slug"],
@@ -520,12 +526,27 @@ async def get_paper_share_data(paper_id: str):
             "badge_url": badge_data["badge_url"],
             "leaderboard_url": badge_data["leaderboard_url"],
         }
-    else:
-        display_tier = _get_tier(rank)["name"] if rank and _get_tier(rank) else None
-        display_rank = rank
-        has_medal = rank is not None and rank <= 3
-        badge = None
+        return {
+            "title": paper_doc.get("title"),
+            "authors": paper_doc.get("authors", []),
+            "rank": rank,
+            "total_in_category": total,
+            "score": ranking.get("ts_score") if ranking else None,
+            "win_rate": round(ranking.get("win_rate", 0)) if ranking else None,
+            "comparisons": ranking.get("comparisons") if ranking else None,
+            "rating": rating_score,
+            "category": primary_cat,
+            "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else None,
+            "arxiv_id": paper_doc.get("arxiv_id"),
+            "paper_id": paper_id,
+            "has_medal": True,
+            "tier": badge_data["tier"]["name"],
+            "display_rank": badge_data["rank"],
+            "badge": badge,
+            "image_url": f"/api/badge/paper/{paper_id}/share/image.png",
+        }
 
+    # No badge — use live data
     return {
         "title": paper_doc.get("title"),
         "authors": paper_doc.get("authors", []),
@@ -539,10 +560,10 @@ async def get_paper_share_data(paper_id: str):
         "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else None,
         "arxiv_id": paper_doc.get("arxiv_id"),
         "paper_id": paper_id,
-        "has_medal": has_medal,
-        "tier": display_tier,
-        "display_rank": display_rank,
-        "badge": badge,
+        "has_medal": rank is not None and rank <= 3,
+        "tier": _get_tier(rank)["name"] if rank and _get_tier(rank) else None,
+        "display_rank": rank,
+        "badge": None,
         "image_url": f"/api/badge/paper/{paper_id}/share/image.png",
     }
 
@@ -565,33 +586,39 @@ async def get_paper_share_image(paper_id: str):
         raise HTTPException(404, "Paper has no ranking")
 
     live_rank = ranking.get("rank_ts", ranking.get("rank", 999))
-    total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
+    live_total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
 
-    # Check for historical badge — use it for the image if available
-    best_badge_data = await _find_paper_badge(paper_id)
-    if best_badge_data:
-        rank = best_badge_data["rank"]
-        tier = best_badge_data["tier"]  # Already a dict like {"rank": 1, "name": "Gold", ...}
-        archive_label = best_badge_data["archive_label"]
+    # Use archive badge data if it exists — ALL numbers from the snapshot
+    badge_data = await _find_paper_badge(paper_id)
+    if badge_data:
+        rank = badge_data["rank"]
+        tier = badge_data["tier"]
+        archive_label = badge_data["archive_label"]
+        paper_count = badge_data["paper_count"]
+        score = badge_data["score"]
+        win_rate = badge_data["win_rate"]
     else:
         rank = live_rank
         tier = _get_tier(rank)
         archive_label = None
+        paper_count = live_total
+        score = ranking.get("ts_score", ranking.get("score"))
+        win_rate = ranking.get("win_rate")
 
     data = {
         "paper": {
             "title": paper_doc.get("title"),
             "authors": paper_doc.get("authors", []),
             "rank": rank,
-            "score": ranking.get("ts_score", ranking.get("score")),
-            "win_rate": ranking.get("win_rate"),
+            "score": score,
+            "win_rate": win_rate,
             "comparisons": ranking.get("comparisons"),
         },
         "rank": rank,
         "tier": tier,
         "category": primary_cat,
         "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else "",
-        "paper_count": total,
+        "paper_count": paper_count,
         "archive_label": archive_label,
     }
 

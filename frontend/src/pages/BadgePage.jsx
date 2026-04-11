@@ -184,9 +184,8 @@ export default function BadgePage() {
   const ogTitle = hasMedal
     ? `#${displayRank} ${data.tier} in ${data.category_name} Preprints — ${data.badge?.archive_label || data.archive_label || ""}`
     : `#${data.rank} of ${data.total_in_category} in ${data.category_name} — Kurate.org`;
-  const subtitleText = hasMedal && (data.badge?.archive_label || data.archive_label)
-    ? `#${displayRank} ${data.tier} in ${data.category_name} Preprints — ${data.badge?.archive_label || data.archive_label}`
-    : `#${data.rank} of ${data.total_in_category || "—"} in ${data.category_name}`;
+  // Footer below image: always shows current live rank in all-time leaderboard
+  const subtitleText = `#${data.rank} of ${data.total_in_category || "—"} in ${data.category_name}`;
 
   return (
     <>
