@@ -515,47 +515,55 @@ async def _deferred_startup():
 
     # Migration: backfill ts_score for ranking docs missing it, then rerank
     try:
-        from services.ranking import SCORE_BASE_CONST
-        missing_ts = await db.rankings.count_documents({"ts_score": {"$exists": False}})
-        missing_ts += await db.rankings.count_documents({"ts_score": None})
+        from services.ranking import SCORE_BASE_CONST, TS_SCALE
+        missing_ts = await db.rankings.count_documents(
+            {"$or": [{"ts_score": {"$exists": False}}, {"ts_score": None}]}
+        )
         if missing_ts > 0:
-            # Set ts_score = score (WR) as initial approximation for docs missing it
+            # Compute ts_score from ts_mu/ts_sigma (conservative estimate = mu - 3*sigma)
+            # If ts_mu is also missing, use defaults (mu=25, sigma=25/3 → score=1200)
+            DEFAULT_MU = 25.0
+            DEFAULT_SIGMA = DEFAULT_MU / 3
             await db.rankings.update_many(
                 {"$or": [{"ts_score": {"$exists": False}}, {"ts_score": None}]},
-                [{"$set": {"ts_score": {"$ifNull": ["$score", SCORE_BASE_CONST]},
-                           "ts_mu": 25.0, "ts_sigma": {"$literal": 25.0 / 3}}}],
+                [{"$set": {
+                    "ts_mu": {"$ifNull": ["$ts_mu", DEFAULT_MU]},
+                    "ts_sigma": {"$ifNull": ["$ts_sigma", DEFAULT_SIGMA]},
+                    "ts_score": {"$round": [{"$add": [
+                        {"$multiply": [
+                            {"$subtract": [
+                                {"$ifNull": ["$ts_mu", DEFAULT_MU]},
+                                {"$multiply": [3, {"$ifNull": ["$ts_sigma", DEFAULT_SIGMA]}]}
+                            ]},
+                            TS_SCALE
+                        ]},
+                        SCORE_BASE_CONST
+                    ]}, 0]},
+                }}],
             )
-            logger.info(f"Backfilled ts_score for {missing_ts} ranking docs")
-            # Trigger full rerank for affected categories to compute proper TS scores
-            cats_needing_rerank = await db.rankings.distinct("category", {"rank_ts": {"$exists": False}})
-            if not cats_needing_rerank:
-                cats_needing_rerank = await db.rankings.distinct("category")
+            logger.info(f"Backfilled ts_score for {missing_ts} ranking docs from ts_mu/ts_sigma")
+            # Trigger full rerank to compute proper ranks
             from services.ranking import rerank_category_light
-            for cat in cats_needing_rerank:
+            for cat in await db.rankings.distinct("category"):
                 try:
                     await rerank_category_light(db, cat)
-                    logger.info(f"Reranked {cat} after ts_score backfill")
                 except Exception as re:
                     logger.warning(f"Rerank {cat} after backfill failed: {re}")
     except Exception as e:
         logger.warning(f"ts_score backfill warning: {e}")
 
 
-    # Migration: backfill ai_rating and gap_score into existing archive entries
+    # Migration: backfill ai_rating into existing archive entries that are missing it.
+    # ai_rating is static (derived from paper content) so copying current values is safe.
+    # For gap_score, use the admin backfill endpoint (scripts/backfill_archive_scores.py)
+    # which replays matches chronologically for historically accurate values.
     try:
-        # Build a lookup of current ai_rating and gap_score from rankings
-        rating_map = {}  # paper_id -> {ai_rating, gap_score, gap_score_ts}
+        rating_map = {}  # paper_id -> ai_rating
         async for r in db.rankings.find(
-            {"$or": [{"ai_rating": {"$exists": True, "$ne": None}},
-                     {"gap_score": {"$exists": True, "$ne": None}},
-                     {"gap_score_ts": {"$exists": True, "$ne": None}}]},
-            {"_id": 0, "paper_id": 1, "ai_rating": 1, "gap_score": 1, "gap_score_ts": 1}
+            {"ai_rating": {"$exists": True, "$ne": None}},
+            {"_id": 0, "paper_id": 1, "ai_rating": 1}
         ):
-            rating_map[r["paper_id"]] = {
-                "ai_rating": r.get("ai_rating"),
-                "gap_score": r.get("gap_score"),
-                "gap_score_ts": r.get("gap_score_ts"),
-            }
+            rating_map[r["paper_id"]] = r["ai_rating"]
 
         if rating_map:
             patched_archives = 0
@@ -564,17 +572,9 @@ async def _deferred_startup():
                 changed = False
                 for entry in lb:
                     pid = entry.get("id")
-                    if pid and pid in rating_map:
-                        rd = rating_map[pid]
-                        if rd.get("ai_rating") is not None and not entry.get("ai_rating"):
-                            entry["ai_rating"] = rd["ai_rating"]
-                            changed = True
-                        if rd.get("gap_score") is not None and entry.get("gap_score") is None:
-                            entry["gap_score"] = rd["gap_score"]
-                            changed = True
-                        if rd.get("gap_score_ts") is not None and entry.get("gap_score_ts") is None:
-                            entry["gap_score_ts"] = rd["gap_score_ts"]
-                            changed = True
+                    if pid and pid in rating_map and not entry.get("ai_rating"):
+                        entry["ai_rating"] = rating_map[pid]
+                        changed = True
                 if changed:
                     await db.leaderboard_archives.update_one(
                         {"_id": archive["_id"]},
@@ -582,9 +582,9 @@ async def _deferred_startup():
                     )
                     patched_archives += 1
             if patched_archives:
-                logger.info(f"Backfilled ai_rating/gap_score into {patched_archives} archives")
+                logger.info(f"Backfilled ai_rating into {patched_archives} archives")
     except Exception as e:
-        logger.warning(f"Archive rating backfill warning: {e}")
+        logger.warning(f"Archive ai_rating backfill warning: {e}")
 
 
     # Migration: update settings for new convergence-based architecture
