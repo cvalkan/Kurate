@@ -421,10 +421,22 @@ export default function PaperPage() {
         const paddedMax = Math.ceil((rangeMax + 50) / 50) * 50;
         const range = paddedMax - paddedMin || 1;
 
+        const paperUrl = typeof window !== "undefined" ? window.location.href : "";
+        const shareText = `${paper.title} — ranked on kurate.org`;
+        const handleShare = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (navigator.share) {
+            navigator.share({ title: paper.title, text: shareText, url: paperUrl });
+          } else {
+            navigator.clipboard?.writeText(paperUrl);
+          }
+        };
+
         return (
           <div className="mb-8 border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden" data-testid="paper-score-card">
-            {/* Badge header bar (only if paper has badges) */}
-            {paperBadges.length > 0 && paperBadges.map((b, i) => {
+            {/* Header bar — always visible with rank + share, badge info when applicable */}
+            {paperBadges.length > 0 ? paperBadges.map((b, i) => {
               const tc = TIER_COLORS[b.tier] || { color: b.tier_color, bg: "#F9FAFB" };
               return (
                 <Link key={i} to={b.badge_url} className="flex items-center justify-between px-4 py-2.5 border-b transition-opacity hover:opacity-80" style={{ backgroundColor: tc.bg, borderBottomColor: `${tc.color}33` }} data-testid={`paper-badge-${i}`}>
@@ -439,7 +451,16 @@ export default function PaperPage() {
                   </div>
                 </Link>
               );
-            })}
+            }) : (
+              <div className="flex items-center justify-between px-4 py-2 border-b bg-slate-50/80">
+                <span className="text-xs text-slate-500">
+                  {paper.categories?.[0] || ""}
+                </span>
+                <button onClick={handleShare} className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 px-2.5 py-1 rounded-full border border-slate-200 hover:border-slate-300 transition-colors" data-testid="share-paper-button">
+                  <Share2 className="h-3 w-3" /> Share
+                </button>
+              </div>
+            )}
             {/* Desktop/Tablet: side-by-side */}
             <div className="hidden md:flex flex-row">
               {/* Tournament Score */}
