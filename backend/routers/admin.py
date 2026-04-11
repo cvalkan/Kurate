@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel
 from typing import Optional
+from pathlib import Path
 from collections import defaultdict
 from datetime import datetime, timezone
 import asyncio
@@ -3378,8 +3379,14 @@ async def get_backfill_status(name: str):
 
 @router.post("/run-audit", dependencies=[Depends(verify_admin)])
 async def run_data_audit():
-    """Run comprehensive data integrity audit. Returns results inline (not background)."""
-    from tests.test_data_integrity import run_audit
+    """Run comprehensive data integrity audit. Returns results inline."""
+    try:
+        from tests.test_data_integrity import run_audit
+    except ImportError:
+        # Fallback: add tests dir to path
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "tests"))
+        from test_data_integrity import run_audit
     results = await run_audit()
     total_failed = sum(r["failed"] for r in results.values())
     return {
