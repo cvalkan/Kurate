@@ -239,7 +239,7 @@ async def main():
                 entry["gap_score"] = round(float(gap_wr[i]), 1)
 
             if any(e.get("ts_score") for e in entries_with_both):
-                ts_vals = _np.array([e.get("ts_score", e.get("score", 0)) for e in entries_with_both])
+                ts_vals = _np.array([e.get("ts_score", SCORE_BASE) for e in entries_with_both])
                 ts_pct = _sp.rankdata(ts_vals) / len(entries_with_both) * 100
                 gap_ts = ts_pct - si_pct
                 for i, entry in enumerate(entries_with_both):
