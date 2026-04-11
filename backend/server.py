@@ -513,6 +513,80 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"shared_categories backfill warning: {e}")
 
+    # Migration: backfill ts_score for ranking docs missing it, then rerank
+    try:
+        from services.ranking import SCORE_BASE_CONST
+        missing_ts = await db.rankings.count_documents({"ts_score": {"$exists": False}})
+        missing_ts += await db.rankings.count_documents({"ts_score": None})
+        if missing_ts > 0:
+            # Set ts_score = score (WR) as initial approximation for docs missing it
+            await db.rankings.update_many(
+                {"$or": [{"ts_score": {"$exists": False}}, {"ts_score": None}]},
+                [{"$set": {"ts_score": {"$ifNull": ["$score", SCORE_BASE_CONST]},
+                           "ts_mu": 25.0, "ts_sigma": {"$literal": 25.0 / 3}}}],
+            )
+            logger.info(f"Backfilled ts_score for {missing_ts} ranking docs")
+            # Trigger full rerank for affected categories to compute proper TS scores
+            cats_needing_rerank = await db.rankings.distinct("category", {"rank_ts": {"$exists": False}})
+            if not cats_needing_rerank:
+                cats_needing_rerank = await db.rankings.distinct("category")
+            from services.ranking import rerank_category_light
+            for cat in cats_needing_rerank:
+                try:
+                    await rerank_category_light(db, cat)
+                    logger.info(f"Reranked {cat} after ts_score backfill")
+                except Exception as re:
+                    logger.warning(f"Rerank {cat} after backfill failed: {re}")
+    except Exception as e:
+        logger.warning(f"ts_score backfill warning: {e}")
+
+
+    # Migration: backfill ai_rating and gap_score into existing archive entries
+    try:
+        # Build a lookup of current ai_rating and gap_score from rankings
+        rating_map = {}  # paper_id -> {ai_rating, gap_score, gap_score_ts}
+        async for r in db.rankings.find(
+            {"$or": [{"ai_rating": {"$exists": True, "$ne": None}},
+                     {"gap_score": {"$exists": True, "$ne": None}},
+                     {"gap_score_ts": {"$exists": True, "$ne": None}}]},
+            {"_id": 0, "paper_id": 1, "ai_rating": 1, "gap_score": 1, "gap_score_ts": 1}
+        ):
+            rating_map[r["paper_id"]] = {
+                "ai_rating": r.get("ai_rating"),
+                "gap_score": r.get("gap_score"),
+                "gap_score_ts": r.get("gap_score_ts"),
+            }
+
+        if rating_map:
+            patched_archives = 0
+            async for archive in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1}):
+                lb = archive.get("leaderboard", [])
+                changed = False
+                for entry in lb:
+                    pid = entry.get("id")
+                    if pid and pid in rating_map:
+                        rd = rating_map[pid]
+                        if rd.get("ai_rating") is not None and not entry.get("ai_rating"):
+                            entry["ai_rating"] = rd["ai_rating"]
+                            changed = True
+                        if rd.get("gap_score") is not None and entry.get("gap_score") is None:
+                            entry["gap_score"] = rd["gap_score"]
+                            changed = True
+                        if rd.get("gap_score_ts") is not None and entry.get("gap_score_ts") is None:
+                            entry["gap_score_ts"] = rd["gap_score_ts"]
+                            changed = True
+                if changed:
+                    await db.leaderboard_archives.update_one(
+                        {"_id": archive["_id"]},
+                        {"$set": {"leaderboard": lb}}
+                    )
+                    patched_archives += 1
+            if patched_archives:
+                logger.info(f"Backfilled ai_rating/gap_score into {patched_archives} archives")
+    except Exception as e:
+        logger.warning(f"Archive rating backfill warning: {e}")
+
+
     # Migration: update settings for new convergence-based architecture
     try:
         from core.auth import invalidate_settings_cache as _inv_cache
