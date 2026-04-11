@@ -221,7 +221,7 @@ export function LeaderboardTable({
               </div>
             )}
             <div>
-              <RankBadge rank={scoreRankMap[paper.id] || paper._displayRank || paper.rank} />
+              <RankBadge rank={getRank(paper) || scoreRankMap[paper.id] || paper._displayRank || paper.rank} />
             </div>
             <div className="min-w-0">
               <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
