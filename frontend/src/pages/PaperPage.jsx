@@ -434,8 +434,8 @@ export default function PaperPage() {
                       {b.tier} · #{b.rank} in {b.category_name} · {b.archive_label}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
-                    <Share2 className="h-3 w-3" /> Share
+                  <div className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
+                    <Share2 className="h-3.5 w-3.5" /> Share
                   </div>
                 </Link>
               );
