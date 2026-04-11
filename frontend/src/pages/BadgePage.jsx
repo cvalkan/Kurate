@@ -66,7 +66,9 @@ export default function BadgePage() {
 
   const shareUrl = `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
   const leaderboardUrl = `${window.location.origin}/leaderboard/${category}/${year}/${slug}`;
-  const imageUrl = `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
+  const imageUrl = isShareMode
+    ? (data.image_url ? `${API}${data.image_url}` : null)
+    : `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
   const arxivUrl = data.arxiv_id ? `https://arxiv.org/abs/${data.arxiv_id}` : "";
   const arxivSuffix = arxivUrl ? `\n${arxivUrl}` : "";
   const authorTweet = `Our paper "${data.title}" ranked #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!${arxivSuffix}`;

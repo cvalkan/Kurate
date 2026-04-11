@@ -333,9 +333,10 @@ def _render_badge_image(data: dict) -> bytes:
     paper = data["paper"]
     tier = data["tier"]
     rank = data["rank"]
-    tier_name = tier["name"]
+    tier_name = tier["name"] if tier else "Silver"
+    is_medal = tier is not None
 
-    # Load the correct SVG template
+    # Load the correct SVG template (use silver as base for non-medal)
     template_map = {"Gold": "badge_gold.svg", "Silver": "badge_silver.svg", "Bronze": "badge_bronze.svg"}
     svg_path = os.path.join(os.path.dirname(__file__), "..", template_map.get(tier_name, "badge_silver.svg"))
     with open(svg_path, "r") as f:
@@ -379,7 +380,12 @@ def _render_badge_image(data: dict) -> bytes:
 
     # Tier label + rank
     tier_labels = {"Gold": "GOLD", "Silver": "SILVER", "Bronze": "BRONZE"}
-    svg = svg.replace(f">{tier_labels.get(tier_name, 'SILVER')}<", f">{tier_name.upper()}<")
+    if is_medal:
+        svg = svg.replace(f">{tier_labels.get(tier_name, 'SILVER')}<", f">{tier_name.upper()}<")
+    else:
+        # No medal — replace tier label with rank text
+        for label in tier_labels.values():
+            svg = svg.replace(f">{label}<", f">RANKED<")
     svg = svg.replace(f">#{rank}<", f">#{rank}<")  # already correct
 
     # Title (two tspan lines)
@@ -461,8 +467,52 @@ async def get_paper_share_data(paper_id: str):
         "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else None,
         "arxiv_id": paper_doc.get("arxiv_id"),
         "paper_id": paper_id,
-        "has_medal": False,  # No medal — this is the universal share version
+        "has_medal": False,
+        "image_url": f"/api/badge/paper/{paper_id}/share/image.png",
     }
+
+
+@router.get("/paper/{paper_id}/share/image.png")
+async def get_paper_share_image(paper_id: str):
+    """Render a shareable badge image for any paper (no medal)."""
+    await _install_fonts_if_needed()
+
+    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1})
+    if not paper_doc:
+        raise HTTPException(404, "Paper not found")
+
+    primary_cat = paper_doc.get("categories", [None])[0]
+    ranking = await db.rankings.find_one(
+        {"paper_id": paper_id},
+        {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1},
+    )
+    if not ranking:
+        raise HTTPException(404, "Paper has no ranking")
+
+    rank = ranking.get("rank_ts", ranking.get("rank", 999))
+    total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
+
+    data = {
+        "paper": {
+            "title": paper_doc.get("title"),
+            "authors": paper_doc.get("authors", []),
+            "rank": rank,
+            "score": ranking.get("ts_score", ranking.get("score")),
+            "win_rate": ranking.get("win_rate"),
+            "comparisons": ranking.get("comparisons"),
+        },
+        "rank": rank,
+        "tier": None,
+        "category": primary_cat,
+        "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else "",
+        "paper_count": total,
+        "archive_label": None,
+    }
+
+    img_bytes = _render_badge_image(data)
+    return Response(content=img_bytes, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
 
 
 @router.get("/paper/{paper_id}/badges")
