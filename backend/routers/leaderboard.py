@@ -536,10 +536,11 @@ def _decode_cursor(cursor: str) -> tuple:
 
 
 def _rank_doc_to_entry(doc: dict) -> dict:
-    """Convert a rankings DB document to a leaderboard entry (matching the old cache format)."""
+    """Convert a rankings DB document to a leaderboard entry (matching the old cache format).
+    Uses rank_ts (TrueSkill rank) as the primary rank — the canonical ranking metric."""
     return {
         "id": doc["paper_id"],
-        "rank": doc.get("rank", 0),
+        "rank": doc.get("rank_ts", doc.get("rank", 0)),
         "rank_wr": doc.get("rank_wr", doc.get("rank", 0)),
         "rank_ts": doc.get("rank_ts", doc.get("rank", 0)),
         "title": doc.get("title", ""),
@@ -1147,7 +1148,7 @@ async def get_paper_detail(paper_id: str):
     ranking_doc = await db.rankings.find_one(
         {"paper_id": paper_id},
         {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
-         "score": 1, "rank": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1,
+         "score": 1, "rank": 1, "rank_ts": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1,
          "ts_score": 1, "ts_sigma": 1, "os_score": 1, "os_sigma": 1}
     )
 
