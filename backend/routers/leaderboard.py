@@ -570,7 +570,7 @@ def _rank_doc_to_entry(doc: dict) -> dict:
 # Mapping from frontend sort keys to MongoDB field names + default direction
 _SORT_FIELD_MAP = {
     "rank": ("rank", 1),
-    "score": ("score", -1),
+    "score": ("ts_score", -1),  # WR no longer selectable — redirect to TS
     "win_rate": ("win_rate", -1),
     "comparisons": ("comparisons", -1),
     "wilson_margin": ("wilson_margin", 1),
@@ -580,6 +580,7 @@ _SORT_FIELD_MAP = {
     "ts_sigma": ("ts_sigma", 1),  # Lower sigma = more confident = default ascending
     "ai_rating": ("ai_rating", -1),
     "gap_score": ("gap_score", -1),
+    "gap_score_ts": ("gap_score_ts", -1),
     "os_score": ("os_score", -1),
     "os_sigma": ("os_sigma", 1),
 }
@@ -1009,7 +1010,7 @@ async def _db_tag_leaderboard_impl(
                     entry["wins"] = loc["wins"]
                     entry["losses"] = loc["losses"]
                     entry["comparisons"] = loc["comparisons"]
-            entries.sort(key=lambda e: (-e["score"], e["id"]))
+            entries.sort(key=lambda e: (-e.get("ts_score", e.get("score", 0)), e["id"]))
             for i, e in enumerate(entries):
                 e["rank"] = i + 1
 
