@@ -145,7 +145,11 @@ async def _get_badge_data(category: str, year: int, paper_id: str, week: int = N
     if not paper:
         raise HTTPException(404, "Paper not found in this archive")
 
-    rank = paper.get("rank_ts", paper.get("rank", 999))
+    # Compute rank by sorting the FULL archive leaderboard by ts_score (same as list view)
+    # This ensures badges are consistent between list view and paper page
+    sorted_lb = sorted(lb, key=lambda p: (p.get("ts_score") or p.get("score") or 0), reverse=True)
+    rank = next((i + 1 for i, p in enumerate(sorted_lb) if p.get("id") == paper_id), 999)
+
     tier = _get_tier(rank)
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
@@ -245,22 +249,7 @@ async def get_badge_share_page(category: str, year: int, week: int, paper_id: st
 async def get_monthly_badge_share_page(category: str, year: int, month: int, paper_id: str, request: Request):
     """Static HTML page with OG meta tags for monthly badge sharing."""
     from core.sharing import get_public_base_url, SHARE_HEADERS
-    archive = await db.leaderboard_archives.find_one(
-        {"category": category, "year": year, "month": month, "period_type": "monthly"}, {"_id": 0})
-    if not archive:
-        raise HTTPException(404, "Archive not found")
-    lb = archive.get("leaderboard", [])
-    paper = next((p for p in lb if p.get("id") == paper_id), None)
-    if not paper:
-        raise HTTPException(404, "Paper not found")
-    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
-    if not tier:
-        raise HTTPException(404, "Not in top 3")
-    data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
-            "category": category, "category_name": CATEGORIES.get(category, category),
-            "paper_count": archive.get("paper_count", len(lb)), "year": year}
-    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
-    data["categories"] = paper_doc["categories"] if paper_doc and paper_doc.get("categories") else [category]
+    data = await _get_badge_data(category, year, paper_id, month=month)
     base_url = get_public_base_url(request)
     html = _render_share_html(data, category, year, f"m{month}", paper_id, base_url)
     return HTMLResponse(content=html, headers=SHARE_HEADERS)
@@ -449,10 +438,10 @@ async def get_paper_badges(paper_id: str):
     default_freq = archive_config.get("default", "weekly")
 
     archives = await db.leaderboard_archives.find(
-        {"leaderboard": {"$elemMatch": {"id": paper_id, "rank_ts": {"$lte": 3}}},
+        {"leaderboard.id": paper_id,
          "period_type": {"$in": ["weekly", "monthly"]}},
         {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1, "label": 1,
-         "paper_count": 1, "leaderboard": {"$elemMatch": {"id": paper_id}}},
+         "paper_count": 1, "leaderboard": 1},
     ).sort([("year", -1), ("week", -1), ("month", -1)]).to_list(50)
 
     badges = []
@@ -463,10 +452,14 @@ async def get_paper_badges(paper_id: str):
         lb = a.get("leaderboard", [])
         if not lb:
             continue
-        p = lb[0]
-        if not p.get("comparisons"):
+        p = next((entry for entry in lb if entry.get("id") == paper_id), None)
+        if not p or not p.get("comparisons"):
             continue
-        rank = p.get("rank_ts", p.get("rank", 999))
+
+        # Compute rank by sorting full leaderboard by ts_score (consistent with list view)
+        sorted_lb = sorted(lb, key=lambda x: (x.get("ts_score") or x.get("score") or 0), reverse=True)
+        rank = next((i + 1 for i, entry in enumerate(sorted_lb) if entry.get("id") == paper_id), 999)
+
         tier = _get_tier(rank)
         if not tier:
             continue
