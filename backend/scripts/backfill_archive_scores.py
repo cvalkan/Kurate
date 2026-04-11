@@ -315,6 +315,43 @@ async def main():
     print(f"Done: {total_archives_updated} archives updated with historical TS/OS scores in {elapsed:.1f}s")
     print(f"Replayed {match_idx} matches")
 
+    # Cleanup pass: fix any remaining papers with ts_score=1200 despite having matches.
+    # These are edge cases from cutoff boundary timing. Use live TS score as fallback.
+    live_ts = {}
+    async for r in db.rankings.find(
+        {"ts_score": {"$exists": True, "$ne": None}},
+        {"_id": 0, "paper_id": 1, "ts_score": 1, "ts_sigma": 1,
+         "os_score": 1, "os_sigma": 1},
+    ):
+        live_ts[r["paper_id"]] = r
+
+    fixed = 0
+    async for archive in db.leaderboard_archives.find(
+        {"leaderboard": {"$exists": True}},
+        {"_id": 1, "leaderboard": 1},
+    ):
+        lb = archive.get("leaderboard", [])
+        changed = False
+        for entry in lb:
+            if (entry.get("comparisons") or 0) > 0 and entry.get("ts_score") == SCORE_BASE:
+                pid = entry.get("id")
+                if pid and pid in live_ts:
+                    entry["ts_score"] = live_ts[pid].get("ts_score", SCORE_BASE)
+                    entry["ts_sigma"] = live_ts[pid].get("ts_sigma")
+                    if live_ts[pid].get("os_score"):
+                        entry["os_score"] = live_ts[pid]["os_score"]
+                    if live_ts[pid].get("os_sigma"):
+                        entry["os_sigma"] = live_ts[pid]["os_sigma"]
+                    changed = True
+                    fixed += 1
+        if changed:
+            await db.leaderboard_archives.update_one(
+                {"_id": archive["_id"]}, {"$set": {"leaderboard": lb}}
+            )
+
+    if fixed:
+        print(f"Cleanup: fixed {fixed} edge-case papers using live TS scores")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
