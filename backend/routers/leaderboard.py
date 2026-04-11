@@ -1189,6 +1189,16 @@ async def get_paper_detail(paper_id: str):
                 paper[min_key] = agg.get("min_val")
                 paper[max_key] = agg.get("max_val")
 
+    # Get current rank and total papers in category
+    if ranking_doc and primary_cat:
+        from routers.badges import CATEGORIES as _CAT_NAMES
+        rank_ts = ranking_doc.get("rank_ts") or ranking_doc.get("rank")
+        if rank_ts:
+            paper["current_rank"] = rank_ts
+        total_in_cat = await db.rankings.count_documents({"category": primary_cat})
+        paper["total_in_category"] = total_in_cat
+        paper["category_name"] = _CAT_NAMES.get(primary_cat, primary_cat)
+
     return {
         "paper": paper,
         "matches": enriched_matches,
