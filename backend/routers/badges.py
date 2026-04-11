@@ -139,7 +139,7 @@ async def _get_badge_data(category: str, year: int, week: int, paper_id: str) ->
     if not paper:
         raise HTTPException(404, "Paper not found in this archive")
 
-    tier = _get_tier(paper["rank"])
+    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
 
@@ -237,7 +237,7 @@ async def get_monthly_badge_share_page(category: str, year: int, month: int, pap
     paper = next((p for p in lb if p.get("id") == paper_id), None)
     if not paper:
         raise HTTPException(404, "Paper not found")
-    tier = _get_tier(paper["rank"])
+    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
     if not tier:
         raise HTTPException(404, "Not in top 3")
     data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
@@ -327,7 +327,7 @@ def _render_badge_image(data: dict) -> bytes:
     import os
     paper = data["paper"]
     tier = data["tier"]
-    rank = paper["rank"]
+    rank = paper.get("rank_ts", paper.get("rank", 999))
     tier_name = tier["name"]
 
     # Load the correct SVG template
@@ -419,7 +419,7 @@ async def get_monthly_badge(category: str, year: int, month: int, paper_id: str)
     if not paper:
         raise HTTPException(404, "Paper not found in this archive")
 
-    tier = _get_tier(paper["rank"])
+    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
 
@@ -429,7 +429,7 @@ async def get_monthly_badge(category: str, year: int, month: int, paper_id: str)
     return {
         "title": paper.get("title"),
         "authors": paper.get("authors", []),
-        "rank": paper["rank"],
+        "rank": paper.get("rank_ts", paper.get("rank", 999)),
         "score": paper.get("score"),
         "win_rate": paper.get("win_rate"),
         "comparisons": paper.get("comparisons"),
@@ -455,7 +455,7 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
         return {"has_badge": False}
     paper = archive["leaderboard"][0]
     tier = _get_tier(paper.get("rank", 999))
-    return {"has_badge": bool(tier), "rank": paper.get("rank"), "tier": tier["name"] if tier else None}
+    return {"has_badge": bool(tier), "rank": paper.get("rank_ts", paper.get("rank")), "tier": tier["name"] if tier else None}
 
 @router.get("/paper/{paper_id}/badges")
 async def get_paper_badges(paper_id: str):
@@ -505,7 +505,7 @@ async def get_paper_badges(paper_id: str):
     if not paper:
         raise HTTPException(404, "Paper not found in this archive")
 
-    tier = _get_tier(paper["rank"])
+    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
     if not tier:
         raise HTTPException(404, "Paper is not in the top 3 for this period")
 
@@ -515,7 +515,7 @@ async def get_paper_badges(paper_id: str):
     return {
         "title": paper.get("title"),
         "authors": paper.get("authors", []),
-        "rank": paper["rank"],
+        "rank": paper.get("rank_ts", paper.get("rank", 999)),
         "score": paper.get("score"),
         "win_rate": paper.get("win_rate"),
         "comparisons": paper.get("comparisons"),
@@ -553,7 +553,7 @@ async def get_monthly_badge_image(category: str, year: int, month: int, paper_id
     paper = next((p for p in lb if p.get("id") == paper_id), None)
     if not paper:
         raise HTTPException(404, "Paper not found")
-    tier = _get_tier(paper["rank"])
+    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
     if not tier:
         raise HTTPException(404, "Not in top 3")
     data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
