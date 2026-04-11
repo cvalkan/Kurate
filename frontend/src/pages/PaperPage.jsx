@@ -440,14 +440,27 @@ export default function PaperPage() {
               const tc = TIER_COLORS[b.tier] || { color: b.tier_color, bg: "#F9FAFB" };
               return (
                 <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b" style={{ backgroundColor: tc.bg, borderBottomColor: `${tc.color}33` }}>
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <span className="font-bold text-slate-900">#{paper.current_rank || b.rank}</span>
-                    <span className="text-slate-400">of {paper.total_in_category || "—"}</span>
-                    <span className="text-slate-300 mx-0.5">·</span>
-                    <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                  {/* Desktop: rank + category + badge + share */}
+                  <div className="hidden md:flex items-center justify-between w-full">
+                    <div className="flex items-center gap-1.5 text-sm">
+                      <span className="font-bold text-slate-900">#{paper.current_rank || b.rank}</span>
+                      <span className="text-slate-400">of {paper.total_in_category || "—"}</span>
+                      <span className="text-slate-300 mx-0.5">·</span>
+                      <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link to={b.badge_url} className="flex items-center gap-1.5 text-sm font-semibold transition-opacity hover:opacity-80" style={{ color: tc.color }} data-testid={`paper-badge-${i}`}>
+                        <Award className="h-4 w-4" />
+                        {b.tier} · {b.archive_label}
+                      </Link>
+                      <Link to={`/share/${paper.id}`} className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border transition-colors hover:opacity-80" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
+                        <Share2 className="h-3.5 w-3.5" /> Share
+                      </Link>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Link to={b.badge_url} className="flex items-center gap-1.5 text-sm font-semibold transition-opacity hover:opacity-80" style={{ color: tc.color }} data-testid={`paper-badge-${i}`}>
+                  {/* Mobile: badge + share only */}
+                  <div className="flex md:hidden items-center justify-between w-full">
+                    <Link to={b.badge_url} className="flex items-center gap-1.5 text-sm font-semibold transition-opacity hover:opacity-80" style={{ color: tc.color }} data-testid={`paper-badge-mobile-${i}`}>
                       <Award className="h-4 w-4" />
                       {b.tier} · {b.archive_label}
                     </Link>
@@ -459,15 +472,18 @@ export default function PaperPage() {
               );
             }) : (
               <div className="flex items-center justify-between px-4 py-2.5 border-b bg-slate-50/80">
-                <div className="flex items-center gap-1.5 text-sm">
+                <div className="hidden md:flex items-center gap-1.5 text-sm">
                   <span className="font-bold text-slate-900">#{paper.current_rank || "—"}</span>
                   <span className="text-slate-400">of {paper.total_in_category || "—"}</span>
                   <span className="text-slate-300 mx-0.5">·</span>
                   <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
                 </div>
-                <button onClick={handleShare} className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 px-2.5 py-1 rounded-full border border-slate-200 hover:border-slate-300 transition-colors" data-testid="share-paper-button">
+                <div className="md:hidden text-xs text-slate-500">
+                  #{paper.current_rank || "—"} of {paper.total_in_category || "—"} · {paper.category_name || paper.categories?.[0] || ""}
+                </div>
+                <Link to={`/share/${paper.id}`} className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 px-2.5 py-1 rounded-full border border-slate-200 hover:border-slate-300 transition-colors" data-testid="share-paper-button">
                   <Share2 className="h-3 w-3" /> Share
-                </button>
+                </Link>
               </div>
             )}
             {/* Desktop/Tablet: side-by-side */}
