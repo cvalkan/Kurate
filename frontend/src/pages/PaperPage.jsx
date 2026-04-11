@@ -451,9 +451,9 @@ export default function PaperPage() {
                       <Award className="h-4 w-4" />
                       {b.tier} · {b.archive_label}
                     </Link>
-                    <button onClick={handleShare} className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border transition-colors hover:opacity-80" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
+                    <Link to={b.badge_url} className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border transition-colors hover:opacity-80" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
                       <Share2 className="h-3.5 w-3.5" /> Share
-                    </button>
+                    </Link>
                   </div>
                 </div>
               );
