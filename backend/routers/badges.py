@@ -116,6 +116,10 @@ FONT_REGULAR = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
 FONT_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 
 
+# Minimum matches required for medal eligibility
+MIN_MATCHES_FOR_MEDAL = 9
+
+
 def _get_tier(rank: int) -> Optional[dict]:
     """Get badge tier for a given rank. Only top 3 get badges."""
     for t in TIER_CONFIG:
@@ -478,10 +482,12 @@ async def _find_paper_badge(paper_id: str) -> dict:
         if not lb:
             continue
         p = next((entry for entry in lb if entry.get("id") == paper_id), None)
-        if not p or not p.get("comparisons"):
+        if not p:
             continue
         archive_rank = _compute_archive_rank(lb, paper_id)
-        tier = _get_tier(archive_rank)
+        # Medal requires minimum matches — prevents meaningless badges from 1-2 matches
+        paper_comparisons = p.get("comparisons") or 0
+        tier = _get_tier(archive_rank) if paper_comparisons >= MIN_MATCHES_FOR_MEDAL else None
         slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
         entry = {
             "tier": tier,
@@ -676,13 +682,14 @@ async def get_paper_badges(paper_id: str):
         if not lb:
             continue
         p = next((entry for entry in lb if entry.get("id") == paper_id), None)
-        if not p or not p.get("comparisons"):
+        if not p:
             continue
 
         # Compute rank by sorting full leaderboard by ts_score (consistent with list view)
         rank = _compute_archive_rank(lb, paper_id)
 
-        tier = _get_tier(rank)
+        paper_comparisons = p.get("comparisons") or 0
+        tier = _get_tier(rank) if paper_comparisons >= MIN_MATCHES_FOR_MEDAL else None
         if not tier:
             continue
         slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"

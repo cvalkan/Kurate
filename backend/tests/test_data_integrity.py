@@ -185,7 +185,8 @@ async def run_audit(production_url: str = None):
             pid = entry.get("id")
             if not pid:
                 continue
-            if not entry.get("comparisons"):
+            # Skip papers below minimum match threshold — they don't get medals
+            if (entry.get("comparisons") or 0) < 9:
                 continue
 
             expected_rank = i + 1
@@ -226,7 +227,9 @@ async def run_audit(production_url: str = None):
         sorted_lb = sorted(lb, key=lambda p: p.get("ts_score") or 1200, reverse=True)
         for i, entry in enumerate(sorted_lb[:3]):
             pid = entry.get("id")
-            if not pid or not entry.get("comparisons"):
+            if not pid:
+                continue
+            if (entry.get("comparisons") or 0) < 9:
                 continue
 
             expected_tier = _get_tier(i + 1)
