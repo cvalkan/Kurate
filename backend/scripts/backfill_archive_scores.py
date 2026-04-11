@@ -105,6 +105,8 @@ async def main():
     cat_ts = defaultdict(dict)  # {cat: {pid: trueskill.Rating}}
     cat_os = defaultdict(dict)  # {cat: {pid: {mk: (mu, sigma)}}} — per-model
     cat_global_os = defaultdict(dict)  # {cat: {pid: (mu, sigma)}} — global
+    # Track WR stats per category per paper: {cat: {pid: {"wins": N, "losses": N}}}
+    cat_wr = defaultdict(lambda: defaultdict(lambda: {"wins": 0, "losses": 0}))
 
     match_idx = 0
     total_archives_updated = 0
@@ -122,6 +124,14 @@ async def main():
 
             m_cat = m["primary_category"]
             p1, p2, winner = m["paper1_id"], m["paper2_id"], m["winner_id"]
+
+            # WR stats tracking
+            if winner == p1:
+                cat_wr[m_cat][p1]["wins"] += 1
+                cat_wr[m_cat][p2]["losses"] += 1
+            else:
+                cat_wr[m_cat][p2]["wins"] += 1
+                cat_wr[m_cat][p1]["losses"] += 1
 
             # TrueSkill update
             if p1 not in cat_ts[m_cat]:
@@ -207,32 +217,46 @@ async def main():
         rank_ts = {pid: i + 1 for i, (pid, _) in enumerate(ts_ranked)}
         rank_os = {pid: i + 1 for i, (pid, _) in enumerate(os_ranked)}
 
-        # Update archive entries
+        # Update archive entries — ALL columns from replayed match data
         updated = False
         for entry in lb:
             pid = entry.get("id")
             if not pid:
                 continue
+
+            # WR stats from replayed matches
+            wr = cat_wr[cat].get(pid, {"wins": 0, "losses": 0})
+            wins = wr["wins"]
+            losses = wr["losses"]
+            comparisons = wins + losses
+            win_rate = round(wins / comparisons * 100, 1) if comparisons > 0 else 0.0
+            # Regularized WR score (same formula as compute_leaderboard)
+            p_reg = (wins + 0.5) / (comparisons + 1.0) if comparisons > 0 else 0.5
+            import math
+            wr_score = round(400 * math.log10(max(p_reg, 0.001) / max(1 - p_reg, 0.001)) + SCORE_BASE)
+            entry["wins"] = wins
+            entry["losses"] = losses
+            entry["comparisons"] = comparisons
+            entry["win_rate"] = win_rate
+            entry["score"] = wr_score
+
+            # TrueSkill
             if pid in ts_scores:
                 ts_r = cat_ts[cat].get(pid)
                 entry["ts_score"] = ts_scores[pid]
                 entry["ts_sigma"] = round(ts_r.sigma, 4) if ts_r else None
-                entry["rank_ts"] = rank_ts.get(pid)
-                updated = True
             else:
-                # Paper had no matches at this point — assign default prior
                 entry["ts_score"] = SCORE_BASE
                 entry["ts_sigma"] = round(DEFAULT_SIGMA, 4)
-                updated = True
+
+            # OpenSkill
             if pid in os_scores:
                 entry["os_score"] = os_scores[pid]
                 entry["os_sigma"] = os_sigmas.get(pid)
-                entry["rank_os"] = rank_os.get(pid)
-                updated = True
             else:
                 entry["os_score"] = SCORE_BASE
                 entry["os_sigma"] = round(DEFAULT_SIGMA, 4)
-                updated = True
+            updated = True
 
         # Recompute ranks including papers with default scores
         all_ts = [(entry.get("id"), entry.get("ts_score", SCORE_BASE)) for entry in lb if entry.get("id")]
@@ -277,9 +301,10 @@ async def main():
             updated = True  # Gap scores changed
 
         if updated:
+            total_matches = sum(e.get("comparisons", 0) for e in lb) // 2
             await db.leaderboard_archives.update_one(
                 {"_id": archive["_id"]},
-                {"$set": {"leaderboard": lb}},
+                {"$set": {"leaderboard": lb, "match_count": total_matches}},
             )
             total_archives_updated += 1
 
