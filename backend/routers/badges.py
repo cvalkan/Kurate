@@ -125,6 +125,12 @@ def _truncate(text: str, max_len: int) -> str:
     return text[:max_len - 1] + "\u2026" if len(text) > max_len else text
 
 
+def _compute_archive_rank(leaderboard: list, paper_id: str) -> int:
+    """Compute paper rank from archive leaderboard by sorting on ts_score."""
+    sorted_lb = sorted(leaderboard, key=lambda p: (p.get("ts_score") or p.get("score") or 0), reverse=True)
+    return next((i + 1 for i, p in enumerate(sorted_lb) if p.get("id") == paper_id), 999)
+
+
 async def _get_badge_data(category: str, year: int, paper_id: str, week: int = None, month: int = None) -> dict:
     """Fetch archive and extract badge data for a specific paper. Works for both weekly and monthly."""
     if week is not None:
@@ -146,9 +152,7 @@ async def _get_badge_data(category: str, year: int, paper_id: str, week: int = N
         raise HTTPException(404, "Paper not found in this archive")
 
     # Compute rank by sorting the FULL archive leaderboard by ts_score (same as list view)
-    # This ensures badges are consistent between list view and paper page
-    sorted_lb = sorted(lb, key=lambda p: (p.get("ts_score") or p.get("score") or 0), reverse=True)
-    rank = next((i + 1 for i, p in enumerate(sorted_lb) if p.get("id") == paper_id), 999)
+    rank = _compute_archive_rank(lb, paper_id)
 
     tier = _get_tier(rank)
     if not tier:
@@ -266,7 +270,7 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
         authors += f" +{len(p['authors']) - 3}"
     cat_name = html_mod.escape(data["category_name"])
     archive_label = html_mod.escape(data["archive_label"])
-    rank = p["rank"]
+    rank = data["rank"]
     tier_name = tier["name"]
 
     image_url = f"{base_url}/api/badge/{category}/{year}/{slug}/{paper_id}/image.png"
@@ -441,8 +445,8 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
 
 
 async def _find_paper_badge(paper_id: str) -> dict:
-    """Find the paper's archive snapshot data. Returns rank/tier/stats from the archive.
-    Tier is set for top-3 papers (Gold/Silver/Bronze), None for others.
+    """Find the paper's archive snapshot data.
+    Priority: most recent top-3 appearance (the badge), then most recent appearance.
     Returns None only if the paper has never appeared in any archive."""
     from core.auth import get_settings
     settings = await get_settings()
@@ -455,6 +459,9 @@ async def _find_paper_badge(paper_id: str) -> dict:
          "label": 1, "paper_count": 1, "leaderboard": 1},
     ).sort([("year", -1), ("week", -1), ("month", -1)]).to_list(20)
 
+    best_medal = None  # Top-3 appearance (the actual badge)
+    latest_any = None  # Most recent appearance regardless of rank
+
     for a in archives:
         cat_freq = archive_config.get(a["category"], default_freq)
         if a.get("period_type") != cat_freq:
@@ -465,11 +472,10 @@ async def _find_paper_badge(paper_id: str) -> dict:
         p = next((entry for entry in lb if entry.get("id") == paper_id), None)
         if not p or not p.get("comparisons"):
             continue
-        sorted_lb = sorted(lb, key=lambda x: (x.get("ts_score") or x.get("score") or 0), reverse=True)
-        archive_rank = next((i + 1 for i, entry in enumerate(sorted_lb) if entry.get("id") == paper_id), 999)
-        tier = _get_tier(archive_rank)  # None for rank > 3
+        archive_rank = _compute_archive_rank(lb, paper_id)
+        tier = _get_tier(archive_rank)
         slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
-        return {
+        entry = {
             "tier": tier,
             "rank": archive_rank,
             "archive_label": a.get("label"),
@@ -483,7 +489,14 @@ async def _find_paper_badge(paper_id: str) -> dict:
             "win_rate": p.get("win_rate"),
             "comparisons": p.get("comparisons"),
         }
-    return None
+        if tier and not best_medal:
+            best_medal = entry
+        if not latest_any:
+            latest_any = entry
+        if best_medal:
+            break  # Found a medal — no need to search further
+
+    return best_medal or latest_any
 
 
 @router.get("/paper/{paper_id}/share")
@@ -659,8 +672,7 @@ async def get_paper_badges(paper_id: str):
             continue
 
         # Compute rank by sorting full leaderboard by ts_score (consistent with list view)
-        sorted_lb = sorted(lb, key=lambda x: (x.get("ts_score") or x.get("score") or 0), reverse=True)
-        rank = next((i + 1 for i, entry in enumerate(sorted_lb) if entry.get("id") == paper_id), 999)
+        rank = _compute_archive_rank(lb, paper_id)
 
         tier = _get_tier(rank)
         if not tier:
