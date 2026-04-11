@@ -467,7 +467,11 @@ async def get_paper_badges(paper_id: str):
     default_freq = archive_config.get("default", "weekly")
 
     archives = await db.leaderboard_archives.find(
-        {"leaderboard": {"$elemMatch": {"id": paper_id, "rank": {"$lte": 3}}},
+        {"leaderboard": {"$elemMatch": {"id": paper_id, "$or": [
+            {"rank": {"$lte": 3}},
+            {"rank_ts": {"$lte": 3}},
+            {"rank_os": {"$lte": 3}},
+        ]}},
          "period_type": {"$in": ["weekly", "monthly"]}},
         {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1, "label": 1,
          "paper_count": 1, "leaderboard": {"$elemMatch": {"id": paper_id}}},
@@ -485,14 +489,16 @@ async def get_paper_badges(paper_id: str):
         p = lb[0]
         if not p.get("comparisons"):
             continue  # Skip papers with 0 tournament matches
-        tier = _get_tier(p.get("rank", 999))
+        # Use the best rank across WR, TS, OS
+        best_rank = min(r for r in [p.get("rank", 999), p.get("rank_ts", 999), p.get("rank_os", 999)] if r is not None)
+        tier = _get_tier(best_rank)
         if not tier:
             continue
         slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
         badges.append({
             "tier": tier["name"],
             "tier_color": tier["color"],
-            "rank": p["rank"],
+            "rank": best_rank,
             "archive_label": a.get("label"),
             "category": a["category"],
             "category_name": CATEGORIES.get(a["category"], a["category"]),
