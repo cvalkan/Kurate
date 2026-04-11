@@ -3379,18 +3379,27 @@ async def get_backfill_status(name: str):
 
 @router.post("/run-audit", dependencies=[Depends(verify_admin)])
 async def run_data_audit():
-    """Run comprehensive data integrity audit. Returns results inline."""
+    """Run comprehensive data integrity audit in background."""
     try:
         from tests.test_data_integrity import run_audit
     except ImportError:
-        # Fallback: add tests dir to path
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent / "tests"))
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).parent.parent / "tests"))
         from test_data_integrity import run_audit
-    results = await run_audit()
-    total_failed = sum(r["failed"] for r in results.values())
-    return {
-        "status": "passed" if total_failed == 0 else "failed",
-        "total_failed": total_failed,
-        "results": results,
-    }
+
+    async def _run():
+        _backfill_status["audit"] = {"status": "running", "started_at": _time.time()}
+        try:
+            results = await run_audit()
+            total_failed = sum(r["failed"] for r in results.values())
+            _backfill_status["audit"] = {
+                "status": "passed" if total_failed == 0 else "failed",
+                "total_failed": total_failed,
+                "results": results,
+                "elapsed": round(_time.time() - _backfill_status["audit"]["started_at"], 1),
+            }
+        except Exception as e:
+            _backfill_status["audit"] = {"status": "error", "error": str(e)[:500]}
+
+    asyncio.create_task(_run())
+    return {"status": "started", "check_status": "/api/admin/backfill-status/audit"}
