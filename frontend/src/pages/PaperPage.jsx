@@ -314,7 +314,11 @@ export default function PaperPage() {
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-4xl py-6 md:py-10">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors" data-testid="back-link">
+      <button onClick={() => {
+        const cat = paper.categories?.[0];
+        if (cat) navigate(`/?cat=${cat}&period=all`);
+        else navigate(-1);
+      }} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors" data-testid="back-link">
         <ArrowLeft className="h-4 w-4" />
         Back to Leaderboard
       </button>
