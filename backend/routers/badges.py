@@ -441,8 +441,9 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
 
 
 async def _find_paper_badge(paper_id: str) -> dict:
-    """Find the paper's archive badge (top-3 appearance). Each paper has at most one badge.
-    Returns all data from the archive snapshot, or None."""
+    """Find the paper's archive snapshot data. Returns rank/tier/stats from the archive.
+    Tier is set for top-3 papers (Gold/Silver/Bronze), None for others.
+    Returns None only if the paper has never appeared in any archive."""
     from core.auth import get_settings
     settings = await get_settings()
     archive_config = settings.get("archive_frequency", {})
@@ -466,24 +467,22 @@ async def _find_paper_badge(paper_id: str) -> dict:
             continue
         sorted_lb = sorted(lb, key=lambda x: (x.get("ts_score") or x.get("score") or 0), reverse=True)
         archive_rank = next((i + 1 for i, entry in enumerate(sorted_lb) if entry.get("id") == paper_id), 999)
-        tier = _get_tier(archive_rank)
-        if tier:
-            slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
-            return {
-                "tier": tier,
-                "rank": archive_rank,
-                "archive_label": a.get("label"),
-                "paper_count": a.get("paper_count", len(lb)),
-                "category": a["category"],
-                "slug": slug,
-                "year": a.get("year"),
-                "badge_url": f"/badge/{a['category']}/{a['year']}/{slug}/{paper_id}",
-                "leaderboard_url": f"/leaderboard/{a['category']}/{a['year']}/{slug}",
-                # Snapshot stats from the archive
-                "score": p.get("ts_score", p.get("score")),
-                "win_rate": p.get("win_rate"),
-                "comparisons": p.get("comparisons"),
-            }
+        tier = _get_tier(archive_rank)  # None for rank > 3
+        slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
+        return {
+            "tier": tier,
+            "rank": archive_rank,
+            "archive_label": a.get("label"),
+            "paper_count": a.get("paper_count", len(lb)),
+            "category": a["category"],
+            "slug": slug,
+            "year": a.get("year"),
+            "badge_url": f"/badge/{a['category']}/{a['year']}/{slug}/{paper_id}",
+            "leaderboard_url": f"/leaderboard/{a['category']}/{a['year']}/{slug}",
+            "score": p.get("ts_score", p.get("score")),
+            "win_rate": p.get("win_rate"),
+            "comparisons": p.get("comparisons"),
+        }
     return None
 
 
@@ -510,11 +509,14 @@ async def get_paper_share_data(paper_id: str):
     # Look up the paper's archive badge (each paper has at most one)
     badge_data = await _find_paper_badge(paper_id)
 
-    # When badge exists, image data comes from archive, footer shows live rank
+    # When archive data exists, image uses snapshot, footer shows live rank
     if badge_data:
+        has_medal = badge_data["tier"] is not None
+        tier_name = badge_data["tier"]["name"] if has_medal else None
+        tier_color = badge_data["tier"]["color"] if has_medal else None
         badge = {
-            "tier": badge_data["tier"]["name"],
-            "tier_color": badge_data["tier"]["color"],
+            "tier": tier_name,
+            "tier_color": tier_color,
             "rank": badge_data["rank"],
             "paper_count": badge_data["paper_count"],
             "score": badge_data["score"],
@@ -539,14 +541,14 @@ async def get_paper_share_data(paper_id: str):
             "category_name": CATEGORIES.get(primary_cat, primary_cat) if primary_cat else None,
             "arxiv_id": paper_doc.get("arxiv_id"),
             "paper_id": paper_id,
-            "has_medal": True,
-            "tier": badge_data["tier"]["name"],
+            "has_medal": has_medal,
+            "tier": tier_name,
             "display_rank": badge_data["rank"],
             "badge": badge,
             "image_url": f"/api/badge/paper/{paper_id}/share/image.png",
         }
 
-    # No badge — use live data
+    # No archive data at all — use live data
     return {
         "title": paper_doc.get("title"),
         "authors": paper_doc.get("authors", []),
