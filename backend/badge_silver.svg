@@ -56,7 +56,7 @@
   </text>
 
   <!-- Kurate.org logo (embedded PNG + trophy) -->
-  <g transform="translate(473, 13)">
+  <g transform="translate(473, 23)">
     <g transform="translate(0, 1) scale(0.85)" fill="none" stroke="#4285F4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
       <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
