@@ -8,7 +8,6 @@ from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response, HTMLResponse
-import cairosvg
 from typing import Optional
 
 from core.config import db, logger
@@ -243,7 +242,7 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
                         headers={"Cache-Control": "public, max-age=3600"})
     # 3. Render on-the-fly and cache
     data = await _get_badge_data(category, year, paper_id, week=week)
-    img_bytes = _render_badge_image(data)
+    img_bytes = await _render_badge_png(data)
     _set_cached_image(store_key, img_bytes)
     # Also persist for future cold starts
     await store_image(store_key, img_bytes)
@@ -344,7 +343,8 @@ def _wordwrap(text, max_chars):
 
 
 def _render_badge_image(data: dict) -> bytes:
-    """Render badge using the designer SVG templates, inject dynamic data, convert to PNG."""
+    """Render badge using the designer SVG templates, inject dynamic data, convert to PNG.
+    Returns SVG string for async rendering via Playwright."""
     import os
     paper = data["paper"]
     tier = data["tier"]
@@ -432,8 +432,15 @@ def _render_badge_image(data: dict) -> bytes:
     svg = svg.replace(">89.2%<", f">{win_rate}%<")
     svg = svg.replace(">79.5%<", f">{win_rate}%<")
 
-    # Render SVG to PNG at standard OG size (1200x630 = 1.91:1 ratio)
-    return cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=2400, output_height=1260)
+    # Return the prepared SVG string (caller renders via Playwright)
+    return svg
+
+
+async def _render_badge_png(data: dict) -> bytes:
+    """Render badge data to PNG using Playwright for pixel-perfect font rendering."""
+    from services.svg_renderer import svg_to_png
+    svg = _render_badge_image(data)
+    return await svg_to_png(svg, output_width=2400, output_height=1260)
 
 # Monthly badges
 @router.get("/{category}/{year}/m{month}/{paper_id}")
@@ -651,7 +658,7 @@ async def get_paper_share_image(paper_id: str):
         "archive_label": archive_label,
     }
 
-    img_bytes = _render_badge_image(data)
+    img_bytes = await _render_badge_png(data)
     return Response(content=img_bytes, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=86400"})
 
@@ -765,7 +772,7 @@ async def get_monthly_badge_image(category: str, year: int, month: int, paper_id
             "paper_count": archive.get("paper_count", len(lb))}
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
     data["categories"] = paper_doc["categories"] if paper_doc and paper_doc.get("categories") else [category]
-    img_bytes = _render_badge_image(data)
+    img_bytes = await _render_badge_png(data)
     _set_cached_image(store_key, img_bytes)
     await store_image(store_key, img_bytes)
     return Response(content=img_bytes, media_type="image/png",
