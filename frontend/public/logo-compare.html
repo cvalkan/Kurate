@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Logo Comparison</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin: 40px; background: #fff; font-family: sans-serif; }
+  .row { display: flex; align-items: center; gap: 80px; margin-bottom: 60px; }
+  .box { text-align: center; }
+  .label { font-size: 13px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .logo-area { padding: 30px 40px; border: 1px solid #e5e5e5; border-radius: 12px; background: #fafafa; display: inline-block; }
+  .dark .logo-area { background: #0f1117; border-color: #333; }
+  h2 { margin-top: 50px; font-size: 18px; color: #333; }
+
+  /* Badge-style logo (NEW) */
+  .badge-logo {
+    font-family: 'Inter', sans-serif;
+    font-size: 28px;
+    letter-spacing: -0.3px;
+  }
+  .badge-logo .ku { font-weight: 800; color: #4285F4; }
+  .badge-logo .rate { font-weight: 800; color: #1a1a1a; }
+  .badge-logo .org { font-weight: 400; color: #4285F4; font-size: 25px; }
+
+  /* Dark mode variants */
+  .dark .badge-logo .rate { color: #e5e7eb; }
+</style>
+</head>
+<body>
+
+<h2>1x Scale (navbar size ~20px)</h2>
+<div class="row">
+  <div class="box">
+    <div class="label">Old (PNG image)</div>
+    <div class="logo-area">
+      <img src="/kurate-logo.png" height="24" alt="Old logo">
+    </div>
+  </div>
+  <div class="box">
+    <div class="label">New (CSS Inter, badge-matched)</div>
+    <div class="logo-area">
+      <span class="badge-logo" style="font-size:20px;">
+        <span class="ku">Ku</span><span class="rate">rate</span><span class="org" style="font-size:18px;">.org</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+<h2>2x Scale (badge SVG size: 28px)</h2>
+<div class="row">
+  <div class="box">
+    <div class="label">Old (PNG image)</div>
+    <div class="logo-area">
+      <img src="/kurate-logo.png" height="34" alt="Old logo">
+    </div>
+  </div>
+  <div class="box">
+    <div class="label">New (CSS Inter, badge-matched)</div>
+    <div class="logo-area">
+      <span class="badge-logo">
+        <span class="ku">Ku</span><span class="rate">rate</span><span class="org">.org</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+<h2>4x Scale (zoomed for detail)</h2>
+<div class="row">
+  <div class="box">
+    <div class="label">Old (PNG image)</div>
+    <div class="logo-area">
+      <img src="/kurate-logo.png" height="68" alt="Old logo">
+    </div>
+  </div>
+  <div class="box">
+    <div class="label">New (CSS Inter, badge-matched)</div>
+    <div class="logo-area">
+      <span class="badge-logo" style="font-size:56px;">
+        <span class="ku">Ku</span><span class="rate">rate</span><span class="org" style="font-size:50px;">.org</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+<h2>Dark Background</h2>
+<div class="row dark">
+  <div class="box">
+    <div class="label" style="color:#888;">Old (PNG image)</div>
+    <div class="logo-area">
+      <img src="/kurate-logo.png" height="34" alt="Old logo">
+    </div>
+  </div>
+  <div class="box">
+    <div class="label" style="color:#888;">New (CSS Inter, badge-matched)</div>
+    <div class="logo-area">
+      <span class="badge-logo">
+        <span class="ku">Ku</span><span class="rate">rate</span><span class="org">.org</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
