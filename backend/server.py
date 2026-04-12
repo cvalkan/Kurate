@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 import os
@@ -121,6 +121,14 @@ async def rate_limit_middleware(request: Request, call_next):
             del _rate_buckets[k]
 
     return await call_next(request)
+
+@app.get("/api/logo-compare", response_class=HTMLResponse)
+async def logo_compare():
+    import pathlib
+    p = pathlib.Path(__file__).parent / "logo_compare.html"
+    if p.exists():
+        return HTMLResponse(content=p.read_text())
+    return HTMLResponse(content="<h1>Not found</h1>")
 
 
 app.include_router(leaderboard_router)
