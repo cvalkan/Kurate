@@ -26,6 +26,12 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Badge text on Paper Page: plain text (not clickable link)
 - Share page nav links: Paper details · {archive} leaderboard · All Time leaderboard
 
+### Logo Font Unification (Apr 12, 2026)
+- Replaced PNG logo with CSS-rendered Inter Bold (700) matching badge CairoSVG rendering
+- "Ku" + "rate" use Inter 700, ".org" uses Inter 400 at 90% size ratio
+- Added Inter 800 to Google Fonts import for full weight coverage
+- Theme-adaptive: "rate" uses foreground color for dark/light mode support
+
 ### Universal Share Page (Apr 2026)
 - `/share/{paperId}` route reuses BadgePage
 - Medal display for top-3 papers, plain rank for all others

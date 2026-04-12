@@ -67,8 +67,8 @@ export default function Navbar() {
           <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity min-w-0" data-testid="navbar-logo">
             <Trophy className="h-6 w-6 text-accent shrink-0" />
             <span className="shrink-0 text-[20px]" style={{ fontFamily: "'Inter', sans-serif", letterSpacing: "-0.3px" }}>
-              <span className="font-[800] text-[#4285F4]">Ku</span>
-              <span className="font-[800] text-foreground">rate</span>
+              <span className="font-bold text-[#4285F4]">Ku</span>
+              <span className="font-bold text-foreground">rate</span>
               <span className="font-[400] text-[#4285F4] text-[18px]">.org</span>
             </span>
             {activeLabel && (
