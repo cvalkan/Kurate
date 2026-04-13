@@ -1067,25 +1067,14 @@ async def get_leaderboard(
 
 def _filter_archives_by_frequency(archives, category, settings):
     """Filter archive list to show only the type configured by admin (weekly or monthly).
-    Excludes the current (ongoing) period and sorts by recency."""
-    from datetime import datetime, timezone
+    Sorts by recency."""
     freq_config = settings.get("archive_frequency") or {}
     freq = freq_config.get(category, freq_config.get("default", "weekly"))
     target_type = "monthly" if freq == "monthly" else "weekly"
 
-    now = datetime.now(timezone.utc)
-    current_year = now.isocalendar()[0]
-    current_week = now.isocalendar()[1]
-    current_month = now.month
-
     filtered = []
     for a in archives:
         if a.get("period_type") != target_type:
-            continue
-        # Exclude current (ongoing) period
-        if target_type == "weekly" and a.get("year") == current_year and a.get("week") == current_week:
-            continue
-        if target_type == "monthly" and a.get("year") == now.year and a.get("month") == current_month:
             continue
         filtered.append(a)
 

@@ -10,6 +10,25 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 
 ## What's Been Implemented
 
+### Archive Current-Week Visibility Fix (Apr 13, 2026)
+- Removed current-week/month exclusion from `_filter_archives_by_frequency`
+- Archives now appear immediately upon creation (previously hidden until the following week)
+- Fixes cs.AI and other new categories showing empty archive lists
+
+### ICLR 2026 Batch Summary Completion (Apr 13, 2026)
+- Fixed `generate_summary()` to detect Claude refusal responses (`finish_reason: refusal`)
+- Previously, refusals caused 4 wasted retries per paper (classified as MAX_RETRIES_EXCEEDED)
+- Final coverage: 3,912 / 3,949 (99.1%)
+- Remaining 37: 26 refused by Claude (content policy), 6 PDF unavailable, 4 budget errors, 1 PDF too short
+
+### ICLR 2026 Correlation Analysis (Apr 13, 2026)
+- Reproduced and validated AI-Human correlation: Spearman ρ = 0.639, Pearson r = 0.627
+- Computed pairwise tournament correlations using TrueSkill:
+  - AI(sorted) vs Human tourney(TS): ρ = 0.618
+  - Expert(TS) vs Human tourney(TS): ρ = 0.560
+- Compared with ScholarPeer paper (multi-agent review framework): Kurate ρ=0.639 vs ScholarPeer ρ=0.42
+- Key finding: single Opus 4.6 call outperforms 6-agent pipeline on weaker model for score alignment
+
 ### Badge System Consistency Fix (Apr 11, 2026)
 - Unified TrueSkill (rank_ts/ts_score) as canonical ranking metric across ALL views
 - Leaderboard default sort changed from WR score to TrueSkill score
@@ -60,6 +79,7 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - TrueSkill-first matchmaking
 - Email notifications via Resend
 - Circular import cleanup
+- 14 papers missing `ai_rating` on production
 
 ### P2
 - httpOnly cookie migration
