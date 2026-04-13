@@ -108,44 +108,59 @@ async def _get_browser():
     return _browser
 
 
-async def download_pdf_playwright(openreview_id: str) -> Optional[str]:
-    """Download PDF from OpenReview via Playwright and extract text."""
-    browser = await _get_browser()
-    ctx = await browser.new_context(accept_downloads=True)
-    page = await ctx.new_page()
-    url = f"https://openreview.net/pdf?id={openreview_id}"
+async def download_pdf_playwright(openreview_id: str, max_retries: int = 3) -> Optional[str]:
+    """Download PDF from OpenReview via Playwright and extract text. Retries on failure."""
+    for attempt in range(max_retries):
+        browser = await _get_browser()
+        ctx = await browser.new_context(accept_downloads=True)
+        page = await ctx.new_page()
+        url = f"https://openreview.net/pdf?id={openreview_id}"
 
-    try:
-        dl_future = page.expect_download(timeout=30000)
         try:
-            await page.goto(url, timeout=15000)
+            dl_future = page.expect_download(timeout=30000)
+            try:
+                await page.goto(url, timeout=15000)
+            except Exception:
+                pass  # goto throws "Download is starting" — expected
+
+            download = await dl_future.__aenter__()
+            dl = await download.value
+            path = await dl.path()
+
+            with open(path, "rb") as f:
+                content = f.read()
+
+            if not content or content[:5] != b"%PDF-":
+                await ctx.close()
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return None
+
+            def _parse(data: bytes) -> str:
+                reader = PdfReader(io.BytesIO(data))
+                parts = [pg.extract_text() or "" for pg in reader.pages]
+                text = "\n".join(parts)
+                text = " ".join(text.split())
+                return text.encode("utf-8", errors="replace").decode("utf-8")
+
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, _parse, content)
+            await ctx.close()
+            return result
+
         except Exception:
-            pass  # goto throws "Download is starting" — expected
+            pass
+        finally:
+            try:
+                await ctx.close()
+            except Exception:
+                pass
 
-        download = await dl_future.__aenter__()
-        dl = await download.value
-        path = await dl.path()
+        if attempt < max_retries - 1:
+            await asyncio.sleep(2 ** attempt)
 
-        with open(path, "rb") as f:
-            content = f.read()
-
-        if not content or content[:5] != b"%PDF-":
-            return None
-
-        def _parse(data: bytes) -> str:
-            reader = PdfReader(io.BytesIO(data))
-            parts = [pg.extract_text() or "" for pg in reader.pages]
-            text = "\n".join(parts)
-            text = " ".join(text.split())
-            return text.encode("utf-8", errors="replace").decode("utf-8")
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _parse, content)
-
-    except Exception as e:
-        return None
-    finally:
-        await ctx.close()
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -307,7 +322,7 @@ async def main():
     parser.add_argument("--output", default="/app/memory/iclr_2026_summaries.jsonl")
     parser.add_argument("--log", default="/app/memory/iclr_2026_errors.log")
     parser.add_argument("--parallel-llm", type=int, default=15)
-    parser.add_argument("--parallel-pdf", type=int, default=5)  # Playwright is heavier than httpx
+    parser.add_argument("--parallel-pdf", type=int, default=3)  # Low: OpenReview rate-limits
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
 
