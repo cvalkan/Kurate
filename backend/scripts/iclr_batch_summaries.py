@@ -290,7 +290,12 @@ async def generate_summary(title: str, full_text: str, abstract: str = "") -> di
         try:
             loop = asyncio.get_event_loop()
             raw = await loop.run_in_executor(_llm_pool, lambda p=params: litellm.completion(**p))
+            # Check for model refusal (finish_reason: refusal, content is None)
+            if raw.choices and getattr(raw.choices[0], "finish_reason", None) == "refusal":
+                return {"summary": None, "error": "REFUSED: model declined to assess this paper"}
             text = raw.choices[0].message.content if raw.choices else ""
+            if not text and raw.choices:
+                text = ""  # Ensure text is never None
             if text and text.strip():
                 summary = text.strip()
                 if was_truncated:
@@ -309,7 +314,7 @@ async def generate_summary(title: str, full_text: str, abstract: str = "") -> di
             err = str(e).lower()
             if any(k in err for k in ("budget", "balance", "insufficient", "credit", "quota")):
                 return {"summary": None, "error": f"BUDGET_ERROR: {str(e)[:200]}"}
-            elif any(k in err for k in ("refused", "safety", "content_policy", "harmful", "i cannot")):
+            elif any(k in err for k in ("refused", "refusal", "safety", "content_policy", "harmful", "i cannot")):
                 return {"summary": None, "error": f"REFUSED: {str(e)[:200]}"}
             elif any(k in err for k in TOKEN_LIMIT_KEYWORDS):
                 char_limit = max(char_limit // 2, 20_000)
