@@ -89,6 +89,70 @@ _llm_pool = ThreadPoolExecutor(max_workers=25, thread_name_prefix="llm")
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Author Anonymization
+# ═══════════════════════════════════════════════════════════════════════
+
+import re as _re
+
+def anonymize_text(text: str) -> str:
+    """Strip author names from ICLR PDF text to prevent bias.
+
+    ICLR accepted papers have authors between the title and ABSTRACT.
+    Rejected/withdrawn papers already say "Anonymous authors".
+    Also strips author-identifying footnotes (corresponding author, emails, affiliations).
+    """
+    # Already anonymous — still strip any footnotes that might leak
+    is_anonymous = "anonymous authors" in text[:2000].lower()
+
+    if not is_anonymous:
+        # Strip author block between header and ABSTRACT
+        abstract_match = _re.search(r'\bABSTRACT\b', text[:5000])
+        if abstract_match:
+            header_patterns = [
+                r'Published as a conference paper at ICLR \d{4}\s*',
+                r'Under review as a conference paper at ICLR \d{4}\s*',
+                r'Workshop paper at ICLR \d{4}\s*',
+            ]
+            header_end = 0
+            for pat in header_patterns:
+                m = _re.search(pat, text[:abstract_match.start()], _re.IGNORECASE)
+                if m:
+                    header_end = m.end()
+                    break
+            if header_end == 0:
+                header_end = min(500, abstract_match.start())
+
+            text = text[:header_end] + "Anonymous authors. Paper under double-blind review. " + text[abstract_match.start():]
+
+    # Strip author-identifying footnotes that appear anywhere in the text:
+    # Pattern: ∗ or † followed by a name and parenthesized content (email, affiliation)
+    text = _re.sub(r'[∗†\*][A-Z][a-zA-Z\s\-\.]{1,60}\([^)]*@[^)]*\)', '', text)
+    text = _re.sub(r'[∗†\*][A-Z][^.]{0,200}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[^.]*\.?', '', text)
+    # Pattern: "Corresponding author" sentences
+    text = _re.sub(r'[∗†\*]?\s*[Cc]orresponding authors?[^.]*\.', '', text)
+    # Pattern: "Equal contribution" with names
+    text = _re.sub(r'[∗†\*]?\s*[Ee]qual [Cc]ontribution[^.]*\.?', '', text)
+    # Pattern: "This work is done when ... interns at ..."
+    text = _re.sub(r'[†∗\*]?\s*This work (?:is|was) done (?:when|while)[^.]*\.', '', text)
+    # Curly-brace email groups
+    text = _re.sub(r'\{[a-zA-Z0-9_.,-]+\}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', '', text)
+    # Standalone email addresses
+    text = _re.sub(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}', '[email removed]', text)
+    # Strip ACKNOWLEDGMENTS section entirely (contains grants, affiliations, lab names)
+    # This section sits between the paper body and REFERENCES/APPENDIX
+    text = _re.sub(
+        r'(?:Acknowledgements?|Acknowledgments?|ACKNOWLEDGEMENTS?|ACKNOWLEDGMENTS?)[\s.:]*'
+        r'(?:.*?)'
+        r'(?=\bREFERENCES\b|\bAPPENDI[XC]\b|\b[A-Z]\s+(?:ADDITIONAL|PROOF|DETAIL|IMPLEMENTATION|EXTENDED|EXPERIMENTAL)\b)',
+        'ACKNOWLEDGMENTS [removed for blind review] ',
+        text,
+        flags=_re.IGNORECASE | _re.DOTALL,
+    )
+
+    return text
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # PDF Download via Playwright (shared browser)
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -294,7 +358,10 @@ async def process_paper(row: dict, pdf_sem: asyncio.Semaphore, llm_sem: asyncio.
     result["pdf_ok"] = True
     result["full_text_chars"] = len(full_text)
 
-    # 2. Generate summary
+    # 2. Anonymize: strip author names to prevent bias
+    full_text = anonymize_text(full_text)
+
+    # 3. Generate summary
     async with llm_sem:
         gen = await generate_summary(title, full_text)
 

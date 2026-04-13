@@ -1,0 +1,90 @@
+2026-04-13T08:53:17.595806+00:00 | vae4UOVbvA | End-to-End Unified Dense 3D Geometry and Motion Perception | PDF_DOWNLOAD_FAILED
+2026-04-13T08:53:18.247459+00:00 | pDu6u9cnEB | Omni-View: Unlocking How Generation Facilitates Understandin | PDF_DOWNLOAD_FAILED
+2026-04-13T08:53:21.115211+00:00 | XlRbpFj3lJ | ODE-GS: Latent ODEs for Dynamic Scene Extrapolation with 3D  | PDF_DOWNLOAD_FAILED
+2026-04-13T08:53:25.178301+00:00 | 0izu8IWJ5z | Neural Gaussian Radio Fields for Channel Estimation | PDF_DOWNLOAD_FAILED
+2026-04-13T08:53:26.456892+00:00 | GoowzgMiOp | Seeing Beyond Points: Adaptive Gaussian Primitives for 3D Pe | PDF_DOWNLOAD_FAILED
+2026-04-13T08:53:48.288859+00:00 | TAjEC2tHpa | EX-NVS: EXtreme Novel View Synthesis via Depth Watertight Me | PDF_DOWNLOAD_FAILED
+2026-04-13T08:53:48.750768+00:00 | 8YQbVMWhRJ | HUG3D: Human Group-Aware 3D Reconstruction from a Single Ima | PDF_DOWNLOAD_FAILED
+2026-04-13T08:53:54.497459+00:00 | s9cAknJjRB | MindX: A Low-Cost Benchmark System for Real-Time Brain-Contr | PDF_DOWNLOAD_FAILED
+2026-04-13T08:54:01.326189+00:00 | wkzi3ZHUWz | Discrepancy-aware Score Learningfor Diffusion Training | PDF_DOWNLOAD_FAILED
+2026-04-13T08:54:05.367822+00:00 | 4srk2cxr30 | Writing-RL: Advancing Long-form Writing via Adaptive Curricu | PDF_DOWNLOAD_FAILED
+2026-04-13T08:54:30.111228+00:00 | t38nZqqi3Z | LLM Fingerprinting via Semantically Conditioned Watermarks | PDF_DOWNLOAD_FAILED
+2026-04-13T08:54:30.113175+00:00 | 5BRMteyNOp | Unleashing Scientific Reasoning for Bio-experimental Protoco | PDF_DOWNLOAD_FAILED
+2026-04-13T08:54:30.762054+00:00 | WdzHfmpDZR | Training-Free Speedup for Retrieval-Augmented Generation wit | PDF_DOWNLOAD_FAILED
+2026-04-13T08:54:31.354339+00:00 | T5dwUK8Rc9 | Proof2Hybrid: Automatic Mathematical Benchmark Synthesis for | PDF_DOWNLOAD_FAILED
+2026-04-13T08:54:35.398607+00:00 | Swy0XEqJdA | Signature-Guided Adversarial Attacks On Healthcare LLMs: Exp | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:00.146355+00:00 | x9tSyvnD8o | Mixture of Thoughts: Learning to Aggregate What Experts Thin | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:00.148098+00:00 | Q6hMSV2QAg | Compute-efficient Evaluation of LLM Voting Accuracy | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:01.291573+00:00 | yjr2jX41qO | Channel-Aware Mixed-Precision Quantization for Efficient Lon | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:03.747590+00:00 | Q5QLu7XTWx | PCB-Bench: Benchmarking LLMs for Printed Circuit Board Place | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:07.106307+00:00 | ia9vDh0Ltn | Catalog-Native LLM: Speaking Item-ID dialect with Less Entan | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:39.205565+00:00 | iiZy6xyVVE | Language Models Need Sleep: Learning to Self Modify and Cons | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:42.929995+00:00 | KcJvi3Sd9x | Improving Training Efficiency via Language Specific Model Me | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:51.541299+00:00 | s9V8x1kAra | Robust Safety Guarantee for Large Language Models via Prefer | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:52.381656+00:00 | sIOgOQttFQ | MegaFlow: Large-Scale Distributed Orchestration System for t | PDF_DOWNLOAD_FAILED
+2026-04-13T08:55:53.492929+00:00 | YGZdVl454O | When Small Models Team Up: A Weak‑Expert Ensemble Surpassing | PDF_DOWNLOAD_FAILED
+2026-04-13T08:56:12.418001+00:00 | 7fn75St2Ee | ProteinZero: Self-Improving Protein Generation via Online Re | PDF_DOWNLOAD_FAILED
+2026-04-13T08:56:13.476086+00:00 | HreYquZ5xs | Teach2Eval: An Interaction-Driven LLMs Evaluation Method via | PDF_DOWNLOAD_FAILED
+2026-04-13T08:56:22.724968+00:00 | W4g4YgAlsY | LikeBench: Evaluating Subjective Likability in LLMs for Pers | PDF_DOWNLOAD_FAILED
+2026-04-13T08:56:23.306152+00:00 | ysT0BCmZ3S | Language Matters: How Do Multilingual Input and Reasoning Pa | PDF_DOWNLOAD_FAILED
+2026-04-13T08:56:23.956937+00:00 | pBPToqFbRO | Discovering Forbidden Topics in Language Models | PDF_DOWNLOAD_FAILED
+2026-04-13T09:12:50.868539+00:00 | 8KE9qvKhM4 | SPARTA: Scalable and Principled Benchmark of Tree-Structured | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10829.900332200052, Max budget: 10829.8026866905
+2026-04-13T09:13:22.872382+00:00 | mpwnjHxtBP | AutoPBO: LLM-powered Optimization for Local Search PBO Solve | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10832.87453220005, Max budget: 10832.8026866905
+2026-04-13T09:13:24.176241+00:00 | N8CZOsnBbg | Nature-Inspired Population-Based Evolution of Large Language | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10832.87453220005, Max budget: 10832.8026866905
+2026-04-13T09:13:24.829981+00:00 | P00k4DFaXF | Process-Verified Reinforcement Learning for Theorem Proving  | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10832.87453220005, Max budget: 10832.8026866905
+2026-04-13T09:13:26.053006+00:00 | CicK2lJMUy | Learning to Reason in Structured In-context Environments wit | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10832.87453220005, Max budget: 10832.8026866905
+2026-04-13T09:13:26.587343+00:00 | uRDsLCJo2x | Learning Compact Representations of LLM Abilities via Item R | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10832.87453220005, Max budget: 10832.8026866905
+2026-04-13T09:13:28.074096+00:00 | WgyDYMUfSK | RA-SpaRC: Robust Adaptation with Sparse Plus Low-Rank Compre | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10832.87453220005, Max budget: 10832.8026866905
+2026-04-13T09:13:28.895976+00:00 | DwxEIQe0XR | Language Bottleneck Models: A Framework for Qualitative Cogn | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10832.87453220005, Max budget: 10832.8026866905
+2026-04-13T09:16:20.402377+00:00 | lAa9nhwLdu | Stable Forgetting: Bounded Parameter-Efficient Unlearning in | PDF_DOWNLOAD_FAILED
+2026-04-13T09:16:54.682537+00:00 | 77VCQs9VSU | From Assistants to Companions: Towards the Usefulness of Imp | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10840.319507200049, Max budget: 10839.8026866905
+2026-04-13T09:16:54.924162+00:00 | 51n0n1Lpdt | When Clean Queries Become Triggers: Backdoor Attacks on Larg | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10840.319507200049, Max budget: 10839.8026866905
+2026-04-13T09:17:25.160364+00:00 | MZjccYMFlV | CortexVLA: Bridging the Gap between Cognition and Action via | PDF_DOWNLOAD_FAILED
+2026-04-13T09:17:52.097574+00:00 | 5sLaujF45C | CollabMask: Explainable Neuron Collaboration with Gradient M | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10844.85536220005, Max budget: 10844.8026866905
+2026-04-13T09:17:52.209944+00:00 | YcnKdeI9pp | AgentOrchestra: Orchestrating Hierarchical Multi-Agent Intel | PDF_DOWNLOAD_FAILED
+2026-04-13T09:19:40.521619+00:00 | 9VkJ058cTa | POEMetric: The Last Stanza of Humanity | PDF_DOWNLOAD_FAILED
+2026-04-13T09:20:12.337014+00:00 | aJvM8VUVuV | LIFT: Enhancing Long-Context Reasoning in Large Language Mod | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10852.04564220005, Max budget: 10849.8026866905
+2026-04-13T09:20:13.419704+00:00 | cCIdxLoLJ5 | The Information Bottleneck of Chain-of-Thought and How Laten | PDF_DOWNLOAD_FAILED
+2026-04-13T09:20:14.074405+00:00 | L5oGS5ntnF | Towards Explainable Bilingual Multimodal Misinformation Dete | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10852.04564220005, Max budget: 10850.8026866905
+2026-04-13T09:20:15.246216+00:00 | V2fTGbSD7Q | Training-Free Multimodal Large Language Model Orchestration | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10852.04564220005, Max budget: 10849.8026866905
+2026-04-13T09:21:00.104820+00:00 | tt2UjLNKvr | Beyond Sequential Context: Navigating Non-linear Flow of Mul | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10852.879952200052, Max budget: 10852.8026866905
+2026-04-13T09:22:28.408896+00:00 | 1lRK9XD61d | HARBOR: Hierarchical Abduction with Bayesian Orchestration f | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10858.187087200047, Max budget: 10856.8026866905
+2026-04-13T09:22:47.046501+00:00 | B9i2B0IjRT | From small to large language models: How much confidence can | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10858.187087200047, Max budget: 10856.8026866905
+2026-04-13T09:23:17.443966+00:00 | TuzsCiHocG | Accurate and Efficient Singular Value Decomposition For LLMs | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10859.250232200047, Max budget: 10858.8026866905
+2026-04-13T09:23:44.862547+00:00 | qG2wDVvELP | Dynamic Evaluation of Reward Models via Pairwise Maximum Dis | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10862.933492200049, Max budget: 10862.8026866905
+2026-04-13T09:23:45.628865+00:00 | CvwLtwlraW | OptiMind: Teaching LLMs to Think Like Optimization Experts | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10862.933492200049, Max budget: 10862.8026866905
+2026-04-13T09:23:55.470918+00:00 | 1fH0nFuvjo | PIPA: An Agent for Protein Interaction Identification and Pe | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10862.933492200049, Max budget: 10862.8026866905
+2026-04-13T09:26:21.321259+00:00 | w4JmosnaUH | RAGCell: Retrieval-Augmented Generation as Supervision for V | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10868.251082200051, Max budget: 10867.8026866905
+2026-04-13T09:26:22.207627+00:00 | LZwHsK40qW | LatentBreak: Jailbreaking Large Language Models through Late | MAX_RETRIES_EXCEEDED
+2026-04-13T09:26:29.956684+00:00 | lSGFavwaAm | Improving LLM Reasoning via Symbolic Inference over Logic Gr | MAX_RETRIES_EXCEEDED
+2026-04-13T09:27:21.933570+00:00 | XVonoE8dWs | LSMSeg: Unleashing the Power of Large-Scale Models for Open- | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10872.666712200053, Max budget: 10871.8026866905
+2026-04-13T09:27:29.237407+00:00 | 0IceiDrfxI | NATLM: Detecting Defects in NFT Smart Contracts Leveraging L | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10872.666712200053, Max budget: 10871.8026866905
+2026-04-13T09:28:06.408210+00:00 | 0GaCfBRFnf | A Stitch in Time Saves Nine: Proactive Self-Refinement for L | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10872.953092200052, Max budget: 10872.8026866905
+2026-04-13T09:29:45.784345+00:00 | GqZYGOYuF2 | ZIP-RC: Zero-overhead Inference-time Prediction of Reward an | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10878.190017200055, Max budget: 10876.8026866905
+2026-04-13T09:30:22.988370+00:00 | 2qS5fes4RL | EchoRAG: A Cognitive Memory-Inspired Framework for RAG with  | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10878.301517200056, Max budget: 10876.8026866905
+2026-04-13T09:30:23.296470+00:00 | sH98CU9RdM | When Knowledge Hurts: Enriching Domain Knowledge for Causal  | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10878.301517200056, Max budget: 10876.8026866905
+2026-04-13T09:32:51.844544+00:00 | Fz0KFsZE6C | OpenSIR: Open-Ended Self-Improving Reasoner | PDF_DOWNLOAD_FAILED
+2026-04-13T09:33:23.163495+00:00 | F1nx5KRRzM | CFDLLMBench: A Benchmark Suite for Evaluating Large Language | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10887.003052200054, Max budget: 10884.8026866905
+2026-04-13T09:33:23.545357+00:00 | PrcNpPxWIQ | GenFlow: Constrained Long-Form Text Generation via Adaptive  | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10887.003052200054, Max budget: 10884.8026866905
+2026-04-13T09:33:25.731169+00:00 | YIeDwoAJyf | Policy Optimization Prefers The Path Of Least Resistance | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10887.003052200054, Max budget: 10884.8026866905
+2026-04-13T09:33:30.668306+00:00 | htQDmHvva6 | Token Hidden Reward: Steering Exploration-Exploitation in Gr | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10887.003052200054, Max budget: 10884.8026866905
+2026-04-13T09:34:03.616869+00:00 | DZjbL9BuHs | Generalization of RLVR Using Causal Reasoning as a Testbed | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10887.003052200054, Max budget: 10884.8026866905
+2026-04-13T09:35:42.174934+00:00 | J2J2LuXJev | Closing the Data-Efficiency Gap Between Autoregressive and M | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10892.195017200052, Max budget: 10891.8026866905
+2026-04-13T09:37:02.953994+00:00 | guSVafqhrB | Fine-Grained Activation Steering: Steering Less, Achieving M | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10895.07958720005, Max budget: 10894.8026866905
+2026-04-13T09:37:03.962867+00:00 | 6UaXec8aUt | HLStrans: Dataset for C-to-HLS Hardware Code Synthesis | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10895.07958720005, Max budget: 10894.8026866905
+2026-04-13T09:37:04.379315+00:00 | zyCjizqOxB | Teaching VLMs to Admit Uncertainty in OCR from Lossy Visual  | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10895.07958720005, Max budget: 10894.8026866905
+2026-04-13T09:37:08.027600+00:00 | VDjbFzbD2f | Prior-based Noisy Text Data Filtering: Fast and Strong Alter | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10895.07958720005, Max budget: 10894.8026866905
+2026-04-13T09:37:08.668381+00:00 | wZ9KCmV6a4 | Do Brains and LLMs Process Alike? Exploring Neural and Model | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10895.07958720005, Max budget: 10894.8026866905
+2026-04-13T09:37:09.164303+00:00 | LxvL6iKzt6 | Aligning Reasoning LLMs for Materials Discovery with Physics | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10895.07958720005, Max budget: 10894.8026866905
+2026-04-13T09:38:29.943958+00:00 | terdVfnoc5 | RedTopic: Toward Topic-Diverse Red Teaming of Large Language | MAX_RETRIES_EXCEEDED
+2026-04-13T09:39:05.781744+00:00 | MvXJ91WzsO | Exploring the Secondary Risks of Large Language Models | MAX_RETRIES_EXCEEDED
+2026-04-13T09:40:09.326260+00:00 | LtzmeSMBTW | The Curious Case of In-Training Compression of State Space M | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10902.03076220005, Max budget: 10901.8026866905
+2026-04-13T09:40:33.134845+00:00 | biZBdFpOzu | Neural CDEs as Correctors for learned time series models | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10903.88116720005, Max budget: 10902.8026866905
+2026-04-13T09:40:39.320640+00:00 | RPowYXiRmW | End-to-End Probabilistic Framework for Learning with Hard Co | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10903.97831720005, Max budget: 10903.8026866905
+2026-04-13T09:40:40.388625+00:00 | TlTygHKvRt | Universal Learning of Nonlinear Dynamics | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10903.88116720005, Max budget: 10902.8026866905
+2026-04-13T09:42:29.070880+00:00 | SfcKGk56d2 | An Efficient Rubric-based Generative Verifier for Search-aug | PDF_DOWNLOAD_FAILED
+2026-04-13T09:43:01.680230+00:00 | 7cgTBPuwMr | Reinforcing Multi-Turn Reasoning in LLM Agents via Turn-Leve | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10908.49731220005, Max budget: 10907.8026866905
+2026-04-13T09:43:12.538506+00:00 | Ke5lWBOS3o | DT-Pro: Proactive Decision Transformers with Implicit Latent | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10908.49731220005, Max budget: 10907.8026866905
+2026-04-13T09:43:14.539764+00:00 | n6E0r6kQWQ | SRFT: A Single-Stage Method with Supervised and Reinforcemen | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10908.49731220005, Max budget: 10907.8026866905
+2026-04-13T09:43:15.147561+00:00 | UH8uUA6ShK | DreamExplorations: Leveraging Suboptimal Noisy Robot Traject | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10908.49731220005, Max budget: 10907.8026866905
+2026-04-13T09:43:15.284354+00:00 | nupbCYlmEE | Optimizing Language Models for Crosslingual Knowledge Consis | BUDGET_ERROR: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 10908.49731220005, Max budget: 10907.8026866905
