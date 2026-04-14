@@ -317,15 +317,15 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 ts_correlations[pair] = {"spearman_r": round(float(sp), 3), "pearson_r": round(float(pe), 3),
                                          "n_papers": len(pp_ts)}
                 ts_scatter_data[pair] = {
-                    "x": [round(v, 1) for v in v1],
-                    "y": [round(v, 1) for v in v2], "n": len(pp_ts)}
+                    "x": [round(float(r), 1) for r in scipy_stats.rankdata(v1) / len(v1) * 100],
+                    "y": [round(float(r), 1) for r in scipy_stats.rankdata(v2) / len(v2) * 100], "n": len(pp_ts)}
             os1, os2 = model_paper_os.get(m1, {}), model_paper_os.get(m2, {})
             pp_os = sorted(set(os1.keys()) & set(os2.keys()))
             if len(pp_os) >= 5:
                 ov1, ov2 = [os1[p] for p in pp_os], [os2[p] for p in pp_os]
                 os_scatter_data[pair] = {
-                    "x": [round(v, 1) for v in ov1],
-                    "y": [round(v, 1) for v in ov2], "n": len(pp_os)}
+                    "x": [round(float(r), 1) for r in scipy_stats.rankdata(ov1) / len(ov1) * 100],
+                    "y": [round(float(r), 1) for r in scipy_stats.rankdata(ov2) / len(ov2) * 100], "n": len(pp_os)}
 
     common_papers = set(wr_scores.keys())
     for mk in model_keys:
