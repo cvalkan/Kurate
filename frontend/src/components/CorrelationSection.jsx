@@ -51,7 +51,7 @@ export function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
 }
 
 export function CorrelationSection({ sectionData, title, description, viewMode, setViewMode }) {
-  const [scatterMode, setScatterMode] = useState("wr");
+  const [scatterMode, setScatterMode] = useState("ts");
 
   if (!sectionData || !sectionData.models?.length) {
     return (
@@ -257,22 +257,32 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h3 className="text-sm font-medium">Scatter Plot</h3>
-            <div className="flex gap-1 text-[10px]">
-              {[["wr", "Win Rate"], ["ts", "TrueSkill"], ["os", "OpenSkill"]].map(([key, label]) => (
+            <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md" data-testid="scatter-view-toggle">
+              {[["ts", "TrueSkill"], ["os", "OpenSkill"], ["wr", "Win Rate"]].map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => setScatterMode(key)}
                   data-testid={`scatter-toggle-${key}`}
-                  className={`px-2 py-0.5 rounded-full border transition-colors ${
+                  className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
                     scatterMode === key
-                      ? "bg-foreground text-background border-foreground"
-                      : "border-border text-muted-foreground hover:border-foreground/30"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {label}
                 </button>
               ))}
             </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs text-xs">
+                  Each dot is a paper. Axes show its percentile rank according to each model. Points along the diagonal = models agree. Outliers = papers the models disagree on.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {scatterPairs.map(({ m1, m2, points, c1, c2 }, i) => (
