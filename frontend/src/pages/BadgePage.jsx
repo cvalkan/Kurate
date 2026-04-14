@@ -65,7 +65,7 @@ export default function BadgePage() {
   }
 
   const shareUrl = isShareMode
-    ? `${window.location.origin}/share/${paperId}`
+    ? `${API}/api/badge/paper/${paperId}/share/page`
     : `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
   const leaderboardUrl = isShareMode
     ? `${window.location.origin}/?cat=${data.category}&period=all`

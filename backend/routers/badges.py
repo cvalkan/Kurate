@@ -604,6 +604,79 @@ async def get_paper_share_data(paper_id: str):
     }
 
 
+@router.get("/paper/{paper_id}/share/page", response_class=HTMLResponse)
+async def get_paper_share_page(paper_id: str, request: Request):
+    """Static HTML page with OG/Twitter meta tags for social media sharing.
+    Works for ALL papers — uses archive snapshot data when available, live data otherwise."""
+    import html as html_mod
+    from core.sharing import get_public_base_url, SHARE_HEADERS
+
+    paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1, "arxiv_id": 1})
+    if not paper_doc:
+        raise HTTPException(404, "Paper not found")
+
+    primary_cat = paper_doc.get("categories", [None])[0]
+    ranking = await db.rankings.find_one(
+        {"paper_id": paper_id},
+        {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1},
+    )
+    rank = ranking.get("rank_ts", ranking.get("rank")) if ranking else None
+    total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
+
+    badge_data = await _find_paper_badge(paper_id)
+    base_url = get_public_base_url(request)
+
+    # Best available data: archive snapshot if exists, live data otherwise
+    display_rank = badge_data["rank"] if badge_data else rank
+    display_total = badge_data["paper_count"] if badge_data else total
+    tier = badge_data.get("tier") if badge_data else _get_tier(rank) if rank else None
+    tier_label = f"{tier['name']} " if tier else ""
+    period_label = badge_data["archive_label"] if badge_data else "All Time"
+
+    title = html_mod.escape(paper_doc.get("title", ""))
+    authors_list = paper_doc.get("authors", [])
+    authors = html_mod.escape(", ".join(authors_list[:3]))
+    if len(authors_list) > 3:
+        authors += f" +{len(authors_list) - 3}"
+    cat_name = html_mod.escape(CATEGORIES.get(primary_cat, primary_cat) if primary_cat else "")
+
+    image_url = f"{base_url}/api/badge/paper/{paper_id}/share/image.png"
+    share_url = f"{base_url}/api/badge/paper/{paper_id}/share/page"
+    paper_url = f"{base_url}/paper/{paper_id}"
+
+    og_title = f"#{display_rank} {tier_label}in {cat_name} ({period_label})" if display_rank else f"Paper in {cat_name}"
+    og_desc = f"{title} by {authors} | Ranked by scientific impact | Kurate.org"
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{og_title} | Kurate.org</title>
+<meta property="og:title" content="{og_title}">
+<meta property="og:description" content="{og_desc}">
+<meta property="og:image" content="{image_url}">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="{share_url}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Kurate.org">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{og_title}">
+<meta name="twitter:description" content="{og_desc}">
+<meta name="twitter:image" content="{image_url}">
+<meta name="twitter:site" content="@KurateAI">
+</head>
+<body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
+<h1 style="font-size: 20px;">{og_title}</h1>
+<p style="color: #666;">{title}</p>
+<p style="color: #999; font-size: 14px;">by {authors}</p>
+<p style="margin-top: 24px;"><a href="{paper_url}" style="display: inline-block; padding: 10px 20px; background: #4285F4; color: #fff; text-decoration: none; border-radius: 6px; font-size: 14px;">View on Kurate.org</a></p>
+</body>
+</html>"""
+    return HTMLResponse(content=html_content, headers=SHARE_HEADERS)
+
+
 @router.get("/paper/{paper_id}/share/image.png")
 async def get_paper_share_image(paper_id: str):
     """Render a shareable badge image for any paper. Uses the paper's archive badge if it exists."""
