@@ -12,7 +12,7 @@ export default function PrivacyPage() {
             c/o F2BII E-Commerce#660<br />
             Hintergoldingerstrasse 30<br />
             8638 Goldingen, Switzerland<br />
-            Email: <a href="mailto:privacy@kurate.org" className="text-accent hover:underline">privacy@kurate.org</a>
+            Email: <a href="mailto:robert@kurate.org" className="text-accent hover:underline">robert@kurate.org</a>
           </p>
           <p className="mt-2">
             This privacy policy explains how Kurate.org ("we", "us", "the Service") collects, uses, and protects personal data

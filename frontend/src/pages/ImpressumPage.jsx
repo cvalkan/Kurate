@@ -18,7 +18,7 @@ export default function ImpressumPage() {
         <section>
           <h2 className="text-lg font-semibold mt-8 mb-3">Contact</h2>
           <p>
-            Email: <a href="mailto:hello@kurate.org" className="text-accent hover:underline">hello@kurate.org</a>
+            Email: <a href="mailto:robert@kurate.org" className="text-accent hover:underline">robert@kurate.org</a>
           </p>
         </section>
 
