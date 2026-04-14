@@ -356,6 +356,24 @@ async def _deferred_startup():
 
     log_mem("_deferred_startup: begin")
 
+    # Ensure Playwright Chromium is installed (needed for badge rendering)
+    try:
+        import subprocess, os as _os, glob as _glob
+        pw_path = _os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/pw-browsers")
+        if not _glob.glob(f"{pw_path}/chromium*"):
+            logger.info("Installing Playwright Chromium browsers...")
+            result = subprocess.run(
+                ["python3", "-m", "playwright", "install", "chromium"],
+                capture_output=True, text=True, timeout=120,
+                env={**_os.environ, "PLAYWRIGHT_BROWSERS_PATH": pw_path},
+            )
+            if result.returncode == 0:
+                logger.info(f"Playwright Chromium installed at {pw_path}")
+            else:
+                logger.warning(f"Playwright install failed: {result.stderr[:200]}")
+    except Exception as e:
+        logger.warning(f"Playwright install skipped: {e}")
+
     # Create remaining indexes
     try:
         await db.papers.create_index("arxiv_id", unique=True, sparse=True)

@@ -18,7 +18,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-_RENDERER = os.environ.get("BADGE_RENDERER", "cairosvg").lower()
+_RENDERER = os.environ.get("BADGE_RENDERER", "playwright").lower()
 
 
 def _svg_to_png_cairosvg(svg: str, output_width: int, output_height: int) -> bytes:

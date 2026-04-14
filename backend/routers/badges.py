@@ -310,6 +310,8 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
 <meta name="twitter:site" content="@KurateAI">
+<script>window.location.replace("{leaderboard_url}");</script>
+<noscript><meta http-equiv="refresh" content="0;url={leaderboard_url}"></noscript>
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{og_title}</h1>
@@ -644,6 +646,12 @@ async def get_paper_share_page(paper_id: str, request: Request):
     share_url = f"{base_url}/api/badge/paper/{paper_id}/share/page"
     paper_url = f"{base_url}/paper/{paper_id}"
 
+    # Redirect destination: archive leaderboard if exists, else live category leaderboard
+    if badge_data and badge_data.get("leaderboard_url"):
+        redirect_url = f"{base_url}{badge_data['leaderboard_url']}"
+    else:
+        redirect_url = f"{base_url}/?cat={primary_cat}&period=all" if primary_cat else base_url
+
     og_title = f"#{display_rank} {tier_label}in {cat_name} ({period_label})" if display_rank else f"Paper in {cat_name}"
     og_desc = f"{title} by {authors} | Ranked by scientific impact | Kurate.org"
 
@@ -666,12 +674,14 @@ async def get_paper_share_page(paper_id: str, request: Request):
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
 <meta name="twitter:site" content="@KurateAI">
+<script>window.location.replace("{redirect_url}");</script>
+<noscript><meta http-equiv="refresh" content="0;url={redirect_url}"></noscript>
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{og_title}</h1>
 <p style="color: #666;">{title}</p>
 <p style="color: #999; font-size: 14px;">by {authors}</p>
-<p style="margin-top: 24px;"><a href="{paper_url}" style="display: inline-block; padding: 10px 20px; background: #4285F4; color: #fff; text-decoration: none; border-radius: 6px; font-size: 14px;">View on Kurate.org</a></p>
+<p style="margin-top: 24px;"><a href="{redirect_url}" style="display: inline-block; padding: 10px 20px; background: #4285F4; color: #fff; text-decoration: none; border-radius: 6px; font-size: 14px;">View on Kurate.org</a></p>
 </body>
 </html>"""
     return HTMLResponse(content=html_content, headers=SHARE_HEADERS)
