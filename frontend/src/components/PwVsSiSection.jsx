@@ -1,10 +1,131 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, ShieldCheck } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-export function PwVsSiSection({ category, siData: externalSiData, viewMode = "aggregate", osUpdatedAt }) {
+const COH_COLORS = {
+  claude: { line: "#c084fc", dot: "bg-purple-500" },
+  gpt: { line: "#60a5fa", dot: "bg-blue-500" },
+  gemini: { line: "#34d399", dot: "bg-emerald-500" },
+};
+
+function CoherenceChart({ models }) {
+  const modelKeys = Object.keys(models).sort();
+  const binLabels = models[modelKeys[0]]?.bins?.map(b => b.label) || [];
+
+  return (
+    <div className="relative">
+      <div className="flex items-end gap-2 mb-1">
+        <span className="text-[10px] text-muted-foreground font-medium">Agreement %</span>
+        <div className="flex-1" />
+        <span className="text-[10px] text-muted-foreground font-medium">SI score gap (|s(A) − s(B)|)</span>
+      </div>
+      <div className="relative h-44 border-l border-b border-border/40 ml-8">
+        {[100, 80, 60, 40].map(pct => (
+          <div key={pct} className="absolute left-0 right-0 border-t border-border/15" style={{ bottom: `${pct}%` }}>
+            <span className="absolute -left-9 -top-2 text-[9px] text-muted-foreground font-mono">{pct}%</span>
+          </div>
+        ))}
+        <div className="absolute left-0 right-0 border-t border-dashed border-amber-400/40" style={{ bottom: "50%" }}>
+          <span className="absolute right-1 -top-3 text-[8px] text-amber-600/60 font-medium">coin flip</span>
+        </div>
+        <div className="absolute inset-0 flex">
+          {binLabels.map((label, bi) => (
+            <div key={label} className="flex-1 relative flex items-end justify-center gap-px px-px">
+              {modelKeys.map(mk => {
+                const bin = models[mk]?.bins?.[bi];
+                const rate = bin?.agreement_rate;
+                if (rate == null || bin.n === 0) return <div key={mk} className="flex-1" />;
+                const h = Math.max(rate * 100, 1);
+                const col = COH_COLORS[mk] || COH_COLORS.claude;
+                return (
+                  <div key={mk} className="flex-1 flex flex-col items-center justify-end h-full" data-testid={`coherence-bar-${mk}-${bi}`}>
+                    <div
+                      className="w-full max-w-5 rounded-t-sm transition-all relative group"
+                      style={{ height: `${h}%`, backgroundColor: col.line, opacity: 0.75 }}
+                    >
+                      <div className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-background border border-border rounded px-1 py-0.5 text-[8px] font-mono whitespace-nowrap shadow-sm z-10 pointer-events-none">
+                        {(rate * 100).toFixed(1)}% (n={bin.n})
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <span className="absolute -bottom-5 left-0 right-0 text-center text-[9px] text-muted-foreground font-mono">{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-4 mt-6">
+        {modelKeys.map(mk => {
+          const m = models[mk];
+          const col = COH_COLORS[mk] || COH_COLORS.claude;
+          return (
+            <div key={mk} className="flex items-center gap-1.5 text-[10px]">
+              <div className={`w-2.5 h-2.5 rounded-sm ${col.dot}`} />
+              <span className="font-medium">{m.label}</span>
+              <span className="text-muted-foreground">({(m.overall_agreement * 100).toFixed(1)}%, n={m.total_pairs.toLocaleString()})</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CoherenceTable({ models }) {
+  const modelKeys = Object.keys(models).sort();
+  const binLabels = models[modelKeys[0]]?.bins?.map(b => b.label) || [];
+
+  return (
+    <table className="w-full text-[11px]">
+      <thead>
+        <tr className="border-b border-border text-muted-foreground bg-secondary/5">
+          <th className="py-1.5 px-2 text-left font-medium">Model</th>
+          <th className="py-1.5 px-2 text-right font-medium">Overall</th>
+          {binLabels.map(l => (
+            <th key={l} className="py-1.5 px-1.5 text-right font-medium font-mono text-[10px]">{l}</th>
+          ))}
+          <th className="py-1.5 px-2 text-right font-medium">n</th>
+        </tr>
+      </thead>
+      <tbody>
+        {modelKeys.map(mk => {
+          const m = models[mk];
+          const col = COH_COLORS[mk] || COH_COLORS.claude;
+          return (
+            <tr key={mk} className="border-b border-border/20" data-testid={`coherence-row-${mk}`}>
+              <td className="py-1.5 px-2 font-medium flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-sm ${col.dot}`} />
+                {m.label}
+              </td>
+              <td className="py-1.5 px-2 text-right font-mono font-semibold">
+                {(m.overall_agreement * 100).toFixed(1)}%
+              </td>
+              {m.bins.map((bin, i) => {
+                const rate = bin.agreement_rate;
+                const isBest = rate != null && modelKeys.every(mk2 => {
+                  const other = models[mk2]?.bins?.[i]?.agreement_rate;
+                  return other == null || rate >= other;
+                });
+                return (
+                  <td key={i} className={`py-1.5 px-1.5 text-right font-mono text-[10px] ${isBest ? "font-bold text-emerald-700" : ""}`}>
+                    {rate != null ? `${(rate * 100).toFixed(1)}%` : "\u2014"}
+                    {bin.n > 0 && <span className="text-muted-foreground/50 ml-0.5 text-[8px]">({bin.n})</span>}
+                  </td>
+                );
+              })}
+              <td className="py-1.5 px-2 text-right font-mono text-muted-foreground">{m.total_pairs.toLocaleString()}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+export function PwVsSiSection({ category, siData: externalSiData, viewMode = "aggregate", osUpdatedAt, coherenceData }) {
   const [data, setData] = useState(externalSiData?.pw_vs_si || null);
   const [controlled, setControlled] = useState(false);
 
@@ -135,6 +256,27 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
         <p className="text-xs text-muted-foreground mt-2" data-testid="os-footnote">
           OpenSkill rows from {new Date(osUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}.
         </p>
+      )}
+
+      {/* Score–Pairwise Coherence subsection */}
+      {coherenceData?.status === "ok" && coherenceData.models && Object.keys(coherenceData.models).length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden" data-testid="coherence-section">
+          <div className="px-3 py-2 bg-secondary/10 border-b border-border flex items-center gap-2">
+            <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+            <div>
+              <span className="text-xs font-semibold">Score–Pairwise Coherence</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">
+                When a model's SI score predicts s(A) &gt; s(B), does it also pick A in a head-to-head?
+              </span>
+            </div>
+          </div>
+          <div className="p-4">
+            <CoherenceChart models={coherenceData.models} />
+          </div>
+          <div className="border-t border-border">
+            <CoherenceTable models={coherenceData.models} />
+          </div>
+        </div>
       )}
     </div>
   );

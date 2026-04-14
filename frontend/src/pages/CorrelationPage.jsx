@@ -8,7 +8,6 @@ import { SiRatingSection } from "@/components/SiRatingSection";
 import { ScoringMethodSection } from "@/components/ScoringMethodSection";
 import { PwVsSiSection } from "@/components/PwVsSiSection";
 import { InterModelSection } from "@/components/InterModelSection";
-import { CoherenceSection } from "@/components/CoherenceSection";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -163,15 +162,11 @@ export default function CorrelationPage() {
       </SectionBoundary>
 
       <SectionBoundary>
-        <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} />
+        <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} coherenceData={data?.score_pairwise_coherence} />
       </SectionBoundary>
 
       <SectionBoundary>
         <InterModelSection pwData={data} siData={siData} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} />
-      </SectionBoundary>
-
-      <SectionBoundary>
-        <CoherenceSection data={data} />
       </SectionBoundary>
 
       <SectionBoundary>
