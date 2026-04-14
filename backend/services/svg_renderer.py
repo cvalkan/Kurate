@@ -1,9 +1,11 @@
 """
-SVG to PNG renderer with Playwright (preferred) and CairoSVG fallback.
+SVG to PNG renderer.
 
-Playwright uses headless Chromium for pixel-perfect font rendering.
-CairoSVG is the fallback when Chromium browsers aren't installed
-(e.g. production without /pw-browsers).
+Default: CairoSVG (works everywhere, no external browser dependency).
+Optional: Playwright headless Chromium for pixel-perfect Google Fonts rendering.
+
+To switch to Playwright, set environment variable: BADGE_RENDERER=playwright
+(requires Chromium installed at PLAYWRIGHT_BROWSERS_PATH=/pw-browsers)
 
 Usage:
     from services.svg_renderer import svg_to_png
@@ -13,19 +15,33 @@ Usage:
 import asyncio
 import logging
 import os
-from playwright.async_api import async_playwright, Browser
-
-os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "/pw-browsers")
 
 logger = logging.getLogger(__name__)
 
-_browser: Browser | None = None
+_RENDERER = os.environ.get("BADGE_RENDERER", "cairosvg").lower()
+
+
+def _svg_to_png_cairosvg(svg: str, output_width: int, output_height: int) -> bytes:
+    """Render SVG to PNG using CairoSVG."""
+    import cairosvg
+    return cairosvg.svg2png(
+        bytestring=svg.encode("utf-8") if isinstance(svg, str) else svg,
+        output_width=output_width,
+        output_height=output_height,
+    )
+
+
+# ── Playwright (optional, activated via BADGE_RENDERER=playwright) ──
+
+os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "/pw-browsers")
+
+_browser = None
 _lock = asyncio.Lock()
-_playwright_available: bool | None = None
+_playwright_available = None
 
 
-async def _get_browser() -> Browser | None:
-    """Lazy singleton browser instance. Returns None if Chromium not installed."""
+async def _get_browser():
+    """Lazy singleton Playwright browser. Returns None if unavailable."""
     global _browser, _playwright_available
     if _playwright_available is False:
         return None
@@ -37,36 +53,23 @@ async def _get_browser() -> Browser | None:
         if _browser and _browser.is_connected():
             return _browser
         try:
+            from playwright.async_api import async_playwright
             pw = await async_playwright().start()
             _browser = await pw.chromium.launch(
                 headless=True,
                 args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
             )
             _playwright_available = True
-            logger.info("Playwright Chromium browser launched successfully")
+            logger.info("Playwright Chromium browser launched")
         except Exception as e:
             _playwright_available = False
-            logger.warning(f"Playwright unavailable ({e}), will use CairoSVG fallback")
+            logger.warning(f"Playwright unavailable ({e}), falling back to CairoSVG")
             return None
     return _browser
 
 
-def _svg_to_png_cairosvg(svg: str, output_width: int, output_height: int) -> bytes:
-    """Fallback: render SVG to PNG using CairoSVG."""
-    import cairosvg
-    return cairosvg.svg2png(
-        bytestring=svg.encode("utf-8") if isinstance(svg, str) else svg,
-        output_width=output_width,
-        output_height=output_height,
-    )
-
-
-async def svg_to_png(
-    svg: str,
-    output_width: int = 2400,
-    output_height: int = 1260,
-) -> bytes:
-    """Render SVG string to PNG. Uses Playwright if available, CairoSVG otherwise."""
+async def _svg_to_png_playwright(svg: str, output_width: int, output_height: int) -> bytes:
+    """Render SVG to PNG using headless Chromium (pixel-perfect fonts)."""
     browser = await _get_browser()
     if browser is None:
         return _svg_to_png_cairosvg(svg, output_width, output_height)
@@ -96,13 +99,28 @@ async def svg_to_png(
             timeout=5000,
         )
         await page.wait_for_timeout(200)
-        png_bytes = await page.screenshot(
+        return await page.screenshot(
             type="png",
             clip={"x": 0, "y": 0, "width": output_width, "height": output_height},
         )
-        return png_bytes
     except Exception as e:
         logger.warning(f"Playwright render failed ({e}), falling back to CairoSVG")
         return _svg_to_png_cairosvg(svg, output_width, output_height)
     finally:
         await page.close()
+
+
+# ── Public API ──
+
+async def svg_to_png(
+    svg: str,
+    output_width: int = 2400,
+    output_height: int = 1260,
+) -> bytes:
+    """Render SVG string to PNG.
+
+    Uses CairoSVG by default. Set BADGE_RENDERER=playwright for Chromium rendering.
+    """
+    if _RENDERER == "playwright":
+        return await _svg_to_png_playwright(svg, output_width, output_height)
+    return _svg_to_png_cairosvg(svg, output_width, output_height)
