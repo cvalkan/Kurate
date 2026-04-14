@@ -1,0 +1,88 @@
+{
+  "summary": "Score-Pairwise Coherence feature fully tested and working. Backend API returns coherence data with status=ok, 3 models (claude, gpt, gemini), each with label, total_pairs, overall_agreement, and 6 bins. Frontend renders the coherence section with bar chart and data table correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_score_pairwise_coherence.py",
+    "/app/test_reports/pytest/score_pairwise_coherence_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_score_pairwise_coherence.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": "No auth needed for /api/model-analysis endpoint",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Score-Pairwise Coherence feature is complete and working. Key findings: (1) Backend API /api/model-analysis returns score_pairwise_coherence with status=ok, (2) Contains 3 models: claude (6323 pairs, 81% agreement), gpt (1079 pairs, 74% agreement), gemini (809 pairs, 78% agreement), (3) Each model has 6 bins with agreement rates that increase as score gap increases, (4) GPT has narrow score range with very few pairs at high gaps (known behavior), (5) Per-category filter works (tested with cs.RO), (6) Frontend renders CoherenceSection with bar chart and data table, (7) All data-testid attributes present: coherence-section, coherence-row-claude, coherence-row-gpt, coherence-row-gemini",
+  "verified_features": {
+    "backend_endpoints": {
+      "GET /api/model-analysis": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns score_pairwise_coherence key",
+          "status=ok",
+          "Contains 3 models: claude, gpt, gemini",
+          "Each model has label, total_pairs > 0, overall_agreement in [0,1], 6 bins",
+          "Each bin has label, gap_min, gap_max, n, agreement_rate, reversal_rate",
+          "Agreement rate increases as score gap increases",
+          "agreement_rate + reversal_rate = 1.0 for all bins",
+          "Sum of bin counts equals total_pairs"
+        ]
+      },
+      "GET /api/model-analysis?category=cs.RO": {
+        "status": "PASS",
+        "test_cases": [
+          "Returns coherence data for specific category",
+          "Claude: 1275 pairs, 86% agreement",
+          "GPT: 695 pairs, 73% agreement",
+          "Gemini: 456 pairs, 82% agreement"
+        ]
+      }
+    },
+    "frontend_components": {
+      "CoherenceSection": {
+        "status": "PASS",
+        "test_cases": [
+          "[data-testid='coherence-section'] renders",
+          "Bar chart shows agreement rate by SI score gap",
+          "Data table with rows for all 3 models",
+          "[data-testid='coherence-row-claude'] present",
+          "[data-testid='coherence-row-gpt'] present",
+          "[data-testid='coherence-row-gemini'] present",
+          "17 chart bars rendered (3 models x 6 bins, minus empty bins)"
+        ]
+      }
+    }
+  },
+  "coherence_data_summary": {
+    "claude": {
+      "total_pairs": 6323,
+      "overall_agreement": "81.0%",
+      "bins": ["0-0.5: 60.6%", "0.5-1: 76.7%", "1-1.5: 82.5%", "1.5-2: 92.3%", "2-3: 95.8%", "3+: 97.7%"]
+    },
+    "gpt": {
+      "total_pairs": 1079,
+      "overall_agreement": "74.1%",
+      "bins": ["0-0.5: 67.4%", "0.5-1: 86.3%", "1-1.5: 97.9%", "1.5-2: 100%", "2-3: 100%", "3+: N/A (0 pairs)"],
+      "note": "GPT has narrow SI score range, very few pairs at high gaps"
+    },
+    "gemini": {
+      "total_pairs": 809,
+      "overall_agreement": "78.5%",
+      "bins": ["0-0.5: 68.7%", "0.5-1: 74.6%", "1-1.5: 92.5%", "1.5-2: 87.8%", "2-3: 95.2%", "3+: 100%"]
+    }
+  }
+}

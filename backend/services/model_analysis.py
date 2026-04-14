@@ -663,6 +663,10 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 avg_pw_inter_model.append(row)
 
     total_matches = sum(sum(s.get("total", 0) for s in model_paper_stats[mk].values()) for mk in model_keys) // 2
+
+    # --- Score-Pairwise Coherence ---
+    coherence = await _compute_score_pairwise_coherence(category)
+
     t_compute = time.perf_counter() - t_start
 
     return {
@@ -695,6 +699,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         "pw_vs_si": pw_vs_si,
         "avg_pw_vs_si": avg_pw_vs_si,
         "openskill_updated_at": None,
+        "score_pairwise_coherence": coherence,
     }
 
 
@@ -1305,3 +1310,122 @@ def _compute_pw_vs_si(papers, wr_scores, ts_scores, os1, os3, os10,
                                 "avg_mpp": within_mpp.get(si_mk, 0), "rows": wm_rows}
 
     return {"per_model": per_model, "within_model": within_model}
+
+
+
+# ---------- Score-Pairwise Coherence (TrustJudge-inspired) ----------
+# For each judge model, check how well its own single-item score s(A)-s(B)
+# predicts its pairwise choice A>B. Bins by |score gap| show that a more
+# internally coherent model has fewer reversals as the gap grows.
+
+_JUDGE_TO_SI = {
+    "openai/gpt-5.2": "gpt",
+    "openai/gpt-5_2": "gpt",
+    "gemini/gemini-3-pro-preview": "gemini",
+    "anthropic/claude-opus-4-6": "claude",
+    "anthropic/claude-opus-4-5-20251101": "claude",
+}
+_SI_SHORT = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3 Pro"}
+_GAP_BINS = [
+    (0.0, 0.5, "0–0.5"),
+    (0.5, 1.0, "0.5–1"),
+    (1.0, 1.5, "1–1.5"),
+    (1.5, 2.0, "1.5–2"),
+    (2.0, 3.0, "2–3"),
+    (3.0, 99.0, "3+"),
+]
+
+
+async def _compute_score_pairwise_coherence(category=None):
+    """For each judge model, pair its pairwise wins with its SI scores.
+    Return per-bin reversal rates showing how coherence improves with score gap."""
+
+    # 1. Load SI ratings from rankings
+    si_query = {"si_ratings": {"$exists": True, "$ne": {}}}
+    if category:
+        si_query["category"] = category
+    si_map = {}  # {paper_id: {si_key: score}}
+    async for doc in db.rankings.find(si_query, {"_id": 0, "paper_id": 1, "si_ratings": 1}):
+        pid = doc["paper_id"]
+        si = doc.get("si_ratings", {})
+        for mk in ("claude", "gpt", "gemini"):
+            r = si.get(mk)
+            if isinstance(r, dict) and r.get("score"):
+                si_map.setdefault(pid, {})[mk] = r["score"]
+
+    if len(si_map) < 20:
+        return None
+
+    # 2. Load completed matches
+    match_query = {
+        "completed": True, "failed": {"$ne": True},
+        "mode": {"$exists": False}, "winner_id": {"$exists": True},
+    }
+    if category:
+        match_query["primary_category"] = category
+
+    # Accumulate per-si-model: list of (abs_gap, agreed)
+    model_data = {}  # {si_key: [(abs_gap, agreed_bool), ...]}
+
+    async for m in db.matches.find(match_query, {
+        "_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1,
+    }):
+        mu = m.get("model_used", {})
+        raw_key = f"{mu.get('provider', '')}/{mu.get('model', '')}"
+        si_key = _JUDGE_TO_SI.get(raw_key)
+        if not si_key:
+            continue
+
+        p1, p2, winner = m["paper1_id"], m["paper2_id"], m["winner_id"]
+        s1 = si_map.get(p1, {}).get(si_key)
+        s2 = si_map.get(p2, {}).get(si_key)
+        if s1 is None or s2 is None:
+            continue
+
+        gap = abs(s1 - s2)
+        # Did the higher-scored paper win?
+        if s1 > s2:
+            agreed = winner == p1
+        elif s2 > s1:
+            agreed = winner == p2
+        else:
+            # Exact tie in SI scores — skip (no prediction possible)
+            continue
+
+        model_data.setdefault(si_key, []).append((gap, agreed))
+
+    if not model_data:
+        return None
+
+    # 3. Build per-model bin summaries
+    models = {}
+    for si_key, pairs in sorted(model_data.items()):
+        total = len(pairs)
+        overall_agree = sum(1 for _, a in pairs if a)
+
+        bins = []
+        for gap_min, gap_max, label in _GAP_BINS:
+            in_bin = [(g, a) for g, a in pairs if gap_min <= g < gap_max]
+            n = len(in_bin)
+            if n == 0:
+                bins.append({"label": label, "gap_min": gap_min, "gap_max": gap_max,
+                             "n": 0, "agreement_rate": None, "reversal_rate": None})
+                continue
+            agree = sum(1 for _, a in in_bin if a)
+            bins.append({
+                "label": label,
+                "gap_min": gap_min,
+                "gap_max": gap_max,
+                "n": n,
+                "agreement_rate": round(agree / n, 4),
+                "reversal_rate": round(1 - agree / n, 4),
+            })
+
+        models[si_key] = {
+            "label": _SI_SHORT.get(si_key, si_key),
+            "total_pairs": total,
+            "overall_agreement": round(overall_agree / total, 4) if total else 0,
+            "bins": bins,
+        }
+
+    return {"status": "ok", "models": models}
