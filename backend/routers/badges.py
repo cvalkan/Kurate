@@ -310,8 +310,6 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
 <meta name="twitter:site" content="@KurateAI">
-<script>window.location.replace("{leaderboard_url}");</script>
-<noscript><meta http-equiv="refresh" content="0;url={leaderboard_url}"></noscript>
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{og_title}</h1>
@@ -674,8 +672,6 @@ async def get_paper_share_page(paper_id: str, request: Request):
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
 <meta name="twitter:site" content="@KurateAI">
-<script>window.location.replace("{redirect_url}");</script>
-<noscript><meta http-equiv="refresh" content="0;url={redirect_url}"></noscript>
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{og_title}</h1>

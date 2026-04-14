@@ -424,8 +424,6 @@ async def get_list_share_page(list_id: str, request: Request):
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
 <meta name="twitter:site" content="@KurateAI">
-<script>window.location.replace("{list_url}");</script>
-<noscript><meta http-equiv="refresh" content="0;url={list_url}"></noscript>
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{name}</h1>
