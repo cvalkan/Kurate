@@ -1511,9 +1511,16 @@ async def backfill_si_ratings(db, category: str = None):
                     si["claude"] = {k: ai_r[k] for k in ("score", "significance", "rigor", "novelty", "clarity") if ai_r.get(k)}
 
             if si:
+                update_fields = {"si_ratings": si}
+                # Also copy ai_rating to ranking doc for direct display
+                ai_r = p.get("ai_rating")
+                if isinstance(ai_r, dict) and ai_r.get("score"):
+                    update_fields["ai_rating"] = ai_r
+                elif isinstance(ai_r, (int, float)):
+                    update_fields["ai_rating"] = ai_r
                 ops.append(UpdateOne(
                     {"paper_id": p["id"], "category": cat},
-                    {"$set": {"si_ratings": si}},
+                    {"$set": update_fields},
                 ))
 
         if ops:
