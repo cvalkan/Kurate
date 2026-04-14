@@ -68,6 +68,16 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Sequential reranks, single-pass rerank, pair-exhaustion detection
 - Incremental match counters, two-tier goals cache
 
+### Score–Pairwise Coherence Metric (Apr 14, 2026)
+- New "Score–Pairwise Coherence" section on Model Analysis page (/correlation)
+- For each judge model (Claude, GPT, Gemini): checks if its own SI score s(A)>s(B) predicts pairwise A>B
+- Bins by |score gap|: [0–0.5, 0.5–1, 1–1.5, 1.5–2, 2–3, 3+]
+- Bar chart + data table with per-model agreement rates
+- Key finding: Claude Opus 81% overall (60.6%→97.7%), GPT 74.1%, Gemini 78.5%
+- GPT has narrow SI score range so very few pairs at high gaps
+- Backend: `_compute_score_pairwise_coherence()` in model_analysis.py
+- Frontend: `CoherenceSection.jsx` component
+
 ## Prioritized Backlog
 
 ### P0
