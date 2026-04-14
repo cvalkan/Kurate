@@ -65,11 +65,12 @@ export default function BadgePage() {
   }
 
   const shareUrl = isShareMode
-    ? `${API}/api/badge/paper/${paperId}/share/page`
+    ? `${window.location.origin}/api/badge/paper/${paperId}/share/page`
     : `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
-  const leaderboardUrl = isShareMode
-    ? `${window.location.origin}/?cat=${data.category}&period=all`
-    : `${window.location.origin}/leaderboard/${category}/${year}/${slug}`;
+  const archiveLeaderboardUrl = isShareMode
+    ? (data.badge?.leaderboard_url || `/?cat=${data.category}&period=all`)
+    : `/leaderboard/${category}/${year}/${slug}`;
+  const leaderboardUrl = `${window.location.origin}/?cat=${data.category || category}&period=all`;
   const imageUrl = isShareMode
     ? (data.image_url ? `${API}${data.image_url}` : null)
     : `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
@@ -81,7 +82,7 @@ export default function BadgePage() {
   const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
 
   const copyLink = () => {
-    navigator.clipboard.writeText(leaderboardUrl);
+    navigator.clipboard.writeText(archiveLeaderboardUrl.startsWith("http") ? archiveLeaderboardUrl : `${window.location.origin}${archiveLeaderboardUrl}`);
     setCopied(true);
     toast.success("Link copied!");
     setTimeout(() => setCopied(false), 2000);
@@ -207,14 +208,14 @@ export default function BadgePage() {
             <img src={imageUrl} alt="Badge" className="w-full" loading="eager"
               onLoad={e => e.target.parentElement.querySelector('[data-loader]')?.remove()}
             />
-            <div data-loader className="absolute inset-0 flex items-center justify-center bg-secondary/30 animate-pulse">
-              <span className="text-sm text-muted-foreground">Loading badge...</span>
+            <div data-loader className="absolute inset-0 flex items-center justify-center bg-secondary/30">
+              <span className="text-sm text-muted-foreground animate-pulse">Generating badge image...</span>
             </div>
           </div>
-          <div className="px-4 py-3 bg-secondary/20 border-t border-border flex items-center justify-between">
-            <div>
+          <div className="px-4 py-3 bg-secondary/20 border-t border-border flex items-center justify-between gap-3">
+            <div className="min-w-0">
               <div className="text-xs font-medium">{subtitleText}</div>
-              <div className="text-[10px] text-muted-foreground truncate max-w-md">{data.title}</div>
+              <div className="text-[10px] text-muted-foreground">{data.title}</div>
             </div>
             {data.arxiv_id && (
               <a href={`https://arxiv.org/abs/${data.arxiv_id}`} target="_blank" rel="noopener noreferrer"
@@ -228,17 +229,10 @@ export default function BadgePage() {
         {/* Navigation links */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-accent mb-8">
           <a href={`/paper/${data.paper_id}`} className="hover:underline">Paper details</a>
-          {/* Archive leaderboard link — from badge route params or best_badge data */}
-          {!isShareMode && category && year && slug && (
+          {archiveLeaderboardUrl && archiveLeaderboardUrl !== leaderboardUrl && (
             <>
               <span className="text-border">·</span>
-              <a href={`/leaderboard/${category}/${year}/${slug}`} className="hover:underline">{data.archive_label} leaderboard</a>
-            </>
-          )}
-          {isShareMode && data.badge && (
-            <>
-              <span className="text-border">·</span>
-              <a href={data.badge.leaderboard_url} className="hover:underline">{data.badge.archive_label} leaderboard</a>
+              <a href={archiveLeaderboardUrl} className="hover:underline">{data.badge?.archive_label || data.archive_label || "Archive"} leaderboard</a>
             </>
           )}
           <span className="text-border">·</span>
