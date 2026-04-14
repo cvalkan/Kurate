@@ -1464,29 +1464,40 @@ async def _compute_convergence(category, steps):
 
 @router.get("/sitemap.xml", response_class=None)
 async def sitemap():
-    """Dynamic XML sitemap including all paper detail pages."""
+    """Dynamic XML sitemap including all paper detail pages, category leaderboards, archives, and legal pages."""
     from fastapi.responses import Response
+    from core.auth import get_settings
+    from core.config import CATEGORIES
 
     base = "https://kurate.org"
+    settings = await get_settings()
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+
     static_pages = [
         ("", "daily", "1.0"),
         ("/correlation", "daily", "0.8"),
         ("/methodology", "monthly", "0.6"),
         ("/validation", "weekly", "0.7"),
         ("/prompts", "monthly", "0.4"),
+        ("/privacy", "yearly", "0.3"),
+        ("/impressum", "yearly", "0.3"),
     ]
 
     urls = []
     for path, freq, priority in static_pages:
         urls.append(f"  <url><loc>{base}{path}</loc><changefreq>{freq}</changefreq><priority>{priority}</priority></url>")
 
-    # Add paper pages from rankings DB
+    # Category leaderboard pages
+    for cat in active_cats:
+        urls.append(f"  <url><loc>{base}/?cat={cat}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>")
+
+    # Paper pages from rankings DB
     async for r in db.rankings.find({}, {"_id": 0, "paper_id": 1}):
         pid = r.get("paper_id", "")
         if pid:
             urls.append(f"  <url><loc>{base}/paper/{pid}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>")
 
-    # Add archive pages
+    # Archive pages
     archives = await db.leaderboard_archives.find(
         {}, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1}
     ).to_list(5000)

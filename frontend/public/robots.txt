@@ -3,11 +3,20 @@ Allow: /
 Allow: /correlation
 Allow: /methodology
 Allow: /validation
-Allow: /paper/
 Allow: /prompts
+Allow: /paper/
+Allow: /privacy
+Allow: /impressum
+Allow: /leaderboard/
+Allow: /share/
+Allow: /list/
 
 Disallow: /admin
 Disallow: /admin/
 Disallow: /api/admin/
+Disallow: /test/
+Disallow: /auth/
+Disallow: /profile
+Disallow: /bookmarks
 
 Sitemap: https://kurate.org/api/sitemap.xml
