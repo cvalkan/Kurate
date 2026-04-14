@@ -75,8 +75,8 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                 {cfCell(tieImpact.coin_flip.human_human, tr.hh, "bg-sky-500/[0.06]")}
                 {cfCell(tieImpact.coin_flip.ai_committee, tr.ac, "bg-amber-500/[0.06]")}
                 {cfCell(tieImpact.coin_flip.human_committee_loo, tr.hc_loo, "bg-amber-500/[0.06]")}
-                {cfCell(tierAccuracy?.cf_ai_rate ?? tierAccuracy?.ai_rate, tierAiTie, "bg-rose-500/[0.06]")}
-                {cfCell(tierAccuracy?.cf_hh_rate ?? tierAccuracy?.hh_rate, tierAiTie, "bg-rose-500/[0.06] font-normal text-foreground/60")}
+                {cfCell(tierAccuracy?.cf_ai_rate ?? tierAccuracy?.ai_rate, tr.tier_ai ?? tierAiTie, "bg-rose-500/[0.06]")}
+                {cfCell(tierAccuracy?.cf_hh_rate ?? tierAccuracy?.hh_rate, tr.tier_hh ?? tierHhTie, "bg-rose-500/[0.06] font-normal text-foreground/60")}
                 <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
                 <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{(totalPairsCf ?? tieImpact.coin_flip.total_pairs ?? totalPairs)?.toLocaleString()}</td>
               </tr>
