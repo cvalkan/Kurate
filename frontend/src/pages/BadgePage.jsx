@@ -204,11 +204,12 @@ export default function BadgePage() {
       <div className="container mx-auto px-4 max-w-3xl py-8 md:py-12">
         {/* Badge preview */}
         <div className="rounded-xl border border-border overflow-hidden mb-8 bg-white" data-testid="badge-preview">
-          <div className="relative">
+          <div className="relative min-h-[120px]">
             <img src={imageUrl} alt="Badge" className="w-full" loading="eager"
               onLoad={e => e.target.parentElement.querySelector('[data-loader]')?.remove()}
+              onError={e => { const loader = e.target.parentElement.querySelector('[data-loader]'); if (loader) loader.querySelector('span').textContent = 'Badge image unavailable'; }}
             />
-            <div data-loader className="absolute inset-0 flex items-center justify-center bg-secondary/30">
+            <div data-loader className="absolute inset-0 flex items-center justify-center bg-secondary/20 rounded-t-xl">
               <span className="text-sm text-muted-foreground animate-pulse">Generating badge image...</span>
             </div>
           </div>
