@@ -19,6 +19,8 @@ import ProfilePage from "@/pages/ProfilePage";
 import BookmarksPage from "@/pages/BookmarksPage";
 import ReadingListPage from "@/pages/ReadingListPage";
 import ScoreCardTest from "@/pages/ScoreCardTest";
+import PrivacyPage from "@/pages/PrivacyPage";
+import ImpressumPage from "@/pages/ImpressumPage";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -52,8 +54,15 @@ function AppRouter() {
           <Route path="/bookmarks" element={<BookmarksPage />} />
           <Route path="/list/:listId" element={<ReadingListPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/impressum" element={<ImpressumPage />} />
         </Routes>
       </main>
+      <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground">
+        <a href="/privacy" className="hover:underline">Privacy Policy</a>
+        <span className="mx-2">·</span>
+        <a href="/impressum" className="hover:underline">Impressum</a>
+      </footer>
       <Toaster position="bottom-right" />
     </>
   );
