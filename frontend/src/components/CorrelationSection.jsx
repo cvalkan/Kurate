@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Bot, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -50,6 +51,8 @@ export function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
 }
 
 export function CorrelationSection({ sectionData, title, description, viewMode, setViewMode }) {
+  const [scatterMode, setScatterMode] = useState("wr");
+
   if (!sectionData || !sectionData.models?.length) {
     return (
       <div className="mb-10 p-6 border border-border rounded-lg text-center text-muted-foreground">
@@ -59,32 +62,39 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
     );
   }
 
-  const { models, correlations, agreement, scatter_data, n_common_papers, ts_correlations,
+  const { models, correlations, agreement, scatter_data, ts_scatter_data, os_scatter_data,
+          n_common_papers, ts_correlations,
           avg_correlations, avg_ts_correlations, avg_agreement } = sectionData;
   const hasAvg = avg_correlations && Object.keys(avg_correlations).length > 0;
 
   const activeCorrEntries = Object.entries(viewMode === "average" && hasAvg ? avg_correlations : correlations);
   const activeTsCorrEntries = Object.entries(viewMode === "average" && hasAvg ? (avg_ts_correlations || {}) : (ts_correlations || {}));
   const activeAgreeEntries = Object.entries(viewMode === "average" && hasAvg ? (avg_agreement || {}) : agreement);
-  const scatterPairs = [];
-  for (let i = 0; i < models.length; i++) {
-    for (let j = i + 1; j < models.length; j++) {
-      const m1 = models[i].short;
-      const m2 = models[j].short;
-      const pairKey = `${models[i].key} vs ${models[j].key}`;
-      const raw = scatter_data?.[pairKey];
-      let points = [];
-      if (raw && raw.x && raw.y) {
-        // Compact format: {x: [...], y: [...]}
-        points = raw.x.map((xv, k) => ({ x: xv, y: raw.y[k] }));
-      } else if (Array.isArray(raw)) {
-        // Legacy format: [{modelA: val, modelB: val, title}, ...]
-        points = raw.map(d => ({ x: d[m1] ?? 50, y: d[m2] ?? 50 }));
+
+  const buildScatterPairs = (sourceData) => {
+    const pairs = [];
+    for (let i = 0; i < models.length; i++) {
+      for (let j = i + 1; j < models.length; j++) {
+        const m1 = models[i].short;
+        const m2 = models[j].short;
+        const pairKey = `${models[i].key} vs ${models[j].key}`;
+        const raw = sourceData?.[pairKey];
+        let points = [];
+        if (raw && raw.x && raw.y) {
+          points = raw.x.map((xv, k) => ({ x: xv, y: raw.y[k] }));
+        } else if (Array.isArray(raw)) {
+          points = raw.map(d => ({ x: d[m1] ?? 50, y: d[m2] ?? 50 }));
+        }
+        const nPapers = raw?.n || points.length || n_common_papers;
+        pairs.push({ m1, m2, points, nPapers, c1: getColor(m1).dot, c2: getColor(m2).dot });
       }
-      const nPapers = raw?.n || points.length || n_common_papers;
-      scatterPairs.push({ m1, m2, points, nPapers, c1: getColor(m1).dot, c2: getColor(m2).dot });
     }
-  }
+    return pairs;
+  };
+
+  const scatterSource = scatterMode === "ts" ? ts_scatter_data : scatterMode === "os" ? os_scatter_data : scatter_data;
+  const scatterPairs = buildScatterPairs(scatterSource || {});
+  const scatterLabel = scatterMode === "ts" ? "TrueSkill" : scatterMode === "os" ? "OpenSkill" : "Win Rate";
 
   return (
     <div className="mb-10">
@@ -245,10 +255,28 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
 
       {scatterPairs.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium mb-2">Win Rate Scatter</h3>
+          <div className="flex items-center gap-3 mb-2">
+            <h3 className="text-sm font-medium">Scatter Plot</h3>
+            <div className="flex gap-1 text-[10px]">
+              {[["wr", "Win Rate"], ["ts", "TrueSkill"], ["os", "OpenSkill"]].map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setScatterMode(key)}
+                  data-testid={`scatter-toggle-${key}`}
+                  className={`px-2 py-0.5 rounded-full border transition-colors ${
+                    scatterMode === key
+                      ? "bg-foreground text-background border-foreground"
+                      : "border-border text-muted-foreground hover:border-foreground/30"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {scatterPairs.map(({ m1, m2, points, c1, c2 }, i) => (
-              <ScatterPlot key={i} data={points} xModel={m1} yModel={m2} xColor={c1} yColor={c2} />
+              <ScatterPlot key={`${scatterMode}-${i}`} data={points} xModel={m1} yModel={m2} xColor={c1} yColor={c2} />
             ))}
           </div>
         </div>

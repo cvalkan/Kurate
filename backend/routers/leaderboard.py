@@ -1463,8 +1463,22 @@ async def _compute_convergence(category, steps):
 
 
 @router.get("/sitemap.xml", response_class=None)
-async def sitemap():
-    """Dynamic XML sitemap including all paper detail pages, category leaderboards, archives, and legal pages."""
+async def sitemap_index():
+    """Sitemap index pointing to sub-sitemaps for pages, papers, and archives."""
+    from fastapi.responses import Response
+    base = "https://kurate.org"
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    xml += f'  <sitemap><loc>{base}/api/sitemap-pages.xml</loc></sitemap>\n'
+    xml += f'  <sitemap><loc>{base}/api/sitemap-papers.xml</loc></sitemap>\n'
+    xml += f'  <sitemap><loc>{base}/api/sitemap-archives.xml</loc></sitemap>\n'
+    xml += '</sitemapindex>'
+    return Response(content=xml, media_type="application/xml")
+
+
+@router.get("/sitemap-pages.xml", response_class=None)
+async def sitemap_pages():
+    """Static pages + category leaderboards."""
     from fastapi.responses import Response
     from core.auth import get_settings
     from core.config import CATEGORIES
@@ -1473,43 +1487,50 @@ async def sitemap():
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
-    static_pages = [
-        ("", "daily", "1.0"),
-        ("/correlation", "daily", "0.8"),
-        ("/methodology", "monthly", "0.6"),
-        ("/validation", "weekly", "0.7"),
-        ("/prompts", "monthly", "0.4"),
-        ("/privacy", "yearly", "0.3"),
-        ("/impressum", "yearly", "0.3"),
-    ]
-
     urls = []
-    for path, freq, priority in static_pages:
-        urls.append(f"  <url><loc>{base}{path}</loc><changefreq>{freq}</changefreq><priority>{priority}</priority></url>")
-
-    # Category leaderboard pages
+    for path, freq, pri in [
+        ("", "daily", "1.0"), ("/correlation", "daily", "0.8"),
+        ("/methodology", "monthly", "0.6"), ("/validation", "weekly", "0.7"),
+        ("/prompts", "monthly", "0.4"), ("/privacy", "yearly", "0.3"), ("/impressum", "yearly", "0.3"),
+    ]:
+        urls.append(f'  <url><loc>{base}{path}</loc><changefreq>{freq}</changefreq><priority>{pri}</priority></url>')
     for cat in active_cats:
-        urls.append(f"  <url><loc>{base}/?cat={cat}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>")
+        urls.append(f'  <url><loc>{base}/?cat={cat}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>')
 
-    # Paper pages from rankings DB
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    xml += "\n".join(urls) + "\n</urlset>"
+    return Response(content=xml, media_type="application/xml")
+
+
+@router.get("/sitemap-papers.xml", response_class=None)
+async def sitemap_papers():
+    """All paper detail pages."""
+    from fastapi.responses import Response
+    base = "https://kurate.org"
+    urls = []
     async for r in db.rankings.find({}, {"_id": 0, "paper_id": 1}):
         pid = r.get("paper_id", "")
         if pid:
-            urls.append(f"  <url><loc>{base}/paper/{pid}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>")
+            urls.append(f'  <url><loc>{base}/paper/{pid}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>')
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    xml += "\n".join(urls) + "\n</urlset>"
+    return Response(content=xml, media_type="application/xml")
 
-    # Archive pages
+
+@router.get("/sitemap-archives.xml", response_class=None)
+async def sitemap_archives():
+    """All archive leaderboard pages."""
+    from fastapi.responses import Response
+    base = "https://kurate.org"
+    urls = []
     archives = await db.leaderboard_archives.find(
         {}, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1, "period_type": 1}
     ).to_list(5000)
     for a in archives:
         slug = f"w{a['week']}" if a.get("week") else f"m{a['month']}"
-        urls.append(f"  <url><loc>{base}/leaderboard/{a['category']}/{a['year']}/{slug}</loc><changefreq>never</changefreq><priority>0.6</priority></url>")
-
-    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
-    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    xml += "\n".join(urls)
-    xml += "\n</urlset>"
-
+        urls.append(f'  <url><loc>{base}/leaderboard/{a["category"]}/{a["year"]}/{slug}</loc><changefreq>never</changefreq><priority>0.6</priority></url>')
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    xml += "\n".join(urls) + "\n</urlset>"
     return Response(content=xml, media_type="application/xml")
 
 
