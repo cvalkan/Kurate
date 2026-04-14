@@ -1,6 +1,7 @@
 """Shared utilities for social sharing endpoints."""
 
 import os
+import re
 from fastapi import Request
 
 SITE_URL = os.environ.get("SITE_URL", "")
@@ -11,6 +12,17 @@ _ALLOWED_HOSTS = {
 }
 # Preview hostnames are dynamic but follow a pattern
 _PREVIEW_SUFFIX = ".preview.emergentagent.com"
+
+_BOT_RE = re.compile(
+    r"Twitterbot|LinkedInBot|facebookexternalhit|Slackbot|Discordbot|WhatsApp|TelegramBot|Googlebot|bingbot|Applebot",
+    re.IGNORECASE,
+)
+
+
+def is_bot(request: Request) -> bool:
+    """Detect social media crawlers and search engine bots by User-Agent."""
+    ua = request.headers.get("user-agent", "")
+    return bool(_BOT_RE.search(ua))
 
 
 def get_public_base_url(request: Request) -> str:

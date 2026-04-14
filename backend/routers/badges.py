@@ -252,26 +252,26 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
 
 @router.get("/{category}/{year}/w{week}/{paper_id}/share", response_class=HTMLResponse)
 async def get_badge_share_page(category: str, year: int, week: int, paper_id: str, request: Request):
-    """Static HTML page with OG meta tags for social sharing. JS redirect for humans, crawlers see tags."""
-    from core.sharing import get_public_base_url, SHARE_HEADERS
+    """Static HTML page with OG meta tags for social sharing. JS redirect for humans, crawlers see static tags."""
+    from core.sharing import get_public_base_url, SHARE_HEADERS, is_bot
     data = await _get_badge_data(category, year, paper_id, week=week)
     base_url = get_public_base_url(request)
-    html = _render_share_html(data, category, year, f"w{week}", paper_id, base_url)
+    html = _render_share_html(data, category, year, f"w{week}", paper_id, base_url, redirect=not is_bot(request))
     return HTMLResponse(content=html, headers=SHARE_HEADERS)
 
 
 @router.get("/{category}/{year}/m{month}/{paper_id}/share", response_class=HTMLResponse)
 async def get_monthly_badge_share_page(category: str, year: int, month: int, paper_id: str, request: Request):
     """Static HTML page with OG meta tags for monthly badge sharing."""
-    from core.sharing import get_public_base_url, SHARE_HEADERS
+    from core.sharing import get_public_base_url, SHARE_HEADERS, is_bot
     data = await _get_badge_data(category, year, paper_id, month=month)
     base_url = get_public_base_url(request)
-    html = _render_share_html(data, category, year, f"m{month}", paper_id, base_url)
+    html = _render_share_html(data, category, year, f"m{month}", paper_id, base_url, redirect=not is_bot(request))
     return HTMLResponse(content=html, headers=SHARE_HEADERS)
 
 
-def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id: str, base_url: str) -> str:
-    """Generate a pure static HTML page with OG/Twitter meta tags. Zero JS, zero redirects — crawler-proof."""
+def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id: str, base_url: str, redirect: bool = False) -> str:
+    """Generate HTML page with OG/Twitter meta tags. Bots get pure static HTML; humans get JS redirect to leaderboard."""
     import html as html_mod
     p = data["paper"]
     tier = data["tier"]
@@ -291,6 +291,8 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
     og_title = f"#{rank} {tier_name} in {cat_name} — {archive_label}"
     og_desc = f"{title} by {authors} | Ranked by scientific impact | Kurate.org"
 
+    redirect_tag = f'\n<script>window.location.replace("{leaderboard_url}");</script>' if redirect else ""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -309,7 +311,7 @@ def _render_share_html(data: dict, category: str, year: int, slug: str, paper_id
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
-<meta name="twitter:site" content="@KurateAI">
+<meta name="twitter:site" content="@KurateAI">{redirect_tag}
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{og_title}</h1>
@@ -609,7 +611,8 @@ async def get_paper_share_page(paper_id: str, request: Request):
     """Static HTML page with OG/Twitter meta tags for social media sharing.
     Works for ALL papers — uses archive snapshot data when available, live data otherwise."""
     import html as html_mod
-    from core.sharing import get_public_base_url, SHARE_HEADERS
+    from core.sharing import get_public_base_url, SHARE_HEADERS, is_bot
+    bot = is_bot(request)
 
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1, "arxiv_id": 1})
     if not paper_doc:
@@ -653,6 +656,8 @@ async def get_paper_share_page(paper_id: str, request: Request):
     og_title = f"#{display_rank} {tier_label}in {cat_name} ({period_label})" if display_rank else f"Paper in {cat_name}"
     og_desc = f"{title} by {authors} | Ranked by scientific impact | Kurate.org"
 
+    redirect_tag = f'\n<script>window.location.replace("{redirect_url}");</script>' if not bot else ""
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -671,7 +676,7 @@ async def get_paper_share_page(paper_id: str, request: Request):
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
-<meta name="twitter:site" content="@KurateAI">
+<meta name="twitter:site" content="@KurateAI">{redirect_tag}
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{og_title}</h1>

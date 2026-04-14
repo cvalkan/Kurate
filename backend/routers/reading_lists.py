@@ -387,8 +387,8 @@ async def import_to_existing_list(list_id: str, target_list_id: str, request: Re
 
 @router.get("/{list_id}/share", response_class=HTMLResponse)
 async def get_list_share_page(list_id: str, request: Request):
-    """Static HTML page with OG meta tags for reading list sharing. No redirect — crawler-first."""
-    from core.sharing import get_public_base_url, SHARE_HEADERS
+    """HTML page with OG meta tags for reading list sharing. Bots get static HTML; humans get JS redirect."""
+    from core.sharing import get_public_base_url, SHARE_HEADERS, is_bot
     rl = await db.reading_lists.find_one({"list_id": list_id, "public": True}, {"_id": 0})
     if not rl:
         raise HTTPException(404, "Reading list not found")
@@ -404,6 +404,8 @@ async def get_list_share_page(list_id: str, request: Request):
 
     og_title = f"{name} — {paper_count} papers"
     og_desc = f"Curated by {curator} on Kurate.org" + (f" — {desc}" if desc else "")
+
+    redirect_tag = f'\n<script>window.location.replace("{list_url}");</script>' if not is_bot(request) else ""
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -423,7 +425,7 @@ async def get_list_share_page(list_id: str, request: Request):
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{og_desc}">
 <meta name="twitter:image" content="{image_url}">
-<meta name="twitter:site" content="@KurateAI">
+<meta name="twitter:site" content="@KurateAI">{redirect_tag}
 </head>
 <body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333;">
 <h1 style="font-size: 20px;">{name}</h1>
