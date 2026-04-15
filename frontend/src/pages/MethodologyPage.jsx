@@ -57,8 +57,9 @@ export default function MethodologyPage() {
           <p>The system fetches the latest preprints from the arXiv API across {catList || "Robotics, Distributed Computing, Economics, Computational Physics, Biomolecules"} and downloads the full PDF for each.</p>
         </Step>
 
-        <Step number={2} icon={Sparkles} title="AI Impact Assessment">
-          <p>Three independent <span className="text-foreground font-medium">AI Impact Assessments</span> are generated from each paper's full text — one each from GPT-5.2, Claude Opus 4.6, and Gemini 3 Pro. Each assessment analyzes novelty, methodology, potential impact, and limitations. These are visible on every paper's detail page and serve as input to the pairwise tournament. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-summary">View the assessment prompt &rarr;</Link></p>
+        <Step number={2} icon={Sparkles} title="AI Impact Assessment & Rating">
+          <p>Each paper receives a <span className="text-foreground font-medium">Claude Opus 4.6 Impact Assessment</span> (with extended thinking mode) generated from the full PDF text, analyzing novelty, methodology, potential impact, and limitations. GPT-5.2 and Gemini 3 Pro assessments are also generated for cross-model analysis. The primary Claude assessment serves as input to the pairwise tournament. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-summary">View the assessment prompt &rarr;</Link></p>
+          <p>Separately, each model assigns a <span className="text-foreground font-medium">direct 1–10 Single-Item (SI) rating</span> across five dimensions — significance, rigor, novelty, clarity, and overall score. These ratings provide a complementary signal to the pairwise tournament and power the <Link to="/correlation" className="text-accent hover:underline">Score–Pairwise Coherence</Link> analysis.</p>
         </Step>
 
         <Step number={3} icon={Swords} title="Pairwise Tournament">
@@ -79,8 +80,8 @@ export default function MethodologyPage() {
           <p>The matchmaker uses goal-directed pair selection with two convergence tiers: <span className="text-foreground">general papers</span> (Wilson 95% CI &le; 15%) and <span className="text-foreground">top-K papers</span> (CI &le; 10%, with mandatory cross-matches). Papers with the widest confidence intervals are matched first. A calibration ratio ensures new papers are compared against established ones for transitive score calibration.</p>
         </Step>
 
-        <Step number={6} icon={BarChart3} title="Regularized Win-Rate Scoring">
-          <p>Global rankings are derived from pairwise results using <span className="text-foreground font-medium">regularized win-rates</span> (Jeffreys prior), mapped to scores centered at 1200. Win rates include <span className="text-foreground font-medium">95% Wilson confidence intervals</span>.</p>
+        <Step number={6} icon={BarChart3} title="Ranking & Scoring">
+          <p>Global rankings use <span className="text-foreground font-medium">TrueSkill</span> (Bayesian skill estimation) as the primary metric, updated incrementally after each match. <span className="text-foreground font-medium">OpenSkill</span> (Thurstone-Mosteller) and <span className="text-foreground font-medium">regularized win-rates</span> are also computed. All scores use a conservative estimate (mu&nbsp;&minus;&nbsp;3&sigma;) mapped to an Elo-style scale centered at 1200, with 95% Wilson confidence intervals.</p>
         </Step>
 
         <Step number={7} icon={Users} title="Multi-Model Consensus">
@@ -92,7 +93,7 @@ export default function MethodologyPage() {
         </Step>
 
         <Step number={9} icon={Trophy} title="Dynamic Leaderboard">
-          <p>Rankings show win-rate score, win rate, confidence interval, match count, and publication date. All data is pre-computed for instant loading and updates automatically as new papers arrive.</p>
+          <p>Rankings display TrueSkill score, win rate, confidence interval, AI rating (averaged SI score), gap score, match count, and publication date. Default sort is by TrueSkill. All data is pre-computed for instant loading and updates automatically as new papers arrive and matches complete.</p>
         </Step>
 
         <Step number={10} icon={Download} title="Continuous Operation">
