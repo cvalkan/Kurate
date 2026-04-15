@@ -2253,6 +2253,24 @@ async def process_repair_queue_endpoint():
     return {"status": "ok", "repaired": repaired}
 
 
+@router.post("/normalize-ai-ratings", dependencies=[Depends(verify_admin)])
+async def normalize_ai_ratings():
+    """One-time fix: convert any dict-typed ai_rating in rankings to a numeric score."""
+    from pymongo import UpdateOne
+    ops = []
+    async for doc in db.rankings.find(
+        {"ai_rating": {"$type": "object"}},
+        {"_id": 1, "ai_rating": 1, "paper_id": 1, "category": 1},
+    ):
+        score = doc["ai_rating"].get("score") if isinstance(doc["ai_rating"], dict) else None
+        if score is not None:
+            ops.append(UpdateOne({"_id": doc["_id"]}, {"$set": {"ai_rating": round(score, 1)}}))
+    if ops:
+        result = await db.rankings.bulk_write(ops, ordered=False)
+        return {"status": "ok", "modified": result.modified_count, "total_matched": len(ops)}
+    return {"status": "ok", "modified": 0, "message": "No dict-typed ai_rating found"}
+
+
 
 @router.get("/system-logs", dependencies=[Depends(verify_admin)])
 async def get_system_logs(

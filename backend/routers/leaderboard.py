@@ -557,7 +557,7 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         "wins": doc.get("wins", 0),
         "losses": doc.get("losses", 0),
         "comparisons": doc.get("comparisons", 0),
-        **({"ai_rating": doc["ai_rating"]} if doc.get("ai_rating") else {}),
+        **({"ai_rating": doc["ai_rating"]["score"] if isinstance(doc.get("ai_rating"), dict) else doc["ai_rating"]} if doc.get("ai_rating") else {}),
         **({"gap_score": doc["gap_score"]} if doc.get("gap_score") is not None else {}),
         **({"gap_score_ts": doc["gap_score_ts"]} if doc.get("gap_score_ts") is not None else {}),
         **({"os_score": doc["os_score"]} if doc.get("os_score") is not None else {}),
@@ -603,6 +603,37 @@ def _resolve_sort(sort_by: str = None, sort_dir: str = None, default_field: str 
     direction = 1 if sort_dir == "asc" else (-1 if sort_dir == "desc" else default_dir)
     # Add paper_id as tiebreaker for stable pagination
     return [(field, direction), ("paper_id", -1 if direction == -1 else 1)], False
+
+
+async def _sorted_query(query: dict, mongo_sort: list, offset: int, limit: int):
+    """Execute a sorted query on rankings, using aggregation pipeline for ai_rating
+    to handle mixed types (dict vs float) in production DB."""
+    sort_field = mongo_sort[0][0] if mongo_sort else "ts_score"
+    if sort_field == "ai_rating":
+        direction = mongo_sort[0][1]
+        tb_dir = mongo_sort[1][1] if len(mongo_sort) > 1 else (-1 if direction == -1 else 1)
+        pipeline = [
+            {"$match": query},
+            {"$addFields": {"_sort_rating": {"$cond": {
+                "if": {"$eq": [{"$type": "$ai_rating"}, "object"]},
+                "then": "$ai_rating.score",
+                "else": "$ai_rating",
+            }}}},
+            {"$sort": {"_sort_rating": direction, "paper_id": tb_dir}},
+            {"$skip": offset},
+            {"$limit": limit},
+        ]
+        results = []
+        async for doc in db.rankings.aggregate(pipeline):
+            doc.pop("_id", None)
+            doc.pop("_sort_rating", None)
+            results.append(doc)
+        return results
+    else:
+        results = []
+        async for doc in db.rankings.find(query, _RANK_PROJ).sort(mongo_sort).skip(offset).limit(limit):
+            results.append(doc)
+        return results
 
 
 def _build_period_filter(period: str) -> dict:
@@ -748,11 +779,11 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
             ]
             offset = 0
 
-    cursor_obj = db.rankings.find(query, _RANK_PROJ).sort(mongo_sort).skip(offset).limit(limit)
+    docs = await _sorted_query(query, mongo_sort, offset, limit)
     entries = []
     rank_offset = offset + 1
     last_doc = None
-    async for doc in cursor_obj:
+    for doc in docs:
         entry = _rank_doc_to_entry(doc)
         if period != "all" or search:
             entry["rank"] = rank_offset
@@ -849,11 +880,11 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
             ]
             offset = 0
 
-    cursor_obj = db.rankings.find(query, _RANK_PROJ).sort(mongo_sort).skip(offset).limit(limit)
+    docs = await _sorted_query(query, mongo_sort, offset, limit)
     entries = []
     rank_num = offset + 1
     last_doc = None
-    async for doc in cursor_obj:
+    for doc in docs:
         entry = _rank_doc_to_entry(doc)
         entry["rank"] = rank_num
         entry["primary_category"] = doc.get("category", "unknown")
@@ -971,15 +1002,15 @@ async def _db_tag_leaderboard_impl(
             ]
             offset = 0
 
-    cursor_obj = db.rankings.find(rank_query, _RANK_PROJ).sort(mongo_sort).skip(offset).limit(limit)
+    docs = await _sorted_query(rank_query, mongo_sort, offset, limit)
     entries = []
     rank_num = offset + 1
     last_doc = None
-    async for doc in cursor_obj:
+    for doc in docs:
         entry = _rank_doc_to_entry(doc)
         entry["rank"] = rank_num
         entry["primary_category"] = doc.get("category", "unknown")
-        entry["matches_tag"] = matching_ids is None or doc["paper_id"] in matching_ids
+        entry["matches_tag"] = matching_ids is None or doc.get("paper_id") in matching_ids
         rank_num += 1
         entries.append(entry)
         last_doc = doc
