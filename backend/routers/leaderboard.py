@@ -1010,7 +1010,10 @@ async def _db_tag_leaderboard_impl(
                     entry["wins"] = loc["wins"]
                     entry["losses"] = loc["losses"]
                     entry["comparisons"] = loc["comparisons"]
-            entries.sort(key=lambda e: (-e["score"], e["id"]))
+            # Only re-sort by local score when using default sort;
+            # preserve the user's explicit sort otherwise.
+            if is_default_sort:
+                entries.sort(key=lambda e: (-e["score"], e["id"]))
             for i, e in enumerate(entries):
                 e["rank"] = i + 1
 
