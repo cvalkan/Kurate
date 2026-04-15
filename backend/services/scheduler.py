@@ -1121,7 +1121,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                         from services.llm import parse_ratings_from_summary
                         ratings = parse_ratings_from_summary(summary_val)
                         if ratings:
-                            update_fields["ai_rating"] = ratings
+                            update_fields["ai_rating"] = ratings["score"]
                     # Store per-model ratings for SI inter-model correlation
                     from services.llm import parse_ratings_from_summary as _parse_ratings
                     _model_ratings = _parse_ratings(summary_val)
