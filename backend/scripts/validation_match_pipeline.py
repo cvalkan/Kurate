@@ -132,19 +132,21 @@ def parse_comparison_response(response_text: str) -> dict:
 
 def extract_abstract(full_text: str) -> str:
     """Extract the abstract section from PDF text."""
+    # Normalize common PDF extraction artifacts: spaces within words
+    normalized = re.sub(r'(?<=[A-Z])\s(?=[A-Z]{2,})', '', full_text)
+
     m = re.search(
-        r'\bABSTRACT\b\s*(.*?)(?:\b(?:1\s+INTRODUCTION|INTRODUCTION|1\.\s+INTRODUCTION|Keywords)\b)',
-        full_text, re.IGNORECASE | re.DOTALL
+        r'\bABSTRACT\b\s*(.*?)(?:\b(?:[1-9]\s*\.?\s*I\s*(?:NTRODUCTION|ntroduction)|INTRODUCTION|Introduction|Keywords)\b)',
+        normalized, re.DOTALL
     )
     if m and len(m.group(1).strip()) > 50:
         return m.group(1).strip()[:3000]
     m = re.search(
-        r'\bAbstract\b[.:\s]*(.*?)(?:\b[1-9]\s+[A-Z]|\bIntroduction\b)',
-        full_text, re.DOTALL
+        r'\bAbstract\b[.:\s]*(.*?)(?:\b[1-9]\s+[A-Z])',
+        normalized, re.DOTALL
     )
     if m and len(m.group(1).strip()) > 50:
         return m.group(1).strip()[:3000]
-    # Validate: reject garbage text
     sample = full_text[:200]
     word_chars = sum(1 for c in sample if c.isalpha())
     if word_chars < len(sample) * 0.3:

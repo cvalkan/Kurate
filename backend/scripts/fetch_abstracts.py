@@ -24,18 +24,27 @@ ABSTRACTS_CACHE = ROOT.parent / "memory" / "iclr_2026_abstracts.json"
 
 
 def extract_abstract(full_text: str) -> str:
+    # Normalize common PDF extraction artifacts: spaces inserted within words
+    # e.g. "I NTRODUCTION" → "INTRODUCTION", "M ETHODS" → "METHODS"
+    normalized = re.sub(r'(?<=[A-Z])\s(?=[A-Z]{2,})', '', full_text)
+
+    # Primary: ABSTRACT ... (1 INTRODUCTION | Keywords | 1. INTRODUCTION | 2 ... )
     m = re.search(
-        r'\bABSTRACT\b\s*(.*?)(?:\b(?:1\s+INTRODUCTION|INTRODUCTION|1\.\s+INTRODUCTION|Keywords)\b)',
-        full_text, re.IGNORECASE | re.DOTALL
+        r'\bABSTRACT\b\s*(.*?)(?:\b(?:[1-9]\s*\.?\s*I\s*(?:NTRODUCTION|ntroduction)|INTRODUCTION|Introduction|Keywords)\b)',
+        normalized, re.DOTALL
     )
     if m and len(m.group(1).strip()) > 50:
         return m.group(1).strip()[:3000]
+
+    # Fallback: Abstract ... next numbered section
     m = re.search(
-        r'\bAbstract\b[.:\s]*(.*?)(?:\b[1-9]\s+[A-Z]|\bIntroduction\b)',
-        full_text, re.DOTALL
+        r'\bAbstract\b[.:\s]*(.*?)(?:\b[1-9]\s+[A-Z])',
+        normalized, re.DOTALL
     )
     if m and len(m.group(1).strip()) > 50:
         return m.group(1).strip()[:3000]
+
+    # Reject garbage text (mostly numbers, no words)
     sample = full_text[:200]
     word_chars = sum(1 for c in sample if c.isalpha())
     if word_chars < len(sample) * 0.3:
