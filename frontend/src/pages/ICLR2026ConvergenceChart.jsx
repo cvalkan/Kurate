@@ -31,6 +31,7 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
   if (points.length < 2) return null;
 
   const siBaseline = data.si_baseline?.rho ?? null;
+  const siBaselineTier = data.si_baseline?.rho_tier ?? null;
 
   // Chart dimensions
   const W = 600, H = 260, PAD_L = 50, PAD_R = 20, PAD_T = 20, PAD_B = 40;
@@ -55,6 +56,10 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
   if (siBaseline != null) {
     yMin = Math.min(yMin, siBaseline);
     yMax = Math.max(yMax, siBaseline);
+  }
+  if (siBaselineTier != null) {
+    yMin = Math.min(yMin, siBaselineTier);
+    yMax = Math.max(yMax, siBaselineTier);
   }
   yMin = Math.floor(yMin * 10) / 10;
   yMax = Math.ceil(yMax * 10) / 10;
@@ -87,10 +92,9 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
           Shows how AI-human ranking correlation improves as more pairwise matches accumulate per paper.
           Currently at {data.current_avg} avg matches/paper ({data.total_matches.toLocaleString()} total).
           {siBaseline != null && (
-            <> The dashed <span style={{ color: "#ea580c" }}>orange</span> line shows the
-            <strong> Single-Item baseline</strong> — Spearman ρ = <strong>{siBaseline.toFixed(3)}</strong> between
-            the AI's direct per-paper score (Opus 4.6 Thinking, 1-10 scale) and human avg reviewer rating
-            across {data.si_baseline.n_papers.toLocaleString()} papers. Pairwise should reach or exceed this level.</>
+            <> Dashed reference lines: <span style={{ color: "#ea580c" }}>orange</span> = AI Single-Item vs Avg Rating
+            (ρ = <strong>{siBaseline.toFixed(3)}</strong>){siBaselineTier != null && <>, <span style={{ color: "#a855f7" }}>purple</span> = AI Single-Item vs Committee Tier
+            (ρ = <strong>{siBaselineTier.toFixed(3)}</strong>)</>}. Pairwise should reach or exceed these levels.</>
           )}
         </p>
       </div>
@@ -133,7 +137,7 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
             );
           })}
 
-          {/* Single-Item baseline — horizontal reference line */}
+          {/* Single-Item baselines — horizontal reference lines */}
           {siBaseline != null && (
             <g>
               <line x1={PAD_L} x2={W - PAD_R} y1={yScale(siBaseline)} y2={yScale(siBaseline)}
@@ -141,6 +145,16 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
               <text x={W - PAD_R - 4} y={yScale(siBaseline) - 4} textAnchor="end" fontSize={9}
                 fill="#ea580c" fontWeight={600}>
                 Single-Item ρ = {siBaseline.toFixed(3)}
+              </text>
+            </g>
+          )}
+          {siBaselineTier != null && (
+            <g>
+              <line x1={PAD_L} x2={W - PAD_R} y1={yScale(siBaselineTier)} y2={yScale(siBaselineTier)}
+                stroke="#a855f7" strokeWidth={1.5} strokeDasharray="5,3" />
+              <text x={W - PAD_R - 4} y={yScale(siBaselineTier) - 4} textAnchor="end" fontSize={9}
+                fill="#a855f7" fontWeight={600}>
+                Single-Item vs Tier ρ = {siBaselineTier.toFixed(3)}
               </text>
             </g>
           )}
@@ -157,6 +171,12 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
             <g transform={`translate(${PAD_L + 10}, ${PAD_T + 8 + SERIES.length * 16})`}>
               <line x1={0} x2={16} y1={0} y2={0} stroke="#ea580c" strokeWidth={1.5} strokeDasharray="5,3" />
               <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">AI Single-Item vs Avg Rating</text>
+            </g>
+          )}
+          {siBaselineTier != null && (
+            <g transform={`translate(${PAD_L + 10}, ${PAD_T + 8 + (SERIES.length + 1) * 16})`}>
+              <line x1={0} x2={16} y1={0} y2={0} stroke="#a855f7" strokeWidth={1.5} strokeDasharray="5,3" />
+              <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">AI Single-Item vs Committee Tier</text>
             </g>
           )}
         </svg>

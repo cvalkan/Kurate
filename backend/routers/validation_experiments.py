@@ -3946,25 +3946,23 @@ async def _compute_convergence(dataset_ids):
 
 
 def _compute_si_baseline(papers):
-    """Spearman rho between AI single-item score and human avg rating.
-
-    Uses `ai_rating` (ICLR 2026) or `single_item_score` (fixed ICLR datasets)
-    — whichever is present. This is a constant (independent of match count)
-    since it uses one AI score per paper, not pairwise judgments.
+    """Spearman rho between AI single-item score and (a) human avg rating,
+    (b) committee tier. Uses `ai_rating` or `single_item_score` — whichever
+    is present. Constant (independent of match count).
     """
-    ai_scores, hum_scores = [], []
+    TIER_ORDER = {"Oral": 4, "Spotlight": 3.5, "Poster": 3, "Reject": 2, "Withdraw": 1, "Desk Reject": 0}
+    ai_scores_avg, hum_scores = [], []
+    ai_scores_tier, tier_scores = [], []
     for p in papers:
-        # Prefer single_item_score (fixed datasets), fall back to ai_rating (ICLR 2026)
         ai = p.get("single_item_score")
         if ai is None:
             r = p.get("ai_rating")
-            if isinstance(r, dict):
-                ai = r.get("score")
-            else:
-                ai = r
+            ai = r.get("score") if isinstance(r, dict) else r
+        if ai is None:
+            continue
+        # Human avg branch
         h = p.get("h1_avg_rating")
         if h is None:
-            # fall back to mean of evaluations (fixed datasets use rating_value)
             evals = p.get("evaluations") or []
             scores = []
             for e in evals:
@@ -3975,13 +3973,21 @@ def _compute_si_baseline(papers):
                     scores.append(rv)
             if scores:
                 h = sum(scores) / len(scores)
-        if ai is not None and h is not None:
-            ai_scores.append(float(ai))
+        if h is not None:
+            ai_scores_avg.append(float(ai))
             hum_scores.append(float(h))
-    if len(ai_scores) < 20:
+        # Tier branch (exclude Withdraw / Desk Reject — unrankable)
+        t = TIER_ORDER.get(p.get("decision"), -1)
+        if t >= 2:  # Reject or better
+            ai_scores_tier.append(float(ai))
+            tier_scores.append(t)
+    if len(ai_scores_avg) < 20:
         return None
-    sp = scipy_stats.spearmanr(ai_scores, hum_scores)
-    return {
-        "rho": round(float(sp.statistic), 4),
-        "n_papers": len(ai_scores),
+    result = {
+        "rho": round(float(scipy_stats.spearmanr(ai_scores_avg, hum_scores).statistic), 4),
+        "n_papers": len(ai_scores_avg),
     }
+    if len(ai_scores_tier) >= 20:
+        result["rho_tier"] = round(float(scipy_stats.spearmanr(ai_scores_tier, tier_scores).statistic), 4)
+        result["n_papers_tier"] = len(ai_scores_tier)
+    return result
