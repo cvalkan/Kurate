@@ -3685,16 +3685,25 @@ async def positional_bias():
     }
 
 
+_iclr2026_benchmark_cache = {"data": None}
+
 @router.get("/human-ai-benchmark-iclr2026")
 async def human_ai_benchmark_iclr2026(gt_type: str = Query("comp")):
     """Human vs AI benchmark for ICLR 2026 validation dataset."""
+    if _iclr2026_benchmark_cache["data"]:
+        return _iclr2026_benchmark_cache["data"]
+    # Check MongoDB cache
+    cached = await db.computation_cache.find_one({"key": "iclr2026_benchmark"}, {"_id": 0, "data": 1})
+    if cached and cached.get("data"):
+        _iclr2026_benchmark_cache["data"] = cached["data"]
+        return cached["data"]
     try:
         from services.benchmark_fixed import _compute_dataset, _pool_datasets
         result = await _compute_dataset(db, "iclr-2026-validation")
         if not result:
             return {"status": "no_data", "message": "Insufficient data for ICLR 2026 benchmark."}
         pooled = _pool_datasets([result])
-        return {
+        response = {
             "status": "ok",
             "n_datasets": 1,
             "total_papers": result["n_papers"],
@@ -3703,6 +3712,13 @@ async def human_ai_benchmark_iclr2026(gt_type: str = Query("comp")):
             "pooled": pooled,
             "per_dataset": [result],
         }
+        _iclr2026_benchmark_cache["data"] = response
+        await db.computation_cache.update_one(
+            {"key": "iclr2026_benchmark"},
+            {"$set": {"key": "iclr2026_benchmark", "data": response}},
+            upsert=True,
+        )
+        return response
     except Exception as e:
         logger.warning(f"ICLR 2026 benchmark failed: {e}")
         import traceback
