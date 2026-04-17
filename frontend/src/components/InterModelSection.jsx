@@ -24,22 +24,20 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
   if (pwRows.length === 0 && Object.keys(siCorr).length === 0) return null;
 
   // Build SI rows from inter_model_si dict
+  // Use same pair order as PW table: Claude↔Gemini, Claude↔GPT, Gemini↔GPT
   const siRows = [];
   const modelLabelMap = { claude: "Claude Opus", gpt: "GPT-5.2", gemini: "Gemini 3 Pro" };
-  const modelOrder = ["claude", "gpt", "gemini"];
-  for (let i = 0; i < modelOrder.length; i++) {
-    for (let j = i + 1; j < modelOrder.length; j++) {
-      const m1 = modelOrder[i], m2 = modelOrder[j];
-      const key = `${m1} vs ${m2}`;
-      const altKey = `${m2} vs ${m1}`;
-      const data = siCorr[key] || siCorr[altKey];
-      if (data) {
-        siRows.push({
-          pair: `${modelLabelMap[m1]} vs ${modelLabelMap[m2]}`,
-          rho: data.spearman,
-          n: data.n,
-        });
-      }
+  const pairOrder = [["claude", "gemini"], ["claude", "gpt"], ["gemini", "gpt"]];
+  for (const [m1, m2] of pairOrder) {
+    const key = `${m1} vs ${m2}`;
+    const altKey = `${m2} vs ${m1}`;
+    const data = siCorr[key] || siCorr[altKey];
+    if (data) {
+      siRows.push({
+        pair: `${modelLabelMap[m1]} vs ${modelLabelMap[m2]}`,
+        rho: data.spearman,
+        n: data.n,
+      });
     }
   }
 
