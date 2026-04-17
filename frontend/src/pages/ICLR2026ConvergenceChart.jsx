@@ -9,16 +9,16 @@ const SERIES = [
   { key: "ai_vs_committee", label: "AI Pairwise vs Committee Tier", color: "#2563eb" },
 ];
 
-export default function ConvergenceChart() {
+export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-convergence" }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get(`${API}/api/validation/iclr2026-convergence`)
+    axios.get(`${API}${apiPath}`)
       .then(r => setData(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [apiPath]);
 
   if (loading) return <div className="text-xs text-muted-foreground animate-pulse p-4">Loading convergence data...</div>;
   if (!data?.checkpoints?.length) return null;
@@ -33,8 +33,10 @@ export default function ConvergenceChart() {
   const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_T - PAD_B;
 
-  const xMax = Math.max(...points.map(p => p.avg_matches));
+  const xValues = points.map(p => p.avg_matches).filter(v => v > 0);
+  const xMax = Math.max(...xValues);
   const xMin = 0;
+  const xScale = (v) => PAD_L + ((v - xMin) / (xMax - xMin)) * plotW;
 
   // Find y range across all series + SI baseline
   let yMin = 1, yMax = 0;
@@ -55,7 +57,6 @@ export default function ConvergenceChart() {
   yMax = Math.ceil(yMax * 10) / 10;
   if (yMax - yMin < 0.1) { yMin -= 0.05; yMax += 0.05; }
 
-  const xScale = (v) => PAD_L + ((v - xMin) / (xMax - xMin)) * plotW;
   const yScale = (v) => PAD_T + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
 
   // Grid lines
@@ -64,7 +65,13 @@ export default function ConvergenceChart() {
     yTicks.push(Math.round(v * 100) / 100);
   }
 
-  const xTicks = points.map(p => p.avg_matches);
+  // X-axis ticks: dedupe to avoid overlap when many checkpoints exist
+  let xTicks = points.map(p => p.avg_matches);
+  if (xTicks.length > 15) {
+    // Thin out: keep ~12 evenly-spaced ticks plus the first and last
+    const step = Math.ceil(xTicks.length / 12);
+    xTicks = xTicks.filter((_, i) => i % step === 0 || i === xTicks.length - 1);
+  }
 
   return (
     <div className="border border-border/50 rounded overflow-hidden mt-6" data-testid="convergence-chart">

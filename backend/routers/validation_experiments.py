@@ -3749,140 +3749,225 @@ async def human_ai_benchmark_iclr2026(gt_type: str = Query("comp")):
 
 @router.get("/iclr2026-convergence")
 async def iclr2026_convergence():
-    """Compute how the 4 ranking correlations grow with matches/paper for ICLR 2026."""
-    import ast, math
-    from collections import Counter, defaultdict
+    """Convergence for the ICLR 2026 tournament."""
+    return await _compute_convergence(["iclr-2026-validation"])
 
-    dataset_id = "iclr-2026-validation"
 
-    # Load papers with evaluations and decisions
-    papers = await collect_all(db.validation_papers.find(
-        {"dataset_id": dataset_id},
-        {"_id": 0, "id": 1, "openreview_id": 1, "evaluations": 1, "decision": 1,
-         "reviewer_scores": 1, "h1_avg_rating": 1, "ai_rating": 1},
-    ))
-    papers_by_id = {p["id"]: p for p in papers}
-    oid_to_uuid = {p.get("openreview_id"): p["id"] for p in papers if p.get("openreview_id")}
+@router.get("/fixed-convergence")
+async def fixed_convergence():
+    """Convergence for the Human vs AI Benchmark (Fixed) — 8 ICLR topic datasets."""
+    from services.benchmark_fixed import ICLR_DATASETS
+    return await _compute_convergence(list(ICLR_DATASETS))
 
-    # Human reviewer avg scores
-    human_avg = {}
-    for p in papers:
-        if p.get("h1_avg_rating"):
-            human_avg[p["id"]] = p["h1_avg_rating"]
 
-    # Build human ground truth rankings (using avg rating directly, NOT pairwise)
-    # For ICLR, generic reviewer IDs (Reviewer_1 etc.) create a 27M pair explosion.
-    # Since the human ground truth is the same regardless of AI match count,
-    # we use avg_rating and tier directly — no need for pairwise reconstruction.
-    TIER_ORDER = {"Oral": 4, "Poster": 3, "Reject": 2, "Withdraw": 1, "Desk Reject": 0}
-    paper_tier = {p["id"]: TIER_ORDER.get(p.get("decision"), -1) for p in papers}
+async def _compute_convergence(dataset_ids):
+    """Compute how Spearman rho grows with matches/paper for one or more datasets.
 
-    # Load ALL AI matches ordered by creation time
-    ai_matches = await collect_all(db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "winner_id": {"$exists": True}},
-        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1},
-    ).sort("created_at", 1))
-
-    # Build convergence curve using incremental TrueSkill (single pass)
+    For a single dataset, this is a straightforward TrueSkill streaming run.
+    For multiple datasets, each dataset is processed independently (its own
+    TrueSkill pool and checkpoint curve) and results are equal-weight averaged
+    at each checkpoint — mirroring how the Fixed benchmark pools its other
+    metrics. This avoids the cross-dataset scale-mixing artifact that would
+    otherwise cause spurious correlation drops whenever a new dataset joins
+    the global pool.
+    """
     import trueskill
-    env = trueskill.TrueSkill(draw_probability=0.0)
+    import math
+    from collections import Counter
+
+    # Load papers once, group by dataset
+    papers = await collect_all(db.validation_papers.find(
+        {"dataset_id": {"$in": dataset_ids}},
+        {"_id": 0, "id": 1, "openreview_id": 1, "evaluations": 1, "decision": 1,
+         "reviewer_scores": 1, "h1_avg_rating": 1, "ai_rating": 1,
+         "single_item_score": 1, "dataset_id": 1},
+    ))
+    papers_by_ds = {}
+    for p in papers:
+        papers_by_ds.setdefault(p["dataset_id"], []).append(p)
+
+    # Load matches, group by dataset
+    ai_matches = await collect_all(db.validation_matches.find(
+        {"dataset_id": {"$in": dataset_ids}, "completed": True, "winner_id": {"$exists": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+         "created_at": 1, "dataset_id": 1},
+    ).sort("created_at", 1))
+    matches_by_ds = {}
+    for m in ai_matches:
+        matches_by_ds.setdefault(m["dataset_id"], []).append(m)
+
+    TIER_ORDER = {"Oral": 4, "Spotlight": 3.5, "Poster": 3, "Reject": 2, "Withdraw": 1, "Desk Reject": 0}
     TS_SCALE = 10.0
     SCORE_BASE = 1200
 
-    ratings = {}
-    match_counts = Counter()
-    all_paper_ids = list(papers_by_id.keys())
-    total_match_events = 0  # sum of all match_counts values (each match adds 2)
-    papers_seen = 0  # count of papers with at least 1 match
+    checkpoints = list(range(1, 31)) + [40, 50, 75, 100, 150, 200, 300, 500]
 
-    checkpoints = list(range(1, 31))
-    next_cp_idx = 0
-    results = []
+    def _human_avg(p):
+        h = p.get("h1_avg_rating")
+        if h is not None:
+            return h
+        evals = p.get("evaluations") or []
+        scores = []
+        for e in evals:
+            if not isinstance(e, dict):
+                continue
+            rv = e.get("rating") if e.get("rating") is not None else e.get("rating_value")
+            if isinstance(rv, (int, float)):
+                scores.append(rv)
+        return sum(scores) / len(scores) if scores else None
 
-    def _get_ts_scores():
-        scores = {}
-        for pid in ratings:
-            r = ratings[pid]
-            scores[pid] = (r.mu - 3 * r.sigma) * TS_SCALE + SCORE_BASE
-        return scores
+    # Per-dataset convergence runs
+    per_ds_results = {}  # ds_id -> [{avg_matches, ai_vs_avg_rating, ai_vs_committee}, ...]
+    for ds_id in dataset_ids:
+        ds_papers = papers_by_ds.get(ds_id, [])
+        ds_matches = matches_by_ds.get(ds_id, [])
+        if not ds_papers or not ds_matches:
+            continue
 
-    def _compute_correlations(ts_scores, avg_m, total_m):
-        point = {"avg_matches": round(avg_m, 1), "total_matches": total_m}
+        papers_by_id = {p["id"]: p for p in ds_papers}
+        human_avg = {p["id"]: _human_avg(p) for p in ds_papers}
+        human_avg = {k: v for k, v in human_avg.items() if v is not None}
+        paper_tier = {p["id"]: TIER_ORDER.get(p.get("decision"), -1) for p in ds_papers}
 
-        shared_avg = [pid for pid in ts_scores if pid in human_avg]
-        if len(shared_avg) > 20:
-            sp = scipy_stats.spearmanr([ts_scores[p] for p in shared_avg], [human_avg[p] for p in shared_avg])
-            point["ai_vs_avg_rating"] = round(float(sp.statistic), 4)
+        env = trueskill.TrueSkill(draw_probability=0.0)
+        ratings = {}
+        match_counts = Counter()
+        total_events = 0
+        papers_seen = 0
+        next_cp_idx = 0
+        ds_results = []
 
-        shared_tier = [pid for pid in ts_scores
-                       if paper_tier.get(pid, -1) >= 0
-                       and papers_by_id.get(pid, {}).get("decision") not in ("Withdraw", "Desk Reject")]
-        if len(shared_tier) > 20:
-            sp = scipy_stats.spearmanr([ts_scores[p] for p in shared_tier], [paper_tier[p] for p in shared_tier])
-            point["ai_vs_committee"] = round(float(sp.statistic), 4)
+        def _compute_point(avg_m, total_m):
+            ts_scores = {}
+            for pid in ratings:
+                r = ratings[pid]
+                ts_scores[pid] = (r.mu - 3 * r.sigma) * TS_SCALE + SCORE_BASE
+            point = {"avg_matches": round(avg_m, 1), "total_matches": total_m}
+            shared_avg = [pid for pid in ts_scores if pid in human_avg]
+            if len(shared_avg) > 10:
+                sp = scipy_stats.spearmanr([ts_scores[p] for p in shared_avg], [human_avg[p] for p in shared_avg])
+                if not (isinstance(sp.statistic, float) and math.isnan(sp.statistic)):
+                    point["ai_vs_avg_rating"] = round(float(sp.statistic), 4)
+            shared_tier = [pid for pid in ts_scores
+                           if paper_tier.get(pid, -1) >= 0
+                           and papers_by_id.get(pid, {}).get("decision") not in ("Withdraw", "Desk Reject")]
+            if len(shared_tier) > 10:
+                sp = scipy_stats.spearmanr([ts_scores[p] for p in shared_tier], [paper_tier[p] for p in shared_tier])
+                if not (isinstance(sp.statistic, float) and math.isnan(sp.statistic)):
+                    point["ai_vs_committee"] = round(float(sp.statistic), 4)
+            return point
 
-        return point
+        for i, m in enumerate(ds_matches):
+            p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
+            if p1 not in ratings:
+                ratings[p1] = env.create_rating()
+            if p2 not in ratings:
+                ratings[p2] = env.create_rating()
+            r1, r2 = ratings[p1], ratings[p2]
+            if w == p1:
+                (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[0, 1])
+            else:
+                (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[1, 0])
+            ratings[p1] = nr1
+            ratings[p2] = nr2
+            if match_counts[p1] == 0:
+                papers_seen += 1
+            match_counts[p1] += 1
+            if match_counts[p2] == 0:
+                papers_seen += 1
+            match_counts[p2] += 1
+            total_events += 2
+            current_avg = total_events / papers_seen if papers_seen else 0
+            if next_cp_idx < len(checkpoints) and current_avg >= checkpoints[next_cp_idx]:
+                ds_results.append(_compute_point(current_avg, i + 1))
+                next_cp_idx += 1
+        if next_cp_idx < len(checkpoints):
+            final_avg = total_events / papers_seen if papers_seen else 0
+            ds_results.append(_compute_point(final_avg, len(ds_matches)))
+        per_ds_results[ds_id] = ds_results
 
-    for i, m in enumerate(ai_matches):
-        p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
-        if p1 not in ratings:
-            ratings[p1] = env.create_rating()
-        if p2 not in ratings:
-            ratings[p2] = env.create_rating()
+    # Pool: for each checkpoint index, equal-weight average across datasets
+    # that reached that checkpoint (the ICLR 2026 case has a single dataset,
+    # so this is a no-op for it).
+    pooled = []
+    max_len = max((len(v) for v in per_ds_results.values()), default=0)
+    for i in range(max_len):
+        avg_vals, tier_vals, match_vals, avg_m_vals = [], [], [], []
+        for ds_id, rs in per_ds_results.items():
+            if i >= len(rs):
+                continue
+            r = rs[i]
+            if r.get("ai_vs_avg_rating") is not None:
+                avg_vals.append(r["ai_vs_avg_rating"])
+            if r.get("ai_vs_committee") is not None:
+                tier_vals.append(r["ai_vs_committee"])
+            if r.get("total_matches") is not None:
+                match_vals.append(r["total_matches"])
+            if r.get("avg_matches") is not None:
+                avg_m_vals.append(r["avg_matches"])
+        if not avg_m_vals:
+            continue
+        point = {
+            "avg_matches": round(sum(avg_m_vals) / len(avg_m_vals), 1),
+            "total_matches": sum(match_vals),
+        }
+        if avg_vals:
+            point["ai_vs_avg_rating"] = round(sum(avg_vals) / len(avg_vals), 4)
+        if tier_vals:
+            point["ai_vs_committee"] = round(sum(tier_vals) / len(tier_vals), 4)
+        pooled.append(point)
 
-        r1, r2 = ratings[p1], ratings[p2]
-        if w == p1:
-            (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[0, 1])
-        else:
-            (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[1, 0])
-        ratings[p1] = nr1
-        ratings[p2] = nr2
-
-        if match_counts[p1] == 0:
-            papers_seen += 1
-        match_counts[p1] += 1
-        if match_counts[p2] == 0:
-            papers_seen += 1
-        match_counts[p2] += 1
-        total_match_events += 2
-
-        current_avg = total_match_events / papers_seen if papers_seen else 0
-
-        if next_cp_idx < len(checkpoints) and current_avg >= checkpoints[next_cp_idx]:
-            ts_scores = _get_ts_scores()
-            results.append(_compute_correlations(ts_scores, current_avg, i + 1))
-            next_cp_idx += 1
-
-    # Fill remaining with final state
-    if next_cp_idx < len(checkpoints):
-        final_avg = total_match_events / papers_seen if papers_seen else 0
-        ts_scores = _get_ts_scores()
-        results.append(_compute_correlations(ts_scores, final_avg, len(ai_matches)))
+    # Summary stats
+    total_matches = sum(len(v) for v in matches_by_ds.values())
+    total_match_events = 2 * total_matches
+    # Global papers_seen: unique papers that appear in any match
+    all_seen = set()
+    for ms in matches_by_ds.values():
+        for m in ms:
+            all_seen.add(m["paper1_id"])
+            all_seen.add(m["paper2_id"])
+    papers_seen = len(all_seen) or 1
+    current_avg = round(total_match_events / papers_seen, 1)
 
     return {
         "status": "ok",
-        "checkpoints": results,
-        "current_avg": round(total_match_events / papers_seen, 1) if papers_seen else 0,
-        "total_matches": len(ai_matches),
+        "checkpoints": pooled,
+        "current_avg": current_avg,
+        "total_matches": total_matches,
         "si_baseline": _compute_si_baseline(papers),
     }
 
 
 def _compute_si_baseline(papers):
-    """Spearman rho between AI single-item score (ai_rating) and human avg rating.
+    """Spearman rho between AI single-item score and human avg rating.
 
-    This is a constant (independent of match count) — it uses one AI score per
-    paper, not pairwise judgments. Useful as a reference line on the convergence
-    chart: pairwise AI should reach or surpass this level.
+    Uses `ai_rating` (ICLR 2026) or `single_item_score` (fixed ICLR datasets)
+    — whichever is present. This is a constant (independent of match count)
+    since it uses one AI score per paper, not pairwise judgments.
     """
     ai_scores, hum_scores = [], []
     for p in papers:
-        r = p.get("ai_rating")
-        if isinstance(r, dict):
-            ai = r.get("score")
-        else:
-            ai = r
+        # Prefer single_item_score (fixed datasets), fall back to ai_rating (ICLR 2026)
+        ai = p.get("single_item_score")
+        if ai is None:
+            r = p.get("ai_rating")
+            if isinstance(r, dict):
+                ai = r.get("score")
+            else:
+                ai = r
         h = p.get("h1_avg_rating")
+        if h is None:
+            # fall back to mean of evaluations (fixed datasets use rating_value)
+            evals = p.get("evaluations") or []
+            scores = []
+            for e in evals:
+                if not isinstance(e, dict):
+                    continue
+                rv = e.get("rating") if e.get("rating") is not None else e.get("rating_value")
+                if isinstance(rv, (int, float)):
+                    scores.append(rv)
+            if scores:
+                h = sum(scores) / len(scores)
         if ai is not None and h is not None:
             ai_scores.append(float(ai))
             hum_scores.append(float(h))
