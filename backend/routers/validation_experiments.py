@@ -3425,7 +3425,8 @@ async def positional_bias():
     """
     matches = await collect_all(
         db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True}},
+            {"completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True},
+             "mode": {"$exists": False}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
         )
     )
