@@ -10,6 +10,16 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 
 ## What's Been Implemented
 
+### ICLR 2026 Match-Count Consistency Cleanup (Apr 17, 2026)
+- Identified that `/app/memory/sampled_matches.csv` had been overwritten with a wrong 58K pair set; only 454/58,363 pairs overlapped with the user's target
+- Restored correct CSV (user-uploaded) to `/app/memory/sampled_matches.csv`; old file archived as `sampled_matches_WRONG_20260417.csv.bak`
+- Fixed `validation_match_pipeline.py` resume bug: `load_completed()` was reading only JSONL; added `load_completed_from_db()` using MongoDB as canonical source (prevents duplicates after crashes)
+- Deleted 2,086 duplicate pairs in DB (same pair judged by multiple models)
+- Deleted 9,898 orphan pairs (matches for pairs not in the target CSV) from both MongoDB and `validation_match_results.jsonl`
+- Added `total_ai_matches`, `total_unique_pairs`, `avg_matches_per_paper` fields to `/human-ai-benchmark-iclr2026` endpoint
+- Added explanatory blue callout on page clarifying AI matches vs unique pairs vs controlled pairs vs CF pairs
+- Identified 58 zero-eval papers (34 Desk Reject, 24 Withdraw) — these cause the small gap between unique pairs and CF pairs
+
 ### Human vs. AI Benchmark — Avg Tie Rates + Coin Flip (Apr 17, 2026)
 - Added tie rate + coin-flip numbers for `AI vs. Average` and `Human vs. Average (LOO)` columns (previously showed "—")
 - Backend (`services/benchmark_fixed.py`): added `ai_avg` / `h_avg_loo` entries to `tie_rates` dict, added `ai_avg` / `human_avg_loo` to `_pool_datasets` coin-flip pooling
