@@ -3683,3 +3683,28 @@ async def positional_bias():
         },
         "note": "Position 1 = paper presented first in the prompt. The scheduler randomly flips presentation order for each match. A 50/50 split indicates no positional bias. P-values from exact binomial test (H0: p=0.5).",
     }
+
+
+@router.get("/human-ai-benchmark-iclr2026")
+async def human_ai_benchmark_iclr2026(gt_type: str = Query("comp")):
+    """Human vs AI benchmark for ICLR 2026 validation dataset."""
+    try:
+        from services.benchmark_fixed import _compute_dataset, _pool_datasets
+        result = await _compute_dataset(db, "iclr-2026-validation")
+        if not result:
+            return {"status": "no_data", "message": "Insufficient data for ICLR 2026 benchmark."}
+        pooled = _pool_datasets([result])
+        return {
+            "status": "ok",
+            "n_datasets": 1,
+            "total_papers": result["n_papers"],
+            "total_controlled_pairs": result["controlled_pairs"],
+            "total_controlled_pairs_cf": result["controlled_pairs_cf"],
+            "pooled": pooled,
+            "per_dataset": [result],
+        }
+    except Exception as e:
+        logger.warning(f"ICLR 2026 benchmark failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "no_data", "message": str(e)}
