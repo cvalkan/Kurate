@@ -144,7 +144,7 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
                 stroke="#16a34a" strokeWidth={1.5} strokeDasharray="5,3" />
               <text x={W - PAD_R - 4} y={yScale(siBaseline) - 4} textAnchor="end" fontSize={9}
                 fill="#16a34a" fontWeight={600}>
-                Single-Item ρ = {siBaseline.toFixed(3)}
+                Single-Item vs Avg Rating ρ = {siBaseline.toFixed(3)}
               </text>
             </g>
           )}
@@ -154,7 +154,7 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
                 stroke="#2563eb" strokeWidth={1.5} strokeDasharray="5,3" />
               <text x={W - PAD_R - 4} y={yScale(siBaselineTier) - 4} textAnchor="end" fontSize={9}
                 fill="#2563eb" fontWeight={600}>
-                Single-Item vs Tier ρ = {siBaselineTier.toFixed(3)}
+                Single-Item vs Committee Tier ρ = {siBaselineTier.toFixed(3)}
               </text>
             </g>
           )}
@@ -167,18 +167,7 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
               <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">{s.label}</text>
             </g>
           ))}
-          {siBaseline != null && (
-            <g transform={`translate(${PAD_L + 10}, ${PAD_T + 8 + SERIES.length * 16})`}>
-              <line x1={0} x2={16} y1={0} y2={0} stroke="#16a34a" strokeWidth={1.5} strokeDasharray="5,3" />
-              <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">AI Single-Item vs Avg Rating</text>
-            </g>
-          )}
-          {siBaselineTier != null && (
-            <g transform={`translate(${PAD_L + 10}, ${PAD_T + 8 + (SERIES.length + 1) * 16})`}>
-              <line x1={0} x2={16} y1={0} y2={0} stroke="#2563eb" strokeWidth={1.5} strokeDasharray="5,3" />
-              <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">AI Single-Item vs Committee Tier</text>
-            </g>
-          )}
+          {/* Dashed SI baseline legends omitted — their inline right-edge labels describe them */}
         </svg>
       </div>
     </div>
