@@ -15,7 +15,7 @@ function Metric({ label, value, sub, accent }) {
   );
 }
 
-function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, tieValidation, tierAccuracy, tieStats, concordance }) {
+function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, tieValidation, tierAccuracy, tieStats, concordance, hideEqualWeighted }) {
   const fmt = (v) => v?.rate != null ? `${v.rate}%` : "\u2014";
   const fmtN = (v, n) => {
     if (v == null) return "\u2014";
@@ -37,9 +37,9 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "22%" }} />
-            <col /><col /><col /><col /><col /><col />
-            <col style={{ width: "5.5%" }} /><col style={{ width: "6%" }} />
+            <col style={{ width: "18%" }} />
+            <col /><col /><col /><col /><col /><col /><col /><col />
+            <col style={{ width: "5%" }} /><col style={{ width: "5.5%" }} />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-muted-foreground">
@@ -48,6 +48,8 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
               <th className="py-1.5 px-1.5 text-right font-medium bg-sky-500/[0.06]"><div>Human vs.</div><div>Human<sup>1</sup></div></th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-amber-500/[0.06]"><div>AI vs.</div><div>Majority<sup>2</sup></div></th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-amber-500/[0.06]"><div>Human vs.</div><div>Majority (LOO)<sup>3</sup></div></th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.06]"><div>AI vs.</div><div>Average</div></th>
+              <th className="py-1.5 px-1.5 text-right font-medium bg-emerald-500/[0.06]"><div>Human vs.</div><div>Average (LOO)</div></th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-rose-500/[0.06]"><div>AI vs.</div><div>Committee<sup>4</sup></div></th>
               <th className="py-1.5 px-1.5 text-right font-medium bg-rose-500/[0.06]"><div>Human vs.</div><div>Committee<sup>4,5</sup></div></th>
               <th className="py-1.5 px-1.5 text-right font-medium">kappa</th>
@@ -76,6 +78,8 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                 {cfCell(tieImpact.coin_flip.human_human, tr.hh, "bg-sky-500/[0.06]")}
                 {cfCell(tieImpact.coin_flip.ai_committee, tr.ac, "bg-amber-500/[0.06]")}
                 {cfCell(tieImpact.coin_flip.human_committee_loo, tr.hc_loo, "bg-amber-500/[0.06]")}
+                {cfCell(tieImpact.coin_flip.ai_avg, tr.ai_avg, "bg-emerald-500/[0.06]")}
+                {cfCell(tieImpact.coin_flip.human_avg_loo, tr.h_avg_loo, "bg-emerald-500/[0.06]")}
                 {cfCell(tierAccuracy?.cf_ai_rate ?? tierAccuracy?.ai_rate, tr.tier_ai ?? tierAiTie, "bg-rose-500/[0.06]")}
                 {cfCell(tierAccuracy?.cf_hh_rate ?? tierAccuracy?.hh_rate, tr.tier_hh ?? tierHhTie, "bg-rose-500/[0.06] font-normal text-foreground/60")}
                 <td className="py-1 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{tieImpact.coin_flip.ai_human_kappa != null ? tieImpact.coin_flip.ai_human_kappa.toFixed(2) : ""}</td>
@@ -89,6 +93,8 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]"><div>{fmt(pw.human_human)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]"><div>{fmt(pw.ai_committee)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]"><div>{fmt(pw.human_committee_loo)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-emerald-500/[0.06]"><div>{fmt(pw.ai_avg)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
+              <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-emerald-500/[0.06]"><div>{fmt(pw.human_avg_loo)}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]"><div>{tierAccuracy?.ai_rate != null ? `${tierAccuracy.ai_rate}%` : "\u2014"}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]"><div>{tierAccuracy?.hh_rate != null ? `${tierAccuracy.hh_rate}%` : "\u2014"}</div><div className="text-[8px] text-muted-foreground/40">0% ties</div></td>
               <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{kfmt(pw.ai_human)}</td>
@@ -120,6 +126,8 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                   {tieCell(d.hh_cf != null ? fmtN(d.hh_cf, d.hh_cf_n) : fmt(d.human_human), hhTiePct, "bg-sky-500/[0.06]")}
                   {tieCell(fmtN(d.ai_committee?.rate, d.ai_committee?.pairs), amTiePct, "bg-amber-500/[0.06]")}
                   {tieCell(d.hc_loo_cf != null ? fmtN(d.hc_loo_cf, d.hc_loo_cf_n) : fmt(d.human_committee_loo), hlTiePct, "bg-amber-500/[0.06]")}
+                  {tieCell(fmtN(d.ai_avg?.rate, d.ai_avg?.pairs), amTiePct, "bg-emerald-500/[0.06]")}
+                  {tieCell(fmtN(d.human_avg_loo?.rate, d.human_avg_loo?.pairs), null, "bg-emerald-500/[0.06]")}
                   {tieCell(d.tier_ai?.pairs > 0 ? fmtN(d.tier_ai.rate, d.tier_ai.pairs) : "\u2014", tierTiePct, "bg-rose-500/[0.06]")}
                   {tieCell(d.tier_hh?.pairs > 0 ? fmtN(d.tier_hh.rate, d.tier_hh.pairs) : "\u2014", tierTiePct, "bg-rose-500/[0.06]")}
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{d.ah_cf_kappa != null ? d.ah_cf_kappa.toFixed(2) : "\u2014"}</td>
@@ -127,7 +135,7 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                 </tr>
               );
             })}
-            {concordance && (
+            {concordance && !hideEqualWeighted && (
               <>
                 <tr className="border-t border-border/30 bg-accent/5">
                   <td className="py-1.5 px-2 text-left text-xs font-semibold">Equal-weighted (coin flip)<sup>9,7</sup><div className="text-foreground/40 text-[9px]">per reviewer, ties randomly resolved</div></td>
@@ -135,6 +143,8 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-bold bg-sky-500/[0.06]">{concordance.hh_cf != null ? `${(concordance.hh_cf * 100).toFixed(1)}%` : "\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-emerald-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-emerald-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
@@ -146,6 +156,8 @@ function AgreementTable({ pw, difficulty, totalPairs, totalPairsCf, tieImpact, t
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-sky-500/[0.06]">{concordance.hh != null ? `${(concordance.hh * 100).toFixed(1)}%` : "\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-amber-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-emerald-500/[0.06]">{"\u2014"}</td>
+                  <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-emerald-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60 bg-rose-500/[0.06]">{"\u2014"}</td>
                   <td className="py-1.5 px-1.5 text-right font-mono text-xs font-normal text-foreground/60">{"\u2014"}</td>
@@ -425,7 +437,7 @@ function DatasetRankings({ datasets }) {
   );
 }
 
-function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
+function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered, hideEqualWeighted }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -490,7 +502,7 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered }) {
           See <em>Human vs AI (Unfiltered)</em> for results including within-tier pairs.
         </div>
       )}
-      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} totalPairsCf={data.total_controlled_pairs_cf} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance, hh_cf: p.tie_stats?.cf_concordance_rate, ai_h_cf: p.ai_h_cf_concordance }} />
+      <AgreementTable pw={pw} difficulty={p.by_difficulty} totalPairs={data.total_controlled_pairs} totalPairsCf={data.total_controlled_pairs_cf} tieImpact={p.tie_impact} tieValidation={p.tie_validation} tierAccuracy={p.tier_accuracy} tieStats={p.tie_stats} concordance={{ hh: p.tie_stats?.concordance_rate, ai_h: p.ai_h_concordance, hh_cf: p.tie_stats?.cf_concordance_rate, ai_h_cf: p.ai_h_cf_concordance }} hideEqualWeighted={hideEqualWeighted} />
 
       {/* 2. Ranking Correlation (Pairwise) */}
       {(() => {
@@ -657,6 +669,7 @@ export function ICLR2026BenchmarkSection() {
       headerDesc={<><strong>ICLR 2026</strong> — 3,912 papers. Round-robin AI judging by <strong>GPT-5.4, Claude Opus 4.6, Gemini 3 Pro</strong>. Anonymized abstracts + AI summaries (scores stripped). Human ground truth from OpenReview reviewer scores. Rankable tiers: Oral, Poster, Reject.</>}
       testId="human-ai-benchmark-iclr2026"
       isUnfiltered
+      hideEqualWeighted
     />
     <ICLR2026ConvergenceChart />
   </>;

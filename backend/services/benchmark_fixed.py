@@ -323,6 +323,94 @@ async def _compute_dataset(db, dataset_id: str):
                 cf_hc_total += 1
                 cf_hc_agree += 0.5
 
+    # --- 4c. Human vs Average (LOO) ---
+    # For each pair (A, B) and each reviewer position i:
+    # - LOO avg = avg of all OTHER reviewers' scores for each paper
+    # - Reviewer i's preference: score_A_i vs score_B_i
+    # - Agreement: does reviewer i's preference match LOO avg direction?
+    # This avoids the super-reviewer artifact in the majority-based LOO.
+    h_avg_loo_agree, h_avg_loo_total = 0, 0
+    cf_h_avg_loo_agree, cf_h_avg_loo_total = 0.0, 0
+
+    # Build per-paper score lists keyed by expert name
+    paper_expert_scores = defaultdict(dict)  # {paper_id: {expert: score}}
+    for exp, ratings in expert_ratings.items():
+        for pid, score in ratings.items():
+            paper_expert_scores[pid][exp] = score
+
+    for pair in controlled_pairs_cf:
+        a, b = pair
+        rated = expert_pair_rated.get(pair, set())
+        scores_a = paper_expert_scores.get(a, {})
+        scores_b = paper_expert_scores.get(b, {})
+
+        # Full averages
+        all_scores_a = [s for s in scores_a.values()]
+        all_scores_b = [s for s in scores_b.values()]
+        if len(all_scores_a) < 2 or len(all_scores_b) < 2:
+            continue
+
+        for exp in rated:
+            sa = scores_a.get(exp)
+            sb = scores_b.get(exp)
+            if sa is None or sb is None:
+                continue
+
+            # LOO average: exclude this expert's score from both papers
+            loo_a = [s for e, s in scores_a.items() if e != exp]
+            loo_b = [s for e, s in scores_b.items() if e != exp]
+            if not loo_a or not loo_b:
+                continue
+
+            avg_a = sum(loo_a) / len(loo_a)
+            avg_b = sum(loo_b) / len(loo_b)
+
+            cf_h_avg_loo_total += 1
+            if sa == sb:
+                # Reviewer tied → coin flip
+                cf_h_avg_loo_agree += 0.5 if avg_a != avg_b else 0.5
+            elif avg_a == avg_b:
+                # LOO avg tied → coin flip
+                cf_h_avg_loo_agree += 0.5
+            else:
+                h_avg_loo_total += 1
+                reviewer_prefers_a = sa > sb
+                avg_prefers_a = avg_a > avg_b
+                if reviewer_prefers_a == avg_prefers_a:
+                    h_avg_loo_agree += 1
+                    cf_h_avg_loo_agree += 1
+
+    # --- 4d. AI vs Average ---
+    # For each pair, check if AI preference matches direction of human avg scores.
+    ai_avg_agree, ai_avg_total = 0, 0
+    cf_ai_avg_agree, cf_ai_avg_total = 0.0, 0
+
+    for pair in controlled_pairs_cf:
+        a, b = pair
+        scores_a = paper_expert_scores.get(a, {})
+        scores_b = paper_expert_scores.get(b, {})
+        if not scores_a or not scores_b:
+            continue
+
+        avg_a = sum(scores_a.values()) / len(scores_a)
+        avg_b = sum(scores_b.values()) / len(scores_b)
+
+        cf_ai_avg_total += 1
+        ai_winner = ai_pair.get(pair)
+        if ai_winner is None:
+            cf_ai_avg_agree += 0.5
+            continue
+
+        if avg_a == avg_b:
+            cf_ai_avg_agree += 0.5
+        else:
+            ai_avg_total += 1
+            ai_prefers_a = ai_winner == a
+            avg_prefers_a = avg_a > avg_b
+            if ai_prefers_a == avg_prefers_a:
+                ai_avg_agree += 1
+                cf_ai_avg_agree += 1
+
     # --- 5. AI vs Committee (tier accuracy, rankable only) ---
     tier_ai_agree, tier_ai_total = 0, 0
     tier_hh_agree, tier_hh_total = 0, 0
@@ -573,6 +661,12 @@ async def _compute_dataset(db, dataset_id: str):
             "human_committee_loo": {"agree": hc_loo_agree, "total": hc_loo_total, "rate": _rate(hc_loo_agree, hc_loo_total),
                                     "kappa": _kappa(hc_loo_agree, hc_loo_total), "ci": _wilson_ci(hc_loo_agree, hc_loo_total),
                                     "cf_rate": _cf_rate_ext(cf_hc_loo_agree, cf_hc_loo_total), "cf_total": int(cf_hc_loo_total)},
+            "human_avg_loo": {"agree": h_avg_loo_agree, "total": h_avg_loo_total, "rate": _rate(h_avg_loo_agree, h_avg_loo_total),
+                              "kappa": _kappa(h_avg_loo_agree, h_avg_loo_total), "ci": _wilson_ci(h_avg_loo_agree, h_avg_loo_total),
+                              "cf_rate": _cf_rate_ext(cf_h_avg_loo_agree, cf_h_avg_loo_total), "cf_total": int(cf_h_avg_loo_total)},
+            "ai_avg": {"agree": ai_avg_agree, "total": ai_avg_total, "rate": _rate(ai_avg_agree, ai_avg_total),
+                       "kappa": _kappa(ai_avg_agree, ai_avg_total), "ci": _wilson_ci(ai_avg_agree, ai_avg_total),
+                       "cf_rate": _cf_rate_ext(cf_ai_avg_agree, cf_ai_avg_total), "cf_total": int(cf_ai_avg_total)},
         },
         "tier_accuracy": {
             "ai_agree": tier_ai_agree, "ai_total": tier_ai_total,
@@ -598,6 +692,8 @@ async def _compute_dataset(db, dataset_id: str):
                 "ai_committee": {"rate": _cf_rate_ext(cf_ac_agree, cf_ac_total), "total": int(cf_ac_total)},
                 "human_committee": {"rate": _cf_rate_ext(cf_hc_agree, cf_hc_total), "total": int(cf_hc_total)},
                 "human_committee_loo": {"rate": _cf_rate_ext(cf_hc_loo_agree, cf_hc_loo_total), "total": int(cf_hc_loo_total)},
+                "human_avg_loo": {"rate": _cf_rate_ext(cf_h_avg_loo_agree, cf_h_avg_loo_total), "total": int(cf_h_avg_loo_total)},
+                "ai_avg": {"rate": _cf_rate_ext(cf_ai_avg_agree, cf_ai_avg_total), "total": int(cf_ai_avg_total)},
                 "ai_tier": {"rate": _cf_rate_ext(cf_tier_ai_agree, cf_tier_ai_total), "total": int(cf_tier_ai_total)},
                 "ai_human_kappa": _kappa(int(cf_ah_agree), int(cf_ah_total)),
                 "total_pairs": len(controlled_pairs_cf),
@@ -627,7 +723,7 @@ def _pool_datasets(per_dataset):
     """Pool metrics across datasets (sum raw counts, then compute rates)."""
 
     # Sum raw pairwise counts
-    pw_keys = ["ai_human", "human_human", "ai_committee", "human_committee", "human_committee_loo"]
+    pw_keys = ["ai_human", "human_human", "ai_committee", "human_committee", "human_committee_loo", "human_avg_loo", "ai_avg"]
     pooled_pw = {}
     for key in pw_keys:
         total_agree = sum(d["pairwise"][key]["agree"] for d in per_dataset if key in d["pairwise"])
