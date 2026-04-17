@@ -21,6 +21,7 @@ import ReadingListPage from "@/pages/ReadingListPage";
 import ScoreCardTest from "@/pages/ScoreCardTest";
 import PrivacyPage from "@/pages/PrivacyPage";
 import ImpressumPage from "@/pages/ImpressumPage";
+import CorrelationPreview from "@/pages/CorrelationPreview";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -39,6 +40,7 @@ function AppRouter() {
           <Route path="/" element={<LeaderboardPage />} />
           <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<ArchivePage />} />
           <Route path="/correlation" element={<CorrelationPage />} />
+          <Route path="/correlation-preview" element={<CorrelationPreview />} />
           <Route path="/methodology" element={<MethodologyPage />} />
           <Route path="/validation" element={<ValidationHubPage />} />
           <Route path="/prompts" element={<PromptsPage />} />
