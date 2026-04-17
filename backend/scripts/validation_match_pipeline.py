@@ -46,7 +46,7 @@ PROXY_URL = get_integration_proxy_url() + "/llm"
 OPENAI_KEY_DIRECT = os.environ.get("OPENAI_API_KEY_DIRECT")
 
 # ── paths ──
-CSV_PATH = Path("/tmp/sampled_matches.csv")
+CSV_PATH = Path("/app/memory/sampled_matches.csv")
 SUMMARIES_PATH = ROOT.parent / "memory" / "iclr_2026_summaries.jsonl"
 ABSTRACTS_CACHE = ROOT.parent / "memory" / "iclr_2026_abstracts.jsonl"
 OUTPUT_PATH = ROOT.parent / "memory" / "validation_match_results.jsonl"

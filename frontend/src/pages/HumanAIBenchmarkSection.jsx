@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Scale, ChevronDown, ChevronRight } from "lucide-react";
+import ICLR2026ConvergenceChart from "./ICLR2026ConvergenceChart";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
@@ -650,11 +651,14 @@ export function HumanAIBenchmarkFixedSection() {
 }
 
 export function ICLR2026BenchmarkSection() {
-  return <BenchmarkPage
-    apiUrl="/api/validation/human-ai-benchmark-iclr2026?gt_type=comp"
-    headerDesc={<><strong>ICLR 2026</strong> — 3,912 papers. Round-robin AI judging by <strong>GPT-5.4, Claude Opus 4.6, Gemini 3 Pro</strong>. Anonymized abstracts + AI summaries (scores stripped). Human ground truth from OpenReview reviewer scores. Rankable tiers: Oral, Poster, Reject.</>}
-    testId="human-ai-benchmark-iclr2026"
-    isUnfiltered
-  />;
+  return <>
+    <BenchmarkPage
+      apiUrl="/api/validation/human-ai-benchmark-iclr2026?gt_type=comp"
+      headerDesc={<><strong>ICLR 2026</strong> — 3,912 papers. Round-robin AI judging by <strong>GPT-5.4, Claude Opus 4.6, Gemini 3 Pro</strong>. Anonymized abstracts + AI summaries (scores stripped). Human ground truth from OpenReview reviewer scores. Rankable tiers: Oral, Poster, Reject.</>}
+      testId="human-ai-benchmark-iclr2026"
+      isUnfiltered
+    />
+    <ICLR2026ConvergenceChart />
+  </>;
 }
 
