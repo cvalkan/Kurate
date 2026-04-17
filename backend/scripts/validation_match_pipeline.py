@@ -138,10 +138,6 @@ def parse_comparison_response(response_text: str) -> dict:
     if "winner" not in result or result["winner"] not in ("paper1", "paper2"):
         raise ValueError(f"Invalid response format: {result}")
     return result
-    result = json.loads(text)
-    if "winner" not in result or result["winner"] not in ("paper1", "paper2"):
-        raise ValueError(f"Invalid response format: {result}")
-    return result
 
 
 # ── abstract extraction from PDF text ──
@@ -440,17 +436,27 @@ async def main():
         remaining = remaining[:args.limit]
         print(f"   Limited to {args.limit} matches")
 
-    # 5. Fetch abstracts only for papers in remaining matches
-    needed_ids = set()
-    for id_1, id_2 in remaining:
-        needed_ids.add(id_1)
-        needed_ids.add(id_2)
-    print(f"\n5. Fetching abstracts for {len(needed_ids):,} papers")
-    abstracts = await fetch_abstracts(needed_ids, str(ABSTRACTS_CACHE), parallel=args.parallel_pdf)
+    # 5. Load abstracts from pre-fetched JSONL
+    print(f"\n5. Loading abstracts from {ABSTRACTS_CACHE}")
+    abstracts = {}
+    if ABSTRACTS_CACHE.exists():
+        with open(ABSTRACTS_CACHE) as f:
+            for line in f:
+                try:
+                    doc = json.loads(line)
+                    if doc.get("status") == "ok" and doc.get("abstract"):
+                        abstracts[doc["openreview_id"]] = doc["abstract"]
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    print(f"   {len(abstracts)} abstracts loaded")
 
     # 6. Build paper dicts (same shape as live system)
     print(f"\n6. Building paper dicts...")
     paper_dicts = {}
+    needed_ids = set()
+    for id_1, id_2 in remaining:
+        needed_ids.add(id_1)
+        needed_ids.add(id_2)
     for oid in needed_ids:
         summary_doc = summaries[oid]
         paper_dicts[oid] = {
@@ -464,7 +470,7 @@ async def main():
     # Summary
     print(f"\n{'=' * 60}")
     print(f"Models: {', '.join(m['name'] for m in MODELS)}")
-    print(f"Parallelism: {args.parallel} LLM / {args.parallel_pdf} PDF")
+    print(f"Parallelism: {args.parallel}")
     print(f"Matches to run: {len(remaining):,}")
     est_hours = len(remaining) / args.parallel * 3 / 3600
     print(f"Est. time: ~{est_hours:.1f} hours")
