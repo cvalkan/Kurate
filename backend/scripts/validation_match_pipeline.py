@@ -8,9 +8,12 @@ round-robin model selection (GPT-5.4, Claude Opus 4.6, Gemini 3 Pro).
 Uses the SAME prompt, content format, anonymization, and response parsing
 as the live tournament system — imported directly, not reimplemented.
 
+Outputs to both JSONL (for analysis) and MongoDB validation_matches (for
+consistency with existing ICLR 2024/25 validation datasets).
+
 Usage:
   python3 scripts/validation_match_pipeline.py --dry-run
-  python3 scripts/validation_match_pipeline.py --parallel 30 --parallel-pdf 3
+  python3 scripts/validation_match_pipeline.py --parallel 50
 """
 
 import asyncio
@@ -21,8 +24,9 @@ import random
 import re
 import sys
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -35,9 +39,8 @@ litellm.suppress_debug_info = True
 litellm.set_verbose = False
 
 # ── imports from live system ──
-from core.config import DEFAULT_EVALUATION_PROMPT, EMERGENT_LLM_KEY
+from core.config import DEFAULT_EVALUATION_PROMPT, EMERGENT_LLM_KEY, db
 from emergentintegrations.llm.utils import get_integration_proxy_url
-from scripts.iclr_batch_summaries import anonymize_text, download_pdf_playwright
 
 PROXY_URL = get_integration_proxy_url() + "/llm"
 OPENAI_KEY_DIRECT = os.environ.get("OPENAI_API_KEY_DIRECT")
@@ -47,6 +50,8 @@ CSV_PATH = Path("/tmp/sampled_matches.csv")
 SUMMARIES_PATH = ROOT.parent / "memory" / "iclr_2026_summaries.jsonl"
 ABSTRACTS_CACHE = ROOT.parent / "memory" / "iclr_2026_abstracts.jsonl"
 OUTPUT_PATH = ROOT.parent / "memory" / "validation_match_results.jsonl"
+
+DATASET_ID = "iclr-2026-validation"
 
 # ── models (round-robin) ──
 MODELS = [
@@ -92,7 +97,6 @@ def pick_model() -> dict:
 # ── content building: IDENTICAL to compare_papers() lines 592-598 ──
 
 def build_paper_content(paper: dict) -> str:
-    """Build content string exactly as compare_papers does for abstract_plus_summary mode."""
     abstract = paper.get("abstract", "")
     summary = (paper.get("ai_impact_summary_thinking", "")
                or paper.get("ai_impact_summary_opus46", "")
@@ -102,12 +106,10 @@ def build_paper_content(paper: dict) -> str:
     return f"Abstract: {abstract}"
 
 
-# ── response parsing: IDENTICAL to compare_papers() lines 676-711 ──
+# ── response parsing: IDENTICAL to compare_papers() lines 676-711, with truncation repair ──
 
 def parse_comparison_response(response_text: str) -> dict:
-    """Parse LLM response exactly as compare_papers does, with truncation repair."""
     text = response_text.strip()
-    # Strip markdown code fences
     if text.startswith("```"):
         parts = text.split("```")
         if len(parts) >= 2:
@@ -115,21 +117,17 @@ def parse_comparison_response(response_text: str) -> dict:
             if text.startswith("json"):
                 text = text[4:]
             text = text.strip()
-    # Extract JSON if not at start
     if not text.startswith("{"):
         json_match = re.search(r'\{[^{}]*"winner"[^{}]*\}', text, re.DOTALL)
         if json_match:
             text = json_match.group()
         else:
             raise ValueError(f"No JSON found in response: {text[:200]}")
-    # Try parsing as-is first
     try:
         result = json.loads(text)
     except json.JSONDecodeError:
-        # Repair truncated JSON: close any open string and object
         repaired = text.rstrip()
         if not repaired.endswith("}"):
-            # Close open string if needed
             quote_count = repaired.count('"') - repaired.count('\\"')
             if quote_count % 2 == 1:
                 repaired += '"'
@@ -138,99 +136,6 @@ def parse_comparison_response(response_text: str) -> dict:
     if "winner" not in result or result["winner"] not in ("paper1", "paper2"):
         raise ValueError(f"Invalid response format: {result}")
     return result
-
-
-# ── abstract extraction from PDF text ──
-
-def extract_abstract(full_text: str) -> str:
-    """Extract the abstract section from PDF text."""
-    # Normalize common PDF extraction artifacts: spaces within words
-    normalized = re.sub(r'(?<=[A-Z])\s(?=[A-Z]{2,})', '', full_text)
-
-    m = re.search(
-        r'\bABSTRACT\b\s*(.*?)(?:\b(?:[1-9]\s*\.?\s*I\s*(?:NTRODUCTION|ntroduction)|INTRODUCTION|Introduction|Keywords)\b)',
-        normalized, re.DOTALL
-    )
-    if m and len(m.group(1).strip()) > 50:
-        return m.group(1).strip()[:3000]
-    m = re.search(
-        r'\bAbstract\b[.:\s]*(.*?)(?:\b[1-9]\s+[A-Z])',
-        normalized, re.DOTALL
-    )
-    if m and len(m.group(1).strip()) > 50:
-        return m.group(1).strip()[:3000]
-    sample = full_text[:200]
-    word_chars = sum(1 for c in sample if c.isalpha())
-    if word_chars < len(sample) * 0.3:
-        return ""
-    return ""
-
-
-# ── abstract fetching via Playwright (reuses iclr_batch_summaries.download_pdf_playwright) ──
-
-async def fetch_abstracts(paper_ids: set, cache_path: str, parallel: int = 3) -> dict:
-    """Load abstracts from JSONL cache. Download missing ones via Playwright."""
-    abstracts = {}
-    if os.path.exists(cache_path):
-        with open(cache_path) as f:
-            for line in f:
-                try:
-                    doc = json.loads(line)
-                    if doc.get("status") == "ok" and doc.get("abstract"):
-                        abstracts[doc["openreview_id"]] = doc["abstract"]
-                except (json.JSONDecodeError, KeyError):
-                    continue
-        has = sum(1 for v in abstracts.values() if v)
-        print(f"  Loaded {len(abstracts)} cached ({has} with content)")
-
-    missing = paper_ids - set(abstracts.keys())
-    if not missing:
-        print(f"  All {len(paper_ids)} abstracts cached")
-        return abstracts
-
-    print(f"  Downloading {len(missing)} PDFs via Playwright (parallel={parallel})...")
-    sem = asyncio.Semaphore(parallel)
-    fetched, failed = 0, 0
-
-    async def fetch_one(oid: str):
-        nonlocal fetched, failed
-        async with sem:
-            full_text = await download_pdf_playwright(oid, max_retries=2)
-            if full_text:
-                anon_text = anonymize_text(full_text)
-                abstract = extract_abstract(anon_text)
-                abstracts[oid] = abstract
-                if abstract:
-                    fetched += 1
-                else:
-                    failed += 1
-            else:
-                abstracts[oid] = ""
-                failed += 1
-
-            done = fetched + failed
-            if done % 50 == 0:
-                print(f"    ... {done}/{len(missing)} ({fetched} ok, {failed} empty)")
-
-    # Process in batches, save cache after each
-    missing_list = list(missing)
-    batch_size = 100
-    for i in range(0, len(missing_list), batch_size):
-        batch = missing_list[i:i + batch_size]
-        await asyncio.gather(*[fetch_one(oid) for oid in batch])
-        with open(cache_path, "w") as f:
-            json.dump(abstracts, f)
-        print(f"    Cached after batch {i // batch_size + 1} ({fetched + failed}/{len(missing)})")
-
-    # Close the shared Playwright browser
-    from scripts.iclr_batch_summaries import _browser, _pw
-    if _browser:
-        await _browser.close()
-    if _pw:
-        await _pw.stop()
-
-    print(f"  Done: {fetched} abstracts, {failed} empty/failed")
-    return abstracts
 
 
 # ── data loading ──
@@ -265,11 +170,56 @@ def load_completed(output_path: str) -> set:
     return completed
 
 
+# ── DB seeding ──
+
+async def seed_validation_papers(summaries: dict, abstracts: dict) -> dict:
+    """Seed validation_papers collection. Returns {openreview_id: uuid} mapping."""
+    # Check if already seeded
+    existing = await db.validation_papers.count_documents({"dataset_id": DATASET_ID})
+    if existing > 0:
+        # Load existing mapping
+        oid_to_uuid = {}
+        async for doc in db.validation_papers.find(
+            {"dataset_id": DATASET_ID},
+            {"_id": 0, "id": 1, "openreview_id": 1},
+        ):
+            oid_to_uuid[doc["openreview_id"]] = doc["id"]
+        print(f"   Already seeded: {len(oid_to_uuid)} papers")
+        return oid_to_uuid
+
+    # Seed fresh
+    docs = []
+    oid_to_uuid = {}
+    for oid, summary_doc in summaries.items():
+        paper_uuid = str(uuid.uuid4())
+        oid_to_uuid[oid] = paper_uuid
+        docs.append({
+            "id": paper_uuid,
+            "dataset_id": DATASET_ID,
+            "openreview_id": oid,
+            "title": summary_doc.get("title", ""),
+            "abstract": abstracts.get(oid, ""),
+            "ai_impact_summary_thinking": summary_doc.get("summary", ""),
+            "ai_rating": summary_doc.get("ai_rating"),
+            "source": "iclr_openreview",
+            "year": 2026,
+            "label": summary_doc.get("label", ""),
+            "status": summary_doc.get("status", ""),
+            "reviewer_scores": summary_doc.get("reviewer_scores"),
+        })
+
+    if docs:
+        await db.validation_papers.insert_many(docs, ordered=False)
+    print(f"   Seeded {len(docs)} papers")
+    return oid_to_uuid
+
+
 # ── single comparison ──
 
 async def run_comparison(
     id_1: str, id_2: str,
     paper1: dict, paper2: dict,
+    uuid_1: str, uuid_2: str,
     sem: asyncio.Semaphore,
     output_file,
     output_lock: asyncio.Lock,
@@ -308,7 +258,6 @@ async def run_comparison(
             "api_key": model["api_key"],
             "max_tokens": 800,
         }
-        # GPT-5.4 only supports temperature=1
         if model["name"] != "gpt-5.4":
             params["temperature"] = 0.3
         if model["api_base"]:
@@ -317,6 +266,9 @@ async def run_comparison(
             params["custom_llm_provider"] = model["custom_llm_provider"]
 
         t0 = time.time()
+        match_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+
         try:
             loop = asyncio.get_event_loop()
             resp = await loop.run_in_executor(None, lambda: litellm.completion(**params))
@@ -324,32 +276,53 @@ async def run_comparison(
 
             parsed = parse_comparison_response(raw)
 
-            # Map winner back through flip
             winner_raw = parsed["winner"]
             if winner_raw == "paper1":
-                winner_id = id_2 if flipped else id_1
+                winner_oid = id_2 if flipped else id_1
             else:
-                winner_id = id_1 if flipped else id_2
+                winner_oid = id_1 if flipped else id_2
 
+            winner_uuid = uuid_2 if winner_oid == id_2 else uuid_1
             elapsed = time.time() - t0
             tokens_in = resp.usage.prompt_tokens if resp.usage else 0
             tokens_out = resp.usage.completion_tokens if resp.usage else 0
+            reasoning = parsed.get("reasoning", "")
 
-            result = {
+            # JSONL result (uses openreview_ids)
+            jsonl_result = {
                 "id_1": id_1,
                 "id_2": id_2,
-                "winner": winner_id,
+                "winner": winner_oid,
                 "model": model["name"],
                 "flipped": flipped,
-                "reasoning": parsed.get("reasoning", ""),
+                "reasoning": reasoning,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
                 "elapsed_s": round(elapsed, 2),
             }
 
+            # DB result (uses UUIDs, matches existing validation_matches schema)
+            db_doc = {
+                "id": match_id,
+                "dataset_id": DATASET_ID,
+                "paper1_id": uuid_1,
+                "paper2_id": uuid_2,
+                "winner_id": winner_uuid,
+                "model_used": {"provider": model["provider"], "model": model["model"]},
+                "reasoning": reasoning,
+                "content_mode": "abstract_plus_summary",
+                "completed": True,
+                "failed": False,
+                "created_at": now,
+                "tokens": {"input_est": tokens_in, "output_est": tokens_out},
+                "flipped": flipped,
+            }
+
             async with output_lock:
-                output_file.write(json.dumps(result) + "\n")
+                output_file.write(json.dumps(jsonl_result) + "\n")
                 output_file.flush()
+
+            await db.validation_matches.insert_one(db_doc)
 
             stats["ok"] += 1
             stats["tokens_in"] += tokens_in
@@ -358,33 +331,55 @@ async def run_comparison(
 
         except Exception as e:
             elapsed = time.time() - t0
-            result = {
+            err_str = str(e)[:300]
+
+            jsonl_result = {
                 "id_1": id_1,
                 "id_2": id_2,
                 "winner": None,
                 "model": model["name"],
                 "flipped": flipped,
-                "error": str(e)[:200],
+                "error": err_str,
                 "elapsed_s": round(elapsed, 2),
             }
+
+            db_doc = {
+                "id": match_id,
+                "dataset_id": DATASET_ID,
+                "paper1_id": uuid_1,
+                "paper2_id": uuid_2,
+                "model_used": {"provider": model["provider"], "model": model["model"]},
+                "content_mode": "abstract_plus_summary",
+                "completed": False,
+                "failed": True,
+                "error": err_str,
+                "created_at": now,
+                "flipped": flipped,
+            }
+
             async with output_lock:
-                output_file.write(json.dumps(result) + "\n")
+                output_file.write(json.dumps(jsonl_result) + "\n")
                 output_file.flush()
 
+            try:
+                await db.validation_matches.insert_one(db_doc)
+            except Exception:
+                pass
+
             stats["failed"] += 1
-            if "rate" in str(e).lower() or "429" in str(e):
+            if "rate" in err_str.lower() or "429" in err_str:
                 stats["rate_limited"] += 1
 
         stats["total"] += 1
         if stats["total"] % 50 == 0:
             elapsed_total = time.time() - stats["start_time"]
             rate = stats["total"] / elapsed_total * 3600
-            remaining = (stats["target"] - stats["total"]) / (rate / 3600) if rate > 0 else 0
+            eta = (stats["target"] - stats["total"]) / (rate / 3600) if rate > 0 else 0
             print(
                 f"  [{stats['total']:>6}/{stats['target']}]"
                 f"  ok={stats['ok']} fail={stats['failed']}"
                 f"  rate={rate:.0f}/hr"
-                f"  ETA={remaining/60:.0f}m"
+                f"  ETA={eta/60:.0f}m"
                 f"  tokens={stats['tokens_in']+stats['tokens_out']:,}"
                 f"  models={stats['by_model']}"
             )
@@ -396,7 +391,6 @@ async def main():
     import argparse
     parser = argparse.ArgumentParser(description="Validation match pipeline")
     parser.add_argument("--parallel", type=int, default=30, help="Max concurrent LLM calls")
-    parser.add_argument("--parallel-pdf", type=int, default=3, help="Max concurrent PDF downloads")
     parser.add_argument("--dry-run", action="store_true", help="Load data and report stats without running")
     parser.add_argument("--limit", type=int, default=0, help="Limit matches (0 = all)")
     parser.add_argument("--csv", type=str, default=str(CSV_PATH), help="Input CSV path")
@@ -427,7 +421,7 @@ async def main():
             skipped += 1
     print(f"\n3. Runnable matches: {len(runnable):,} (skipped {skipped} missing summaries)")
 
-    # 4. Resume
+    # 4. Resume from JSONL
     completed = load_completed(args.output)
     remaining = [(a, b) for a, b in runnable if f"{a}|{b}" not in completed]
     print(f"\n4. Resumability: {len(completed):,} done, {len(remaining):,} remaining")
@@ -436,7 +430,7 @@ async def main():
         remaining = remaining[:args.limit]
         print(f"   Limited to {args.limit} matches")
 
-    # 5. Load abstracts from pre-fetched JSONL
+    # 5. Load abstracts
     print(f"\n5. Loading abstracts from {ABSTRACTS_CACHE}")
     abstracts = {}
     if ABSTRACTS_CACHE.exists():
@@ -450,8 +444,12 @@ async def main():
                     continue
     print(f"   {len(abstracts)} abstracts loaded")
 
-    # 6. Build paper dicts (same shape as live system)
-    print(f"\n6. Building paper dicts...")
+    # 6. Seed validation_papers in DB
+    print(f"\n6. Seeding validation_papers (dataset_id={DATASET_ID})")
+    oid_to_uuid = await seed_validation_papers(summaries, abstracts)
+
+    # 7. Build paper dicts
+    print(f"\n7. Building paper dicts...")
     paper_dicts = {}
     needed_ids = set()
     for id_1, id_2 in remaining:
@@ -472,9 +470,10 @@ async def main():
     print(f"Models: {', '.join(m['name'] for m in MODELS)}")
     print(f"Parallelism: {args.parallel}")
     print(f"Matches to run: {len(remaining):,}")
-    est_hours = len(remaining) / args.parallel * 3 / 3600
+    est_hours = len(remaining) / args.parallel * 5 / 3600
     print(f"Est. time: ~{est_hours:.1f} hours")
-    print(f"Output: {args.output}")
+    print(f"Output JSONL: {args.output}")
+    print(f"Output DB: validation_matches (dataset_id={DATASET_ID})")
     print(f"{'=' * 60}")
 
     if args.dry_run:
@@ -485,8 +484,8 @@ async def main():
         print("\nAll matches already completed!")
         return
 
-    # 7. Run comparisons
-    print(f"\n7. Starting {len(remaining):,} comparisons...")
+    # 8. Run comparisons
+    print(f"\n8. Starting {len(remaining):,} comparisons...")
     sem = asyncio.Semaphore(args.parallel)
     output_lock = asyncio.Lock()
     stats = {
@@ -500,6 +499,7 @@ async def main():
             run_comparison(
                 id_1, id_2,
                 paper_dicts[id_1], paper_dicts[id_2],
+                oid_to_uuid[id_1], oid_to_uuid[id_2],
                 sem, out_f, output_lock, stats,
             )
             for id_1, id_2 in remaining
