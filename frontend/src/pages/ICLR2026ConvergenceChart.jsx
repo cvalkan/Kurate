@@ -23,7 +23,11 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
   if (loading) return <div className="text-xs text-muted-foreground animate-pulse p-4">Loading convergence data...</div>;
   if (!data?.checkpoints?.length) return null;
 
-  const points = data.checkpoints.filter(cp => cp.total_matches > 0 && (cp.ai_vs_avg_rating || cp.ai_vs_committee));
+  const points = data.checkpoints.filter(cp =>
+    cp.total_matches > 0
+    && (cp.ai_vs_avg_rating || cp.ai_vs_committee)
+    && cp.avg_matches <= 30
+  );
   if (points.length < 2) return null;
 
   const siBaseline = data.si_baseline?.rho ?? null;
@@ -33,8 +37,7 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
   const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_T - PAD_B;
 
-  const xValues = points.map(p => p.avg_matches).filter(v => v > 0);
-  const xMax = Math.max(...xValues);
+  const xMax = 30;
   const xMin = 0;
   const xScale = (v) => PAD_L + ((v - xMin) / (xMax - xMin)) * plotW;
 

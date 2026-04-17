@@ -10,6 +10,13 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 
 ## What's Been Implemented
 
+### Convergence Chart on Fixed Benchmark + Fair Pooling (Apr 17, 2026)
+- Added convergence chart to AI vs. Human (Fixed) page via new `/api/validation/fixed-convergence` endpoint
+- Refactored `_compute_convergence` to run **per-dataset** TrueSkill tournaments and equal-weight average ρ across datasets, eliminating cross-dataset score-scale mixing artifact
+- Added single-item baseline as dashed orange horizontal reference line on both ICLR 2026 and Fixed convergence charts (ρ from ai_rating/single_item_score vs h1_avg_rating)
+- Chart X-axis capped at 0–30 matches/paper; only emit a checkpoint when all datasets reached that depth (prevents spurious drops at deep matches where only 1-2 datasets contribute)
+- Fixed bug: precompute registry routed `human-ai-benchmark-fixed-comp` through the wrong compute function; now uses `compute_fixed_benchmark` directly
+
 ### ICLR 2026 Match-Count Consistency Cleanup (Apr 17, 2026)
 - Identified that `/app/memory/sampled_matches.csv` had been overwritten with a wrong 58K pair set; only 454/58,363 pairs overlapped with the user's target
 - Restored correct CSV (user-uploaded) to `/app/memory/sampled_matches.csv`; old file archived as `sampled_matches_WRONG_20260417.csv.bak`

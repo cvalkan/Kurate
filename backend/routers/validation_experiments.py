@@ -3886,11 +3886,13 @@ async def _compute_convergence(dataset_ids):
             ds_results.append(_compute_point(final_avg, len(ds_matches)))
         per_ds_results[ds_id] = ds_results
 
-    # Pool: for each checkpoint index, equal-weight average across datasets
-    # that reached that checkpoint (the ICLR 2026 case has a single dataset,
-    # so this is a no-op for it).
+    # Pool: equal-weight average across datasets at each checkpoint index.
+    # Only emit a pooled point if ALL eligible datasets reached that depth,
+    # so the average is always over the same denominator (no spurious drops
+    # from a single deep dataset pulling the mean at high match counts).
     pooled = []
     max_len = max((len(v) for v in per_ds_results.values()), default=0)
+    n_datasets = len(per_ds_results)
     for i in range(max_len):
         avg_vals, tier_vals, match_vals, avg_m_vals = [], [], [], []
         for ds_id, rs in per_ds_results.items():
@@ -3905,11 +3907,16 @@ async def _compute_convergence(dataset_ids):
                 match_vals.append(r["total_matches"])
             if r.get("avg_matches") is not None:
                 avg_m_vals.append(r["avg_matches"])
+        # Require all datasets to have reached this checkpoint for a fair avg
+        n_contributing = len(avg_m_vals)
+        if n_contributing < n_datasets:
+            continue
         if not avg_m_vals:
             continue
         point = {
             "avg_matches": round(sum(avg_m_vals) / len(avg_m_vals), 1),
             "total_matches": sum(match_vals),
+            "n_datasets": n_contributing,
         }
         if avg_vals:
             point["ai_vs_avg_rating"] = round(sum(avg_vals) / len(avg_vals), 4)
