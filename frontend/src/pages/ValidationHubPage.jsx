@@ -444,6 +444,7 @@ export default function ValidationHubPage() {
           {selected === "exp-cycle-analysis" && <AllPairsSection />}
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}
+          {selected === "exp-positional-bias" && <PositionalBiasSection />}
           {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
         </div>

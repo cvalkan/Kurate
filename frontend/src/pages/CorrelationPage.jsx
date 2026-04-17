@@ -9,6 +9,8 @@ import { ScoringMethodSection } from "@/components/ScoringMethodSection";
 import { PwVsSiSection } from "@/components/PwVsSiSection";
 import { InterModelSection } from "@/components/InterModelSection";
 
+import PositionalBiasSection from "@/pages/PositionalBiasSection";
+
 const API = process.env.REACT_APP_BACKEND_URL;
 
 class SectionBoundary extends Component {
@@ -171,6 +173,10 @@ export default function CorrelationPage() {
 
       <SectionBoundary>
         <SiRatingSection category={category || null} hidePwVsSi siData={siData} />
+      </SectionBoundary>
+
+      <SectionBoundary>
+        <PositionalBiasSection />
       </SectionBoundary>
 
     </div>

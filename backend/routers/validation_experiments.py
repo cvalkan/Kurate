@@ -3410,3 +3410,85 @@ async def _compute_institution_bias_samepair():
         "total_matches": sum(pooled[c]["total"] for c in categories if c != "prestige_gap"),
         "total_datasets": len([d for d in by_dataset if by_dataset[d].get("shared_pairs", 0) > 0]),
     }
+
+
+
+# ── Positional Bias Analysis (live tournament matches) ──
+
+@router.get("/positional-bias")
+async def positional_bias():
+    """Compute positional bias from the live tournament matches collection.
+
+    In the scheduler, papers are randomly flipped before being sent to the LLM,
+    and stored as paper1_id (shown first) and paper2_id (shown second).
+    So winner_id == paper1_id means the model picked the first-position paper.
+    """
+    matches = await collect_all(
+        db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+        )
+    )
+
+    if not matches:
+        return {"models": [], "total": 0, "message": "No completed matches yet"}
+
+    by_model = defaultdict(lambda: {"pos1": 0, "pos2": 0, "total": 0})
+    overall = {"pos1": 0, "pos2": 0, "total": 0}
+
+    for m in matches:
+        model_name = m.get("model_used", {}).get("model")
+        if not model_name:
+            continue
+        winner = m.get("winner_id")
+        p1 = m.get("paper1_id")
+        if not winner or not p1:
+            continue
+
+        picked_first = (winner == p1)
+        bucket = by_model[model_name]
+        if picked_first:
+            bucket["pos1"] += 1
+            overall["pos1"] += 1
+        else:
+            bucket["pos2"] += 1
+            overall["pos2"] += 1
+        bucket["total"] += 1
+        overall["total"] += 1
+
+    results = []
+    for model_name, stats in sorted(by_model.items(), key=lambda x: -x[1]["total"]):
+        n = stats["total"]
+        if n == 0:
+            continue
+        pos1_rate = stats["pos1"] / n
+        p_value = float(scipy_stats.binomtest(stats["pos1"], n, 0.5).pvalue)
+        results.append({
+            "model": model_name,
+            "pos1_wins": stats["pos1"],
+            "pos2_wins": stats["pos2"],
+            "total": n,
+            "pos1_rate": round(pos1_rate * 100, 2),
+            "pos2_rate": round((1 - pos1_rate) * 100, 2),
+            "bias_direction": "first" if pos1_rate > 0.5 else "second",
+            "bias_magnitude": round(abs(pos1_rate - 0.5) * 100, 2),
+            "p_value": round(p_value, 6),
+            "significant": p_value < 0.05,
+        })
+
+    n_all = overall["total"]
+    pos1_rate_all = overall["pos1"] / n_all if n_all else 0
+    p_all = float(scipy_stats.binomtest(overall["pos1"], n_all, 0.5).pvalue) if n_all else 1.0
+
+    return {
+        "models": results,
+        "overall": {
+            "pos1_wins": overall["pos1"],
+            "pos2_wins": overall["pos2"],
+            "total": n_all,
+            "pos1_rate": round(pos1_rate_all * 100, 2),
+            "p_value": round(p_all, 6),
+            "significant": p_all < 0.05,
+        },
+        "note": "Position 1 = paper presented first in the prompt. The scheduler randomly flips presentation order for each match. A 50/50 split indicates no positional bias. P-values from exact binomial test (H0: p=0.5).",
+    }
