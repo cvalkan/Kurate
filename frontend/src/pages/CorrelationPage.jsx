@@ -102,7 +102,7 @@ export default function CorrelationPage() {
           Model Correlation
         </h1>
         <p className="text-muted-foreground text-sm max-w-2xl">
-          How well do GPT-5.2, Claude Opus 4.6, and Gemini 3 Pro agree on paper rankings?
+          How well do Claude Opus, GPT-5.2, and Gemini 3 Pro agree on paper rankings?
         </p>
         <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg max-w-2xl">
           <p className="text-xs text-amber-900">

@@ -25,7 +25,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
 
   // Build SI rows from inter_model_si dict
   const siRows = [];
-  const modelLabelMap = { claude: "Claude", gpt: "GPT-5.2", gemini: "Gemini" };
+  const modelLabelMap = { claude: "Claude Opus", gpt: "GPT-5.2", gemini: "Gemini 3 Pro" };
   const modelOrder = ["claude", "gpt", "gemini"];
   for (let i = 0; i < modelOrder.length; i++) {
     for (let j = i + 1; j < modelOrder.length; j++) {
@@ -51,7 +51,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
           Inter-Model Agreement
         </h2>
         <p className="text-muted-foreground text-xs mt-1 max-w-2xl">
-          How similarly do Claude, GPT-5.2, and Gemini 3 Pro rank papers?
+          How similarly do Claude Opus, GPT-5.2, and Gemini 3 Pro rank papers?
           PW uses each model's own head-to-head match results; SI uses each model's direct 1–10 scores.
         </p>
       </div>

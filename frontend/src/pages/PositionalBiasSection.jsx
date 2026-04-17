@@ -15,8 +15,8 @@ const MODEL_COLORS = {
 const MODEL_LABELS = {
   "gpt-5.2": "GPT-5.2",
   "gpt-5.4": "GPT-5.4",
-  "claude-opus-4-5-20251101": "Opus 4.5",
-  "claude-opus-4-6": "Opus 4.6",
+  "claude-opus-4-5-20251101": "Claude Opus 4.5",
+  "claude-opus-4-6": "Claude Opus 4.6",
   "gemini-3-pro-preview": "Gemini 3 Pro",
 };
 
