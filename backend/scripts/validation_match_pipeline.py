@@ -96,12 +96,30 @@ def pick_model() -> dict:
 
 # ── content building: IDENTICAL to compare_papers() lines 592-598 ──
 
+def _strip_score_json(text: str) -> str:
+    """Remove trailing JSON score block (```json {...} ```) from summaries.
+    
+    The ICLR 2026 batch summaries include a numeric rating JSON at the end
+    (e.g. {"score": 3.5, ...}). This must NOT be fed into pairwise comparisons
+    as it would let the judge simply compare numbers instead of reasoning.
+    The live system's summaries do not include these scores.
+    """
+    # Match ```json block (complete or truncated) at end
+    stripped = re.sub(r'\s*```json\s*\n\s*\{.*?"score".*$', '', text, flags=re.DOTALL)
+    if stripped != text:
+        return stripped.rstrip()
+    # Match bare { ... } with "score" at end (no code fence, complete or truncated)
+    stripped = re.sub(r'\s*\{[^{}]*"score".*$', '', text, flags=re.DOTALL)
+    return stripped.rstrip()
+
+
 def build_paper_content(paper: dict) -> str:
     abstract = paper.get("abstract", "")
     summary = (paper.get("ai_impact_summary_thinking", "")
                or paper.get("ai_impact_summary_opus46", "")
                or paper.get("ai_impact_summary", ""))
     if summary:
+        summary = _strip_score_json(summary)
         return f"Abstract: {abstract}\n\nAI Impact Assessment:\n{summary}"
     return f"Abstract: {abstract}"
 
