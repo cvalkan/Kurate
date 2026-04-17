@@ -45,7 +45,7 @@ OPENAI_KEY_DIRECT = os.environ.get("OPENAI_API_KEY_DIRECT")
 # ── paths ──
 CSV_PATH = Path("/tmp/sampled_matches.csv")
 SUMMARIES_PATH = ROOT.parent / "memory" / "iclr_2026_summaries.jsonl"
-ABSTRACTS_CACHE = ROOT.parent / "memory" / "iclr_2026_abstracts.json"
+ABSTRACTS_CACHE = ROOT.parent / "memory" / "iclr_2026_abstracts.jsonl"
 OUTPUT_PATH = ROOT.parent / "memory" / "validation_match_results.jsonl"
 
 # ── models (round-robin) ──
@@ -157,11 +157,17 @@ def extract_abstract(full_text: str) -> str:
 # ── abstract fetching via Playwright (reuses iclr_batch_summaries.download_pdf_playwright) ──
 
 async def fetch_abstracts(paper_ids: set, cache_path: str, parallel: int = 3) -> dict:
-    """Fetch abstracts from OpenReview PDFs via Playwright, with file cache."""
+    """Load abstracts from JSONL cache. Download missing ones via Playwright."""
     abstracts = {}
     if os.path.exists(cache_path):
         with open(cache_path) as f:
-            abstracts = json.load(f)
+            for line in f:
+                try:
+                    doc = json.loads(line)
+                    if doc.get("status") == "ok" and doc.get("abstract"):
+                        abstracts[doc["openreview_id"]] = doc["abstract"]
+                except (json.JSONDecodeError, KeyError):
+                    continue
         has = sum(1 for v in abstracts.values() if v)
         print(f"  Loaded {len(abstracts)} cached ({has} with content)")
 
@@ -289,8 +295,10 @@ async def run_comparison(
             ],
             "api_key": model["api_key"],
             "max_tokens": 500,
-            "temperature": 0.3,
         }
+        # GPT-5.4 only supports temperature=1
+        if model["name"] != "gpt-5.4":
+            params["temperature"] = 0.3
         if model["api_base"]:
             params["api_base"] = model["api_base"]
         if model["custom_llm_provider"]:
