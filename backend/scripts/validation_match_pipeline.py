@@ -105,7 +105,7 @@ def build_paper_content(paper: dict) -> str:
 # ── response parsing: IDENTICAL to compare_papers() lines 676-711 ──
 
 def parse_comparison_response(response_text: str) -> dict:
-    """Parse LLM response exactly as compare_papers does."""
+    """Parse LLM response exactly as compare_papers does, with truncation repair."""
     text = response_text.strip()
     # Strip markdown code fences
     if text.startswith("```"):
@@ -122,6 +122,22 @@ def parse_comparison_response(response_text: str) -> dict:
             text = json_match.group()
         else:
             raise ValueError(f"No JSON found in response: {text[:200]}")
+    # Try parsing as-is first
+    try:
+        result = json.loads(text)
+    except json.JSONDecodeError:
+        # Repair truncated JSON: close any open string and object
+        repaired = text.rstrip()
+        if not repaired.endswith("}"):
+            # Close open string if needed
+            quote_count = repaired.count('"') - repaired.count('\\"')
+            if quote_count % 2 == 1:
+                repaired += '"'
+            repaired += "}"
+        result = json.loads(repaired)
+    if "winner" not in result or result["winner"] not in ("paper1", "paper2"):
+        raise ValueError(f"Invalid response format: {result}")
+    return result
     result = json.loads(text)
     if "winner" not in result or result["winner"] not in ("paper1", "paper2"):
         raise ValueError(f"Invalid response format: {result}")
@@ -294,7 +310,7 @@ async def run_comparison(
                 {"role": "user", "content": prompt},
             ],
             "api_key": model["api_key"],
-            "max_tokens": 500,
+            "max_tokens": 800,
         }
         # GPT-5.4 only supports temperature=1
         if model["name"] != "gpt-5.4":
