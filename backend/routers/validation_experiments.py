@@ -3497,7 +3497,9 @@ async def iclr2026_tournament():
         total_matches_per_paper[p1] += 1
         total_matches_per_paper[p2] += 1
 
-    # 6. Build leaderboard
+    # 6. Build leaderboard (with Elo normalization matching live system)
+    TS_SCALE = 10.0
+    SCORE_BASE = 1200
     leaderboard = []
     for pid, rating in ratings.items():
         orid = uuid_to_orid.get(pid, "")
@@ -3507,11 +3509,14 @@ async def iclr2026_tournament():
         l = losses[pid]
         wr = (w / n * 100) if n > 0 else 50
         human_avg = human_scores.get(orid)
+        conservative = rating.mu - 3 * rating.sigma
+        elo = round(conservative * TS_SCALE + SCORE_BASE)
         leaderboard.append({
             "paper_id": pid,
             "openreview_id": orid,
             "title": pm.get("title", ""),
             "label": pm.get("label", ""),
+            "elo": elo,
             "trueskill_mu": round(rating.mu, 3),
             "trueskill_sigma": round(rating.sigma, 3),
             "wins": w,
@@ -3521,7 +3526,7 @@ async def iclr2026_tournament():
             "human_avg": round(human_avg, 2) if human_avg is not None else None,
         })
 
-    leaderboard.sort(key=lambda x: -x["trueskill_mu"])
+    leaderboard.sort(key=lambda x: -x["elo"])
     for i, entry in enumerate(leaderboard):
         entry["rank"] = i + 1
 
@@ -3545,10 +3550,42 @@ async def iclr2026_tournament():
             "n_paired": len(paired_ts),
         }
 
-    # 8. Per-model stats
+    # 8. Per-model stats and per-model correlation
     model_stats = []
-    for model, count in sorted(model_counts.items(), key=lambda x: -x[1]):
-        model_stats.append({"model": model, "matches": count})
+    per_model_correlation = []
+    for model_name, count in sorted(model_counts.items(), key=lambda x: -x[1]):
+        model_stats.append({"model": model_name, "matches": count})
+        # Compute per-model TrueSkill
+        m_env = ts.TrueSkill(draw_probability=0.0)
+        m_ratings = {}
+        for m in matches:
+            if m.get("model_used", {}).get("model") != model_name:
+                continue
+            p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
+            if p1 not in m_ratings:
+                m_ratings[p1] = m_env.create_rating()
+            if p2 not in m_ratings:
+                m_ratings[p2] = m_env.create_rating()
+            r1, r2 = m_ratings[p1], m_ratings[p2]
+            if w == p1:
+                (nr1,), (nr2,) = m_env.rate([(r1,), (r2,)], ranks=[0, 1])
+            else:
+                (nr1,), (nr2,) = m_env.rate([(r1,), (r2,)], ranks=[1, 0])
+            m_ratings[p1] = nr1
+            m_ratings[p2] = nr2
+        m_ts, m_human = [], []
+        for pid, rating in m_ratings.items():
+            orid = uuid_to_orid.get(pid, "")
+            if orid in human_scores:
+                m_ts.append(rating.mu)
+                m_human.append(human_scores[orid])
+        if len(m_ts) > 10:
+            sp = scipy_stats.spearmanr(m_ts, m_human)
+            per_model_correlation.append({
+                "model": model_name,
+                "spearman": round(float(sp.statistic), 4),
+                "n": len(m_ts),
+            })
 
     return {
         "status": "ok",
@@ -3558,6 +3595,7 @@ async def iclr2026_tournament():
         "progress_pct": round(len(matches) / 57256 * 100, 1),
         "correlation": correlation,
         "model_stats": model_stats,
+        "per_model_correlation": per_model_correlation,
         "leaderboard_top": leaderboard[:25],
         "leaderboard_bottom": leaderboard[-10:],
         "avg_matches_per_paper": round(sum(total_matches_per_paper.values()) / max(len(total_matches_per_paper), 1), 1),
