@@ -3724,3 +3724,165 @@ async def human_ai_benchmark_iclr2026(gt_type: str = Query("comp")):
         import traceback
         traceback.print_exc()
         return {"status": "no_data", "message": str(e)}
+
+
+@router.get("/iclr2026-convergence")
+async def iclr2026_convergence():
+    """Compute how the 4 ranking correlations grow with matches/paper for ICLR 2026."""
+    import ast, math
+    from collections import Counter, defaultdict
+
+    dataset_id = "iclr-2026-validation"
+
+    # Load papers with evaluations and decisions
+    papers = await collect_all(db.validation_papers.find(
+        {"dataset_id": dataset_id},
+        {"_id": 0, "id": 1, "openreview_id": 1, "evaluations": 1, "decision": 1,
+         "reviewer_scores": 1, "h1_avg_rating": 1},
+    ))
+    papers_by_id = {p["id"]: p for p in papers}
+    oid_to_uuid = {p.get("openreview_id"): p["id"] for p in papers if p.get("openreview_id")}
+
+    # Human reviewer avg scores
+    human_avg = {}
+    for p in papers:
+        if p.get("h1_avg_rating"):
+            human_avg[p["id"]] = p["h1_avg_rating"]
+
+    # Build human pairwise ground truths
+    # 1. Individual expert pairs
+    expert_ratings = defaultdict(dict)
+    for p in papers:
+        for ev in p.get("evaluations", []):
+            name = ev.get("evaluator", "")
+            if name:
+                expert_ratings[name][p["id"]] = ev["rating_value"]
+
+    indiv_pairs = {}  # pair -> winner (from individual expert votes, each a separate match)
+    indiv_pair_list = []
+    for exp, ratings in expert_ratings.items():
+        rated = list(ratings.keys())
+        for i in range(len(rated)):
+            for j in range(i + 1, len(rated)):
+                a, b = rated[i], rated[j]
+                if ratings[a] != ratings[b]:
+                    pair = tuple(sorted([a, b]))
+                    winner = a if ratings[a] > ratings[b] else b
+                    indiv_pair_list.append((pair, winner))
+
+    # 2. Majority vote pairs
+    pair_votes = defaultdict(list)
+    for pair, winner in indiv_pair_list:
+        pair_votes[pair].append(winner)
+    maj_pairs = {}
+    for pair, votes in pair_votes.items():
+        c = Counter(votes)
+        best, n = c.most_common(1)[0]
+        if n > len(votes) / 2:
+            maj_pairs[pair] = best
+
+    # 3. Committee tier decisions
+    TIER_ORDER = {"Oral": 4, "Poster": 3, "Reject": 2, "Withdraw": 1, "Desk Reject": 0}
+    tier_pairs = {}
+    paper_tier = {p["id"]: TIER_ORDER.get(p.get("decision"), -1) for p in papers}
+
+    # Human WR scores (for reference, built from all data)
+    from services.benchmark_fixed import _simple_wr_scores
+    h_indiv_wr = _simple_wr_scores(indiv_pair_list, list(papers_by_id.keys()))
+    h_maj_wr = _simple_wr_scores(list(maj_pairs.items()), list(papers_by_id.keys()))
+
+    # Load ALL AI matches ordered by creation time
+    ai_matches = await collect_all(db.validation_matches.find(
+        {"dataset_id": dataset_id, "completed": True, "winner_id": {"$exists": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1},
+    ).sort("created_at", 1))
+
+    # Build convergence curve using incremental TrueSkill (single pass)
+    import trueskill
+    env = trueskill.TrueSkill(draw_probability=0.0)
+    TS_SCALE = 10.0
+    SCORE_BASE = 1200
+
+    ratings = {}
+    match_counts = Counter()
+    all_paper_ids = list(papers_by_id.keys())
+
+    checkpoints = list(range(1, 31))
+    next_cp_idx = 0
+    results = []
+
+    def _get_ts_scores():
+        scores = {}
+        for pid in all_paper_ids:
+            if pid in ratings:
+                r = ratings[pid]
+                scores[pid] = (r.mu - 3 * r.sigma) * TS_SCALE + SCORE_BASE
+        return scores
+
+    def _compute_correlations(ts_scores, avg_m, total_m):
+        point = {"avg_matches": round(avg_m, 1), "total_matches": total_m}
+        active = {pid: s for pid, s in ts_scores.items() if s != SCORE_BASE}
+
+        shared = sorted([pid for pid in active if pid in h_indiv_wr and h_indiv_wr[pid]])
+        if len(shared) > 20:
+            sp = scipy_stats.spearmanr([active[p] for p in shared], [h_indiv_wr[p] for p in shared])
+            point["ai_vs_individual"] = round(float(sp.statistic), 4)
+
+        shared_avg = sorted([pid for pid in active if pid in human_avg])
+        if len(shared_avg) > 20:
+            sp = scipy_stats.spearmanr([active[p] for p in shared_avg], [human_avg[p] for p in shared_avg])
+            point["ai_vs_avg_rating"] = round(float(sp.statistic), 4)
+
+        shared_maj = sorted([pid for pid in active if pid in h_maj_wr and h_maj_wr[pid]])
+        if len(shared_maj) > 20:
+            sp = scipy_stats.spearmanr([active[p] for p in shared_maj], [h_maj_wr[p] for p in shared_maj])
+            point["ai_vs_majority"] = round(float(sp.statistic), 4)
+
+        shared_tier = sorted([pid for pid in active
+                              if paper_tier.get(pid, -1) >= 0
+                              and papers_by_id.get(pid, {}).get("decision") not in ("Withdraw", "Desk Reject")])
+        if len(shared_tier) > 20:
+            sp = scipy_stats.spearmanr([active[p] for p in shared_tier], [paper_tier[p] for p in shared_tier])
+            point["ai_vs_committee"] = round(float(sp.statistic), 4)
+
+        return point
+
+    for i, m in enumerate(ai_matches):
+        p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
+        if p1 not in ratings:
+            ratings[p1] = env.create_rating()
+        if p2 not in ratings:
+            ratings[p2] = env.create_rating()
+
+        r1, r2 = ratings[p1], ratings[p2]
+        if w == p1:
+            (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[0, 1])
+        else:
+            (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[1, 0])
+        ratings[p1] = nr1
+        ratings[p2] = nr2
+        match_counts[p1] += 1
+        match_counts[p2] += 1
+
+        papers_with = [pid for pid in all_paper_ids if match_counts[pid] > 0]
+        current_avg = sum(match_counts[pid] for pid in papers_with) / len(papers_with) if papers_with else 0
+
+        if next_cp_idx < len(checkpoints) and current_avg >= checkpoints[next_cp_idx]:
+            ts_scores = _get_ts_scores()
+            results.append(_compute_correlations(ts_scores, current_avg, i + 1))
+            next_cp_idx += 1
+
+    # Fill any remaining checkpoints with the final state
+    if results and next_cp_idx < len(checkpoints):
+        ts_scores = _get_ts_scores()
+        papers_with = [pid for pid in all_paper_ids if match_counts[pid] > 0]
+        final_avg = sum(match_counts[pid] for pid in papers_with) / len(papers_with) if papers_with else 0
+        final_point = _compute_correlations(ts_scores, final_avg, len(ai_matches))
+        results.append(final_point)
+
+    return {
+        "status": "ok",
+        "checkpoints": results,
+        "current_avg": round(sum(match_counts.values()) / max(len([p for p in all_paper_ids if match_counts[p] > 0]), 1), 1),
+        "total_matches": len(ai_matches),
+    }

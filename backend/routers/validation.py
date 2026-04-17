@@ -24,7 +24,7 @@ from scipy import stats as scipy_stats
 from core.config import db, logger, DEFAULT_EVALUATION_PROMPT, TIE_ALLOWED_PROMPT, MULTI_ASPECT_PROMPT
 from core.auth import verify_admin, get_settings
 from services.llm import compare_papers
-from services.ranking import compute_leaderboard, compute_leaderboard_async
+from services.ranking import compute_leaderboard, compute_leaderboard_async, compute_leaderboard_ts_async
 from routers.validation_utils import collect_all
 from services.task_tracker import TaskTracker
 from routers.validation_utils import (
@@ -551,7 +551,7 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
             for p, v in full_pairs.items() if mk in v
         ]
         mp = [p for p in papers if p["id"] in paper_ids]
-        lb = await compute_leaderboard_async(mp, model_matches)
+        lb = await compute_leaderboard_ts_async(mp, model_matches)
         model_rankings[mk] = {e["id"]: e["rank"] for e in lb}
 
     # Inter-model rank correlation
@@ -650,8 +650,8 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
         cp = [p for p in papers if p["id"] in common]
         ch = [m for m in human_matches if m["paper1_id"] in common and m["paper2_id"] in common]
         cm = [m for m in maj_matches if m["paper1_id"] in common and m["paper2_id"] in common]
-        h_lb = await compute_leaderboard_async(cp, ch)
-        m_lb = await compute_leaderboard_async(cp, cm)
+        h_lb = await compute_leaderboard_ts_async(cp, ch)
+        m_lb = await compute_leaderboard_ts_async(cp, cm)
         h_rank = {e["id"]: e["rank"] for e in h_lb}
         m_rank = {e["id"]: e["rank"] for e in m_lb}
         ids = sorted(common)
@@ -685,8 +685,8 @@ async def get_multimodel_results(dataset_id: str = Query(...), content_mode: Opt
         ucp = [p for p in papers if p["id"] in u_common]
         uch = [m for m in human_matches if m["paper1_id"] in u_common and m["paper2_id"] in u_common]
         ucm = [m for m in una_matches if m["paper1_id"] in u_common and m["paper2_id"] in u_common]
-        uh_lb = await compute_leaderboard_async(ucp, uch)
-        um_lb = await compute_leaderboard_async(ucp, ucm)
+        uh_lb = await compute_leaderboard_ts_async(ucp, uch)
+        um_lb = await compute_leaderboard_ts_async(ucp, ucm)
         uh_rank = {e["id"]: e["rank"] for e in uh_lb}
         um_rank = {e["id"]: e["rank"] for e in um_lb}
         u_ids_sorted = sorted(u_common)
@@ -1710,8 +1710,8 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
     ch = [m for m in human_matches if m["paper1_id"] in common and m["paper2_id"] in common]
     ca = [m for m in ai_matches if m["paper1_id"] in common and m["paper2_id"] in common]
 
-    h_lb = await compute_leaderboard_async(cp, ch)
-    a_lb = await compute_leaderboard_async(cp, ca)
+    h_lb = await compute_leaderboard_ts_async(cp, ch)
+    a_lb = await compute_leaderboard_ts_async(cp, ca)
     h_rank = {e["id"]: e for e in h_lb}
     a_rank = {e["id"]: e for e in a_lb}
 
@@ -1741,7 +1741,7 @@ async def _compute_pairwise_results(dataset_id: str, abstract_only: Optional[boo
                             "completed": True, "failed": False})
             if len(dim_h_matches) >= 10:
                 dim_cp = [p for p in cp if p["id"] in set(dim_pids)]
-                dim_h_lb = await compute_leaderboard_async(dim_cp, dim_h_matches)
+                dim_h_lb = await compute_leaderboard_ts_async(dim_cp, dim_h_matches)
                 dim_h_score = {e["id"]: e["score"] for e in dim_h_lb}
                 dim_h_rank = {e["id"]: e["rank"] for e in dim_h_lb}
                 dim_shared = sorted([pid for pid in dim_pids if pid in dim_h_score and pid in a_rank])
@@ -2078,7 +2078,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         h_largest_component = h_component_sizes[0] if h_component_sizes else 0
 
         h_papers = [p for p in papers if p["id"] in h_ids]
-        gt_lb = await compute_leaderboard_async(h_papers, human_matches)
+        gt_lb = await compute_leaderboard_ts_async(h_papers, human_matches)
         gt_rank = {e["id"]: e["rank"] for e in gt_lb}
         gt_score = {e["id"]: e["score"] for e in gt_lb}
         top_k_values = [top_k_focus] if top_k_focus < len(h_ids) else [min(10, len(h_ids) - 1)]
@@ -2147,7 +2147,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
                 return 0
             h_papers = [{"id": pid, "title": ""} for pid in common_d]
             try:
-                h_lb = await compute_leaderboard_async(h_papers, h_matches)
+                h_lb = await compute_leaderboard_ts_async(h_papers, h_matches)
                 # Use BT SCORES (not ranks) to handle ties correctly
                 # Papers with identical scores (same tier) get average ranks in Spearman
                 h_score = {e["id"]: e["score"] for e in h_lb}
@@ -2247,7 +2247,7 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
         avg_matches = round(_cum_avg[n_matches], 1)
         papers_covered = _cum_active[n_matches]
 
-        sub_lb = await compute_leaderboard_async(papers, subset)
+        sub_lb = await compute_leaderboard_ts_async(papers, subset)
         sub_rank = {e["id"]: e["rank"] for e in sub_lb}
 
         common = [pid for pid in paper_ids if pid in gt_rank and pid in sub_rank]
@@ -2445,7 +2445,7 @@ async def _compute_convergence_and_cache(dataset_id: str, steps: int = 20):
     h_largest_component = max(len(c) for c in h_components) if h_components else 0
 
     h_papers = [p for p in papers if p["id"] in h_ids]
-    gt_lb = await compute_leaderboard_async(h_papers, human_matches)
+    gt_lb = await compute_leaderboard_ts_async(h_papers, human_matches)
     gt_rank = {e["id"]: e["rank"] for e in gt_lb}
     gt_score = {e["id"]: e["score"] for e in gt_lb}
     top_k_values = [top_k_focus] if top_k_focus < len(h_ids) else [min(10, len(h_ids) - 1)]
@@ -2570,7 +2570,7 @@ async def _compute_irt_results(dataset_id: str, abstract_only, content_mode):
     raw_sorted = sorted(common, key=lambda pid: -paper_raw.get(pid, 0))
     raw_rank = {pid: i + 1 for i, pid in enumerate(raw_sorted)}
 
-    a_lb = await compute_leaderboard_async(cp, ca)
+    a_lb = await compute_leaderboard_ts_async(cp, ca)
     a_lookup = {e["id"]: e for e in a_lb}
 
     ids = sorted(common)
@@ -3157,7 +3157,7 @@ async def _compute_cross_mode_agreement(dataset_id: str):
                 continue
 
             tier_papers_list = [p for p in papers if p["id"] in tier_paper_ids]
-            ai_lb = await compute_leaderboard_async(tier_papers_list, tier_matches)
+            ai_lb = await compute_leaderboard_ts_async(tier_papers_list, tier_matches)
             ai_rank_map = {e["id"]: e["rank"] for e in ai_lb}
 
             # Tier pair accuracy: for each pair of papers in different tiers,
@@ -3371,7 +3371,7 @@ async def _compute_dual_dimension_results(dataset_id: str, content_mode: Optiona
         return {"status": "insufficient_data"}
 
     # Compute AI BT ranking
-    a_lb = await compute_leaderboard_async(cp, ca)
+    a_lb = await compute_leaderboard_ts_async(cp, ca)
     a_rank = {e["id"]: e for e in a_lb}
 
     # Build score maps

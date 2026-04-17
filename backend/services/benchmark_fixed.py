@@ -39,28 +39,40 @@ def safe_round(v, n=4):
 
 
 def _simple_wr_scores(pair_winners, paper_ids):
-    """Regularized win-rate scores from pairwise winners. Returns {paper_id: score}.
+    """TrueSkill scores from pairwise winners. Returns {paper_id: score}.
     
-    Note: Despite historical variable names, this is NOT Bradley-Terry MLE.
-    It computes a Laplace-smoothed win-rate on an Elo-like log-odds scale.
+    Computes TrueSkill ratings from the match outcomes and returns
+    conservative scores (mu - 3*sigma) on an Elo-like scale (base 1200).
     """
-    wins = Counter()
-    comparisons = Counter()
+    import trueskill
+    env = trueskill.TrueSkill(draw_probability=0.0)
+    ratings = {}
+
     for pair, winner in pair_winners:
         a, b = pair
-        comparisons[a] += 1
-        comparisons[b] += 1
-        wins[winner] += 1
-    # Regularized win-rate score (same as leaderboard)
+        if a not in ratings:
+            ratings[a] = env.create_rating()
+        if b not in ratings:
+            ratings[b] = env.create_rating()
+
+        r_a, r_b = ratings[a], ratings[b]
+        if winner == a:
+            (nr_a,), (nr_b,) = env.rate([(r_a,), (r_b,)], ranks=[0, 1])
+        else:
+            (nr_a,), (nr_b,) = env.rate([(r_a,), (r_b,)], ranks=[1, 0])
+        ratings[a] = nr_a
+        ratings[b] = nr_b
+
+    TS_SCALE = 10.0
+    SCORE_BASE = 1200
     scores = {}
     for pid in paper_ids:
-        w = wins.get(pid, 0)
-        c = comparisons.get(pid, 0)
-        if c == 0:
-            scores[pid] = 0.0
+        if pid in ratings:
+            r = ratings[pid]
+            conservative = r.mu - 3 * r.sigma
+            scores[pid] = conservative * TS_SCALE + SCORE_BASE
         else:
-            p = max(0.02, min(0.98, (w + 0.5) / (c + 1.0)))
-            scores[pid] = 400.0 * math.log10(p / (1 - p))
+            scores[pid] = float(SCORE_BASE)
     return scores
 
 RANKABLE_TIERS = {"oral", "spotlight", "poster", "reject"}

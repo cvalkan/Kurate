@@ -300,6 +300,81 @@ async def compute_leaderboard_async(papers: List[dict], matches: List[dict]) -> 
     return await loop.run_in_executor(_compute_pool, compute_leaderboard, papers, matches)
 
 
+def compute_leaderboard_trueskill(papers: List[dict], matches: List[dict]) -> List[dict]:
+    """TrueSkill-based leaderboard. Same interface as compute_leaderboard but uses
+    TrueSkill ratings (mu - 3*sigma on Elo scale) instead of regularized win-rate."""
+    import trueskill
+    import hashlib
+    paper_ids = [p["id"] for p in papers]
+    SCORE_BASE = 1200
+    TS_SCALE = 10.0
+
+    if not paper_ids or not matches:
+        sorted_papers = sorted(papers, key=lambda p: hashlib.sha256(p["title"].encode()).hexdigest(), reverse=True)
+        return [{"id": p["id"], "rank": i + 1, "title": p["title"], "authors": p.get("authors", []),
+                 "arxiv_id": p.get("arxiv_id", ""), "link": p.get("link", ""), "published": p.get("published", ""),
+                 "score": SCORE_BASE, "ci": 0, "wins": 0, "losses": 0, "comparisons": 0,
+                 "confidence": calculate_confidence_interval(0, 0)} for i, p in enumerate(sorted_papers)]
+
+    env = trueskill.TrueSkill(draw_probability=0.0)
+    ratings = {pid: env.create_rating() for pid in paper_ids}
+    stats = {pid: {"wins": 0, "losses": 0, "comparisons": 0} for pid in paper_ids}
+
+    for match in matches:
+        if match.get("completed") and match.get("winner_id") and not match.get("failed"):
+            p1, p2 = match["paper1_id"], match["paper2_id"]
+            winner = match["winner_id"]
+            loser = p2 if winner == p1 else p1
+            if winner in stats:
+                stats[winner]["wins"] += 1
+                stats[winner]["comparisons"] += 1
+            if loser in stats:
+                stats[loser]["losses"] += 1
+                stats[loser]["comparisons"] += 1
+            if p1 in ratings and p2 in ratings:
+                r1, r2 = ratings[p1], ratings[p2]
+                if winner == p1:
+                    (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[0, 1])
+                else:
+                    (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[1, 0])
+                ratings[p1] = nr1
+                ratings[p2] = nr2
+
+    ts_scores = {}
+    for pid in paper_ids:
+        r = ratings[pid]
+        ts_scores[pid] = round((r.mu - 3 * r.sigma) * TS_SCALE + SCORE_BASE)
+
+    paper_lookup = {p["id"]: p for p in papers}
+    def _title_hash(pid):
+        title = paper_lookup.get(pid, {}).get("title", pid)
+        return hashlib.sha256(title.encode()).hexdigest()
+
+    ranked = sorted(paper_ids, key=lambda pid: (ts_scores.get(pid, SCORE_BASE), _title_hash(pid)), reverse=True)
+    entries = []
+    for i, pid in enumerate(ranked):
+        s = stats.get(pid, {"wins": 0, "losses": 0, "comparisons": 0})
+        p = paper_lookup.get(pid, {})
+        wr = s["wins"] / s["comparisons"] * 100 if s["comparisons"] else 50
+        entries.append({
+            "id": pid, "rank": i + 1, "title": p.get("title", ""),
+            "authors": p.get("authors", []), "arxiv_id": p.get("arxiv_id", ""),
+            "link": p.get("link", ""), "published": p.get("published", ""),
+            "score": ts_scores.get(pid, SCORE_BASE), "ci": 0,
+            "wins": s["wins"], "losses": s["losses"], "comparisons": s["comparisons"],
+            "win_rate": round(wr, 1),
+            "confidence": calculate_confidence_interval(s["wins"], s["comparisons"]),
+        })
+    return entries
+
+
+async def compute_leaderboard_ts_async(papers: List[dict], matches: List[dict]) -> List[dict]:
+    """Run compute_leaderboard_trueskill in a thread pool."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_compute_pool, compute_leaderboard_trueskill, papers, matches)
+
+
+
 def compute_bt_ranking_scores(matches: List[dict], paper_ids: List[str]) -> Dict[str, float]:
     """Compute Bradley-Terry MLE strengths for ranking correlation analysis.
 
